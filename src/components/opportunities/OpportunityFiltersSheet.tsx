@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 
 export interface OpportunityFilters {
   statuses: string[];
@@ -96,6 +97,33 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
     }));
   };
 
+  const applyFilters = () => {
+    const normalized: OpportunityFilters = {
+      ...local,
+      source: local.source.trim(),
+      valueMin: local.valueMin.trim(),
+      valueMax: local.valueMax.trim(),
+    };
+    const min = normalized.valueMin ? Number(normalized.valueMin) : null;
+    const max = normalized.valueMax ? Number(normalized.valueMax) : null;
+
+    if ((min !== null && (!Number.isFinite(min) || min < 0)) || (max !== null && (!Number.isFinite(max) || max < 0))) {
+      toast.error("I valori economici dei filtri devono essere numeri positivi");
+      return;
+    }
+    if (min !== null && max !== null && min > max) {
+      toast.error("Il valore minimo non può essere maggiore del valore massimo");
+      return;
+    }
+    if (normalized.dateFrom && normalized.dateTo && normalized.dateFrom > normalized.dateTo) {
+      toast.error("La data iniziale non può essere successiva alla data finale");
+      return;
+    }
+
+    onApply(normalized);
+    onOpenChange(false);
+  };
+
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent side="right" className="w-[340px] sm:w-[380px] flex flex-col">
@@ -170,6 +198,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
                 <Label className="text-xs text-muted-foreground">Min (€)</Label>
                 <Input
                   type="number"
+                  min="0"
                   placeholder="0"
                   value={local.valueMin}
                   onChange={(e) => setLocal((p) => ({ ...p, valueMin: e.target.value }))}
@@ -180,6 +209,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
                 <Label className="text-xs text-muted-foreground">Max (€)</Label>
                 <Input
                   type="number"
+                  min="0"
                   placeholder="∞"
                   value={local.valueMax}
                   onChange={(e) => setLocal((p) => ({ ...p, valueMax: e.target.value }))}
@@ -252,10 +282,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
           <Button
             size="sm"
             className="flex-1"
-            onClick={() => {
-              onApply(local);
-              onOpenChange(false);
-            }}
+            onClick={applyFilters}
           >
             Applica filtri
           </Button>

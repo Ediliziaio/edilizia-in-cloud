@@ -17,6 +17,7 @@ interface ListProps {
   opportunities: any[];
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;
+  canEdit?: boolean;
 }
 
 export const OpportunityListView = memo(function OpportunityListView({
@@ -24,6 +25,7 @@ export const OpportunityListView = memo(function OpportunityListView({
   opportunities,
   selectedIds,
   onSelect,
+  canEdit = true,
 }: ListProps) {
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
   const [mobileStageId, setMobileStageId] = useState<string | null>(null);
@@ -373,6 +375,7 @@ export const OpportunityListView = memo(function OpportunityListView({
         open={!!selectedOpp}
         onOpenChange={(open) => { if (!open) setSelectedOpp(null); }}
         stages={stages}
+        canEdit={canEdit}
       />
     </>
   );

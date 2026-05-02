@@ -2,15 +2,17 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/table-pagination";
-import { format, addMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay, startOfYear, startOfWeek } from "date-fns";
+import { format, addMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay, endOfDay, startOfYear, startOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Clock, FilterX, Search, TrendingDown, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { useTableSort } from "@/hooks/useTableSort";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
@@ -51,6 +53,7 @@ interface CashForecastTabProps {
 type FilterCategory = "all" | "income" | "expenses";
 
 interface UnifiedTransaction {
+  sourceKey: string;
   date: Date | null;
   description: string;
   orderCode: string | null;
@@ -69,6 +72,8 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [activePreset, setActivePreset] = useState<string>("all");
   const [customPopoverOpen, setCustomPopoverOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const thisMonthEnd = endOfMonth(now);
 
@@ -79,14 +84,21 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
     const inRange = (d: Date | null) => d && isWithinInterval(d, { start, end });
 
     const income = expectedPayments.filter(p => inRange(p.expectedDate)).reduce((s, p) => s + p.amount, 0);
+    const scadenzeIncome = scadenzeForForecast
+      .filter(s => s.direction === "entrata" && inRange(s.expectedDate))
+      .reduce((s, item) => s + item.amount, 0);
     const expExternal = expectedExpenses.filter(e => !e.isPaid && inRange(e.expectedDate)).reduce((s, e) => s + e.amount, 0);
     const expCommissions = expectedCommissions.filter(c => inRange(c.expectedDate)).reduce((s, c) => s + c.amount, 0);
     const expSupplier = expectedSupplierPayments.filter(p => !p.isPaid && inRange(p.expectedDate)).reduce((s, p) => s + p.amount, 0);
     const expCosts = expectedCompanyCosts.filter(c => inRange(c.expectedDate)).reduce((s, c) => s + c.amount, 0);
+    const scadenzeExpenses = scadenzeForForecast
+      .filter(s => s.direction === "uscita" && inRange(s.expectedDate))
+      .reduce((s, item) => s + item.amount, 0);
 
-    const expenses = expExternal + expCommissions + expSupplier + expCosts;
-    return { income, expenses, net: income - expenses };
-  }, [customMonths, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts]);
+    const totalIncome = income + scadenzeIncome;
+    const expenses = expExternal + expCommissions + expSupplier + expCosts + scadenzeExpenses;
+    return { income: totalIncome, expenses, net: totalIncome - expenses };
+  }, [customMonths, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast]);
 
   // Preset logic
   const applyPreset = (preset: string) => {
@@ -122,17 +134,18 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
     }
   };
 
-  const transactions = useMemo<UnifiedTransaction[]>(() => {
+  const allTransactions = useMemo<UnifiedTransaction[]>(() => {
     const items: UnifiedTransaction[] = [];
 
-    expectedPayments.forEach(p => items.push({ date: p.expectedDate, description: p.customerName, orderCode: p.orderCode, category: p.type, amount: p.amount, direction: "in", orderId: p.orderId }));
-    expectedExpenses.forEach(e => items.push({ date: e.expectedDate, description: e.teamName, orderCode: e.orderCode, category: "Squadra Esterna", amount: e.amount, direction: "out", orderId: e.orderId }));
-    expectedCommissions.forEach(c => items.push({ date: c.expectedDate, description: c.salespersonName, orderCode: c.orderCode, category: "Provvigione", amount: c.amount, direction: "out", orderId: c.orderId }));
-    expectedSupplierPayments.filter(p => !p.isPaid).forEach(s => items.push({ date: s.expectedDate, description: s.supplierName, orderCode: s.orderCode, category: s.type, amount: s.amount, direction: "out", orderId: s.orderId }));
-    expectedCompanyCosts.forEach(c => items.push({ date: c.expectedDate, description: c.name, orderCode: null, category: c.type, amount: c.amount, direction: "out", orderId: null }));
+    expectedPayments.forEach(p => items.push({ sourceKey: `installment:${p.orderId}:${p.type}:${p.amount}:${p.expectedDate?.toISOString() || "no-date"}`, date: p.expectedDate, description: p.customerName, orderCode: p.orderCode, category: p.type, amount: p.amount, direction: "in", orderId: p.orderId }));
+    expectedExpenses.forEach(e => items.push({ sourceKey: `external-team:${e.orderId}:${e.teamName}:${e.amount}:${e.expectedDate?.toISOString() || "no-date"}`, date: e.expectedDate, description: e.teamName, orderCode: e.orderCode, category: "Squadra Esterna", amount: e.amount, direction: "out", orderId: e.orderId }));
+    expectedCommissions.forEach(c => items.push({ sourceKey: `commission:${c.orderId}:${c.salespersonName}:${c.amount}:${c.expectedDate?.toISOString() || "no-date"}`, date: c.expectedDate, description: c.salespersonName, orderCode: c.orderCode, category: "Provvigione", amount: c.amount, direction: "out", orderId: c.orderId }));
+    expectedSupplierPayments.filter(p => !p.isPaid).forEach(s => items.push({ sourceKey: `supplier:${s.orderItemId}:${s.type}:${s.amount}:${s.expectedDate?.toISOString() || "no-date"}`, date: s.expectedDate, description: s.supplierName, orderCode: s.orderCode, category: s.type, amount: s.amount, direction: "out", orderId: s.orderId }));
+    expectedCompanyCosts.forEach(c => items.push({ sourceKey: `company-cost:${c.id}`, date: c.expectedDate, description: c.name, orderCode: null, category: c.type, amount: c.amount, direction: "out", orderId: null }));
 
     // Add scadenze as transactions
     scadenzeForForecast.forEach(s => items.push({
+      sourceKey: `scadenza:${s.id}`,
       date: s.expectedDate,
       description: s.description + (s.supplierName ? ` (${s.supplierName})` : ""),
       orderCode: s.orderNumber || null,
@@ -143,21 +156,57 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
     }));
 
     return items
-      .filter(t => filter === "all" || (filter === "income" ? t.direction === "in" : t.direction === "out"))
-      .filter(t => {
-        if (!dateFrom && !dateTo) return true;
-        if (!t.date) return true;
-        if (dateFrom && t.date < startOfDay(dateFrom)) return false;
-        if (dateTo && t.date > endOfMonth(dateTo)) return false;
-        return true;
-      })
       .sort((a, b) => {
         if (!a.date && !b.date) return 0;
         if (!a.date) return 1;
         if (!b.date) return -1;
         return a.date.getTime() - b.date.getTime();
       });
-  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, filter, dateFrom, dateTo]);
+  }, [expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast]);
+
+  const availableCategories = useMemo(() => {
+    return Array.from(new Set(allTransactions.map(t => t.category).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  }, [allTransactions]);
+
+  const transactions = useMemo<UnifiedTransaction[]>(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return allTransactions
+      .filter(t => filter === "all" || (filter === "income" ? t.direction === "in" : t.direction === "out"))
+      .filter(t => categoryFilter === "all" || t.category === categoryFilter)
+      .filter(t => {
+        if (!query) return true;
+        return (
+          t.description.toLowerCase().includes(query) ||
+          (t.orderCode || "").toLowerCase().includes(query) ||
+          t.category.toLowerCase().includes(query)
+        );
+      })
+      .filter(t => {
+        if (!dateFrom && !dateTo) return true;
+        if (!t.date) return true;
+        if (dateFrom && t.date < startOfDay(dateFrom)) return false;
+        if (dateTo && t.date > endOfDay(dateTo)) return false;
+        return true;
+      });
+  }, [allTransactions, filter, categoryFilter, searchQuery, dateFrom, dateTo]);
+
+  const hasActiveFilters = filter !== "all" ||
+    categoryFilter !== "all" ||
+    searchQuery.trim().length > 0 ||
+    activePreset !== "all" ||
+    !!dateFrom ||
+    !!dateTo;
+
+  const resetFilters = () => {
+    setFilter("all");
+    setCategoryFilter("all");
+    setSearchQuery("");
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setActivePreset("all");
+    setCustomPopoverOpen(false);
+  };
 
   const txAccessors = useMemo(() => ({
     date: (t: UnifiedTransaction) => t.date,
@@ -174,6 +223,20 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
   const cumulativeNet = useMemo(() => {
     return transactions.reduce((sum, t) => sum + (t.direction === "in" ? t.amount : -t.amount), 0);
   }, [transactions]);
+
+  const initialBalance = primaNotaSaldo?.saldo ?? 0;
+  const projectedFinalBalance = initialBalance + cumulativeNet;
+
+  const cashControl = useMemo(() => {
+    const today = startOfDay(now);
+    const income = transactions.filter(t => t.direction === "in").reduce((sum, t) => sum + t.amount, 0);
+    const expenses = transactions.filter(t => t.direction === "out").reduce((sum, t) => sum + t.amount, 0);
+    const overdueIncome = transactions.filter(t => t.direction === "in" && t.date && t.date < today).reduce((sum, t) => sum + t.amount, 0);
+    const overdueExpenses = transactions.filter(t => t.direction === "out" && t.date && t.date < today).reduce((sum, t) => sum + t.amount, 0);
+    const undatedCount = transactions.filter(t => !t.date).length;
+
+    return { income, expenses, overdueIncome, overdueExpenses, undatedCount };
+  }, [transactions, now]);
 
   // Weekly cumulative chart data
   const weeklyChartData = useMemo(() => {
@@ -238,6 +301,26 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
         </Alert>
       )}
 
+      {projectedFinalBalance < 0 && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Saldo finale previsto negativo</AlertTitle>
+          <AlertDescription>
+            Con il saldo iniziale attuale e i movimenti filtrati, la cassa prevista chiude a {formatCurrency(projectedFinalBalance)}.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {cashControl.undatedCount > 0 && (
+        <Alert className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-700 [&>svg]:text-amber-600">
+          <Clock className="h-4 w-4" />
+          <AlertTitle>Movimenti senza data prevista</AlertTitle>
+          <AlertDescription>
+            {cashControl.undatedCount} moviment{cashControl.undatedCount === 1 ? "o non ha" : "i non hanno"} una scadenza: completali per rendere il previsionale più affidabile.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* 30/60/90 Forecast Widget */}
       {primaNotaSaldo && (
         <CashFlowForecast306090
@@ -251,6 +334,48 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
         />
       )}
 
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">Saldo iniziale</p>
+              <Badge variant="outline">Prima nota</Badge>
+            </div>
+            <p className="mt-2 text-2xl font-bold tabular-nums">{formatCurrency(initialBalance)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{primaNotaSaldo?.entry_count ?? 0} movimenti consolidati</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">Entrate filtrate</p>
+              <TrendingUp className="h-4 w-4 text-emerald-600" />
+            </div>
+            <p className="mt-2 text-2xl font-bold tabular-nums text-emerald-600">{formatCurrency(cashControl.income)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(cashControl.overdueIncome)} già scadute</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">Uscite filtrate</p>
+              <TrendingDown className="h-4 w-4 text-red-600" />
+            </div>
+            <p className="mt-2 text-2xl font-bold tabular-nums text-red-600">{formatCurrency(cashControl.expenses)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(cashControl.overdueExpenses)} già scadute</p>
+          </CardContent>
+        </Card>
+        <Card className={cn(projectedFinalBalance < 0 && "border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20")}>
+          <CardContent className="pt-5">
+            <p className="text-sm font-medium text-muted-foreground">Saldo finale previsto</p>
+            <p className={cn("mt-2 text-2xl font-bold tabular-nums", projectedFinalBalance >= 0 ? "text-emerald-600" : "text-red-600")}>
+              {formatCurrency(projectedFinalBalance)}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">saldo iniziale + netto periodo</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card className={cn(
         "border",
         cumulativeNet >= 0
@@ -258,12 +383,12 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
           : "border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20"
       )}>
         <CardContent className="pt-6 pb-4">
-          <p className="text-sm font-medium text-muted-foreground">Saldo Cumulativo Periodo</p>
+          <p className="text-sm font-medium text-muted-foreground">Saldo Netto Periodo</p>
           <p className={cn("text-3xl font-bold tabular-nums", cumulativeNet >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
             {formatCurrency(cumulativeNet)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Alla fine del periodo il saldo previsto sarà {cumulativeNet >= 0 ? "positivo" : "negativo"}
+            Differenza tra entrate e uscite dei movimenti filtrati
           </p>
         </CardContent>
       </Card>
@@ -358,6 +483,15 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
           <div className="flex flex-col gap-3">
             <CardTitle className="text-lg">Tutti i movimenti previsti</CardTitle>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+              <div className="relative w-full sm:w-[260px]">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cerca descrizione, ordine o categoria..."
+                  className="h-8 pl-8 text-xs"
+                />
+              </div>
               <div className="flex flex-wrap items-center border rounded-md">
                 {([
                   { key: "thisMonth", label: "Questo mese" },
@@ -412,6 +546,21 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
                   <SelectItem value="expenses">Solo uscite</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-[190px] h-8 text-xs">
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte le categorie</SelectItem>
+                  {availableCategories.map(category => (
+                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={resetFilters} disabled={!hasActiveFilters} className="h-8 gap-1 text-xs">
+                <FilterX className="h-3.5 w-3.5" />
+                Pulisci
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -431,9 +580,9 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedTx.map((t, i) => (
+                  {paginatedTx.map((t) => (
                     <TableRow
-                      key={i}
+                      key={t.sourceKey}
                       className={t.orderId ? "cursor-pointer hover:bg-muted/50" : ""}
                       onClick={() => t.orderId && navigate(`/azienda/ordini/${t.orderId}`)}
                     >

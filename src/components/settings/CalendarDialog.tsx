@@ -246,6 +246,24 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex flex-wrap gap-1.5">
+              {[30, 45, 60, 90, 120].map((mins) => (
+                <Button
+                  key={mins}
+                  type="button"
+                  variant={form.duration_minutes === mins ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    setDurationUnit(mins >= 60 && mins % 60 === 0 ? "hours" : "minutes");
+                    setDurationValue(mins >= 60 && mins % 60 === 0 ? mins / 60 : mins);
+                    setForm(f => ({ ...f, duration_minutes: mins }));
+                  }}
+                >
+                  {mins < 60 ? `${mins} min` : `${mins / 60}h`}
+                </Button>
+              ))}
+            </div>
           </div>
 
           {/* Km massimi giornalieri */}

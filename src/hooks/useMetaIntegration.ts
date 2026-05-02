@@ -79,6 +79,10 @@ export function useMetaIntegration(integration: Integration | null) {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
+      if (!token) {
+        toast.error("Sessione scaduta. Effettua di nuovo l'accesso.");
+        return null;
+      }
 
       const res = await fetch(
         `${SUPABASE_URL}/functions/v1/meta-oauth-start`,
@@ -112,6 +116,9 @@ export function useMetaIntegration(integration: Integration | null) {
 
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
+      if (!token) {
+        throw new Error("Sessione scaduta. Effettua di nuovo l'accesso.");
+      }
 
       const res = await fetch(
         `${SUPABASE_URL}/functions/v1/meta-api-proxy`,
@@ -154,7 +161,19 @@ export function useMetaIntegration(integration: Integration | null) {
 
   // Save form status
   const updateFormStatus = useMutation({
-    mutationFn: async ({ formId, status, syncMode }: { formId: string; status: string; syncMode?: string }) => {
+    mutationFn: async ({
+      formId,
+      formName,
+      pageAssetId,
+      status,
+      syncMode,
+    }: {
+      formId: string;
+      formName?: string;
+      pageAssetId?: string;
+      status: string;
+      syncMode?: string;
+    }) => {
       if (!companyId || !integration?.id) throw new Error("Missing context");
 
       // Upsert form record
@@ -165,7 +184,8 @@ export function useMetaIntegration(integration: Integration | null) {
             company_id: companyId,
             integration_id: integration.id,
             form_id: formId,
-            form_name: formId, // will be updated with actual name
+            form_name: formName || formId,
+            page_asset_id: pageAssetId || null,
             status,
             sync_mode: syncMode || "new_only",
             updated_at: new Date().toISOString(),

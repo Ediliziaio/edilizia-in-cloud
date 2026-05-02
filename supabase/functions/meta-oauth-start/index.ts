@@ -18,6 +18,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -36,6 +37,27 @@ Deno.serve(async (req) => {
     if (!company_id) {
       return new Response(JSON.stringify({ error: "company_id required" }), {
         status: 400,
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const [profileRes, rolesRes] = await Promise.all([
+      adminClient
+        .from("profiles")
+        .select("company_id")
+        .eq("id", userId)
+        .maybeSingle(),
+      adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId),
+    ]);
+    const userCompanyId = profileRes.data?.company_id ?? null;
+    const isSuperAdmin = (rolesRes.data ?? []).some((r) => r.role === "super_admin");
+    if (!isSuperAdmin && userCompanyId !== company_id) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
@@ -78,7 +100,7 @@ Deno.serve(async (req) => {
 
     const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${encodeURIComponent(signedState)}&scope=${encodeURIComponent(scopes)}&response_type=code`;
 
-    return new Response(JSON.stringify({ oauth_url: oauthUrl, state: signedState }), {
+    return new Response(JSON.stringify({ oauth_url: oauthUrl }), {
       status: 200,
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });

@@ -31,6 +31,53 @@ import {
 import { Fragment, useEffect, useState, useMemo, type ReactNode } from "react";
 import type { AutomationFlow } from "@/types/automationBuilder";
 
+type AutomationNodeRow = {
+  flow_id?: string;
+  node_type: string;
+  config_json: Record<string, unknown> | null;
+};
+
+const PUBLISHABLE_NODE_TYPES = new Set(["action", "condition", "delay", "goal", "split"]);
+
+function hasDelayDuration(config: Record<string, unknown> | null | undefined): boolean {
+  const value = config?.delay_durata ?? config?.delay_value;
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0;
+}
+
+function validateAutomationForPublish(nodes: AutomationNodeRow[] | null | undefined): string[] {
+  const rows = nodes ?? [];
+  const errors: string[] = [];
+  const hasTrigger = rows.some(n => n.node_type === "trigger");
+  const hasPublishableStep = rows.some(n => PUBLISHABLE_NODE_TYPES.has(n.node_type));
+
+  if (!hasTrigger) errors.push("Aggiungi almeno un trigger prima di pubblicare.");
+  if (!hasPublishableStep) errors.push("Aggiungi almeno un'azione dopo il trigger.");
+
+  const incompleteAction = rows.find(n => {
+    if (n.node_type !== "action") return false;
+    const config = n.config_json ?? {};
+    return !config.itemId && !config.item_id && !config.action_type;
+  });
+  if (incompleteAction) errors.push("Completa tutte le azioni prima di pubblicare.");
+
+  const incompleteDelay = rows.find(n => n.node_type === "delay" && !hasDelayDuration(n.config_json));
+  if (incompleteDelay) errors.push("Imposta una durata valida per tutte le attese.");
+
+  return errors;
+}
+
+function summarizeNodes(nodes: AutomationNodeRow[] | undefined) {
+  const rows = nodes ?? [];
+  const errors = validateAutomationForPublish(rows);
+  return {
+    triggerCount: rows.filter(n => n.node_type === "trigger").length,
+    actionCount: rows.filter(n => PUBLISHABLE_NODE_TYPES.has(n.node_type)).length,
+    issueCount: errors.length,
+    firstIssue: errors[0] ?? null,
+  };
+}
+
 // --- Lucide icons instead of emojis ---
 const CATEGORY_ICON_MAP: Record<string, { label: string; icon: ReactNode }> = {
   crm: { label: "CRM & Vendite", icon: <Users className="h-3.5 w-3.5" /> },
@@ -169,11 +216,45 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     gcTime: 15 * 60 * 1000,
   });
 
+  const { data: nodeSummaries } = useQuery({
+    queryKey: ["automation-node-summaries", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data, error } = await withClientTimeout(
+        supabase
+          .from("automation_nodes")
+          .select("flow_id, node_type, config_json")
+          .eq("company_id", effectiveCompany!.id)
+          .limit(10000),
+        "Caricamento struttura automazioni",
+      );
+      if (error) throw error;
+      const grouped: Record<string, AutomationNodeRow[]> = {};
+      for (const node of (data ?? []) as AutomationNodeRow[]) {
+        if (!node.flow_id) continue;
+        if (!grouped[node.flow_id]) grouped[node.flow_id] = [];
+        grouped[node.flow_id].push(node);
+      }
+      return Object.fromEntries(Object.entries(grouped).map(([flowId, nodes]) => [flowId, summarizeNodes(nodes)]));
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
+
   // --- Mutations (kept from original) ---
   const deleteMutation = useMutation({
     mutationFn: async (flowId: string) => {
-      const { data: flow } = await supabase.from("automation_flows").select("name").eq("id", flowId).maybeSingle();
-      const { error } = await supabase.from("automation_flows").delete().eq("id", flowId);
+      const { data: flow } = await supabase
+        .from("automation_flows")
+        .select("name")
+        .eq("id", flowId)
+        .eq("company_id", effectiveCompany!.id)
+        .maybeSingle();
+      const { error } = await supabase
+        .from("automation_flows")
+        .delete()
+        .eq("id", flowId)
+        .eq("company_id", effectiveCompany!.id);
       if (error) throw error;
       if (role === "super_admin" && user?.id) {
         await supabase.from("admin_audit_log").insert({
@@ -198,7 +279,11 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         .eq("folder_id", id)
         .eq("company_id", effectiveCompany!.id);
       if (detachError) throw detachError;
-      const { error } = await supabase.from("automation_folders").delete().eq("id", id);
+      const { error } = await supabase
+        .from("automation_folders")
+        .delete()
+        .eq("id", id)
+        .eq("company_id", effectiveCompany!.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -215,7 +300,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       const { data, error } = await supabase
         .from("automation_flows")
         .insert({
-          company_id: flow.company_id,
+          company_id: effectiveCompany!.id,
           name: `${flow.name} (copia)`,
           description: flow.description,
           status: "draft",
@@ -227,20 +312,28 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         .select()
         .single();
       if (error) throw error;
-      const { data: nodes } = await supabase.from("automation_nodes").select("*").eq("flow_id", flow.id);
+      const { data: nodes } = await supabase
+        .from("automation_nodes")
+        .select("*")
+        .eq("flow_id", flow.id)
+        .eq("company_id", effectiveCompany!.id);
       if (nodes && nodes.length > 0) {
         const idMap: Record<string, string> = {};
         const newNodes = nodes.map(n => {
           const newId = crypto.randomUUID();
           idMap[n.id] = newId;
-          return { id: newId, flow_id: data.id, company_id: n.company_id, node_type: n.node_type, position_x: n.position_x, position_y: n.position_y, config_json: n.config_json, label: n.label };
+          return { id: newId, flow_id: data.id, company_id: effectiveCompany!.id, node_type: n.node_type, position_x: n.position_x, position_y: n.position_y, config_json: n.config_json, label: n.label };
         });
         await supabase.from("automation_nodes").insert(newNodes);
-        const { data: conns } = await supabase.from("automation_connections").select("*").eq("flow_id", flow.id);
+        const { data: conns } = await supabase
+          .from("automation_connections")
+          .select("*")
+          .eq("flow_id", flow.id)
+          .eq("company_id", effectiveCompany!.id);
         if (conns && conns.length > 0) {
           const newConns = conns.map(c => ({
             flow_id: data.id,
-            company_id: c.company_id,
+            company_id: effectiveCompany!.id,
             from_node_id: idMap[c.from_node_id],
             to_node_id: idMap[c.to_node_id],
             label: c.label,
@@ -267,15 +360,23 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       if (status === "published") {
         const { data: nodeRows } = await supabase
           .from("automation_nodes")
-          .select("node_type")
+          .select("node_type, config_json")
           .eq("flow_id", id)
           .eq("company_id", effectiveCompany!.id);
-        const hasTrigger = nodeRows?.some(n => n.node_type === "trigger");
-        if (!hasTrigger) throw new Error("Aggiungi almeno un trigger prima di pubblicare.");
-        if (!nodeRows || nodeRows.length < 2) throw new Error("Aggiungi almeno un'azione dopo il trigger.");
+        const validationErrors = validateAutomationForPublish(nodeRows as AutomationNodeRow[]);
+        if (validationErrors.length > 0) throw new Error(validationErrors[0]);
       }
-      const { data: flow } = await supabase.from("automation_flows").select("name, status").eq("id", id).maybeSingle();
-      const { error } = await supabase.from("automation_flows").update({ status }).eq("id", id);
+      const { data: flow } = await supabase
+        .from("automation_flows")
+        .select("name, status")
+        .eq("id", id)
+        .eq("company_id", effectiveCompany!.id)
+        .maybeSingle();
+      const { error } = await supabase
+        .from("automation_flows")
+        .update({ status })
+        .eq("id", id)
+        .eq("company_id", effectiveCompany!.id);
       if (error) throw error;
       if (role === "super_admin" && user?.id) {
         await supabase.from("admin_audit_log").insert({
@@ -290,7 +391,11 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase.from("automation_flows").delete().in("id", ids);
+      const { error } = await supabase
+        .from("automation_flows")
+        .delete()
+        .eq("company_id", effectiveCompany!.id)
+        .in("id", ids);
       if (error) throw error;
       if (role === "super_admin" && user?.id) {
         await supabase.from("admin_audit_log").insert({
@@ -455,6 +560,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const renderFlowRow = (flow: AutomationFlow, indented = false) => {
     const badge = STATUS_BADGE[flow.status] || STATUS_BADGE.draft;
     const counts = enrollmentCounts?.[flow.id] || { total: 0, active: 0 };
+    const summary = nodeSummaries?.[flow.id] || { triggerCount: 0, actionCount: 0, issueCount: flow.status === "published" ? 0 : 1, firstIssue: "Struttura non ancora verificata" };
     const cat = CATEGORY_ICON_MAP[flow.category] || CATEGORY_ICON_MAP.generale;
     const folderName = flow.folder_id ? folderMap[flow.folder_id] : null;
 
@@ -476,6 +582,24 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         </TableCell>
         <TableCell>
           <Badge className={cn("text-xs", badge.className)}>{badge.label}</Badge>
+        </TableCell>
+        <TableCell>
+          {summary.issueCount > 0 ? (
+            <span className="inline-flex max-w-[220px] items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800" title={summary.firstIssue || undefined}>
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{summary.firstIssue}</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
+              <Play className="h-3.5 w-3.5" />
+              Pronta
+            </span>
+          )}
+        </TableCell>
+        <TableCell>
+          <span className="text-xs text-muted-foreground">
+            {summary.triggerCount} trigger · {summary.actionCount} step
+          </span>
         </TableCell>
         <TableCell>
           {folderName ? (
@@ -532,6 +656,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const renderFlowCard = (flow: AutomationFlow) => {
     const badge = STATUS_BADGE[flow.status] || STATUS_BADGE.draft;
     const counts = enrollmentCounts?.[flow.id] || { total: 0, active: 0 };
+    const summary = nodeSummaries?.[flow.id] || { triggerCount: 0, actionCount: 0, issueCount: flow.status === "published" ? 0 : 1, firstIssue: "Struttura non ancora verificata" };
     return (
       <div
         key={flow.id}
@@ -547,8 +672,15 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           <Badge className={cn("text-xs", badge.className)}>{badge.label}</Badge>
         </div>
         <h3 className="font-medium text-sm mb-2 line-clamp-2">{flow.name}</h3>
+        <div className={cn(
+          "mb-3 rounded-md border px-2 py-1.5 text-xs",
+          summary.issueCount > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"
+        )}>
+          {summary.issueCount > 0 ? summary.firstIssue : "Pronta per la pubblicazione"}
+        </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>{counts.total.toLocaleString("it-IT")} iscritti</span>
+          <span>{summary.triggerCount} trigger · {summary.actionCount} step</span>
           <span>{formatDate(flow.updated_at)}</span>
         </div>
       </div>
@@ -621,6 +753,8 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                   <TableHead className="w-10"><Checkbox checked={allSelected} onCheckedChange={toggleAll} /></TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead className="w-28">Stato</TableHead>
+                  <TableHead className="w-56">Controlli</TableHead>
+                  <TableHead className="w-28">Struttura</TableHead>
                   <TableHead className="w-32">Cartella</TableHead>
                   <TableHead className="w-32">Categoria</TableHead>
                   <TableHead className="w-28 text-right">Iscritti</TableHead>
@@ -656,6 +790,8 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                         <TableCell />
                         <TableCell />
                         <TableCell />
+                        <TableCell />
+                        <TableCell />
                         <TableCell onClick={e => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -682,7 +818,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                 {/* Empty state */}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12">
+                    <TableCell colSpan={11} className="text-center py-12">
                       <Zap className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
                       <p className="text-sm text-muted-foreground">Nessun flusso di lavoro trovato</p>
                     </TableCell>

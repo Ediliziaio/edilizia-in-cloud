@@ -61,10 +61,12 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
     return forms.some((f: any) => f.form_id === formId && f.status === "active");
   };
 
-  const handleToggle = (formId: string) => {
-    const currentActive = isFormActive(formId);
+  const handleToggle = (form: any) => {
+    const currentActive = isFormActive(form.id);
     updateFormStatus.mutate({
-      formId,
+      formId: form.id,
+      formName: form.name,
+      pageAssetId: form.page_asset_id,
       status: currentActive ? "inactive" : "active",
       syncMode: "new_only",
     });
@@ -149,7 +151,7 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
               <div className="flex items-center gap-3">
                 <Switch
                   checked={active}
-                  onCheckedChange={() => handleToggle(form.id)}
+                  onCheckedChange={() => handleToggle(form)}
                   disabled={updateFormStatus.isPending}
                 />
                 <div className="flex-1 min-w-0">

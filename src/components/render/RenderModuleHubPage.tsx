@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
+  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   Clock,
@@ -32,10 +33,14 @@ import {
   resolveRenderGalleryMeta,
   type RenderGalleryMeta,
 } from "@/lib/render/renderGalleryMeta";
+import {
+  formatRenderAge,
+  isRenderStale,
+  normalizeRenderStatus,
+  type RenderStatusKey,
+} from "@/lib/render/renderStatus";
 
-type StatusKey = "pending" | "processing" | "completed" | "failed";
-
-const STATUS_CONFIG: Record<StatusKey, { label: string; color: "default" | "secondary" | "destructive" | "outline"; icon: LucideIcon }> = {
+const STATUS_CONFIG: Record<RenderStatusKey, { label: string; color: "default" | "secondary" | "destructive" | "outline"; icon: LucideIcon }> = {
   pending: { label: "In coda", color: "secondary", icon: Clock },
   processing: { label: "In elaborazione", color: "default", icon: Zap },
   completed: { label: "Completato", color: "secondary", icon: CheckCircle2 },
@@ -85,14 +90,6 @@ type RecentRenderRow = {
   contact_id: string | null;
   opportunity_id: string | null;
   meta: RenderGalleryMeta;
-};
-
-const normalizeStatus = (value: string | null | undefined): StatusKey => {
-  if (value === "completed" || value === "processing" || value === "pending" || value === "failed") return value;
-  if (value === "completato") return "completed";
-  if (value === "errore") return "failed";
-  if (value === "analyzing" || value === "analysis_done") return "processing";
-  return "pending";
 };
 
 const getRenderDate = (value: string) => {
@@ -156,15 +153,15 @@ export function RenderModuleHubPage({
     },
     enabled: !!companyId,
     refetchInterval: (query) =>
-      (query.state.data as Array<{ status: string }> | undefined)?.some((item) => normalizeStatus(item.status) === "processing")
+      (query.state.data as Array<{ status: string }> | undefined)?.some((item) => normalizeRenderStatus(item.status) === "processing")
         ? 12_000
         : false,
   });
 
   const stats = useMemo(() => {
-    const completed = sessions.filter((item) => normalizeStatus(item.status) === "completed").length;
+    const completed = sessions.filter((item) => normalizeRenderStatus(item.status) === "completed").length;
     const processing = sessions.filter((item) => {
-      const status = normalizeStatus(item.status);
+      const status = normalizeRenderStatus(item.status);
       return status === "processing" || status === "pending";
     }).length;
     const linked = sessions.filter((item) => item.contact_id || item.opportunity_id).length;
@@ -174,7 +171,7 @@ export function RenderModuleHubPage({
   const filteredSessions = useMemo(() => {
     const needle = sessionSearch.trim().toLowerCase();
     return sessions.filter((session) => {
-      const status = normalizeStatus(session.status);
+      const status = normalizeRenderStatus(session.status);
       const linked = Boolean(session.contact_id || session.opportunity_id);
       const haystack = [
         status,
@@ -191,14 +188,15 @@ export function RenderModuleHubPage({
   }, [crmFilter, sessionSearch, sessions, statusFilter]);
 
   const completedPreviews = sessions
-    .filter((item) => normalizeStatus(item.status) === "completed" && item.result_url)
+    .filter((item) => normalizeRenderStatus(item.status) === "completed" && item.result_url)
     .slice(0, 6);
 
   const detailPath = (id: string) => galleryPath ? `${galleryPath}/${id}` : null;
   const hasProcessing = sessions.some((item) => {
-    const status = normalizeStatus(item.status);
+    const status = normalizeRenderStatus(item.status);
     return status === "processing" || status === "pending";
   });
+  const staleSessions = sessions.filter((item) => isRenderStale(item.status, item.created_at));
 
   const statCards = [
     { label: "Render recenti", value: stats.total, icon: GalleryHorizontalEnd },
@@ -362,6 +360,26 @@ export function RenderModuleHubPage({
         </section>
       )}
 
+      {staleSessions.length > 0 && (
+        <Card className="border-orange-200 bg-orange-50/75">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" />
+              <div>
+                <p className="text-sm font-semibold text-orange-950">Render da controllare</p>
+                <p className="text-sm text-orange-800">
+                  {staleSessions.length} session{staleSessions.length === 1 ? "e" : "i"} in coda o elaborazione da oltre 30 minuti.
+                  Ultimo avvio {formatRenderAge(staleSessions[0]?.created_at)}.
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" className="border-orange-200 bg-white/80" onClick={() => setStatusFilter("processing")}>
+              Mostra da verificare
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <section className="space-y-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -442,7 +460,7 @@ export function RenderModuleHubPage({
         ) : (
           <div className="grid gap-3">
             {filteredSessions.map((session) => {
-              const status = normalizeStatus(session.status);
+              const status = normalizeRenderStatus(session.status);
               const cfg = STATUS_CONFIG[status];
               const Icon = cfg.icon;
               const resultUrl = session.result_url;

@@ -80,13 +80,13 @@ export default function AutomazioniUnified() {
             <div>
               <h1 className="text-2xl font-bold">Flussi di lavoro</h1>
               <p className="max-w-2xl text-sm text-muted-foreground">
-                Crea, organizza e controlla workflow visuali per CRM, cantieri, preventivi, notifiche e WhatsApp.
+                Crea, organizza e controlla automazioni operative per CRM, cantieri, preventivi, notifiche e comunicazioni. Le sequenze pipeline restano nella sezione Marketing dedicata.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 border">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                Pubblicazione con controlli minimi
+                Pubblicazione con controlli anti errore
               </span>
               <span className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 border">
                 <Sparkles className="h-3.5 w-3.5 text-primary" />

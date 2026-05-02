@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { syncTagsToContact } from "@/hooks/useTagSync";
 import { STATUS_OPTIONS } from "@/types/opportunities";
 import { cleanPhone } from "@/lib/contactUtils";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface Props {
   open: boolean;
@@ -50,6 +51,8 @@ function sanitizeSearchTerm(value: string) {
 export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName, stages }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
+  const canEditOpportunities = permissions.canEditMarketingOpportunities || permissions.canEditMarketing;
   const createOpportunity = useCreateOpportunity();
   const navigate = useNavigate();
 
@@ -146,6 +149,10 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   };
 
   const handleSubmit = async () => {
+    if (!canEditOpportunities) {
+      toast.error("Non hai i permessi per creare opportunità");
+      return;
+    }
     let contactId = selectedContactId;
 
     if (showNewContact) {
@@ -163,8 +170,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
           company_id: companyId!,
           first_name: firstName,
           last_name: lastName,
-          email: newContactEmail || null,
-          phone: newContactPhone || null,
+          email: newContactEmail.trim().toLowerCase() || null,
+          phone: newContactPhone.trim() ? cleanPhone(newContactPhone) : null,
         })
         .select("id")
         .single();
@@ -202,14 +209,23 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
       toast.error("Seleziona una fase");
       return;
     }
+    if (!oppName.trim()) {
+      toast.error("Inserisci il nome dell'opportunità");
+      return;
+    }
+    const numericValue = value.trim() ? Number(value) : 0;
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      toast.error("Il valore economico deve essere un numero positivo");
+      return;
+    }
 
     createOpportunity.mutate(
       {
         contact_id: contactId,
         pipeline_id: pipelineId,
         stage_id: stageId,
-        name: oppName || "Nuova Opportunità",
-        value: value ? parseFloat(value) : 0,
+        name: oppName.trim(),
+        value: numericValue,
         status,
         source: source || undefined,
         assigned_to: assignedTo || undefined,
@@ -223,8 +239,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
           if (oppId) {
             // Save tags and sync to contact
             if (tags.length > 0) {
-              await supabase.from("marketing_opportunities").update({ tags }).eq("id", oppId);
-              await syncTagsToContact(contactId, tags);
+              await supabase.from("marketing_opportunities").update({ tags }).eq("id", oppId).eq("company_id", companyId!);
+              await syncTagsToContact(contactId, tags, companyId);
             }
             // Save custom field values
             if (Object.keys(customFieldValues).length > 0) {
@@ -551,7 +567,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
           </button>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => { resetForm(); onOpenChange(false); }}>Annulla</Button>
-            <Button size="sm" onClick={handleSubmit} disabled={createOpportunity.isPending}>
+            <Button size="sm" onClick={handleSubmit} disabled={createOpportunity.isPending || !canEditOpportunities}>
               {createOpportunity.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Crea
             </Button>

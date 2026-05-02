@@ -172,6 +172,7 @@ export function OrderItemsList({
   // Stock picking state
   const [selectedStockItem, setSelectedStockItem] = useState<string>("");
   const [stockPickQuantity, setStockPickQuantity] = useState("1");
+  const [dialogError, setDialogError] = useState<string | null>(null);
 
   const [sourceFilter, setSourceFilter] = useState<"all" | "stock" | "supplier">("all");
 
@@ -273,6 +274,7 @@ export function OrderItemsList({
     setSelectedStockItem("");
     setStockPickQuantity("1");
     setDialogTab("new");
+    setDialogError(null);
   };
 
   const openAddDialog = () => {
@@ -305,10 +307,26 @@ export function OrderItemsList({
   };
 
   const handleSaveItem = () => {
-    if (!itemName.trim()) return;
+    setDialogError(null);
+    if (!itemName.trim()) {
+      setDialogError("Inserisci il nome dell'articolo.");
+      return;
+    }
 
-    const quantity = Math.max(1, Math.round(parseInt(itemQuantity) || 1));
-    const purchasePrice = Math.max(0, parseFloat(itemPurchasePrice) || 0);
+    const quantity = Math.round(Number(itemQuantity));
+    const purchasePrice = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setDialogError("La quantità deve essere maggiore di zero.");
+      return;
+    }
+    if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
+      setDialogError("Il costo di acquisto non può essere negativo.");
+      return;
+    }
+    if (!Number.isFinite(itemVatRate) || itemVatRate < 0 || itemVatRate > 100) {
+      setDialogError("L'IVA acquisto deve essere compresa tra 0 e 100.");
+      return;
+    }
     const totalCost = purchasePrice * quantity;
     
     const isInstallment = itemPaymentMethod === "50_50" || itemPaymentMethod === "30_70";
@@ -434,10 +452,21 @@ export function OrderItemsList({
   };
 
   const handlePickFromStock = () => {
+    setDialogError(null);
     const stock = stockItems.find((s) => s.id === selectedStockItem);
-    if (!stock) return;
-    const qty = parseInt(stockPickQuantity) || 1;
-    if (qty <= 0 || qty > stock.quantity) return;
+    if (!stock) {
+      setDialogError("Seleziona un articolo da magazzino.");
+      return;
+    }
+    const qty = Math.round(Number(stockPickQuantity));
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setDialogError("La quantità da prelevare deve essere maggiore di zero.");
+      return;
+    }
+    if (qty > stock.quantity) {
+      setDialogError("La quantità richiesta supera la disponibilità di magazzino.");
+      return;
+    }
 
     const newItem: OrderItem = {
       name: stock.name,
@@ -876,6 +905,11 @@ export function OrderItemsList({
                   : "Aggiungi un articolo alla commessa"}
               </DialogDescription>
             </DialogHeader>
+            {dialogError && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {dialogError}
+              </div>
+            )}
 
             {editingIndex === null && stockItems.length > 0 ? (
               <Tabs value={dialogTab} onValueChange={(v) => setDialogTab(v as "new" | "stock")}>

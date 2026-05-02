@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Shuffle } from "lucide-react";
+import { AlertTriangle, Shuffle } from "lucide-react";
 import { getCatalogItem } from "@/lib/flow-node-catalog";
 
 function SplitNodeComponent({ data, selected }: NodeProps) {
@@ -10,7 +10,7 @@ function SplitNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`min-w-[220px] max-w-[280px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-teal-400 dark:border-teal-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""}`}
+      className={`min-w-[220px] max-w-[280px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-teal-400 dark:border-teal-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""} ${data.hasError ? "!border-destructive ring-1 ring-destructive" : data.hasWarning ? "!border-amber-500 ring-1 ring-amber-300" : ""}`}
     >
       <Handle type="target" position={Position.Top} className="!bg-teal-500 !w-3 !h-3 !border-2 !border-background" />
 
@@ -22,6 +22,9 @@ function SplitNodeComponent({ data, selected }: NodeProps) {
         <span className="flex-1 text-[10px] font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-400">
           Split A/B
         </span>
+        {(data.hasError || data.hasWarning) && (
+          <AlertTriangle className={`h-3.5 w-3.5 ${data.hasError ? "text-destructive" : "text-amber-600"}`} />
+        )}
       </div>
 
       {/* Body */}

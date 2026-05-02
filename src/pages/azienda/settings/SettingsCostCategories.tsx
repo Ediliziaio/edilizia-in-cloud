@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   Plus, Pencil, Trash2, Download, FolderOpen, Search, X, AlertTriangle,
-  CheckCircle2, Minus,
+  CheckCircle2, Minus, FileDown, ShieldCheck, ArrowUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,17 @@ interface CostCategory {
   created_at: string;
 }
 
+type UsageFilter = "all" | "used" | "unused";
+type SortMode = "name" | "usage_desc" | "usage_asc";
+
+function normalizeCategoryName(name: string) {
+  return name.trim().replace(/\s+/g, " ");
+}
+
+function categoryKey(name: string) {
+  return normalizeCategoryName(name).toLowerCase();
+}
+
 // Palette preset per evitare che l'utente debba scegliere colori a caso
 const COLOR_PRESETS = [
   "#6366f1", "#8b5cf6", "#ec4899", "#ef4444",
@@ -71,6 +82,8 @@ export default function SettingsCostCategories() {
   const [editColor, setEditColor] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [usageFilter, setUsageFilter] = useState<UsageFilter>("all");
+  const [sortMode, setSortMode] = useState<SortMode>("name");
 
   const {
     data: categories = [],
@@ -110,23 +123,44 @@ export default function SettingsCostCategories() {
       const counts: Record<string, number> = {};
       (data ?? []).forEach((c) => {
         const cat = (c as { category: string | null }).category;
-        if (cat) counts[cat] = (counts[cat] ?? 0) + 1;
+        const normalized = cat ? normalizeCategoryName(cat) : "";
+        if (normalized) counts[normalized] = (counts[normalized] ?? 0) + 1;
       });
       return counts;
     },
     enabled: !!companyId,
   });
 
+  const configuredCategoryKeys = useMemo(() => new Set(categories.map((category) => categoryKey(category.name))), [categories]);
+
+  const historicalMissingCategories = useMemo(() => {
+    return Object.entries(usageCounts)
+      .filter(([name]) => !configuredCategoryKeys.has(categoryKey(name)))
+      .sort(([a], [b]) => a.localeCompare(b, "it"));
+  }, [configuredCategoryKeys, usageCounts]);
+
   // Filtered list
   const filtered = useMemo(() => {
-    if (!search.trim()) return categories;
+    let list = categories;
     const q = search.trim().toLowerCase();
-    return categories.filter((c) => c.name.toLowerCase().includes(q));
-  }, [categories, search]);
+    if (q) list = list.filter((c) => c.name.toLowerCase().includes(q));
+    if (usageFilter === "used") {
+      list = list.filter((c) => (usageCounts[normalizeCategoryName(c.name)] ?? 0) > 0);
+    } else if (usageFilter === "unused") {
+      list = list.filter((c) => (usageCounts[normalizeCategoryName(c.name)] ?? 0) === 0);
+    }
+    return [...list].sort((a, b) => {
+      const usageA = usageCounts[normalizeCategoryName(a.name)] ?? 0;
+      const usageB = usageCounts[normalizeCategoryName(b.name)] ?? 0;
+      if (sortMode === "usage_desc") return usageB - usageA || a.name.localeCompare(b.name, "it");
+      if (sortMode === "usage_asc") return usageA - usageB || a.name.localeCompare(b.name, "it");
+      return a.name.localeCompare(b.name, "it");
+    });
+  }, [categories, search, usageFilter, sortMode, usageCounts]);
 
   // KPI
   const stats = useMemo(() => {
-    const inUso = categories.filter((c) => (usageCounts[c.name] ?? 0) > 0).length;
+    const inUso = categories.filter((c) => (usageCounts[normalizeCategoryName(c.name)] ?? 0) > 0).length;
     const senzaUso = categories.length - inUso;
     return { totale: categories.length, inUso, senzaUso };
   }, [categories, usageCounts]);
@@ -140,9 +174,11 @@ export default function SettingsCostCategories() {
   const addMutation = useMutation({
     mutationFn: async ({ name, color }: { name: string; color: string }) => {
       if (!companyId) throw new Error("Azienda non selezionata");
+      const safeName = normalizeCategoryName(name);
+      if (!safeName) throw new Error("Inserisci il nome categoria");
       const { error } = await supabase.from("cost_categories").insert({
         company_id: companyId!,
-        name: name.trim(),
+        name: safeName,
         color,
       });
       if (error) {
@@ -163,9 +199,15 @@ export default function SettingsCostCategories() {
   const updateMutation = useMutation({
     mutationFn: async ({ id, name, color }: { id: string; name: string; color: string }) => {
       if (!companyId) throw new Error("Azienda non selezionata");
+      const current = categories.find((category) => category.id === id);
+      const safeName = normalizeCategoryName(name);
+      if (!safeName) throw new Error("Inserisci il nome categoria");
+      if (current && categoryKey(current.name) !== categoryKey(safeName) && (usageCounts[normalizeCategoryName(current.name)] ?? 0) > 0) {
+        throw new Error("Categoria già usata: puoi cambiare il colore, ma non rinominarla senza riclassificare i costi storici.");
+      }
       const { error } = await supabase
         .from("cost_categories")
-        .update({ name: name.trim(), color })
+        .update({ name: safeName, color })
         .eq("id", id)
         .eq("company_id", companyId);
       if (error) {
@@ -185,6 +227,11 @@ export default function SettingsCostCategories() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!companyId) throw new Error("Azienda non selezionata");
+      const category = categories.find((cat) => cat.id === id);
+      const usage = category ? usageCounts[normalizeCategoryName(category.name)] ?? 0 : 0;
+      if (usage > 0) {
+        throw new Error("Categoria già usata: eliminazione bloccata per proteggere costi storici, marginalità e report.");
+      }
       const { error } = await supabase
         .from("cost_categories")
         .delete()
@@ -222,20 +269,22 @@ export default function SettingsCostCategories() {
       const cats = new Set<string>();
       (costs ?? []).forEach((c) => {
         const cat = (c as { category: string | null }).category;
-        if (cat) cats.add(cat);
+        const normalized = cat ? normalizeCategoryName(cat) : "";
+        if (normalized) cats.add(normalized);
       });
       (supplierData ?? []).forEach((s) => {
         const cat = (s as { product_category: string | null }).product_category;
-        if (cat) cats.add(cat);
+        const normalized = cat ? normalizeCategoryName(cat) : "";
+        if (normalized) cats.add(normalized);
       });
 
       if (cats.size === 0) {
         throw new Error("Nessuna categoria trovata nei costi o fornitori");
       }
 
-      const existing = new Set(categories.map((c) => c.name));
+      const existing = new Set(categories.map((c) => categoryKey(c.name)));
       const toInsert = Array.from(cats)
-        .filter((name) => !existing.has(name))
+        .filter((name) => !existing.has(categoryKey(name)))
         .map((name) => ({
           company_id: companyId!,
           name,
@@ -260,8 +309,8 @@ export default function SettingsCostCategories() {
 
   const handleAdd = useCallback(() => {
     if (!newName.trim() || addMutation.isPending) return;
-    const normalizedName = newName.trim().toLowerCase();
-    if (categories.some((category) => category.name.trim().toLowerCase() === normalizedName)) {
+    const normalizedName = categoryKey(newName);
+    if (categories.some((category) => categoryKey(category.name) === normalizedName)) {
       toast.error("Categoria già esistente");
       return;
     }
@@ -277,10 +326,10 @@ export default function SettingsCostCategories() {
   const saveEdit = useCallback(
     (id: string) => {
       if (!editName.trim() || updateMutation.isPending) return;
-      const normalizedName = editName.trim().toLowerCase();
+      const normalizedName = categoryKey(editName);
       if (
         categories.some(
-          (category) => category.id !== id && category.name.trim().toLowerCase() === normalizedName,
+          (category) => category.id !== id && categoryKey(category.name) === normalizedName,
         )
       ) {
         toast.error("Categoria già esistente");
@@ -291,9 +340,45 @@ export default function SettingsCostCategories() {
     [editName, editColor, updateMutation, categories],
   );
 
+  const exportCategories = useCallback(() => {
+    const rows = [
+      ["Nome", "Colore", "Utilizzi", "Protezione", "Configurata"],
+      ...categories.map((category) => {
+        const usage = usageCounts[normalizeCategoryName(category.name)] ?? 0;
+        return [
+          category.name,
+          category.color ?? DEFAULT_COLOR,
+          String(usage),
+          usage > 0 ? "Protetta: in uso" : "Eliminabile: inutilizzata",
+          "SI",
+        ];
+      }),
+      ...historicalMissingCategories.map(([name, usage]) => [
+        name,
+        "",
+        String(usage),
+        "Storica: manca in configurazione",
+        "NO",
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `categorie-costi-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toast.success("Export categorie generato");
+  }, [categories, historicalMissingCategories, usageCounts]);
+
   // ─── Render ───────────────────────────────────────────
   const categoryToDelete = deleteId ? categories.find((c) => c.id === deleteId) : null;
-  const deleteUsage = categoryToDelete ? usageCounts[categoryToDelete.name] ?? 0 : 0;
+  const deleteUsage = categoryToDelete ? usageCounts[normalizeCategoryName(categoryToDelete.name)] ?? 0 : 0;
 
   return (
     <div className="space-y-6">
@@ -320,6 +405,15 @@ export default function SettingsCostCategories() {
           <Download className="h-4 w-4 mr-1.5" />
           {importMutation.isPending ? "Importo…" : "Importa dai costi"}
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={exportCategories}
+          disabled={categories.length === 0 && historicalMissingCategories.length === 0}
+        >
+          <FileDown className="h-4 w-4 mr-1.5" />
+          Esporta CSV
+        </Button>
       </div>
 
       {(categoriesIsError || usageIsError) && (
@@ -345,6 +439,17 @@ export default function SettingsCostCategories() {
             >
               Riprova
             </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {historicalMissingCategories.length > 0 && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <AlertTitle>Categorie storiche da configurare</AlertTitle>
+          <AlertDescription>
+            Ci sono {historicalMissingCategories.length} categorie già usate nei costi ma non presenti nella configurazione.
+            Usa “Importa dai costi” per allinearle senza toccare i movimenti storici.
           </AlertDescription>
         </Alert>
       )}
@@ -430,25 +535,62 @@ export default function SettingsCostCategories() {
             </Button>
           </div>
 
-          {/* Search */}
-          {categories.length > 4 && (
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cerca categoria…"
-                className="pl-8 pr-8 h-9 text-sm"
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted"
-                  aria-label="Pulisci"
-                >
-                  <X className="h-3 w-3" />
-                </button>
+          {/* Search and controls */}
+          {categories.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex flex-col lg:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Cerca categoria…"
+                    className="pl-8 pr-8 h-9 text-sm"
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => setSearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted"
+                      aria-label="Pulisci"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    ["all", "Tutte"],
+                    ["used", "In uso"],
+                    ["unused", "Inutilizzate"],
+                  ] as const).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      type="button"
+                      size="sm"
+                      variant={usageFilter === value ? "default" : "outline"}
+                      onClick={() => setUsageFilter(value)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                  <select
+                    value={sortMode}
+                    onChange={(event) => setSortMode(event.target.value as SortMode)}
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    aria-label="Ordina categorie"
+                  >
+                    <option value="name">Nome A-Z</option>
+                    <option value="usage_desc">Più usate</option>
+                    <option value="usage_asc">Meno usate</option>
+                  </select>
+                </div>
+              </div>
+              {(usageFilter !== "all" || sortMode !== "name") && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  Vista filtrata/ordinata: i dati salvati non vengono modificati.
+                </p>
               )}
             </div>
           )}
@@ -470,9 +612,18 @@ export default function SettingsCostCategories() {
           ) : filtered.length === 0 ? (
             <div className="py-10 text-center">
               <p className="text-sm text-muted-foreground">
-                Nessuna categoria corrisponde a <strong>"{search}"</strong>.
+                Nessuna categoria corrisponde ai filtri attivi.
               </p>
-              <Button variant="ghost" size="sm" className="mt-2" onClick={() => setSearch("")}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
+                onClick={() => {
+                  setSearch("");
+                  setUsageFilter("all");
+                  setSortMode("name");
+                }}
+              >
                 Mostra tutte
               </Button>
             </div>
@@ -489,7 +640,7 @@ export default function SettingsCostCategories() {
               <TableBody>
                 {filtered.map((cat) => {
                   const isEditing = editingId === cat.id;
-                  const usage = usageCounts[cat.name] ?? 0;
+                  const usage = usageCounts[normalizeCategoryName(cat.name)] ?? 0;
                   return (
                     <TableRow key={cat.id}>
                       <TableCell>
@@ -510,18 +661,34 @@ export default function SettingsCostCategories() {
                       </TableCell>
                       <TableCell>
                         {isEditing ? (
-                          <Input
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") saveEdit(cat.id);
-                              else if (e.key === "Escape") setEditingId(null);
-                            }}
-                            autoFocus
-                            maxLength={80}
-                          />
+                          <div className="space-y-1.5">
+                            <Input
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveEdit(cat.id);
+                                else if (e.key === "Escape") setEditingId(null);
+                              }}
+                              autoFocus
+                              maxLength={80}
+                              disabled={usage > 0}
+                            />
+                            {usage > 0 && (
+                              <p className="text-[11px] text-muted-foreground">
+                                Nome bloccato: categoria collegata a costi storici. Puoi modificare il colore.
+                              </p>
+                            )}
+                          </div>
                         ) : (
-                          <span className="font-medium">{cat.name}</span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">{cat.name}</span>
+                            {usage > 0 && (
+                              <Badge variant="secondary" className="gap-1">
+                                <ShieldCheck className="h-3 w-3" />
+                                Protetta
+                              </Badge>
+                            )}
+                          </div>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
@@ -551,8 +718,14 @@ export default function SettingsCostCategories() {
                             <Button size="icon" variant="ghost" onClick={() => startEdit(cat)} aria-label={`Modifica ${cat.name}`}>
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button size="icon" variant="ghost" onClick={() => setDeleteId(cat.id)} aria-label={`Elimina ${cat.name}`}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setDeleteId(cat.id)}
+                              aria-label={usage > 0 ? `${cat.name} protetta: non eliminabile` : `Elimina ${cat.name}`}
+                              title={usage > 0 ? "Categoria protetta perché già usata nei costi" : "Elimina categoria inutilizzata"}
+                            >
+                              <Trash2 className={`h-4 w-4 ${usage > 0 ? "text-muted-foreground" : "text-destructive"}`} />
                             </Button>
                           </div>
                         )}
@@ -580,8 +753,8 @@ export default function SettingsCostCategories() {
                   <>
                     La categoria <strong>"{categoryToDelete.name}"</strong> è usata da{" "}
                     <strong>{deleteUsage} {deleteUsage === 1 ? "costo" : "costi"}</strong>.{" "}
-                    Eliminandola i costi manterranno il valore stringa originale ma la categoria
-                    non sarà più selezionabile nei form. L'operazione è irreversibile.
+                    Per proteggere costi storici, marginalità e report, l'eliminazione è bloccata.
+                    Prima riclassifica i costi collegati oppure lascia la categoria disponibile per lo storico.
                   </>
                 ) : (
                   <>La categoria <strong>"{categoryToDelete.name}"</strong> verrà rimossa.</>
@@ -593,9 +766,10 @@ export default function SettingsCostCategories() {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              disabled={deleteUsage > 0 || deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Elimina
+              {deleteUsage > 0 ? "Bloccata" : "Elimina"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -72,6 +72,7 @@ const AccettaPreventivo = lazy(() => import("@/pages/public/AccettaPreventivo"))
 const NpsSurvey = lazy(() => import("@/pages/feedback/NpsSurvey"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
+const DynamicQrRedirect = lazy(() => import("@/pages/public/DynamicQrRedirect"));
 const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
 const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
@@ -379,6 +380,7 @@ const App = () => (
               <Route path="/cambia-password" element={<ChangePassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/prenota/:slug" element={<PublicBooking />} />
+              <Route path="/qr/:token" element={<DynamicQrRedirect />} />
               <Route path="/offerta/:token" element={<QuoteSignPage />} />
               <Route path="/firma/:token" element={<SignaturePage />} />
               <Route path="/firma-odv/:token" element={<FirmaOdV />} />

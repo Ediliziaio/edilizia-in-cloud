@@ -16,9 +16,9 @@
  *   - BarcodeScanner per opening della camera (single-shot)
  */
 
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -62,7 +62,18 @@ import {
   AlertCircle,
   HelpCircle,
   Loader2,
+  Plus,
+  Copy,
+  Download,
+  Archive,
+  ExternalLink,
+  ShieldCheck,
+  Search,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 const BarcodeScanner = lazy(() =>
   import("@/components/warehouse/BarcodeScanner").then((m) => ({ default: m.BarcodeScanner })),
@@ -102,6 +113,512 @@ interface SupplierCoverageRow {
   totalItems: number;
   itemsWithBarcode: number;
   coveragePct: number;
+}
+
+interface DynamicQrCode {
+  id: string;
+  company_id: string;
+  name: string;
+  description: string | null;
+  qr_type: string;
+  destination_url: string;
+  linked_entity_type: string | null;
+  linked_entity_id: string | null;
+  public_token: string;
+  access_level: "public" | "private";
+  status: "active" | "inactive" | "archived";
+  expires_at: string | null;
+  scan_count: number;
+  last_scanned_at: string | null;
+  created_at: string;
+  created_by: string | null;
+}
+
+interface DynamicQrFormData {
+  name: string;
+  description: string;
+  qr_type: string;
+  destination_url: string;
+  linked_entity_type: string;
+  linked_entity_id: string;
+  access_level: "public" | "private";
+  status: "active" | "inactive";
+  expires_at: string;
+}
+
+const emptyDynamicQrForm: DynamicQrFormData = {
+  name: "",
+  description: "",
+  qr_type: "url",
+  destination_url: "",
+  linked_entity_type: "none",
+  linked_entity_id: "",
+  access_level: "public",
+  status: "active",
+  expires_at: "",
+};
+
+const qrTypeLabels: Record<string, string> = {
+  url: "URL",
+  cliente: "Cliente",
+  contatto: "Contatto",
+  ordine: "Ordine",
+  cantiere: "Cantiere",
+  materiale: "Materiale",
+  documento: "Documento",
+  ticket: "Ticket",
+  appuntamento: "Appuntamento",
+};
+
+const entityTypeOptions = [
+  { value: "none", label: "Nessuna entità" },
+  { value: "customer", label: "Cliente" },
+  { value: "contact", label: "Contatto" },
+  { value: "order", label: "Ordine" },
+  { value: "job", label: "Cantiere/commessa" },
+  { value: "stock_item", label: "Materiale" },
+  { value: "document", label: "Documento" },
+  { value: "ticket", label: "Ticket" },
+  { value: "appointment", label: "Appuntamento" },
+];
+
+function generateQrToken() {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(36).padStart(2, "0")).join("").slice(0, 32);
+}
+
+function normalizeDestinationUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("/") || /^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+function getPublicQrUrl(token: string) {
+  return `${window.location.origin}/qr/${token}`;
+}
+
+function isExpired(expiresAt: string | null) {
+  return !!expiresAt && new Date(expiresAt).getTime() <= Date.now();
+}
+
+// ────────────────────────────────────────────────────────────
+// Tab 0 — QR dinamici
+// ────────────────────────────────────────────────────────────
+
+function QrDinamiciTab() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingQr, setEditingQr] = useState<DynamicQrCode | null>(null);
+  const [formData, setFormData] = useState<DynamicQrFormData>({ ...emptyDynamicQrForm });
+
+  const { data: qrs = [], isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["company-dynamic-qr-codes", companyId],
+    queryFn: async (): Promise<DynamicQrCode[]> => {
+      if (!companyId) return [];
+      const { data, error } = await (supabase as any)
+        .from("company_qr_codes")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId,
+    staleTime: 30_000,
+  });
+
+  const filteredQrs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return qrs.filter((qr) => {
+      const matchesSearch = !q ||
+        qr.name.toLowerCase().includes(q) ||
+        (qr.description ?? "").toLowerCase().includes(q) ||
+        qr.destination_url.toLowerCase().includes(q) ||
+        (qr.linked_entity_id ?? "").toLowerCase().includes(q);
+      const statusForFilter = isExpired(qr.expires_at) && qr.status === "active" ? "expired" : qr.status;
+      const matchesStatus = statusFilter === "all" || statusForFilter === statusFilter;
+      const matchesType = typeFilter === "all" || qr.qr_type === typeFilter;
+      return matchesSearch && matchesStatus && matchesType;
+    });
+  }, [qrs, search, statusFilter, typeFilter]);
+
+  const stats = useMemo(() => ({
+    total: qrs.length,
+    active: qrs.filter((qr) => qr.status === "active" && !isExpired(qr.expires_at)).length,
+    expired: qrs.filter((qr) => isExpired(qr.expires_at)).length,
+    scans: qrs.reduce((sum, qr) => sum + (qr.scan_count ?? 0), 0),
+  }), [qrs]);
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["company-dynamic-qr-codes"] });
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      const name = formData.name.trim();
+      const destinationUrl = normalizeDestinationUrl(formData.destination_url);
+      if (!name) throw new Error("Il nome QR è obbligatorio.");
+      if (!destinationUrl) throw new Error("La destinazione è obbligatoria.");
+      if (!destinationUrl.startsWith("/") && !/^https?:\/\//i.test(destinationUrl)) {
+        throw new Error("La destinazione deve essere un URL valido o un percorso interno.");
+      }
+
+      const payload = {
+        name,
+        description: formData.description.trim() || null,
+        qr_type: formData.qr_type,
+        destination_url: destinationUrl,
+        linked_entity_type: formData.linked_entity_type === "none" ? null : formData.linked_entity_type,
+        linked_entity_id: formData.linked_entity_id.trim() || null,
+        access_level: formData.access_level,
+        status: formData.status,
+        expires_at: formData.expires_at ? new Date(formData.expires_at).toISOString() : null,
+      };
+
+      if (editingQr) {
+        const { error } = await (supabase as any)
+          .from("company_qr_codes")
+          .update(payload)
+          .eq("id", editingQr.id)
+          .eq("company_id", companyId);
+        if (error) throw error;
+      } else {
+        const user = (await supabase.auth.getUser()).data.user;
+        const { error } = await (supabase as any)
+          .from("company_qr_codes")
+          .insert({
+            ...payload,
+            company_id: companyId,
+            public_token: generateQrToken(),
+            created_by: user?.id ?? null,
+          });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success(editingQr ? "QR aggiornato" : "QR creato");
+      invalidate();
+      setDialogOpen(false);
+      setEditingQr(null);
+      setFormData({ ...emptyDynamicQrForm });
+    },
+    onError: (e: Error) => toast.error("Errore QR", { description: e.message }),
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: async (qr: DynamicQrCode) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      const { error } = await (supabase as any)
+        .from("company_qr_codes")
+        .update({ status: "archived" })
+        .eq("id", qr.id)
+        .eq("company_id", companyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("QR archiviato");
+      invalidate();
+    },
+    onError: (e: Error) => toast.error("Archiviazione non riuscita", { description: e.message }),
+  });
+
+  const openCreate = () => {
+    setEditingQr(null);
+    setFormData({ ...emptyDynamicQrForm });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (qr: DynamicQrCode) => {
+    setEditingQr(qr);
+    setFormData({
+      name: qr.name,
+      description: qr.description ?? "",
+      qr_type: qr.qr_type,
+      destination_url: qr.destination_url,
+      linked_entity_type: qr.linked_entity_type ?? "none",
+      linked_entity_id: qr.linked_entity_id ?? "",
+      access_level: qr.access_level,
+      status: qr.status === "archived" ? "inactive" : qr.status,
+      expires_at: qr.expires_at ? qr.expires_at.slice(0, 16) : "",
+    });
+    setDialogOpen(true);
+  };
+
+  const copyLink = async (qr: DynamicQrCode) => {
+    await navigator.clipboard.writeText(getPublicQrUrl(qr.public_token));
+    toast.success("Link copiato");
+  };
+
+  const downloadPng = async (qr: DynamicQrCode) => {
+    const QRCode = await import("qrcode");
+    const dataUrl = await QRCode.toDataURL(getPublicQrUrl(qr.public_token), {
+      width: 1024,
+      margin: 2,
+      errorCorrectionLevel: "M",
+    });
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `${qr.name.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase()}-qr.png`;
+    a.click();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard icon={QrCode} label="QR totali" value={String(stats.total)} hint="codici dinamici" accent="primary" />
+        <KpiCard icon={CheckCircle2} label="Attivi" value={String(stats.active)} hint="accessibili ora" accent="emerald" />
+        <KpiCard icon={AlertCircle} label="Scaduti" value={String(stats.expired)} hint="da verificare" accent={stats.expired > 0 ? "amber" : "blue"} />
+        <KpiCard icon={ScanLine} label="Scansioni" value={String(stats.scans)} hint="totale storico" accent="primary" />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4" />
+                QR dinamici
+              </CardTitle>
+              <CardDescription>
+                Crea link QR tracciabili per clienti, ordini, cantieri, materiali, documenti e ticket.
+              </CardDescription>
+            </div>
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nuovo QR
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_160px_180px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Cerca per nome, descrizione, URL o ID entità..."
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger><SelectValue placeholder="Stato" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti gli stati</SelectItem>
+                <SelectItem value="active">Attivi</SelectItem>
+                <SelectItem value="inactive">Disattivati</SelectItem>
+                <SelectItem value="expired">Scaduti</SelectItem>
+                <SelectItem value="archived">Archiviati</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i tipi</SelectItem>
+                {Object.entries(qrTypeLabels).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {isError ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Impossibile caricare i QR dinamici</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p className="text-xs">{(error as Error | null)?.message || "Errore durante il caricamento."}</p>
+                <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+                  Riprova
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredQrs.length === 0 ? (
+            <div className="rounded-lg border border-dashed py-10 text-center text-muted-foreground">
+              <QrCode className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="font-medium text-foreground">Nessun QR dinamico trovato</p>
+              <p className="text-sm mt-1">Crea un QR per tracciare accessi a link, documenti o schede operative.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>QR</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Accesso</TableHead>
+                    <TableHead>Stato</TableHead>
+                    <TableHead className="text-right">Scan</TableHead>
+                    <TableHead>Ultima scansione</TableHead>
+                    <TableHead className="w-[220px]">Azioni</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredQrs.map((qr) => (
+                    <TableRow key={qr.id}>
+                      <TableCell>
+                        <div className="font-medium">{qr.name}</div>
+                        <div className="text-xs text-muted-foreground truncate max-w-[320px]">{qr.destination_url}</div>
+                      </TableCell>
+                      <TableCell><Badge variant="outline">{qrTypeLabels[qr.qr_type] ?? qr.qr_type}</Badge></TableCell>
+                      <TableCell>
+                        <Badge variant={qr.access_level === "public" ? "default" : "secondary"}>
+                          {qr.access_level === "public" ? "Pubblico" : "Privato"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell><QrStatusBadge qr={qr} /></TableCell>
+                      <TableCell className="text-right font-medium">{qr.scan_count ?? 0}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {qr.last_scanned_at ? format(new Date(qr.last_scanned_at), "dd/MM/yyyy HH:mm") : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => void copyLink(qr)} aria-label={`Copia link ${qr.name}`}>
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => void downloadPng(qr)} aria-label={`Scarica QR ${qr.name}`}>
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => window.open(getPublicQrUrl(qr.public_token), "_blank", "noopener,noreferrer")} aria-label={`Apri QR ${qr.name}`}>
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(qr)}>Modifica</Button>
+                          {qr.status !== "archived" && (
+                            <Button variant="ghost" size="icon" onClick={() => archiveMutation.mutate(qr)} aria-label={`Archivia ${qr.name}`}>
+                              <Archive className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingQr ? "Modifica QR" : "Nuovo QR dinamico"}</DialogTitle>
+            <DialogDescription>
+              Configura destinazione, accesso e scadenza. Il token pubblico viene generato automaticamente e non espone ID interni.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Nome QR *</Label>
+              <Input value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} maxLength={120} />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo QR</Label>
+              <Select value={formData.qr_type} onValueChange={(value) => setFormData((p) => ({ ...p, qr_type: value }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(qrTypeLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Destinazione *</Label>
+              <Input
+                value={formData.destination_url}
+                onChange={(e) => setFormData((p) => ({ ...p, destination_url: e.target.value }))}
+                placeholder="https://... oppure /azienda/ordini/..."
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Accesso</Label>
+              <Select value={formData.access_level} onValueChange={(value: "public" | "private") => setFormData((p) => ({ ...p, access_level: value }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Pubblico con token</SelectItem>
+                  <SelectItem value="private">Privato con login</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Stato</Label>
+              <Select value={formData.status} onValueChange={(value: "active" | "inactive") => setFormData((p) => ({ ...p, status: value }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Attivo</SelectItem>
+                  <SelectItem value="inactive">Disattivato</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Entità collegata</Label>
+              <Select value={formData.linked_entity_type} onValueChange={(value) => setFormData((p) => ({ ...p, linked_entity_type: value }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {entityTypeOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>ID entità</Label>
+              <Input
+                value={formData.linked_entity_id}
+                onChange={(e) => setFormData((p) => ({ ...p, linked_entity_id: e.target.value }))}
+                placeholder="UUID opzionale"
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Scadenza</Label>
+              <Input
+                type="datetime-local"
+                value={formData.expires_at}
+                onChange={(e) => setFormData((p) => ({ ...p, expires_at: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Descrizione</Label>
+              <Textarea
+                value={formData.description}
+                onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
+                rows={3}
+                maxLength={500}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+            <Button type="button" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+              {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editingQr ? "Salva" : "Crea QR"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function QrStatusBadge({ qr }: { qr: DynamicQrCode }) {
+  if (qr.status === "archived") return <Badge variant="outline" className="text-muted-foreground">Archiviato</Badge>;
+  if (isExpired(qr.expires_at)) return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Scaduto</Badge>;
+  if (qr.status === "inactive") return <Badge variant="secondary">Disattivato</Badge>;
+  return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Attivo</Badge>;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -701,7 +1218,7 @@ export default function SettingsQrCodici() {
   const { role } = useAuth();
   const navigate = useNavigate();
   const isAdmin = role === "company_admin" || role === "super_admin";
-  const [tab, setTab] = useState("panoramica");
+  const [tab, setTab] = useState("dinamici");
 
   useEffect(() => {
     if (!isAdmin) navigate("/azienda", { replace: true });
@@ -724,11 +1241,15 @@ export default function SettingsQrCodici() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
+        <TabsList className="flex h-auto flex-wrap">
+          <TabsTrigger value="dinamici">QR dinamici</TabsTrigger>
           <TabsTrigger value="panoramica">Panoramica</TabsTrigger>
           <TabsTrigger value="per-fornitore">Per fornitore</TabsTrigger>
           <TabsTrigger value="test-scan">Test scan</TabsTrigger>
         </TabsList>
+        <TabsContent value="dinamici" className="mt-4">
+          <QrDinamiciTab />
+        </TabsContent>
         <TabsContent value="panoramica" className="mt-4">
           <PanoramicaTab />
         </TabsContent>

@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { usePermissions } from "@/hooks/usePermissions";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -68,8 +69,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
   const { effectiveCompany, user } = useAuth();
+  const permissions = usePermissions();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
+  const canEditContacts = permissions.canEditMarketingContacts || permissions.canEditMarketing;
 
   const [rightTab, setRightTab] = useState<RightTab | null>("notes");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -109,15 +112,17 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const { data: contact, isLoading, isError, refetch } = useQuery({
     queryKey: ["marketing_contact", id],
     queryFn: async () => {
+      if (!companyId) throw new Error("Azienda non selezionata");
       const { data, error } = await supabase
         .from("marketing_contacts")
         .select("*")
         .eq("id", id!)
+        .eq("company_id", companyId)
         .single();
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && !!companyId,
     staleTime: 2 * 60 * 1000,
     gcTime: 8 * 60 * 1000,
   });
@@ -174,16 +179,17 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const { data: activities = [] } = useQuery({
     queryKey: ["marketing_contact_activities", id],
     queryFn: async () => {
-      if (!id) return [];
+      if (!id || !companyId) return [];
       const { data, error } = await supabase
         .from("marketing_contact_activities")
         .select("*, profiles:created_by(first_name, last_name)")
         .eq("contact_id", id)
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && !!companyId,
     staleTime: 2 * 60 * 1000,
     gcTime: 8 * 60 * 1000,
   });
@@ -192,16 +198,17 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const { data: notes = [] } = useQuery({
     queryKey: ["marketing_contact_notes", id],
     queryFn: async () => {
-      if (!id) return [];
+      if (!id || !companyId) return [];
       const { data, error } = await supabase
         .from("marketing_contact_notes")
         .select("*, profiles:created_by(first_name, last_name)")
         .eq("contact_id", id)
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && !!companyId,
     staleTime: 2 * 60 * 1000,
     gcTime: 8 * 60 * 1000,
   });
@@ -210,16 +217,17 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const { data: contactMessages = [] } = useQuery({
     queryKey: ["contact_messages", id],
     queryFn: async () => {
-      if (!id) return [];
+      if (!id || !companyId) return [];
       const { data, error } = await supabase
         .from("contact_messages")
         .select("*")
         .eq("contact_id", id)
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && !!companyId,
     staleTime: 2 * 60 * 1000,
     gcTime: 8 * 60 * 1000,
   });
@@ -248,10 +256,12 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
 
   const updateField = useMutation({
     mutationFn: async ({ field, value }: { field: string; value: any }) => {
+      if (!canEditContacts) throw new Error("Non hai i permessi per modificare i contatti");
       const { error } = await supabase
         .from("marketing_contacts")
         .update({ [field]: value, updated_at: new Date().toISOString() })
-        .eq("id", id!);
+        .eq("id", id!)
+        .eq("company_id", companyId!);
       if (error) throw error;
       // Activity logging for field updates (except assigned_to which has a DB trigger)
       if (companyId && field !== "assigned_to") {
@@ -275,6 +285,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   // ── Update custom field value ──
   const updateCustomField = useMutation({
     mutationFn: async ({ fieldId, value }: { fieldId: string; value: string }) => {
+      if (!canEditContacts) throw new Error("Non hai i permessi per modificare i campi del contatto");
       const { error } = await supabase
         .from("marketing_contact_field_values")
         .upsert({ contact_id: id!, field_id: fieldId, value }, { onConflict: "contact_id,field_id" });
@@ -311,7 +322,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   // ── Delete contact ──
   const deleteContact = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("marketing_contacts").delete().eq("id", id!);
+      if (!companyId) throw new Error("Azienda non selezionata");
+      if (!canEditContacts) throw new Error("Non hai i permessi per eliminare i contatti");
+      const { error } = await supabase.from("marketing_contacts").delete().eq("id", id!).eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -417,12 +430,16 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 </AvatarFallback>
               </Avatar>
               <h2 className="font-semibold text-base flex-1 truncate">{fullName}</h2>
+              {canEditContacts && (
               <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setMergeOpen(true)} title="Unisci contatti">
                 <Merge className="h-3.5 w-3.5" />
               </Button>
+              )}
+              {canEditContacts && (
               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0" onClick={() => setDeleteOpen(true)}>
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
+              )}
             </div>
 
             {/* Titolare, Follower & Call Center */}
@@ -435,6 +452,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <Select
                   value={contact.assigned_to || ""}
                   onValueChange={(v) => updateField.mutate({ field: "assigned_to", value: v || null })}
+                  disabled={!canEditContacts}
                 >
                   <SelectTrigger className="h-7 text-xs border-dashed"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                   <SelectContent>
@@ -452,6 +470,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <Select
                   value={contact.follower_id || ""}
                   onValueChange={(v) => updateField.mutate({ field: "follower_id", value: v || null })}
+                  disabled={!canEditContacts}
                 >
                   <SelectTrigger className="h-7 text-xs border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                   <SelectContent>
@@ -469,6 +488,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <Select
                   value={(contact as any).call_center_id || ""}
                   onValueChange={(v) => updateField.mutate({ field: "call_center_id", value: v || null })}
+                  disabled={!canEditContacts}
                 >
                   <SelectTrigger className="h-7 text-xs border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                   <SelectContent>
@@ -486,6 +506,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <Label className="text-xs text-muted-foreground">
                   Etichette ({(contact.tags || []).length})
                 </Label>
+                {canEditContacts && (
                 <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-5 w-5">
@@ -500,7 +521,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         updateField.mutate({ field: "tags", value: tags });
                         // Sync new tags to linked opportunities
                         if (tags.length > 0 && id) {
-                          await syncTagsToOpportunities(id, tags);
+                          await syncTagsToOpportunities(id, tags, companyId);
                           queryClient.invalidateQueries({ queryKey: ["marketing-opportunities"] });
                         }
                       }}
@@ -508,20 +529,23 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     </div>
                   </PopoverContent>
                 </Popover>
+                )}
               </div>
               {(contact.tags || []).length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {contact.tags.map((tag: string) => (
                     <Badge key={tag} variant="secondary" className="text-[11px] px-1.5 py-0 gap-1 h-5">
                       {tag}
+                      {canEditContacts && (
                       <X className="h-2.5 w-2.5 cursor-pointer" onClick={async () => {
                         updateField.mutate({ field: "tags", value: contact.tags.filter((t: string) => t !== tag) });
                         // Remove tag from linked opportunities too
                         if (id) {
-                          await removeTagFromOpportunities(id, tag);
+                          await removeTagFromOpportunities(id, tag, companyId);
                           queryClient.invalidateQueries({ queryKey: ["marketing-opportunities"] });
                         }
                       }} />
+                      )}
                     </Badge>
                   ))}
                 </div>
@@ -556,18 +580,19 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     Contatto
                   </CollapsibleTrigger>
                   <CollapsibleContent className="px-1 space-y-0">
-                    <InlineField label="Nome" value={contact.first_name} onSave={(v) => updateField.mutate({ field: "first_name", value: v })} />
-                    <InlineField label="Cognome" value={contact.last_name || ""} onSave={(v) => updateField.mutate({ field: "last_name", value: v })} />
-                    <InlineField label="Email" value={contact.email || ""} onSave={(v) => updateField.mutate({ field: "email", value: v })} type="email" />
-                    <InlineField label="Telefono" value={contact.phone || ""} onSave={(v) => updateField.mutate({ field: "phone", value: v })} type="tel" />
-                    <InlineField label="Data di nascita" value={contact.date_of_birth || ""} onSave={(v) => updateField.mutate({ field: "date_of_birth", value: v || null })} type="date" />
-                    <InlineField label="Fonte" value={contact.source || ""} onSave={(v) => updateField.mutate({ field: "source", value: v })} />
+                    <InlineField label="Nome" value={contact.first_name} onSave={(v) => updateField.mutate({ field: "first_name", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="Cognome" value={contact.last_name || ""} onSave={(v) => updateField.mutate({ field: "last_name", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="Email" value={contact.email || ""} onSave={(v) => updateField.mutate({ field: "email", value: v })} type="email" disabled={!canEditContacts} />
+                    <InlineField label="Telefono" value={contact.phone || ""} onSave={(v) => updateField.mutate({ field: "phone", value: v })} type="tel" disabled={!canEditContacts} />
+                    <InlineField label="Data di nascita" value={contact.date_of_birth || ""} onSave={(v) => updateField.mutate({ field: "date_of_birth", value: v || null })} type="date" disabled={!canEditContacts} />
+                    <InlineField label="Fonte" value={contact.source || ""} onSave={(v) => updateField.mutate({ field: "source", value: v })} disabled={!canEditContacts} />
                     <InlineField
                       label="Tipo contatto"
                       value={contact.contact_type || "lead"}
                       onSave={(v) => updateField.mutate({ field: "contact_type", value: v })}
                       type="select"
                       options={["lead", "cliente", "partner", "fornitore", "altro"]}
+                      disabled={!canEditContacts}
                     />
                   </CollapsibleContent>
                 </Collapsible>
@@ -579,13 +604,13 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     Informazioni generali
                   </CollapsibleTrigger>
                   <CollapsibleContent className="px-1 space-y-0">
-                    <InlineField label="Azienda" value={contact.company_name || ""} onSave={(v) => updateField.mutate({ field: "company_name", value: v })} />
-                    <InlineField label="Indirizzo" value={contact.address || ""} onSave={(v) => updateField.mutate({ field: "address", value: v })} />
-                    <InlineField label="Città" value={contact.city || ""} onSave={(v) => updateField.mutate({ field: "city", value: v })} />
-                    <InlineField label="Provincia" value={contact.province || ""} onSave={(v) => updateField.mutate({ field: "province", value: v })} />
-                    <InlineField label="CAP" value={contact.postal_code || ""} onSave={(v) => updateField.mutate({ field: "postal_code", value: v })} />
-                    <InlineField label="Paese" value={contact.country || ""} onSave={(v) => updateField.mutate({ field: "country", value: v })} />
-                    <InlineField label="Sito web" value={contact.website || ""} onSave={(v) => updateField.mutate({ field: "website", value: v })} />
+                    <InlineField label="Azienda" value={contact.company_name || ""} onSave={(v) => updateField.mutate({ field: "company_name", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="Indirizzo" value={contact.address || ""} onSave={(v) => updateField.mutate({ field: "address", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="Città" value={contact.city || ""} onSave={(v) => updateField.mutate({ field: "city", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="Provincia" value={contact.province || ""} onSave={(v) => updateField.mutate({ field: "province", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="CAP" value={contact.postal_code || ""} onSave={(v) => updateField.mutate({ field: "postal_code", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="Paese" value={contact.country || ""} onSave={(v) => updateField.mutate({ field: "country", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="Sito web" value={contact.website || ""} onSave={(v) => updateField.mutate({ field: "website", value: v })} disabled={!canEditContacts} />
                   </CollapsibleContent>
                 </Collapsible>
 
@@ -607,6 +632,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                             onSave={(v) => updateCustomField.mutate({ fieldId: cf.id, value: v })}
                             type={cf.field_type === "select" ? "select" : cf.field_type === "date" ? "date" : cf.field_type === "number" ? "number" : "text"}
                             options={cf.field_type === "select" ? cf.options : undefined}
+                            disabled={!canEditContacts}
                           />
                         ))}
                     </CollapsibleContent>
@@ -675,7 +701,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                             icp_score: result.icpScore,
                             icp_tier: tier,
                             last_score_update: new Date().toISOString(),
-                          }).eq("id", id);
+                          }).eq("id", id).eq("company_id", companyId);
                           queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
                           toast.success(`Lead Score aggiornato: ${result.leadScore}/100 (Tier ${tier})`);
                         } catch (err: any) {

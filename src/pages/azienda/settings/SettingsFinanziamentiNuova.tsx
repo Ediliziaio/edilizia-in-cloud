@@ -118,6 +118,13 @@ const initialState: FormState = {
 };
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+const CSV_MIME_TYPES = new Set([
+  "text/csv",
+  "text/plain",
+  "application/csv",
+  "application/vnd.ms-excel",
+  "",
+]);
 
 function parsePercentuale(value: string, label: string): number | null {
   const trimmed = value.trim();
@@ -137,6 +144,32 @@ function emailValida(value: string): boolean {
 function validaDate(decorrenza: string, scadenza: string): void {
   if (decorrenza && scadenza && scadenza < decorrenza) {
     throw new Error("La data di scadenza non può essere precedente alla decorrenza");
+  }
+}
+
+function validaCsvFile(file: File): void {
+  const name = file.name.toLowerCase();
+  const isCsvLike = name.endsWith(".csv") || name.endsWith(".txt") || name.endsWith(".tsv");
+  if (!isCsvLike || !CSV_MIME_TYPES.has(file.type)) {
+    throw new Error("Formato non supportato: importa un file CSV, TXT o TSV. Converti eventuali Excel in CSV prima del caricamento.");
+  }
+  if (file.size <= 0) {
+    throw new Error("Il file CSV è vuoto");
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error("CSV troppo grande (max 20 MB)");
+  }
+}
+
+function validaPdfFile(file: File): void {
+  if (!file.name.toLowerCase().endsWith(".pdf") || (file.type && file.type !== "application/pdf")) {
+    throw new Error("Solo file PDF supportati");
+  }
+  if (file.size <= 0) {
+    throw new Error("Il file PDF è vuoto");
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error("PDF troppo grande (max 20 MB)");
   }
 }
 
@@ -198,17 +231,40 @@ export default function SettingsFinanziamentiNuova() {
 
   // ─── Step 2: parsing CSV ────────────────────────────────────────────────
   const handleCsvSelect = async (file: File) => {
-    update("csv_file", file);
-    const text = await file.text();
-    update("csv_text", text);
-    const result = parseTabellaCsv(text, {
-      subtariffa_default: form.subtariffa_default || null,
-    });
-    update("parse_result", result);
+    try {
+      validaCsvFile(file);
+      update("csv_file", file);
+      const text = await file.text();
+      update("csv_text", text);
+      const result = parseTabellaCsv(text, {
+        subtariffa_default: form.subtariffa_default || null,
+      });
+      update("parse_result", result);
+      if (result.errori.length > 0) {
+        toast.error("CSV importato con errori", {
+          description: `Correggi ${result.errori.length} errore/i prima di salvare.`,
+        });
+      }
+    } catch (e) {
+      update("csv_file", null);
+      update("csv_text", "");
+      update("parse_result", null);
+      toast.error("CSV non valido", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    }
   };
 
   const handlePdfSelect = (file: File) => {
-    update("pdf_file", file);
+    try {
+      validaPdfFile(file);
+      update("pdf_file", file);
+    } catch (e) {
+      update("pdf_file", null);
+      toast.error("PDF non valido", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    }
   };
 
   // ─── Step 2 (AI mode): upload PDF + chiamata edge function ──────────────
@@ -217,12 +273,12 @@ export default function SettingsFinanziamentiNuova() {
       toast.error("Company non identificata.");
       return;
     }
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      toast.error("Solo file PDF supportati per estrazione AI.");
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error("PDF troppo grande (max 20 MB).");
+    try {
+      validaPdfFile(file);
+    } catch (e) {
+      toast.error("PDF non valido", {
+        description: e instanceof Error ? e.message : String(e),
+      });
       return;
     }
 
@@ -382,6 +438,12 @@ export default function SettingsFinanziamentiNuova() {
   const handleSalva = async () => {
     if (!form.parse_result || form.parse_result.righe_valide.length === 0) {
       toast.error("Carica un CSV valido prima di salvare.");
+      return;
+    }
+    if (form.parse_result.errori.length > 0) {
+      toast.error("Correggi gli errori della tabella prima di salvare.", {
+        description: `${form.parse_result.errori.length} errore/i rilevati nel file importato.`,
+      });
       return;
     }
     if (!effectiveCompany?.id) {
@@ -883,7 +945,7 @@ export default function SettingsFinanziamentiNuova() {
                   <input
                     ref={csvInputRef}
                     type="file"
-                    accept=".csv,text/csv,application/vnd.ms-excel"
+                    accept=".csv,.txt,.tsv,text/csv,text/plain"
                     className="hidden"
                     onChange={(e) => {
                       const f = e.target.files?.[0];

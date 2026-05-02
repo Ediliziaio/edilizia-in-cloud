@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Users as UsersIcon,
   CalendarDays,
+  CalendarPlus,
   CheckCheck,
   X as XIcon,
   SlidersHorizontal,
@@ -33,6 +34,7 @@ interface Props {
   selectedUserIds: string[];
   onToggleCalendar: (id: string) => void;
   onToggleUser: (id: string) => void;
+  onConfigureCalendars?: () => void;
   /** Disabilita layout sidebar (usato dentro drawer mobile) */
   inSheet?: boolean;
 }
@@ -44,6 +46,7 @@ export default function MarketingCalendarFilters({
   selectedUserIds,
   onToggleCalendar,
   onToggleUser,
+  onConfigureCalendars,
   inSheet = false,
 }: Props) {
   const [search, setSearch] = useState("");
@@ -93,7 +96,7 @@ export default function MarketingCalendarFilters({
 
   const containerClass = inSheet
     ? "bg-background p-4 space-y-5"
-    : "w-64 border-l bg-background p-4 space-y-5 overflow-y-auto";
+    : "h-full min-w-0 bg-background p-4 space-y-5 overflow-y-auto";
 
   return (
     <div className={containerClass}>
@@ -209,9 +212,24 @@ export default function MarketingCalendarFilters({
             );
           })}
           {filteredCalendars.length === 0 && (
-            <p className="text-xs text-muted-foreground italic px-2 py-1">
-              Nessun calendario
-            </p>
+            <div className="rounded-md border border-dashed bg-muted/30 px-3 py-3">
+              <p className="text-xs font-medium text-foreground">Nessun calendario</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Configura almeno un calendario CRM per creare appuntamenti e link di prenotazione.
+              </p>
+              {onConfigureCalendars && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 h-8 w-full gap-1.5 text-xs"
+                  onClick={onConfigureCalendars}
+                >
+                  <CalendarPlus className="h-3.5 w-3.5" />
+                  Configura calendario
+                </Button>
+              )}
+            </div>
           )}
         </div>
       </Section>

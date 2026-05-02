@@ -25,9 +25,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
+import { usePermissions } from "@/hooks/usePermissions";
 import { OpportunityStatsStrip } from "@/components/opportunities/OpportunityStatsStrip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CreateListDialog } from "@/components/marketing/CreateListDialog";
+import { cleanPhone } from "@/lib/contactUtils";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -63,6 +65,8 @@ function MarketingOpportunitiesContent() {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const currentUserId = user?.id ?? null;
+  const permissions = usePermissions();
+  const canEditOpportunities = permissions.canEditMarketingOpportunities || permissions.canEditMarketing;
   const { data: pipelines = [], isLoading: loadingPipelines } = usePipelines();
 
   const { params: urlFilters, setParam: setURLParam } = useURLFilters({
@@ -166,7 +170,8 @@ function MarketingOpportunitiesContent() {
 
   const deleteListMutation = useMutation({
     mutationFn: async (listId: string) => {
-      const { error } = await supabase.from("marketing_opportunity_lists").delete().eq("id", listId);
+      if (!companyId) throw new Error("Azienda non selezionata");
+      const { error } = await supabase.from("marketing_opportunity_lists").delete().eq("id", listId).eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -196,6 +201,7 @@ function MarketingOpportunitiesContent() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleSelect = useCallback((id: string, sel: boolean) => {
     setSelectedIds((prev) => {
@@ -224,8 +230,8 @@ function MarketingOpportunitiesContent() {
     return Array.from(tagSet).sort();
   }, [opportunities]);
 
-  const filteredOpportunities = useMemo(() => {
-    let result = opportunities;
+  const applyOpportunityFiltersAndSort = useCallback((source: any[]) => {
+    let result = source;
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -296,7 +302,97 @@ function MarketingOpportunitiesContent() {
     });
 
     return result;
-  }, [opportunities, searchQuery, filters, sortField, sortDir, onlyMine, currentUserId]);
+  }, [searchQuery, filters, sortField, sortDir, onlyMine, currentUserId]);
+
+  const filteredOpportunities = useMemo(
+    () => applyOpportunityFiltersAndSort(opportunities),
+    [opportunities, applyOpportunityFiltersAndSort]
+  );
+
+  const fetchAllOpportunitiesForExport = useCallback(async () => {
+    if (!companyId || !selectedPipelineId) return [];
+    const pageSize = 1000;
+    let from = 0;
+    let allRows: any[] = [];
+
+    for (;;) {
+      let query = supabase
+        .from("marketing_opportunities")
+        .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, source, company_name, tags)")
+        .eq("company_id", companyId)
+        .eq("pipeline_id", selectedPipelineId)
+        .order("created_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      if (permissions.onlyAssigned && currentUserId) {
+        query = query.eq("assigned_to", currentUserId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      allRows = allRows.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return applyOpportunityFiltersAndSort(allRows);
+  }, [companyId, selectedPipelineId, permissions.onlyAssigned, currentUserId, applyOpportunityFiltersAndSort]);
+
+  const handleExportOpportunities = useCallback(async () => {
+    if (!selectedPipelineId) {
+      toast.error("Seleziona una pipeline prima di esportare");
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const exportRows = await fetchAllOpportunitiesForExport();
+      const stageMap = Object.fromEntries(stages.map((s: any) => [s.id, s.name]));
+      const staffMap = Object.fromEntries(staff.map((s: any) => [s.id, s.name]));
+      const rows = exportRows.map((o: any) => {
+        const c = o.marketing_contacts || {};
+        return {
+          name: o.name || "",
+          contact: [c.first_name, c.last_name].filter(Boolean).join(" "),
+          email: c.email || "",
+          phone: c.phone || "",
+          value: String(o.value || 0),
+          probability: String(o.probability ?? ""),
+          weighted_value: String(Number(o.value || 0) * (Number(o.probability ?? 50) / 100)),
+          status: o.status || "",
+          stage: stageMap[o.stage_id] || "",
+          assigned_to: staffMap[o.assigned_to] || "",
+          source: o.source || "",
+          tags: (o.tags || []).join(", "),
+          expected_close_date: o.expected_close_date || "",
+          created_at: o.created_at ? new Date(o.created_at).toLocaleDateString("it-IT") : "",
+          updated_at: o.updated_at ? new Date(o.updated_at).toLocaleDateString("it-IT") : "",
+        };
+      });
+      const today = new Date().toISOString().slice(0, 10);
+      exportToCSV(rows, [
+        { key: "name", label: "Nome Opportunità" },
+        { key: "contact", label: "Contatto" },
+        { key: "email", label: "Email" },
+        { key: "phone", label: "Telefono" },
+        { key: "value", label: "Valore" },
+        { key: "probability", label: "Probabilità" },
+        { key: "weighted_value", label: "Valore ponderato" },
+        { key: "status", label: "Stato" },
+        { key: "stage", label: "Fase" },
+        { key: "assigned_to", label: "Titolare" },
+        { key: "source", label: "Fonte" },
+        { key: "tags", label: "Tag" },
+        { key: "expected_close_date", label: "Chiusura prevista" },
+        { key: "created_at", label: "Data Creazione" },
+        { key: "updated_at", label: "Ultimo aggiornamento" },
+      ], `opportunita_${today}.csv`);
+      toast.success(`${rows.length} opportunità esportate${permissions.onlyAssigned ? " tra quelle assegnate a te" : ""}`);
+    } catch {
+      toast.error("Errore durante l'esportazione");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [fetchAllOpportunitiesForExport, selectedPipelineId, stages, staff, permissions.onlyAssigned]);
 
   const activeFilterCount = countActiveFilters(filters);
 
@@ -313,6 +409,9 @@ function MarketingOpportunitiesContent() {
           if (!companyId || !selectedPipelineId || stages.length === 0) {
             return { success: 0, errors: ["Seleziona una pipeline con almeno una fase"] };
           }
+          if (!canEditOpportunities) {
+            return { success: 0, errors: ["Non hai i permessi per importare opportunità"] };
+          }
           const customKeys = oppCustomFields.map(f => `custom_${f.id}`);
           const defaultStageId = [...stages].sort((a: any, b: any) => a.position - b.position)[0].id;
           let success = 0;
@@ -322,8 +421,12 @@ function MarketingOpportunitiesContent() {
             try {
               const firstName = r.contact_first_name?.trim() || "Senza nome";
               const lastName = r.contact_last_name?.trim() || null;
-              const email = r.contact_email?.trim() || null;
-              const phone = r.contact_phone?.trim() || null;
+              const email = r.contact_email?.trim().toLowerCase() || null;
+              const phone = r.contact_phone?.trim() ? cleanPhone(r.contact_phone) : null;
+              const value = r.value?.trim() ? Number(r.value) : 0;
+              if (!Number.isFinite(value) || value < 0) {
+                throw new Error("Valore economico non valido");
+              }
               let contactId: string | null = null;
               if (email) {
                 const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).eq("email", email).limit(1).maybeSingle();
@@ -342,7 +445,7 @@ function MarketingOpportunitiesContent() {
               const { data: oppData, error: oErr } = await supabase.from("marketing_opportunities").insert({
                 company_id: companyId, pipeline_id: selectedPipelineId, stage_id: defaultStageId,
                 contact_id: contactId!, name: r.name?.trim() || `Opportunità ${i + 1}`,
-                value: parseFloat(r.value) || 0, source: r.source?.trim() || "importazione", tags, notes: r.notes?.trim() || null,
+                value, source: r.source?.trim() || "importazione", tags, notes: r.notes?.trim() || null,
               }).select("id").single();
               if (oErr) throw oErr;
               // Save custom field values
@@ -433,10 +536,10 @@ function MarketingOpportunitiesContent() {
             </TooltipTrigger>
             <TooltipContent>{layout === "mini" ? "Vista estesa" : "Vista compatta"}</TooltipContent>
           </Tooltip>
-          <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs" onClick={() => setImportOpen(true)} disabled={stages.length === 0}>
+          <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities}>
             <Upload className="mr-1.5 h-3.5 w-3.5" /> Importa
           </Button>
-          <Button size="sm" className="h-8 text-xs" onClick={() => setDialogOpen(true)} disabled={stages.length === 0}>
+          <Button size="sm" className="h-8 text-xs" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             <span className="hidden sm:inline">Aggiungi opportunità</span>
             <span className="sm:hidden">Aggiungi</span>
@@ -448,7 +551,7 @@ function MarketingOpportunitiesContent() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem className="md:hidden" onClick={() => setImportOpen(true)} disabled={stages.length === 0}>
+              <DropdownMenuItem className="md:hidden" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities}>
                 <Upload className="mr-2 h-4 w-4" /> Importa CSV
               </DropdownMenuItem>
               <DropdownMenuItem className="md:hidden" onClick={() => setViewMode(viewMode === "kanban" ? "list" : "kanban")}>
@@ -458,43 +561,8 @@ function MarketingOpportunitiesContent() {
               <DropdownMenuItem className="md:hidden" onClick={() => setCardCustomizeOpen(true)}>
                 <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={async () => {
-                try {
-                  const stageMap = Object.fromEntries(stages.map((s: any) => [s.id, s.name]));
-                  const rows = filteredOpportunities.map((o: any) => {
-                    const c = o.marketing_contacts || {};
-                    return {
-                      name: o.name || "",
-                      contact: [c.first_name, c.last_name].filter(Boolean).join(" "),
-                      email: c.email || "",
-                      phone: c.phone || "",
-                      value: String(o.value || 0),
-                      status: o.status || "",
-                      stage: stageMap[o.stage_id] || "",
-                      source: o.source || "",
-                      tags: (o.tags || []).join(", "),
-                      created_at: o.created_at ? new Date(o.created_at).toLocaleDateString("it-IT") : "",
-                    };
-                  });
-                  const today = new Date().toISOString().slice(0, 10);
-                  exportToCSV(rows, [
-                    { key: "name", label: "Nome Opportunità" },
-                    { key: "contact", label: "Contatto" },
-                    { key: "email", label: "Email" },
-                    { key: "phone", label: "Telefono" },
-                    { key: "value", label: "Valore" },
-                    { key: "status", label: "Stato" },
-                    { key: "stage", label: "Fase" },
-                    { key: "source", label: "Fonte" },
-                    { key: "tags", label: "Tag" },
-                    { key: "created_at", label: "Data Creazione" },
-                  ], `opportunita_${today}.csv`);
-                  toast.success(`${rows.length} opportunità esportate`);
-                } catch {
-                  toast.error("Errore durante l'esportazione");
-                }
-              }}>
-                <Download className="mr-2 h-4 w-4" /> Esporta CSV
+              <DropdownMenuItem onClick={handleExportOpportunities} disabled={isExporting}>
+                {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Esporta CSV
               </DropdownMenuItem>
               {!isAdminContext && <DropdownMenuItem onClick={() => navigate("/azienda/impostazioni/sequenze")}>Impostazioni pipeline</DropdownMenuItem>}
             </DropdownMenuContent>
@@ -622,7 +690,7 @@ function MarketingOpportunitiesContent() {
         </div>
       ) : (
         <>
-           {selectedIds.size > 0 && (
+           {selectedIds.size > 0 && canEditOpportunities && (
             <div className="flex items-center gap-3 px-4 py-2 bg-primary/5 border rounded-lg shrink-0">
               <Badge variant="secondary" className="text-xs font-semibold">
                 {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
@@ -644,9 +712,9 @@ function MarketingOpportunitiesContent() {
             </div>
           )}
           {viewMode === "list" ? (
-            <OpportunityListView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} />
+            <OpportunityListView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} canEdit={canEditOpportunities} />
           ) : (
-            <div className="flex-1 min-h-0 overflow-auto"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} /></div>
+            <div className="flex-1 min-h-0 overflow-auto"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} canEdit={canEditOpportunities} /></div>
           )}
         </>
       )}
@@ -657,7 +725,7 @@ function MarketingOpportunitiesContent() {
 
       <OpportunityFiltersSheet open={filtersOpen} onOpenChange={setFiltersOpen} filters={filters} onApply={setFilters} staff={staff} availableTags={availableTags} />
 
-      <BulkEditSheet open={bulkEditOpen} onOpenChange={setBulkEditOpen} selectedIds={[...selectedIds]} stages={stages} onDone={clearSelection} />
+      <BulkEditSheet open={bulkEditOpen} onOpenChange={setBulkEditOpen} selectedIds={[...selectedIds]} stages={stages} onDone={clearSelection} canEdit={canEditOpportunities} />
 
       <CardCustomizeSheet
         open={cardCustomizeOpen}

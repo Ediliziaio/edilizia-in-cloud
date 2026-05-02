@@ -186,6 +186,32 @@ const PREZZO_MODE_CARDS: Array<{
   },
 ];
 
+function parseDecimalField(value: string, fallback = 0): number {
+  if (value.trim() === "") return fallback;
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function assertFiniteRange(
+  value: number,
+  label: string,
+  options: { min?: number; max?: number; allowZero?: boolean } = {},
+) {
+  const { min = 0, max, allowZero = true } = options;
+  if (!Number.isFinite(value)) {
+    throw new Error(`${label} deve essere un numero valido.`);
+  }
+  if (!allowZero && value === 0) {
+    throw new Error(`${label} deve essere maggiore di zero.`);
+  }
+  if (value < min) {
+    throw new Error(`${label} non può essere negativo.`);
+  }
+  if (max != null && value > max) {
+    throw new Error(`${label} non può superare ${max}.`);
+  }
+}
+
 export function FamilyEditor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -495,26 +521,101 @@ export function FamilyEditor() {
 
   // ── Salvataggio Step 1 (crea/aggiorna dati base) ───────────────────────
   const saveBase = async (): Promise<string | null> => {
+    if (!nome.trim()) {
+      toast.error("Serve un nome", {
+        description: "Inserisci il nome dell'articolo prima di salvare.",
+      });
+      return null;
+    }
+
     const vertical =
       (effectiveCompany as { vertical?: string } | null)?.vertical ?? "generico";
-    // IVA: accetta 0 (estero/reverse charge). Il vecchio fallback a 22 su NaN
-    // resta per proteggerci da stringhe vuote, ma 0 è un valore valido.
-    const parsedVat = parseFloat(vatRate);
-    const vat_rate = Number.isFinite(parsedVat) ? parsedVat : 22;
-    // IVA acquisto: persistita solo quando mode=acquisto_markup ha senso
-    // differenziarla. In mode=vendita la rimandiamo uguale a IVA vendita per
-    // coerenza (niente dati sporchi nel DB).
-    const parsedVatAcq = parseFloat(vatRateAcquisto);
-    const vat_rate_acquisto =
-      prezzoBaseMode === "acquisto_markup" && Number.isFinite(parsedVatAcq)
-        ? parsedVatAcq
-        : vat_rate;
+    let vat_rate: number;
+    let vat_rate_acquisto: number;
+    let prezzoAcquistoNum: number;
+    let prezzoVenditaNum: number;
+    let markupValoreNum: number;
+    let scontoFornitore1Num: number;
+    let scontoFornitore2Num: number;
+    let posaQuantitaNum: number;
+    let manodoperaCostoAcquistoNum: number;
+    let manodoperaPrezzoVenditaNum: number;
 
-    const prezzoAcquistoNum = parseFloat(prezzoAcquisto) || 0;
-    const prezzoVenditaNum =
-      prezzoBaseMode === "acquisto_markup"
-        ? prezzoVenditaCalcolato // cache derivata, tenuta allineata al markup
-        : parseFloat(prezzoVendita) || 0;
+    try {
+      // IVA: accetta 0 (estero/reverse charge), ma blocca NaN e valori fuori
+      // range. Prima il salvataggio trasformava input non validi in 22/0.
+      vat_rate = parseDecimalField(vatRate, 22);
+      assertFiniteRange(vat_rate, "IVA vendita", { min: 0, max: 100 });
+
+      const parsedVatAcq = parseDecimalField(vatRateAcquisto, vat_rate);
+      vat_rate_acquisto =
+        prezzoBaseMode === "acquisto_markup" ? parsedVatAcq : vat_rate;
+      assertFiniteRange(vat_rate_acquisto, "IVA acquisto", {
+        min: 0,
+        max: 100,
+      });
+
+      prezzoAcquistoNum = parseDecimalField(prezzoAcquisto, 0);
+      assertFiniteRange(prezzoAcquistoNum, "Prezzo di acquisto", { min: 0 });
+
+      const prezzoVenditaInput = parseDecimalField(prezzoVendita, 0);
+      assertFiniteRange(prezzoVenditaInput, "Prezzo di vendita", { min: 0 });
+
+      markupValoreNum = parseDecimalField(markupValore, 0);
+      assertFiniteRange(markupValoreNum, "Markup", { min: 0 });
+
+      scontoFornitore1Num = parseDecimalField(scontoFornitore1, 0);
+      scontoFornitore2Num = parseDecimalField(scontoFornitore2, 0);
+      assertFiniteRange(scontoFornitore1Num, "Sconto fornitore 1", {
+        min: 0,
+        max: 100,
+      });
+      assertFiniteRange(scontoFornitore2Num, "Sconto fornitore 2", {
+        min: 0,
+        max: 100,
+      });
+
+      posaQuantitaNum = parseDecimalField(posaQuantita, 1);
+      assertFiniteRange(posaQuantitaNum, "Quantità manodopera", {
+        min: 0,
+        allowZero: false,
+      });
+
+      manodoperaCostoAcquistoNum = parseDecimalField(
+        manodoperaCostoAcquisto,
+        0,
+      );
+      manodoperaPrezzoVenditaNum = parseDecimalField(
+        manodoperaPrezzoVendita,
+        0,
+      );
+      assertFiniteRange(
+        manodoperaCostoAcquistoNum,
+        "Costo manodopera",
+        { min: 0 },
+      );
+      assertFiniteRange(
+        manodoperaPrezzoVenditaNum,
+        "Prezzo vendita manodopera",
+        { min: 0 },
+      );
+
+      prezzoVenditaNum =
+        prezzoBaseMode === "acquisto_markup"
+          ? prezzoVenditaCalcolato // cache derivata, tenuta allineata al markup
+          : prezzoVenditaInput;
+      assertFiniteRange(prezzoVenditaNum, "Prezzo di vendita calcolato", {
+        min: 0,
+      });
+    } catch (err) {
+      toast.error("Dati economici non validi", {
+        description:
+          err instanceof Error
+            ? err.message
+            : "Controlla prezzi, IVA, sconti e manodopera.",
+      });
+      return null;
+    }
 
     const payload = {
       nome: nome.trim(),
@@ -530,11 +631,11 @@ export function FamilyEditor() {
       prezzo_base_vendita: prezzoVenditaNum,
       prezzo_base_acquisto: prezzoAcquistoNum,
       markup_tipo: markupTipo,
-      markup_valore: parseFloat(markupValore) || 0,
+      markup_valore: markupValoreNum,
       // Sconti fornitore in cascata (migration 20260421000006). Persistiamo
       // sempre: anche in mode=vendita resta 0/0 (default DB) senza effetto.
-      sconto_fornitore_1: parseFloat(scontoFornitore1) || 0,
-      sconto_fornitore_2: parseFloat(scontoFornitore2) || 0,
+      sconto_fornitore_1: scontoFornitore1Num,
+      sconto_fornitore_2: scontoFornitore2Num,
       immagine_url: immagineUrl,
       // Manodopera: in modalità 'tariffa' salviamo il legacy link, in 'manuale'
       // gli importi diretti, in 'nessuna' reset legacy a null. Gli importi
@@ -544,11 +645,11 @@ export function FamilyEditor() {
         manodoperaModalita === "tariffa" && posaTariffaId !== "none"
           ? posaTariffaId
           : null,
-      posa_quantita_default: parseFloat(posaQuantita) || 1,
+      posa_quantita_default: posaQuantitaNum,
       posa_linked: posaLinked,
       manodopera_modalita: manodoperaModalita,
-      manodopera_costo_acquisto: parseFloat(manodoperaCostoAcquisto) || 0,
-      manodopera_prezzo_vendita: parseFloat(manodoperaPrezzoVendita) || 0,
+      manodopera_costo_acquisto: manodoperaCostoAcquistoNum,
+      manodopera_prezzo_vendita: manodoperaPrezzoVenditaNum,
       manodopera_unita: manodoperaUnita,
     };
 

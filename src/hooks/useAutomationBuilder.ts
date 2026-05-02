@@ -13,6 +13,23 @@ interface BuilderState {
 }
 
 const MAX_HISTORY = 50;
+const PUBLISHABLE_NODE_TYPES = new Set(["action", "condition", "delay", "goal", "split"]);
+
+type AutomationConfig = Record<string, unknown>;
+
+function getNodeConfig(node: AutomationNode): AutomationConfig {
+  return (node.config_json ?? {}) as AutomationConfig;
+}
+
+function isPersistableNode(node: AutomationNode): boolean {
+  return node.node_type !== ("end" as AutomationNode["node_type"]);
+}
+
+function hasDelayDuration(config: AutomationConfig): boolean {
+  const value = config.delay_durata ?? config.delay_value;
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0;
+}
 
 export function useAutomationBuilder(flowId: string | undefined) {
   const { effectiveCompany, user } = useAuth();
@@ -177,9 +194,22 @@ export function useAutomationBuilder(flowId: string | undefined) {
   // Validation before publishing
   const validateForPublish = useCallback((): string[] => {
     const errors: string[] = [];
-    const hasTrigger = nodes.some(n => n.node_type === "trigger");
+    const persistableNodes = nodes.filter(isPersistableNode);
+    const hasTrigger = persistableNodes.some(n => n.node_type === "trigger");
+    const hasPublishableStep = persistableNodes.some(n => PUBLISHABLE_NODE_TYPES.has(n.node_type));
     if (!hasTrigger) errors.push("Aggiungi almeno un trigger prima di pubblicare.");
-    if (nodes.length < 2) errors.push("Aggiungi almeno un'azione dopo il trigger.");
+    if (!hasPublishableStep) errors.push("Aggiungi almeno un'azione dopo il trigger.");
+
+    const incompleteAction = persistableNodes.find(n => {
+      if (n.node_type !== "action") return false;
+      const config = getNodeConfig(n);
+      return !config.itemId && !config.item_id && !config.action_type;
+    });
+    if (incompleteAction) errors.push("Completa tutte le azioni prima di pubblicare.");
+
+    const incompleteDelay = persistableNodes.find(n => n.node_type === "delay" && !hasDelayDuration(getNodeConfig(n)));
+    if (incompleteDelay) errors.push("Imposta una durata valida per tutte le attese.");
+
     return errors;
   }, [nodes]);
 
@@ -196,10 +226,14 @@ export function useAutomationBuilder(flowId: string | undefined) {
     }
     setIsSaving(true);
     try {
-      if (nodes.length > 0) {
+      const persistableNodes = nodes.filter(isPersistableNode);
+      const persistableNodeIds = new Set(persistableNodes.map(n => n.id));
+      const persistableConnections = connections.filter(c => persistableNodeIds.has(c.from_node_id) && persistableNodeIds.has(c.to_node_id));
+
+      if (persistableNodes.length > 0) {
         const { error: nErr } = await supabase
           .from("automation_nodes")
-          .upsert(nodes.map(n => ({
+          .upsert(persistableNodes.map(n => ({
             id: n.id,
             flow_id: flowId,
             company_id: persistCompanyId,
@@ -212,18 +246,23 @@ export function useAutomationBuilder(flowId: string | undefined) {
         if (nErr) throw nErr;
       }
 
-      const nodeIds = nodes.map(n => n.id);
+      const nodeIds = persistableNodes.map(n => n.id);
       if (dbNodes && dbNodes.length > 0) {
         const removedIds = dbNodes.filter(n => !nodeIds.includes(n.id)).map(n => n.id);
         if (removedIds.length > 0) {
-          await supabase.from("automation_nodes").delete().in("id", removedIds);
+          await supabase
+            .from("automation_nodes")
+            .delete()
+            .eq("flow_id", flowId)
+            .eq("company_id", persistCompanyId)
+            .in("id", removedIds);
         }
       }
 
-      if (connections.length > 0) {
+      if (persistableConnections.length > 0) {
         const { error: cErr } = await supabase
           .from("automation_connections")
-          .upsert(connections.map(c => ({
+          .upsert(persistableConnections.map(c => ({
             id: c.id,
             flow_id: flowId,
             company_id: persistCompanyId,
@@ -234,20 +273,30 @@ export function useAutomationBuilder(flowId: string | undefined) {
         if (cErr) throw cErr;
       }
 
-      const connIds = connections.map(c => c.id);
+      const connIds = persistableConnections.map(c => c.id);
       if (dbConnections && dbConnections.length > 0) {
         const removedConnIds = dbConnections.filter(c => !connIds.includes(c.id)).map(c => c.id);
         if (removedConnIds.length > 0) {
-          await supabase.from("automation_connections").delete().in("id", removedConnIds);
+          await supabase
+            .from("automation_connections")
+            .delete()
+            .eq("flow_id", flowId)
+            .eq("company_id", persistCompanyId)
+            .in("id", removedConnIds);
         }
       }
 
-      await supabase.from("automation_flows").update({ updated_at: new Date().toISOString() }).eq("id", flowId);
+      await supabase
+        .from("automation_flows")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", flowId)
+        .eq("company_id", persistCompanyId);
 
       setHasUnsavedChanges(false);
       toast.success("Salvato con successo");
       queryClient.invalidateQueries({ queryKey: queryKeys.automations.nodes(flowId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.automations.connections(flowId) });
+      queryClient.invalidateQueries({ queryKey: ["automation-node-summaries", persistCompanyId] });
       // Bug 4 fix: invalidate flows list so updated_at refreshes
       queryClient.invalidateQueries({ queryKey: queryKeys.automations.all });
     } catch (err: any) {
@@ -333,12 +382,18 @@ export function useAutomationBuilder(flowId: string | undefined) {
   const updateFlowMutation = useMutation({
     mutationFn: async (updates: Partial<AutomationFlow>) => {
       if (!flowId || flowId === "nuova") return;
+      const persistCompanyId = effectiveCompany?.id ?? flow?.company_id;
+      if (!persistCompanyId) throw new Error("Nessuna azienda attiva.");
       const safeUpdates = { ...updates };
       if (safeUpdates.name) {
         safeUpdates.name = safeUpdates.name.trim().slice(0, 100);
         if (!safeUpdates.name) delete safeUpdates.name;
       }
-      const { error } = await supabase.from("automation_flows").update(safeUpdates).eq("id", flowId);
+      const { error } = await supabase
+        .from("automation_flows")
+        .update(safeUpdates)
+        .eq("id", flowId)
+        .eq("company_id", persistCompanyId);
       if (error) throw error;
     },
     onSuccess: () => {

@@ -24,6 +24,16 @@ type EntityCustomFieldDefinition = {
   options: string[] | null;
 };
 
+const normalizeInlineType = (fieldType: string) => {
+  if (fieldType === "select" || fieldType === "radio" || fieldType === "multiselect") return "select";
+  if (fieldType === "date" || fieldType === "time") return fieldType;
+  if (fieldType === "number" || fieldType === "currency" || fieldType === "percent") return "number";
+  if (fieldType === "email") return "email";
+  if (fieldType === "phone") return "tel";
+  if (fieldType === "url") return "url";
+  return "text";
+};
+
 export function EntityCustomFieldsSection({ entityType, entityId }: EntityCustomFieldsSectionProps) {
   const { data: fieldDefs = [], isLoading: defsLoading } = useEntityCustomFields(entityType);
   const { data: fieldValues = [], isLoading: valsLoading } = useEntityFieldValues(entityType, entityId);
@@ -69,15 +79,9 @@ export function EntityCustomFieldsSection({ entityType, entityId }: EntityCustom
           label={field.name}
           value={getVal(field.id)}
           type={
-            field.field_type === "select"
-              ? "select"
-              : field.field_type === "date"
-              ? "date"
-              : field.field_type === "number"
-              ? "number"
-              : "text"
+            normalizeInlineType(field.field_type)
           }
-          options={field.field_type === "select" ? field.options : undefined}
+          options={["select", "radio", "multiselect"].includes(field.field_type) ? field.options : undefined}
           onSave={(val) => handleSave(field.id, val)}
         />
       ))}

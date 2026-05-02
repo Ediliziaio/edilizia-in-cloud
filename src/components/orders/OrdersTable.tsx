@@ -262,11 +262,11 @@ export const OrdersTable = React.memo(function OrdersTable({
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Elimina {selectedIds.size} ordin{selectedIds.size === 1 ? "e" : "i"}</AlertDialogTitle>
+                  <AlertDialogTitle>Eliminazione sicura di {selectedIds.size} ordin{selectedIds.size === 1 ? "e" : "i"}</AlertDialogTitle>
                   <AlertDialogDescription>
                     Sei sicuro di voler eliminare <strong>{selectedIds.size}</strong> ordin{selectedIds.size === 1 ? "e" : "i"}?
                     <br />
-                    Verranno eliminati anche tutti i dati collegati. Questa azione non può essere annullata.
+                    L'azione verra bloccata automaticamente se una commessa ha fatture, costi o scadenze collegate.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -529,14 +529,12 @@ export const OrdersTable = React.memo(function OrdersTable({
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Elimina Commessa</AlertDialogTitle>
+                            <AlertDialogTitle>Eliminazione sicura commessa</AlertDialogTitle>
                             <AlertDialogDescription>
                               Sei sicuro di voler eliminare la commessa{" "}
                               <strong>{order.order_code || order.description}</strong>?
                               <br />
-                              Verranno eliminati anche tutti i dati collegati (articoli, allegati, storico stati, ecc.).
-                              <br />
-                              Questa azione non può essere annullata.
+                              Se esistono fatture, costi o scadenze collegate, il sistema blocchera l'eliminazione per proteggere report e storico.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>

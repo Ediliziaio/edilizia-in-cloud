@@ -1,4 +1,4 @@
-import { ShoppingBag, Euro, TrendingUp, AlertCircle, LifeBuoy, CheckCircle2, Hammer } from "lucide-react";
+import { ShoppingBag, Euro, TrendingUp, AlertCircle, LifeBuoy, CheckCircle2, Hammer, BarChart3, ShieldAlert } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,9 @@ interface OrdersStats {
   countAssistenza?: number;
   countCompletati?: number;
   countDaCompletare?: number;
+  averageGross?: number;
+  grossMargin?: number;
+  lowMarginCount?: number;
 }
 
 interface OrdersStatsCardsProps {
@@ -145,6 +148,32 @@ export function OrdersStatsCards({
           activeRing="ring-rose-400"
         />
       </div>
+
+      {(stats.averageGross !== undefined || stats.grossMargin !== undefined || stats.lowMarginCount !== undefined) && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <StatCard
+            icon={<BarChart3 className={iconSize} />}
+            value={formatCurrency(stats.averageGross ?? 0)}
+            label="Valore Medio"
+            iconBg="bg-sky-100 dark:bg-sky-950"
+            iconColor="text-sky-600 dark:text-sky-400"
+          />
+          <StatCard
+            icon={<TrendingUp className={iconSize} />}
+            value={formatCurrency(stats.grossMargin ?? 0)}
+            label="Margine Vista"
+            iconBg={(stats.grossMargin ?? 0) >= 0 ? "bg-emerald-100 dark:bg-emerald-950" : "bg-red-100 dark:bg-red-950"}
+            iconColor={(stats.grossMargin ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}
+          />
+          <StatCard
+            icon={<ShieldAlert className={iconSize} />}
+            value={stats.lowMarginCount ?? 0}
+            label="Margine Basso"
+            iconBg="bg-amber-100 dark:bg-amber-950"
+            iconColor="text-amber-600 dark:text-amber-400"
+          />
+        </div>
+      )}
     </div>
   );
 }

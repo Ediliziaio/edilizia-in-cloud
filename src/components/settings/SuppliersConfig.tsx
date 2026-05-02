@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { PAYMENT_METHODS } from "@/components/orders/OrderItemsList";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Truck, Plus, Pencil, Trash2, Loader2, Search, Check, ChevronsUpDown, QrCode, AlertCircle } from "lucide-react";
+import { Truck, Plus, Pencil, Trash2, Loader2, Search, Check, ChevronsUpDown, QrCode, AlertCircle, Merge, ArrowUpDown } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -49,6 +49,7 @@ interface Supplier {
   product_category: string | null;
   notes: string | null;
   payment_method: string | null;
+  is_active: boolean;
   created_at: string;
   company_id: string;
 }
@@ -72,6 +73,7 @@ interface SupplierFormData {
   product_category: string;
   notes: string;
   payment_method: string;
+  is_active: boolean;
   // ── QR system (MP1 P0) ──────────────────────────────
   barcode_prefix: string;
   uses_gs1: boolean;
@@ -95,10 +97,116 @@ const emptyForm: SupplierFormData = {
   product_category: "",
   notes: "",
   payment_method: "",
+  is_active: true,
   barcode_prefix: "",
   uses_gs1: false,
   default_qr_format: "",
 };
+
+interface SupplierUsageCounts {
+  articleTemplates: number;
+  companyCosts: number;
+  orderItems: number;
+  purchaseOrders: number;
+  scadenze: number;
+  primaNota: number;
+  warehouseStock: number;
+}
+
+const emptyUsageCounts: SupplierUsageCounts = {
+  articleTemplates: 0,
+  companyCosts: 0,
+  orderItems: 0,
+  purchaseOrders: 0,
+  scadenze: 0,
+  primaNota: 0,
+  warehouseStock: 0,
+};
+
+const supplierUsageLabels: Record<keyof SupplierUsageCounts, string> = {
+  articleTemplates: "Articoli/listino",
+  companyCosts: "Costi aziendali",
+  orderItems: "Righe ordine",
+  purchaseOrders: "Ordini di acquisto",
+  scadenze: "Scadenze/pagamenti",
+  primaNota: "Prima nota",
+  warehouseStock: "Magazzino",
+};
+
+function normalizeSupplierName(name: string) {
+  return name.trim().replace(/\s+/g, " ");
+}
+
+function supplierNameKey(name: string) {
+  return normalizeSupplierName(name).toLowerCase();
+}
+
+function normalizeVatNumber(value: string) {
+  return value.trim().replace(/[\s.-]/g, "").toUpperCase();
+}
+
+function normalizeOptional(value: string) {
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function isValidEmail(value: string) {
+  if (!value.trim()) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function isValidPhone(value: string) {
+  if (!value.trim()) return true;
+  return /^[+()0-9\s.-]{6,25}$/.test(value.trim());
+}
+
+function isValidItalianVat(value: string, isForeign: boolean) {
+  const normalized = normalizeVatNumber(value);
+  if (!normalized || isForeign) return true;
+  return /^(IT)?\d{11}$/.test(normalized);
+}
+
+function getUsageTotal(usage: SupplierUsageCounts | undefined) {
+  if (!usage) return 0;
+  return Object.values(usage).reduce((sum, value) => sum + value, 0);
+}
+
+async function getSupplierUsageCounts(companyId: string, supplierId: string): Promise<SupplierUsageCounts> {
+  const [
+    articleTemplates,
+    companyCosts,
+    orderItems,
+    purchaseOrders,
+    scadenze,
+    primaNota,
+    warehouseStock,
+  ] = await Promise.all([
+    supabase.from("article_templates").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("supplier_id", supplierId),
+    supabase.from("company_costs").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("supplier_id", supplierId),
+    supabase.from("order_items").select("id", { count: "exact", head: true }).eq("supplier_id", supplierId),
+    supabase.from("purchase_orders").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("supplier_id", supplierId),
+    supabase.from("scadenze").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("supplier_id", supplierId),
+    supabase.from("prima_nota_entries").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("supplier_id", supplierId),
+    supabase.from("warehouse_stock").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("supplier_id", supplierId),
+  ]);
+
+  const errors = [articleTemplates, companyCosts, orderItems, purchaseOrders, scadenze, primaNota, warehouseStock]
+    .map((result) => result.error)
+    .filter(Boolean);
+  if (errors.length > 0) {
+    throw errors[0];
+  }
+
+  return {
+    articleTemplates: articleTemplates.count ?? 0,
+    companyCosts: companyCosts.count ?? 0,
+    orderItems: orderItems.count ?? 0,
+    purchaseOrders: purchaseOrders.count ?? 0,
+    scadenze: scadenze.count ?? 0,
+    primaNota: primaNota.count ?? 0,
+    warehouseStock: warehouseStock.count ?? 0,
+  };
+}
 
 function supplierToForm(s: Supplier): SupplierFormData {
   // Cast difensivo: i campi QR sono opzionali nel type Supplier
@@ -125,6 +233,7 @@ function supplierToForm(s: Supplier): SupplierFormData {
     product_category: s.product_category || "",
     notes: s.notes || "",
     payment_method: s.payment_method || "",
+    is_active: s.is_active ?? true,
     barcode_prefix: qr.barcode_prefix ?? "",
     uses_gs1: !!qr.uses_gs1,
     default_qr_format: (qr.default_qr_format ?? "") as QrFormat,
@@ -140,16 +249,19 @@ function SupplierTable({
   suppliers,
   onEdit,
   onDelete,
+  emptyMessage = "Nessun fornitore in questa categoria",
 }: {
   suppliers: Supplier[];
   onEdit: (s: Supplier) => void;
   onDelete: (s: Supplier) => void;
+  emptyMessage?: string;
 }) {
   if (suppliers.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
+      <div className="text-center py-10 text-muted-foreground border rounded-lg bg-muted/20">
         <Truck className="h-12 w-12 mx-auto mb-4 opacity-50" />
-        <p>Nessun fornitore in questa categoria</p>
+        <p className="font-medium text-foreground">Nessun fornitore trovato</p>
+        <p className="text-sm mt-1">{emptyMessage}</p>
       </div>
     );
   }
@@ -162,6 +274,7 @@ function SupplierTable({
           <TableHead>Categoria</TableHead>
           <TableHead>Mod. Pagamento</TableHead>
           <TableHead>Città</TableHead>
+          <TableHead>Stato</TableHead>
           <TableHead>P.IVA</TableHead>
           <TableHead>Aliquota IVA</TableHead>
           <TableHead className="w-[100px]">Azioni</TableHead>
@@ -171,17 +284,28 @@ function SupplierTable({
         {suppliers.map((supplier) => (
           <TableRow key={supplier.id}>
             <TableCell className="font-medium">{supplier.name}</TableCell>
-            <TableCell>{supplier.product_category || "—"}</TableCell>
+            <TableCell>
+              {supplier.product_category ? (
+                <span className="inline-flex rounded-full border bg-muted/40 px-2 py-0.5 text-xs">
+                  {supplier.product_category}
+                </span>
+              ) : "—"}
+            </TableCell>
             <TableCell>{getPaymentMethodLabel(supplier.payment_method)}</TableCell>
             <TableCell>{supplier.city || "—"}</TableCell>
+            <TableCell>
+              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${supplier.is_active ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                {supplier.is_active ? "Attivo" : "Inattivo"}
+              </span>
+            </TableCell>
             <TableCell>{supplier.vat_number || "—"}</TableCell>
             <TableCell>{getVatRateLabel(supplier.vat_rate || 22)}</TableCell>
             <TableCell>
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" onClick={() => onEdit(supplier)}>
+                <Button variant="ghost" size="icon" onClick={() => onEdit(supplier)} aria-label={`Modifica ${supplier.name}`}>
                   <Pencil className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => onDelete(supplier)}>
+                <Button variant="ghost" size="icon" onClick={() => onDelete(supplier)} aria-label={`Elimina ${supplier.name}`}>
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </div>
@@ -201,10 +325,17 @@ export function SuppliersConfig() {
 
   const [activeTab, setActiveTab] = useState("italiani");
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [provinceFilter, setProvinceFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("name");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null);
+  const [mergeSourceId, setMergeSourceId] = useState("");
+  const [mergeTargetId, setMergeTargetId] = useState("");
   const [formData, setFormData] = useState<SupplierFormData>({ ...emptyForm });
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
@@ -231,20 +362,64 @@ export function SuppliersConfig() {
     return Array.from(cats).sort();
   }, [suppliers]);
 
-  const filterBySearch = (list: Supplier[]) => {
-    if (!searchQuery.trim()) return list;
+  const existingProvinces = useMemo(() => {
+    if (!suppliers) return [];
+    const provinces = new Set(suppliers.map((s) => s.province?.toUpperCase()).filter(Boolean) as string[]);
+    return Array.from(provinces).sort();
+  }, [suppliers]);
+
+  const duplicateCandidates = useMemo(() => {
+    const list = suppliers ?? [];
+    return list.filter((supplier) => {
+      const nameKey = supplierNameKey(supplier.name);
+      const vatKey = normalizeVatNumber(supplier.vat_number || "");
+      return list.some((other) => (
+        other.id !== supplier.id &&
+        (supplierNameKey(other.name) === nameKey ||
+          (!!vatKey && normalizeVatNumber(other.vat_number || "") === vatKey))
+      ));
+    });
+  }, [suppliers]);
+
+  const applyFilters = (list: Supplier[]) => {
     const q = searchQuery.toLowerCase();
-    return list.filter(
-      (s) =>
+    const filtered = list.filter((s) => {
+      const matchesSearch = !q.trim() ||
         s.name.toLowerCase().includes(q) ||
         (s.product_category && s.product_category.toLowerCase().includes(q)) ||
         (s.city && s.city.toLowerCase().includes(q)) ||
-        (s.vat_number && s.vat_number.toLowerCase().includes(q))
-    );
+        (s.province && s.province.toLowerCase().includes(q)) ||
+        (s.vat_number && s.vat_number.toLowerCase().includes(q));
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && s.is_active) ||
+        (statusFilter === "inactive" && !s.is_active);
+      const matchesCategory = categoryFilter === "all" || s.product_category === categoryFilter;
+      const matchesProvince = provinceFilter === "all" || s.province?.toUpperCase() === provinceFilter;
+      return matchesSearch && matchesStatus && matchesCategory && matchesProvince;
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "category") return (a.product_category || "").localeCompare(b.product_category || "") || a.name.localeCompare(b.name);
+      if (sortBy === "city") return (a.city || "").localeCompare(b.city || "") || a.name.localeCompare(b.name);
+      if (sortBy === "status") return Number(b.is_active) - Number(a.is_active) || a.name.localeCompare(b.name);
+      return a.name.localeCompare(b.name);
+    });
   };
 
-  const italiani = filterBySearch(suppliers?.filter((s) => !s.is_foreign) || []);
-  const esteri = filterBySearch(suppliers?.filter((s) => s.is_foreign) || []);
+  const italiani = applyFilters(suppliers?.filter((s) => !s.is_foreign) || []);
+  const esteri = applyFilters(suppliers?.filter((s) => s.is_foreign) || []);
+
+  const { data: deletingUsage = emptyUsageCounts, isFetching: deletingUsageLoading, isError: deletingUsageIsError } = useQuery({
+    queryKey: ["supplier-delete-usage", companyId, deletingSupplier?.id],
+    queryFn: async () => {
+      if (!companyId || !deletingSupplier?.id) return emptyUsageCounts;
+      return getSupplierUsageCounts(companyId, deletingSupplier.id);
+    },
+    enabled: !!companyId && !!deletingSupplier?.id && deleteDialogOpen,
+  });
+
+  const deletingUsageTotal = getUsageTotal(deletingUsage);
 
   const invalidateSuppliers = () => {
     queryClient.invalidateQueries({ queryKey: ["suppliers-config"] });
@@ -256,23 +431,26 @@ export function SuppliersConfig() {
   const createMutation = useMutation({
     mutationFn: async (data: SupplierFormData) => {
       if (!companyId) throw new Error("Azienda non selezionata");
+      const safeName = normalizeSupplierName(data.name);
+      if (!safeName) throw new Error("La ragione sociale è obbligatoria.");
       const { error } = await supabase.from("suppliers").insert({
-        name: data.name.trim(),
+        name: safeName,
         vat_rate: data.vat_rate,
         is_foreign: data.is_foreign,
-        address: data.address || null,
-        city: data.city || null,
-        province: data.province || null,
-        postal_code: data.postal_code || null,
-        country: data.country || null,
-        vat_number: data.vat_number || null,
-        fiscal_code: data.fiscal_code || null,
-        email: data.email || null,
-        phone: data.phone || null,
-        website: data.website || null,
-        product_category: data.product_category || null,
-        notes: data.notes || null,
-        payment_method: data.payment_method || null,
+        address: normalizeOptional(data.address),
+        city: normalizeOptional(data.city),
+        province: normalizeOptional(data.province)?.toUpperCase() ?? null,
+        postal_code: normalizeOptional(data.postal_code),
+        country: normalizeOptional(data.country),
+        vat_number: normalizeOptional(normalizeVatNumber(data.vat_number)),
+        fiscal_code: normalizeOptional(data.fiscal_code.toUpperCase()),
+        email: normalizeOptional(data.email.toLowerCase()),
+        phone: normalizeOptional(data.phone),
+        website: normalizeOptional(data.website),
+        product_category: normalizeOptional(data.product_category),
+        notes: normalizeOptional(data.notes),
+        payment_method: normalizeOptional(data.payment_method),
+        is_active: data.is_active,
         company_id: companyId,
         // ── QR system (MP1 P0) ──────────────────────────────
         barcode_prefix: data.barcode_prefix.trim() || null,
@@ -287,7 +465,8 @@ export function SuppliersConfig() {
       handleCloseDialog();
     },
     onError: (error) => {
-      toast.error("Errore", { description: "Impossibile creare il fornitore." });
+      const message = error instanceof Error ? error.message : "Impossibile creare il fornitore.";
+      toast.error("Errore", { description: message.includes("duplicate") || message.includes("unique") ? "Esiste già un fornitore con questa ragione sociale." : message });
       logger.error("Errore creazione fornitore", error);
     },
   });
@@ -295,25 +474,28 @@ export function SuppliersConfig() {
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: SupplierFormData & { id: string }) => {
       if (!companyId) throw new Error("Azienda non selezionata");
+      const safeName = normalizeSupplierName(data.name);
+      if (!safeName) throw new Error("La ragione sociale è obbligatoria.");
       const { error } = await supabase
         .from("suppliers")
         .update({
-          name: data.name.trim(),
+          name: safeName,
           vat_rate: data.vat_rate,
           is_foreign: data.is_foreign,
-          address: data.address || null,
-          city: data.city || null,
-          province: data.province || null,
-          postal_code: data.postal_code || null,
-          country: data.country || null,
-          vat_number: data.vat_number || null,
-          fiscal_code: data.fiscal_code || null,
-          email: data.email || null,
-          phone: data.phone || null,
-          website: data.website || null,
-          product_category: data.product_category || null,
-          notes: data.notes || null,
-          payment_method: data.payment_method || null,
+          address: normalizeOptional(data.address),
+          city: normalizeOptional(data.city),
+          province: normalizeOptional(data.province)?.toUpperCase() ?? null,
+          postal_code: normalizeOptional(data.postal_code),
+          country: normalizeOptional(data.country),
+          vat_number: normalizeOptional(normalizeVatNumber(data.vat_number)),
+          fiscal_code: normalizeOptional(data.fiscal_code.toUpperCase()),
+          email: normalizeOptional(data.email.toLowerCase()),
+          phone: normalizeOptional(data.phone),
+          website: normalizeOptional(data.website),
+          product_category: normalizeOptional(data.product_category),
+          notes: normalizeOptional(data.notes),
+          payment_method: normalizeOptional(data.payment_method),
+          is_active: data.is_active,
           // ── QR system (MP1 P0) ──────────────────────────────
           barcode_prefix: data.barcode_prefix.trim() || null,
           uses_gs1: data.uses_gs1,
@@ -329,7 +511,8 @@ export function SuppliersConfig() {
       handleCloseDialog();
     },
     onError: (error) => {
-      toast.error("Errore", { description: "Impossibile aggiornare il fornitore." });
+      const message = error instanceof Error ? error.message : "Impossibile aggiornare il fornitore.";
+      toast.error("Errore", { description: message.includes("duplicate") || message.includes("unique") ? "Esiste già un fornitore con questa ragione sociale." : message });
       logger.error("Errore aggiornamento fornitore", error);
     },
   });
@@ -337,6 +520,10 @@ export function SuppliersConfig() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!companyId) throw new Error("Azienda non selezionata");
+      const usage = await getSupplierUsageCounts(companyId, id);
+      if (getUsageTotal(usage) > 0) {
+        throw new Error("Fornitore già collegato a dati operativi: eliminazione bloccata per proteggere ordini, costi, pagamenti, magazzino e report.");
+      }
       const { error } = await supabase.from("suppliers").delete().eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
@@ -349,12 +536,72 @@ export function SuppliersConfig() {
     onError: (error: Error) => {
       if (error.message.includes("foreign key") || error.message.includes("violates")) {
         toast.error("Impossibile eliminare", {
-          description: "Il fornitore è associato a degli articoli e non può essere eliminato.",
+          description: "Il fornitore è associato a dati operativi e non può essere eliminato.",
         });
       } else {
-        toast.error("Errore", { description: "Impossibile eliminare il fornitore." });
+        toast.error("Errore", { description: error.message || "Impossibile eliminare il fornitore." });
       }
       logger.error("Errore eliminazione fornitore", error);
+    },
+  });
+
+  const mergeMutation = useMutation({
+    mutationFn: async ({ sourceId, targetId }: { sourceId: string; targetId: string }) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      if (!sourceId || !targetId || sourceId === targetId) {
+        throw new Error("Seleziona due fornitori diversi per il merge.");
+      }
+      const source = suppliers?.find((supplier) => supplier.id === sourceId);
+      const target = suppliers?.find((supplier) => supplier.id === targetId);
+      if (!source || !target) throw new Error("Fornitore sorgente o destinazione non trovato.");
+
+      const operations = [
+        supabase.from("article_templates").update({ supplier_id: targetId }).eq("company_id", companyId).eq("supplier_id", sourceId),
+        supabase.from("company_costs").update({ supplier_id: targetId }).eq("company_id", companyId).eq("supplier_id", sourceId),
+        supabase.from("order_items").update({ supplier_id: targetId }).eq("supplier_id", sourceId),
+        supabase.from("purchase_orders").update({ supplier_id: targetId }).eq("company_id", companyId).eq("supplier_id", sourceId),
+        supabase.from("scadenze").update({ supplier_id: targetId }).eq("company_id", companyId).eq("supplier_id", sourceId),
+        supabase.from("prima_nota_entries").update({ supplier_id: targetId }).eq("company_id", companyId).eq("supplier_id", sourceId),
+        supabase.from("warehouse_stock").update({ supplier_id: targetId }).eq("company_id", companyId).eq("supplier_id", sourceId),
+      ];
+
+      const results = await Promise.all(operations);
+      const failed = results.find((result) => result.error);
+      if (failed?.error) throw failed.error;
+
+      const { error: deleteError } = await supabase
+        .from("suppliers")
+        .delete()
+        .eq("id", sourceId)
+        .eq("company_id", companyId);
+      if (deleteError) throw deleteError;
+
+      const user = (await supabase.auth.getUser()).data.user;
+      if (user?.id) {
+        await supabase.from("company_activity_log").insert({
+          company_id: companyId,
+          user_id: user.id,
+          action: "merge",
+          target_type: "supplier",
+          target_id: targetId,
+          details: {
+            source_id: sourceId,
+            source_name: source.name,
+            target_name: target.name,
+          },
+        });
+      }
+    },
+    onSuccess: () => {
+      invalidateSuppliers();
+      setMergeDialogOpen(false);
+      setMergeSourceId("");
+      setMergeTargetId("");
+      toast.success("Merge completato", { description: "Storico, costi, ordini e pagamenti sono stati riassegnati al fornitore principale." });
+    },
+    onError: (error: Error) => {
+      toast.error("Merge non completato", { description: error.message || "Impossibile unire i fornitori." });
+      logger.error("Errore merge fornitori", error);
     },
   });
 
@@ -374,12 +621,36 @@ export function SuppliersConfig() {
     setDialogOpen(false);
     setEditingSupplier(null);
     setFormData({ ...emptyForm });
+    setCategorySearch("");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim()) {
+    const safeName = normalizeSupplierName(formData.name);
+    const safeNameKey = supplierNameKey(formData.name);
+    const safeVatNumber = normalizeVatNumber(formData.vat_number);
+    if (!safeName) {
       toast.error("Errore", { description: "Il nome è obbligatorio." });
+      return;
+    }
+    if (suppliers?.some((supplier) => supplier.id !== editingSupplier?.id && supplierNameKey(supplier.name) === safeNameKey)) {
+      toast.error("Fornitore duplicato", { description: "Esiste già un fornitore con questa ragione sociale." });
+      return;
+    }
+    if (safeVatNumber && suppliers?.some((supplier) => supplier.id !== editingSupplier?.id && normalizeVatNumber(supplier.vat_number || "") === safeVatNumber)) {
+      toast.error("P.IVA duplicata", { description: "Esiste già un fornitore con questa partita IVA." });
+      return;
+    }
+    if (!isValidItalianVat(formData.vat_number, formData.is_foreign)) {
+      toast.error("P.IVA non valida", { description: "Per fornitori italiani usa 11 cifre, con prefisso IT opzionale." });
+      return;
+    }
+    if (!isValidEmail(formData.email)) {
+      toast.error("Email non valida", { description: "Inserisci un indirizzo email valido." });
+      return;
+    }
+    if (!isValidPhone(formData.phone)) {
+      toast.error("Telefono non valido", { description: "Usa solo numeri, spazi, +, parentesi, punti o trattini." });
       return;
     }
     if (editingSupplier) {
@@ -415,10 +686,16 @@ export function SuppliersConfig() {
               Gestisci i tuoi fornitori e le relative informazioni
             </CardDescription>
           </div>
-          <Button onClick={handleOpenCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nuovo Fornitore
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setMergeDialogOpen(true)}>
+              <Merge className="h-4 w-4 mr-2" />
+              Merge duplicati
+            </Button>
+            <Button onClick={handleOpenCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nuovo Fornitore
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -441,27 +718,76 @@ export function SuppliersConfig() {
           </Alert>
         ) : (
           <div className="space-y-4">
-            <div className="relative max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Cerca per nome, categoria, città o P.IVA..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
+            <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_160px_180px_140px_160px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Cerca nome, categoria, città, provincia o P.IVA..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger><SelectValue placeholder="Stato" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli stati</SelectItem>
+                  <SelectItem value="active">Solo attivi</SelectItem>
+                  <SelectItem value="inactive">Solo inattivi</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte le categorie</SelectItem>
+                  {existingCategories.map((category) => (
+                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={provinceFilter} onValueChange={setProvinceFilter}>
+                <SelectTrigger><SelectValue placeholder="Provincia" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte le province</SelectItem>
+                  {existingProvinces.map((province) => (
+                    <SelectItem key={province} value={province}>{province}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger>
+                  <ArrowUpDown className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Ordina" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Nome</SelectItem>
+                  <SelectItem value="category">Categoria</SelectItem>
+                  <SelectItem value="city">Città</SelectItem>
+                  <SelectItem value="status">Stato</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2 max-w-xs">
-              <TabsTrigger value="italiani">Italiani ({italiani.length})</TabsTrigger>
-              <TabsTrigger value="esteri">Esteri ({esteri.length})</TabsTrigger>
-            </TabsList>
-            <TabsContent value="italiani">
-              <SupplierTable suppliers={italiani} onEdit={handleOpenEdit} onDelete={handleOpenDelete} />
-            </TabsContent>
-            <TabsContent value="esteri">
-              <SupplierTable suppliers={esteri} onEdit={handleOpenEdit} onDelete={handleOpenDelete} />
-            </TabsContent>
-          </Tabs>
+            {duplicateCandidates.length > 0 && (
+              <Alert>
+                <Merge className="h-4 w-4" />
+                <AlertTitle>Possibili duplicati rilevati</AlertTitle>
+                <AlertDescription className="text-xs">
+                  {duplicateCandidates.length} fornitori hanno nome o P.IVA sovrapponibili. Usa “Merge duplicati” per consolidare lo storico sul fornitore corretto.
+                </AlertDescription>
+              </Alert>
+            )}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-2 max-w-xs">
+                <TabsTrigger value="italiani">Italiani ({italiani.length})</TabsTrigger>
+                <TabsTrigger value="esteri">Esteri ({esteri.length})</TabsTrigger>
+              </TabsList>
+              <TabsContent value="italiani">
+                <SupplierTable suppliers={italiani} onEdit={handleOpenEdit} onDelete={handleOpenDelete} emptyMessage="Modifica ricerca o filtri, oppure crea un nuovo fornitore italiano." />
+              </TabsContent>
+              <TabsContent value="esteri">
+                <SupplierTable suppliers={esteri} onEdit={handleOpenEdit} onDelete={handleOpenDelete} emptyMessage="Modifica ricerca o filtri, oppure crea un nuovo fornitore estero." />
+              </TabsContent>
+            </Tabs>
           </div>
         )}
       </CardContent>
@@ -566,18 +892,31 @@ export function SuppliersConfig() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                <Label>Tipo Fornitore</Label>
-                <Select value={formData.is_foreign ? "estero" : "italiano"} onValueChange={(v) => updateField("is_foreign", v === "estero")}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="italiano">Italiano</SelectItem>
-                    <SelectItem value="estero">Estero</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <Label>Tipo Fornitore</Label>
+                  <Select value={formData.is_foreign ? "estero" : "italiano"} onValueChange={(v) => updateField("is_foreign", v === "estero")}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="italiano">Italiano</SelectItem>
+                      <SelectItem value="estero">Estero</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
+              <div className="flex items-start gap-2 mt-4 rounded-md border p-3">
+                <Checkbox
+                  id="supplier-active"
+                  checked={formData.is_active}
+                  onCheckedChange={(checked) => updateField("is_active", checked === true)}
+                />
+                <div>
+                  <Label htmlFor="supplier-active" className="cursor-pointer">Fornitore attivo</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    I fornitori inattivi restano nello storico, ma non dovrebbero essere usati per nuovi acquisti.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <Separator />
@@ -758,6 +1097,70 @@ export function SuppliersConfig() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Merge duplicati fornitori</DialogTitle>
+            <DialogDescription>
+              Riassegna ordini, costi, scadenze, prima nota, listino e magazzino dal duplicato al fornitore principale. Il duplicato viene eliminato solo dopo la riassegnazione.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {duplicateCandidates.length > 0 && (
+              <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
+                Candidati rilevati: {duplicateCandidates.map((supplier) => supplier.name).join(", ")}
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Fornitore duplicato da assorbire</Label>
+              <Select value={mergeSourceId} onValueChange={setMergeSourceId}>
+                <SelectTrigger><SelectValue placeholder="Seleziona duplicato..." /></SelectTrigger>
+                <SelectContent>
+                  {(suppliers ?? []).map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id}>
+                      {supplier.name}{supplier.vat_number ? ` · ${supplier.vat_number}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Fornitore principale da mantenere</Label>
+              <Select value={mergeTargetId} onValueChange={setMergeTargetId}>
+                <SelectTrigger><SelectValue placeholder="Seleziona destinazione..." /></SelectTrigger>
+                <SelectContent>
+                  {(suppliers ?? []).filter((supplier) => supplier.id !== mergeSourceId).map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id}>
+                      {supplier.name}{supplier.vat_number ? ` · ${supplier.vat_number}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Operazione irreversibile</AlertTitle>
+              <AlertDescription className="text-xs">
+                Il merge preserva lo storico operativo riassegnando i riferimenti. Controlla bene sorgente e destinazione prima di procedere.
+              </AlertDescription>
+            </Alert>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setMergeDialogOpen(false)}>
+              Annulla
+            </Button>
+            <Button
+              type="button"
+              disabled={!mergeSourceId || !mergeTargetId || mergeSourceId === mergeTargetId || mergeMutation.isPending}
+              onClick={() => mergeMutation.mutate({ sourceId: mergeSourceId, targetId: mergeTargetId })}
+            >
+              {mergeMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Esegui merge sicuro
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
@@ -765,19 +1168,37 @@ export function SuppliersConfig() {
             <AlertDialogTitle>Eliminare il fornitore?</AlertDialogTitle>
             <AlertDialogDescription>
               Stai per eliminare il fornitore "{deletingSupplier?.name}".
-              Questa azione non può essere annullata.
-              {"\n\n"}
-              Nota: non è possibile eliminare fornitori associati a degli articoli.
+              {deletingUsageLoading ? (
+                <> Verifico i collegamenti operativi prima di consentire l'eliminazione.</>
+              ) : deletingUsageTotal > 0 ? (
+                <>
+                  {" "}Il fornitore è collegato a dati operativi e non può essere eliminato senza proteggere lo storico.
+                  Usa lo stato inattivo se non deve essere più usato nei nuovi acquisti.
+                </>
+              ) : deletingUsageIsError ? (
+                <> Non è stato possibile verificare tutti i collegamenti: l'eliminazione resta bloccata per sicurezza.</>
+              ) : (
+                <> Questa azione non può essere annullata.</>
+              )}
             </AlertDialogDescription>
+            {(deletingUsageTotal > 0 || deletingUsageIsError) && (
+              <div className="mt-3 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
+                {(Object.entries(deletingUsage) as Array<[keyof SupplierUsageCounts, number]>).map(([key, value]) => (
+                  value > 0 ? <p key={key}>{supplierUsageLabels[key]} collegati: {value}</p> : null
+                ))}
+                {deletingUsageIsError && <p>Verifica collegamenti non riuscita.</p>}
+              </div>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
+              disabled={deletingUsageLoading || deletingUsageTotal > 0 || deletingUsageIsError || deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Elimina
+              {deletingUsageTotal > 0 || deletingUsageIsError ? "Bloccata" : "Elimina"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

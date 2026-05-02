@@ -45,52 +45,65 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
   const mergeContacts = useMutation({
     mutationFn: async () => {
       if (!sourceContact || !targetId) throw new Error("Seleziona un contatto");
+      if (!companyId) throw new Error("Azienda non selezionata");
 
       const keepId = masterId === "source" ? sourceContact.id : targetId;
       const removeId = masterId === "source" ? targetId : sourceContact.id;
 
       // Move opportunities
-      await supabase
+      const { error: opportunitiesError } = await supabase
         .from("marketing_opportunities")
         .update({ contact_id: keepId })
-        .eq("contact_id", removeId);
+        .eq("contact_id", removeId)
+        .eq("company_id", companyId);
+      if (opportunitiesError) throw opportunitiesError;
 
       // Move notes
-      await supabase
+      const { error: notesError } = await supabase
         .from("marketing_contact_notes")
         .update({ contact_id: keepId })
-        .eq("contact_id", removeId);
+        .eq("contact_id", removeId)
+        .eq("company_id", companyId);
+      if (notesError) throw notesError;
 
       // Move activities
-      await supabase
+      const { error: activitiesError } = await supabase
         .from("marketing_contact_activities")
         .update({ contact_id: keepId })
-        .eq("contact_id", removeId);
+        .eq("contact_id", removeId)
+        .eq("company_id", companyId);
+      if (activitiesError) throw activitiesError;
 
       // Move appointments
-      await supabase
+      const { error: appointmentsError } = await supabase
         .from("appointments")
         .update({ contact_id: keepId })
-        .eq("contact_id", removeId);
+        .eq("contact_id", removeId)
+        .eq("company_id", companyId);
+      if (appointmentsError) throw appointmentsError;
 
       // Move messages
-      await supabase
+      const { error: messagesError } = await supabase
         .from("contact_messages")
         .update({ contact_id: keepId })
-        .eq("contact_id", removeId);
+        .eq("contact_id", removeId)
+        .eq("company_id", companyId);
+      if (messagesError) throw messagesError;
 
       // Delete the merged-away contact
-      await supabase
+      const { error: deleteError } = await supabase
         .from("marketing_contacts")
         .delete()
-        .eq("id", removeId);
+        .eq("id", removeId)
+        .eq("company_id", companyId);
+      if (deleteError) throw deleteError;
 
       return { keepId, removeId };
     },
     onSuccess: () => {
       toast.success("Contatti uniti con successo");
-      queryClient.invalidateQueries({ queryKey: ["marketing_contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing-contact"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing_contact"] });
       onOpenChange(false);
       setSearch("");
       setTargetId(null);

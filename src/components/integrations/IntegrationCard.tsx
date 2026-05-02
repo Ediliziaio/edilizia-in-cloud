@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { MetaStatusBadge } from "./MetaStatusBadge";
 import type { Integration, IntegrationProvider } from "@/types/integrations";
-import { ExternalLink, Settings2, CalendarDays } from "lucide-react";
+import { ExternalLink, Settings2, CalendarDays, Clock, ShieldAlert, TestTube2 } from "lucide-react";
 
 interface IntegrationCardProps {
   name: string;
@@ -12,6 +12,10 @@ interface IntegrationCardProps {
   stats: { pages: number; forms: number } | null | undefined;
   onConnect: () => void;
   onManage: () => void;
+  onTest?: () => void;
+  canManage?: boolean;
+  disabledReason?: string;
+  accountLabel?: string | null;
 }
 
 function MetaIcon() {
@@ -54,12 +58,17 @@ export function IntegrationCard({
   stats,
   onConnect,
   onManage,
+  onTest,
+  canManage = true,
+  disabledReason,
+  accountLabel,
 }: IntegrationCardProps) {
   const isConnected = integration?.status === "connected";
   const hasError = integration?.status === "error" || integration?.status === "token_expired";
+  const updatedAt = integration?.updated_at ? new Date(integration.updated_at) : null;
 
   return (
-    <Card className="flex flex-col">
+    <Card className="flex flex-col overflow-hidden border-l-4 border-l-muted data-[state=connected]:border-l-emerald-500 data-[state=error]:border-l-destructive" data-state={hasError ? "error" : isConnected ? "connected" : "idle"}>
       <CardHeader className="flex-row items-start gap-3 space-y-0">
         <ProviderIcon provider={provider} />
         <div className="flex-1 min-w-0">
@@ -72,7 +81,7 @@ export function IntegrationCard({
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-end gap-3">
         {isConnected && stats && (
-          <div className="flex gap-3 text-xs text-muted-foreground">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>{stats.pages} {stats.pages === 1 ? "pagina" : "pagine"}</span>
             <span>·</span>
             <span>{stats.forms} {stats.forms === 1 ? "modulo attivo" : "moduli attivi"}</span>
@@ -85,20 +94,44 @@ export function IntegrationCard({
           </div>
         )}
 
-        {hasError && integration?.last_error_message && (
-          <p className="text-xs text-destructive line-clamp-1">{integration.last_error_message}</p>
+        {accountLabel && (
+          <p className="text-xs text-muted-foreground truncate">Account: {accountLabel}</p>
         )}
 
-        <div className="flex gap-2">
+        {updatedAt && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            Aggiornata: {updatedAt.toLocaleDateString("it-IT")}
+          </p>
+        )}
+
+        {hasError && integration?.last_error_message && (
+          <p className="text-xs text-destructive line-clamp-2 flex gap-1">
+            <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            {integration.last_error_message}
+          </p>
+        )}
+
+        {!canManage && disabledReason && (
+          <p className="text-xs text-muted-foreground">{disabledReason}</p>
+        )}
+
+        <div className="flex flex-wrap gap-2">
           {!integration || integration.status === "disconnected" ? (
-            <Button onClick={onConnect} className="w-full">
+            <Button onClick={onConnect} className="flex-1 min-w-[130px]" disabled={!canManage}>
               <ExternalLink className="h-4 w-4 mr-2" />
               Collega
             </Button>
           ) : (
-            <Button variant="outline" onClick={onManage} className="w-full">
+            <Button variant="outline" onClick={onManage} className="flex-1 min-w-[130px]" disabled={!canManage}>
               <Settings2 className="h-4 w-4 mr-2" />
               Gestisci
+            </Button>
+          )}
+          {isConnected && onTest && (
+            <Button variant="secondary" onClick={onTest} disabled={!canManage} className="min-w-[104px]">
+              <TestTube2 className="h-4 w-4 mr-2" />
+              Test
             </Button>
           )}
         </div>

@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useMemo, useState } from "react";
+import DOMPurify from "dompurify";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -19,18 +20,10 @@ const VARIABLES = [
 
 export function TemplateEditor({ value, onChange }: TemplateEditorProps) {
   const [preview, setPreview] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  useEffect(() => {
-    if (preview && iframeRef.current) {
-      const doc = iframeRef.current.contentDocument;
-      if (doc) {
-        doc.open();
-        doc.write(value || "<p>Anteprima vuota</p>");
-        doc.close();
-      }
-    }
-  }, [preview, value]);
+  const previewHtml = useMemo(
+    () => DOMPurify.sanitize(value || "<p>Anteprima vuota</p>"),
+    [value]
+  );
 
   const insertVariable = (variable: string) => {
     onChange(value + variable);
@@ -73,9 +66,9 @@ export function TemplateEditor({ value, onChange }: TemplateEditorProps) {
 
       {preview ? (
         <iframe
-          ref={iframeRef}
           className="w-full h-80 border rounded-md bg-background"
-          sandbox="allow-same-origin"
+          sandbox=""
+          srcDoc={previewHtml}
           title="Anteprima email"
         />
       ) : (

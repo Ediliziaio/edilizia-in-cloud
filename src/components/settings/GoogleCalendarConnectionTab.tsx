@@ -8,7 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Trash2, CheckCircle2, AlertTriangle, Settings2, CalendarDays } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Plus, Trash2, CheckCircle2, AlertTriangle, Settings2, CalendarDays, RefreshCw } from "lucide-react";
 import GoogleCalendarSyncPrefsDialog from "./GoogleCalendarSyncPrefsDialog";
 
 type GoogleCalendar = {
@@ -27,10 +37,18 @@ export default function GoogleCalendarConnectionTab() {
   const [syncPrefsOpen, setSyncPrefsOpen] = useState(false);
   const [editingPrimary, setEditingPrimary] = useState(false);
   const [editingConflict, setEditingConflict] = useState(false);
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const [syncingBusy, setSyncingBusy] = useState(false);
   const popupRef = useRef<Window | null>(null);
   const pollRef = useRef<number | null>(null);
   // Safety valve: if the user ignores the popup for >5 min, stop polling.
   const maxPollTimeoutRef = useRef<number | null>(null);
+
+  const getAccessToken = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Sessione scaduta: accedi di nuovo.");
+    return session.access_token;
+  };
 
   // Connection status
   const { data: connection, isLoading: loadingConn } = useQuery({
@@ -69,6 +87,7 @@ export default function GoogleCalendarConnectionTab() {
     queryKey: ["google-calendar-policies"],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Sessione scaduta: accedi di nuovo.");
       const res = await supabase.functions.invoke("manage-super-admins", {
         body: { action: "get-settings" },
         headers: { Authorization: `Bearer ${session?.access_token}` },
@@ -88,10 +107,10 @@ export default function GoogleCalendarConnectionTab() {
     queryKey: ["google-calendars-list", companyId, userId],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data: { session } } = await supabase.auth.getSession();
+      const token = await getAccessToken();
       const res = await supabase.functions.invoke("google-calendar-auth", {
         body: { action: "list-calendars", companyId },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.error) throw new Error(res.error.message);
       return (res.data?.calendars || []) as GoogleCalendar[];
@@ -103,38 +122,43 @@ export default function GoogleCalendarConnectionTab() {
 
   // OAuth connect
   const handleConnect = useCallback(async () => {
-    if (!companyId) return;
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await supabase.functions.invoke("google-calendar-auth", {
-      body: { action: "start", companyId },
-      headers: { Authorization: `Bearer ${session?.access_token}` },
-    });
-    if (res.error || !res.data?.url) {
-      toast.error("Impossibile avviare il collegamento Google Calendar");
+    try {
+      if (!companyId) return;
+      const token = await getAccessToken();
+      const res = await supabase.functions.invoke("google-calendar-auth", {
+        body: { action: "start", companyId },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.error || !res.data?.url) {
+        toast.error("Impossibile avviare il collegamento Google Calendar");
+        return;
+      }
+      const w = 600, h = 700;
+      const left = (screen.width - w) / 2;
+      const top = (screen.height - h) / 2;
+      const popup = window.open(res.data.url, "google_oauth", `width=${w},height=${h},left=${left},top=${top}`);
+      if (!popup) {
+        toast.error("Il popup è stato bloccato dal browser. Consenti i popup per questo sito e riprova.");
+        return;
+      }
+      popupRef.current = popup;
+
+      const stopPolling = () => {
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        if (maxPollTimeoutRef.current) { clearTimeout(maxPollTimeoutRef.current); maxPollTimeoutRef.current = null; }
+        popupRef.current = null;
+      };
+
+      pollRef.current = window.setInterval(() => {
+        if (popupRef.current?.closed) stopPolling();
+      }, 1000);
+
+      // Safety: stop polling after 5 minutes regardless of popup state
+      maxPollTimeoutRef.current = window.setTimeout(stopPolling, 5 * 60 * 1000);
+    } catch (e: any) {
+      toast.error(e.message || "Impossibile avviare il collegamento Google Calendar");
       return;
     }
-    const w = 600, h = 700;
-    const left = (screen.width - w) / 2;
-    const top = (screen.height - h) / 2;
-    const popup = window.open(res.data.url, "google_oauth", `width=${w},height=${h},left=${left},top=${top}`);
-    if (!popup) {
-      toast.error("Il popup è stato bloccato dal browser. Consenti i popup per questo sito e riprova.");
-      return;
-    }
-    popupRef.current = popup;
-
-    const stopPolling = () => {
-      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-      if (maxPollTimeoutRef.current) { clearTimeout(maxPollTimeoutRef.current); maxPollTimeoutRef.current = null; }
-      popupRef.current = null;
-    };
-
-    pollRef.current = window.setInterval(() => {
-      if (popupRef.current?.closed) stopPolling();
-    }, 1000);
-
-    // Safety: stop polling after 5 minutes regardless of popup state
-    maxPollTimeoutRef.current = window.setTimeout(stopPolling, 5 * 60 * 1000);
   }, [companyId]);
 
   // Listen for OAuth result
@@ -168,10 +192,10 @@ export default function GoogleCalendarConnectionTab() {
   // Disconnect
   const disconnectMut = useMutation({
     mutationFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const token = await getAccessToken();
       const res = await supabase.functions.invoke("google-calendar-auth", {
         body: { action: "disconnect", companyId },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.error) throw new Error(res.error.message);
     },
@@ -179,9 +203,32 @@ export default function GoogleCalendarConnectionTab() {
       toast.success("Google Calendar disconnesso");
       queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
       queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
+      setDisconnectOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const handlePullBusySlots = async () => {
+    if (!companyId) return;
+    setSyncingBusy(true);
+    try {
+      const token = await getAccessToken();
+      const res = await supabase.functions.invoke("google-calendar-sync", {
+        body: { action: "full-sync", companyId },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.error || res.data?.error) {
+        throw new Error(res.data?.error || res.error?.message || "Sincronizzazione non riuscita");
+      }
+      toast.success("Slot occupati aggiornati", {
+        description: `${res.data?.pulled ?? 0} eventi importati da Google Calendar.`,
+      });
+    } catch (e: any) {
+      toast.error(e.message || "Errore sincronizzazione Google Calendar");
+    } finally {
+      setSyncingBusy(false);
+    }
+  };
 
   // Update settings
   const updateSettings = useMutation({
@@ -260,17 +307,34 @@ export default function GoogleCalendarConnectionTab() {
                 <p className="text-xs text-muted-foreground">
                   {connection?.google_account_email || "Account collegato"}
                 </p>
+                {connection?.last_sync_at && (
+                  <p className="text-xs text-muted-foreground">
+                    Ultima sync: {new Date(connection.last_sync_at).toLocaleString("it-IT")}
+                  </p>
+                )}
               </div>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => disconnectMut.mutate()}
-              disabled={disconnectMut.isPending}
-              className="text-destructive hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePullBusySlots}
+                disabled={syncingBusy || !settings?.conflict_calendar_ids?.length}
+                className="gap-1.5"
+              >
+                <RefreshCw className={`h-4 w-4 ${syncingBusy ? "animate-spin" : ""}`} />
+                <span className="hidden sm:inline">Aggiorna busy</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setDisconnectOpen(true)}
+                disabled={disconnectMut.isPending}
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {connection?.status === "error" || connection?.status === "token_expired" ? (
@@ -401,6 +465,26 @@ export default function GoogleCalendarConnectionTab() {
         }}
         isSaving={updateSettings.isPending}
       />
+
+      <AlertDialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disconnettere Google Calendar?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La sincronizzazione verrà interrotta e i nuovi appuntamenti CRM non saranno più inviati a Google Calendar finché non ricolleghi l'account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => disconnectMut.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Disconnetti
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

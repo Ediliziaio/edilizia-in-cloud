@@ -4,8 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sparkles, Image } from "lucide-react";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { formatRenderDate } from "@/lib/render/renderStatus";
 
 interface RenderOption {
   id: string;
@@ -17,6 +16,7 @@ interface RenderOption {
 
 interface QuoteRenderPickerProps {
   contactId: string | null;
+  opportunityId?: string | null;
   selectedRenderIds: string[];
   onSelectionChange: (renders: RenderOption[]) => void;
 }
@@ -31,6 +31,7 @@ interface ViewRow {
 
 export function QuoteRenderPicker({
   contactId,
+  opportunityId,
   selectedRenderIds,
   onSelectionChange,
 }: QuoteRenderPickerProps) {
@@ -38,7 +39,7 @@ export function QuoteRenderPicker({
   const companyId = effectiveCompany?.id;
 
   const { data: renders = [] } = useQuery({
-    queryKey: ["quote-render-picker", companyId, contactId],
+    queryKey: ["quote-render-picker", companyId, contactId, opportunityId],
     queryFn: async (): Promise<RenderOption[]> => {
       if (!companyId) return [];
 
@@ -52,6 +53,7 @@ export function QuoteRenderPicker({
         .order("created_at", { ascending: false })
         .limit(50);
       if (contactId) q = q.eq("contact_id", contactId);
+      if (opportunityId) q = q.eq("opportunity_id", opportunityId);
       const { data, error } = await q;
       if (error) {
         console.error("[QuoteRenderPicker] query error:", error);
@@ -75,7 +77,9 @@ export function QuoteRenderPicker({
   const typeLabel: Record<string, string> = {
     infissi: "Infissi", bagno: "Bagno", facciata: "Facciata",
     pavimento: "Pavimento", persiane: "Persiane", tetto: "Tetto", stanza: "Stanza",
-    pergole: "Pergole", piscine: "Piscine",
+    pergole: "Pergole", piscine: "Piscine", ristrutturazioni: "Ristrutturazioni",
+    "pavimenti-esterni": "Pavimenti esterni", giardini: "Giardini",
+    "porte-blindate": "Porte blindate", "porte-interne": "Porte interne",
   };
 
   const handleToggle = (render: RenderOption) => {
@@ -93,7 +97,11 @@ export function QuoteRenderPicker({
       <h3 className="text-sm font-medium flex items-center gap-1.5">
         <Sparkles className="h-3.5 w-3.5 text-primary" />
         Render AI da allegare
-        {contactId && <span className="text-muted-foreground font-normal">(del contatto)</span>}
+        {(contactId || opportunityId) && (
+          <span className="text-muted-foreground font-normal">
+            {opportunityId ? "(dell'opportunità)" : "(del contatto)"}
+          </span>
+        )}
       </h3>
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
         {renders.map((r) => {
@@ -118,12 +126,12 @@ export function QuoteRenderPicker({
               </div>
               <div className="absolute bottom-0.5 left-0.5">
                 <Badge variant="secondary" className="text-[9px] px-1 py-0 bg-black/60 text-white border-0">
-                  {typeLabel[r.render_type]}
+                  {typeLabel[r.render_type] ?? r.render_type}
                 </Badge>
               </div>
               <div className="absolute bottom-0.5 right-0.5">
                 <span className="text-[8px] text-white/80 bg-black/40 px-0.5 rounded">
-                  {format(new Date(r.created_at), "d MMM", { locale: it })}
+                  {formatRenderDate(r.created_at, "d MMM")}
                 </span>
               </div>
             </div>

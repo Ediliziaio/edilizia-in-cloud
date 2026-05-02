@@ -27,6 +27,26 @@ export function calcolaFinanziamento({
   righe,
 }: InputCalcolo): RisultatoCalcolo {
   // Validazioni input
+  if (!Number.isFinite(importo) || importo <= 0) {
+    return {
+      importo_richiesto: importo,
+      numero_rate,
+      modalita: "errore",
+      errore: "input_non_valido",
+      messaggio: "Inserisci un importo positivo e valido.",
+    };
+  }
+
+  if (!Number.isFinite(numero_rate) || numero_rate <= 0) {
+    return {
+      importo_richiesto: importo,
+      numero_rate,
+      modalita: "errore",
+      errore: "input_non_valido",
+      messaggio: "Seleziona una durata in rate valida.",
+    };
+  }
+
   if (!righe || righe.length === 0) {
     return {
       importo_richiesto: importo,

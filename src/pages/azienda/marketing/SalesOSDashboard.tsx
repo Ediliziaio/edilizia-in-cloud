@@ -45,6 +45,10 @@ import {
   FileSignature,
   Percent,
   Download,
+  ArrowRight,
+  Flame,
+  Clock3,
+  Gauge,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatCurrencyCompact } from "@/lib/formatters";
@@ -67,6 +71,12 @@ const fmt = (v: number) =>
   }).format(v);
 
 const pct = (v: number) => `${v.toFixed(1)}%`;
+
+function severityLabel(daysStalled: number, threshold: number) {
+  if (daysStalled >= threshold * 2) return { label: "Critica", variant: "destructive" as const };
+  if (daysStalled >= threshold) return { label: "Da riprendere", variant: "secondary" as const };
+  return { label: "Monitorare", variant: "outline" as const };
+}
 
 // ─── WidgetState: loading / error / empty helper (Sprint 1.3) ──────────────
 function WidgetState({
@@ -274,6 +284,103 @@ function QuoteRevenueCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// ─── SalesFocusPanel — priorità operative del venditore ──────────────────────
+
+function SalesFocusPanel({
+  companyId,
+  periodLabel,
+  onOpenStalled,
+}: {
+  companyId: string;
+  periodLabel: string;
+  onOpenStalled: () => void;
+}) {
+  const navigate = useNavigate();
+  const { data: velocity } = useSalesVelocity(companyId, 30);
+  const { data: stalled, isLoading: stalledLoading } = useStalledOpportunities(companyId);
+  const { data: leads, isLoading: leadsLoading } = useTopLeads(companyId, 1);
+  const { data: forecast } = useSalesForecast(companyId, 3);
+
+  const criticalStalled = (stalled ?? []).filter((opp) => opp.days_stalled >= opp.stalled_threshold * 2);
+  const nextLead = leads?.[0];
+  const weightedForecast = (forecast ?? []).reduce((sum, item) => sum + item.weighted_revenue, 0);
+  const staleCount = stalled?.length ?? 0;
+
+  const items = [
+    {
+      key: "stalled",
+      icon: AlertTriangle,
+      label: "Priorità follow-up",
+      value: stalledLoading ? "..." : String(staleCount),
+      detail: criticalStalled.length > 0 ? `${criticalStalled.length} critiche` : "nessuna critica",
+      tone: criticalStalled.length > 0 ? "text-red-600" : "text-emerald-600",
+      action: "Apri ferme",
+      onClick: onOpenStalled,
+    },
+    {
+      key: "lead",
+      icon: Flame,
+      label: "Lead più caldo",
+      value: leadsLoading ? "..." : nextLead ? String(nextLead.lead_score ?? 0) : "0",
+      detail: nextLead?.full_name || "nessun lead",
+      tone: nextLead ? "text-orange-600" : "text-muted-foreground",
+      action: nextLead ? "Apri lead" : "Contatti",
+      onClick: () => navigate(nextLead ? `/azienda/marketing/contatti/${nextLead.id}` : "/azienda/marketing/contatti"),
+    },
+    {
+      key: "forecast",
+      icon: TrendingUp,
+      label: "Forecast pesato",
+      value: fmt(weightedForecast),
+      detail: "prossimi 3 mesi",
+      tone: "text-primary",
+      action: "Pipeline",
+      onClick: () => navigate("/azienda/marketing/opportunita?status=open"),
+    },
+    {
+      key: "velocity",
+      icon: Gauge,
+      label: "Ritmo vendite",
+      value: velocity ? fmt(velocity.sales_velocity) : "0 €",
+      detail: `${periodLabel.toLowerCase()} · ${velocity?.open_opportunities ?? 0} aperte`,
+      tone: "text-sky-700",
+      action: "Lavora pipeline",
+      onClick: () => navigate("/azienda/marketing/opportunita?status=open"),
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.key}
+            type="button"
+            onClick={item.onClick}
+            className="group rounded-lg border bg-card p-4 text-left shadow-sm transition hover:border-primary/40 hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-muted p-2">
+                  <Icon className={`h-4 w-4 ${item.tone}`} />
+                </span>
+                <span className="text-xs font-medium text-muted-foreground">{item.label}</span>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
+            </div>
+            <div className="mt-3">
+              <p className="text-xl font-semibold leading-tight">{item.value}</p>
+              <p className="mt-1 truncate text-xs text-muted-foreground">{item.detail}</p>
+            </div>
+            <p className="mt-3 text-xs font-medium text-primary">{item.action}</p>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -491,16 +598,15 @@ function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
             </TableCell>
             <TableCell>{s.stage_name}</TableCell>
             <TableCell>
-              <Badge
-                variant={
-                  s.days_stalled > s.stalled_threshold * 2
-                    ? "destructive"
-                    : "secondary"
-                }
-                className="text-xs"
-              >
-                {s.days_stalled}gg
-              </Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={severityLabel(s.days_stalled, s.stalled_threshold).variant} className="text-xs">
+                  {s.days_stalled}gg
+                </Badge>
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock3 className="h-3 w-3" />
+                  {severityLabel(s.days_stalled, s.stalled_threshold).label}
+                </span>
+              </div>
             </TableCell>
             <TableCell>
               {s.stalled_threshold}gg
@@ -922,26 +1028,32 @@ export default function SalesOSDashboard() {
         />
       </div>
 
+      <SalesFocusPanel
+        companyId={companyId}
+        periodLabel={range.label}
+        onOpenStalled={() => setActiveTab("stalled")}
+      />
+
       {/* Tabs principali */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
-          <TabsTrigger value="pipeline" className="flex items-center gap-1.5">
+        <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto p-1 sm:grid sm:grid-cols-5 sm:max-w-2xl">
+          <TabsTrigger value="pipeline" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
             <TrendingUp className="h-3.5 w-3.5" />
             Pipeline
           </TabsTrigger>
-          <TabsTrigger value="stalled" className="flex items-center gap-1.5">
+          <TabsTrigger value="stalled" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
             <AlertTriangle className="h-3.5 w-3.5" />
             Ferme
           </TabsTrigger>
-          <TabsTrigger value="team" className="flex items-center gap-1.5">
+          <TabsTrigger value="team" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
             <Users className="h-3.5 w-3.5" />
             Team
           </TabsTrigger>
-          <TabsTrigger value="analisi" className="flex items-center gap-1.5">
+          <TabsTrigger value="analisi" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
             <Zap className="h-3.5 w-3.5" />
             Analisi
           </TabsTrigger>
-          <TabsTrigger value="config" className="flex items-center gap-1.5">
+          <TabsTrigger value="config" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
             <Settings2 className="h-3.5 w-3.5" />
             Config
           </TabsTrigger>

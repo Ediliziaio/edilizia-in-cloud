@@ -40,6 +40,96 @@ export const defaultFormData: CostFormData = {
   recurrence_auto: false,
 };
 
+const VALID_COST_TYPES = new Set(["fixed", "variable"]);
+const VALID_RECURRENCES = new Set(["once", "monthly", "quarterly", "yearly"]);
+
+export function parseCostDecimal(value: string | number | null | undefined): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : Number.NaN;
+  const raw = String(value ?? "").trim();
+  if (!raw) return Number.NaN;
+  const normalized = raw.includes(",")
+    ? raw.replace(/\./g, "").replace(",", ".")
+    : raw;
+  return Number(normalized);
+}
+
+function isValidDateField(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  return !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
+}
+
+function normalizeAllocations(
+  allocations: CostFormData["allocations"],
+): Array<{ order_id: string; pct: number }> {
+  const normalized: Array<{ order_id: string; pct: number }> = [];
+
+  for (const allocation of allocations ?? []) {
+    const pct = Number(allocation.pct);
+    const orderId = allocation.order_id?.trim();
+
+    if (!Number.isFinite(pct)) {
+      throw new Error("Percentuale allocazione non valida.");
+    }
+    if (pct < 0 || pct > 100) {
+      throw new Error("Le allocazioni devono essere comprese tra 0% e 100%.");
+    }
+    if (pct > 0 && !orderId) {
+      throw new Error("Ogni allocazione maggiore di 0% deve avere un ordine collegato.");
+    }
+    if (pct > 0 && orderId) {
+      normalized.push({ order_id: orderId, pct });
+    }
+  }
+
+  const totalPct = normalized.reduce((sum, allocation) => sum + allocation.pct, 0);
+  if (totalPct > 100) {
+    throw new Error("Il totale delle allocazioni non può superare il 100%.");
+  }
+
+  return normalized;
+}
+
+export function validateCostFormData(data: CostFormData) {
+  const name = data.name.trim();
+  if (!name) throw new Error("La descrizione del costo è obbligatoria.");
+
+  const amount = parseCostDecimal(data.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("L'importo deve essere maggiore di zero.");
+  }
+
+  const vatRate = parseCostDecimal(data.vat_rate);
+  if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) {
+    throw new Error("L'aliquota IVA deve essere compresa tra 0% e 100%.");
+  }
+
+  const costType = VALID_COST_TYPES.has(data.cost_type) ? data.cost_type : "fixed";
+  const recurrence = VALID_RECURRENCES.has(data.recurrence) ? data.recurrence : "once";
+
+  if (!data.due_date || !isValidDateField(data.due_date)) {
+    throw new Error("La data di scadenza è obbligatoria e deve essere valida.");
+  }
+  if (recurrence !== "once") {
+    if (!data.end_date || !isValidDateField(data.end_date)) {
+      throw new Error("Per i costi ricorrenti serve una data fine contratto valida.");
+    }
+    if (new Date(`${data.end_date}T00:00:00`) < new Date(`${data.due_date}T00:00:00`)) {
+      throw new Error("La data fine contratto non può precedere la prima scadenza.");
+    }
+  }
+
+  return {
+    name,
+    amount,
+    vatRate,
+    costType,
+    recurrence,
+    dueDate: data.due_date,
+    endDate: recurrence !== "once" ? data.end_date : "",
+    allocations: normalizeAllocations(data.allocations),
+  };
+}
+
 export function calculatePeriodsFromDates(dueDate: string, endDate: string, recurrence: string): number {
   if (!dueDate || !endDate) return 0;
   const start = new Date(dueDate);
@@ -105,8 +195,9 @@ export function useCompanyCostsMutations({
   // Save (create/update) mutation
   const saveMutation = useMutation({
     mutationFn: async (data: CostFormData) => {
-      const vatRate = parseFloat(data.vat_rate) || 0;
-      let netAmount = parseFloat(data.amount) || 0;
+      const normalized = validateCostFormData(data);
+      const vatRate = normalized.vatRate;
+      let netAmount = normalized.amount;
 
       if (data.is_gross && vatRate > 0) {
         const { netAmount: net } = calculateNetFromGross(netAmount, vatRate);
@@ -115,40 +206,40 @@ export function useCompanyCostsMutations({
 
       const basePayload = {
         company_id: companyId!,
-        name: data.name,
-        cost_type: data.cost_type,
+        name: normalized.name,
+        cost_type: normalized.costType,
         amount: netAmount,
         category: data.category || null,
-        recurrence: data.recurrence,
+        recurrence: normalized.recurrence,
         notes: data.notes || null,
         order_id: data.order_id && data.order_id !== "none" ? data.order_id : null,
         supplier_id: data.supplier_id && data.supplier_id !== "none" ? data.supplier_id : null,
         vat_rate: vatRate,
-        recurrence_auto: data.recurrence !== "once" ? (data.recurrence_auto || false) : false,
-        recurrence_end_date: data.recurrence !== "once" && data.end_date ? data.end_date : null,
-        allocations: JSON.stringify(data.allocations || []),
+        recurrence_auto: normalized.recurrence !== "once" ? (data.recurrence_auto || false) : false,
+        recurrence_end_date: normalized.endDate || null,
+        allocations: normalized.allocations,
       };
 
       if (editingCostId) {
-        const { error } = await supabase.from("company_costs").update({ ...basePayload, due_date: data.due_date }).eq("id", editingCostId);
+        const { error } = await supabase.from("company_costs").update({ ...basePayload, due_date: normalized.dueDate }).eq("id", editingCostId);
         if (error) throw error;
 
         // Generate missing future occurrences — bulk INSERT (1 query check + 1 INSERT)
         let additionalCreated = 0;
-        if (data.recurrence !== "once" && data.end_date && data.due_date) {
-          const periods = calculatePeriodsFromDates(data.due_date, data.end_date, data.recurrence);
-          const baseDate = new Date(data.due_date);
+        if (normalized.recurrence !== "once" && normalized.endDate && normalized.dueDate) {
+          const periods = calculatePeriodsFromDates(normalized.dueDate, normalized.endDate, normalized.recurrence);
+          const baseDate = new Date(normalized.dueDate);
           const allDates: string[] = [];
           for (let i = 0; i < periods; i++) {
-            const dateStr = format(getNextDate(baseDate, data.recurrence, i), "yyyy-MM-dd");
-            if (dateStr !== data.due_date) allDates.push(dateStr);
+            const dateStr = format(getNextDate(baseDate, normalized.recurrence, i), "yyyy-MM-dd");
+            if (dateStr !== normalized.dueDate) allDates.push(dateStr);
           }
           if (allDates.length > 0) {
             const { data: existing } = await supabase
               .from("company_costs")
               .select("due_date")
               .eq("company_id", companyId!)
-              .eq("name", data.name)
+              .eq("name", normalized.name)
               .in("due_date", allDates);
             const existingDates = new Set((existing || []).map((r: any) => r.due_date));
             const datesToInsert = allDates.filter(d => !existingDates.has(d));
@@ -165,21 +256,21 @@ export function useCompanyCostsMutations({
         return { created: 1 + additionalCreated, isEdit: true, additionalCreated };
       }
 
-      const baseDate = new Date(data.due_date);
+      const baseDate = new Date(normalized.dueDate);
       let created = 0;
 
-      if (data.recurrence !== "once" && data.end_date && data.due_date) {
+      if (normalized.recurrence !== "once" && normalized.endDate && normalized.dueDate) {
         // Bulk path: genera tutte le date → 1 check duplicati → 1 INSERT
-        const periods = calculatePeriodsFromDates(data.due_date, data.end_date, data.recurrence);
+        const periods = calculatePeriodsFromDates(normalized.dueDate, normalized.endDate, normalized.recurrence);
         const allDates: string[] = [];
         for (let i = 0; i < (periods > 0 ? periods : 1); i++) {
-          allDates.push(format(getNextDate(baseDate, data.recurrence, i), "yyyy-MM-dd"));
+          allDates.push(format(getNextDate(baseDate, normalized.recurrence, i), "yyyy-MM-dd"));
         }
         const { data: existing } = await supabase
           .from("company_costs")
           .select("due_date")
           .eq("company_id", companyId!)
-          .eq("name", data.name)
+          .eq("name", normalized.name)
           .in("due_date", allDates);
         const existingDates = new Set((existing || []).map((r: any) => r.due_date));
         const datesToInsert = allDates.filter(d => !existingDates.has(d));
@@ -194,7 +285,7 @@ export function useCompanyCostsMutations({
         // Single INSERT
         const { error } = await supabase.from("company_costs").insert({
           ...basePayload,
-          due_date: data.due_date,
+          due_date: normalized.dueDate,
           is_paid: false,
         });
         if (error) throw error;
@@ -224,8 +315,12 @@ export function useCompanyCostsMutations({
         toast({ title: result.created > 0 ? "Costo aggiunto" : "Costo già esistente (duplicato ignorato)" });
       }
     },
-    onError: () => {
-      toast({ title: "Errore nel salvataggio", variant: "destructive" });
+    onError: (error) => {
+      toast({
+        title: "Errore nel salvataggio",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
     },
   });
 
@@ -478,7 +573,7 @@ export function useCompanyCostsMutations({
       const row = rows[i];
       try {
         if (!row.name?.trim()) { errors.push(`Riga ${i + 1}: Nome mancante`); continue; }
-        const amount = parseFloat(row.amount);
+        const amount = parseCostDecimal(row.amount);
         if (isNaN(amount) || amount <= 0) { errors.push(`Riga ${i + 1}: Importo non valido`); continue; }
         if (!row.due_date?.trim()) { errors.push(`Riga ${i + 1}: Data scadenza mancante`); continue; }
         let dueDate = row.due_date.trim();
@@ -486,8 +581,9 @@ export function useCompanyCostsMutations({
           const parts = dueDate.split("/");
           if (parts.length === 3) dueDate = `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
         }
+        if (!isValidDateField(dueDate)) { errors.push(`Riga ${i + 1}: Data scadenza non valida`); continue; }
         const costType = typeMap[(row.cost_type || "").toLowerCase().trim()] || "fixed";
-        const recurrence = recurrenceMap[(row.recurrence || "").toLowerCase().trim()] || "monthly";
+        const recurrence = recurrenceMap[(row.recurrence || "").toLowerCase().trim()] || "once";
         const { error } = await supabase.from("company_costs").insert({
           company_id: companyId, name: row.name.trim(), cost_type: costType, amount,
           category: row.category?.trim() || null, recurrence, due_date: dueDate,

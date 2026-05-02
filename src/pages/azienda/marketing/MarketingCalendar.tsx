@@ -31,11 +31,12 @@ import {
   ChevronRight,
   Settings,
   Calendar as CalendarIcon,
+  CalendarPlus,
   List as ListIcon,
   Grid3x3,
   Rows3,
   SlidersHorizontal,
-  Sparkles,
+  AlertCircle,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -45,13 +46,6 @@ import { queryKeys } from "@/lib/queryKeys";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import MarketingCalendarWeekView from "@/components/marketing/MarketingCalendarWeekView";
 import MarketingCalendarDayView from "@/components/marketing/MarketingCalendarDayView";
 import type { TravelLeg } from "@/types/marketingCalendar";
@@ -73,6 +67,7 @@ export default function MarketingCalendar() {
   const permissions = usePermissions();
   const { isGoogleConnected } = useGoogleCalendarSync();
   const { isAppleConnected } = useAppleCalendarSync();
+  const calendarSettingsPath = "/azienda/impostazioni/calendari";
 
   // Fetch Google busy slots for marketing calendar overlay
   const { data: googleBusySlots = [] } = useQuery({
@@ -149,6 +144,7 @@ export default function MarketingCalendar() {
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+  const hasCalendars = calendars.length > 0;
 
   // Fetch assignable users — FIX: scope "sales" per mostrare SOLO ruoli
   // commerciali nel calendario CRM (admin, salesperson, call_center).
@@ -206,7 +202,7 @@ export default function MarketingCalendar() {
 
   // Fetch appointments with date range filter
   const { data: rawAppointments = [], refetch: refetchAppointments } = useQuery({
-    queryKey: ["marketing-appointments", companyId, dateRange.start, dateRange.end],
+    queryKey: ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!companyId) return [];
       let query = supabase
@@ -239,16 +235,17 @@ export default function MarketingCalendar() {
 
   // Fetch only referenced contacts for enrichment
   const { data: contacts = [] } = useQuery({
-    queryKey: ["marketing-contacts-lookup", contactIds],
+    queryKey: ["marketing-contacts-lookup", companyId, contactIds],
     queryFn: async () => {
-      if (contactIds.length === 0) return [];
+      if (!companyId || contactIds.length === 0) return [];
       const { data } = await supabase
         .from("marketing_contacts")
         .select("id, first_name, last_name")
+        .eq("company_id", companyId)
         .in("id", contactIds);
       return data || [];
     },
-    enabled: contactIds.length > 0,
+    enabled: !!companyId && contactIds.length > 0,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
@@ -289,8 +286,10 @@ export default function MarketingCalendar() {
       if (!a.calendar_id) return false;
       if (selectedCalendarIds.length > 0 && !selectedCalendarIds.includes(a.calendar_id))
         return false;
-      if (selectedUserIds.length > 0 && a.assigned_to && !selectedUserIds.includes(a.assigned_to))
-        return false;
+      if (selectedUserIds.length > 0) {
+        if (!a.assigned_to) return false;
+        if (!selectedUserIds.includes(a.assigned_to)) return false;
+      }
       return true;
     });
   }, [appointments, selectedCalendarIds, selectedUserIds]);
@@ -485,6 +484,10 @@ export default function MarketingCalendar() {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const openNewDialog = (date?: Date, hour?: number, minute?: number) => {
+    if (!hasCalendars) {
+      toast.error("Prima configura almeno un calendario CRM");
+      return;
+    }
     setEditingAppointment(null);
     setDefaultDate(date ? format(date, "yyyy-MM-dd") : undefined);
     setDefaultTime(hour !== undefined ? `${String(hour).padStart(2, "0")}:${String(minute ?? 0).padStart(2, "0")}` : undefined);
@@ -622,7 +625,7 @@ export default function MarketingCalendar() {
   } as const;
 
   return (
-    <div className="space-y-4 pb-20 md:pb-0">
+    <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden pb-20 md:pb-0">
       <ApiHealthBanner filter={["googlemaps"]} />
 
       {/* Header redesign */}
@@ -659,9 +662,22 @@ export default function MarketingCalendar() {
               <span className="hidden md:inline">Impostazioni</span>
             </Button>
           )}
-          <Button size="sm" onClick={() => openNewDialog()} className="h-9">
-            <Plus className="h-4 w-4 mr-1.5" />
-            Nuovo appuntamento
+          <Button
+            size="sm"
+            onClick={() => (hasCalendars ? openNewDialog() : navigate(calendarSettingsPath))}
+            className="h-9"
+          >
+            {hasCalendars ? (
+              <>
+                <Plus className="h-4 w-4 mr-1.5" />
+                Nuovo appuntamento
+              </>
+            ) : (
+              <>
+                <CalendarPlus className="h-4 w-4 mr-1.5" />
+                Configura calendario
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -691,10 +707,10 @@ export default function MarketingCalendar() {
 
       {/* Content */}
       {activeTab === "calendar" && (
-        <div className="flex gap-0 h-[calc(100vh-240px)] md:h-[calc(100vh-220px)]">
-          <div className="flex-1 flex flex-col gap-3 min-w-0">
+        <div className="grid h-[calc(100vh-240px)] min-h-[560px] grid-cols-1 gap-3 overflow-hidden md:h-[calc(100vh-220px)] md:grid-cols-[minmax(0,1fr)_18rem]">
+          <div className="flex min-w-0 flex-col gap-3 overflow-hidden">
             {/* Navigation bar — redesign responsive */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex shrink-0 items-center gap-2 overflow-x-auto pb-0.5">
               <Button
                 variant={isCurrentDateToday ? "default" : "outline"}
                 size="sm"
@@ -785,6 +801,7 @@ export default function MarketingCalendar() {
                       selectedUserIds={selectedUserIds}
                       onToggleCalendar={handleToggleCalendar}
                       onToggleUser={handleToggleUser}
+                      onConfigureCalendars={() => navigate(calendarSettingsPath)}
                       inSheet
                     />
                   </div>
@@ -818,7 +835,27 @@ export default function MarketingCalendar() {
               </div>
             </div>
 
-            {calendarView === "week" && (
+            {!hasCalendars ? (
+              <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed bg-background p-6">
+                <div className="mx-auto max-w-md text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                    <CalendarPlus className="h-6 w-6 text-primary" />
+                  </div>
+                  <h2 className="mt-4 text-lg font-semibold">Configura il primo calendario CRM</h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Gli appuntamenti marketing e vendita hanno bisogno di almeno un calendario attivo per assegnare disponibilità, durata e link di prenotazione.
+                  </p>
+                  <div className="mt-4 flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-left text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>Senza calendario il flusso di creazione appuntamento resta bloccato sulla scelta calendario.</span>
+                  </div>
+                  <Button className="mt-5 gap-1.5" onClick={() => navigate(calendarSettingsPath)}>
+                    <CalendarPlus className="h-4 w-4" />
+                    Configura calendario CRM
+                  </Button>
+                </div>
+              </div>
+            ) : calendarView === "week" ? (
               <MarketingCalendarWeekView
                 weekStart={weekStart}
                 appointments={filteredAppointments}
@@ -831,8 +868,7 @@ export default function MarketingCalendar() {
                 onResizeAppointment={handleResizeAppointment}
                 busySlots={busySlots}
               />
-            )}
-            {calendarView === "day" && (
+            ) : calendarView === "day" ? (
               <MarketingCalendarDayView
                 date={currentDate}
                 appointments={filteredAppointments}
@@ -845,8 +881,7 @@ export default function MarketingCalendar() {
                 onResizeAppointment={handleResizeAppointment}
                 busySlots={busySlots}
               />
-            )}
-            {calendarView === "month" && (
+            ) : (
               <MarketingCalendarMonthView
                 currentDate={currentDate}
                 appointments={filteredAppointments}
@@ -858,7 +893,7 @@ export default function MarketingCalendar() {
             )}
           </div>
 
-          <div className="hidden md:block">
+          <div className="hidden min-w-0 overflow-hidden rounded-lg border bg-background md:block">
             <MarketingCalendarFilters
               calendars={calendars}
               users={users}
@@ -866,6 +901,7 @@ export default function MarketingCalendar() {
               selectedUserIds={selectedUserIds}
               onToggleCalendar={handleToggleCalendar}
               onToggleUser={handleToggleUser}
+              onConfigureCalendars={() => navigate(calendarSettingsPath)}
             />
           </div>
         </div>

@@ -95,7 +95,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
-        .select("id, name, quantity, purchase_price, status, payment_method, deposit_amount, deposit_paid, deposit_paid_date, balance_amount, balance_paid, balance_paid_date, balance_expected_date, is_paid, paid_date, supplier:suppliers(name, vat_rate), order:orders!inner(id, order_code, company_id)")
+        .select("id, name, quantity, purchase_price, status, payment_method, supplier_id, deposit_amount, deposit_paid, deposit_paid_date, balance_amount, balance_paid, balance_paid_date, balance_expected_date, is_paid, paid_date, supplier:suppliers(name, vat_rate), order:orders!inner(id, order_code, company_id)")
         .not("supplier_id", "is", null)
         .is("stock_item_id", null)
         .eq("order.company_id", companyId!);
@@ -212,14 +212,18 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     }
 
     if (categoryFilter !== "all") {
-      filtered = filtered.filter((c: any) => c.category === categoryFilter);
+      if (categoryFilter === "none") filtered = filtered.filter((c: any) => !c.category);
+      else filtered = filtered.filter((c: any) => c.category === categoryFilter);
     }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter((c: any) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.supplier?.name || "").toLowerCase().includes(q)
+        (c.name || "").toLowerCase().includes(q) ||
+        (c.supplier?.name || "").toLowerCase().includes(q) ||
+        (c.category || "").toLowerCase().includes(q) ||
+        (c.notes || "").toLowerCase().includes(q) ||
+        (c.order?.order_code || "").toLowerCase().includes(q)
       );
     }
 
@@ -240,15 +244,27 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      filtered = filtered.filter((c) => c.name.toLowerCase().includes(q) || (c.supplierName || "").toLowerCase().includes(q));
+      filtered = filtered.filter((c) =>
+        (c.name || "").toLowerCase().includes(q) ||
+        (c.supplierName || "").toLowerCase().includes(q) ||
+        (c.category || "").toLowerCase().includes(q) ||
+        (c.notes || "").toLowerCase().includes(q) ||
+        (c.order?.order_code || "").toLowerCase().includes(q)
+      );
     }
     if (statusFilter === "paid") filtered = filtered.filter((c) => c.is_paid);
-    else if (statusFilter === "unpaid") filtered = filtered.filter((c) => !c.is_paid);
+    else if (statusFilter === "unpaid") filtered = filtered.filter((c) => !c.is_paid && new Date(c.due_date) >= now);
+    else if (statusFilter === "overdue") filtered = filtered.filter((c) => !c.is_paid && new Date(c.due_date) < now);
+    if (supplierFilter !== "all") {
+      if (supplierFilter === "none") filtered = filtered.filter((c) => !c.supplier_id && !c.supplierName);
+      else filtered = filtered.filter((c) => c.supplier_id === supplierFilter);
+    }
     if (categoryFilter !== "all") {
-      filtered = filtered.filter((c) => c.category === categoryFilter);
+      if (categoryFilter === "none") filtered = filtered.filter((c) => !c.category);
+      else filtered = filtered.filter((c) => c.category === categoryFilter);
     }
     return filtered;
-  }, [allOrderDerivedCosts, getPeriodRange, searchQuery, statusFilter, categoryFilter, originFilter]);
+  }, [allOrderDerivedCosts, getPeriodRange, searchQuery, statusFilter, supplierFilter, categoryFilter, originFilter]);
 
   // Query cost categories from dedicated table
   const { data: dbCategories = [] } = useQuery({

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, FlaskConical, CheckCircle, XCircle, User } from "lucide-react";
+import { Loader2, Search, FlaskConical, CheckCircle, XCircle, User, ShieldCheck } from "lucide-react";
 import type { AutomationFlow } from "@/types/automationBuilder";
 
 interface Props {
@@ -43,12 +43,13 @@ export function TestFlowDialog({ open, onClose, flow, companyId, onEnrollmentCre
         .from("automation_nodes")
         .select("config_json, label")
         .eq("flow_id", flow!.id)
+        .eq("company_id", companyId!)
         .eq("node_type", "trigger")
         .limit(1)
         .maybeSingle();
       return data;
     },
-    enabled: !!flow?.id && open,
+    enabled: !!flow?.id && !!companyId && open,
   });
 
   const triggerEvent = triggerNode?.config_json?.trigger_event;
@@ -90,6 +91,7 @@ export function TestFlowDialog({ open, onClose, flow, companyId, onEnrollmentCre
           entity_type: "contact",
           payload: {
             test_mode: true,
+            dry_run: true,
             first_name: selectedContact.first_name,
             last_name: selectedContact.last_name,
             email: selectedContact.email,
@@ -153,6 +155,15 @@ export function TestFlowDialog({ open, onClose, flow, companyId, onEnrollmentCre
             ) : (
               "Nessun trigger configurato — aggiungi un trigger al flusso prima di testare."
             )}
+          </div>
+
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+            <div className="flex items-start gap-2">
+              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <p>
+                Modalità test protetta: la richiesta viene inviata con flag <span className="font-mono">test_mode</span> e <span className="font-mono">dry_run</span> per evitare invii reali quando il processore li supporta.
+              </p>
+            </div>
           </div>
 
           {/* Contact search */}

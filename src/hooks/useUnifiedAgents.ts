@@ -13,6 +13,34 @@ import type {
 
 const QUERY_KEY = "unified-ai-agents";
 
+const normalizeText = (value: unknown) => String(value ?? "").trim();
+
+const clampNumber = (value: unknown, min: number, max: number, fallback: number) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+};
+
+const assertAgentBaseConfig = (agent: Pick<UnifiedAgentInsert, "nome" | "system_prompt">) => {
+  if (!normalizeText(agent.nome)) {
+    throw new Error("Inserisci un nome per l'agente AI.");
+  }
+  if (normalizeText(agent.system_prompt).length < 20) {
+    throw new Error("Completa il prompt di sistema prima di salvare l'agente.");
+  }
+};
+
+const assertAgentReadyForActivation = (agent: Partial<UnifiedAgent>) => {
+  assertAgentBaseConfig({
+    nome: agent.nome ?? "",
+    system_prompt: agent.system_prompt ?? "",
+  });
+
+  if ((agent.tipo === "vocale" || agent.tipo === "campagna") && !agent.elevenlabs_agent_id) {
+    throw new Error("L'agente vocale non è collegato a ElevenLabs: completa la configurazione prima di attivarlo.");
+  }
+};
+
 // ─── List agents ───
 export function useUnifiedAgents(filters?: {
   tipo?: string;
@@ -52,14 +80,17 @@ export function useUnifiedAgents(filters?: {
 
 // ─── Get single agent ───
 export function useUnifiedAgent(id: string | undefined) {
+  const companyId = useEffectiveCompanyId();
+
   return useQuery({
-    queryKey: [QUERY_KEY, "detail", id],
-    enabled: !!id,
+    queryKey: [QUERY_KEY, "detail", companyId, id],
+    enabled: !!id && !!companyId,
     queryFn: async (): Promise<UnifiedAgent> => {
       const { data, error } = await withClientTimeout(
         supabase
         .from("ai_agents_v2" as never)
         .select("*")
+        .eq("company_id", companyId!)
         .eq("id", id!)
         .single(),
         "Caricamento agente AI",
@@ -80,6 +111,7 @@ export function useCreateUnifiedAgent() {
   return useMutation({
     mutationFn: async (input: UnifiedAgentInsert) => {
       if (!companyId) throw new Error("Nessuna azienda associata");
+      assertAgentBaseConfig(input);
 
       const needsElevenLabs = input.tipo === "vocale" || input.tipo === "campagna";
       let elAgentId: string | null = null;
@@ -106,11 +138,12 @@ export function useCreateUnifiedAgent() {
 
       const insertPayload: Record<string, unknown> = {
           company_id: companyId,
-          nome: input.nome,
+          nome: normalizeText(input.nome),
           tipo: input.tipo,
-          descrizione: input.descrizione || null,
-          system_prompt: input.system_prompt || "",
-          primo_messaggio: input.primo_messaggio || "",
+          stato: "bozza",
+          descrizione: normalizeText(input.descrizione) || null,
+          system_prompt: normalizeText(input.system_prompt),
+          primo_messaggio: normalizeText(input.primo_messaggio),
           lingua: input.lingua || "it",
           llm_model: input.llm_model || "gemini-2.5-flash",
           elevenlabs_agent_id: elAgentId,
@@ -119,14 +152,14 @@ export function useCreateUnifiedAgent() {
       };
 
       // Persist wizard-collected fields
-      if (input.temperatura !== undefined) insertPayload.temperatura = input.temperatura;
+      if (input.temperatura !== undefined) insertPayload.temperatura = clampNumber(input.temperatura, 0, 1, 0.7);
       if (input.voice_nome) insertPayload.voice_nome = input.voice_nome;
       if (input.risposta_automatica !== undefined) insertPayload.risposta_automatica = input.risposta_automatica;
       if (input.registra_chiamate !== undefined) insertPayload.registra_chiamate = input.registra_chiamate;
       if (input.trascrivi_chiamate !== undefined) insertPayload.trascrivi_chiamate = input.trascrivi_chiamate;
       if (input.rileva_segreteria !== undefined) insertPayload.rileva_segreteria = input.rileva_segreteria;
-      if (input.squillo_max !== undefined) insertPayload.squillo_max = input.squillo_max;
-      if (input.durata_max_secondi !== undefined) insertPayload.durata_max_secondi = input.durata_max_secondi;
+      if (input.squillo_max !== undefined) insertPayload.squillo_max = clampNumber(input.squillo_max, 1, 20, 6);
+      if (input.durata_max_secondi !== undefined) insertPayload.durata_max_secondi = clampNumber(input.durata_max_secondi, 30, 3600, 300);
       if (input.widget_titolo) insertPayload.widget_titolo = input.widget_titolo;
       if (input.widget_colore) insertPayload.widget_colore = input.widget_colore;
       if (input.widget_posizione) insertPayload.widget_posizione = input.widget_posizione;
@@ -161,18 +194,30 @@ export function useCreateUnifiedAgent() {
 // ─── Delete agent ───
 export function useDeleteUnifiedAgent() {
   const queryClient = useQueryClient();
+  const companyId = useEffectiveCompanyId();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data: agent } = await supabase
+      if (!companyId) throw new Error("Nessuna azienda associata");
+
+      const { data: agent, error: fetchError } = await supabase
         .from("ai_agents_v2" as never)
-        .select("elevenlabs_agent_id")
+        .select("elevenlabs_agent_id, stato")
+        .eq("company_id", companyId)
         .eq("id", id)
         .single();
+      if (fetchError) throw fetchError;
 
       const elId = (agent as any)?.elevenlabs_agent_id;
+      if ((agent as any)?.stato === "attivo") {
+        throw new Error("Metti in pausa l'agente prima di eliminarlo.");
+      }
 
-      const { error } = await supabase.from("ai_agents_v2" as never).delete().eq("id", id);
+      const { error } = await supabase
+        .from("ai_agents_v2" as never)
+        .delete()
+        .eq("company_id", companyId)
+        .eq("id", id);
       if (error) throw error;
 
       if (elId) {
@@ -196,12 +241,26 @@ export function useDeleteUnifiedAgent() {
 // ─── Update status ───
 export function useUpdateUnifiedAgentStatus() {
   const queryClient = useQueryClient();
+  const companyId = useEffectiveCompanyId();
 
   return useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
+      if (!companyId) throw new Error("Nessuna azienda associata");
+      if (stato === "attivo") {
+        const { data, error } = await supabase
+          .from("ai_agents_v2" as never)
+          .select("nome,tipo,system_prompt,elevenlabs_agent_id")
+          .eq("company_id", companyId)
+          .eq("id", id)
+          .single();
+        if (error) throw error;
+        assertAgentReadyForActivation(data as unknown as Partial<UnifiedAgent>);
+      }
+
       const { error } = await supabase
         .from("ai_agents_v2" as never)
         .update({ stato } as never)
+        .eq("company_id", companyId)
         .eq("id", id);
       if (error) throw error;
     },
@@ -226,6 +285,7 @@ export function useDuplicateUnifiedAgent() {
       const { data: source, error: fetchError } = await supabase
         .from("ai_agents_v2" as never)
         .select("*")
+        .eq("company_id", companyId)
         .eq("id", sourceId)
         .single();
 

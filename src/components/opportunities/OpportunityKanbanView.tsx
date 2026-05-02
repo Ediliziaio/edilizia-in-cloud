@@ -22,7 +22,8 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
   onDelete: (id: string) => void;
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;
-}>(function StageColumn({ stage, opportunities, onCardClick, onDelete, selectedIds, onSelect }, _ref) {
+  canEdit?: boolean;
+}>(function StageColumn({ stage, opportunities, onCardClick, onDelete, selectedIds, onSelect, canEdit = true }, _ref) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const { layout } = useCardFieldPreferences();
   const totalValue = opportunities.reduce((sum: number, o: any) => sum + Number(o.value || 0), 0);
@@ -84,6 +85,7 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
                     onDelete={onDelete}
                     selected={selectedIds.has(opp.id)}
                     onSelect={onSelect}
+                    canEdit={canEdit}
                   />
                 </div>
               );
@@ -103,9 +105,10 @@ interface KanbanProps {
   opportunities: any[];
   selectedIds: Set<string>;
   onSelect: (id: string, selected: boolean) => void;
+  canEdit?: boolean;
 }
 
-export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSelect }: KanbanProps) {
+export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSelect, canEdit = true }: KanbanProps) {
   const updateStage = useUpdateOpportunityStage();
   const deleteOpp = useDeleteOpportunity();
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
@@ -128,12 +131,14 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
   }, [stages, opportunities]);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
+    if (!canEdit) return;
     const opp = opportunities.find((o: any) => o.id === event.active.id);
     if (opp) setActiveItem(opp);
-  }, [opportunities]);
+  }, [opportunities, canEdit]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveItem(null);
+    if (!canEdit) return;
     const { active, over } = event;
     if (!over) return;
 
@@ -152,11 +157,12 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
         auto_status: targetStage?.auto_status || undefined,
       });
     }
-  }, [opportunities, stages, updateStage]);
+  }, [opportunities, stages, updateStage, canEdit]);
 
   const handleDelete = useCallback((id: string) => {
+    if (!canEdit) return;
     deleteOpp.mutate(id);
-  }, [deleteOpp]);
+  }, [deleteOpp, canEdit]);
 
   return (
     <>
@@ -177,13 +183,14 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
                 onDelete={handleDelete}
                 selectedIds={selectedIds}
                 onSelect={onSelect}
+                canEdit={canEdit}
               />
             ))}
           </div>
           <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
             {activeItem ? (
               <div className="opacity-90 rotate-2 scale-105">
-                <OpportunityCard opportunity={activeItem} isOverlay />
+                <OpportunityCard opportunity={activeItem} isOverlay canEdit={canEdit} />
               </div>
             ) : null}
           </DragOverlay>
@@ -196,6 +203,7 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
         onOpenChange={(open) => { if (!open) { setSelectedOpp(null); setInitialTab(undefined); } }}
         stages={stages}
         initialTab={initialTab}
+        canEdit={canEdit}
       />
     </>
   );

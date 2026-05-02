@@ -51,6 +51,40 @@ export type AxisValueUpdate = Partial<
   Omit<AxisValue, "id" | "axis_id" | "company_id" | "created_at">
 >;
 
+function assertNonNegativeNumber(value: unknown, label: string) {
+  if (value == null) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    throw new Error(`${label} deve essere un numero valido e non negativo.`);
+  }
+}
+
+function assertPercentRange(value: unknown, label: string) {
+  if (value == null) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) {
+    throw new Error(`${label} deve essere compreso tra 0 e 100.`);
+  }
+}
+
+function validateFamilyEconomics(payload: Partial<ArticleFamily>) {
+  assertNonNegativeNumber(payload.prezzo_base_vendita, "Prezzo di vendita");
+  assertNonNegativeNumber(payload.prezzo_base_acquisto, "Prezzo di acquisto");
+  assertNonNegativeNumber(payload.markup_valore, "Markup");
+  assertPercentRange(payload.sconto_fornitore_1, "Sconto fornitore 1");
+  assertPercentRange(payload.sconto_fornitore_2, "Sconto fornitore 2");
+  assertPercentRange(payload.vat_rate, "IVA vendita");
+  assertPercentRange(payload.vat_rate_acquisto, "IVA acquisto");
+  assertNonNegativeNumber(payload.manodopera_costo_acquisto, "Costo manodopera");
+  assertNonNegativeNumber(payload.manodopera_prezzo_vendita, "Prezzo vendita manodopera");
+  if (payload.posa_quantita_default != null) {
+    const numeric = Number(payload.posa_quantita_default);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      throw new Error("Quantità manodopera deve essere maggiore di zero.");
+    }
+  }
+}
+
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useFamilyMutations() {
@@ -71,6 +105,7 @@ export function useFamilyMutations() {
   const createFamily = useMutation({
     mutationFn: async (payload: Omit<FamilyInsert, "company_id">) => {
       if (!companyId) throw new Error("Azienda non identificata");
+      validateFamilyEconomics(payload);
       const { data, error } = await supabase
         .from("article_families" as never)
         .insert({ ...payload, company_id: companyId })
@@ -87,6 +122,7 @@ export function useFamilyMutations() {
   const updateFamily = useMutation({
     mutationFn: async (args: { id: string; patch: FamilyUpdate }) => {
       if (!companyId) throw new Error("Azienda non identificata");
+      validateFamilyEconomics(args.patch);
       const { data, error } = await supabase
         .from("article_families" as never)
         .update(args.patch)

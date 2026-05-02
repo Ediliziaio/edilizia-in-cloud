@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { getCatalogItem } from "@/lib/flow-node-catalog";
-import { GitBranch, Check, X } from "lucide-react";
+import { AlertTriangle, GitBranch, Check, X } from "lucide-react";
 
 function ConditionNodeComponent({ data, selected }: NodeProps) {
   const catalog = getCatalogItem(data.itemId as string);
@@ -9,7 +9,7 @@ function ConditionNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`min-w-[220px] max-w-[280px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-amber-400 dark:border-amber-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""}`}
+      className={`min-w-[220px] max-w-[280px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-amber-400 dark:border-amber-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""} ${data.hasError ? "!border-destructive ring-1 ring-destructive" : data.hasWarning ? "!border-amber-500 ring-1 ring-amber-300" : ""}`}
     >
       <Handle type="target" position={Position.Top} className="!bg-amber-500 !w-3 !h-3 !border-2 !border-background" />
 
@@ -24,6 +24,9 @@ function ConditionNodeComponent({ data, selected }: NodeProps) {
         <span className="rounded bg-amber-200 dark:bg-amber-800 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-300">
           {logica}
         </span>
+        {(data.hasError || data.hasWarning) && (
+          <AlertTriangle className={`h-3.5 w-3.5 ${data.hasError ? "text-destructive" : "text-amber-600"}`} />
+        )}
       </div>
 
       {/* Body */}

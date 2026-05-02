@@ -147,11 +147,12 @@ function EditOrderInner() {
   // Calculate balance
   const total = parseFloat(totalAmount) || 0;
   const vat = parseFloat(vatRate) || 22;
+  const fCostForBalance = paymentType === "financing" ? (parseFloat(financingCost) || 0) : 0;
   const totalWithVat = total * (1 + vat / 100);
   const nonBalanceSum = installments
     .filter(i => i.type !== 'balance')
     .reduce((sum, i) => sum + i.amount, 0);
-  const balance = Math.max(0, totalWithVat - nonBalanceSum);
+  const balance = Math.max(0, totalWithVat - nonBalanceSum - fCostForBalance);
 
   // Payment type change handler
   const handlePaymentTypeChange = (type: PaymentType) => {
@@ -184,15 +185,17 @@ function EditOrderInner() {
   const { data: order, isLoading: orderLoading } = useQuery({
     queryKey: ["order", id],
     queryFn: async () => {
+      if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
       const { data, error } = await supabase
         .from("orders")
         .select("*")
         .eq("id", id!)
+        .eq("company_id", effectiveCompany.id)
         .single();
       if (error) throw error;
       return data as OrderData;
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && !!effectiveCompany?.id,
   });
 
   // Fetch order installments
@@ -406,11 +409,12 @@ function EditOrderInner() {
         .from("profiles")
         .select("id, first_name, last_name, email")
         .eq("id", order!.customer_id)
+        .eq("company_id", effectiveCompany!.id)
         .maybeSingle();
       if (error) throw error;
       return data as Customer | null;
     },
-    enabled: !!order?.customer_id,
+    enabled: !!order?.customer_id && !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -424,6 +428,7 @@ function EditOrderInner() {
   // Update order mutation
   const updateOrderMutation = useMutation({
     mutationFn: async () => {
+      if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
       const installmentsForSave = installments.map(i =>
         i.type === 'balance' ? { ...i, amount: balance } : i
       );
@@ -459,7 +464,8 @@ function EditOrderInner() {
               }
             : {}),
         } as never)
-        .eq("id", id!);
+        .eq("id", id!)
+        .eq("company_id", effectiveCompany.id);
 
       if (error) throw error;
 
@@ -651,6 +657,14 @@ function EditOrderInner() {
       toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
       return;
     }
+    if (vat < 0 || vat > 100) {
+      toast.error("IVA non valida", { description: "L'IVA deve essere un valore tra 0 e 100." });
+      return;
+    }
+    if ((parseFloat(financingCost) || 0) < 0) {
+      toast.error("Costo finanziaria non valido", { description: "Il costo finanziaria non può essere negativo." });
+      return;
+    }
     if (workStartDate && workEndDate && workEndDate < workStartDate) {
       toast.error("Date lavori non valide", {
         description: "La data di fine lavori non può precedere quella di inizio.",
@@ -742,11 +756,15 @@ function EditOrderInner() {
               <div className="space-y-2">
                 <Label htmlFor="customer">Cliente *</Label>
                 <div className="flex gap-2">
-                  <Select value={customerId && allCustomers.some(c => c.id === customerId) ? customerId : undefined} onValueChange={setCustomerId}>
+                  <Select
+                    value={customerId && allCustomers.some(c => c.id === customerId) ? customerId : "__none__"}
+                    onValueChange={(value) => setCustomerId(value === "__none__" ? "" : value)}
+                  >
                     <SelectTrigger className="flex-1">
                       <SelectValue placeholder={isLoadingCustomers ? "Caricamento..." : "Seleziona un cliente"} />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__none__" disabled>Seleziona un cliente</SelectItem>
                       {allCustomers.map((customer) => (
                         <SelectItem key={customer.id} value={customer.id}>
                           {customer.first_name} {customer.last_name} ({customer.email})

@@ -129,10 +129,12 @@ export default function CampaignEditor() {
 
   const saveMut = useMutation({
     mutationFn: async (payload: { name?: string; html_content?: string }) => {
+      if (!company?.id) throw new Error("Azienda non disponibile");
       const { error } = await supabase
         .from("email_campaigns")
         .update(payload)
-        .eq("id", id!);
+        .eq("id", id!)
+        .eq("company_id", company.id);
       if (error) throw error;
     },
     onSuccess: () => {

@@ -41,6 +41,8 @@ import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumen
 import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
 import { OpportunityQuotesTab } from "@/components/opportunities/OpportunityQuotesTab";
 import { STATUS_OPTIONS } from "@/types/opportunities";
+import { usePermissions } from "@/hooks/usePermissions";
+import { cleanPhone } from "@/lib/contactUtils";
 
 interface Props {
   opportunity: any;
@@ -48,14 +50,21 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   stages: { id: string; name: string; auto_status?: string | null }[];
   initialTab?: string;
+  canEdit?: boolean;
 }
 
 type Tab = "details" | "notes" | "appointments" | "activities" | "documents" | "quotes";
 
-export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab }: Props) {
+function sanitizeSearchTerm(value: string) {
+  return value.replace(/[%,]/g, " ").trim();
+}
+
+export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab, canEdit = true }: Props) {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
+  const canEditOpportunity = canEdit && (permissions.canEditMarketingOpportunities || permissions.canEditMarketing);
   const queryClient = useQueryClient();
   const updateOpp = useUpdateOpportunity();
   const deleteOpp = useDeleteOpportunity();
@@ -130,8 +139,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         .select("id, first_name, last_name, email, phone, city")
         .eq("company_id", companyId!)
         .limit(20);
-      if (contactSearch) {
-        query = query.or(`first_name.ilike.%${contactSearch}%,last_name.ilike.%${contactSearch}%,email.ilike.%${contactSearch}%`);
+      const safeSearch = sanitizeSearchTerm(contactSearch);
+      if (safeSearch) {
+        query = query.or(`first_name.ilike.%${safeSearch}%,last_name.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%`);
       }
       const { data, error } = await query.order("first_name");
       if (error) throw error;
@@ -171,7 +181,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   // Guard: only write if there are actually missing tags to avoid unnecessary DB writes
   const lastSyncedTagsRef = useRef<string>("");
   useEffect(() => {
-    if (!opportunity || !open) return;
+    if (!opportunity || !open || !companyId || !canEditOpportunity) return;
     const contact = opportunity.marketing_contacts;
     if (!contact?.tags?.length) return;
     const oppTagsCurrent: string[] = opportunity.tags || [];
@@ -187,10 +197,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       .from("marketing_opportunities")
       .update({ tags: merged, updated_at: new Date().toISOString() })
       .eq("id", opportunity.id)
+      .eq("company_id", companyId)
       .then(() => {
-        queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
+        queryClient.invalidateQueries({ queryKey: ["marketing-opportunities"] });
       });
-  }, [opportunity?.id, open, queryClient]);
+  }, [opportunity?.id, open, queryClient, companyId, canEditOpportunity]);
 
   // Sync contact custom field values - with guard to prevent infinite loop
   useEffect(() => {
@@ -222,6 +233,23 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const isSaving = updateOpp.isPending || updateContact.isPending || upsertContactFields.isPending || upsertOppFields.isPending;
 
   const handleSave = async () => {
+    if (!canEditOpportunity) {
+      toast.error("Non hai i permessi per modificare opportunità");
+      return;
+    }
+    if (!name.trim()) {
+      toast.error("Inserisci il nome dell'opportunità");
+      return;
+    }
+    if (!stageId) {
+      toast.error("Seleziona una fase");
+      return;
+    }
+    const numericValue = value.trim() ? Number(value) : 0;
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      toast.error("Il valore economico deve essere un numero positivo");
+      return;
+    }
     // Handle new contact creation if pending
     let finalContactId = pendingContactId || opportunity.contact_id;
 
@@ -236,8 +264,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
           company_id: companyId!,
           first_name: firstName,
           last_name: lastName,
-          email: newContactEmail || null,
-          phone: newContactPhone || null,
+          email: newContactEmail.trim().toLowerCase() || null,
+          phone: newContactPhone.trim() ? cleanPhone(newContactPhone) : null,
         })
         .select("id")
         .single();
@@ -248,7 +276,12 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
     // 2. Update contact base fields if changed (only if not changing contact)
     if (!pendingContactId && !showNewContactForm && contact && (contactEmail !== (contact.email || "") || contactPhone !== (contact.phone || "") || contactCity !== (contact.city || ""))) {
-      updateContact.mutate({ id: contact.id, email: contactEmail || null, phone: contactPhone || null, city: contactCity || null });
+      updateContact.mutate({
+        id: contact.id,
+        email: contactEmail.trim().toLowerCase() || null,
+        phone: contactPhone.trim() ? cleanPhone(contactPhone) : null,
+        city: contactCity || null,
+      });
     }
 
     // 3. Upsert contact custom field values
@@ -272,8 +305,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     // 1. Update opportunity (toast + close on success)
     updateOpp.mutate({
       id: opportunity.id,
-      name, stage_id: stageId, status,
-      value: parseFloat(value) || 0,
+      name: name.trim(), stage_id: stageId, status,
+      value: numericValue,
       source: source || null,
       assigned_to: assignedTo || null,
       follower_id: followerId || null,
@@ -290,10 +323,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         const removedTags = originalTags.filter((t: string) => !oppTags.includes(t));
 
         if (addedTags.length > 0) {
-          await syncTagsToContact(finalContactId, addedTags);
+          await syncTagsToContact(finalContactId, addedTags, companyId);
         }
         for (const tag of removedTags) {
-          await removeTagFromContact(finalContactId, tag);
+          await removeTagFromContact(finalContactId, tag, companyId);
         }
         toast.success("Opportunità aggiornata con successo");
         onOpenChange(false);
@@ -316,6 +349,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   };
 
   const handleDelete = () => {
+    if (!canEditOpportunity) {
+      toast.error("Non hai i permessi per eliminare opportunità");
+      return;
+    }
     setConfirmDelete(true);
   };
 
@@ -325,6 +362,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
   const handleAddNote = () => {
     if (!newNote.trim()) return;
+    if (!canEditOpportunity) {
+      toast.error("Non hai i permessi per aggiungere note");
+      return;
+    }
     addNote.mutate({ opportunityId: opportunity.id, contactId: opportunity.contact_id, content: newNote.trim() }, { onSuccess: () => setNewNote("") });
   };
 
@@ -806,7 +847,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       rows={2}
                       className="text-sm flex-1"
                     />
-                    <Button size="sm" onClick={handleAddNote} disabled={addNote.isPending || !newNote.trim()} className="self-end">
+                    <Button size="sm" onClick={handleAddNote} disabled={addNote.isPending || !newNote.trim() || !canEditOpportunity} className="self-end">
                       {addNote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aggiungi"}
                     </Button>
                   </div>
@@ -894,11 +935,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={handleDelete} disabled={deleteOpp.isPending} className="text-destructive hover:text-destructive">
+            <Button variant="ghost" size="icon" onClick={handleDelete} disabled={deleteOpp.isPending || !canEditOpportunity} className="text-destructive hover:text-destructive">
               <Trash2 className="h-4 w-4" />
             </Button>
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Annulla</Button>
-            <Button size="sm" onClick={handleSave} disabled={isSaving}>
+            <Button size="sm" onClick={handleSave} disabled={isSaving || !canEditOpportunity}>
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Aggiorna
             </Button>
@@ -977,9 +1018,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
           </Button>
           <Button
             variant="destructive"
-            disabled={!lostCategory || updateOpportunity.isPending}
+            disabled={!lostCategory || updateOpportunity.isPending || !canEditOpportunity}
             onClick={() => {
-              if (!lostCategory) return;
+              if (!lostCategory || !canEditOpportunity) return;
               updateOpportunity.mutate(
                 {
                   id: opportunity.id,

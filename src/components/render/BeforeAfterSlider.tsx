@@ -13,6 +13,7 @@ interface Props {
   beforeLabel?: string;
   afterLabel?: string;
   className?: string;
+  compact?: boolean;
 }
 
 export function BeforeAfterSlider({
@@ -23,6 +24,7 @@ export function BeforeAfterSlider({
   beforeLabel = "Originale",
   afterLabel = "Render AI",
   className = "",
+  compact = false,
 }: Props) {
   const before = beforeUrl ?? beforeSrc ?? "";
   const after = afterUrl ?? afterSrc ?? "";
@@ -161,6 +163,7 @@ export function BeforeAfterSlider({
 
   return (
     <div className="space-y-2">
+      {!compact && (
       <div className="grid grid-cols-2 gap-2 sm:hidden">
         <button
           type="button"
@@ -177,10 +180,11 @@ export function BeforeAfterSlider({
           Solo render
         </button>
       </div>
+      )}
 
       <div
         ref={containerRef}
-        className={`relative min-h-[240px] cursor-col-resize select-none overflow-hidden rounded-lg bg-muted/20 ${className}`}
+        className={`relative ${compact ? "min-h-0" : "min-h-[240px]"} cursor-col-resize select-none overflow-hidden rounded-lg bg-muted/20 ${className}`}
         style={{ userSelect: "none", touchAction: "none", aspectRatio }}
         role="slider"
         tabIndex={0}

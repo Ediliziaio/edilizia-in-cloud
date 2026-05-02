@@ -40,6 +40,10 @@ import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { syncLegacySettingsFlags } from "@/components/users/permissionsDefaults";
 
 type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
+type StatusFilter = "all" | "online" | "blocked" | "locked" | "never" | "inactive";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const COMPANY_ADMIN_ROLE = "company_admin";
 
 interface CompanyUser {
   id: string;
@@ -122,7 +126,7 @@ function RolesBadgeGroup({ roles }: { roles: string[] | null | undefined }) {
 }
 
 function UserStatus({ u }: { u: CompanyUser }) {
-  const isLocked = u.locked_until && new Date(u.locked_until) > new Date();
+  const isLocked = !!u.locked_until && new Date(u.locked_until) > new Date();
   const isOnline = u.active_sessions > 0;
 
   if (u.is_blocked) {
@@ -155,6 +159,15 @@ function UserStatus({ u }: { u: CompanyUser }) {
     );
   }
   return <span className="text-xs text-muted-foreground italic">Mai connesso</span>;
+}
+
+function getUserStatusKey(u: CompanyUser): Exclude<StatusFilter, "all"> {
+  const isLocked = u.locked_until && new Date(u.locked_until) > new Date();
+  if (u.is_blocked) return "blocked";
+  if (isLocked) return "locked";
+  if (u.active_sessions > 0) return "online";
+  if (!u.last_login_at) return "never";
+  return "inactive";
 }
 
 function determineEffectiveRole(roles: string[]): EffectiveRole {
@@ -277,6 +290,8 @@ export function UsersConfig() {
   const [isCreating, setIsCreating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [teamFilter, setTeamFilter] = useState<string>("all");
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CompanyUser | null>(null);
@@ -317,6 +332,8 @@ export function UsersConfig() {
       if (profilesError) throw profilesError;
 
       const userIds = profiles.map((p) => p.id);
+      if (userIds.length === 0) return [];
+
       const [rolesRes, sessionsRes, permsRes] = await Promise.all([
         supabase.from("user_roles").select("user_id, role").in("user_id", userIds),
         supabase.from("user_sessions").select("user_id").eq("company_id", effectiveCompanyId!).eq("is_active", true),
@@ -371,14 +388,60 @@ export function UsersConfig() {
     return acc;
   }, {} as Record<string, number>);
 
+  const teamIdsByUser = teamMemberships.reduce((acc, membership) => {
+    const userId = membership.user_id;
+    if (!acc[userId]) acc[userId] = new Set<string>();
+    acc[userId].add(membership.team_id);
+    return acc;
+  }, {} as Record<string, Set<string>>);
+
+  const statusCounts = companyUsers.reduce((acc, u) => {
+    const status = getUserStatusKey(u);
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {} as Partial<Record<Exclude<StatusFilter, "all">, number>>);
+
+  const writeAuditLog = async (
+    action: string,
+    targetUserId: string | null,
+    details: Record<string, unknown> = {}
+  ) => {
+    if (!effectiveCompanyId || !user?.id) return;
+    const { error } = await supabase.from("user_audit_log").insert({
+      company_id: effectiveCompanyId,
+      actor_id: user.id,
+      target_user_id: targetUserId,
+      action,
+      details,
+    });
+    if (error) logger.error("Failed to write user audit log:", error);
+  };
+
   // ── Create User ─────────────────────────────────────────────────────
   const handleCreateUser = async (data: WizardUserFormData): Promise<{ temporaryPassword?: string }> => {
     setIsCreating(true);
     try {
+      if (!effectiveCompanyId) throw new Error("Azienda non selezionata");
+      const normalizedEmail = data.email.trim().toLowerCase();
+      if (!EMAIL_RE.test(normalizedEmail)) {
+        throw new Error("Inserisci un indirizzo email valido");
+      }
+
+      const { data: existingProfile, error: existingError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("company_id", effectiveCompanyId)
+        .ilike("email", normalizedEmail)
+        .maybeSingle();
+      if (existingError) throw existingError;
+      if (existingProfile) {
+        throw new Error("Esiste già una persona con questa email in azienda");
+      }
+
       const response = await supabase.functions.invoke("create-company-staff", {
         body: {
           first_name: data.first_name, last_name: data.last_name,
-          email: data.email, company_id: effectiveCompanyId,
+          email: normalizedEmail, company_id: effectiveCompanyId,
           role_type: data.role_type, password: data.password,
         },
       });
@@ -426,7 +489,7 @@ export function UsersConfig() {
         const { error: spError } = await supabase.from("salespeople").insert({
           company_id: effectiveCompanyId, user_id: response.data.user_id,
           first_name: data.first_name, last_name: data.last_name,
-          email: data.email, commission_type: "percentage_sold",
+          email: normalizedEmail, commission_type: "percentage_sold",
           commission_value: data.commission_percentage ?? 0,
         });
         if (spError) {
@@ -440,7 +503,7 @@ export function UsersConfig() {
         await supabase.from("user_audit_log").insert({
           company_id: effectiveCompanyId, actor_id: user!.id,
           target_user_id: response.data.user_id, action: "user_created",
-          details: { role: data.role_type, email: data.email, commission_percentage: data.commission_percentage },
+          details: { role: data.role_type, email: normalizedEmail, commission_percentage: data.commission_percentage },
         });
       }
 
@@ -498,6 +561,7 @@ export function UsersConfig() {
         .update({ locked_until: null, failed_login_count: 0 } as never)
         .eq("id", userId).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
+      await writeAuditLog("user_unlocked", userId, { source: "people_list" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
@@ -518,6 +582,10 @@ export function UsersConfig() {
         } as never)
         .eq("id", userId).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
+      await writeAuditLog(block ? "user_locked" : "user_unlocked", userId, {
+        source: "people_list",
+        blocked: block,
+      });
     },
     onSuccess: (_, { block }) => {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
@@ -619,15 +687,20 @@ export function UsersConfig() {
   });
 
   // ── Filters ─────────────────────────────────────────────────────────
+  const isCurrentUser = (userId: string) => userId === user?.id;
+  const getInitials = (fn: string, ln: string) => `${fn.charAt(0)}${ln.charAt(0)}`.toUpperCase();
+
   const filteredUsers = companyUsers.filter((u) => {
     const matchesSearch = searchQuery === "" ||
       `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = roleFilter === "all" || u.effectiveRole === roleFilter;
-    return matchesSearch && matchesRole;
+    const matchesStatus = statusFilter === "all" || getUserStatusKey(u) === statusFilter;
+    const matchesTeam = teamFilter === "all" || teamIdsByUser[u.id]?.has(teamFilter);
+    return matchesSearch && matchesRole && matchesStatus && matchesTeam;
   });
 
-  const isCurrentUser = (userId: string) => userId === user?.id;
-  const getInitials = (fn: string, ln: string) => `${fn.charAt(0)}${ln.charAt(0)}`.toUpperCase();
+  const selectableFilteredUsers = filteredUsers.filter(u => !isCurrentUser(u.id) && u.effectiveRole !== COMPANY_ADMIN_ROLE);
+  const hasActiveFilters = searchQuery.trim() !== "" || roleFilter !== "all" || statusFilter !== "all" || teamFilter !== "all";
 
   // ── Bulk Actions ────────────────────────────────────────────────────
   const toggleSelectUser = (userId: string) => {
@@ -639,25 +712,47 @@ export function UsersConfig() {
   };
 
   const toggleSelectAll = () => {
-    const selectableIds = filteredUsers.filter(u => !isCurrentUser(u.id)).map(u => u.id);
+    const selectableIds = selectableFilteredUsers.map(u => u.id);
     setSelectedUsers(prev => prev.size === selectableIds.length ? new Set() : new Set(selectableIds));
   };
 
   const handleBulkDelete = async () => {
+    const selected = Array.from(selectedUsers);
+    const blocked = selected.filter((uid) => {
+      const selectedUser = companyUsers.find((u) => u.id === uid);
+      return !selectedUser || isCurrentUser(uid) || selectedUser.effectiveRole === COMPANY_ADMIN_ROLE;
+    });
+    const deletable = selected.filter((uid) => !blocked.includes(uid));
+    if (deletable.length === 0) {
+      toast.error("Nessun utente eliminabile selezionato");
+      setSelectedUsers(new Set());
+      return;
+    }
+
     setBulkActionLoading(true);
     let deleted = 0;
-    for (const uid of Array.from(selectedUsers)) {
-      try {
-        const { data, error } = await supabase.functions.invoke("delete-company-user", { body: { userId: uid } });
-        if (!error && !data?.error) deleted++;
-      } catch { /* skip */ }
+    try {
+      for (const uid of deletable) {
+        try {
+          const { data, error } = await supabase.functions.invoke("delete-company-user", { body: { userId: uid } });
+          if (!error && !data?.error) deleted++;
+        } catch { /* skip row; backend still enforces authorization */ }
+      }
+      queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
+      queryClient.invalidateQueries({ queryKey: ["sub-campo-list"] });
+      await writeAuditLog("bulk_users_deleted", null, {
+        requested: selected.length,
+        deleted,
+        blocked: blocked.length,
+        user_ids: deletable,
+      });
+      if (deleted > 0) toast.success(`${deleted} utente/i eliminato/i`);
+      if (blocked.length > 0) toast.warning(`${blocked.length} admin/utente corrente non eliminato per sicurezza`);
+      setSelectedUsers(new Set());
+    } finally {
+      setBulkActionLoading(false);
     }
-    queryClient.invalidateQueries({ queryKey: ["company-users"] });
-    queryClient.invalidateQueries({ queryKey: ["salespeople"] });
-    queryClient.invalidateQueries({ queryKey: ["sub-campo-list"] });
-    toast.success(`${deleted} utente/i eliminato/i`);
-    setSelectedUsers(new Set());
-    setBulkActionLoading(false);
   };
 
   // ── CSV Export ──────────────────────────────────────────────────────
@@ -676,13 +771,25 @@ export function UsersConfig() {
     a.download = `utenti_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Export completato");
+    writeAuditLog("users_exported", null, {
+      rows: rows.length,
+      filters: { search: searchQuery || null, role: roleFilter, status: statusFilter, team: teamFilter },
+    });
+    toast.success("Export completato", {
+      description: `${rows.length} utente/i esportati in base ai filtri correnti.`,
+    });
   };
 
   // ── CSV Import ─────────────────────────────────────────────────────
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!effectiveCompanyId) {
+      toast.error("Azienda non selezionata");
+      e.target.value = "";
+      return;
+    }
+
     const text = await file.text();
     const lines = text.split("\n").filter((l) => l.trim());
     if (lines.length < 2) { toast.error("File CSV vuoto o non valido"); return; }
@@ -690,20 +797,37 @@ export function UsersConfig() {
     const dataRows = lines.slice(1);
     let imported = 0;
     const failedRows: { row: number; email: string; reason: string }[] = [];
+    const seenEmails = new Set<string>();
     const roleMap: Record<string, string> = {
-      amministratore: "company_admin", operatore: "company_staff",
+      operatore: "company_staff",
       venditore: "salesperson", "call center": "call_center",
       operaio: "employee", subappaltatore: "subcontractor",
     };
 
     for (let i = 0; i < dataRows.length; i++) {
       const cols = dataRows[i].split(",").map((c) => c.replace(/^"|"$/g, "").trim());
-      const [firstName, lastName, email, , roleLabel] = cols;
+      const [firstName, lastName, rawEmail, , roleLabel] = cols;
+      const email = (rawEmail || "").trim().toLowerCase();
+      const normalizedRoleLabel = (roleLabel || "").toLowerCase();
       if (!firstName || !lastName || !email) {
         failedRows.push({ row: i + 2, email: email || "—", reason: "Campi obbligatori mancanti" });
         continue;
       }
-      const roleType = roleMap[(roleLabel || "").toLowerCase()] || "company_staff";
+      if (!EMAIL_RE.test(email)) {
+        failedRows.push({ row: i + 2, email, reason: "Email non valida" });
+        continue;
+      }
+      if (seenEmails.has(email)) {
+        failedRows.push({ row: i + 2, email, reason: "Email duplicata nel CSV" });
+        continue;
+      }
+      seenEmails.add(email);
+      if (normalizedRoleLabel === "amministratore" || normalizedRoleLabel === "admin" || normalizedRoleLabel === "company_admin") {
+        failedRows.push({ row: i + 2, email, reason: "Gli admin vanno creati manualmente con conferma esplicita" });
+        continue;
+      }
+
+      const roleType = roleMap[normalizedRoleLabel] || "company_staff";
       try {
         const { data: fnData, error: fnError } = await supabase.functions.invoke("create-company-staff", {
           body: { first_name: firstName, last_name: lastName, email, company_id: effectiveCompanyId, role_type: roleType },
@@ -751,12 +875,34 @@ export function UsersConfig() {
             </button>
           );
         })}
+        {statusCounts.blocked ? (
+          <button
+            onClick={() => setStatusFilter(statusFilter === "blocked" ? "all" : "blocked")}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+              statusFilter === "blocked" ? "bg-destructive/10 text-destructive border-destructive/30 ring-1 ring-offset-1" : "bg-card hover:bg-muted"
+            }`}
+          >
+            <ShieldOff className="h-3 w-3" />
+            {statusCounts.blocked} bloccati
+          </button>
+        ) : null}
+        {statusCounts.online ? (
+          <button
+            onClick={() => setStatusFilter(statusFilter === "online" ? "all" : "online")}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+              statusFilter === "online" ? "bg-emerald-50 text-emerald-700 border-emerald-200 ring-1 ring-offset-1" : "bg-card hover:bg-muted"
+            }`}
+          >
+            <Wifi className="h-3 w-3" />
+            {statusCounts.online} online
+          </button>
+        ) : null}
       </div>
 
       {/* ── Main Card ─────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             {/* Search */}
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -766,6 +912,61 @@ export function UsersConfig() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 h-9"
               />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="h-9 w-[150px]">
+                  <SelectValue placeholder="Ruolo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i ruoli</SelectItem>
+                  {Object.entries(ROLE_CONFIG).map(([key, cfg]) => (
+                    <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+                <SelectTrigger className="h-9 w-[165px]">
+                  <SelectValue placeholder="Stato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli stati</SelectItem>
+                  <SelectItem value="online">Online</SelectItem>
+                  <SelectItem value="blocked">Accesso bloccato</SelectItem>
+                  <SelectItem value="locked">Blocco temporaneo</SelectItem>
+                  <SelectItem value="never">Mai connesso</SelectItem>
+                  <SelectItem value="inactive">Non online</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={teamFilter} onValueChange={setTeamFilter} disabled={teams.length === 0}>
+                <SelectTrigger className="h-9 w-[160px]">
+                  <SelectValue placeholder="Team" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i team</SelectItem>
+                  {teams.map((team) => (
+                    <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setRoleFilter("all");
+                    setStatusFilter("all");
+                    setTeamFilter("all");
+                  }}
+                >
+                  Pulisci filtri
+                </Button>
+              )}
             </div>
 
             <div className="flex items-center gap-2 ml-auto">
@@ -791,7 +992,12 @@ export function UsersConfig() {
           {selectedUsers.size > 0 && (
             <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg">
               <CheckSquare className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">{selectedUsers.size} selezionato/i</span>
+              <div className="text-sm">
+                <span className="font-medium">{selectedUsers.size} selezionato/i</span>
+                <span className="ml-2 text-xs text-muted-foreground">
+                  Admin e utente corrente sono esclusi dalle eliminazioni massive.
+                </span>
+              </div>
               <div className="flex items-center gap-1.5 ml-auto">
                 {canManageUsers && (
                   <Button size="sm" variant="destructive" disabled={bulkActionLoading} onClick={handleBulkDelete}>
@@ -835,9 +1041,10 @@ export function UsersConfig() {
                 <TableRow>
                   <TableHead className="w-10 pl-4">
                     <Checkbox
-                      checked={filteredUsers.filter(u => !isCurrentUser(u.id)).length > 0 &&
-                        selectedUsers.size === filteredUsers.filter(u => !isCurrentUser(u.id)).length}
+                      checked={selectableFilteredUsers.length > 0 &&
+                        selectedUsers.size === selectableFilteredUsers.length}
                       onCheckedChange={toggleSelectAll}
+                      disabled={selectableFilteredUsers.length === 0}
                     />
                   </TableHead>
                   <TableHead className="min-w-[200px]">Utente</TableHead>
@@ -854,7 +1061,7 @@ export function UsersConfig() {
                     onClick={() => !isCurrentUser(u.id) && navigate(`/azienda/impostazioni/utenti/${u.id}`)}
                   >
                     <TableCell className="pl-4" onClick={e => e.stopPropagation()}>
-                      {!isCurrentUser(u.id) && (
+                      {!isCurrentUser(u.id) && u.effectiveRole !== COMPANY_ADMIN_ROLE && (
                         <Checkbox
                           checked={selectedUsers.has(u.id)}
                           onCheckedChange={() => toggleSelectUser(u.id)}

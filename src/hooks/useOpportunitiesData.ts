@@ -34,7 +34,54 @@ export function usePipelines() {
 const PAGE_SIZE = 500;
 const MAX_AUTO_PAGES = typeof window !== "undefined" && window.innerWidth < 768 ? 1 : 3;
 
-async function enrichPage(data: any[]) {
+function canEditOpportunities(permissions: ReturnType<typeof usePermissions>) {
+  return permissions.canEditMarketingOpportunities || permissions.canEditMarketing;
+}
+
+function validateOpportunityPayload(data: Record<string, any>) {
+  if ("contact_id" in data && !data.contact_id) throw new Error("Seleziona un contatto");
+  if ("pipeline_id" in data && !data.pipeline_id) throw new Error("Seleziona una pipeline");
+  if ("stage_id" in data && !data.stage_id) throw new Error("Seleziona una fase");
+  if ("name" in data && !String(data.name || "").trim()) throw new Error("Inserisci il nome dell'opportunità");
+  if ("value" in data && data.value !== null && data.value !== undefined && data.value !== "") {
+    const numericValue = Number(data.value);
+    if (!Number.isFinite(numericValue) || numericValue < 0) throw new Error("Il valore economico deve essere un numero positivo");
+  }
+  if ("status" in data && data.status === "lost" && !data.lost_reason_category && !data.loss_reason) {
+    throw new Error("Indica il motivo prima di segnare l'opportunità come persa");
+  }
+}
+
+async function countOpportunityLinks(opportunityId: string, companyId: string) {
+  const linkedTables = [
+    "appointments",
+    "marketing_contact_notes",
+    "marketing_documents",
+    "marketing_opportunity_notes",
+    "quotes",
+    "render_bagno_sessions",
+    "render_facciata_sessions",
+    "render_pavimento_sessions",
+    "render_persiane_sessions",
+    "render_sessions",
+    "render_stanza_sessions",
+    "render_tetto_sessions",
+    "tasks",
+  ];
+
+  const counts = await Promise.all(linkedTables.map(async (table) => {
+    const { count } = await supabase
+      .from(table as any)
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("opportunity_id", opportunityId);
+    return count || 0;
+  }));
+
+  return counts.reduce((sum, count) => sum + count, 0);
+}
+
+async function enrichPage(data: any[], companyId: string) {
   // Enrich with assigned profile names
   const assignedIds = [...new Set(data.filter((o) => o.assigned_to).map((o) => o.assigned_to))];
   const profilesMap: Record<string, { first_name: string; last_name: string }> = {};
@@ -58,14 +105,15 @@ async function enrichPage(data: any[]) {
   if (oppIds.length > 0) {
     // Run all enrichment queries in parallel
     const enrichPromises: Promise<any>[] = [
-      supabase.from("marketing_contact_notes").select("opportunity_id").in("opportunity_id", oppIds).limit(1000),
-      supabase.from("marketing_documents").select("opportunity_id").in("opportunity_id", oppIds).limit(1000),
+      supabase.from("marketing_contact_notes").select("opportunity_id").eq("company_id", companyId).in("opportunity_id", oppIds).limit(1000),
+      supabase.from("marketing_documents").select("opportunity_id").eq("company_id", companyId).in("opportunity_id", oppIds).limit(1000),
     ];
     if (contactIds.length > 0) {
       enrichPromises.push(
         supabase
           .from("appointments")
           .select("contact_id, appointment_date, appointment_time")
+          .eq("company_id", companyId)
           .in("contact_id", contactIds)
           .gte("appointment_date", today)
           .neq("status", "annullato")
@@ -131,7 +179,7 @@ export function useOpportunities(pipelineId: string | null) {
       }
       const { data, error } = await query;
       if (error) throw error;
-      const enriched = await enrichPage(data);
+      const enriched = await enrichPage(data, companyId!);
       return enriched;
     },
     initialPageParam: 0,
@@ -168,6 +216,7 @@ export function useOpportunities(pipelineId: string | null) {
 export function useCreateOpportunity() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -185,10 +234,14 @@ export function useCreateOpportunity() {
       company_name?: string;
       notes?: string;
     }) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per creare opportunità");
+      validateOpportunityPayload(data);
       const { data: result, error } = await supabase.from("marketing_opportunities").insert({
         ...data,
-        company_id: companyId!,
-        value: data.value || 0,
+        name: data.name.trim(),
+        company_id: companyId,
+        value: Number(data.value || 0),
         status: data.status || "open",
       }).select("id").single();
       if (error) throw error;
@@ -206,13 +259,20 @@ export function useCreateOpportunity() {
 
 export function useUpdateOpportunity() {
   const queryClient = useQueryClient();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
 
   return useMutation({
     mutationFn: async ({ id, ...data }: { id: string; [key: string]: any }) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per modificare opportunità");
+      validateOpportunityPayload(data);
       const { error } = await supabase
         .from("marketing_opportunities")
-        .update(data)
-        .eq("id", id);
+        .update({ ...data, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -226,9 +286,15 @@ export function useUpdateOpportunity() {
 
 export function useUpdateOpportunityStage() {
   const queryClient = useQueryClient();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
 
   return useMutation({
     mutationFn: async ({ id, stage_id, auto_status }: { id: string; stage_id: string; auto_status?: string }) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per spostare opportunità");
+      validateOpportunityPayload({ stage_id });
       const updateData: any = { stage_id };
       if (auto_status) {
         updateData.status = auto_status;
@@ -236,8 +302,9 @@ export function useUpdateOpportunityStage() {
 
       const { error } = await supabase
         .from("marketing_opportunities")
-        .update(updateData)
-        .eq("id", id);
+        .update({ ...updateData, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onMutate: async ({ id, stage_id, auto_status }) => {
@@ -294,17 +361,38 @@ export function useUpdateOpportunityStage() {
 
 export function useDeleteOpportunity() {
   const queryClient = useQueryClient();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("marketing_opportunities").delete().eq("id", id);
+      if (!companyId) throw new Error("Azienda non selezionata");
+      if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per eliminare opportunità");
+      const linkedRecords = await countOpportunityLinks(id, companyId);
+      if (linkedRecords > 0) {
+        const { error } = await supabase
+          .from("marketing_opportunities")
+          .update({ status: "abandoned", updated_at: new Date().toISOString() })
+          .eq("id", id)
+          .eq("company_id", companyId);
+        if (error) throw error;
+        return { archived: true };
+      }
+
+      const { error } = await supabase
+        .from("marketing_opportunities")
+        .delete()
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
+      return { archived: false };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
-      toast.success("Opportunità eliminata");
+      toast.success(result?.archived ? "Opportunità archiviata: aveva dati collegati" : "Opportunità eliminata");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -429,6 +517,9 @@ export function useCompanyStaffByArea(area?: string | string[]) {
 }
 
 export function useOpportunityNotes(opportunityId: string | null, contactId?: string | null) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
   return useQuery({
     queryKey: queryKeys.marketingContacts.notes(contactId, opportunityId),
     queryFn: async () => {
@@ -437,6 +528,7 @@ export function useOpportunityNotes(opportunityId: string | null, contactId?: st
         const { data, error } = await supabase
           .from("marketing_contact_notes")
           .select("*")
+          .eq("company_id", companyId!)
           .eq("opportunity_id", opportunityId!)
           .order("created_at", { ascending: false });
         if (error) throw error;
@@ -446,12 +538,13 @@ export function useOpportunityNotes(opportunityId: string | null, contactId?: st
       const { data, error } = await supabase
         .from("marketing_contact_notes")
         .select("*")
+        .eq("company_id", companyId!)
         .eq("contact_id", contactId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
-    enabled: !!opportunityId,
+    enabled: !!opportunityId && !!companyId,
   });
 }
 
@@ -481,13 +574,21 @@ export function useAddOpportunityNote() {
 
 export function useBulkUpdateOpportunities() {
   const queryClient = useQueryClient();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
 
   return useMutation({
     mutationFn: async ({ ids, data }: { ids: string[]; data: Record<string, any> }) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per modificare opportunità");
+      if (ids.length === 0) return;
+      validateOpportunityPayload(data);
       // Batch update: use .in() instead of N individual requests
       const { error } = await supabase
         .from("marketing_opportunities")
-        .update(data)
+        .update({ ...data, updated_at: new Date().toISOString() })
+        .eq("company_id", companyId)
         .in("id", ids);
       if (error) throw error;
     },
@@ -503,21 +604,51 @@ export function useBulkUpdateOpportunities() {
 
 export function useBulkDeleteOpportunities() {
   const queryClient = useQueryClient();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
 
   return useMutation({
     mutationFn: async (ids: string[]) => {
-      // Batch delete: use .in() instead of N individual requests
-      const { error } = await supabase
-        .from("marketing_opportunities")
-        .delete()
-        .in("id", ids);
-      if (error) throw error;
+      if (!companyId) throw new Error("Azienda non selezionata");
+      if (!canEditOpportunities(permissions)) throw new Error("Non hai i permessi per eliminare opportunità");
+      if (ids.length === 0) return;
+      const linkedCounts = await Promise.all(ids.map(async (id) => ({
+        id,
+        links: await countOpportunityLinks(id, companyId),
+      })));
+      const archiveIds = linkedCounts.filter((item) => item.links > 0).map((item) => item.id);
+      const deleteIds = linkedCounts.filter((item) => item.links === 0).map((item) => item.id);
+
+      if (archiveIds.length > 0) {
+        const { error } = await supabase
+          .from("marketing_opportunities")
+          .update({ status: "abandoned", updated_at: new Date().toISOString() })
+          .eq("company_id", companyId)
+          .in("id", archiveIds);
+        if (error) throw error;
+      }
+
+      if (deleteIds.length > 0) {
+        const { error } = await supabase
+          .from("marketing_opportunities")
+          .delete()
+          .eq("company_id", companyId)
+          .in("id", deleteIds);
+        if (error) throw error;
+      }
+
+      return { archived: archiveIds.length, deleted: deleteIds.length };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
-      toast.success("Opportunità eliminate");
+      const archived = result?.archived || 0;
+      const deleted = result?.deleted || 0;
+      if (archived && deleted) toast.success(`${deleted} eliminate, ${archived} archiviate perché avevano dati collegati`);
+      else if (archived) toast.success(`${archived} opportunità archiviate perché avevano dati collegati`);
+      else toast.success("Opportunità eliminate");
     },
     onError: (e: any) => toast.error(e.message),
   });

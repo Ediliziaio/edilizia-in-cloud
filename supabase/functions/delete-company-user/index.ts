@@ -50,9 +50,16 @@ Deno.serve(async (req) => {
 
     const { data: targetProfile } = await adminClient
       .from("profiles")
-      .select("company_id")
+      .select("company_id, email")
       .eq("id", userId)
       .single();
+
+    if (!targetProfile) {
+      return new Response(JSON.stringify({ error: "Utente non trovato" }), {
+        status: 404,
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
 
     // Verify caller has admin role
     const { data: callerRoles } = await adminClient
@@ -87,6 +94,63 @@ Deno.serve(async (req) => {
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
+
+    const { data: targetRoles, error: targetRolesError } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    if (targetRolesError) {
+      return new Response(JSON.stringify({ error: "Impossibile verificare i ruoli dell'utente" }), {
+        status: 500,
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+
+    const targetIsCompanyAdmin = targetRoles?.some((r) => r.role === "company_admin");
+    const targetCompanyId = targetProfile.company_id;
+    if (targetIsCompanyAdmin && targetCompanyId) {
+      const { data: adminRoles, error: adminRolesError } = await adminClient
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "company_admin");
+      if (adminRolesError) {
+        return new Response(JSON.stringify({ error: "Impossibile verificare gli amministratori aziendali" }), {
+          status: 500,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      const adminIds = [...new Set((adminRoles ?? []).map((r) => r.user_id).filter(Boolean))];
+      const { count: adminCount, error: adminCountError } = await adminClient
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", targetCompanyId)
+        .in("id", adminIds.length > 0 ? adminIds : ["00000000-0000-0000-0000-000000000000"]);
+      if (adminCountError) {
+        return new Response(JSON.stringify({ error: "Impossibile verificare il numero di amministratori" }), {
+          status: 500,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+      if ((adminCount ?? 0) <= 1) {
+        return new Response(JSON.stringify({ error: "Impossibile eliminare l'ultimo amministratore aziendale" }), {
+          status: 400,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    await adminClient.from("user_audit_log").insert({
+      company_id: targetCompanyId,
+      actor_id: caller.id,
+      target_user_id: userId,
+      action: "user_deleted",
+      details: {
+        target_email: targetProfile.email,
+        reassign_to_user_id: reassignToUserId ?? null,
+        roles: targetRoles?.map((r) => r.role) ?? [],
+      },
+    });
 
     // --- Reassign or unlink related records in salespeople, employees, subappaltatori ---
     const affected = { salespeople: 0, employees: 0, subappaltatori: 0 };
@@ -177,14 +241,7 @@ Deno.serve(async (req) => {
       .eq("user_id", userId);
     if (teamError) console.error("Error deleting team_members:", teamError);
 
-    const { error: auditError } = await adminClient
-      .from("user_audit_log")
-      .delete()
-      .eq("target_user_id", userId);
-    if (auditError) console.error("Error deleting user_audit_log:", auditError);
-
     // --- Delete in order: staff_permissions, user_roles, profiles, then auth user ---
-    const targetCompanyId = targetProfile?.company_id;
     const { error: permDeleteError } = await adminClient
       .from("staff_permissions")
       .delete()

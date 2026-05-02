@@ -51,6 +51,7 @@ export function TemplateDialog({ open, onOpenChange, template }: TemplateDialogP
 
   const mutation = useMutation({
     mutationFn: async () => {
+      if (!company?.id || (!isEdit && !user?.id)) throw new Error("Sessione non disponibile");
       const base = {
         name,
         subject,
@@ -59,7 +60,11 @@ export function TemplateDialog({ open, onOpenChange, template }: TemplateDialogP
         type: "html" as const,
       };
       if (isEdit) {
-        const { error } = await supabase.from("email_templates").update(base).eq("id", template.id);
+        const { error } = await supabase
+          .from("email_templates")
+          .update(base)
+          .eq("id", template.id)
+          .eq("company_id", company.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("email_templates").insert({

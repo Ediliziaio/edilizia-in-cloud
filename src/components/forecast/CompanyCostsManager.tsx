@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format, addMonths } from "date-fns";
 import { it } from "date-fns/locale";
-import { Building2, Plus, Search, Download, Upload, CalendarIcon, AlertTriangle, Repeat } from "lucide-react";
+import { AlertTriangle, Building2, CalendarIcon, Download, FilterX, Link2, Plus, Repeat, Search, Tags, Upload, Users } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveCostOrigin } from "@/lib/forecastTypes";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -90,6 +91,44 @@ export default function CompanyCostsManager() {
     : periodFilter === "custom" && customDateRange
       ? `${format(customDateRange.start, "dd/MM/yy", { locale: it })} – ${format(customDateRange.end, "dd/MM/yy", { locale: it })}`
     : "Tutti i periodi";
+
+  const hasActiveFilters = periodFilter !== "all" ||
+    statusFilter !== "all" ||
+    searchQuery.trim().length > 0 ||
+    supplierFilter !== "all" ||
+    categoryFilter !== "all" ||
+    originFilter !== "all" ||
+    statusTabFilter !== "all" ||
+    !!customDateRange;
+
+  const resetFilters = () => {
+    setPeriodFilter("all");
+    setStatusFilter("all");
+    setSearchQuery("");
+    setSupplierFilter("all");
+    setCategoryFilter("all");
+    setOriginFilter("all");
+    setCustomDateRange(null);
+    setStatusTabFilter("all");
+  };
+
+  const operationalControl = useMemo(() => {
+    const allCosts = data.allCostsUnfiltered || [];
+    const manualCosts = allCosts.filter((cost: any) => !cost.isFromOrder);
+    const missingCategory = manualCosts.filter((cost: any) => !cost.category).length;
+    const missingSupplier = manualCosts.filter((cost: any) => cost.cost_type === "variable" && !cost.supplier_id && !cost.supplierName).length;
+    const linkedToOrders = allCosts.filter((cost: any) => cost.order_id || cost.order).length;
+    const unscheduled = allCosts.filter((cost: any) => !cost.is_paid && (!cost.due_date || cost.due_date === "9999-12-31")).length;
+
+    return {
+      missingCategory,
+      missingSupplier,
+      linkedToOrders,
+      unscheduled,
+      overdueCount: data.stats.overdueCount,
+      overdueAmount: data.stats.totalOverdue,
+    };
+  }, [data.allCostsUnfiltered, data.stats.overdueCount, data.stats.totalOverdue]);
 
   // Mutations hook
   const mutations = useCompanyCostsMutations({
@@ -314,6 +353,60 @@ export default function CompanyCostsManager() {
             </Alert>
           )}
 
+          <div className="grid gap-3 md:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => setStatusTabFilter("in_ritardo")}
+              className="rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Scaduti</span>
+                <AlertTriangle className="h-4 w-4 text-orange-600" />
+              </div>
+              <div className="mt-2 text-xl font-semibold">{operationalControl.overdueCount}</div>
+              <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(operationalControl.overdueAmount)} da gestire</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("none")}
+              className="rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Senza categoria</span>
+                <Tags className="h-4 w-4 text-blue-600" />
+              </div>
+              <div className="mt-2 text-xl font-semibold">{operationalControl.missingCategory}</div>
+              <p className="mt-1 text-xs text-muted-foreground">da classificare per report</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSupplierFilter("none")}
+              className="rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Senza fornitore</span>
+                <Users className="h-4 w-4 text-emerald-600" />
+              </div>
+              <div className="mt-2 text-xl font-semibold">{operationalControl.missingSupplier}</div>
+              <p className="mt-1 text-xs text-muted-foreground">costi variabili manuali</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setOriginFilter("order")}
+              className="rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Collegati a ordini</span>
+                <Link2 className="h-4 w-4 text-primary" />
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xl font-semibold">{operationalControl.linkedToOrders}</span>
+                {operationalControl.unscheduled > 0 && <Badge variant="outline">{operationalControl.unscheduled} senza scadenza</Badge>}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">rilevanti per marginalità</p>
+            </button>
+          </div>
+
           <CostsStatsCards
             stats={data.stats}
             vatStats={data.vatStats}
@@ -334,7 +427,7 @@ export default function CompanyCostsManager() {
           <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Cerca costo o fornitore..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
+              <Input placeholder="Cerca costo, fornitore, categoria, ordine o note..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
             </div>
             <Select value={periodFilter} onValueChange={(v) => {
               setPeriodFilter(v as PeriodFilter);
@@ -410,6 +503,7 @@ export default function CompanyCostsManager() {
               <SelectTrigger className="w-[150px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutte</SelectItem>
+                <SelectItem value="none">Senza categoria</SelectItem>
                 {data.dynamicCategories.map((cat) => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
@@ -423,6 +517,9 @@ export default function CompanyCostsManager() {
                 <SelectItem value="order">Da Ordine</SelectItem>
               </SelectContent>
             </Select>
+            <Button variant="outline" onClick={resetFilters} disabled={!hasActiveFilters} className="gap-2">
+              <FilterX className="h-4 w-4" /> Pulisci filtri
+            </Button>
           </div>
 
           {/* Status Tabs */}

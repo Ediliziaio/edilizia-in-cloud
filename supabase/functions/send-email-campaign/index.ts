@@ -21,14 +21,19 @@ Deno.serve(async (req) => {
       });
     }
 
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const isServiceRoleCall = authHeader === `Bearer ${serviceRoleKey}`;
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
+    const { data: { user }, error: userError } = isServiceRoleCall
+      ? { data: { user: null }, error: null }
+      : await supabase.auth.getUser();
+    if (!isServiceRoleCall && (userError || !user)) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
@@ -65,17 +70,19 @@ Deno.serve(async (req) => {
     }
 
     // Verify caller belongs to the campaign's company (or is super_admin)
-    const { data: callerRoles } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id);
+    const { data: callerRoles } = isServiceRoleCall
+      ? { data: [] }
+      : await adminClient
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user!.id);
     const isSuperAdmin = (callerRoles || []).some((r: any) => r.role === "super_admin");
 
-    if (!isSuperAdmin) {
+    if (!isServiceRoleCall && !isSuperAdmin) {
       const { data: callerProfile } = await adminClient
         .from("profiles")
         .select("company_id")
-        .eq("id", user.id)
+        .eq("id", user!.id)
         .maybeSingle();
 
       if (!callerProfile || callerProfile.company_id !== campaign.company_id) {
@@ -86,7 +93,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (campaign.status === "sent" || campaign.status === "sending") {
+    if (campaign.status === "sent" || (campaign.status === "sending" && !isServiceRoleCall)) {
       return new Response(
         JSON.stringify({ error: "Campagna già inviata o in fase di invio" }),
         { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }

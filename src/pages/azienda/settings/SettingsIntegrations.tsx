@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, Bot, Plug, CheckCircle2 } from "lucide-react";
+import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, Bot, Plug, CheckCircle2, Activity, ShieldCheck, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
@@ -58,9 +58,10 @@ function StatusIntegrationCard({ name, description, icon: Icon, iconColor, statu
 }
 
 export default function SettingsIntegrations() {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, role } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
   const userId = user?.id;
+  const canManageIntegrations = role === "company_admin" || role === "super_admin";
   const [search, setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [metaConfigMissing, setMetaConfigMissing] = useState(false);
@@ -88,8 +89,41 @@ export default function SettingsIntegrations() {
   };
 
   const handleMetaConnect = async () => {
+    if (!canManageIntegrations) {
+      toast.error("Solo un amministratore aziendale può gestire le integrazioni.");
+      return;
+    }
     const ok = await checkMetaCredentials();
     if (ok) setWizardOpen(true);
+  };
+
+  const testMetaConnection = async () => {
+    if (!companyId || !metaIntegration?.id) return;
+    if (!canManageIntegrations) {
+      toast.error("Permessi insufficienti per testare l'integrazione.");
+      return;
+    }
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error("Sessione scaduta. Effettua di nuovo l'accesso.");
+      const { data, error } = await supabase.functions.invoke("meta-api-proxy", {
+        body: {
+          action: "get-assets",
+          company_id: companyId,
+          integration_id: metaIntegration.id,
+        },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success("Connessione Meta verificata", {
+        description: `${data?.pages?.length ?? 0} pagina/e leggibili dall'account collegato.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Test connessione non riuscito";
+      toast.error(message);
+    }
   };
 
   const { data: integrations = [], refetch } = useQuery({
@@ -201,6 +235,27 @@ export default function SettingsIntegrations() {
           .eq("status", "active"),
       ]);
       return { pages: pagesRes.count || 0, forms: formsRes.count || 0 };
+    },
+    enabled: !!companyId && !!metaIntegration?.id,
+  });
+
+  const { data: metaEventStats } = useQuery({
+    queryKey: ["integration-meta-event-health", companyId, metaIntegration?.id],
+    queryFn: async () => {
+      if (!companyId || !metaIntegration?.id) return { pending: 0, failed: 0, processed: 0 };
+      const { data, error } = await supabase
+        .from("integration_webhook_events")
+        .select("status")
+        .eq("company_id", companyId)
+        .eq("integration_id", metaIntegration.id)
+        .order("received_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return {
+        pending: (data || []).filter((e: any) => e.status === "pending").length,
+        failed: (data || []).filter((e: any) => e.status === "failed").length,
+        processed: (data || []).filter((e: any) => e.status === "processed").length,
+      };
     },
     enabled: !!companyId && !!metaIntegration?.id,
   });
@@ -326,10 +381,12 @@ export default function SettingsIntegrations() {
   }, [search, waConfig, stripeConfig]);
 
   // KPI integrazioni collegate
-  const connectedCount = mainIntegrations.filter(
-    (i) => i.integration?.status === "connected" || i.stats?.isConnected
-  ).length;
+  const connectedCount = mainIntegrations.filter((i) => i.integration?.status === "connected").length;
   const totalCount = mainIntegrations.length;
+  const warningCount = mainIntegrations.filter(
+    (i) => i.integration?.status === "error" || i.integration?.status === "token_expired" || i.integration?.health === "critical"
+  ).length;
+  const configuredServices = statusCards.filter((c) => c.status === "connected").length;
 
   // Token expiry warning — integrazioni OAuth con updated_at > 60gg
   // (indica token vecchi che potrebbero aver bisogno di refresh/riconnessione)
@@ -380,6 +437,16 @@ export default function SettingsIntegrations() {
       </div>
 
       {/* Stale token warning */}
+      {!canManageIntegrations && (
+        <Alert>
+          <ShieldCheck className="h-4 w-4" />
+          <AlertTitle className="text-sm">Permessi integrazioni in sola lettura</AlertTitle>
+          <AlertDescription className="text-xs">
+            Puoi vedere stato e salute delle integrazioni, ma connessione, test e disconnessione sono riservati agli amministratori aziendali.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {staleTokenWarnings.length > 0 && (
         <Alert className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/50">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
@@ -392,6 +459,45 @@ export default function SettingsIntegrations() {
         </Alert>
       )}
 
+      <div className="grid gap-3 md:grid-cols-4">
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+            <div>
+              <p className="text-xs text-muted-foreground">Provider connessi</p>
+              <p className="text-xl font-semibold">{connectedCount}/{totalCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <XCircle className="h-5 w-5 text-destructive" />
+            <div>
+              <p className="text-xs text-muted-foreground">Attenzioni</p>
+              <p className="text-xl font-semibold">{warningCount + (metaEventStats?.failed ?? 0)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <Activity className="h-5 w-5 text-primary" />
+            <div>
+              <p className="text-xs text-muted-foreground">Lead Meta processati</p>
+              <p className="text-xl font-semibold">{metaEventStats?.processed ?? 0}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <Plug className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <p className="text-xs text-muted-foreground">Servizi configurati</p>
+              <p className="text-xl font-semibold">{configuredServices}/{statusCards.length}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {mainIntegrations.map((item) => (
           <IntegrationCard
@@ -402,6 +508,10 @@ export default function SettingsIntegrations() {
             integration={item.integration}
             stats={item.stats}
             onConnect={() => {
+              if (!canManageIntegrations) {
+                toast.error("Solo un amministratore aziendale può collegare integrazioni.");
+                return;
+              }
               if (item.provider === "google_calendar" || item.provider === "apple_calendar") {
                 navigate("/azienda/impostazioni/calendari-marketing");
               } else if (item.provider === "google_ads") {
@@ -411,6 +521,10 @@ export default function SettingsIntegrations() {
               }
             }}
             onManage={() => {
+              if (!canManageIntegrations) {
+                toast.error("Solo un amministratore aziendale può modificare integrazioni.");
+                return;
+              }
               if (item.provider === "google_calendar" || item.provider === "apple_calendar") {
                 navigate("/azienda/impostazioni/calendari-marketing");
               } else if (item.provider === "google_ads") {
@@ -419,6 +533,16 @@ export default function SettingsIntegrations() {
                 handleMetaConnect();
               }
             }}
+            onTest={item.provider === "meta" && item.integration?.status === "connected" ? testMetaConnection : undefined}
+            canManage={canManageIntegrations}
+            disabledReason="Gestione riservata agli amministratori"
+            accountLabel={
+              item.provider === "google_calendar"
+                ? gcalConnection?.google_account_email
+                : item.provider === "apple_calendar"
+                  ? appleCalConnection?.apple_id_email
+                  : null
+            }
           />
         ))}
       </div>

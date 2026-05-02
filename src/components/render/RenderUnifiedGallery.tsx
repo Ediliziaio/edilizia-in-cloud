@@ -25,6 +25,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RenderBeforeAfterPreview } from "@/components/render/RenderBeforeAfterPreview";
 
 export interface UnifiedRenderGalleryItem {
   id: string;
@@ -334,7 +335,14 @@ export function RenderUnifiedGallery({
                   onClick={() => item.detailPath && navigate(item.detailPath)}
                 >
                   <div className="relative aspect-[16/10] bg-muted">
-                    {item.imageUrl ? (
+                    {item.imageUrl && item.originalUrl ? (
+                      <RenderBeforeAfterPreview
+                        beforeUrl={item.originalUrl}
+                        afterUrl={item.imageUrl}
+                        title={item.title}
+                        imageFit={item.imageFit}
+                      />
+                    ) : item.imageUrl ? (
                       <img
                         src={item.imageUrl}
                         alt={item.title}

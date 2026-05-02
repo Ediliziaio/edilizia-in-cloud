@@ -1,6 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
 const FALLBACK_ORIGINALS_BUCKET = "render-originals";
+const MAX_RENDER_UPLOAD_BYTES = 20 * 1024 * 1024;
+const ALLOWED_RENDER_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 
 function isMissingBucketError(message: string) {
   const lower = message.toLowerCase();
@@ -22,12 +24,27 @@ function isRecoverableStoragePolicyError(message: string) {
   );
 }
 
+function validateRenderOriginalFile(file: File) {
+  if (!file) {
+    throw new Error("Seleziona una foto da caricare.");
+  }
+
+  if (!ALLOWED_RENDER_IMAGE_TYPES.has(file.type)) {
+    throw new Error("Formato foto non supportato. Usa JPG, PNG, WEBP, HEIC o HEIF.");
+  }
+
+  if (file.size > MAX_RENDER_UPLOAD_BYTES) {
+    throw new Error("Foto troppo pesante. Carica un'immagine fino a 20 MB.");
+  }
+}
+
 export async function uploadRenderOriginal(args: {
   bucket: string;
   path: string;
   file: File;
 }): Promise<{ storagePath: string; bucket: string; usedFallback: boolean }> {
   const { bucket, path, file } = args;
+  validateRenderOriginalFile(file);
   const uploadOptions = { contentType: file.type, upsert: true };
   const primary = await supabase.storage.from(bucket).upload(path, file, uploadOptions);
 

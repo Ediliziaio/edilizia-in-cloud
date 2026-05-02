@@ -21,9 +21,10 @@ interface FlowBuilderSidebarProps {
   onPanelChange: (p: LeftPanel) => void;
   flowId?: string;
   errors?: WorkflowError[];
+  readinessChecks?: { label: string; ok: boolean }[];
 }
 
-export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors = [] }: FlowBuilderSidebarProps) {
+export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors = [], readinessChecks = [] }: FlowBuilderSidebarProps) {
   const toggle = (key: LeftPanel) => onPanelChange(activePanel === key ? "none" : key);
 
   const erroriCount = errors.filter(e => e.tipo === "errore").length;
@@ -79,7 +80,7 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors 
             <WorkflowNotesPanel flowId={flowId} />
           )}
           {activePanel === "errors" && (
-            <WorkflowErrorsPanel errors={errors} />
+            <WorkflowErrorsPanel errors={errors} readinessChecks={readinessChecks} />
           )}
           {activePanel === "versions" && flowId && (
             <WorkflowVersionsPanel flowId={flowId} />

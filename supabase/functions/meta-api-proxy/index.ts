@@ -203,6 +203,8 @@ Deno.serve(async (req) => {
           .from("meta_assets")
           .select("*")
           .eq("id", page_asset_id)
+          .eq("company_id", company_id)
+          .eq("integration_id", integration_id)
           .single();
 
         if (!pageAsset) {
@@ -283,18 +285,21 @@ Deno.serve(async (req) => {
         // Find the page asset that owns this form to get the correct page token
         const { data: formRecord } = await adminClient
           .from("meta_lead_forms")
-          .select("page_id")
+          .select("page_asset_id")
           .eq("form_id", bfFormId)
+          .eq("company_id", company_id)
           .eq("integration_id", integration_id)
           .single();
 
         const pageTokens = (creds as any).meta_page_tokens || {};
         let bfToken = accessToken;
-        if (formRecord?.page_id) {
+        if (formRecord?.page_asset_id) {
           const { data: pageAsset } = await adminClient
             .from("meta_assets")
             .select("asset_id")
-            .eq("id", formRecord.page_id)
+            .eq("id", formRecord.page_asset_id)
+            .eq("company_id", company_id)
+            .eq("integration_id", integration_id)
             .single();
           if (pageAsset && pageTokens[pageAsset.asset_id]) {
             bfToken = await decrypt(pageTokens[pageAsset.asset_id], encKey);
@@ -337,7 +342,7 @@ Deno.serve(async (req) => {
 
         await adminClient.from("integration_audit_log").insert({
           company_id,
-          actor_user_id: claimsData.claims.sub,
+          actor_user_id: authUser.id,
           action: "backfill_started",
           entity_type: "form",
           entity_id: bfFormId,
@@ -376,11 +381,12 @@ Deno.serve(async (req) => {
         await adminClient
           .from("meta_lead_forms")
           .update({ status: "inactive" })
-          .eq("integration_id", integration_id);
+          .eq("integration_id", integration_id)
+          .eq("company_id", company_id);
 
         await adminClient.from("integration_audit_log").insert({
           company_id,
-          actor_user_id: claimsData.claims.sub,
+          actor_user_id: authUser.id,
           action: "integration_disconnected",
           entity_type: "integration",
           entity_id: integration_id,
@@ -570,6 +576,8 @@ Deno.serve(async (req) => {
           .from("meta_assets")
           .select("asset_id")
           .eq("id", page_asset_id)
+          .eq("company_id", company_id)
+          .eq("integration_id", integration_id)
           .single();
         if (!pageAsset) {
           return new Response(JSON.stringify({ error: "Page asset not found" }), {

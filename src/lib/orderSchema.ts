@@ -28,20 +28,37 @@ const baseOrderSchema = z.object({
 });
 
 export const orderSchema = baseOrderSchema.superRefine((data, ctx) => {
-  // Validate total_amount is a valid non-negative number when provided
-  if (data.total_amount) {
-    const val = parseFloat(data.total_amount);
-    if (isNaN(val)) {
+  const total = parseFloat(data.total_amount);
+  if (!data.total_amount || isNaN(total)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "L'importo totale deve essere un numero valido",
+      path: ["total_amount"],
+    });
+  } else if (total <= 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "L'importo totale deve essere maggiore di zero",
+      path: ["total_amount"],
+    });
+  }
+
+  const vat = parseFloat(data.vat_rate);
+  if (!data.vat_rate || isNaN(vat) || vat < 0 || vat > 100) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "L'IVA deve essere un valore tra 0 e 100",
+      path: ["vat_rate"],
+    });
+  }
+
+  if (data.financing_cost) {
+    const financingCost = parseFloat(data.financing_cost);
+    if (isNaN(financingCost) || financingCost < 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "L'importo totale deve essere un numero valido",
-        path: ["total_amount"],
-      });
-    } else if (val < 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "L'importo totale non può essere negativo",
-        path: ["total_amount"],
+        message: "Il costo finanziaria non può essere negativo",
+        path: ["financing_cost"],
       });
     }
   }

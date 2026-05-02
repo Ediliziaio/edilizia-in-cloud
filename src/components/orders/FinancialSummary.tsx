@@ -572,11 +572,16 @@ export function FinancialSummaryReadOnly({
 }: FinancialSummaryReadOnlyProps) {
   const vatAmount = totalAmount * (vatRate / 100);
   const totalWithVat = totalAmount + vatAmount;
+  const financingCostValue = paymentType === "financing" ? (financingCost || 0) : 0;
 
   const nonBalanceSum = installments
     .filter(i => i.type !== 'balance')
     .reduce((sum, i) => sum + i.amount, 0);
-  const balanceAmount = Math.max(0, totalWithVat - nonBalanceSum);
+  const balanceAmount = Math.max(0, totalWithVat - nonBalanceSum - financingCostValue);
+  const collectedAmount = installments
+    .filter(i => i.is_paid)
+    .reduce((sum, i) => sum + (i.type === "balance" ? balanceAmount : i.amount), 0);
+  const dueAmount = Math.max(0, totalWithVat - financingCostValue - collectedAmount);
 
   const formatPaymentDate = (dateStr?: string | null) => {
     if (!dateStr) return null;
@@ -644,6 +649,16 @@ export function FinancialSummaryReadOnly({
           <span>Totale con IVA</span>
           <span>{formatCurrency(totalWithVat)}</span>
         </div>
+        <div className="grid grid-cols-2 gap-2 border-t pt-3 text-sm">
+          <div className="rounded-md bg-emerald-50 px-2 py-1 text-emerald-700">
+            <div className="text-[11px]">Incassato</div>
+            <div className="font-semibold">{formatCurrency(collectedAmount)}</div>
+          </div>
+          <div className="rounded-md bg-amber-50 px-2 py-1 text-amber-700">
+            <div className="text-[11px]">Da incassare</div>
+            <div className="font-semibold">{formatCurrency(dueAmount)}</div>
+          </div>
+        </div>
         {hasBuildingBonus && (() => {
           const bankTaxableBase = totalWithVat / 1.22;
           const bankWithholding = bankTaxableBase * 0.11;
@@ -679,10 +694,10 @@ export function FinancialSummaryReadOnly({
           })()}
 
           {/* Financing cost */}
-          {paymentType === 'financing' && (financingCost || 0) > 0 && (
+          {paymentType === 'financing' && financingCostValue > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Costo Finanziaria</span>
-              <span className="text-destructive font-medium">- {formatCurrency(financingCost || 0)}</span>
+              <span className="text-destructive font-medium">- {formatCurrency(financingCostValue)}</span>
             </div>
           )}
 

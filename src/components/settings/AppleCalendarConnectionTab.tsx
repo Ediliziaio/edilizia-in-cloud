@@ -61,6 +61,12 @@ export default function AppleCalendarConnectionTab() {
   const [syncing, setSyncing] = useState(false);
   const [editingPrimary, setEditingPrimary] = useState(false);
 
+  const getAccessToken = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Sessione scaduta: accedi di nuovo.");
+    return session.access_token;
+  };
+
   // Connection status
   const { data: connection, isLoading: loadingConn } = useQuery({
     queryKey: ["apple-calendar-connection", companyId, userId],
@@ -98,10 +104,10 @@ export default function AppleCalendarConnectionTab() {
     queryKey: ["apple-calendars-list", companyId, userId],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data: { session } } = await supabase.auth.getSession();
+      const token = await getAccessToken();
       const res = await supabase.functions.invoke("apple-calendar-auth", {
         body: { action: "list-calendars", companyId },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.error) throw new Error(res.error.message);
       return (res.data?.calendars || []) as AppleCalendar[];
@@ -117,12 +123,16 @@ export default function AppleCalendarConnectionTab() {
       toast.error("Inserisci Apple ID e App-Specific Password");
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(appleId.trim())) {
+      toast.error("Inserisci un Apple ID email valido");
+      return;
+    }
     setConnecting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const token = await getAccessToken();
       const res = await supabase.functions.invoke("apple-calendar-auth", {
-        body: { action: "connect", companyId, appleId, appPassword },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
+        body: { action: "connect", companyId, appleId: appleId.trim(), appPassword },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.error || res.data?.error) {
         toast.error(res.data?.error || "Connessione fallita");
@@ -144,10 +154,10 @@ export default function AppleCalendarConnectionTab() {
   // Disconnect mutation
   const disconnectMut = useMutation({
     mutationFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const token = await getAccessToken();
       const res = await supabase.functions.invoke("apple-calendar-auth", {
         body: { action: "disconnect", companyId },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.error) throw new Error(res.error.message);
     },
@@ -183,10 +193,10 @@ export default function AppleCalendarConnectionTab() {
     if (!companyId) return;
     setSyncing(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const token = await getAccessToken();
       const res = await supabase.functions.invoke("apple-calendar-sync", {
         body: { action: "pull-busy-slots", companyId },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.error || res.data?.error) {
         toast.error(res.data?.error || "Errore durante la sincronizzazione");

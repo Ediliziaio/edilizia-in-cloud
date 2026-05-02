@@ -18,25 +18,33 @@ import {
 import { toast } from "sonner";
 import { ConversazioniTab } from "@/components/agenti/ConversazioniTab";
 import { useAiAgentsBasePath } from "@/hooks/useAiAgentsBasePath";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { UnifiedAgent } from "@/types/unifiedAgent.types";
 
 type SubTab = "panoramica" | "configurazione" | "conversazioni" | "statistiche";
+
+const safeNumber = (value: unknown, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
 
 export default function AgentDetailPage() {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   // Prefix dinamico: preserva contesto admin vs azienda sui link "Torna agli agenti"
   const basePath = useAiAgentsBasePath();
   const [activeTab, setActiveTab] = useState<SubTab>("panoramica");
 
   const { data: agent, isLoading } = useQuery({
-    queryKey: ["agent-detail", agentId],
-    enabled: !!agentId,
+    queryKey: ["agent-detail", companyId, agentId],
+    enabled: !!agentId && !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ai_agents_v2")
         .select("*")
+        .eq("company_id", companyId!)
         .eq("id", agentId!)
         .single();
       if (error) throw error;
@@ -54,6 +62,10 @@ export default function AgentDetailPage() {
   const [editTemp, setEditTemp] = useState(0.7);
   const [hasLoadedEdit, setHasLoadedEdit] = useState(false);
 
+  useEffect(() => {
+    setHasLoadedEdit(false);
+  }, [agentId]);
+
   // Load edit state from agent — in useEffect per evitare setState durante
   // render (React anti-pattern che causava "Cannot update state during render"
   // + re-render multipli). `hasLoadedEdit` garantisce caricamento una sola
@@ -64,33 +76,40 @@ export default function AgentDetailPage() {
       setEditDescrizione(agent.descrizione || "");
       setEditPrompt(agent.system_prompt || "");
       setEditPrimoMsg(agent.primo_messaggio || "");
-      setEditLingua(agent.lingua);
-      setEditModel(agent.llm_model);
-      setEditTemp(agent.temperatura);
+      setEditLingua(agent.lingua || "it");
+      setEditModel(agent.llm_model || "gemini-2.5-flash");
+      setEditTemp(safeNumber(agent.temperatura, 0.7));
       setHasLoadedEdit(true);
     }
   }, [agent, hasLoadedEdit]);
 
   const updateAgent = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Nessuna azienda associata");
+      const nome = editNome.trim();
+      const prompt = editPrompt.trim();
+      if (!nome) throw new Error("Inserisci un nome per l'agente AI.");
+      if (prompt.length < 20) throw new Error("Completa il prompt di sistema prima di salvare.");
+
       const { error } = await supabase
         .from("ai_agents_v2")
         .update({
-          nome: editNome,
-          descrizione: editDescrizione || null,
-          system_prompt: editPrompt || null,
-          primo_messaggio: editPrimoMsg || null,
+          nome,
+          descrizione: editDescrizione.trim() || null,
+          system_prompt: prompt,
+          primo_messaggio: editPrimoMsg.trim() || null,
           lingua: editLingua,
           llm_model: editModel,
-          temperatura: editTemp,
+          temperatura: Math.min(1, Math.max(0, safeNumber(editTemp, 0.7))),
         } as never)
+        .eq("company_id", companyId)
         .eq("id", agentId!);
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Agente aggiornato");
-      queryClient.invalidateQueries({ queryKey: ["agent-detail", agentId] });
-      queryClient.invalidateQueries({ queryKey: ["unified-agents"] });
+      queryClient.invalidateQueries({ queryKey: ["agent-detail", companyId, agentId] });
+      queryClient.invalidateQueries({ queryKey: ["unified-ai-agents"] });
     },
     onError: (err) => toast.error(err.message),
   });
@@ -115,6 +134,15 @@ export default function AgentDetailPage() {
   }
 
   const isVoice = agent.tipo === "vocale" || agent.tipo === "campagna";
+  const completionRate = safeNumber(agent.chiamate_totali) > 0
+    ? `${Math.round((safeNumber(agent.chiamate_completate) / safeNumber(agent.chiamate_totali)) * 100)}%`
+    : "–";
+  const configIssues = [
+    !editNome.trim() ? "Nome mancante" : null,
+    editPrompt.trim().length < 20 ? "Prompt di sistema troppo breve" : null,
+    (isVoice && agent.stato === "attivo" && !agent.elevenlabs_agent_id) ? "Collegamento ElevenLabs mancante" : null,
+  ].filter(Boolean);
+  const canSaveConfig = configIssues.length === 0;
 
   return (
     <div className="space-y-0">
@@ -179,13 +207,13 @@ export default function AgentDetailPage() {
         {/* Panoramica */}
         <TabsContent value="panoramica" className="mt-0 p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard icon={isVoice ? Phone : MessageSquare} label={isVoice ? "Chiamate" : "Chat"} value={isVoice ? agent.chiamate_totali : agent.chat_totali} />
-            <StatCard icon={Clock} label="Minuti" value={Math.round(agent.minuti_totali)} />
-            <StatCard icon={CheckCircle2} label="Completate" value={agent.chiamate_completate} />
+            <StatCard icon={isVoice ? Phone : MessageSquare} label={isVoice ? "Chiamate" : "Chat"} value={isVoice ? safeNumber(agent.chiamate_totali) : safeNumber(agent.chat_totali)} />
+            <StatCard icon={Clock} label="Minuti" value={Math.round(safeNumber(agent.minuti_totali))} />
+            <StatCard icon={CheckCircle2} label="Completate" value={safeNumber(agent.chiamate_completate)} />
             <StatCard
               icon={TrendingUp}
               label="Tasso completamento"
-              value={agent.chiamate_totali > 0 ? `${Math.round((agent.chiamate_completate / agent.chiamate_totali) * 100)}%` : "–"}
+              value={completionRate}
             />
           </div>
 
@@ -201,9 +229,9 @@ export default function AgentDetailPage() {
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Dettagli</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Lingua</span><span>{agent.lingua.toUpperCase()}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Modello LLM</span><span>{agent.llm_model}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Temperatura</span><span>{agent.temperatura}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Lingua</span><span>{(agent.lingua || "it").toUpperCase()}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Modello LLM</span><span>{agent.llm_model || "Non impostato"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Temperatura</span><span>{safeNumber(agent.temperatura, 0.7)}</span></div>
                 {agent.voice_nome && (
                   <div className="flex justify-between"><span className="text-muted-foreground">Voce</span><span className="flex items-center gap-1"><Mic className="h-3 w-3" />{agent.voice_nome}</span></div>
                 )}
@@ -212,8 +240,8 @@ export default function AgentDetailPage() {
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Costi</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Crediti usati</span><span>{agent.costo_totale_crediti.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Min. totali</span><span>{agent.minuti_totali.toFixed(1)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Crediti usati</span><span>{safeNumber(agent.costo_totale_crediti).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Min. totali</span><span>{safeNumber(agent.minuti_totali).toFixed(1)}</span></div>
               </CardContent>
             </Card>
           </div>
@@ -222,6 +250,21 @@ export default function AgentDetailPage() {
         {/* Configurazione */}
         <TabsContent value="configurazione" className="mt-0 p-6">
           <div className="max-w-2xl space-y-4">
+            <Card className={configIssues.length ? "border-amber-200 bg-amber-50/60" : "border-emerald-200 bg-emerald-50/60"}>
+              <CardContent className="p-4">
+                <p className="text-sm font-medium text-foreground">
+                  {configIssues.length ? "Configurazione non pronta" : "Configurazione pronta per il salvataggio"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Gli agenti restano controllabili: nome e prompt sono obbligatori prima del salvataggio e dell'attivazione.
+                </p>
+                {configIssues.length > 0 && (
+                  <ul className="mt-2 text-xs text-amber-800 list-disc pl-4 space-y-1">
+                    {configIssues.map((issue) => <li key={String(issue)}>{issue}</li>)}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
             <div>
               <label className="text-sm font-medium mb-1 block">Nome</label>
               <Input value={editNome} onChange={(e) => setEditNome(e.target.value)} />
@@ -278,7 +321,7 @@ export default function AgentDetailPage() {
                 />
               </div>
             </div>
-            <Button onClick={() => updateAgent.mutate()} disabled={updateAgent.isPending}>
+            <Button onClick={() => updateAgent.mutate()} disabled={updateAgent.isPending || !canSaveConfig}>
               {updateAgent.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
               Salva configurazione
             </Button>
@@ -293,10 +336,10 @@ export default function AgentDetailPage() {
         {/* Statistiche */}
         <TabsContent value="statistiche" className="mt-0 p-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard icon={isVoice ? Phone : MessageSquare} label={isVoice ? "Chiamate totali" : "Chat totali"} value={isVoice ? agent.chiamate_totali : agent.chat_totali} />
-            <StatCard icon={CheckCircle2} label="Completate" value={agent.chiamate_completate} />
-            <StatCard icon={Clock} label="Minuti totali" value={Math.round(agent.minuti_totali)} />
-            <StatCard icon={TrendingUp} label="Crediti" value={agent.costo_totale_crediti.toFixed(2)} />
+            <StatCard icon={isVoice ? Phone : MessageSquare} label={isVoice ? "Chiamate totali" : "Chat totali"} value={isVoice ? safeNumber(agent.chiamate_totali) : safeNumber(agent.chat_totali)} />
+            <StatCard icon={CheckCircle2} label="Completate" value={safeNumber(agent.chiamate_completate)} />
+            <StatCard icon={Clock} label="Minuti totali" value={Math.round(safeNumber(agent.minuti_totali))} />
+            <StatCard icon={TrendingUp} label="Crediti" value={safeNumber(agent.costo_totale_crediti).toFixed(2)} />
           </div>
           <p className="text-sm text-muted-foreground text-center mt-8">
             Grafici dettagliati saranno disponibili nelle prossime versioni.

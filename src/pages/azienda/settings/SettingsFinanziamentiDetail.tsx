@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -53,6 +54,8 @@ import {
   ShieldAlert,
   Loader2,
   Banknote,
+  CalendarClock,
+  Copy,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,6 +63,8 @@ import {
   useTabella,
   useRighe,
   useDeleteTabella,
+  useCreateTabella,
+  useInsertRigheBatch,
   useToggleTabellaAttiva,
 } from "@/lib/finanziamenti/queries";
 import { calcolaFinanziamento } from "@/lib/finanziamenti/calcolaFinanziamento";
@@ -78,6 +83,8 @@ export default function SettingsFinanziamentiDetail() {
   const { data: righe = [] } = useRighe(id);
   const deleteTabella = useDeleteTabella();
   const toggleAttiva = useToggleTabellaAttiva();
+  const createTabella = useCreateTabella();
+  const insertRighe = useInsertRigheBatch();
 
   const [confermaDelete, setConfermaDelete] = useState(false);
   const [filtroDurata, setFiltroDurata] = useState<string>("all");
@@ -213,6 +220,45 @@ export default function SettingsFinanziamentiDetail() {
     }
   };
 
+  const handleDuplicate = async () => {
+    try {
+      const copia = await createTabella.mutateAsync({
+        finanziaria_id: tabella.finanziaria_id,
+        nome_prodotto: `${tabella.nome_prodotto} (copia)`,
+        codice_condizione: tabella.codice_condizione,
+        subtariffa_default: tabella.subtariffa_default,
+        tan_base: tabella.tan_base,
+        pdf_url: tabella.pdf_url,
+        pdf_filename: tabella.pdf_filename,
+        csv_url: tabella.csv_url,
+        csv_filename: tabella.csv_filename,
+        data_decorrenza: tabella.data_decorrenza,
+        data_scadenza: tabella.data_scadenza,
+        note: tabella.note ? `${tabella.note}\n\nCopia creata da ${tabella.nome_prodotto}.` : `Copia creata da ${tabella.nome_prodotto}.`,
+      });
+      await insertRighe.mutateAsync({
+        tabella_id: copia.id,
+        righe: righe.map(
+          ({
+            id: _id,
+            tabella_id: _tabellaId,
+            company_id: _companyId,
+            created_at: _createdAt,
+            ...row
+          }) => row,
+        ),
+      });
+      toast.success("Tabella duplicata.", {
+        description: "La copia mantiene condizioni, allegati e righe della tabella originale.",
+      });
+      navigate(`/azienda/impostazioni/finanziamenti/${copia.id}`);
+    } catch (e) {
+      toast.error("Errore duplicazione", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
   const sortIcon = (key: keyof RowData) => {
     if (sortKey !== key) return null;
     return sortDir === "asc" ? (
@@ -253,6 +299,15 @@ export default function SettingsFinanziamentiDetail() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDuplicate}
+            disabled={createTabella.isPending || insertRighe.isPending || righe.length === 0}
+          >
+            <Copy className="h-4 w-4 mr-1" />
+            Duplica
+          </Button>
           <Button variant="outline" size="sm" onClick={handleToggleAttiva}>
             <Power className="h-4 w-4 mr-1" />
             {tabella.attiva ? "Disattiva" : "Attiva"}
@@ -267,6 +322,8 @@ export default function SettingsFinanziamentiDetail() {
           </Button>
         </div>
       </div>
+
+      <ValidityAlert decorrenza={tabella.data_decorrenza} scadenza={tabella.data_scadenza} attiva={tabella.attiva} />
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -580,8 +637,10 @@ export default function SettingsFinanziamentiDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare la tabella?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tutte le {righe.length} righe verranno eliminate. L&apos;azione
-              non è reversibile.
+              Tutte le {righe.length} righe verranno eliminate. Se la tabella è
+              già usata in progetti o preventivi, l&apos;eliminazione verrà
+              bloccata: disattivala per impedire nuovi utilizzi senza perdere lo
+              storico.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -615,4 +674,65 @@ function formatEur(n: number, frac = 0): string {
     minimumFractionDigits: frac,
     maximumFractionDigits: frac,
   });
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getValidityState(
+  decorrenza: string | null,
+  scadenza: string | null,
+): "valid" | "expired" | "future" | "open" {
+  const today = todayIso();
+  if (decorrenza && decorrenza > today) return "future";
+  if (scadenza && scadenza < today) return "expired";
+  if (decorrenza || scadenza) return "valid";
+  return "open";
+}
+
+function ValidityAlert({
+  decorrenza,
+  scadenza,
+  attiva,
+}: {
+  decorrenza: string | null;
+  scadenza: string | null;
+  attiva: boolean;
+}) {
+  const state = getValidityState(decorrenza, scadenza);
+  if (!attiva) {
+    return (
+      <Alert>
+        <CalendarClock className="h-4 w-4" />
+        <AlertTitle>Tabella disattivata</AlertTitle>
+        <AlertDescription>
+          Resta consultabile per lo storico, ma non dovrebbe essere proposta nei nuovi preventivi o progetti.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  if (state === "expired") {
+    return (
+      <Alert variant="destructive">
+        <CalendarClock className="h-4 w-4" />
+        <AlertTitle>Offerta scaduta</AlertTitle>
+        <AlertDescription>
+          La data di scadenza è {scadenza}. Verifica le condizioni prima di usarla in nuove proposte commerciali.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  if (state === "future") {
+    return (
+      <Alert>
+        <CalendarClock className="h-4 w-4" />
+        <AlertTitle>Offerta non ancora decorso</AlertTitle>
+        <AlertDescription>
+          La tabella decorre dal {decorrenza}. Fino ad allora usala solo per simulazioni interne.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  return null;
 }

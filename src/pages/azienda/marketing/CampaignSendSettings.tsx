@@ -39,6 +39,27 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { CampaignAbResults } from "@/components/email-marketing/CampaignAbResults";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isValidEmail = (value: string) => EMAIL_RE.test(value.trim());
+const toDatetimeLocal = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+};
+const toIsoOrNull = (value: string) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+const isFutureDatetime = (value: string) => {
+  const iso = toIsoOrNull(value);
+  return !!iso && new Date(iso).getTime() > Date.now();
+};
+const hasUnsubscribeToken = (html?: string | null) => /\{\{\s*unsubscribe_url\s*\}\}/.test(html || "");
+const sanitizeFileName = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, "_");
+
 export default function CampaignSendSettings() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -137,7 +158,7 @@ export default function CampaignSendSettings() {
       setSubject(campaign.subject || "");
       setPreviewText(campaign.preview_text || "");
       setSendMode(campaign.send_mode || "immediate");
-      setScheduledAt(campaign.scheduled_at || "");
+      setScheduledAt(toDatetimeLocal(campaign.scheduled_at));
       setTrackClicks(campaign.track_clicks || false);
       setUtmTracking(campaign.utm_tracking || false);
       setAutoTag(campaign.auto_tag || false);
@@ -168,7 +189,7 @@ export default function CampaignSendSettings() {
   const uploadFiles = async () => {
     if (!attachedFiles.length || !id) return;
     for (const file of attachedFiles) {
-      const path = `${id}/${Date.now()}_${file.name}`;
+      const path = `${id}/${Date.now()}_${sanitizeFileName(file.name)}`;
       const { error } = await supabase.storage
         .from("campaign-attachments")
         .upload(path, file);
@@ -187,6 +208,7 @@ export default function CampaignSendSettings() {
 
   const saveMut = useMutation({
     mutationFn: async () => {
+      if (!company?.id) throw new Error("Azienda non disponibile");
       const payload: Record<string, any> = {
         sender_name: senderName || null,
         sender_email: senderEmail || null,
@@ -197,7 +219,7 @@ export default function CampaignSendSettings() {
         utm_tracking: utmTracking,
         auto_tag: autoTag,
         resend_to_unopened: resendToUnopened,
-        scheduled_at: sendMode === "scheduled" && scheduledAt ? scheduledAt : null,
+        scheduled_at: sendMode === "scheduled" && scheduledAt ? toIsoOrNull(scheduledAt) : null,
         segment_json: buildSegmentJson(),
         ab_test_enabled: abTestEnabled,
         ab_subject_b: abTestEnabled ? abSubjectB || null : null,
@@ -208,7 +230,8 @@ export default function CampaignSendSettings() {
       const { error } = await supabase
         .from("email_campaigns")
         .update(payload)
-        .eq("id", id!);
+        .eq("id", id!)
+        .eq("company_id", company.id);
       if (error) throw error;
       await uploadFiles();
     },
@@ -224,8 +247,14 @@ export default function CampaignSendSettings() {
 
   const sendMut = useMutation({
     mutationFn: async () => {
-      if (!senderEmail) throw new Error("Email del mittente obbligatoria");
-      if (!subject) throw new Error("Oggetto obbligatorio");
+      if (!company?.id) throw new Error("Azienda non disponibile");
+      if (!isValidEmail(senderEmail)) throw new Error("Email del mittente non valida");
+      if (customReplyTo && replyToEmail && !isValidEmail(replyToEmail)) throw new Error("Email di risposta non valida");
+      if (!subject.trim()) throw new Error("Oggetto obbligatorio");
+      if (!campaign?.html_content) throw new Error("Contenuto email obbligatorio");
+      if (!hasUnsubscribeToken(campaign.html_content)) throw new Error("Inserisci il link di disiscrizione {{unsubscribe_url}} nel footer prima dell'invio");
+      if (recipientCount <= 0) throw new Error("Nessun destinatario valido per questa campagna");
+      if (sendMode === "scheduled" && !isFutureDatetime(scheduledAt)) throw new Error("La data di programmazione deve essere futura");
       if (abTestEnabled && !abSubjectB?.trim()) throw new Error("Oggetto variante B obbligatorio per A/B test");
 
       // Save settings first
@@ -239,7 +268,8 @@ export default function CampaignSendSettings() {
         utm_tracking: utmTracking,
         auto_tag: autoTag,
         resend_to_unopened: resendToUnopened,
-        scheduled_at: sendMode === "scheduled" && scheduledAt ? scheduledAt : null,
+        scheduled_at: sendMode === "scheduled" && scheduledAt ? toIsoOrNull(scheduledAt) : null,
+        status: sendMode === "scheduled" ? "scheduled" : campaign?.status === "scheduled" ? "draft" : campaign?.status,
         segment_json: buildSegmentJson(),
         ab_test_enabled: abTestEnabled,
         ab_subject_b: abTestEnabled ? abSubjectB || null : null,
@@ -250,9 +280,14 @@ export default function CampaignSendSettings() {
       const { error: saveError } = await supabase
         .from("email_campaigns")
         .update(payload)
-        .eq("id", id!);
+        .eq("id", id!)
+        .eq("company_id", company.id);
       if (saveError) throw saveError;
       await uploadFiles();
+
+      if (sendMode === "scheduled") {
+        return { scheduled: true, sent: 0, failed: 0 };
+      }
 
       // Invoke the send-email-campaign edge function
       const { data, error } = await supabase.functions.invoke("send-email-campaign", {
@@ -269,7 +304,11 @@ export default function CampaignSendSettings() {
       return data;
     },
     onSuccess: (data: any) => {
-      toast.success(`Campagna inviata! ${data?.sent || 0} email inviate, ${data?.failed || 0} fallite.`);
+      if (data?.scheduled) {
+        toast.success("Campagna programmata correttamente");
+      } else {
+        toast.success(`Campagna inviata! ${data?.sent || 0} email inviate, ${data?.failed || 0} fallite.`);
+      }
       qc.invalidateQueries({ queryKey: queryKeys.emailCampaigns.all });
       qc.invalidateQueries({ queryKey: ["email-credits-balance"] });
       navigate("/azienda/marketing/email");
@@ -279,7 +318,7 @@ export default function CampaignSendSettings() {
 
   const testEmailMut = useMutation({
     mutationFn: async () => {
-      if (!testEmailAddress) throw new Error("Inserisci un indirizzo email");
+      if (!isValidEmail(testEmailAddress)) throw new Error("Inserisci un indirizzo email valido");
       const { data, error } = await supabase.functions.invoke("send-test-email", {
         body: { to: testEmailAddress, campaignId: id },
       });
@@ -306,9 +345,13 @@ export default function CampaignSendSettings() {
   };
 
   const requiredFields = [
-    { label: "Email mittente", ok: !!senderEmail },
-    { label: "Oggetto", ok: !!subject },
+    { label: "Email mittente valida", ok: isValidEmail(senderEmail) },
+    ...(customReplyTo ? [{ label: "Email di risposta valida", ok: !replyToEmail || isValidEmail(replyToEmail) }] : []),
+    { label: "Oggetto", ok: !!subject.trim() },
     { label: "Contenuto email", ok: !!(campaign?.html_content) },
+    { label: "Link disiscrizione", ok: hasUnsubscribeToken(campaign?.html_content) },
+    { label: "Destinatari validi", ok: recipientCount > 0 },
+    ...(sendMode === "scheduled" ? [{ label: "Data programmazione futura", ok: isFutureDatetime(scheduledAt) }] : []),
     ...(abTestEnabled ? [{ label: "Oggetto variante B", ok: !!abSubjectB?.trim() }] : []),
   ];
   const missingCount = requiredFields.filter((f) => !f.ok).length;
@@ -927,7 +970,7 @@ export default function CampaignSendSettings() {
             </Button>
             <Button
               onClick={() => testEmailMut.mutate()}
-              disabled={testEmailMut.isPending || !testEmailAddress}
+              disabled={testEmailMut.isPending || !isValidEmail(testEmailAddress)}
             >
               {testEmailMut.isPending ? (
                 <>

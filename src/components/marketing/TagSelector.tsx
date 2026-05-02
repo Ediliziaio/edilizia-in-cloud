@@ -23,6 +23,12 @@ function getTagErrorMessage(error: unknown) {
   return "";
 }
 
+const DEFAULT_TAG_COLOR = "#2563eb";
+
+function normalizeTagName(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selectedTags, onTagsChange }, ref) => {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -48,16 +54,22 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
   const createMutation = useMutation({
     mutationFn: async (name: string) => {
       if (!companyId) throw new Error("Azienda non disponibile");
-      const normalizedName = name.trim().toLowerCase();
+      const normalizedName = normalizeTagName(name);
+      if (!normalizedName) throw new Error("Inserisci un nome tag valido");
+      if (tags.some((tag) => normalizeTagName(tag.name) === normalizedName)) {
+        throw new Error("DUPLICATE_TAG");
+      }
       const { error } = await supabase.from("marketing_tags").insert({
         company_id: companyId,
         name: normalizedName,
+        color: DEFAULT_TAG_COLOR,
       });
       if (error) throw error;
     },
     onSuccess: (_, name) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingTags.all });
-      const normalized = name.trim().toLowerCase();
+      queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
+      const normalized = normalizeTagName(name);
       if (!selectedTags.includes(normalized)) {
         onTagsChange([...selectedTags, normalized]);
       }
@@ -67,7 +79,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
     onError: (e: unknown) => {
       const message = getTagErrorMessage(e);
       const code = e && typeof e === "object" && "code" in e ? String(e.code) : "";
-      if (message.includes("duplicate") || code === "23505") {
+      if (message.includes("DUPLICATE_TAG") || message.includes("duplicate") || code === "23505") {
         toast.error("Tag già esistente");
       } else {
         toast.error("Errore nella creazione del tag");
@@ -87,8 +99,9 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
     onTagsChange(selectedTags.filter((t) => t !== tagName));
   };
 
-  const searchNormalized = search.trim().toLowerCase();
-  const canCreate = searchNormalized.length > 0 && !!companyId && !tags.some((t) => t.name === searchNormalized);
+  const searchNormalized = normalizeTagName(search);
+  const canCreate = searchNormalized.length > 0 && !!companyId && !tags.some((t) => normalizeTagName(t.name) === searchNormalized);
+  const colorByName = new Map(tags.map((tag) => [tag.name, tag.color || DEFAULT_TAG_COLOR]));
 
   return (
     <div ref={ref} className="space-y-1.5">
@@ -96,6 +109,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
         <div className="flex flex-wrap gap-1.5">
           {selectedTags.map((tag) => (
             <Badge key={tag} variant="secondary" className="gap-1">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorByName.get(tag) || DEFAULT_TAG_COLOR }} />
               {tag}
               <X className="h-3 w-3 cursor-pointer" onClick={() => removeTag(tag)} />
             </Badge>
@@ -130,6 +144,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
                       value={tag.name}
                       onSelect={() => toggleTag(tag.name)}
                     >
+                      <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tag.color || DEFAULT_TAG_COLOR }} />
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",

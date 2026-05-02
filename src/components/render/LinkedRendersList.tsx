@@ -3,10 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Image, Sparkles } from "lucide-react";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
+import { AlertTriangle, Image, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { formatRenderDate, isRenderStale, normalizeRenderStatus, renderStatusLabel } from "@/lib/render/renderStatus";
+import { getRenderDetailPath } from "@/lib/render/renderNavigation";
 
 interface LinkedRendersListProps {
   contactId?: string | null;
@@ -56,7 +56,10 @@ export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersLis
         console.error("[LinkedRendersList] query error:", error);
         return [];
       }
-      return (data ?? []) as unknown as RecentRenderRow[];
+      return ((data ?? []) as unknown as RecentRenderRow[]).map((row) => ({
+        ...row,
+        status: normalizeRenderStatus(row.status),
+      }));
     },
     enabled: !!companyId && (!!contactId || !!opportunityId),
   });
@@ -80,7 +83,9 @@ export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersLis
   const typeLabel: Record<string, string> = {
     infissi: "Infissi", bagno: "Bagno", facciata: "Facciata",
     pavimento: "Pavimento", persiane: "Persiane", tetto: "Tetto", stanza: "Stanza",
-    pergole: "Pergole", piscine: "Piscine",
+    pergole: "Pergole", piscine: "Piscine", ristrutturazioni: "Ristrutturazioni",
+    "pavimenti-esterni": "Pavimenti esterni", giardini: "Giardini",
+    "porte-blindate": "Porte blindate", "porte-interne": "Porte interne",
   };
 
   return (
@@ -93,7 +98,7 @@ export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersLis
           <div
             key={`${r.render_type}-${r.id}`}
             className="aspect-video rounded-lg overflow-hidden cursor-pointer hover:ring-2 ring-primary/40 transition-all group relative bg-muted"
-            onClick={() => navigate(`/azienda/render/${r.render_type}/gallery/${r.id}`)}
+            onClick={() => navigate(getRenderDetailPath(r.render_type, r.id))}
           >
             {r.result_url ? (
               <img src={r.result_url} alt="Render" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" decoding="async" />
@@ -106,10 +111,20 @@ export function LinkedRendersList({ contactId, opportunityId }: LinkedRendersLis
               <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-black/60 text-white border-0">
                 {typeLabel[r.render_type] ?? r.render_type}
               </Badge>
+              {normalizeRenderStatus(r.status) !== "completed" && (
+                <Badge variant={normalizeRenderStatus(r.status) === "failed" ? "destructive" : "outline"} className="text-[10px] px-1 py-0 bg-white/90">
+                  {renderStatusLabel(r.status)}
+                </Badge>
+              )}
             </div>
+            {isRenderStale(r.status, r.created_at) && (
+              <div className="absolute right-1 top-1 rounded-full bg-amber-100 p-1 text-amber-700" title="Render fermo da troppo tempo">
+                <AlertTriangle className="h-3.5 w-3.5" />
+              </div>
+            )}
             <div className="absolute bottom-1 right-1">
               <span className="text-[9px] text-white/80 bg-black/40 px-1 rounded">
-                {format(new Date(r.created_at), "d MMM", { locale: it })}
+                {formatRenderDate(r.created_at, "d MMM")}
               </span>
             </div>
           </div>

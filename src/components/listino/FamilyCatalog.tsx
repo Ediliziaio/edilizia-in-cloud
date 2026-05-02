@@ -146,6 +146,8 @@ interface EconomicsPreview {
   isMarkupMode: boolean;
 }
 
+type MarginFilter = "all" | "ok" | "low" | "missing";
+
 function computeEconomics(f: FamilyWithAxes): EconomicsPreview {
   const isMarkupMode = f.prezzo_base_mode === "acquisto_markup";
   if (!isMarkupMode) {
@@ -191,9 +193,28 @@ function computeEconomics(f: FamilyWithAxes): EconomicsPreview {
   };
 }
 
+function getMarginState(marginePct: number | null): Exclude<MarginFilter, "all"> {
+  if (marginePct == null) return "missing";
+  return marginePct >= 15 ? "ok" : "low";
+}
+
+function getMarginBadgeClass(marginePct: number | null): string {
+  if (marginePct == null) {
+    return "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300";
+  }
+  if (marginePct < 0) {
+    return "border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300";
+  }
+  if (marginePct < 15) {
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300";
+  }
+  return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300";
+}
+
 // Sentinel per raggruppamenti "senza X"
 const NO_MACRO = "__no_macro__";
 const NO_CAT = "__no_cat__";
+const ALL_FILTER = "__all__";
 
 interface CategoriaGroup {
   categoriaId: string; // id reale o NO_CAT
@@ -225,6 +246,10 @@ export function FamilyCatalog() {
     useListinoCategorie();
 
   const [search, setSearch] = useState("");
+  const [macroFilter, setMacroFilter] = useState(ALL_FILTER);
+  const [categoriaFilter, setCategoriaFilter] = useState(ALL_FILTER);
+  const [modalitaFilter, setModalitaFilter] = useState<string>(ALL_FILTER);
+  const [marginFilter, setMarginFilter] = useState<MarginFilter>("all");
   const [toDelete, setToDelete] = useState<FamilyWithAxes | null>(null);
   const [toDuplicate, setToDuplicate] = useState<FamilyWithAxes | null>(null);
   const [dupName, setDupName] = useState("");
@@ -283,16 +308,53 @@ export function FamilyCatalog() {
     [macrocategorie],
   );
 
+  const filterCategorieDisponibili = useMemo(() => {
+    if (macroFilter === ALL_FILTER) return categorie;
+    if (macroFilter === NO_MACRO) return categorie.filter((c) => !c.macrocategoria_id);
+    return categorie.filter((c) => c.macrocategoria_id === macroFilter);
+  }, [categorie, macroFilter]);
+
+  const hasActiveFilters =
+    search.trim() !== "" ||
+    macroFilter !== ALL_FILTER ||
+    categoriaFilter !== ALL_FILTER ||
+    modalitaFilter !== ALL_FILTER ||
+    marginFilter !== "all";
+
+  const resetFilters = () => {
+    setSearch("");
+    setMacroFilter(ALL_FILTER);
+    setCategoriaFilter(ALL_FILTER);
+    setModalitaFilter(ALL_FILTER);
+    setMarginFilter("all");
+  };
+
   // Grouping gerarchico macrocat → cat → articoli
   const grouped: MacroGroup[] = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const filtered = q
-      ? families.filter(
-          (f) =>
-            f.nome.toLowerCase().includes(q) ||
-            (f.descrizione ?? "").toLowerCase().includes(q),
-        )
-      : families;
+    const filtered = families.filter((f) => {
+      const cat = f.categoria_id ? categoriaById.get(f.categoria_id) : null;
+      const catId = cat?.id ?? NO_CAT;
+      const macroId = cat?.macrocategoria_id ?? NO_MACRO;
+
+      const matchesSearch =
+        q === "" ||
+        f.nome.toLowerCase().includes(q) ||
+        (f.descrizione ?? "").toLowerCase().includes(q);
+      if (!matchesSearch) return false;
+
+      if (macroFilter !== ALL_FILTER && macroId !== macroFilter) return false;
+      if (categoriaFilter !== ALL_FILTER && catId !== categoriaFilter) return false;
+      if (modalitaFilter !== ALL_FILTER && f.modalita_prezzo_base !== modalitaFilter) {
+        return false;
+      }
+      if (marginFilter !== "all") {
+        const econ = computeEconomics(f);
+        if (getMarginState(econ.marginePct) !== marginFilter) return false;
+      }
+
+      return true;
+    });
 
     // macroId → (catId → items[])
     const bucket = new Map<string, Map<string, FamilyWithAxes[]>>();
@@ -351,7 +413,17 @@ export function FamilyCatalog() {
     }
 
     return result;
-  }, [families, search, categoriaById, macroById, macrocategorie]);
+  }, [
+    families,
+    search,
+    macroFilter,
+    categoriaFilter,
+    modalitaFilter,
+    marginFilter,
+    categoriaById,
+    macroById,
+    macrocategorie,
+  ]);
 
   const handleDuplicate = async () => {
     if (!toDuplicate || !dupName.trim()) return;
@@ -540,6 +612,105 @@ export function FamilyCatalog() {
         </div>
       )}
 
+      <Card>
+        <CardContent className="p-3 sm:p-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+              <Label htmlFor="filter-macro" className="text-xs">
+                Macrocategoria
+              </Label>
+              <Select
+                value={macroFilter}
+                onValueChange={(value) => {
+                  setMacroFilter(value);
+                  setCategoriaFilter(ALL_FILTER);
+                }}
+              >
+                <SelectTrigger id="filter-macro" className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER}>Tutte</SelectItem>
+                  <SelectItem value={NO_MACRO}>Senza macrocategoria</SelectItem>
+                  {macrocategorie.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+              <Label htmlFor="filter-categoria" className="text-xs">
+                Categoria
+              </Label>
+              <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
+                <SelectTrigger id="filter-categoria" className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER}>Tutte</SelectItem>
+                  <SelectItem value={NO_CAT}>Senza categoria</SelectItem>
+                  {filterCategorieDisponibili.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="filter-modalita" className="text-xs">
+                Modalità prezzo
+              </Label>
+              <Select value={modalitaFilter} onValueChange={setModalitaFilter}>
+                <SelectTrigger id="filter-modalita" className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER}>Tutte</SelectItem>
+                  {Object.entries(MODALITA_LABEL).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="filter-margine" className="text-xs">
+                Margine
+              </Label>
+              <Select
+                value={marginFilter}
+                onValueChange={(value) => setMarginFilter(value as MarginFilter)}
+              >
+                <SelectTrigger id="filter-margine" className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti</SelectItem>
+                  <SelectItem value="ok">Margine OK</SelectItem>
+                  <SelectItem value="low">Margine basso/negativo</SelectItem>
+                  <SelectItem value="missing">Costo mancante</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full"
+                onClick={resetFilters}
+                disabled={!hasActiveFilters}
+              >
+                Pulisci filtri
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {categorieError && (
         <div
           className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3 text-sm"
@@ -599,10 +770,10 @@ export function FamilyCatalog() {
       ) : grouped.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground space-y-3">
-            <p>Nessun articolo corrisponde alla ricerca.</p>
-            {search && (
-              <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="h-9">
-                Pulisci ricerca
+            <p>Nessun articolo corrisponde ai filtri.</p>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={resetFilters} className="h-9">
+                Pulisci filtri
               </Button>
             )}
           </CardContent>
@@ -774,6 +945,22 @@ export function FamilyCatalog() {
                                   </span>
                                 )}
                               </div>
+                              {econ.venditaPz > 0 ? (
+                                <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-2.5 py-2 text-xs">
+                                  <span className="inline-flex items-center gap-1 font-medium tabular-nums">
+                                    <Euro className="h-3.5 w-3.5" aria-hidden="true" />
+                                    {fmtEUR.format(econ.venditaPz)}
+                                  </span>
+                                  <Badge
+                                    variant="outline"
+                                    className={`shrink-0 font-medium ${getMarginBadgeClass(econ.marginePct)}`}
+                                  >
+                                    {econ.marginePct == null
+                                      ? "Costo mancante"
+                                      : `Margine ${econ.marginePct.toFixed(1)}%`}
+                                  </Badge>
+                                </div>
+                              ) : null}
                             </CardContent>
                             {/* Kebab menu (⋮) in top-right della Card: compatta
                                 le 3 azioni (Duplica/Sposta/Elimina) in un

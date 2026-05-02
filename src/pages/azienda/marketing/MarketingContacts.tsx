@@ -101,6 +101,7 @@ export default function MarketingContacts() {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
+  const canEditContacts = permissions.canEditMarketingContacts || permissions.canEditMarketing;
   const columnsStorageKey = useMemo(() => getStorageKey(user?.id, companyId), [user?.id, companyId]);
   const queryClient = useQueryClient();
   const { data: contactCustomFields = [] } = useContactCustomFields();
@@ -192,6 +193,10 @@ export default function MarketingContacts() {
           .eq("company_id", companyId)
           .order("created_at", { ascending: false })
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+        if (permissions.onlyAssigned && user?.id) {
+          query = query.eq("assigned_to", user.id);
+        }
 
         // Apply search filter if active
         const safeSearch = sanitizeSearchTerm(search);
@@ -289,7 +294,7 @@ export default function MarketingContacts() {
     } finally {
       setExporting(false);
     }
-  }, [companyId, exporting, selectedIds, contactCustomFields, filters, search]);
+  }, [companyId, exporting, selectedIds, contactCustomFields, filters, search, permissions.onlyAssigned, user?.id]);
 
   // Consolidated filter data query (pipelines, tags, list count)
   const { data: filterData } = useQuery({
@@ -574,11 +579,13 @@ export default function MarketingContacts() {
   const saveMutation = useMutation({
     mutationFn: async (formData: ContactFormData) => {
       if (!companyId) throw new Error("No company");
+      if (!canEditContacts) throw new Error("Non hai i permessi per modificare i contatti");
       if (editingContact) {
         const { error } = await supabase
           .from("marketing_contacts")
           .update({ ...formData, updated_at: new Date().toISOString() })
-          .eq("id", editingContact.id);
+          .eq("id", editingContact.id)
+          .eq("company_id", companyId);
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -594,10 +601,10 @@ export default function MarketingContacts() {
         const addedTags = formData.tags.filter(t => !originalTags.includes(t));
         const removedTags = originalTags.filter(t => !formData.tags.includes(t));
         if (addedTags.length > 0) {
-          await syncTagsToOpportunities(editingContact.id, addedTags);
+          await syncTagsToOpportunities(editingContact.id, addedTags, companyId);
         }
         for (const tag of removedTags) {
-          await removeTagFromOpportunities(editingContact.id, tag);
+          await removeTagFromOpportunities(editingContact.id, tag, companyId);
         }
         if (addedTags.length > 0 || removedTags.length > 0) {
           queryClient.invalidateQueries({ queryKey: ["marketing-opportunities"] });
@@ -611,7 +618,9 @@ export default function MarketingContacts() {
 
   const deleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase.from("marketing_contacts").delete().in("id", ids);
+      if (!companyId) throw new Error("No company");
+      if (!canEditContacts) throw new Error("Non hai i permessi per eliminare i contatti");
+      const { error } = await supabase.from("marketing_contacts").delete().eq("company_id", companyId).in("id", ids);
       if (error) throw error;
     },
     onSuccess: (_, ids) => {
@@ -637,6 +646,7 @@ export default function MarketingContacts() {
   }, [contacts]);
 
   const handleEdit = (contact: MarketingContact) => {
+    if (!canEditContacts) return;
     setEditingContact(contact);
     setDialogOpen(true);
   };
@@ -653,6 +663,7 @@ export default function MarketingContacts() {
 
   const handleImport = async (rows: Record<string, string>[], options: { mode: string }) => {
     if (!companyId) return { success: 0, errors: ["Nessuna azienda selezionata"] };
+    if (!canEditContacts) return { success: 0, errors: ["Non hai i permessi per importare o modificare contatti"] };
     const customKeys = contactCustomFields.map(f => `custom_${f.id}`);
     const mode = options?.mode || "create";
 
@@ -671,7 +682,7 @@ export default function MarketingContacts() {
         firstName = parts[0];
         lastName = parts.slice(1).join(" ");
       }
-      const email = r.email?.trim() || null;
+      const email = r.email?.trim().toLowerCase() || null;
       const phone = r.phone?.trim() || null;
 
       // Email validation
@@ -699,8 +710,9 @@ export default function MarketingContacts() {
       };
     }).filter(Boolean) as { rowIdx: number; row: Record<string, string>; data: any }[];
 
-    // Detect internal duplicates by email
+    // Detect internal duplicates by email and normalized phone
     const seenEmails = new Map<string, number>();
+    const seenPhones = new Map<string, number>();
     for (const p of parsed) {
       if (p.data.email) {
         const key = p.data.email.toLowerCase();
@@ -709,15 +721,25 @@ export default function MarketingContacts() {
         }
         seenEmails.set(key, p.rowIdx);
       }
+      if (p.data.phone) {
+        const key = p.data.phone;
+        if (seenPhones.has(key)) {
+          errors.push(`Riga ${p.rowIdx + 2}: telefono duplicato nel file ("${p.data.phone}")`);
+        }
+        seenPhones.set(key, p.rowIdx);
+      }
     }
 
     // Remove internal duplicates from parsed (keep first occurrence)
     const seenEmailsForDedup = new Set<string>();
+    const seenPhonesForDedup = new Set<string>();
     const finalParsed = parsed.filter(p => {
-      if (!p.data.email) return true;
-      const key = p.data.email.toLowerCase();
-      if (seenEmailsForDedup.has(key)) return false;
-      seenEmailsForDedup.add(key);
+      const emailKey = p.data.email?.toLowerCase();
+      const phoneKey = p.data.phone;
+      if (emailKey && seenEmailsForDedup.has(emailKey)) return false;
+      if (!emailKey && phoneKey && seenPhonesForDedup.has(phoneKey)) return false;
+      if (emailKey) seenEmailsForDedup.add(emailKey);
+      if (phoneKey) seenPhonesForDedup.add(phoneKey);
       return true;
     });
 
@@ -813,7 +835,8 @@ export default function MarketingContacts() {
           const { error: updateError } = await supabase
             .from("marketing_contacts")
             .update(updateData)
-            .eq("id", existingId);
+            .eq("id", existingId)
+            .eq("company_id", companyId);
           if (updateError) {
             errors.push(`Riga ${p.rowIdx + 2}: errore aggiornamento - ${updateError.message}`);
           } else {
@@ -918,7 +941,7 @@ export default function MarketingContacts() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" className="hidden sm:flex" onClick={() => setImportOpen(true)}>
+          <Button variant="outline" className="hidden sm:flex" onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
             <Upload className="h-4 w-4 mr-2" /> Importa
           </Button>
           {/* Mobile: ... menu */}
@@ -929,7 +952,7 @@ export default function MarketingContacts() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setImportOpen(true)}>
+              <DropdownMenuItem onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
                 <Upload className="mr-2 h-4 w-4" /> Importa
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => doExport("csv")} disabled={exporting}>
@@ -943,7 +966,7 @@ export default function MarketingContacts() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => { setEditingContact(null); setDialogOpen(true); }}>
+          <Button onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
             <Plus className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Aggiungi Contatto</span>
             <span className="sm:hidden">Aggiungi</span>
@@ -1097,6 +1120,7 @@ export default function MarketingContacts() {
               visibleColumns={visibleColumns}
               customFields={contactCustomFields}
               customFieldValues={customFieldValues}
+              canEdit={canEditContacts}
             />
           )}
           </div>

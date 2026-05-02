@@ -86,80 +86,93 @@ export default function MarketingCalendarMonthView({
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="flex-1 overflow-auto border rounded-lg bg-background">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-background shadow-sm">
         {/* Header */}
-        <div className="grid grid-cols-7 border-b sticky top-0 z-10 bg-background">
+        <div className="grid shrink-0 grid-cols-7 border-b bg-muted/30">
           {DAY_NAMES.map((name) => (
-            <div key={name} className="p-2 text-center text-xs font-medium text-muted-foreground uppercase border-r last:border-r-0">
+            <div key={name} className="border-r p-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground last:border-r-0">
               {name}
             </div>
           ))}
         </div>
 
         {/* Weeks */}
-        {weeks.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7 border-b last:border-b-0">
-            {week.map((day) => {
-              const inMonth = isSameMonth(day, currentDate);
-              const dayApts = getAppointmentsForDay(day);
-              const maxShow = 3;
-              const dateKey = format(day, "yyyy-MM-dd");
+        <div className="grid min-h-0 flex-1" style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
+          {weeks.map((week, wi) => (
+            <div key={wi} className="grid min-h-0 grid-cols-7 border-b last:border-b-0">
+              {week.map((day) => {
+                const inMonth = isSameMonth(day, currentDate);
+                const dayApts = getAppointmentsForDay(day);
+                const maxShow = 3;
+                const dateKey = format(day, "yyyy-MM-dd");
 
-              return (
-                <DroppableSlot
-                  key={day.toISOString()}
-                  id={`day-${dateKey}`}
-                  className={cn(
-                    "border-r last:border-r-0 min-h-[100px] p-1 cursor-pointer hover:bg-muted/30 transition-colors",
-                    !inMonth && "opacity-40",
-                    isToday(day) && "bg-primary/5"
-                  )}
-                  onClick={() => { if (!justDragged.current) onClickDay(day); }}
-                >
-                  <div
+                return (
+                  <DroppableSlot
+                    key={day.toISOString()}
+                    id={`day-${dateKey}`}
                     className={cn(
-                      "text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full",
-                      isToday(day) && "bg-primary text-primary-foreground"
+                      "min-h-[84px] cursor-pointer overflow-hidden border-r p-2 transition-colors last:border-r-0 hover:bg-muted/30",
+                      !inMonth && "bg-muted/20 text-muted-foreground/70",
+                      isToday(day) && "bg-primary/5"
                     )}
+                    onClick={() => { if (!justDragged.current) onClickDay(day); }}
                   >
-                    {format(day, "d")}
-                  </div>
-                  <div className="space-y-0.5">
-                    {dayApts.slice(0, maxShow).map((apt) => (
-                      <DraggableAppointment key={apt.id} appointment={apt}>
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onClickAppointment(apt);
-                          }}
-                          className={cn(
-                            "text-[10px] leading-tight px-1 py-0.5 rounded border-l-2 truncate cursor-pointer hover:opacity-80",
-                            apt.is_blocked_slot
-                              ? "bg-muted/60 border-dashed border-muted-foreground/50 text-muted-foreground italic"
-                              : apt.calendar_id && colorMap[apt.calendar_id]
-                                ? colorMap[apt.calendar_id]
-                                : "bg-muted border-muted-foreground/40 text-foreground"
-                          )}
-                          title={apt.title}
-                        >
-                          {apt.appointment_time && (
-                            <span className="font-medium">{apt.appointment_time.slice(0, 5)} </span>
-                          )}
-                          {apt.title}
-                        </div>
-                      </DraggableAppointment>
-                    ))}
-                    {dayApts.length > maxShow && (
-                      <div className="text-[10px] text-muted-foreground pl-1">
-                        +{dayApts.length - maxShow} altri
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <div
+                        className={cn(
+                          "flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold",
+                          isToday(day)
+                            ? "bg-primary text-primary-foreground"
+                            : inMonth
+                              ? "text-foreground"
+                              : "text-muted-foreground"
+                        )}
+                      >
+                        {format(day, "d")}
                       </div>
-                    )}
-                  </div>
-                </DroppableSlot>
-              );
-            })}
-          </div>
-        ))}
+                      {dayApts.length > 0 && (
+                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {dayApts.length}
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      {dayApts.slice(0, maxShow).map((apt) => (
+                        <DraggableAppointment key={apt.id} appointment={apt}>
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onClickAppointment(apt);
+                            }}
+                            className={cn(
+                              "cursor-pointer truncate rounded border-l-2 px-1.5 py-1 text-[11px] leading-tight shadow-sm hover:opacity-85",
+                              apt.is_blocked_slot
+                                ? "border-dashed border-muted-foreground/50 bg-muted/60 text-muted-foreground italic"
+                                : apt.calendar_id && colorMap[apt.calendar_id]
+                                  ? colorMap[apt.calendar_id]
+                                  : "border-muted-foreground/40 bg-muted text-foreground"
+                            )}
+                            title={apt.title}
+                          >
+                            {apt.appointment_time && (
+                              <span className="font-semibold">{apt.appointment_time.slice(0, 5)} </span>
+                            )}
+                            {apt.title}
+                          </div>
+                        </DraggableAppointment>
+                      ))}
+                      {dayApts.length > maxShow && (
+                        <div className="px-1 text-[10px] font-medium text-muted-foreground">
+                          +{dayApts.length - maxShow} altri
+                        </div>
+                      )}
+                    </div>
+                  </DroppableSlot>
+                );
+              })}
+            </div>
+          ))}
+        </div>
       </div>
 
       <DragOverlay>

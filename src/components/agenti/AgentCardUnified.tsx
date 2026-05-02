@@ -17,6 +17,7 @@ import {
   MoreVertical,
   Settings2,
   Copy,
+  Archive,
   Trash2,
   Play,
   Pause,
@@ -73,6 +74,17 @@ const STATO_CONFIG: Record<StatoAgente, { label: string; dotClass: string; varia
   archiviato: { label: "Archiviato", dotClass: "bg-muted-foreground/50", variant: "outline" },
 };
 
+const safeNumber = (value: unknown, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const safeDateLabel = (value: unknown) => {
+  const date = new Date(String(value ?? ""));
+  if (Number.isNaN(date.getTime())) return "Data non disponibile";
+  return format(date, "d MMM yyyy", { locale: it });
+};
+
 interface Props {
   agente: UnifiedAgent;
   onClick: () => void;
@@ -94,8 +106,8 @@ export function AgentCardUnified({
   onNavigateConversations,
   isToggling = false,
 }: Props) {
-  const tipoCfg = TIPO_CONFIG[agente.tipo];
-  const statoCfg = STATO_CONFIG[agente.stato];
+  const tipoCfg = TIPO_CONFIG[agente.tipo] ?? TIPO_CONFIG.interno;
+  const statoCfg = STATO_CONFIG[agente.stato] ?? STATO_CONFIG.bozza;
   const TipoIcon = tipoCfg.icon;
   const isVoiceType = agente.tipo === "vocale" || agente.tipo === "campagna";
   const isChatType = agente.tipo === "chat" || agente.tipo === "whatsapp";
@@ -167,6 +179,11 @@ export function AgentCardUnified({
                 <DropdownMenuItem onClick={() => onDuplicate(agente.id)}>
                   <Copy className="h-4 w-4 mr-2" /> Duplica
                 </DropdownMenuItem>
+                {agente.stato !== "archiviato" && (
+                  <DropdownMenuItem onClick={() => onArchive(agente.id)}>
+                    <Archive className="h-4 w-4 mr-2" /> Archivia
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem className="text-destructive" onClick={() => onDelete(agente.id)}>
                   <Trash2 className="h-4 w-4 mr-2" /> Elimina
                 </DropdownMenuItem>
@@ -202,12 +219,12 @@ export function AgentCardUnified({
           {(isVoiceType) && (
             <>
               <MetricBox icon={Phone} label="Chiamate" value={agente.chiamate_totali} />
-              <MetricBox icon={Clock} label="Minuti" value={Math.round(agente.minuti_totali)} />
+              <MetricBox icon={Clock} label="Minuti" value={Math.round(safeNumber(agente.minuti_totali))} />
               <MetricBox
                 icon={TrendingUp}
                 label="Tasso"
-                value={agente.chiamate_totali > 0
-                  ? `${Math.round((agente.chiamate_completate / agente.chiamate_totali) * 100)}%`
+                value={safeNumber(agente.chiamate_totali) > 0
+                  ? `${Math.round((safeNumber(agente.chiamate_completate) / safeNumber(agente.chiamate_totali)) * 100)}%`
                   : "–"}
               />
             </>
@@ -215,14 +232,14 @@ export function AgentCardUnified({
           {isChatType && (
             <>
               <MetricBox icon={MessageSquare} label="Chat" value={agente.chat_totali} />
-              <MetricBox icon={Clock} label="Minuti" value={Math.round(agente.minuti_totali)} />
+              <MetricBox icon={Clock} label="Minuti" value={Math.round(safeNumber(agente.minuti_totali))} />
               <MetricBox icon={Users} label="Utenti" value="–" />
             </>
           )}
           {agente.tipo === "interno" && (
             <>
               <MetricBox icon={MessageSquare} label="Richieste" value={agente.chat_totali} />
-              <MetricBox icon={Clock} label="Tempo" value={`${Math.round(agente.minuti_totali)}m`} />
+              <MetricBox icon={Clock} label="Tempo" value={`${Math.round(safeNumber(agente.minuti_totali))}m`} />
               <MetricBox icon={CheckCircle2} label="Risolte" value="–" />
             </>
           )}
@@ -231,7 +248,7 @@ export function AgentCardUnified({
         {/* Footer with date */}
         <div className="flex items-center justify-between pt-2 border-t border-border">
           <span className="text-[10px] text-muted-foreground">
-            {agente.lingua.toUpperCase()} · {format(new Date(agente.creato_il), "d MMM yyyy", { locale: it })}
+            {(agente.lingua || "it").toUpperCase()} · {safeDateLabel(agente.creato_il)}
           </span>
           <div className="flex items-center gap-1.5">
             <Button

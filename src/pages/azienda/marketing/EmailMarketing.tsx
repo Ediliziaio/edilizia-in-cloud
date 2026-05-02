@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,8 +12,25 @@ import { EmailQuotaWidget } from "@/components/email-marketing/EmailQuotaWidget"
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 
 const EmailMarketing = () => {
-  const [activeTab, setActiveTab] = useState("statistiche");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(
+    requestedTab === "campagne" || requestedTab === "modelli" || requestedTab === "statistiche"
+      ? requestedTab
+      : "statistiche"
+  );
   const { isScopriPlan } = useSubscriptionLimits();
+
+  useEffect(() => {
+    if (requestedTab === "campagne" || requestedTab === "modelli" || requestedTab === "statistiche") {
+      setActiveTab(requestedTab);
+    }
+  }, [requestedTab]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    setSearchParams(value === "statistiche" ? {} : { tab: value }, { replace: true });
+  };
 
   if (isScopriPlan) return <UpgradeScopriWall type="marketing" inline />;
 
@@ -30,7 +48,7 @@ const EmailMarketing = () => {
         <EmailQuotaWidget />
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="statistiche" className="gap-1.5">
             <BarChart3 className="h-4 w-4" />

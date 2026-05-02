@@ -127,6 +127,7 @@ interface ContactsTableProps {
   visibleColumns: Set<string>;
   customFields?: CustomFieldDef[];
   customFieldValues?: Record<string, Record<string, string>>;
+  canEdit?: boolean;
 }
 
 
@@ -240,7 +241,7 @@ export const ContactsTable = memo(function ContactsTable({
   contacts, totalCount, selectedIds, onToggleSelect, onToggleAll,
   onEdit, onDelete, page, pageSize, onPageChange, onPageSizeChange,
   sortField, sortDirection, onSort, bulkActions, visibleColumns,
-  customFields = [], customFieldValues = {},
+  customFields = [], customFieldValues = {}, canEdit = true,
 }: ContactsTableProps) {
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
@@ -274,9 +275,11 @@ export const ContactsTable = memo(function ContactsTable({
         <div className="flex items-center gap-3 bg-muted/50 rounded-lg px-4 py-2 text-sm">
           <span className="font-medium">{selectedIds.size} selezionati</span>
           {bulkActions}
+          {canEdit && (
           <Button size="sm" variant="destructive" onClick={() => onDelete(Array.from(selectedIds))}>
             <Trash2 className="h-4 w-4 mr-1" /> Elimina
           </Button>
+          )}
         </div>
       )}
 
@@ -317,9 +320,17 @@ export const ContactsTable = memo(function ContactsTable({
               </TableRow>
             ) : (
               contacts.map((c) => (
-                <TableRow key={c.id} className="group">
+                <TableRow
+                  key={c.id}
+                  className="group cursor-pointer"
+                  onClick={() => navigate(`${routePrefix}/contatti/${c.id}`)}
+                >
                   <TableCell className={`py-1.5 ${borderClass}`}>
-                    <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => onToggleSelect(c.id)} />
+                    <Checkbox
+                      checked={selectedIds.has(c.id)}
+                      onClick={(event) => event.stopPropagation()}
+                      onCheckedChange={() => onToggleSelect(c.id)}
+                    />
                   </TableCell>
                   {visibleCols.map((col, i) => {
                     const isLast = i === visibleCols.length - 1;
@@ -335,9 +346,19 @@ export const ContactsTable = memo(function ContactsTable({
                     return renderStaticCell(col, c, cls, navigate, routePrefix);
                   })}
                   <TableCell className="py-1.5">
-                    <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => onEdit(c)}>
+                    {canEdit && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEdit(c);
+                      }}
+                    >
                       <Pencil className="h-3 w-3" />
                     </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

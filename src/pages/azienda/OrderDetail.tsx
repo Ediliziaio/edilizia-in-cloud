@@ -235,15 +235,17 @@ function OrderDetailInner() {
   const { data: order, isLoading: orderLoading } = useQuery({
     queryKey: queryKeys.orders.detail(id),
     queryFn: async () => {
+      if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
       const { data, error } = await supabase
         .from("orders")
         .select(`*, customer:profiles!orders_customer_id_fkey(id, first_name, last_name, email, phone, address)`)
         .eq("id", id!)
+        .eq("company_id", effectiveCompany.id)
         .single();
       if (error) throw error;
       return data as OrderDetail;
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && !!effectiveCompany?.id,
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
   });
@@ -260,7 +262,7 @@ function OrderDetailInner() {
       if (error) throw error;
       return (data || []) as unknown as (Installment & { id: string })[];
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && !!order?.id,
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
   });
@@ -292,7 +294,7 @@ function OrderDetailInner() {
       if (error) throw error;
       return data as OrderItemData[];
     },
-    enabled: !!id && !!user,
+    enabled: !!id && !!user && !!order?.id,
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
   });
@@ -546,7 +548,11 @@ function OrderDetailInner() {
   // Update notes mutation
   const updateNotesMutation = useMutation({
     mutationFn: async (notes: string) => {
-      const { error } = await supabase.from("orders").update({ internal_notes: notes || null }).eq("id", id!);
+      const { error } = await supabase
+        .from("orders")
+        .update({ internal_notes: notes || null })
+        .eq("id", id!)
+        .eq("company_id", effectiveCompany!.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -559,7 +565,7 @@ function OrderDetailInner() {
 
   // Delete order mutation
   const deleteOrderMutation = useMutation({
-    mutationFn: () => deleteOrderCascading(id!),
+    mutationFn: () => deleteOrderCascading(id!, effectiveCompany?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
@@ -571,7 +577,11 @@ function OrderDetailInner() {
       toast.success("Commessa eliminata");
       navigate("/azienda/ordini");
     },
-    onError: () => { toast.error("Errore nell'eliminazione della commessa."); },
+    onError: (error) => {
+      toast.error("Errore nell'eliminazione della commessa.", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    },
   });
 
   // Duplicate order mutation

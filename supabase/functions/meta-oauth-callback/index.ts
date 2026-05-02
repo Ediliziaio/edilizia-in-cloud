@@ -83,6 +83,27 @@ Deno.serve(async (req) => {
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+      const [profileRes, rolesRes] = await Promise.all([
+        adminClient
+          .from("profiles")
+          .select("company_id")
+          .eq("id", user_id)
+          .maybeSingle(),
+        adminClient
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user_id),
+      ]);
+      const userCompanyId = profileRes.data?.company_id ?? null;
+      const isSuperAdmin = (rolesRes.data ?? []).some((r) => r.role === "super_admin");
+      if (!isSuperAdmin && userCompanyId !== company_id) {
+        console.error("OAuth state user/company validation failed");
+        return new Response(buildRedirectHtml("error", "invalid_state_company"), {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
+
       // Exchange code for short-lived token
       const callbackUrl = `${supabaseUrl}/functions/v1/meta-oauth-callback`;
       const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(callbackUrl)}&client_secret=${metaAppSecret}&code=${code}`;
@@ -311,10 +332,17 @@ function buildRedirectHtml(status: string, detail: string): string {
   const projectRef = supabaseUrl.replace("https://", "").split(".")[0];
   const allowedOriginsJson = JSON.stringify([
     siteUrl,
+    "http://127.0.0.1:8080",
+    "http://localhost:8080",
     `https://${projectRef}.supabase.co`,
   ].filter(Boolean));
   const safeStatus = status === "success" ? "success" : "error";
-  const safeDetail = detail ? detail.replace(/[<>"']/g, "") : "";
+  const safeStatusJson = JSON.stringify(safeStatus);
+  const safeDetailJson = JSON.stringify(detail ? detail.replace(/[<>"']/g, "") : "");
+  const bodyMessage = safeStatus === "success"
+    ? "Autenticazione completata. Puoi chiudere questa finestra."
+    : "Autenticazione fallita. Puoi chiudere questa finestra.";
+  const bodyMessageJson = JSON.stringify(bodyMessage);
   return `<!DOCTYPE html>
 <html>
 <head><title>Meta OAuth</title></head>
@@ -322,15 +350,13 @@ function buildRedirectHtml(status: string, detail: string): string {
 <script>
   var allowedOrigins = ${allowedOriginsJson};
   if (window.opener) {
-    var msg = { type: "META_OAUTH_RESULT", status: "${safeStatus}", detail: "${safeDetail}" };
+    var msg = { type: "META_OAUTH_RESULT", status: ${safeStatusJson}, detail: ${safeDetailJson} };
     allowedOrigins.forEach(function(origin) {
       try { window.opener.postMessage(msg, origin); } catch(e) {}
     });
-    try { window.opener.postMessage(msg, window.location.origin); } catch(e) {}
-    try { window.opener.postMessage(msg, "*"); } catch(e) {}
     window.close();
   } else {
-    document.body.innerHTML = '<p>Autenticazione ${safeStatus === "success" ? "completata" : "fallita"}. Puoi chiudere questa finestra.</p>';
+    document.body.innerHTML = '<p>' + ${bodyMessageJson} + '</p>';
   }
 </script>
 <p>Elaborazione in corso...</p>

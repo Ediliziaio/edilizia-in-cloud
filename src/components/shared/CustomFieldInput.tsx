@@ -1,10 +1,12 @@
 /**
  * Input tipizzato per un campo personalizzato (Sprint C — Catalogo Esteso).
- * Supporta: text, number, date, select.
+ * Supporta i tipi principali configurabili in Impostazioni.
  * I valori sono persistiti in JSONB inline sull'entità host.
  */
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export interface CustomFieldInputProps {
@@ -33,6 +35,46 @@ export function CustomFieldInput({
 
   const renderInput = () => {
     switch (type) {
+      case "textarea":
+        return (
+          <Textarea
+            id={id}
+            disabled={disabled}
+            value={stringVal}
+            onChange={(e) => onChange(e.target.value || null)}
+            rows={3}
+          />
+        );
+
+      case "checkbox":
+        return (
+          <div className="flex h-10 items-center gap-2">
+            <Checkbox
+              id={id}
+              disabled={disabled}
+              checked={value === true || stringVal === "true"}
+              onCheckedChange={(checked) => onChange(checked === true)}
+            />
+            <span className="text-sm text-muted-foreground">Sì / No</span>
+          </div>
+        );
+
+      case "email":
+      case "phone":
+      case "url":
+      case "time":
+        return (
+          <Input
+            id={id}
+            type={type === "phone" ? "tel" : type}
+            disabled={disabled}
+            value={stringVal}
+            onChange={(e) => onChange(e.target.value || null)}
+          />
+        );
+
+      case "currency":
+      case "percent":
       case "number":
         return (
           <Input
@@ -65,6 +107,8 @@ export function CustomFieldInput({
           />
         );
 
+      case "radio":
+      case "multiselect":
       case "select":
         return (
           <Select

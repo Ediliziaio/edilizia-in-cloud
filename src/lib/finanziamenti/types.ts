@@ -80,7 +80,8 @@ export interface RisultatoCalcolo {
     | "durata_non_disponibile"
     | "importo_fuori_range"
     | "tabella_vuota"
-    | "tabella_non_trovata";
+    | "tabella_non_trovata"
+    | "input_non_valido";
   /** Messaggio human-readable in italiano. */
   messaggio?: string;
   /** Durate disponibili nella tabella (per suggerimento UI). */

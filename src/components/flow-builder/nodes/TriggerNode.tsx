@@ -2,7 +2,7 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { getCatalogItem } from "@/lib/flow-node-catalog";
 import { getTriggerIcon } from "./nodeIcons";
-import { Plus } from "lucide-react";
+import { AlertTriangle, Plus } from "lucide-react";
 
 function TriggerNodeComponent({ data, selected }: NodeProps) {
   const catalog = getCatalogItem(data.itemId as string);
@@ -32,7 +32,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   return (
     <div className="relative group">
       <div
-        className={`min-w-[260px] max-w-[300px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-emerald-400 dark:border-emerald-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""}`}
+        className={`min-w-[260px] max-w-[300px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-emerald-400 dark:border-emerald-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""} ${data.hasError ? "!border-destructive ring-1 ring-destructive" : data.hasWarning ? "!border-amber-500 ring-1 ring-amber-300" : ""}`}
       >
         {/* Colored header bar */}
         <div className="flex items-center gap-2 rounded-t-[10px] bg-emerald-50 dark:bg-emerald-950/40 px-4 py-2.5">
@@ -51,6 +51,12 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
           {catalog?.description && (
             <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground line-clamp-2">
               {catalog.description}
+            </p>
+          )}
+          {(data.hasError || data.hasWarning) && (
+            <p className={`mt-1.5 flex items-center gap-1 text-[10px] font-medium ${data.hasError ? "text-destructive" : "text-amber-600"}`}>
+              <AlertTriangle className="h-3 w-3" />
+              Da verificare
             </p>
           )}
         </div>

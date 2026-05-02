@@ -6,8 +6,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
-export function InlineField({ label, value, onSave, type = "text", options }: {
-  label: string; value: string; onSave: (v: string) => void; type?: string; options?: string[];
+export function InlineField({ label, value, onSave, type = "text", options, disabled = false }: {
+  label: string; value: string; onSave: (v: string) => void; type?: string; options?: string[]; disabled?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || "");
@@ -29,7 +29,7 @@ export function InlineField({ label, value, onSave, type = "text", options }: {
     return (
       <div className="grid grid-cols-[120px_1fr] items-center gap-1 py-0.5">
         <Label className="text-xs text-muted-foreground truncate">{label}</Label>
-        <Select value={value || ""} onValueChange={onSave}>
+        <Select value={value || ""} onValueChange={onSave} disabled={disabled}>
           <SelectTrigger className="h-7 text-xs border-0 bg-transparent shadow-none px-1 hover:bg-muted/50"><SelectValue placeholder="—" /></SelectTrigger>
           <SelectContent>
             {options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
@@ -55,8 +55,10 @@ export function InlineField({ label, value, onSave, type = "text", options }: {
       ) : (
         <div className="flex items-center gap-1">
           <p
-            className="text-xs min-h-[32px] flex items-center cursor-pointer hover:bg-muted/50 rounded px-1 flex-1"
-            onClick={() => setEditing(true)}
+            className={`text-xs min-h-[32px] flex items-center rounded px-1 flex-1 ${
+              disabled ? "cursor-default" : "cursor-pointer hover:bg-muted/50"
+            }`}
+            onClick={() => !disabled && setEditing(true)}
           >
             {value || <span className="text-muted-foreground">—</span>}
           </p>

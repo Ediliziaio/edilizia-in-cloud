@@ -13,7 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { loadRenderGalleryMeta, resolveRenderGalleryMeta, type RenderGalleryMeta } from "@/lib/render/renderGalleryMeta";
+import { renderPromptTemplates } from "@/lib/render/renderPromptTemplates";
+import { formatRenderDate, isRenderStale, normalizeRenderStatus } from "@/lib/render/renderStatus";
 import {
+  AlertTriangle,
   Bath,
   Building2,
   CalendarDays,
@@ -36,10 +39,9 @@ import {
   TreePine,
   UserRound,
   Waves,
+  Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { toast } from "sonner";
 
 type CategoryGroup = "all" | "interni" | "involucro" | "outdoor" | "aperture" | "multi";
@@ -332,18 +334,23 @@ export default function RenderCategoryHub() {
 
   const filteredRecent = recentRenders.filter((item) => {
     const linked = Boolean(item.contact_id || item.opportunity_id);
+    const status = normalizeRenderStatus(item.status);
     return (
       (recentTypeFilter === "all" || item.render_type === recentTypeFilter) &&
-      (recentStatusFilter === "all" || item.status === recentStatusFilter) &&
+      (recentStatusFilter === "all" || status === recentStatusFilter) &&
       (crmFilter === "all" || (crmFilter === "linked" ? linked : !linked))
     );
   });
 
   const stats = useMemo(() => {
-    const completed = recentRenders.filter((item) => item.status === "completed").length;
-    const processing = recentRenders.filter((item) => item.status === "processing" || item.status === "pending").length;
+    const completed = recentRenders.filter((item) => normalizeRenderStatus(item.status) === "completed").length;
+    const processing = recentRenders.filter((item) => {
+      const status = normalizeRenderStatus(item.status);
+      return status === "processing" || status === "pending";
+    }).length;
     const linked = recentRenders.filter((item) => item.contact_id || item.opportunity_id).length;
-    return { completed, processing, linked };
+    const stale = recentRenders.filter((item) => isRenderStale(item.status, item.created_at)).length;
+    return { completed, processing, linked, stale };
   }, [recentRenders]);
 
   const handleCategoryClick = (cat: RenderCategory) => {
@@ -414,6 +421,42 @@ export default function RenderCategoryHub() {
           </CardContent>
         </Card>
       </div>
+
+      {stats.stale > 0 && (
+        <Card className="border-orange-200 bg-orange-50/75">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" />
+              <div>
+                <p className="text-sm font-semibold text-orange-950">Ci sono render da verificare</p>
+                <p className="text-sm text-orange-800">
+                  {stats.stale} render risultano in coda o elaborazione da oltre 30 minuti. Controlla il modulo relativo prima di rigenerare per evitare doppie operazioni.
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" className="border-orange-200 bg-white/80" onClick={() => setRecentStatusFilter("processing")}>
+              Filtra in lavorazione
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="border-blue-100 bg-blue-50/50">
+        <CardContent className="grid gap-3 p-4 md:grid-cols-[auto_1fr_auto] md:items-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-700">
+            <Zap className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-blue-950">Controllo costi e generazioni</p>
+            <p className="text-sm text-blue-800">
+              Saldo crediti visibile, stati in lavorazione monitorati e render bloccati evidenziati prima di rigenerare.
+            </p>
+          </div>
+          <div className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs text-blue-900">
+            {stats.processing} in corso · {stats.stale} da verificare
+          </div>
+        </CardContent>
+      </Card>
 
       <section className="space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -512,6 +555,43 @@ export default function RenderCategoryHub() {
       </section>
 
       <section className="space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            Template prompt settoriali
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Tracce operative per mantenere coerenza tecnica, qualità AI e risultati commerciali nei moduli render.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {renderPromptTemplates.map((template) => (
+            <Card key={template.id} className="border-slate-200 bg-slate-50/50">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <Badge variant="outline" className="mb-2 bg-white">
+                      {template.category}
+                    </Badge>
+                    <h3 className="font-semibold">{template.title}</h3>
+                  </div>
+                  <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">{template.description}</p>
+                <div className="rounded-xl border bg-white p-3 text-xs leading-5 text-slate-700">
+                  <span className="font-semibold text-slate-950">Prompt base: </span>
+                  {template.basePrompt}
+                </div>
+                <div className="grid gap-2 text-xs text-muted-foreground">
+                  <p><span className="font-semibold text-foreground">Foto richieste:</span> {template.requiredImages}</p>
+                  <p><span className="font-semibold text-foreground">Output:</span> {template.expectedOutput}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
@@ -605,6 +685,7 @@ export default function RenderCategoryHub() {
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {filteredRecent.slice(0, 16).map((item) => {
               const typeColor = categories.find((cat) => cat.id === item.render_type)?.color ?? "bg-muted text-foreground";
+              const status = normalizeRenderStatus(item.status);
               return (
                 <Card
                   key={`${item.render_type}-${item.id}`}
@@ -631,14 +712,14 @@ export default function RenderCategoryHub() {
                       <Badge variant="secondary" className={`${typeColor} text-[10px] border-0`}>
                         {formatType(item.render_type)}
                       </Badge>
-                      <Badge variant={item.status === "failed" ? "destructive" : "outline"} className="text-[10px]">
-                        {statusLabel[item.status] ?? item.status}
+                      <Badge variant={status === "failed" ? "destructive" : "outline"} className="text-[10px]">
+                        {statusLabel[status] ?? status}
                       </Badge>
                     </div>
                     <div className="space-y-1 text-xs text-muted-foreground">
                       <p className="flex items-center gap-1.5 truncate">
                         <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                        {format(new Date(item.created_at), "d MMM yyyy, HH:mm", { locale: it })}
+                        {formatRenderDate(item.created_at)}
                       </p>
                       {item.meta.createdByName && (
                         <p className="flex items-center gap-1.5 truncate">

@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2 } from "lucide-react";
 import { useOrderDraft } from "@/hooks/useOrderDraft";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
@@ -120,6 +120,22 @@ function CreateOrderInner() {
     .filter(i => i.type !== 'balance')
     .reduce((sum, i) => sum + i.amount, 0);
   const balance = Math.max(0, totalWithVat - nonBalanceSum - fCostForBalance);
+  const overAllocatedPayments = nonBalanceSum + fCostForBalance > totalWithVat + 0.01;
+  const invalidOrderItems = orderItems.filter(
+    (item) =>
+      !item.name.trim() ||
+      !Number.isFinite(item.quantity) ||
+      item.quantity <= 0 ||
+      (item.purchase_price !== undefined && (!Number.isFinite(item.purchase_price) || item.purchase_price < 0)) ||
+      (item.vat_rate !== undefined && (!Number.isFinite(item.vat_rate) || item.vat_rate < 0 || item.vat_rate > 100))
+  );
+  const completionChecks = [
+    { label: "Cliente selezionato", done: !!customerId },
+    { label: "Descrizione lavoro", done: !!description?.trim() && description.trim().length >= 3 },
+    { label: "Importo valido", done: total > 0 && !overAllocatedPayments },
+    { label: "Stato iniziale", done: !!statusId },
+    { label: "Righe ordine coerenti", done: invalidOrderItems.length === 0 },
+  ];
 
   // Payment type change handler
   const handlePaymentTypeChange = (type: PaymentType) => {
@@ -243,7 +259,7 @@ function CreateOrderInner() {
 
       const { data, error } = await supabase
         .from("order_statuses")
-        .select("id, name, position")
+        .select("id, name, color, position, is_default")
         .eq("company_id", effectiveCompany.id)
         .order("position");
 
@@ -258,7 +274,7 @@ function CreateOrderInner() {
   // Set default status when statuses are loaded
   useEffect(() => {
     if (statuses.length > 0 && !statusId) {
-      setValue("status_id", statuses[0].id);
+      setValue("status_id", statuses.find((status) => status.is_default)?.id ?? statuses[0].id);
     }
   }, [statuses, statusId, setValue]);
 
@@ -430,19 +446,19 @@ function CreateOrderInner() {
 
   const onSubmit = (values: OrderFormValues) => {
     const totalVal = parseFloat(values.total_amount) || 0;
-    if (totalVal < 0) {
-      toast.error("Importo non valido", { description: "L'importo totale non può essere negativo." });
+    if (totalVal <= 0) {
+      toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
       return;
     }
 
-    if (orderItems.length > 0) {
-      const invalidItems = orderItems.filter(
-        (item) => !item.name.trim() || item.quantity < 1 || (item.purchase_price !== undefined && item.purchase_price < 0)
-      );
-      if (invalidItems.length > 0) {
-        toast.error("Articoli non validi", { description: "Verifica che tutti gli articoli abbiano un nome, quantità ≥ 1 e prezzo d'acquisto non negativo." });
-        return;
-      }
+    if (invalidOrderItems.length > 0) {
+      toast.error("Articoli non validi", { description: "Verifica nome, quantità, costo d'acquisto e IVA di tutte le righe." });
+      return;
+    }
+
+    if (overAllocatedPayments) {
+      toast.error("Scadenze non coerenti", { description: "Acconti, finanziamento e costi finanziaria superano il totale IVA inclusa." });
+      return;
     }
 
     // Warning: expected dates in the past
@@ -549,6 +565,33 @@ function CreateOrderInner() {
         </Alert>
       )}
 
+      <Alert className="border-slate-200 bg-white">
+        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+        <AlertDescription>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium text-slate-900">Checklist ordine</p>
+              <p className="text-xs text-slate-500">Controlli minimi prima del salvataggio.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {completionChecks.map((check) => (
+                <span
+                  key={check.label}
+                  className={cn(
+                    "rounded-full border px-2 py-1 text-xs font-medium",
+                    check.done
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-amber-200 bg-amber-50 text-amber-700"
+                  )}
+                >
+                  {check.done ? "OK" : "Da fare"} · {check.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        </AlertDescription>
+      </Alert>
+
       <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Main Form */}
@@ -579,11 +622,12 @@ function CreateOrderInner() {
                     control={control}
                     name="customer_id"
                     render={({ field }) => (
-                      <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <Select value={field.value || "__none__"} onValueChange={(value) => field.onChange(value === "__none__" ? "" : value)}>
                         <SelectTrigger className="flex-1">
                           <SelectValue placeholder="Seleziona un cliente" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="__none__" disabled>Seleziona un cliente</SelectItem>
                           {customers.map((customer) => (
                             <SelectItem key={customer.id} value={customer.id}>
                               {customer.first_name} {customer.last_name} ({customer.email})
@@ -636,11 +680,12 @@ function CreateOrderInner() {
                 render={({ field }) => (
                   <div className="space-y-2">
                     <Label>Stato Iniziale</Label>
-                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                    <Select value={field.value || "__none__"} onValueChange={(value) => field.onChange(value === "__none__" ? "" : value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleziona stato" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="__none__" disabled>Seleziona stato</SelectItem>
                         {statuses.map((status) => (
                           <SelectItem key={status.id} value={status.id}>
                             {status.name}

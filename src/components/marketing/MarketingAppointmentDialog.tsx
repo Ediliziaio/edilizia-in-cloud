@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { CalendarDays, Trash2, Plus, Clock, Ban, Car, Loader2 } from "lucide-react";
+import { CalendarDays, Trash2, Plus, Clock, Ban, Car, Loader2, ChevronsUpDown, Check, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -76,7 +77,7 @@ interface Props {
   defaultContactId?: string;
 }
 
-import { addMinutesToTimeStr as addMinutesToTime } from "@/lib/marketingCalendarConstants";
+import { addMinutesToTimeStr as addMinutesToTime, timeToMin } from "@/lib/marketingCalendarConstants";
 
 export default function MarketingAppointmentDialog({
   open,
@@ -108,6 +109,7 @@ export default function MarketingAppointmentDialog({
   const [saving, setSaving] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [addressData, setAddressData] = useState<AddressData>(emptyAddress);
 
   // Auto-select single calendar
@@ -120,6 +122,12 @@ export default function MarketingAppointmentDialog({
   const selectedCalendar = useMemo(() => {
     return calendars.find((c) => c.id === calendarId) || null;
   }, [calendars, calendarId]);
+
+  const timeError = useMemo(() => {
+    if (!startTime || !endTime) return "Inserisci ora di inizio e ora di fine.";
+    if (timeToMin(endTime) <= timeToMin(startTime)) return "L'ora di fine deve essere successiva all'ora di inizio.";
+    return "";
+  }, [endTime, startTime]);
 
   useEffect(() => {
     if (!open) return;
@@ -166,18 +174,15 @@ export default function MarketingAppointmentDialog({
     }
   }, [appointment, open, defaultDate, defaultTime, defaultCalendarId, defaultContactId]);
 
-  // Update end time when calendar changes (non-editing only)
-  // Sprint UX: fix deps array — prima usava solo [calendarId], ora include
-  // isEditing/defaultCalendarId/calendars/startTime per coerenza.
+  // Update end time when calendar/duration changes for new appointments.
   useEffect(() => {
-    if (!isEditing && calendarId && calendarId !== "none" && calendarId !== defaultCalendarId) {
+    if (!isEditing && calendarId && calendarId !== "none" && startTime) {
       const cal = calendars.find((c) => c.id === calendarId);
       if (cal?.duration_minutes && startTime) {
         setEndTime(addMinutesToTime(startTime, cal.duration_minutes));
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calendarId, isEditing, defaultCalendarId]);
+  }, [calendarId, calendars, isEditing, startTime]);
 
   // Contacts search
   const { data: contacts = [] } = useQuery({
@@ -194,6 +199,10 @@ export default function MarketingAppointmentDialog({
     },
     enabled: open && !!companyId,
   });
+
+  const selectedContact = useMemo(() => {
+    return contacts.find((c) => c.id === contactId) || null;
+  }, [contacts, contactId]);
 
   // Distance from calendar base
   const { data: baseDistance } = useQuery({
@@ -223,19 +232,20 @@ export default function MarketingAppointmentDialog({
   // Same-day appointments
   const dateStr = appointmentDate ? format(appointmentDate, "yyyy-MM-dd") : null;
   const { data: sameDayAppointments = [] } = useQuery({
-    queryKey: ["mkt-apt-same-day", calendarId, dateStr],
+    queryKey: ["mkt-apt-same-day", companyId, calendarId, dateStr],
     queryFn: async () => {
-      if (!calendarId || !dateStr) return [];
+      if (!companyId || !calendarId || !dateStr) return [];
       const { data, error } = await supabase
         .from("appointments")
         .select("id, title, appointment_time, formatted_address, lat, lng")
+        .eq("company_id", companyId)
         .eq("calendar_id", calendarId)
         .eq("appointment_date", dateStr)
         .neq("status", "annullato");
       if (error) return [];
       return (data || []).filter((a) => a.id !== appointment?.id);
     },
-    enabled: open && !!calendarId && !!dateStr,
+    enabled: open && !!companyId && !!calendarId && !!dateStr,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -329,7 +339,7 @@ export default function MarketingAppointmentDialog({
       toast({ title: "Inserisci orario inizio e fine", variant: "destructive" });
       return;
     }
-    if (endTime <= startTime) {
+    if (timeToMin(endTime) <= timeToMin(startTime)) {
       toast({ title: "L'ora di fine deve essere successiva all'ora di inizio", variant: "destructive" });
       return;
     }
@@ -383,13 +393,17 @@ export default function MarketingAppointmentDialog({
       // Sync address to contact
       const effectiveContactId = !isBlocked && contactId && contactId !== "none" ? contactId : null;
       if (effectiveContactId && addressData.address_line) {
-        await supabase.from("marketing_contacts").update({
-          address: addressData.address_line,
-          city: addressData.address_city || null,
-          postal_code: addressData.address_postal_code || null,
-          province: addressData.address_province || null,
-          country: addressData.address_country || "Italia",
-        }).eq("id", effectiveContactId);
+        await supabase
+          .from("marketing_contacts")
+          .update({
+            address: addressData.address_line,
+            city: addressData.address_city || null,
+            postal_code: addressData.address_postal_code || null,
+            province: addressData.address_province || null,
+            country: addressData.address_country || "Italia",
+          })
+          .eq("id", effectiveContactId)
+          .eq("company_id", companyId);
       }
 
       onSaved();
@@ -454,9 +468,19 @@ export default function MarketingAppointmentDialog({
             <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr] gap-6">
               {/* Left column */}
               <div className="space-y-4">
+                {calendars.length === 0 && (
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="font-medium">Nessun calendario CRM configurato</p>
+                      <p className="text-xs opacity-80">Configura un calendario prima di prenotare appuntamenti o bloccare fasce orarie.</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label>Calendario *</Label>
-                  <Select value={calendarId} onValueChange={setCalendarId}>
+                  <Select value={calendarId} onValueChange={setCalendarId} disabled={calendars.length === 0}>
                     <SelectTrigger><SelectValue placeholder="Seleziona calendario" /></SelectTrigger>
                     <SelectContent>
                       {calendars.map((c) => (
@@ -560,7 +584,7 @@ export default function MarketingAppointmentDialog({
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-semibold">Data e ora</Label>
-                    <span className="text-xs text-muted-foreground">Fuso orario: CET</span>
+                    <span className="text-xs text-muted-foreground">Fuso orario: Europe/Rome</span>
                   </div>
 
                   <div className="space-y-2">
@@ -587,7 +611,7 @@ export default function MarketingAppointmentDialog({
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label htmlFor="start-time" className="text-xs">Ora inizio *</Label>
-                      <Input id="start-time" type="time" value={startTime} onChange={(e) => {
+                      <Input id="start-time" type="time" step={900} value={startTime} onChange={(e) => {
                         setStartTime(e.target.value);
                         if (e.target.value) {
                           const dur = selectedCalendar?.duration_minutes || 60;
@@ -597,9 +621,12 @@ export default function MarketingAppointmentDialog({
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="end-time" className="text-xs">Ora fine *</Label>
-                      <Input id="end-time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                      <Input id="end-time" type="time" step={900} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                     </div>
                   </div>
+                  {timeError && (
+                    <p className="text-xs font-medium text-destructive">{timeError}</p>
+                  )}
                 </div>
               </div>
 
@@ -614,16 +641,53 @@ export default function MarketingAppointmentDialog({
                     <span className="text-[10px] text-muted-foreground font-normal">(contatto CRM)</span>
                   </Label>
                   <div>
-                  <Select value={contactId} onValueChange={setContactId}>
-                    <SelectTrigger><SelectValue placeholder="Cerca contatto..." /></SelectTrigger>
-                    <SelectContent>
-                      {contacts.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.first_name} {c.last_name || ""} {c.email ? `(${c.email})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <Popover open={contactPickerOpen} onOpenChange={setContactPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={contactPickerOpen}
+                          className={cn("w-full justify-between", !selectedContact && "text-muted-foreground")}
+                        >
+                          <span className="truncate">
+                            {selectedContact
+                              ? `${selectedContact.first_name} ${selectedContact.last_name || ""}${selectedContact.email ? ` (${selectedContact.email})` : ""}`
+                              : "Cerca e seleziona contatto..."}
+                          </span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[min(420px,calc(100vw-2rem))] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Cerca per nome o email..." />
+                          <CommandList>
+                            <CommandEmpty>Nessun contatto trovato.</CommandEmpty>
+                            <CommandGroup>
+                              {contacts.map((c) => {
+                                const label = `${c.first_name} ${c.last_name || ""}${c.email ? ` ${c.email}` : ""}`.trim();
+                                return (
+                                  <CommandItem
+                                    key={c.id}
+                                    value={label}
+                                    onSelect={() => {
+                                      setContactId(c.id);
+                                      setContactPickerOpen(false);
+                                    }}
+                                  >
+                                    <Check className={cn("mr-2 h-4 w-4", contactId === c.id ? "opacity-100" : "opacity-0")} />
+                                    <span className="min-w-0 flex-1 truncate">
+                                      {c.first_name} {c.last_name || ""}
+                                      {c.email && <span className="ml-1 text-muted-foreground">({c.email})</span>}
+                                    </span>
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <p className="text-[10px] text-muted-foreground">
                     Persona esterna per cui è l'appuntamento (prospect o cliente).
@@ -685,7 +749,7 @@ export default function MarketingAppointmentDialog({
               <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-semibold">Data e ora</Label>
-                  <span className="text-xs text-muted-foreground">Fuso orario: CET</span>
+                  <span className="text-xs text-muted-foreground">Fuso orario: Europe/Rome</span>
                 </div>
 
                 <div className="space-y-2">
@@ -712,16 +776,19 @@ export default function MarketingAppointmentDialog({
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label htmlFor="blocked-start" className="text-xs">Ora inizio *</Label>
-                    <Input id="blocked-start" type="time" value={startTime} onChange={(e) => {
+                    <Input id="blocked-start" type="time" step={900} value={startTime} onChange={(e) => {
                       setStartTime(e.target.value);
                       if (e.target.value) setEndTime(addMinutesToTime(e.target.value, 30));
                     }} />
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="blocked-end" className="text-xs">Ora fine *</Label>
-                    <Input id="blocked-end" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                    <Input id="blocked-end" type="time" step={900} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                   </div>
                 </div>
+                {timeError && (
+                  <p className="text-xs font-medium text-destructive">{timeError}</p>
+                )}
               </div>
             </div>
           </TabsContent>
@@ -758,7 +825,7 @@ export default function MarketingAppointmentDialog({
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Annulla
             </Button>
-            <Button onClick={handleSave} disabled={saving} className="gap-2">
+            <Button onClick={handleSave} disabled={saving || calendars.length === 0 || !!timeError} className="gap-2">
               {saving && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
               {saving
                 ? "Salvataggio..."

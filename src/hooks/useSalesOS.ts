@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { queryKeys } from '@/lib/queryKeys';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import {
   calculateLeadScoreWithConfig,
   getIcpTierWithConfig,
@@ -117,35 +118,202 @@ export interface LeadScoreContact {
 
 export const salesOSKeys = {
   all: ['sales-os'] as const,
-  weightedPipeline: (companyId: string) =>
-    [...salesOSKeys.all, 'weighted-pipeline', companyId] as const,
-  forecast: (companyId: string, months: number) =>
-    [...salesOSKeys.all, 'forecast', companyId, months] as const,
-  stalled: (companyId: string) =>
-    [...salesOSKeys.all, 'stalled', companyId] as const,
+  weightedPipeline: (companyId: string, scope = 'all') =>
+    [...salesOSKeys.all, 'weighted-pipeline', companyId, scope] as const,
+  forecast: (companyId: string, months: number, scope = 'all') =>
+    [...salesOSKeys.all, 'forecast', companyId, months, scope] as const,
+  stalled: (companyId: string, scope = 'all') =>
+    [...salesOSKeys.all, 'stalled', companyId, scope] as const,
   velocity: (companyId: string, daysBack: number) =>
     [...salesOSKeys.all, 'velocity', companyId, daysBack] as const,
   targets: (companyId: string, year: number) =>
     [...salesOSKeys.all, 'targets', companyId, year] as const,
-  sellerPerformance: (companyId: string, dateFrom: string, dateTo: string) =>
-    [...salesOSKeys.all, 'seller-perf', companyId, dateFrom, dateTo] as const,
-  conversionBySource: (companyId: string, dateFrom: string | null) =>
-    [...salesOSKeys.all, 'conversion-source', companyId, dateFrom ?? 'all'] as const,
-  topLeads: (companyId: string, limit: number = 10) =>
-    [...salesOSKeys.all, 'top-leads', companyId, limit] as const,
-  quoteRevenue: (companyId: string, dateFrom: string, dateTo: string) =>
-    [...salesOSKeys.all, 'quote-revenue', companyId, dateFrom, dateTo] as const,
+  sellerPerformance: (companyId: string, dateFrom: string, dateTo: string, scope = 'all') =>
+    [...salesOSKeys.all, 'seller-perf', companyId, dateFrom, dateTo, scope] as const,
+  conversionBySource: (companyId: string, dateFrom: string | null, scope = 'all') =>
+    [...salesOSKeys.all, 'conversion-source', companyId, dateFrom ?? 'all', scope] as const,
+  topLeads: (companyId: string, limit: number = 10, scope = 'all') =>
+    [...salesOSKeys.all, 'top-leads', companyId, limit, scope] as const,
+  quoteRevenue: (companyId: string, dateFrom: string, dateTo: string, scope = 'all') =>
+    [...salesOSKeys.all, 'quote-revenue', companyId, dateFrom, dateTo, scope] as const,
 };
 
 // ============================================================
 // HOOKS
 // ============================================================
 
+function shouldRestrictToAssigned(
+  permissions: ReturnType<typeof usePermissions>,
+  userId?: string | null,
+) {
+  return permissions.onlyAssigned && !!userId;
+}
+
+function salesOSScopeKey(restrictToAssigned: boolean, userId?: string | null) {
+  return restrictToAssigned ? `assigned:${userId}` : 'all';
+}
+
+function clampProbability(value: unknown, fallback = 50) {
+  const numeric = Number(value ?? fallback);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(100, Math.max(0, numeric));
+}
+
+function firstDayOfMonth(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+async function fetchAssignedWeightedPipeline(
+  companyId: string,
+  userId: string,
+): Promise<WeightedPipelineStage[]> {
+  const { data: opportunities, error } = await supabase
+    .from('marketing_opportunities')
+    .select('pipeline_id, stage_id, value, probability')
+    .eq('company_id', companyId)
+    .eq('assigned_to', userId)
+    .eq('status', 'open');
+  if (error) throw error;
+  if (!opportunities?.length) return [];
+
+  const pipelineIds = [...new Set(opportunities.map((opp) => opp.pipeline_id).filter(Boolean))];
+  const stageIds = [...new Set(opportunities.map((opp) => opp.stage_id).filter(Boolean))];
+
+  const [pipelinesResult, stagesResult] = await Promise.all([
+    supabase.from('marketing_pipelines').select('id, name').eq('company_id', companyId).in('id', pipelineIds),
+    supabase
+      .from('marketing_pipeline_stages')
+      .select('id, pipeline_id, name, position, win_probability')
+      .eq('company_id', companyId)
+      .in('id', stageIds),
+  ]);
+  if (pipelinesResult.error) throw pipelinesResult.error;
+  if (stagesResult.error) throw stagesResult.error;
+
+  const pipelineMap = new Map((pipelinesResult.data ?? []).map((pipeline) => [pipeline.id, pipeline.name]));
+  const stageMap = new Map((stagesResult.data ?? []).map((stage) => [stage.id, stage]));
+  const grouped = new Map<string, WeightedPipelineStage & { probability_sum: number }>();
+
+  for (const opp of opportunities) {
+    const stage = stageMap.get(opp.stage_id);
+    const key = `${opp.pipeline_id}:${opp.stage_id}`;
+    const probability = clampProbability(opp.probability ?? stage?.win_probability);
+    const value = Number(opp.value ?? 0);
+    const current = grouped.get(key) ?? {
+      pipeline_id: opp.pipeline_id,
+      pipeline_name: pipelineMap.get(opp.pipeline_id) ?? 'Pipeline',
+      stage_id: opp.stage_id,
+      stage_name: stage?.name ?? 'Fase',
+      stage_position: stage?.position ?? 0,
+      opportunity_count: 0,
+      total_value: 0,
+      weighted_value: 0,
+      avg_probability: 0,
+      probability_sum: 0,
+    };
+    current.opportunity_count += 1;
+    current.total_value += value;
+    current.weighted_value += value * (probability / 100);
+    current.probability_sum += probability;
+    current.avg_probability = current.probability_sum / current.opportunity_count;
+    grouped.set(key, current);
+  }
+
+  return Array.from(grouped.values())
+    .map(({ probability_sum: _probabilitySum, ...stage }) => stage)
+    .sort((a, b) => a.pipeline_name.localeCompare(b.pipeline_name) || a.stage_position - b.stage_position);
+}
+
+async function fetchAssignedSalesForecast(
+  companyId: string,
+  userId: string,
+  monthsAhead: number,
+): Promise<SalesForecastMonth[]> {
+  const today = new Date();
+  const end = new Date(today.getFullYear(), today.getMonth() + monthsAhead + 1, 1);
+  const { data, error } = await supabase
+    .from('marketing_opportunities')
+    .select('expected_close_date, value, probability')
+    .eq('company_id', companyId)
+    .eq('assigned_to', userId)
+    .eq('status', 'open')
+    .not('expected_close_date', 'is', null)
+    .gte('expected_close_date', firstDayOfMonth(today))
+    .lt('expected_close_date', firstDayOfMonth(end));
+  if (error) throw error;
+
+  const months = new Map<string, SalesForecastMonth>();
+  for (const opp of data ?? []) {
+    const date = new Date(opp.expected_close_date!);
+    const month = firstDayOfMonth(date);
+    const current = months.get(month) ?? {
+      forecast_month: month,
+      expected_revenue: 0,
+      weighted_revenue: 0,
+      opportunity_count: 0,
+    };
+    const value = Number(opp.value ?? 0);
+    current.expected_revenue += value;
+    current.weighted_revenue += value * (clampProbability(opp.probability) / 100);
+    current.opportunity_count += 1;
+    months.set(month, current);
+  }
+
+  return Array.from(months.values()).sort((a, b) => a.forecast_month.localeCompare(b.forecast_month));
+}
+
+async function fetchAssignedSalesVelocity(
+  companyId: string,
+  userId: string,
+  daysBack: number,
+): Promise<SalesVelocity | null> {
+  const since = new Date(Date.now() - daysBack * 86400000).toISOString();
+  const { data, error } = await supabase
+    .from('marketing_opportunities')
+    .select('status, value, created_at, updated_at')
+    .eq('company_id', companyId)
+    .eq('assigned_to', userId)
+    .or(`status.eq.open,updated_at.gte.${since}`);
+  if (error) throw error;
+
+  const rows = data ?? [];
+  const open = rows.filter((opp) => opp.status === 'open');
+  const won = rows.filter((opp) => opp.status === 'won' && opp.updated_at >= since);
+  const lost = rows.filter((opp) => opp.status === 'lost' && opp.updated_at >= since);
+  const closedCount = won.length + lost.length;
+  const wonValue = won.reduce((sum, opp) => sum + Number(opp.value ?? 0), 0);
+  const avgDealSize = won.length > 0 ? wonValue / won.length : 0;
+  const avgCycleDays = won.length > 0
+    ? won.reduce((sum, opp) => {
+        const created = new Date(opp.created_at).getTime();
+        const updated = new Date(opp.updated_at).getTime();
+        return sum + Math.max(1, Math.round((updated - created) / 86400000));
+      }, 0) / won.length
+    : 0;
+  const winRate = closedCount > 0 ? (won.length / closedCount) * 100 : 0;
+
+  return {
+    open_opportunities: open.length,
+    win_rate: winRate,
+    avg_deal_size: avgDealSize,
+    avg_cycle_days: avgCycleDays,
+    sales_velocity: avgCycleDays > 0 ? (open.length * avgDealSize * (winRate / 100)) / avgCycleDays : 0,
+  };
+}
+
 export function useWeightedPipeline(companyId: string | null) {
+  const { user } = useAuth();
+  const permissions = usePermissions();
+  const restrictToAssigned = shouldRestrictToAssigned(permissions, user?.id);
+  const scope = salesOSScopeKey(restrictToAssigned, user?.id);
+
   return useQuery({
-    queryKey: salesOSKeys.weightedPipeline(companyId ?? ''),
+    queryKey: salesOSKeys.weightedPipeline(companyId ?? '', scope),
     enabled: !!companyId,
     queryFn: async (): Promise<WeightedPipelineStage[]> => {
+      if (restrictToAssigned && user?.id) {
+        return fetchAssignedWeightedPipeline(companyId!, user.id);
+      }
       const { data, error } = await supabase
         .rpc('get_weighted_pipeline', { p_company_id: companyId! });
       if (error) throw error;
@@ -162,10 +330,18 @@ export function useWeightedPipeline(companyId: string | null) {
 }
 
 export function useSalesForecast(companyId: string | null, monthsAhead = 3) {
+  const { user } = useAuth();
+  const permissions = usePermissions();
+  const restrictToAssigned = shouldRestrictToAssigned(permissions, user?.id);
+  const scope = salesOSScopeKey(restrictToAssigned, user?.id);
+
   return useQuery({
-    queryKey: salesOSKeys.forecast(companyId ?? '', monthsAhead),
+    queryKey: salesOSKeys.forecast(companyId ?? '', monthsAhead, scope),
     enabled: !!companyId,
     queryFn: async (): Promise<SalesForecastMonth[]> => {
+      if (restrictToAssigned && user?.id) {
+        return fetchAssignedSalesForecast(companyId!, user.id, monthsAhead);
+      }
       const { data, error } = await supabase
         .rpc('get_sales_forecast', {
           p_company_id: companyId!,
@@ -184,8 +360,13 @@ export function useSalesForecast(companyId: string | null, monthsAhead = 3) {
 }
 
 export function useStalledOpportunities(companyId: string | null) {
+  const { user } = useAuth();
+  const permissions = usePermissions();
+  const restrictToAssigned = shouldRestrictToAssigned(permissions, user?.id);
+  const scope = salesOSScopeKey(restrictToAssigned, user?.id);
+
   return useQuery({
-    queryKey: salesOSKeys.stalled(companyId ?? ''),
+    queryKey: salesOSKeys.stalled(companyId ?? '', scope),
     enabled: !!companyId,
     queryFn: async (): Promise<StalledOpportunity[]> => {
       const { data, error } = await supabase
@@ -196,17 +377,25 @@ export function useStalledOpportunities(companyId: string | null) {
         days_stalled: Number(row.days_stalled),
         stalled_threshold: Number(row.stalled_threshold),
         value: Number(row.value),
-      }));
+      })).filter((row: StalledOpportunity) => !restrictToAssigned || row.assigned_to === user?.id);
     },
     staleTime: 1000 * 60 * 5,
   });
 }
 
 export function useSalesVelocity(companyId: string | null, daysBack = 90) {
+  const { user } = useAuth();
+  const permissions = usePermissions();
+  const restrictToAssigned = shouldRestrictToAssigned(permissions, user?.id);
+  const scope = salesOSScopeKey(restrictToAssigned, user?.id);
+
   return useQuery({
-    queryKey: salesOSKeys.velocity(companyId ?? '', daysBack),
+    queryKey: [...salesOSKeys.velocity(companyId ?? '', daysBack), scope],
     enabled: !!companyId,
     queryFn: async (): Promise<SalesVelocity | null> => {
+      if (restrictToAssigned && user?.id) {
+        return fetchAssignedSalesVelocity(companyId!, user.id, daysBack);
+      }
       const { data, error } = await supabase
         .rpc('get_sales_velocity', {
           p_company_id: companyId!,
@@ -228,16 +417,23 @@ export function useSalesVelocity(companyId: string | null, daysBack = 90) {
 }
 
 export function useSalesTargets(companyId: string | null, year: number) {
+  const { user } = useAuth();
+  const permissions = usePermissions();
+  const restrictToAssigned = shouldRestrictToAssigned(permissions, user?.id);
+  const scope = salesOSScopeKey(restrictToAssigned, user?.id);
+
   return useQuery({
-    queryKey: salesOSKeys.targets(companyId ?? '', year),
+    queryKey: [...salesOSKeys.targets(companyId ?? '', year), scope],
     enabled: !!companyId,
     queryFn: async (): Promise<SalesTarget[]> => {
-      const { data, error } = await supabase
+      let query: any = supabase
         .from('sales_targets')
         .select('*')
         .eq('company_id', companyId!)
         .eq('year', year)
         .order('month', { ascending: true });
+      if (restrictToAssigned && user?.id) query = query.eq('assigned_to', user.id);
+      const { data, error } = await query;
       if (error) throw error;
       return data ?? [];
     },
@@ -249,8 +445,13 @@ export function useSellerPerformance(
   dateFrom: string, // ISO YYYY-MM-DD inclusive
   dateTo: string    // ISO YYYY-MM-DD exclusive
 ) {
+  const { user } = useAuth();
+  const permissions = usePermissions();
+  const restrictToAssigned = shouldRestrictToAssigned(permissions, user?.id);
+  const scope = salesOSScopeKey(restrictToAssigned, user?.id);
+
   return useQuery({
-    queryKey: salesOSKeys.sellerPerformance(companyId ?? '', dateFrom, dateTo),
+    queryKey: salesOSKeys.sellerPerformance(companyId ?? '', dateFrom, dateTo, scope),
     enabled: !!companyId,
     queryFn: async (): Promise<SellerPerformance[]> => {
       // Sprint 2: derive year/month from range start to look up matching target
@@ -259,20 +460,24 @@ export function useSellerPerformance(
       const month = refDate.getMonth() + 1;
 
       // Sprint 1.4: query parallele invece di seriali (-30ms latency)
-      const [oppsResult, targetsResult] = await Promise.all([
-        supabase
-          .from('marketing_opportunities')
-          .select('assigned_to, status, value, created_at')
-          .eq('company_id', companyId!)
-          .gte('updated_at', dateFrom)
-          .lt('updated_at', dateTo),
-        supabase
-          .from('sales_targets')
-          .select('assigned_to, target_amount')
-          .eq('company_id', companyId!)
-          .eq('year', year)
-          .eq('month', month),
-      ]);
+      let oppsQuery: any = supabase
+        .from('marketing_opportunities')
+        .select('assigned_to, status, value, created_at')
+        .eq('company_id', companyId!)
+        .gte('updated_at', dateFrom)
+        .lt('updated_at', dateTo);
+      let targetsQuery: any = supabase
+        .from('sales_targets')
+        .select('assigned_to, target_amount')
+        .eq('company_id', companyId!)
+        .eq('year', year)
+        .eq('month', month);
+      if (restrictToAssigned && user?.id) {
+        oppsQuery = oppsQuery.eq('assigned_to', user.id);
+        targetsQuery = targetsQuery.eq('assigned_to', user.id);
+      }
+
+      const [oppsResult, targetsResult] = await Promise.all([oppsQuery, targetsQuery]);
       if (oppsResult.error) throw oppsResult.error;
       if (targetsResult.error) throw targetsResult.error;
       const opps = oppsResult.data;
@@ -322,7 +527,7 @@ export function useSellerPerformance(
         } else if (opp.status === 'open') {
           seller.open_count++;
           seller.open_value += value;
-        } else {
+        } else if (opp.status === 'lost') {
           seller.lost_count++;
         }
       });
@@ -353,16 +558,22 @@ export function useSellerPerformance(
 }
 
 export function useConversionBySource(companyId: string | null, dateFrom: string | null = null) {
+  const { user } = useAuth();
+  const permissions = usePermissions();
+  const restrictToAssigned = shouldRestrictToAssigned(permissions, user?.id);
+  const scope = salesOSScopeKey(restrictToAssigned, user?.id);
+
   return useQuery({
-    queryKey: salesOSKeys.conversionBySource(companyId ?? '', dateFrom),
+    queryKey: salesOSKeys.conversionBySource(companyId ?? '', dateFrom, scope),
     enabled: !!companyId,
     queryFn: async (): Promise<ConversionBySource[]> => {
-      let q = supabase
+      let q: any = supabase
         .from('marketing_opportunities')
         .select('source, status, value')
         .eq('company_id', companyId!)
         .not('source', 'is', null);
       if (dateFrom) q = q.gte('created_at', dateFrom);
+      if (restrictToAssigned && user?.id) q = q.eq('assigned_to', user.id);
       const { data, error } = await q;
       if (error) throw error;
 
@@ -407,11 +618,16 @@ export function useConversionBySource(companyId: string | null, dateFrom: string
 }
 
 export function useTopLeads(companyId: string | null, limit = 20) {
+  const { user } = useAuth();
+  const permissions = usePermissions();
+  const restrictToAssigned = shouldRestrictToAssigned(permissions, user?.id);
+  const scope = salesOSScopeKey(restrictToAssigned, user?.id);
+
   return useQuery({
-    queryKey: salesOSKeys.topLeads(companyId ?? '', limit),
+    queryKey: salesOSKeys.topLeads(companyId ?? '', limit, scope),
     enabled: !!companyId,
     queryFn: async (): Promise<LeadScoreContact[]> => {
-      const { data, error } = await supabase
+      let q: any = supabase
         .from('marketing_contacts')
         .select(`
           id,
@@ -430,6 +646,8 @@ export function useTopLeads(companyId: string | null, limit = 20) {
         .eq('company_id', companyId!)
         .order('lead_score', { ascending: false })
         .limit(limit);
+      if (restrictToAssigned && user?.id) q = q.eq('assigned_to', user.id);
+      const { data, error } = await q;
       if (error) throw error;
 
       return (data ?? []).map((c: any) => ({
@@ -469,29 +687,43 @@ export function useQuoteRevenue(
   dateFrom: string,
   dateTo: string,
 ) {
+  const { user } = useAuth();
+  const permissions = usePermissions();
+  const restrictToAssigned = shouldRestrictToAssigned(permissions, user?.id);
+  const scope = salesOSScopeKey(restrictToAssigned, user?.id);
+
   return useQuery({
-    queryKey: salesOSKeys.quoteRevenue(companyId ?? '', dateFrom, dateTo),
+    queryKey: salesOSKeys.quoteRevenue(companyId ?? '', dateFrom, dateTo, scope),
     enabled: !!companyId,
     queryFn: async (): Promise<QuoteRevenueSummary> => {
+      let periodQuery: any = supabase
+        .from('quotes')
+        .select('status, total, signed_at, created_at')
+        .eq('company_id', companyId!)
+        .gte('created_at', dateFrom)
+        .lt('created_at', dateTo);
+      let activeQuery: any = supabase
+        .from('quotes')
+        .select('status, total')
+        .eq('company_id', companyId!)
+        .eq('status', 'inviata');
+      let oppsWithQuoteQuery: any = supabase
+        .from('marketing_opportunities')
+        .select('id, quotes!inner(id, status)')
+        .eq('company_id', companyId!)
+        .eq('status', 'open')
+        .in('quotes.status', ['inviata', 'accettata', 'convertita']);
+      if (restrictToAssigned && user?.id) {
+        periodQuery = periodQuery.eq('assigned_to', user.id);
+        activeQuery = activeQuery.eq('assigned_to', user.id);
+        oppsWithQuoteQuery = oppsWithQuoteQuery.eq('assigned_to', user.id);
+      }
+
       // Tutte le quote del periodo (per status) + quote attive open (indipendenti dal periodo)
       const [periodResult, activeResult, oppsWithQuoteResult] = await Promise.all([
-        supabase
-          .from('quotes')
-          .select('status, total, signed_at, created_at')
-          .eq('company_id', companyId!)
-          .gte('created_at', dateFrom)
-          .lt('created_at', dateTo),
-        supabase
-          .from('quotes')
-          .select('status, total')
-          .eq('company_id', companyId!)
-          .eq('status', 'inviata'),
-        supabase
-          .from('marketing_opportunities')
-          .select('id, quotes!inner(id, status)')
-          .eq('company_id', companyId!)
-          .eq('status', 'open')
-          .in('quotes.status', ['inviata', 'accettata', 'convertita']),
+        periodQuery,
+        activeQuery,
+        oppsWithQuoteQuery,
       ]);
 
       if (periodResult.error) throw periodResult.error;
@@ -542,6 +774,10 @@ export function useQuoteRevenue(
 
 export function useUpdateOpportunityMutation() {
   const queryClient = useQueryClient();
+  const { effectiveCompany, user } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
+
   return useMutation({
     mutationFn: async ({
       id,
@@ -559,10 +795,29 @@ export function useUpdateOpportunityMutation() {
         status: string;
       }>;
     }) => {
-      const { error } = await supabase
+      if (!companyId) throw new Error('Azienda non selezionata');
+      if (!(permissions.canEditMarketingOpportunities || permissions.canEditMarketing)) {
+        throw new Error('Non hai i permessi per modificare opportunità');
+      }
+      if (data.probability !== undefined && data.probability !== null) {
+        const probability = Number(data.probability);
+        if (!Number.isFinite(probability) || probability < 0 || probability > 100) {
+          throw new Error('La probabilità deve essere un numero tra 0 e 100');
+        }
+      }
+      if (data.status === 'lost' && !data.lost_reason_category && !data.lost_reason) {
+        throw new Error("Indica il motivo prima di segnare l'opportunità come persa");
+      }
+
+      let query: any = supabase
         .from('marketing_opportunities')
         .update({ ...data, updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('company_id', companyId);
+      if (shouldRestrictToAssigned(permissions, user?.id)) {
+        query = query.eq('assigned_to', user!.id);
+      }
+      const { error } = await query;
       if (error) throw error;
     },
     onSuccess: () => {
@@ -574,11 +829,37 @@ export function useUpdateOpportunityMutation() {
 
 export function useUpsertSalesTargetMutation() {
   const queryClient = useQueryClient();
+  const { effectiveCompany, user } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
+
   return useMutation({
     mutationFn: async (target: Omit<SalesTarget, 'id'>) => {
+      if (!companyId) throw new Error('Azienda non selezionata');
+      if (!(permissions.canEditMarketingOpportunities || permissions.canEditMarketing)) {
+        throw new Error('Non hai i permessi per modificare gli obiettivi commerciali');
+      }
+      if (target.company_id !== companyId) {
+        throw new Error("L'obiettivo non appartiene all'azienda selezionata");
+      }
+      if (shouldRestrictToAssigned(permissions, user?.id) && target.assigned_to !== user?.id) {
+        throw new Error('Puoi modificare solo i tuoi obiettivi commerciali');
+      }
+      if (!Number.isInteger(target.year) || target.year < 2000 || target.year > 2100) {
+        throw new Error("Anno obiettivo non valido");
+      }
+      if (!Number.isInteger(target.month) || target.month < 1 || target.month > 12) {
+        throw new Error("Mese obiettivo non valido");
+      }
+      if (Number(target.target_amount ?? 0) < 0 || Number(target.target_deals ?? 0) < 0) {
+        throw new Error('Gli obiettivi non possono essere negativi');
+      }
+
       const { error } = await supabase
         .from('sales_targets')
-        .upsert(target as any, { onConflict: 'company_id,assigned_to,year,month' });
+        .upsert({ ...target, updated_at: new Date().toISOString() } as any, {
+          onConflict: 'company_id,assigned_to,year,month',
+        });
       if (error) throw error;
     },
     onSuccess: (_data, variables) => {
@@ -604,10 +885,16 @@ export function useSalesOSCompanyId(): string | null {
 
 export function useRecalculateAllLeadScores(companyId: string | null) {
   const queryClient = useQueryClient();
+  const { effectiveCompany, user } = useAuth();
+  const permissions = usePermissions();
 
   return useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error('companyId mancante');
+      if (effectiveCompany?.id !== companyId) throw new Error('Azienda non selezionata');
+      if (!(permissions.canEditMarketingContacts || permissions.canEditMarketing)) {
+        throw new Error('Non hai i permessi per ricalcolare i lead score');
+      }
 
       // Sprint 4: carica config dinamica (fallback default)
       const { data: cfgRow } = await supabase
@@ -621,10 +908,14 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
       };
 
       // Fetch all contacts for this company
-      const { data: contacts, error: cErr } = await supabase
+      let contactsQuery: any = supabase
         .from('marketing_contacts')
         .select('id, first_name, last_name, company_name, phone, city, source, address')
         .eq('company_id', companyId);
+      if (shouldRestrictToAssigned(permissions, user?.id)) {
+        contactsQuery = contactsQuery.eq('assigned_to', user!.id);
+      }
+      const { data: contacts, error: cErr } = await contactsQuery;
       if (cErr) throw cErr;
       if (!contacts?.length) return { updated: 0 };
 
@@ -655,12 +946,13 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
           }, cfg);
 
           const icpTier = getIcpTierWithConfig(icpScore, cfg);
-          await supabase.from('marketing_contacts').update({
+          const { error: updateError } = await supabase.from('marketing_contacts').update({
             lead_score: leadScore,
             icp_score: icpScore,
             icp_tier: icpTier,
             last_score_update: new Date().toISOString(),
-          }).eq('id', contact.id);
+          }).eq('id', contact.id).eq('company_id', companyId);
+          if (updateError) throw updateError;
           updated++;
         }));
       }
@@ -676,17 +968,27 @@ export function useRecalculateAllLeadScores(companyId: string | null) {
 
 export function useRecalculateLeadScore(companyId: string | null) {
   const queryClient = useQueryClient();
+  const { effectiveCompany, user } = useAuth();
+  const permissions = usePermissions();
 
   return useMutation({
     mutationFn: async (contactId: string) => {
       if (!companyId) throw new Error('companyId mancante');
+      if (effectiveCompany?.id !== companyId) throw new Error('Azienda non selezionata');
+      if (!(permissions.canEditMarketingContacts || permissions.canEditMarketing)) {
+        throw new Error('Non hai i permessi per ricalcolare il lead score');
+      }
 
       // 1. Carica i dati del contatto
-      const { data: contact, error: contactError } = await supabase
+      let contactQuery: any = supabase
         .from('marketing_contacts')
         .select('id, first_name, last_name, company_name, phone, city, source, address')
         .eq('id', contactId)
-        .single();
+        .eq('company_id', companyId);
+      if (shouldRestrictToAssigned(permissions, user?.id)) {
+        contactQuery = contactQuery.eq('assigned_to', user!.id);
+      }
+      const { data: contact, error: contactError } = await contactQuery.single();
       if (contactError) throw contactError;
 
       // 2. Conta attività totali
@@ -751,7 +1053,8 @@ export function useRecalculateLeadScore(companyId: string | null) {
           icp_tier: icpTier,
           last_score_update: new Date().toISOString(),
         })
-        .eq('id', contactId);
+        .eq('id', contactId)
+        .eq('company_id', companyId);
       if (updateError) throw updateError;
 
       return { leadScore, icpScore, behavioralScore, icpTier };

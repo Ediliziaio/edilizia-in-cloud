@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, ChevronRight, Loader2 } from "lucide-react";
 import { useBulkUpdateOpportunities, useCompanyStaff } from "@/hooks/useOpportunitiesData";
 import { STATUS_OPTIONS } from "@/types/opportunities";
+import { toast } from "sonner";
 
 interface BulkEditSheetProps {
   open: boolean;
@@ -14,6 +15,7 @@ interface BulkEditSheetProps {
   selectedIds: string[];
   stages: { id: string; name: string }[];
   onDone: () => void;
+  canEdit?: boolean;
 }
 
 type Field = "stage_id" | "status" | "value" | "assigned_to" | "follower_id" | "source";
@@ -27,7 +29,7 @@ const FIELDS: { key: Field; label: string }[] = [
   { key: "source", label: "Fonte" },
 ];
 
-export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone }: BulkEditSheetProps) {
+export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone, canEdit = true }: BulkEditSheetProps) {
   const [selectedField, setSelectedField] = useState<Field | null>(null);
   const [fieldValue, setFieldValue] = useState("");
   const [search, setSearch] = useState("");
@@ -39,14 +41,28 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone 
     : FIELDS;
 
   const handleApply = () => {
+    if (!canEdit) {
+      toast.error("Non hai i permessi per modificare opportunità");
+      return;
+    }
     if (!selectedField || !fieldValue) return;
 
     const data: Record<string, any> = {};
 
     if (selectedField === "value") {
-      data.value = parseFloat(fieldValue) || 0;
+      const numericValue = Number(fieldValue);
+      if (!Number.isFinite(numericValue) || numericValue < 0) {
+        toast.error("Il valore economico deve essere un numero positivo");
+        return;
+      }
+      data.value = numericValue;
+    } else if (selectedField === "status" && fieldValue === "lost") {
+      toast.error("Per segnare opportunità perse serve indicare il motivo dal dettaglio opportunità");
+      return;
     } else if (selectedField === "assigned_to" || selectedField === "follower_id") {
       data[selectedField] = fieldValue === "none" ? null : fieldValue;
+    } else if (selectedField === "source") {
+      data.source = fieldValue.trim();
     } else {
       data[selectedField] = fieldValue;
     }
@@ -134,6 +150,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone 
                 {selectedField === "value" && (
                   <Input
                     type="number"
+                    min="0"
                     placeholder="Nuovo valore..."
                     value={fieldValue}
                     onChange={(e) => setFieldValue(e.target.value)}
@@ -162,7 +179,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone 
 
                 <Button
                   onClick={handleApply}
-                  disabled={!fieldValue || bulkUpdate.isPending}
+                  disabled={!fieldValue || bulkUpdate.isPending || !canEdit}
                   className="w-full"
                 >
                   {bulkUpdate.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

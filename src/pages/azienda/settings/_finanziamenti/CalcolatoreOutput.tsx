@@ -102,6 +102,10 @@ export function CalcolatoreOutput({
       {/* Tabella dettagli */}
       <div className="rounded-md border bg-muted/20 divide-y">
         <DetailRow
+          label="Importo finanziato"
+          value={`€ ${formatEur(risultato.importo_richiesto, 2)}`}
+        />
+        <DetailRow
           label="Importo rata (esclusi spese incasso)"
           value={`€ ${formatEur(risultato.importo_rata ?? 0, 2)}`}
         />
@@ -116,6 +120,10 @@ export function CalcolatoreOutput({
         <DetailRow
           label="Importo totale del credito"
           value={`€ ${formatEur(risultato.importo_totale_credito ?? 0, 2)}`}
+        />
+        <DetailRow
+          label="Costo totale credito"
+          value={`€ ${formatEur(Math.max(0, (risultato.importo_totale_dovuto ?? 0) - risultato.importo_richiesto), 2)}`}
         />
         <DetailRow
           label="Interessi totali al cliente"
@@ -146,6 +154,8 @@ export function CalcolatoreOutput({
         per {risultato.numero_rate} mesi (€{" "}
         {formatEur(risultato.importo_rata ?? 0, 2)} di quota +{" € "}
         {formatEur(risultato.spese_incasso_rata ?? 0, 2)} di spese incasso).
+        Simulazione indicativa: prima di presentare l&apos;offerta verifica
+        documenti, validità condizioni e approvazione dell&apos;istituto.
       </p>
     </div>
   );

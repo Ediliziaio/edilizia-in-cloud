@@ -32,7 +32,7 @@ import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
 import { CustomerSheetsExportDialog } from "@/components/orders/CustomerSheetsExportDialog";
 import { useToast } from "@/hooks/use-toast";
-import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading } from "@/lib/orderUtils";
+import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount, getOrderMargin } from "@/lib/orderUtils";
 import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
 import { ScopriProgressBanner } from "@/components/subscription/UpgradeScopriBanner";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
@@ -58,6 +58,9 @@ const ORDER_IMPORT_FIELDS: ImportField[] = [
   { key: "internal_notes", label: "Note Interne", required: false },
   { key: "payment_type", label: "Tipo Pagamento", required: false },
 ];
+
+const PENDING_PAYMENTS_FILTER =
+  "and(deposit_amount.gt.0,deposit_paid.eq.false),and(deposit_2_amount.gt.0,deposit_2_paid.eq.false),and(balance_amount.gt.0,balance_paid.eq.false),and(financing_amount.gt.0,financing_paid.eq.false)";
 
 function OrdersListInner() {
   const { user, effectiveCompany } = useAuth();
@@ -209,9 +212,13 @@ function OrdersListInner() {
       // B1 — customerFilter e paymentFilter applicati server-side
       if (customerFilter !== "all") query = query.eq("customer_id", customerFilter);
       if (paymentFilter === "pending") {
-        query = query.or("deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false");
+        query = query.or(PENDING_PAYMENTS_FILTER);
       } else if (paymentFilter === "paid") {
-        query = query.eq("deposit_paid", true).eq("balance_paid", true);
+        query = query
+          .eq("deposit_paid", true)
+          .eq("balance_paid", true)
+          .or("deposit_2_amount.is.null,deposit_2_amount.eq.0,deposit_2_paid.eq.true")
+          .or("financing_amount.is.null,financing_amount.eq.0,financing_paid.eq.true");
       }
       if (debouncedSearch) {
         query = query.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
@@ -710,14 +717,18 @@ function OrdersListInner() {
   });
 
   const deleteOrderMutation = useMutation({
-    mutationFn: deleteOrderCascading,
+    mutationFn: async (orderId: string) => deleteOrderCascading(orderId, effectiveCompany?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       toast({ title: "Commessa eliminata", description: "La commessa è stata eliminata con successo" });
     },
-    onError: () => {
-      toast({ title: "Errore", description: "Impossibile eliminare la commessa", variant: "destructive" });
+    onError: (error) => {
+      toast({
+        title: "Errore",
+        description: error instanceof Error ? error.message : "Impossibile eliminare la commessa",
+        variant: "destructive",
+      });
     },
   });
 
@@ -743,15 +754,19 @@ function OrdersListInner() {
   const handleBulkDelete = async (orderIds: string[]) => {
     setIsBulkUpdating(true);
     try {
-      await Promise.all(orderIds.map(deleteOrderCascading));
+      await Promise.all(orderIds.map((orderId) => deleteOrderCascading(orderId, effectiveCompany?.id)));
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       toast({
         title: "Commesse eliminate",
         description: `${orderIds.length} ordin${orderIds.length === 1 ? "e eliminato" : "i eliminati"} con successo`,
       });
-    } catch {
-      toast({ title: "Errore", description: "Impossibile eliminare alcune commesse", variant: "destructive" });
+    } catch (error) {
+      toast({
+        title: "Errore",
+        description: error instanceof Error ? error.message : "Impossibile eliminare alcune commesse",
+        variant: "destructive",
+      });
     } finally {
       setIsBulkUpdating(false);
     }
@@ -836,7 +851,17 @@ function OrdersListInner() {
     countAssistenza: globalStats?.countAssistenza ?? 0,
     countCompletati: globalStats?.countCompletati ?? 0,
     countDaCompletare: globalStats?.countDaCompletare ?? 0,
-  }), [globalStats]);
+    averageGross: (globalStats?.totalOrders ?? 0) > 0
+      ? (globalStats?.totalGross ?? 0) / (globalStats?.totalOrders ?? 1)
+      : 0,
+    grossMargin: orders.reduce((sum, order) => sum + (orderCostsMap.get(order.id)?.grossMargin ?? order.total_amount), 0),
+    lowMarginCount: orders.reduce((count, order) => {
+      const costs = orderCostsMap.get(order.id);
+      if (!costs) return count;
+      const margin = getOrderMargin(order.total_amount, costs.variableCosts);
+      return margin.level !== "good" ? count + 1 : count;
+    }, 0),
+  }), [globalStats, orders, orderCostsMap]);
 
   // Export CSV
   // M2 — Export CSV con tutti i filtri attivi (non solo i 20 della pagina corrente)
@@ -875,7 +900,7 @@ function OrdersListInner() {
       .select(`
         id, order_code, description, total_amount, deposit_amount, balance_amount,
         deposit_2_amount, vat_rate, created_at, expected_date, warehouse_arrival_date,
-        payment_type, deposit_paid, deposit_2_paid, balance_paid,
+        payment_type, financing_amount, financing_paid, deposit_paid, deposit_2_paid, balance_paid,
         customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
         status:order_statuses!orders_current_status_id_fkey(name)
       `)
@@ -884,8 +909,14 @@ function OrdersListInner() {
 
     if (allowedExportIds !== null) query = query.in("id", allowedExportIds);
     if (customerFilter !== "all") query = query.eq("customer_id", customerFilter);
-    if (paymentFilter === "pending") query = query.or("deposit_paid.eq.false,deposit_2_paid.eq.false,balance_paid.eq.false");
-    else if (paymentFilter === "paid") query = query.eq("deposit_paid", true).eq("balance_paid", true);
+    if (paymentFilter === "pending") query = query.or(PENDING_PAYMENTS_FILTER);
+    else if (paymentFilter === "paid") {
+      query = query
+        .eq("deposit_paid", true)
+        .eq("balance_paid", true)
+        .or("deposit_2_amount.is.null,deposit_2_amount.eq.0,deposit_2_paid.eq.true")
+        .or("financing_amount.is.null,financing_amount.eq.0,financing_paid.eq.true");
+    }
     if (debouncedSearch) query = query.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
     if (statusFilter === "__da_completare__") {
       const excl = [supportStatusId, lastStatusId].filter(Boolean) as string[];
@@ -907,15 +938,70 @@ function OrdersListInner() {
 
     const { data: allOrders, error } = await query;
     if (error) { toast({ title: "Errore export", variant: "destructive" }); return null; }
+    const exportOrderIds = (allOrders || []).map((o) => o.id);
+    const exportCostsMap = new Map<string, { variableCosts: number; grossMargin: number; marginPercent: number }>();
+    if (exportOrderIds.length > 0) {
+      const [itemsRes, employeesRes, teamsRes, salespeopleRes] = await Promise.all([
+        supabase.from("order_items").select("order_id, purchase_price, quantity, vat_rate").in("order_id", exportOrderIds),
+        supabase.from("order_employees").select("order_id, total_cost").in("order_id", exportOrderIds),
+        supabase.from("order_external_teams").select("order_id, total_cost, vat_rate").in("order_id", exportOrderIds),
+        supabase.from("order_salespeople").select("order_id, commission_type, commission_value, deduction_amount").in("order_id", exportOrderIds),
+      ]);
+      if (itemsRes.error || employeesRes.error || teamsRes.error || salespeopleRes.error) {
+        toast({ title: "Export parziale", description: "Non riesco a calcolare tutti i margini, riprova tra poco.", variant: "destructive" });
+        return null;
+      }
+      const orderAmountMap = new Map((allOrders || []).map((o) => [o.id, o.total_amount || 0]));
+      const costAccumulator = new Map<string, number>();
+      for (const item of itemsRes.data || []) {
+        const gross = (item.purchase_price || 0) * (item.quantity || 1);
+        const { netAmount } = calculateNetFromGross(gross, item.vat_rate ?? 22);
+        costAccumulator.set(item.order_id, (costAccumulator.get(item.order_id) || 0) + netAmount);
+      }
+      for (const employee of employeesRes.data || []) {
+        costAccumulator.set(employee.order_id, (costAccumulator.get(employee.order_id) || 0) + (employee.total_cost || 0));
+      }
+      for (const team of teamsRes.data || []) {
+        const { netAmount } = calculateNetFromGross(team.total_cost || 0, team.vat_rate ?? 22);
+        costAccumulator.set(team.order_id, (costAccumulator.get(team.order_id) || 0) + netAmount);
+      }
+      for (const sp of salespeopleRes.data || []) {
+        const totalAmount = orderAmountMap.get(sp.order_id) || 0;
+        const commission =
+          sp.commission_type === "fixed"
+            ? sp.commission_value || 0
+            : sp.commission_type === "percentage_sold" || sp.commission_type === "percentage_collected"
+              ? totalAmount * ((sp.commission_value || 0) / 100)
+              : 0;
+        costAccumulator.set(sp.order_id, (costAccumulator.get(sp.order_id) || 0) + commission - (sp.deduction_amount || 0));
+      }
+      for (const order of allOrders || []) {
+        const variableCosts = costAccumulator.get(order.id) || 0;
+        const margin = getOrderMargin(order.total_amount || 0, variableCosts);
+        exportCostsMap.set(order.id, {
+          variableCosts,
+          grossMargin: margin.grossMargin,
+          marginPercent: margin.marginPercent,
+        });
+      }
+    }
 
     const columns: { key: string; label: string }[] = [
       { key: "order_code", label: "Codice Commessa" },
       { key: "customer", label: "Cliente" },
       { key: "description", label: "Descrizione" },
-      { key: "total_amount", label: "Importo Totale" },
+      { key: "total_amount", label: "Imponibile" },
+      { key: "vat_amount", label: "IVA" },
+      { key: "total_gross", label: "Totale Ivato" },
+      { key: "collected", label: "Incassato" },
+      { key: "due", label: "Da Incassare" },
       { key: "deposit_amount", label: "Acconto 1" },
       { key: "deposit_2_amount", label: "Acconto 2" },
+      { key: "financing_amount", label: "Finanziamento" },
       { key: "balance_amount", label: "Saldo" },
+      { key: "variable_costs", label: "Costi Variabili" },
+      { key: "gross_margin", label: "Margine Lordo" },
+      { key: "margin_percent", label: "Margine %" },
       { key: "status", label: "Stato" },
       { key: "created_at", label: "Data Contratto" },
       { key: "warehouse_arrival_date", label: "Data Magazzino" },
@@ -924,14 +1010,28 @@ function OrdersListInner() {
     ];
     const rows = (allOrders || []).map((o) => {
       const pending = getPendingPayments(o as any);
+      const vatRate = o.vat_rate ?? 22;
+      const vatAmount = (o.total_amount || 0) * (vatRate / 100);
+      const totalGross = getGrossOrderAmount(o as any);
+      const collected = getAmountCollected(o as any);
+      const due = getAmountDue(o as any);
+      const costs = exportCostsMap.get(o.id);
       return {
         order_code: o.order_code || "",
         customer: (o.customer as any) ? `${(o.customer as any).first_name} ${(o.customer as any).last_name}` : "",
         description: o.description,
-        total_amount: String(o.total_amount),
+        total_amount: String(o.total_amount || 0),
+        vat_amount: String(vatAmount),
+        total_gross: String(totalGross),
+        collected: String(collected),
+        due: String(due),
         deposit_amount: String(o.deposit_amount || 0),
         deposit_2_amount: String(o.deposit_2_amount || 0),
+        financing_amount: String(o.financing_amount || 0),
         balance_amount: String(o.balance_amount || 0),
+        variable_costs: String(costs?.variableCosts ?? 0),
+        gross_margin: String(costs?.grossMargin ?? o.total_amount ?? 0),
+        margin_percent: costs ? `${costs.marginPercent.toFixed(1)}%` : "",
         status: (o.status as any)?.name || "",
         created_at: o.created_at ? format(new Date(o.created_at), "dd/MM/yyyy") : "",
         warehouse_arrival_date: o.warehouse_arrival_date ? format(new Date(o.warehouse_arrival_date), "dd/MM/yyyy") : "",
@@ -942,7 +1042,7 @@ function OrdersListInner() {
     return { rows, columns, count: allOrders?.length ?? 0 };
   }, [effectiveCompany?.id, salespersonFilter, laborFilter, supplierFilter, customerFilter,
       paymentFilter, debouncedSearch, statusFilter, hideCompleted, lastStatusId,
-      amountMin, amountMax, contractDateRange, warehouseDateRange, expectedDateRange, toast]);
+      supportStatusId, amountMin, amountMax, contractDateRange, warehouseDateRange, expectedDateRange, toast]);
 
   const exportOrdersCSV = useCallback(async () => {
     const result = await prepareExportData();

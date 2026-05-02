@@ -10,13 +10,20 @@
  * Permission gating: company_admin / super_admin.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -45,6 +52,10 @@ import {
   FileText,
   ExternalLink,
   AlertTriangle,
+  Ban,
+  CheckCircle2,
+  Clock,
+  Filter,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTabelle, useDeleteTabella } from "@/lib/finanziamenti/queries";
@@ -57,22 +68,57 @@ export default function SettingsFinanziamenti() {
   const { data: tabelle = [], isLoading, isError, error, refetch } = useTabelle();
   const deleteTabella = useDeleteTabella();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [finanziariaFilter, setFinanziariaFilter] = useState("all");
+  const [durataFilter, setDurataFilter] = useState("all");
   const [confermaDelete, setConfermaDelete] = useState<{
     id: string;
     nome: string;
   } | null>(null);
 
+  const stats = useMemo(() => {
+    const today = todayIso();
+    return {
+      totale: tabelle.length,
+      attive: tabelle.filter((t) => t.attiva).length,
+      scadute: tabelle.filter((t) => t.data_scadenza && t.data_scadenza < today).length,
+      inScadenza: tabelle.filter((t) => isExpiringSoon(t.data_scadenza)).length,
+    };
+  }, [tabelle]);
+
+  const finanziarieOptions = useMemo(() => {
+    return Array.from(
+      new Set(tabelle.map((t) => t.finanziaria_nome).filter(Boolean) as string[]),
+    ).sort((a, b) => a.localeCompare(b));
+  }, [tabelle]);
+
+  const durateOptions = useMemo(() => {
+    return Array.from(new Set(tabelle.flatMap((t) => t.durate_disponibili))).sort((a, b) => a - b);
+  }, [tabelle]);
+
   const tabelleFiltrate = useMemo(() => {
     const s = search.trim().toLowerCase();
-    if (!s) return tabelle;
     return tabelle.filter((t) => {
-      return (
+      const matchesSearch = !s || (
         t.nome_prodotto.toLowerCase().includes(s) ||
         (t.codice_condizione ?? "").toLowerCase().includes(s) ||
         (t.finanziaria_nome ?? "").toLowerCase().includes(s)
       );
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && t.attiva) ||
+        (statusFilter === "inactive" && !t.attiva) ||
+        (statusFilter === "valid" && getValidityState(t.data_decorrenza, t.data_scadenza) === "valid") ||
+        (statusFilter === "expired" && getValidityState(t.data_decorrenza, t.data_scadenza) === "expired") ||
+        (statusFilter === "future" && getValidityState(t.data_decorrenza, t.data_scadenza) === "future") ||
+        (statusFilter === "expiring" && isExpiringSoon(t.data_scadenza));
+      const matchesFinanziaria =
+        finanziariaFilter === "all" || t.finanziaria_nome === finanziariaFilter;
+      const matchesDurata =
+        durataFilter === "all" || t.durate_disponibili.includes(Number(durataFilter));
+      return matchesSearch && matchesStatus && matchesFinanziaria && matchesDurata;
     });
-  }, [tabelle, search]);
+  }, [tabelle, search, statusFilter, finanziariaFilter, durataFilter]);
 
   if (!isAdmin) {
     return (
@@ -138,6 +184,71 @@ export default function SettingsFinanziamenti() {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <SummaryCard icon={<Banknote className="h-4 w-4" />} label="Piani caricati" value={String(stats.totale)} />
+        <SummaryCard icon={<CheckCircle2 className="h-4 w-4" />} label="Attivi" value={String(stats.attive)} tone="emerald" />
+        <SummaryCard icon={<Ban className="h-4 w-4" />} label="Scaduti" value={String(stats.scadute)} tone={stats.scadute > 0 ? "amber" : "neutral"} />
+        <SummaryCard icon={<Clock className="h-4 w-4" />} label="In scadenza 30gg" value={String(stats.inScadenza)} tone={stats.inScadenza > 0 ? "amber" : "neutral"} />
+      </div>
+
+      {tabelle.length > 0 && (
+        <Card>
+          <CardContent className="py-3">
+            <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto] md:items-center">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger aria-label="Filtra per stato">
+                  <SelectValue placeholder="Stato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli stati</SelectItem>
+                  <SelectItem value="active">Attivi</SelectItem>
+                  <SelectItem value="inactive">Disattivati</SelectItem>
+                  <SelectItem value="valid">Validi oggi</SelectItem>
+                  <SelectItem value="expiring">In scadenza 30 giorni</SelectItem>
+                  <SelectItem value="expired">Scaduti</SelectItem>
+                  <SelectItem value="future">Non ancora decorso</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={finanziariaFilter} onValueChange={setFinanziariaFilter}>
+                <SelectTrigger aria-label="Filtra per finanziaria">
+                  <SelectValue placeholder="Finanziaria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte le finanziarie</SelectItem>
+                  {finanziarieOptions.map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={durataFilter} onValueChange={setDurataFilter}>
+                <SelectTrigger aria-label="Filtra per durata">
+                  <SelectValue placeholder="Durata" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte le durate</SelectItem>
+                  {durateOptions.map((duration) => (
+                    <SelectItem key={duration} value={String(duration)}>{duration} mesi</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("all");
+                  setFinanziariaFilter("all");
+                  setDurataFilter("all");
+                }}
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                Pulisci
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {isError && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -193,6 +304,7 @@ export default function SettingsFinanziamenti() {
                   <TableHead className="text-right">Righe</TableHead>
                   <TableHead>Range importi</TableHead>
                   <TableHead>Durate (mesi)</TableHead>
+                  <TableHead>Validità</TableHead>
                   <TableHead>Stato</TableHead>
                   <TableHead className="text-right">Azioni</TableHead>
                 </TableRow>
@@ -201,7 +313,7 @@ export default function SettingsFinanziamenti() {
                 {tabelleFiltrate.length === 0 && search && (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="text-center py-8 text-muted-foreground"
                     >
                       Nessuna tabella trovata per "{search}".
@@ -245,6 +357,9 @@ export default function SettingsFinanziamenti() {
                       {t.durate_disponibili.length > 0
                         ? t.durate_disponibili.join(", ")
                         : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <ValidityBadge decorrenza={t.data_decorrenza} scadenza={t.data_scadenza} />
                     </TableCell>
                     <TableCell>
                       {t.attiva ? (
@@ -314,7 +429,9 @@ export default function SettingsFinanziamenti() {
             <AlertDialogDescription>
               Stai per eliminare definitivamente la tabella "
               <strong>{confermaDelete?.nome}</strong>". Tutte le righe associate
-              verranno cancellate. L&apos;azione non è reversibile.
+              verranno cancellate. Se è già usata in progetti o preventivi,
+              l&apos;eliminazione verrà bloccata: disattivala per impedirne nuovi
+              utilizzi senza perdere lo storico.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -337,4 +454,96 @@ function formatEur(n: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   });
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getValidityState(
+  decorrenza: string | null,
+  scadenza: string | null,
+): "valid" | "expired" | "future" | "open" {
+  const today = todayIso();
+  if (decorrenza && decorrenza > today) return "future";
+  if (scadenza && scadenza < today) return "expired";
+  if (decorrenza || scadenza) return "valid";
+  return "open";
+}
+
+function isExpiringSoon(scadenza: string | null): boolean {
+  if (!scadenza) return false;
+  const today = new Date(todayIso());
+  const expires = new Date(scadenza);
+  const days = Math.ceil((expires.getTime() - today.getTime()) / 86_400_000);
+  return days >= 0 && days <= 30;
+}
+
+function ValidityBadge({
+  decorrenza,
+  scadenza,
+}: {
+  decorrenza: string | null;
+  scadenza: string | null;
+}) {
+  const state = getValidityState(decorrenza, scadenza);
+  if (state === "expired") {
+    return (
+      <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">
+        Scaduta
+      </Badge>
+    );
+  }
+  if (state === "future") {
+    return (
+      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+        Dal {decorrenza}
+      </Badge>
+    );
+  }
+  if (isExpiringSoon(scadenza)) {
+    return (
+      <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">
+        Scade {scadenza}
+      </Badge>
+    );
+  }
+  if (state === "valid") {
+    return (
+      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+        Valida
+      </Badge>
+    );
+  }
+  return <span className="text-sm text-muted-foreground">Senza scadenza</span>;
+}
+
+function SummaryCard({
+  icon,
+  label,
+  value,
+  tone = "neutral",
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  tone?: "neutral" | "emerald" | "amber";
+}) {
+  const toneClass =
+    tone === "emerald"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : tone === "amber"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : "border-border bg-card";
+  return (
+    <Card className={toneClass}>
+      <CardContent className="py-3 flex items-center justify-between">
+        <div>
+          <p className="text-xs opacity-80">{label}</p>
+          <p className="text-2xl font-semibold tabular-nums">{value}</p>
+        </div>
+        <div className="opacity-70">{icon}</div>
+      </CardContent>
+    </Card>
+  );
 }

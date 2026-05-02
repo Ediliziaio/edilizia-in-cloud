@@ -17,6 +17,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -26,7 +37,7 @@ import {
 import {
   Plus, Send, Search, Users, MessageCircle, CornerDownRight, Bot, Sparkles, Loader2,
   Smile, X, Pin, PinOff, ArrowLeft, MoreVertical, UserPlus, UsersRound, CheckCheck,
-  Paperclip, Mic,
+  Paperclip, Mic, Trash2, AlertCircle, RefreshCw,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
@@ -169,7 +180,47 @@ function initials(p: Profile | undefined) {
 
 function profileName(p: Profile | undefined) {
   if (!p) return "Sconosciuto";
-  return `${p.first_name} ${p.last_name}`;
+  const fullName = `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
+  return fullName || p.email || "Sconosciuto";
+}
+
+const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+  "application/zip",
+]);
+
+const ALLOWED_ATTACHMENT_EXTENSIONS = new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "pdf",
+  "doc",
+  "docx",
+  "xls",
+  "xlsx",
+  "txt",
+  "zip",
+]);
+
+function isAllowedAttachment(file: File): boolean {
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return ALLOWED_ATTACHMENT_MIME_TYPES.has(file.type) || ALLOWED_ATTACHMENT_EXTENSIONS.has(ext);
+}
+
+function safeAttachmentExtension(fileName: string): string {
+  const ext = fileName.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") ?? "";
+  return ALLOWED_ATTACHMENT_EXTENSIONS.has(ext) ? ext : "bin";
 }
 
 // ─── Data Hook ───────────────────────────────────────────────────────────────
@@ -185,36 +236,82 @@ function useInternalChat(companyIdOverride?: string) {
   const userId = user?.id;
   const queryClient = useQueryClient();
 
-  const { data: channels = [] } = useQuery({
-    queryKey: ["internal-chat-channels", companyId],
-    enabled: !!companyId,
+  const {
+    data: myMemberships = [],
+    isLoading: membershipsLoading,
+    isError: membershipsError,
+    refetch: refetchMemberships,
+  } = useQuery({
+    queryKey: ["internal-chat-my-memberships", companyId, userId],
+    enabled: !!companyId && !!userId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase
+        .from("internal_chat_members")
+        .select("*")
+        .eq("company_id", companyId!)
+        .eq("user_id", userId!);
+      if (error) throw error;
+      return data as ChannelMember[];
+    },
+  });
+
+  const memberChannelIds = useMemo(
+    () => Array.from(new Set(myMemberships.map((m) => m.channel_id).filter(Boolean))),
+    [myMemberships],
+  );
+
+  const {
+    data: channels = [],
+    isLoading: channelsLoading,
+    isError: channelsError,
+    refetch: refetchChannels,
+  } = useQuery({
+    queryKey: ["internal-chat-channels", companyId, memberChannelIds],
+    enabled: !!companyId && !!userId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    queryFn: async () => {
+      if (memberChannelIds.length === 0) return [] as Channel[];
+      const { data, error } = await supabase
         .from("internal_chat_channels").select("*")
         .eq("company_id", companyId!)
+        .in("id", memberChannelIds)
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return data as Channel[];
     },
   });
 
-  const { data: members = [] } = useQuery({
-    queryKey: ["internal-chat-members", companyId],
-    enabled: !!companyId,
+  const {
+    data: members = [],
+    isLoading: membersLoading,
+    isError: membersError,
+    refetch: refetchMembers,
+  } = useQuery({
+    queryKey: ["internal-chat-members", companyId, memberChannelIds],
+    enabled: !!companyId && !!userId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
     queryFn: async () => {
+      if (memberChannelIds.length === 0) return [] as ChannelMember[];
       const { data, error } = await supabase
-        .from("internal_chat_members").select("*")
-        .eq("company_id", companyId!);
+        .from("internal_chat_members")
+        .select("*")
+        .eq("company_id", companyId!)
+        .in("channel_id", memberChannelIds);
       if (error) throw error;
       return data as ChannelMember[];
     },
   });
 
-  const { data: profiles = [] } = useQuery({
+  const {
+    data: profiles = [],
+    isLoading: profilesLoading,
+    isError: profilesError,
+    refetch: refetchProfiles,
+  } = useQuery({
     queryKey: ["internal-chat-profiles", companyId, userId],
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -291,29 +388,6 @@ function useInternalChat(companyIdOverride?: string) {
     return new Set(profiles.map((p) => p.id));
   }, [profiles]);
 
-  // Last message per channel for preview — single batch query instead of N+1
-  const channelIds = useMemo(() => channels.map((c) => c.id), [channels]);
-  const { data: lastMessages = {} } = useQuery({
-    queryKey: ["internal-chat-last-messages", companyId, channelIds],
-    enabled: !!companyId && channelIds.length > 0,
-    queryFn: async () => {
-      // Single query: fetch recent messages for all channels, then pick last per channel
-      const { data, error } = await supabase
-        .from("internal_chat_messages")
-        .select("*")
-        .in("channel_id", channelIds)
-        .order("created_at", { ascending: false })
-        .limit(channelIds.length * 2); // slightly over to handle edge cases
-      if (error) throw error;
-      const result: Record<string, Message> = {};
-      for (const msg of (data || []) as Message[]) {
-        if (!result[msg.channel_id]) result[msg.channel_id] = msg;
-      }
-      return result;
-    },
-    staleTime: 30_000,
-  });
-
   const myChannels = channels.filter((ch) => {
     if (!members.some((m) => m.channel_id === ch.id && m.user_id === userId)) return false;
     if (ch.is_system || ch.name.toLowerCase().includes("lucia")) return true;
@@ -325,15 +399,33 @@ function useInternalChat(companyIdOverride?: string) {
     return channelMemberIds.length === 0 || channelMemberIds.every((id) => internalProfileIds.has(id));
   });
 
+  // Last message per visible channel for preview — avoid loading non-member/private previews.
+  const channelIds = useMemo(() => myChannels.map((c) => c.id), [myChannels]);
+  const { data: lastMessages = {} } = useQuery({
+    queryKey: ["internal-chat-last-messages", companyId, channelIds],
+    enabled: !!companyId && channelIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("internal_chat_messages")
+        .select("*")
+        .in("channel_id", channelIds)
+        .order("created_at", { ascending: false })
+        .limit(channelIds.length * 2);
+      if (error) throw error;
+      const result: Record<string, Message> = {};
+      for (const msg of (data || []) as Message[]) {
+        if (!result[msg.channel_id]) result[msg.channel_id] = msg;
+      }
+      return result;
+    },
+    staleTime: 30_000,
+  });
+
   const { data: unreadCounts = {}, refetch: refetchUnread } = useQuery({
     queryKey: ["internal-chat-unread", companyId, userId],
     enabled: !!companyId && !!userId,
     queryFn: async () => {
-      const { data: myMemberships } = await supabase
-        .from("internal_chat_members")
-        .select("channel_id, last_read_at")
-        .eq("user_id", userId!).eq("company_id", companyId!);
-      if (!myMemberships?.length) return {} as Record<string, number>;
+      if (!myMemberships.length) return {} as Record<string, number>;
       const counts: Record<string, number> = {};
       await Promise.all(myMemberships.map(async (m) => {
         let q = supabase
@@ -372,6 +464,14 @@ function useInternalChat(companyIdOverride?: string) {
     refetchUnread,
     lastMessages,
     internalProfileIds,
+    isLoading: membershipsLoading || channelsLoading || membersLoading || profilesLoading,
+    isError: membershipsError || channelsError || membersError || profilesError,
+    refetchChatData: () => {
+      refetchMemberships();
+      refetchChannels();
+      refetchMembers();
+      refetchProfiles();
+    },
   };
 }
 
@@ -512,12 +612,12 @@ function ChatListItem({
 // ─── Message Bubble ──────────────────────────────────────────────────────────
 function MessageBubble({
   msg, isMe, isLucia, sender, showAvatar, replyMsg, profileMap,
-  onReply, onPin, onReaction, userId,
+  onReply, onPin, onReaction, onDelete, userId,
 }: {
   msg: Message; isMe: boolean; isLucia: boolean;
   sender: Profile | undefined; showAvatar: boolean;
   replyMsg: Message | null; profileMap: Map<string, Profile>;
-  onReply: () => void; onPin: () => void;
+  onReply: () => void; onPin: () => void; onDelete?: () => void;
   onReaction: (emoji: string) => void; userId?: string;
 }) {
   const replySender = replyMsg ? profileMap.get(replyMsg.sender_id) : undefined;
@@ -697,6 +797,11 @@ function MessageBubble({
                 ? <PinOff className="h-3.5 w-3.5 text-amber-500" />
                 : <Pin className="h-3.5 w-3.5 text-muted-foreground" />}
             </button>
+            {isMe && onDelete && (
+              <button onClick={onDelete} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40" title="Elimina messaggio">
+                <Trash2 className="h-3.5 w-3.5 text-red-500" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -727,6 +832,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const {
     channels, members, profiles, companyId, userId,
     queryClient, unreadCounts, markChannelRead, refetchUnread, lastMessages, internalProfileIds,
+    isLoading: chatLoading, isError: chatDataError, refetchChatData,
   } = useInternalChat(companyIdOverride);
   const permissions = usePermissions();
 
@@ -742,6 +848,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [chatFilter, setChatFilter] = useState<"all" | "groups" | "dm">("all");
   const [showMobile, setShowMobile] = useState(false); // mobile: show chat panel
+  const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const presenceRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -833,6 +940,9 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const sendMutation = useMutation({
     mutationFn: async () => {
       if (!selectedChannelId || !companyId || !userId || !newMsg.trim()) return;
+      if (!channels.some((channel) => channel.id === selectedChannelId)) {
+        throw new Error("Non hai accesso a questa conversazione.");
+      }
       const mentionedIds = parseMentions(newMsg.trim());
       const { error } = await supabase.from("internal_chat_messages").insert({
         channel_id: selectedChannelId, sender_id: userId, company_id: companyId,
@@ -856,6 +966,10 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   // Send to Lucia
   const sendToLucia = useCallback(async (messageText: string) => {
     if (!selectedChannelId || !companyId || !userId || !messageText.trim()) return;
+    if (!channels.some((channel) => channel.id === selectedChannelId)) {
+      toast.error("Non hai accesso a questa conversazione.");
+      return;
+    }
     const { error: insertErr } = await supabase.from("internal_chat_messages").insert({
       channel_id: selectedChannelId, sender_id: userId, company_id: companyId,
       content: messageText.trim(), message_type: "text",
@@ -899,7 +1013,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     } finally {
       setLuciaTyping(false);
     }
-  }, [selectedChannelId, companyId, userId, permissions, queryClient, refetchUnread]);
+  }, [selectedChannelId, companyId, userId, channels, permissions, queryClient, refetchUnread]);
 
   // Create group channel
   const [channelName, setChannelName] = useState("");
@@ -909,9 +1023,11 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const createChannelMutation = useMutation({
     mutationFn: async () => {
       if (!companyId || !userId) return;
-      const safeSelectedMembers = selectedMembers.filter((id) => internalProfileIds.has(id));
+      const safeChannelName = channelName.trim();
+      if (!safeChannelName) throw new Error("Inserisci un nome gruppo.");
+      const safeSelectedMembers = Array.from(new Set(selectedMembers.filter((id) => internalProfileIds.has(id))));
       const { data: ch, error } = await supabase.from("internal_chat_channels").insert({
-        company_id: companyId, name: channelName.trim(),
+        company_id: companyId, name: safeChannelName,
         description: channelDesc.trim() || null, type: "group", created_by: userId,
       }).select().single();
       if (error) throw error;
@@ -922,7 +1038,10 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
           role: uid === userId ? "admin" : "member",
         }))
       );
-      if (mErr) throw mErr;
+      if (mErr) {
+        await supabase.from("internal_chat_channels").delete().eq("id", ch.id);
+        throw mErr;
+      }
       return ch.id;
     },
     onSuccess: (newId) => {
@@ -960,19 +1079,30 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
       is_dm: true, dm_user_ids: [userId, targetUserId],
     }).select().single();
     if (error) { toast.error(error.message); return; }
-    await supabase.from("internal_chat_members").insert([
+    const { error: membersError } = await supabase.from("internal_chat_members").insert([
       { channel_id: ch.id, user_id: userId, company_id: companyId, role: "member" },
       { channel_id: ch.id, user_id: targetUserId, company_id: companyId, role: "member" },
     ]);
+    if (membersError) {
+      await supabase.from("internal_chat_channels").delete().eq("id", ch.id);
+      toast.error(membersError.message);
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ["internal-chat-channels"] });
     queryClient.invalidateQueries({ queryKey: ["internal-chat-members"] });
+    queryClient.invalidateQueries({ queryKey: ["internal-chat-my-memberships"] });
     handleSelectChannel(ch.id);
     setCreateDmOpen(false);
     toast.success("Chat creata!");
   }, [companyId, userId, channels, profileMap, queryClient, handleSelectChannel, internalProfileIds]);
 
+  // ── File Attachment ──
+  const attachInputRef = useRef<HTMLInputElement>(null);
+  const [isAttaching, setIsAttaching] = useState(false);
+
   const handleSend = useCallback(() => {
     if (!newMsg.trim()) return;
+    if (sendMutation.isPending || luciaTyping || isAttaching) return;
     if (isLuciaChannel) {
       const msg = newMsg.trim();
       setNewMsg(""); setReplyTo(null);
@@ -980,28 +1110,33 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     } else {
       sendMutation.mutate();
     }
-  }, [newMsg, isLuciaChannel, sendToLucia, sendMutation]);
+  }, [newMsg, isLuciaChannel, sendToLucia, sendMutation, luciaTyping, isAttaching]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  // ── File Attachment ──
-  const attachInputRef = useRef<HTMLInputElement>(null);
-  const [isAttaching, setIsAttaching] = useState(false);
-
   const handleAttachment = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedChannelId || !companyId || !userId) return;
+    if (isAttaching) return;
+    if (!channels.some((channel) => channel.id === selectedChannelId)) {
+      toast.error("Non hai accesso a questa conversazione.");
+      return;
+    }
 
     if (file.size > 10 * 1024 * 1024) {
       toast.error("File troppo grande (max 10 MB)");
       return;
     }
+    if (!isAllowedAttachment(file)) {
+      toast.error("Formato allegato non supportato");
+      return;
+    }
 
     setIsAttaching(true);
     try {
-      const ext = file.name.split(".").pop() ?? "bin";
+      const ext = safeAttachmentExtension(file.name);
       const path = `${companyId}/${selectedChannelId}/${crypto.randomUUID()}.${ext}`;
 
       // Try chat-attachments bucket first, fallback to ticket-attachments
@@ -1041,10 +1176,14 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
       setIsAttaching(false);
       if (attachInputRef.current) attachInputRef.current.value = "";
     }
-  }, [selectedChannelId, companyId, userId, newMsg, replyTo, queryClient, refetchUnread]);
+  }, [selectedChannelId, companyId, userId, channels, isAttaching, newMsg, replyTo, queryClient, refetchUnread]);
 
   const togglePin = useCallback(async (msgId: string, currentPinned: boolean) => {
-    await supabase.from("internal_chat_messages").update({ is_pinned: !currentPinned }).eq("id", msgId);
+    const { error } = await supabase.from("internal_chat_messages").update({ is_pinned: !currentPinned }).eq("id", msgId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
     toast.success(currentPinned ? "Pin rimosso" : "Messaggio pinnato");
   }, [selectedChannelId, queryClient]);
@@ -1059,9 +1198,37 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     } else {
       reactions[emoji] = [...users, userId];
     }
-    await supabase.from("internal_chat_messages").update({ reactions }).eq("id", msgId);
+    const { error } = await supabase.from("internal_chat_messages").update({ reactions }).eq("id", msgId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
   }, [userId, selectedChannelId, queryClient]);
+
+  const deleteMessageMutation = useMutation({
+    mutationFn: async (message: Message) => {
+      if (!userId || message.sender_id !== userId) {
+        throw new Error("Puoi eliminare solo i messaggi inviati da te.");
+      }
+      const { error } = await supabase
+        .from("internal_chat_messages")
+        .delete()
+        .eq("id", message.id)
+        .eq("sender_id", userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      const deletedChannelId = messageToDelete?.channel_id ?? selectedChannelId;
+      setMessageToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", deletedChannelId] });
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-last-messages"] });
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-channels"] });
+      refetchUnread();
+      toast.success("Messaggio eliminato");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   // Filter channels
   const filteredChannels = useMemo(() => {
@@ -1179,7 +1346,32 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
 
         {/* Chat List */}
         <ScrollArea className="flex-1">
-          {filteredChannels.length === 0 ? (
+          {chatLoading ? (
+            <div className="flex flex-col gap-2 p-3">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="flex items-center gap-3 px-1 py-2">
+                  <div className="h-12 w-12 rounded-full bg-[#f0f2f5] dark:bg-white/10 animate-pulse" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3.5 w-2/3 rounded bg-[#f0f2f5] dark:bg-white/10 animate-pulse" />
+                    <div className="h-3 w-5/6 rounded bg-[#f0f2f5] dark:bg-white/10 animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : chatDataError ? (
+            <div className="p-4">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Chat non caricata</AlertTitle>
+                <AlertDescription>
+                  Non riesco a recuperare conversazioni e partecipanti. Riprova tra poco.
+                </AlertDescription>
+              </Alert>
+              <Button size="sm" variant="outline" className="mt-3 w-full" onClick={refetchChatData}>
+                <RefreshCw className="h-4 w-4 mr-2" /> Riprova
+              </Button>
+            </div>
+          ) : filteredChannels.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-4">
               <MessageCircle className="h-12 w-12 text-[#54656f]/30 mb-4" />
               <p className="text-[15px] text-[#54656f] dark:text-gray-400">
@@ -1407,6 +1599,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
                           replyMsg={replyMsg} profileMap={profileMap}
                           onReply={() => setReplyTo(msg)}
                           onPin={() => togglePin(msg.id, !!msg.is_pinned)}
+                          onDelete={isMe ? () => setMessageToDelete(msg) : undefined}
                           onReaction={(emoji) => toggleReaction(msg.id, emoji, msg.reactions)}
                           userId={userId}
                         />
@@ -1630,6 +1823,35 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!messageToDelete} onOpenChange={(open) => !open && setMessageToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare il messaggio?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Il messaggio verrà rimosso dalla conversazione. L'operazione è consentita solo per i messaggi inviati da te.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMessageMutation.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={!messageToDelete || deleteMessageMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                if (messageToDelete) deleteMessageMutation.mutate(messageToDelete);
+              }}
+            >
+              {deleteMessageMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

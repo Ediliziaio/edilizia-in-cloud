@@ -33,7 +33,12 @@ import { formatCurrency } from "@/lib/formatters";
 import { VAT_RATES, calculateNetFromGross, calculateGrossFromNet } from "@/lib/vatUtils";
 import { toast } from "sonner";
 import type { CostFormData } from "@/hooks/useCompanyCostsMutations";
-import { getNextDate, calculatePeriodsFromDates } from "@/hooks/useCompanyCostsMutations";
+import {
+  calculatePeriodsFromDates,
+  getNextDate,
+  parseCostDecimal,
+  validateCostFormData,
+} from "@/hooks/useCompanyCostsMutations";
 import type { UnifiedCost } from "@/hooks/useCompanyCostsData";
 
 interface CostFormDialogProps {
@@ -116,8 +121,10 @@ export function CostFormDialog({
   }, [suppliers, formData, setFormData]);
 
   const formVatPreview = useMemo(() => {
-    const inputAmount = parseFloat(formData.amount) || 0;
-    const vatRate = parseFloat(formData.vat_rate) || 0;
+    const parsedAmount = parseCostDecimal(formData.amount);
+    const parsedVatRate = parseCostDecimal(formData.vat_rate);
+    const inputAmount = Number.isFinite(parsedAmount) ? parsedAmount : 0;
+    const vatRate = Number.isFinite(parsedVatRate) ? parsedVatRate : 0;
     if (formData.is_gross) {
       const { netAmount, vatAmount } = calculateNetFromGross(inputAmount, vatRate);
       return { netAmount, vatAmount, grossAmount: inputAmount };
@@ -141,9 +148,10 @@ export function CostFormDialog({
   }, [formData.recurrence, formData.due_date, formData.end_date]);
 
   const handleSubmit = () => {
-    const amt = parseFloat(formData.amount);
-    if (isNaN(amt) || amt <= 0) {
-      toast.error("L'importo deve essere maggiore di zero");
+    try {
+      validateCostFormData(formData);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Dati costo non validi");
       return;
     }
     onSave(formData);
@@ -278,7 +286,7 @@ export function CostFormDialog({
                 {formData.is_gross ? "Importo Ivato (lordo)" : "Importo Imponibile (netto)"}
               </Label>
             </div>
-            {formData.amount && parseFloat(formData.vat_rate) > 0 && (
+            {formData.amount && formVatPreview.grossAmount > 0 && (
               <div className="p-3 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800 text-sm space-y-1">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Imponibile</span>
@@ -468,7 +476,7 @@ export function CostFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
           <Button
             onClick={handleSubmit}
-            disabled={!formData.name || !formData.amount || !formData.due_date || isSaving || (formData.recurrence !== "once" && !editingCost && !formData.end_date)}
+            disabled={!formData.name.trim() || !formData.amount || !formData.due_date || isSaving || (formData.recurrence !== "once" && !formData.end_date)}
           >
             {isSaving ? "Salvataggio..." : editingCost ? "Aggiorna" : periodsPreview ? `Crea ${periodsPreview.count} costi` : "Aggiungi"}
           </Button>

@@ -308,13 +308,47 @@ export function mapDbItemToOrderItem(item: OrderItemData): OrderItem {
   };
 }
 
-export async function deleteOrderCascading(orderId: string): Promise<void> {
-  const { data: items } = await supabase.from("order_items").select("id").eq("order_id", orderId);
+export async function deleteOrderCascading(orderId: string, companyId?: string): Promise<void> {
+  let orderQuery = supabase.from("orders").select("id").eq("id", orderId);
+  if (companyId) orderQuery = orderQuery.eq("company_id", companyId);
+  const { data: order, error: orderError } = await orderQuery.maybeSingle();
+  if (orderError) throw orderError;
+  if (!order) throw new Error("Commessa non trovata o non accessibile.");
+
+  const [
+    { count: invoicesCount, error: invoicesError },
+    { count: costsCount, error: costsError },
+    { count: fiscalDocsCount, error: fiscalDocsError },
+    { count: fiscalLinksCount, error: fiscalLinksError },
+    { count: installmentsCount, error: installmentsError },
+  ] = await Promise.all([
+    supabase.from("invoices").select("id", { count: "exact", head: true }).eq("order_id", orderId),
+    supabase.from("company_costs").select("id", { count: "exact", head: true }).eq("order_id", orderId),
+    supabase.from("documenti_fiscali" as never).select("id", { count: "exact", head: true }).eq("ordine_id", orderId).is("deleted_at", null),
+    supabase.from("fattura_ordine" as never).select("id", { count: "exact", head: true }).eq("ordine_id", orderId),
+    supabase.from("order_installments" as never).select("id", { count: "exact", head: true }).eq("order_id", orderId),
+  ]);
+  if (invoicesError) throw invoicesError;
+  if (costsError) throw costsError;
+  if (fiscalDocsError) throw fiscalDocsError;
+  if (fiscalLinksError) throw fiscalLinksError;
+  if (installmentsError) throw installmentsError;
+  const blockers: string[] = [];
+  if ((invoicesCount ?? 0) > 0 || (fiscalDocsCount ?? 0) > 0 || (fiscalLinksCount ?? 0) > 0) blockers.push("documenti fiscali/fatture");
+  if ((costsCount ?? 0) > 0) blockers.push("costi collegati");
+  if ((installmentsCount ?? 0) > 0) blockers.push("scadenze o pagamenti");
+  if (blockers.length > 0) {
+    throw new Error(`Eliminazione bloccata: la commessa ha ${blockers.join(", ")}. Mantienila nello storico o scollega prima i movimenti.`);
+  }
+
+  const { data: items, error: itemsError } = await supabase.from("order_items").select("id").eq("order_id", orderId);
+  if (itemsError) throw itemsError;
   if (items && items.length > 0) {
     const itemIds = items.map(i => i.id);
-    await supabase.from("order_item_attachments").delete().in("order_item_id", itemIds);
+    const { error } = await supabase.from("order_item_attachments").delete().in("order_item_id", itemIds);
+    if (error) throw error;
   }
-  await Promise.all([
+  const results = await Promise.all([
     supabase.from("order_items").delete().eq("order_id", orderId),
     supabase.from("order_status_history").delete().eq("order_id", orderId),
     supabase.from("order_employees").delete().eq("order_id", orderId),
@@ -326,6 +360,8 @@ export async function deleteOrderCascading(orderId: string): Promise<void> {
     supabase.from("appointments").delete().eq("order_id", orderId),
     supabase.from("order_installments").delete().eq("order_id", orderId),
   ]);
+  const cascadeError = results.find((result) => result.error)?.error;
+  if (cascadeError) throw cascadeError;
   const { error } = await supabase.from("orders").delete().eq("id", orderId);
   if (error) throw error;
 }
@@ -334,6 +370,7 @@ export function getAmountDue(order: OrderWithDetails): number {
   let due = 0;
   if (!order.deposit_paid) due += order.deposit_amount || 0;
   if (!order.deposit_2_paid) due += (order.deposit_2_amount || 0);
+  if (order.financing_amount && order.financing_amount > 0 && !order.financing_paid) due += order.financing_amount;
   if (!order.balance_paid) due += order.balance_amount || 0;
   return due;
 }
@@ -342,6 +379,7 @@ export function getAmountCollected(order: OrderWithDetails): number {
   let collected = 0;
   if (order.deposit_paid) collected += order.deposit_amount || 0;
   if (order.deposit_2_paid) collected += (order.deposit_2_amount || 0);
+  if (order.financing_amount && order.financing_amount > 0 && order.financing_paid) collected += order.financing_amount;
   if (order.balance_paid) collected += order.balance_amount || 0;
   return collected;
 }
@@ -353,4 +391,22 @@ export function getPendingPayments(order: OrderWithDetails): string[] {
   if (order.balance_amount > 0 && !order.balance_paid) pending.push("Saldo");
   if (order.financing_amount && order.financing_amount > 0 && !order.financing_paid) pending.push("Finanz.");
   return pending;
+}
+
+export function getGrossOrderAmount(order: Pick<OrderWithDetails, "total_amount" | "vat_rate">): number {
+  return (order.total_amount || 0) * (1 + ((order.vat_rate ?? 22) / 100));
+}
+
+export function getOrderMargin(totalAmount: number, variableCosts: number): {
+  grossMargin: number;
+  marginPercent: number;
+  level: "good" | "low" | "negative";
+} {
+  const grossMargin = totalAmount - variableCosts;
+  const marginPercent = totalAmount > 0 ? (grossMargin / totalAmount) * 100 : 0;
+  return {
+    grossMargin,
+    marginPercent,
+    level: grossMargin < 0 ? "negative" : marginPercent < 20 ? "low" : "good",
+  };
 }

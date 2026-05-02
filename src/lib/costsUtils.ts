@@ -35,6 +35,7 @@ export function buildOrderItemCosts(orderItemCosts: any[]): UnifiedCost[] {
     const pm = item.payment_method;
     const order = item.order ? { id: item.order.id, order_code: item.order.order_code } : null;
     const supplierName = item.supplier?.name || null;
+    const supplierId = item.supplier_id || null;
 
     if (pm === "50_50" || pm === "30_70") {
       rows.push({
@@ -54,6 +55,7 @@ export function buildOrderItemCosts(orderItemCosts: any[]): UnifiedCost[] {
         isFromOrder: true,
         orderItemStatus: item.status,
         supplierName,
+        supplier_id: supplierId,
         vat_rate: item.supplier?.vat_rate ?? null,
       });
       rows.push({
@@ -73,6 +75,7 @@ export function buildOrderItemCosts(orderItemCosts: any[]): UnifiedCost[] {
         isFromOrder: true,
         orderItemStatus: item.status,
         supplierName,
+        supplier_id: supplierId,
         vat_rate: item.supplier?.vat_rate ?? null,
       });
     } else {
@@ -93,6 +96,7 @@ export function buildOrderItemCosts(orderItemCosts: any[]): UnifiedCost[] {
         isFromOrder: true,
         orderItemStatus: item.status,
         supplierName,
+        supplier_id: supplierId,
         vat_rate: item.supplier?.vat_rate ?? null,
       });
     }

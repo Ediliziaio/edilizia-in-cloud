@@ -238,6 +238,78 @@ export function parseTabellaCsv(
     const icc_n = parseNumero(row.icc);
     const provvigione_dealer = parseNumero(row.provvigione_dealer) ?? 0;
 
+    if (spese_istruttoria < 0)
+      errPerRiga.push({
+        riga: numeroRiga,
+        colonna: "spese_istruttoria",
+        messaggio: "spese_istruttoria non può essere negativa",
+      });
+    if (importo_totale_credito <= 0 || importo_totale_credito < importo_erogato!)
+      errPerRiga.push({
+        riga: numeroRiga,
+        colonna: "importo_totale_credito",
+        messaggio: "importo_totale_credito deve essere positivo e almeno pari all'importo erogato",
+      });
+    if (durata_mesi <= 0)
+      errPerRiga.push({
+        riga: numeroRiga,
+        colonna: "durata_mesi",
+        messaggio: "durata_mesi non valida",
+      });
+    if (prima_rata_giorni <= 0)
+      errPerRiga.push({
+        riga: numeroRiga,
+        colonna: "prima_rata_giorni",
+        messaggio: "prima_rata_giorni non valida",
+      });
+    if (spese_incasso_rata < 0)
+      errPerRiga.push({
+        riga: numeroRiga,
+        colonna: "spese_incasso_rata",
+        messaggio: "spese_incasso_rata non può essere negativa",
+      });
+    if (interessi_cliente! < 0)
+      errPerRiga.push({
+        riga: numeroRiga,
+        colonna: "interessi_cliente",
+        messaggio: "interessi_cliente non può essere negativo",
+      });
+    if (importo_totale_dovuto! < importo_erogato!)
+      errPerRiga.push({
+        riga: numeroRiga,
+        colonna: "importo_totale_dovuto",
+        messaggio: "importo_totale_dovuto deve essere almeno pari all'importo erogato",
+      });
+    if (tan! < 0 || tan! > 100)
+      errPerRiga.push({
+        riga: numeroRiga,
+        colonna: "tan",
+        messaggio: "tan deve essere tra 0 e 100",
+      });
+    if (taeg! < 0 || taeg! > 100)
+      errPerRiga.push({
+        riga: numeroRiga,
+        colonna: "taeg",
+        messaggio: "taeg deve essere tra 0 e 100",
+      });
+    if (icc_n != null && icc_n < 0)
+      errPerRiga.push({
+        riga: numeroRiga,
+        colonna: "icc",
+        messaggio: "icc non può essere negativo",
+      });
+    if (provvigione_dealer < 0)
+      errPerRiga.push({
+        riga: numeroRiga,
+        colonna: "provvigione_dealer",
+        messaggio: "provvigione_dealer non può essere negativa",
+      });
+
+    if (errPerRiga.length > 0) {
+      errori.push(...errPerRiga);
+      return;
+    }
+
     righe_valide.push({
       subtariffa: (row.subtariffa ?? "").trim() || opzioni.subtariffa_default || null,
       importo_erogato: importo_erogato!,

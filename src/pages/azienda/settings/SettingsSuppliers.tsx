@@ -8,16 +8,239 @@ import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { format } from "date-fns";
 import { SuppliersConfig } from "@/components/settings/SuppliersConfig";
 import { SuppliersOperational } from "@/pages/azienda/Suppliers";
+import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Truck, Download, ChevronDown, FileText, FileSpreadsheet, Users, Euro, AlertCircle,
+  Truck, Download, ChevronDown, FileText, FileSpreadsheet, Users, Euro, AlertCircle, BarChart3, ShieldCheck, Clock, TrendingUp,
 } from "lucide-react";
+
+const formatMoney = (value: number) =>
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value || 0);
+
+function SupplierReportsPanel() {
+  const { suppliers, isLoading } = useOperationalSuppliers();
+
+  const report = useMemo(() => {
+    const active = suppliers.filter((supplier) => supplier.is_active).length;
+    const inactive = suppliers.length - active;
+    const totalOda = suppliers.reduce((sum, supplier) => sum + (supplier.oda_total ?? 0), 0);
+    const openPayments = suppliers.reduce((sum, supplier) => sum + (supplier.scadenze_importo ?? 0), 0);
+    const totalOrders = suppliers.reduce((sum, supplier) => sum + (supplier.oda_count ?? 0), 0);
+    const topBySpend = [...suppliers]
+      .sort((a, b) => (b.oda_total ?? 0) - (a.oda_total ?? 0))
+      .slice(0, 8);
+    const withOpenPayments = [...suppliers]
+      .filter((supplier) => (supplier.scadenze_importo ?? 0) > 0)
+      .sort((a, b) => (b.scadenze_importo ?? 0) - (a.scadenze_importo ?? 0))
+      .slice(0, 8);
+    const byCategory = suppliers.reduce<Record<string, { count: number; spend: number }>>((acc, supplier) => {
+      const key = supplier.product_category || "Senza categoria";
+      acc[key] = acc[key] ?? { count: 0, spend: 0 };
+      acc[key].count += 1;
+      acc[key].spend += supplier.oda_total ?? 0;
+      return acc;
+    }, {});
+
+    return {
+      active,
+      inactive,
+      totalOda,
+      openPayments,
+      totalOrders,
+      avgOrder: totalOrders > 0 ? totalOda / totalOrders : 0,
+      topBySpend,
+      withOpenPayments,
+      byCategory: Object.entries(byCategory)
+        .map(([category, data]) => ({ category, ...data }))
+        .sort((a, b) => b.spend - a.spend)
+        .slice(0, 6),
+    };
+  }, [suppliers]);
+
+  if (isLoading) {
+    return <div className="rounded-lg border p-6 text-sm text-muted-foreground">Caricamento report fornitori...</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Acquisti OdA</CardDescription>
+            <CardTitle>{formatMoney(report.totalOda)}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Scadenze aperte</CardDescription>
+            <CardTitle>{formatMoney(report.openPayments)}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Ordini acquisto</CardDescription>
+            <CardTitle>{report.totalOrders}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Valore medio OdA</CardDescription>
+            <CardTitle>{formatMoney(report.avgOrder)}</CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="h-4 w-4" />
+              Storico acquisti avanzato
+            </CardTitle>
+            <CardDescription>Top fornitori per valore OdA, utile per procurement e negoziazione.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {report.topBySpend.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nessun ordine di acquisto collegato ai fornitori.</p>
+            ) : report.topBySpend.map((supplier, index) => (
+              <div key={supplier.id} className="grid grid-cols-[32px_1fr_auto] items-center gap-3 rounded-md border p-3">
+                <span className="text-sm font-semibold text-muted-foreground">#{index + 1}</span>
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{supplier.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {supplier.product_category || "Senza categoria"} · {supplier.oda_count ?? 0} OdA
+                  </p>
+                </div>
+                <p className="font-semibold">{formatMoney(supplier.oda_total ?? 0)}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Scadenze aperte</CardTitle>
+            <CardDescription>Fornitori con pagamenti ancora da chiudere.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {report.withOpenPayments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nessuna scadenza fornitore aperta.</p>
+            ) : report.withOpenPayments.map((supplier) => (
+              <div key={supplier.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{supplier.name}</p>
+                  <p className="text-xs text-muted-foreground">{supplier.scadenze_aperte ?? 0} scadenze</p>
+                </div>
+                <p className="font-semibold">{formatMoney(supplier.scadenze_importo ?? 0)}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Categorie fornitore</CardTitle>
+          <CardDescription>Distribuzione per categoria, con valore OdA aggregato.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {report.byCategory.map((category) => (
+            <div key={category.category} className="rounded-md border p-3">
+              <p className="font-medium">{category.category}</p>
+              <p className="text-xs text-muted-foreground">{category.count} fornitori</p>
+              <p className="mt-2 text-lg font-semibold">{formatMoney(category.spend)}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function SupplierAuditPanel({ companyId }: { companyId?: string }) {
+  const { data: logs = [], isLoading, isError, error } = useQuery({
+    queryKey: ["supplier-audit-log", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("company_activity_log")
+        .select("id, action, target_id, target_type, details, created_at, user_id")
+        .eq("company_id", companyId)
+        .eq("target_type", "supplier")
+        .order("created_at", { ascending: false })
+        .limit(80);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId,
+    staleTime: 60 * 1000,
+  });
+
+  if (isLoading) {
+    return <div className="rounded-lg border p-6 text-sm text-muted-foreground">Caricamento audit log fornitori...</div>;
+  }
+
+  if (isError) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Audit log non disponibile</AlertTitle>
+        <AlertDescription>{(error as Error | null)?.message || "Errore durante il caricamento log."}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-primary" />
+          Audit log fornitori
+        </CardTitle>
+        <CardDescription>
+          Registro automatico di creazioni, modifiche, eliminazioni e merge fornitori.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {logs.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+            Nessuna attività fornitore registrata.
+          </div>
+        ) : logs.map((log) => {
+          const details = (log.details ?? {}) as Record<string, unknown>;
+          const supplierName = String(details.name ?? details.target_name ?? details.source_name ?? "Fornitore");
+          return (
+            <div key={log.id} className="grid gap-2 rounded-md border p-3 md:grid-cols-[160px_1fr_auto] md:items-center">
+              <div>
+                <Badge variant="outline">{log.action}</Badge>
+                <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {format(new Date(log.created_at), "dd/MM/yyyy HH:mm")}
+                </p>
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium truncate">{supplierName}</p>
+                {log.action === "merge" && (
+                  <p className="text-xs text-muted-foreground">
+                    Merge da {String(details.source_name ?? "duplicato")} verso {String(details.target_name ?? "principale")}
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground truncate md:text-right">{log.target_id ?? "—"}</p>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
 
 /**
  * Wrapper Fornitori — header + export cross-tab.
@@ -267,15 +490,29 @@ export default function SettingsSuppliers() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="flex h-auto flex-wrap">
           <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
           <TabsTrigger value="operativo">Operativo</TabsTrigger>
+          <TabsTrigger value="report">
+            <BarChart3 className="mr-1.5 h-4 w-4" />
+            Report
+          </TabsTrigger>
+          <TabsTrigger value="audit">
+            <ShieldCheck className="mr-1.5 h-4 w-4" />
+            Audit
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="anagrafica" className="mt-4">
           <SuppliersConfig />
         </TabsContent>
         <TabsContent value="operativo" className="mt-4">
           <SuppliersOperational />
+        </TabsContent>
+        <TabsContent value="report" className="mt-4">
+          <SupplierReportsPanel />
+        </TabsContent>
+        <TabsContent value="audit" className="mt-4">
+          <SupplierAuditPanel companyId={effectiveCompany?.id} />
         </TabsContent>
       </Tabs>
     </div>

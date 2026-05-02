@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
+import { usePermissions } from "@/hooks/usePermissions";
 
 function getErrorMessage(error: unknown) {
   if (error && typeof error === "object" && "message" in error) {
@@ -89,13 +90,21 @@ export function useOpportunityFieldValues(opportunityId: string | null) {
 
 export function useUpdateContact() {
   const queryClient = useQueryClient();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
 
   return useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      if (!(permissions.canEditMarketingContacts || permissions.canEditMarketing)) {
+        throw new Error("Non hai i permessi per modificare contatti");
+      }
       const { error } = await supabase
         .from("marketing_contacts")
-        .update(data)
-        .eq("id", id);
+        .update({ ...data, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {

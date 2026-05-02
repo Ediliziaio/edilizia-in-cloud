@@ -16,14 +16,14 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, Search, Copy, FolderPlus, Lock, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Search, Copy, FolderPlus, Lock, AlertCircle, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -41,6 +41,7 @@ export interface UnifiedField {
   fieldType?: string;
   options?: string[];
   section?: string;
+  objectType?: string;
 }
 
 interface MarketingCustomFieldRow {
@@ -57,6 +58,30 @@ type CustomFieldUsageCounts = {
   contacts: number;
   opportunities: number;
   entities: number;
+};
+
+const OPTION_FIELD_TYPES = new Set(["select", "radio", "multiselect"]);
+
+const normalizeName = (value: string) => value.trim().replace(/\s+/g, " ");
+
+const normalizeOptions = (value: string) => {
+  const seen = new Set<string>();
+  return value
+    .split(/[,;\n]/)
+    .map((o) => o.trim())
+    .filter(Boolean)
+    .filter((o) => {
+      const key = o.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
+const formatSafeDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return format(date, "dd MMM yyyy", { locale: it });
 };
 
 class CustomFieldInUseError extends Error {
@@ -823,10 +848,21 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
 ];
 
 export const FIELD_TYPES = [
-  { value: "text", label: "Testo" },
+  { value: "text", label: "Testo breve" },
+  { value: "textarea", label: "Testo lungo" },
   { value: "number", label: "Numero" },
+  { value: "currency", label: "Importo" },
+  { value: "percent", label: "Percentuale" },
   { value: "date", label: "Data" },
+  { value: "time", label: "Ora" },
   { value: "select", label: "Selezione" },
+  { value: "multiselect", label: "Multi-selezione" },
+  { value: "radio", label: "Radio" },
+  { value: "checkbox", label: "Checkbox" },
+  { value: "phone", label: "Telefono" },
+  { value: "email", label: "Email" },
+  { value: "url", label: "URL" },
+  { value: "file", label: "File / Allegato" },
 ];
 
 const CONTACT_SECTIONS = [
@@ -981,6 +1017,7 @@ export function CustomFieldsConfig() {
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<UnifiedField | null>(null);
+  const [editTarget, setEditTarget] = useState<UnifiedField | null>(null);
 
   const { data: customFields = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["marketing_custom_fields", companyId],
@@ -1014,6 +1051,7 @@ export function CustomFieldsConfig() {
         fieldType: f.field_type,
         options: f.options ?? [],
         section: f.section,
+        objectType: f.object_type,
       };
     });
     return [...BUILTIN_FIELDS, ...custom];
@@ -1054,31 +1092,63 @@ export function CustomFieldsConfig() {
       ? CANTIERE_SECTIONS[objectType]
       : CONTACT_SECTIONS;
 
+  const resetForm = () => {
+    setName("");
+    setFieldType("text");
+    setSection("general_info");
+    setObjectType("contact");
+    setOptionsInput("");
+    setEditTarget(null);
+  };
+
+  const openCreateDialog = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (field: UnifiedField) => {
+    if (!field.objectType) return;
+    setEditTarget(field);
+    setName(field.name);
+    setFieldType(field.fieldType || "text");
+    setObjectType(field.objectType);
+    setSection(field.section || field.objectType);
+    setOptionsInput((field.options || []).join(", "));
+    setDialogOpen(true);
+  };
+
+  const selectedType = FIELD_TYPES.find((t) => t.value === fieldType);
+  const needsOptions = OPTION_FIELD_TYPES.has(fieldType);
+  const normalizedOptions = needsOptions ? normalizeOptions(optionsInput) : [];
+  const normalizedName = normalizeName(name);
+  const previewKey = objectType ? `{{ ${objectType}.${toSnakeCase(normalizedName || "nome_campo")} }}` : "";
+
+  const validateForm = () => {
+    if (!companyId) throw new Error("Azienda non disponibile");
+    if (!normalizedName) throw new Error("Inserisci il nome del campo");
+    if (normalizedName.length > 100) throw new Error("Il nome del campo deve restare sotto i 100 caratteri");
+    if (needsOptions && normalizedOptions.length === 0) {
+      throw new Error("Inserisci almeno un'opzione per questo tipo di campo");
+    }
+    const duplicate = (customFields as MarketingCustomFieldRow[]).some(
+      (field) =>
+        field.id !== editTarget?.id &&
+        field.object_type === objectType &&
+        normalizeName(field.name).toLowerCase() === normalizedName.toLowerCase()
+    );
+    if (duplicate) {
+      throw new Error("Esiste già un campo con questo nome per l'oggetto selezionato");
+    }
+  };
+
   const addMutation = useMutation({
     mutationFn: async () => {
-      if (!companyId) throw new Error("Azienda non disponibile");
-      const normalizedName = name.trim();
-      if (!normalizedName) throw new Error("Inserisci il nome del campo");
-      const options =
-        fieldType === "select"
-          ? optionsInput.split(",").map((o) => o.trim()).filter(Boolean)
-          : [];
-      if (fieldType === "select" && options.length === 0) {
-        throw new Error("Inserisci almeno un'opzione per il campo a selezione");
-      }
-      const duplicate = (customFields as MarketingCustomFieldRow[]).some(
-        (field) =>
-          field.object_type === objectType &&
-          field.name.trim().toLowerCase() === normalizedName.toLowerCase()
-      );
-      if (duplicate) {
-        throw new Error("Esiste già un campo con questo nome per l'oggetto selezionato");
-      }
+      validateForm();
       const { error } = await supabase.from("marketing_custom_fields").insert({
-        company_id: companyId,
+        company_id: companyId!,
         name: normalizedName,
         field_type: fieldType,
-        options,
+        options: normalizedOptions,
         section,
         position: customFields.length,
         object_type: objectType,
@@ -1087,15 +1157,50 @@ export function CustomFieldsConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing-custom-fields"] });
       toast.success("Campo personalizzato aggiunto");
       setDialogOpen(false);
-      setName("");
-      setFieldType("text");
-      setSection("general_info");
-      setObjectType("contact");
-      setOptionsInput("");
+      resetForm();
     },
     onError: (e: unknown) => toast.error(getErrorMessage(e) || "Errore nel salvataggio"),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!companyId || !editTarget) throw new Error("Campo non disponibile");
+      validateForm();
+
+      const usage = await getCustomFieldUsageCounts(editTarget.id);
+      const isUsed = usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0;
+      const typeChanged = fieldType !== editTarget.fieldType;
+      const objectChanged = objectType !== editTarget.objectType;
+      const optionsChanged = JSON.stringify(normalizedOptions) !== JSON.stringify(editTarget.options || []);
+
+      if (isUsed && (typeChanged || objectChanged || optionsChanged)) {
+        throw new Error("Il campo contiene valori salvati: puoi modificare nome e sezione, ma non tipo, oggetto o opzioni.");
+      }
+
+      const { error } = await supabase
+        .from("marketing_custom_fields")
+        .update({
+          name: normalizedName,
+          field_type: fieldType,
+          options: normalizedOptions,
+          section,
+          object_type: objectType,
+        })
+        .eq("id", editTarget.id)
+        .eq("company_id", companyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing-custom-fields"] });
+      toast.success("Campo personalizzato aggiornato");
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: (e: unknown) => toast.error(getErrorMessage(e) || "Errore nell'aggiornamento"),
   });
 
   const deleteMutation = useMutation({
@@ -1111,6 +1216,7 @@ export function CustomFieldsConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing-custom-fields"] });
       toast.success("Campo eliminato");
     },
     onError: (e: unknown) => {
@@ -1160,7 +1266,7 @@ export function CustomFieldsConfig() {
           <Button variant="outline" size="sm" disabled>
             <FolderPlus className="h-4 w-4 mr-1.5" /> Aggiungi cartella
           </Button>
-          <Button size="sm" onClick={() => setDialogOpen(true)} disabled={!companyId}>
+          <Button size="sm" onClick={openCreateDialog} disabled={!companyId}>
             <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
           </Button>
         </div>
@@ -1257,19 +1363,32 @@ export function CustomFieldsConfig() {
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {format(new Date(f.createdAt), "dd MMM yyyy", { locale: it })}
+                      {formatSafeDate(f.createdAt)}
                     </TableCell>
                     <TableCell>
                       {!f.isSystem && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => setDeleteTarget(f)}
-                          disabled={deleteMutation.isPending}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => openEditDialog(f)}
+                            disabled={updateMutation.isPending}
+                            aria-label="Modifica campo"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive"
+                            onClick={() => setDeleteTarget(f)}
+                            disabled={deleteMutation.isPending}
+                            aria-label="Elimina campo"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
@@ -1315,10 +1434,19 @@ export function CustomFieldsConfig() {
       </AlertDialog>
 
       {/* ── Add field dialog ── */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) resetForm();
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nuovo Campo Personalizzato</DialogTitle>
+            <DialogTitle>{editTarget ? "Modifica Campo Personalizzato" : "Nuovo Campo Personalizzato"}</DialogTitle>
+            <DialogDescription>
+              Configura il campo e verifica l'anteprima prima di salvarlo. I dati esistenti vengono protetti da modifiche distruttive.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -1326,30 +1454,9 @@ export function CustomFieldsConfig() {
               <Select value={objectType} onValueChange={handleObjectTypeChange}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="contact">Contatto</SelectItem>
-                  <SelectItem value="opportunity">Opportunità</SelectItem>
-                  <SelectItem value="ordini_variazione">Ordine di Variazione</SelectItem>
-                  <SelectItem value="giornale_lavori">Giornale dei Lavori</SelectItem>
-                  <SelectItem value="pos_document">POS – Sicurezza Cantiere</SelectItem>
-                  <SelectItem value="duvri_document">DUVRI – Sicurezza Cantiere</SelectItem>
-                  {/* ── Assistenza ── */}
-                  <SelectItem value="intervento">Intervento / Assistenza</SelectItem>
-                  <SelectItem value="rapportino">Rapportino Intervento</SelectItem>
-                  {/* ── Manutenzione ── */}
-                  <SelectItem value="impianto">Impianto Cliente</SelectItem>
-                  <SelectItem value="contratto_manutenzione">Contratto Manutenzione</SelectItem>
-                  <SelectItem value="piano_manutenzione">Piano Manutenzione</SelectItem>
-                  {/* ── Subappaltatori ── */}
-                  <SelectItem value="subappaltatore">Subappaltatore</SelectItem>
-                  <SelectItem value="contratto_subappalto">Contratto Subappalto</SelectItem>
-                  <SelectItem value="sal_subappaltatore">SAL Subappaltatore</SelectItem>
-                  {/* ── Acquisti ── */}
-                  <SelectItem value="ordine_acquisto">Ordine Acquisto (OdA)</SelectItem>
-                  <SelectItem value="ddt_ricezione">DDT Ricezione Merce</SelectItem>
-                  {/* ── Finanza ── */}
-                  <SelectItem value="costo_aziendale">Costo Aziendale</SelectItem>
-                  {/* ── Azienda ── */}
-                  <SelectItem value="company">Azienda / Profilo</SelectItem>
+                  {GROUP_OPTIONS.filter((g) => g.value !== "all").map((g) => (
+                    <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1386,22 +1493,44 @@ export function CustomFieldsConfig() {
                 </Select>
               </div>
             </div>
-            {fieldType === "select" && (
+            {needsOptions && (
               <div className="space-y-1.5">
-                <Label>Opzioni (separate da virgola)</Label>
+                <Label>Opzioni</Label>
                 <Input
                   value={optionsInput}
                   onChange={(e) => setOptionsInput(e.target.value)}
                   placeholder="es. Condensazione, Tradizionale, Ibrida"
-                  maxLength={200}
+                  maxLength={500}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Puoi separare le opzioni con virgole, punto e virgola o invio. I duplicati vengono rimossi.
+                </p>
               </div>
             )}
+            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+              <p className="font-medium text-foreground">Anteprima campo</p>
+              <p><span className="text-muted-foreground">Oggetto:</span> {OBJECT_NAME_MAP[objectType] || objectType}</p>
+              <p><span className="text-muted-foreground">Tipo:</span> {selectedType?.label || fieldType}</p>
+              <p><span className="text-muted-foreground">Chiave:</span> <code>{previewKey}</code></p>
+              {needsOptions && (
+                <p><span className="text-muted-foreground">Opzioni valide:</span> {normalizedOptions.length ? normalizedOptions.join(", ") : "nessuna"}</p>
+              )}
+              {editTarget && (
+                <p className="text-amber-700">
+                  Se il campo contiene valori salvati, tipo, oggetto e opzioni non verranno modificati per evitare perdita dati.
+                </p>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
-            <Button onClick={() => addMutation.mutate()} disabled={!companyId || !name.trim() || addMutation.isPending}>
-              {addMutation.isPending ? "Salvataggio..." : "Aggiungi"}
+            <Button
+              onClick={() => editTarget ? updateMutation.mutate() : addMutation.mutate()}
+              disabled={!companyId || !normalizedName || (needsOptions && normalizedOptions.length === 0) || addMutation.isPending || updateMutation.isPending}
+            >
+              {addMutation.isPending || updateMutation.isPending
+                ? "Salvataggio..."
+                : editTarget ? "Salva modifiche" : "Aggiungi"}
             </Button>
           </DialogFooter>
         </DialogContent>

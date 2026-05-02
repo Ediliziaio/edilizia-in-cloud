@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { ELEVENLABS_VOICES_IT } from "@/constants/elevenlabsVoices";
 import {
   Dialog,
@@ -159,13 +159,15 @@ export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess 
   const stepId = steps[currentStep];
   const progress = ((currentStep + 1) / steps.length) * 100;
   const isLastStep = currentStep === steps.length - 1;
+  const isIdentityReady = state.nome.trim().length > 0 && state.system_prompt.trim().length >= 20;
 
   const update = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
 
   const canNext = (): boolean => {
     switch (stepId) {
       case "tipo": return true;
-      case "identita": return !!state.nome.trim();
+      case "identita": return isIdentityReady;
+      case "review": return isIdentityReady;
       default: return true;
     }
   };
@@ -218,6 +220,12 @@ export function AgentCreateModal({ open, tipoPreselezionato, onClose, onSuccess 
     setCurrentStep(0);
     setState({ ...INITIAL_STATE, tipo: tipoPreselezionato || "vocale" });
   };
+
+  useEffect(() => {
+    if (!open) return;
+    setCurrentStep(0);
+    setState({ ...INITIAL_STATE, tipo: tipoPreselezionato || "vocale" });
+  }, [open, tipoPreselezionato]);
 
   const handleOpenChange = (v: boolean) => {
     if (!v) {
@@ -333,6 +341,8 @@ function StepTipo({ state, update, onSelectAndNext }: { state: WizardState; upda
 
 function StepIdentita({ state, update }: { state: WizardState; update: (p: Partial<WizardState>) => void }) {
   const purposes = PURPOSE_OPTIONS[state.tipo] || [];
+  const promptLength = state.system_prompt.trim().length;
+  const promptReady = promptLength >= 20;
 
   const handlePurposeSelect = (purposeId: string) => {
     const p = purposes.find((x) => x.id === purposeId);
@@ -392,6 +402,11 @@ function StepIdentita({ state, update }: { state: WizardState; update: (p: Parti
         <p className="text-[10px] text-muted-foreground mt-1">
           Usa {"{{nome_azienda}}"}, {"{{nome_cliente}}"} come variabili dinamiche.
         </p>
+        {!promptReady && (
+          <p className="text-[10px] text-destructive mt-1">
+            Inserisci almeno 20 caratteri di istruzioni: evita agenti senza comportamento definito.
+          </p>
+        )}
       </div>
 
       {/* First message */}
@@ -581,6 +596,7 @@ function StepChatConfig({ state, update }: { state: WizardState; update: (p: Par
 function StepReview({ state }: { state: WizardState }) {
   const tipoCfg = TIPO_OPTIONS.find((t) => t.value === state.tipo)!;
   const Icon = tipoCfg.icon;
+  const promptReady = state.system_prompt.trim().length >= 20;
 
   return (
     <div className="space-y-4">
@@ -616,6 +632,11 @@ function StepReview({ state }: { state: WizardState }) {
           <p className="text-[11px] text-muted-foreground">
             L'agente verrà creato come <strong>bozza</strong>. Potrai attivarlo dopo aver completato la configurazione.
           </p>
+          {!promptReady && (
+            <p className="text-[11px] text-destructive mt-1">
+              Completa il prompt di sistema prima di creare l'agente.
+            </p>
+          )}
         </div>
       </div>
     </div>

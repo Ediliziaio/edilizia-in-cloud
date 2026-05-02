@@ -33,6 +33,10 @@ import { TestFlowDialog } from "./TestFlowDialog";
 import { type CatalogItem } from "@/lib/flow-node-catalog";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
 
@@ -64,6 +68,7 @@ export function FlowBuilderPage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [pendingInsertEdgeId, setPendingInsertEdgeId] = useState<string | null>(null);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [testEnrollmentId, setTestEnrollmentId] = useState<string | null>(null);
   const [nodeTestStatus, setNodeTestStatus] = useState<Record<string, "success" | "error" | "skipped">>({});
 
@@ -450,14 +455,6 @@ export function FlowBuilderPage() {
                 },
               ]);
 
-              // Persist end node + 3 connections
-              addNode({
-                id: endNodeId, flow_id: flowId, company_id: effectiveCompany.id,
-                node_type: "end" as any,
-                position_x: Math.round(endPos.x), position_y: Math.round(endPos.y),
-                config_json: {}, label: "Fine",
-                created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-              });
               removeConnection(pendingInsertEdgeId);
               addConnection({
                 id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
@@ -468,11 +465,6 @@ export function FlowBuilderPage() {
                 id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
                 from_node_id: newNodeId, to_node_id: edge.target,
                 label: "Sì", created_at: new Date().toISOString(),
-              });
-              addConnection({
-                id: edge3Id, flow_id: flowId, company_id: effectiveCompany.id,
-                from_node_id: newNodeId, to_node_id: endNodeId,
-                label: "No", created_at: new Date().toISOString(),
               });
             } else if (item.kind === "split") {
               // Split A/B node: branch A goes to original target, branch B goes to new End node
@@ -497,13 +489,6 @@ export function FlowBuilderPage() {
                 },
               ]);
 
-              addNode({
-                id: endNodeId, flow_id: flowId, company_id: effectiveCompany.id,
-                node_type: "end" as any,
-                position_x: Math.round(endPos.x), position_y: Math.round(endPos.y),
-                config_json: {}, label: "Fine",
-                created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-              });
               removeConnection(pendingInsertEdgeId);
               addConnection({
                 id: edge1Id, flow_id: flowId, company_id: effectiveCompany.id,
@@ -514,11 +499,6 @@ export function FlowBuilderPage() {
                 id: edge2Id, flow_id: flowId, company_id: effectiveCompany.id,
                 from_node_id: newNodeId, to_node_id: edge.target,
                 label: "A: 50%", created_at: new Date().toISOString(),
-              });
-              addConnection({
-                id: edge3Id, flow_id: flowId, company_id: effectiveCompany.id,
-                from_node_id: newNodeId, to_node_id: endNodeId,
-                label: "B: 50%", created_at: new Date().toISOString(),
               });
             } else {
               setRfEdges((eds) => [
@@ -688,23 +668,52 @@ export function FlowBuilderPage() {
   const handleBack = useCallback(async () => {
     const prefix = window.location.pathname.startsWith("/admin") ? "/admin" : "/azienda";
     const backUrl = `${prefix}/marketing/automazioni`;
-    // If flow was auto-created but user never added any nodes, delete it silently
-    if (flowId && builder.nodes.length === 0) {
+    const hasPersistedNodes = builder.nodes.some((n) => n.node_type !== ("end" as typeof n.node_type));
+
+    // If flow was auto-created but user never added any persisted nodes, delete it silently.
+    if (flowId && !hasPersistedNodes) {
       try {
-        await supabase.from("automation_flows").delete().eq("id", flowId);
+        let deleteQuery = supabase.from("automation_flows").delete().eq("id", flowId);
+        if (effectiveCompany?.id) deleteQuery = deleteQuery.eq("company_id", effectiveCompany.id);
+        await deleteQuery;
       } catch { /* silently ignore */ }
     }
     navigate(backUrl);
-  }, [flowId, builder.nodes.length, navigate]);
+  }, [flowId, builder.nodes, navigate, effectiveCompany?.id]);
 
   // Compute validation errors from nodes
   const validationErrors = useMemo<WorkflowError[]>(() => {
     const errs: WorkflowError[] = [];
     const nonNoteNodes = rfNodes.filter(n => n.type !== "note");
+    const configuredTriggers = nonNoteNodes.filter(n => n.type === "trigger" && !n.data?.isEmpty);
+    const configuredActions = nonNoteNodes.filter(n => n.type === "action" && (n.data?.itemId || n.data?.action_type));
+    const triggerIds = configuredTriggers
+      .map((n) => String(n.data?.itemId ?? n.data?.trigger_event ?? ""))
+      .filter(Boolean);
+    const actionIds = configuredActions
+      .map((n) => String(n.data?.itemId ?? n.data?.action_type ?? ""))
+      .filter(Boolean);
 
     // No trigger at all
     if (nonNoteNodes.length > 1 && !nonNoteNodes.some(n => n.type === "trigger")) {
       errs.push({ nodeId: "", nodeLabel: "Flusso", tipo: "errore", messaggio: "Il flusso non ha un trigger di avvio." });
+    }
+
+    if (configuredTriggers.length > 1) {
+      errs.push({ nodeId: "", nodeLabel: "Flusso", tipo: "avviso", messaggio: "Sono presenti più trigger: verifica che non attivino lo stesso contatto due volte." });
+    }
+
+    const hasContactUpdateLoop = triggerIds.some(id => id.includes("contact") && id.includes("updated"))
+      && actionIds.some(id => id.includes("update_contact"));
+    const hasOpportunityUpdateLoop = triggerIds.some(id => id.includes("opportunity") && (id.includes("updated") || id.includes("stage")))
+      && actionIds.some(id => id.includes("opportunity") && (id.includes("update") || id.includes("stage") || id.includes("move")));
+    if (hasContactUpdateLoop || hasOpportunityUpdateLoop) {
+      errs.push({
+        nodeId: "",
+        nodeLabel: "Anti-loop",
+        tipo: "avviso",
+        messaggio: "Il trigger e un'azione aggiornano la stessa area dati: verifica le condizioni per evitare riattivazioni continue.",
+      });
     }
 
     for (const n of nonNoteNodes) {
@@ -730,8 +739,11 @@ export function FlowBuilderPage() {
       }
 
       // Delay without duration
-      if (n.type === "delay" && !n.data?.delay_value) {
+      if (n.type === "delay") {
+        const delayValue = Number(n.data?.delay_durata ?? n.data?.delay_value);
+        if (!Number.isFinite(delayValue) || delayValue <= 0) {
         errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Attesa", tipo: "avviso", messaggio: "Durata dell'attesa non impostata." });
+        }
       }
 
       // Disconnected node (no incoming edge, except trigger)
@@ -753,6 +765,49 @@ export function FlowBuilderPage() {
 
     return errs;
   }, [rfNodes, rfEdges]);
+
+  const readinessChecks = useMemo(() => {
+    const nonNoteNodes = rfNodes.filter(n => n.type !== "note");
+    const hasTrigger = nonNoteNodes.some(n => n.type === "trigger" && !n.data?.isEmpty);
+    const hasAction = nonNoteNodes.some(n => ["action", "condition", "delay", "goal", "split"].includes(String(n.type)));
+    const blockingErrors = validationErrors.filter(e => e.tipo === "errore").length;
+    const warnings = validationErrors.filter(e => e.tipo === "avviso").length;
+
+    return [
+      { label: "Trigger configurato", ok: hasTrigger },
+      { label: "Almeno uno step operativo", ok: hasAction },
+      { label: "Nessun errore bloccante", ok: blockingErrors === 0 },
+      { label: "Controlli anti-loop verificati", ok: warnings === 0 },
+    ];
+  }, [rfNodes, validationErrors]);
+
+  const publishSummary = useMemo(() => {
+    const nonNoteNodes = rfNodes.filter(n => n.type !== "note" && n.type !== "end");
+    const triggers = nonNoteNodes.filter(n => n.type === "trigger" && !n.data?.isEmpty).length;
+    const actions = nonNoteNodes.filter(n => n.type === "action").length;
+    const conditions = nonNoteNodes.filter(n => n.type === "condition").length;
+    const delays = nonNoteNodes.filter(n => n.type === "delay").length;
+    return { triggers, actions, conditions, delays };
+  }, [rfNodes]);
+
+  const canPublish = readinessChecks.every(check => check.ok);
+
+  useEffect(() => {
+    const errorNodeIds = new Set(validationErrors.filter(e => e.tipo === "errore" && e.nodeId).map(e => e.nodeId));
+    const warningNodeIds = new Set(validationErrors.filter(e => e.tipo === "avviso" && e.nodeId).map(e => e.nodeId));
+
+    setRfNodes((nodes) => {
+      let changed = false;
+      const next = nodes.map((node) => {
+        const hasError = errorNodeIds.has(node.id);
+        const hasWarning = warningNodeIds.has(node.id);
+        if (node.data?.hasError === hasError && node.data?.hasWarning === hasWarning) return node;
+        changed = true;
+        return { ...node, data: { ...node.data, hasError, hasWarning } };
+      });
+      return changed ? next : nodes;
+    });
+  }, [validationErrors, setRfNodes]);
 
   // Badge counts for tabs
   const { data: enrollmentCount = 0 } = useQuery({
@@ -869,13 +924,64 @@ export function FlowBuilderPage() {
         onSave={saveImmediate}
         onUndo={undo}
         onRedo={redo}
-        onTogglePublish={togglePublish}
+        onTogglePublish={() => {
+          if (flow?.status === "published") {
+            togglePublish();
+            return;
+          }
+          if (!canPublish) {
+            setLeftPanel("errors");
+            toast.error("Automazione non pronta", { description: validationErrors.find(e => e.tipo === "errore")?.messaggio || "Controlla la checklist prima di pubblicare." });
+            return;
+          }
+          setPublishDialogOpen(true);
+        }}
         onUpdateName={handleUpdateName}
         onArchive={handleArchive}
         onTest={() => setTestDialogOpen(true)}
         onBack={handleBack}
         tabBadges={{ cronologia: enrollmentCount > 0 ? enrollmentCount : undefined }}
       />
+
+      <AlertDialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Pubblicare questa automazione?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Dopo la pubblicazione il flusso potrà reagire agli eventi reali configurati. Verifica trigger, azioni e condizioni prima di procedere.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-3 text-sm">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div><span className="font-semibold">{publishSummary.triggers}</span> trigger</div>
+              <div><span className="font-semibold">{publishSummary.actions}</span> azioni</div>
+              <div><span className="font-semibold">{publishSummary.conditions}</span> condizioni</div>
+              <div><span className="font-semibold">{publishSummary.delays}</span> attese</div>
+            </div>
+            <div className="space-y-1.5">
+              {readinessChecks.map((check) => (
+                <div key={check.label} className="flex items-center justify-between gap-3 text-xs">
+                  <span>{check.label}</span>
+                  <span className={check.ok ? "font-medium text-emerald-600" : "font-medium text-destructive"}>
+                    {check.ok ? "OK" : "Da verificare"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setPublishDialogOpen(false);
+                void togglePublish();
+              }}
+            >
+              Pubblica
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Test dialog */}
       <TestFlowDialog
@@ -894,7 +1000,7 @@ export function FlowBuilderPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar — only in builder tab */}
         {activeTab === "builder" && (
-          <FlowBuilderSidebar activePanel={leftPanel} onPanelChange={setLeftPanel} flowId={flowId} errors={validationErrors} />
+          <FlowBuilderSidebar activePanel={leftPanel} onPanelChange={setLeftPanel} flowId={flowId} errors={validationErrors} readinessChecks={readinessChecks} />
         )}
 
         {/* Center content */}

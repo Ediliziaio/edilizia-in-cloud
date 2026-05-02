@@ -15,12 +15,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, Pencil, Trash2, CalendarDays, Link2, Clock, Settings2, Copy } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, CalendarDays, Link2, Clock, Settings2, Copy, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import CalendarDialog from "./CalendarDialog";
 import GoogleCalendarConnectionTab from "./GoogleCalendarConnectionTab";
 import AppleCalendarConnectionTab from "./AppleCalendarConnectionTab";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 
 type MarketingCalendar = {
   id: string;
@@ -28,6 +29,7 @@ type MarketingCalendar = {
   name: string;
   group_name: string | null;
   duration_minutes: number;
+  max_daily_km: number | null;
   calendar_type: string;
   is_active: boolean;
   owner_id: string | null;
@@ -71,6 +73,12 @@ type CalendarAvailability = {
   specific_date: string | null;
 };
 
+type CalendarAppointmentRef = {
+  id: string;
+  calendar_id: string | null;
+  status: string | null;
+};
+
 const DAYS = [
   { value: 1, label: "Lunedì" },
   { value: 2, label: "Martedì" },
@@ -82,8 +90,9 @@ const DAYS = [
 ];
 
 export default function MarketingCalendarsConfig() {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, role } = useAuth();
   const effectiveCompanyId = effectiveCompany?.id;
+  const canManageCalendars = role === "company_admin" || role === "super_admin";
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -93,9 +102,65 @@ export default function MarketingCalendarsConfig() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedCalendarId, setSelectedCalendarId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("calendars");
+  const { data: staffUsers = [] } = useCompanyStaffUsers(effectiveCompanyId);
+
+  const validateCalendarPayload = (data: any) => {
+    const name = String(data.name || "").trim();
+    const duration = Number(data.duration_minutes);
+    const maxDailyKm = data.max_daily_km == null ? null : Number(data.max_daily_km);
+
+    if (!name) throw new Error("Inserisci un nome calendario.");
+    if (!Number.isFinite(duration) || duration <= 0 || duration > 24 * 60) {
+      throw new Error("La durata appuntamento deve essere tra 1 minuto e 24 ore.");
+    }
+    if (maxDailyKm != null && (!Number.isFinite(maxDailyKm) || maxDailyKm <= 0)) {
+      throw new Error("I km massimi giornalieri devono essere maggiori di zero.");
+    }
+
+    return { name, duration, maxDailyKm };
+  };
+
+  const assertNoDuplicateCalendarName = async (name: string, excludeId?: string) => {
+    if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
+    let query = supabase
+      .from("marketing_calendars")
+      .select("id")
+      .eq("company_id", effectiveCompanyId)
+      .ilike("name", name)
+      .limit(1);
+    if (excludeId) query = query.neq("id", excludeId);
+    const { data, error } = await query;
+    if (error) throw error;
+    if ((data || []).length > 0) throw new Error("Esiste già un calendario con questo nome.");
+  };
+
+  const validateAvailabilityRows = (rows: { day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]) => {
+    const seenDays = new Set<number>();
+    for (const row of rows) {
+      if (seenDays.has(row.day_of_week)) throw new Error("Disponibilità duplicata per lo stesso giorno.");
+      seenDays.add(row.day_of_week);
+      if (!row.is_enabled) continue;
+      if (!row.start_time || !row.end_time) throw new Error("Completa gli orari dei giorni attivi.");
+      if (row.start_time >= row.end_time) {
+        const dayName = DAYS.find(d => d.value === row.day_of_week)?.label || "giorno selezionato";
+        throw new Error(`Orario non valido per ${dayName}: l'ora di fine deve essere successiva all'inizio.`);
+      }
+    }
+  };
+
+  const validatePreferencesPayload = (data: Partial<CalendarPreferences>) => {
+    const defaultMaxKm = Number(data.default_max_daily_km);
+    const travelMinutes = Number(data.max_travel_minutes);
+    const durationMinutes = Number(data.default_appointment_duration_minutes);
+    if (!Number.isFinite(defaultMaxKm) || defaultMaxKm <= 0) throw new Error("Km massimi giornalieri non validi.");
+    if (!Number.isFinite(travelMinutes) || travelMinutes <= 0) throw new Error("Tempo massimo spostamento non valido.");
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0 || durationMinutes > 24 * 60) {
+      throw new Error("Durata appuntamento di default non valida.");
+    }
+  };
 
   // ---- QUERIES ----
-  const { data: calendars = [], isLoading: loadingCalendars } = useQuery({
+  const { data: calendars = [], isLoading: loadingCalendars, isError: calendarsError } = useQuery({
     queryKey: ["marketing-calendars", effectiveCompanyId],
     queryFn: async () => {
       if (!effectiveCompanyId) return [];
@@ -106,6 +171,22 @@ export default function MarketingCalendarsConfig() {
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as MarketingCalendar[];
+    },
+    enabled: !!effectiveCompanyId,
+  });
+
+  const { data: appointmentRefs = [] } = useQuery({
+    queryKey: ["marketing-calendar-appointment-refs", effectiveCompanyId],
+    queryFn: async () => {
+      if (!effectiveCompanyId) return [];
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("id, calendar_id, status")
+        .eq("company_id", effectiveCompanyId)
+        .not("calendar_id", "is", null)
+        .limit(5000);
+      if (error) throw error;
+      return data as CalendarAppointmentRef[];
     },
     enabled: !!effectiveCompanyId,
   });
@@ -145,14 +226,17 @@ export default function MarketingCalendarsConfig() {
   const createCalendar = useMutation({
     mutationFn: async (data: any) => {
       if (!effectiveCompanyId || !user?.id) throw new Error("Dati mancanti");
+      if (!canManageCalendars) throw new Error("Non hai i permessi per creare calendari.");
+      const { name, duration, maxDailyKm } = validateCalendarPayload(data);
+      await assertNoDuplicateCalendarName(name);
       const { error } = await supabase.from("marketing_calendars").insert({
         company_id: effectiveCompanyId,
         created_by: user.id,
-        name: data.name,
+        name,
         description: data.description || null,
         owner_id: data.owner_id || null,
-        duration_minutes: data.duration_minutes,
-        max_daily_km: data.max_daily_km ?? null,
+        duration_minutes: duration,
+        max_daily_km: maxDailyKm,
         calendar_type: "personal",
         group_name: null,
         base_address_line: data.base_address_line || null,
@@ -172,16 +256,21 @@ export default function MarketingCalendarsConfig() {
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
       setDialogOpen(false);
     },
+    onError: (e: Error) => toast.error(e.message || "Impossibile creare il calendario"),
   });
 
   const updateCalendar = useMutation({
     mutationFn: async ({ id, ...data }: any) => {
+      if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
+      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare calendari.");
+      const { name, duration, maxDailyKm } = validateCalendarPayload(data);
+      await assertNoDuplicateCalendarName(name, id);
       const { error } = await supabase.from("marketing_calendars").update({
-        name: data.name,
+        name,
         description: data.description || null,
         owner_id: data.owner_id || null,
-        duration_minutes: data.duration_minutes,
-        max_daily_km: data.max_daily_km ?? null,
+        duration_minutes: duration,
+        max_daily_km: maxDailyKm,
         base_address_line: data.base_address_line || null,
         base_address_city: data.base_address_city || null,
         base_address_postal_code: data.base_address_postal_code || null,
@@ -200,21 +289,37 @@ export default function MarketingCalendarsConfig() {
       setDialogOpen(false);
       setEditingCalendar(null);
     },
+    onError: (e: Error) => toast.error(e.message || "Impossibile aggiornare il calendario"),
   });
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
+      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare calendari.");
       const { error } = await supabase.from("marketing_calendars").update({ is_active }).eq("id", id).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
     },
+    onError: (e: Error) => toast.error(e.message || "Impossibile aggiornare lo stato del calendario"),
   });
 
   const deleteCalendar = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("marketing_calendars").delete().eq("id", id).eq("company_id", effectiveCompanyId!);
+      if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
+      if (!canManageCalendars) throw new Error("Non hai i permessi per eliminare calendari.");
+      const { count, error: countError } = await supabase
+        .from("appointments")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", effectiveCompanyId)
+        .eq("calendar_id", id)
+        .not("status", "in", "(cancelled,canceled,archived)");
+      if (countError) throw countError;
+      if ((count || 0) > 0) {
+        throw new Error("Calendario collegato ad appuntamenti attivi: disattivalo invece di eliminarlo.");
+      }
+      const { error } = await supabase.from("marketing_calendars").delete().eq("id", id).eq("company_id", effectiveCompanyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -222,11 +327,14 @@ export default function MarketingCalendarsConfig() {
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
       setDeleteId(null);
     },
+    onError: (e: Error) => toast.error(e.message || "Impossibile eliminare il calendario"),
   });
 
   const upsertPreferences = useMutation({
     mutationFn: async (data: Partial<CalendarPreferences>) => {
       if (!effectiveCompanyId) throw new Error("Dati mancanti");
+      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare le preferenze calendario.");
+      validatePreferencesPayload(data);
       const { error } = await supabase.from("marketing_calendar_preferences").upsert(
         { company_id: effectiveCompanyId, ...data },
         { onConflict: "company_id" }
@@ -237,17 +345,21 @@ export default function MarketingCalendarsConfig() {
       toast.success("Preferenze salvate");
       queryClient.invalidateQueries({ queryKey: ["marketing-calendar-preferences"] });
     },
+    onError: (e: Error) => toast.error(e.message || "Impossibile salvare le preferenze"),
   });
 
   const saveAvailability = useMutation({
     mutationFn: async (rows: { day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]) => {
       if (!selectedCalendarId || !effectiveCompanyId) throw new Error("Dati mancanti");
+      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare la disponibilità.");
+      validateAvailabilityRows(rows);
       // Delete existing weekly rows, then insert new
-      await supabase.from("marketing_calendar_availability")
+      const { error: deleteError } = await supabase.from("marketing_calendar_availability")
         .delete()
         .eq("calendar_id", selectedCalendarId)
         .eq("company_id", effectiveCompanyId)
         .is("specific_date", null);
+      if (deleteError) throw deleteError;
       const inserts = rows.map(r => ({
         company_id: effectiveCompanyId,
         calendar_id: selectedCalendarId,
@@ -266,6 +378,7 @@ export default function MarketingCalendarsConfig() {
       toast.success("Disponibilità salvata");
       queryClient.invalidateQueries({ queryKey: ["marketing-calendar-availability"] });
     },
+    onError: (e: Error) => toast.error(e.message || "Impossibile salvare la disponibilità"),
   });
 
   // ---- FILTERS ----
@@ -275,6 +388,35 @@ export default function MarketingCalendarsConfig() {
     if (filterType !== "all" && c.calendar_type !== filterType) return false;
     return true;
   });
+
+  const appointmentCountsByCalendar = appointmentRefs.reduce<Record<string, number>>((acc, apt) => {
+    if (!apt.calendar_id) return acc;
+    if (["cancelled", "canceled", "archived"].includes(apt.status || "")) return acc;
+    acc[apt.calendar_id] = (acc[apt.calendar_id] || 0) + 1;
+    return acc;
+  }, {});
+
+  const ownerName = (ownerId: string | null) => {
+    if (!ownerId) return "Non assegnato";
+    const owner = staffUsers.find(u => u.id === ownerId);
+    return owner ? [owner.first_name, owner.last_name].filter(Boolean).join(" ") || "Senza nome" : "Utente non trovato";
+  };
+
+  const calendarStats = {
+    total: calendars.length,
+    active: calendars.filter(c => c.is_active).length,
+    assigned: calendars.filter(c => !!c.owner_id).length,
+    withAddress: calendars.filter(c => !!c.base_formatted_address || !!c.base_address_city).length,
+    appointments: Object.values(appointmentCountsByCalendar).reduce((sum, count) => sum + count, 0),
+  };
+
+  const getConfigWarnings = (cal: MarketingCalendar) => {
+    const warnings: string[] = [];
+    if (!cal.owner_id) warnings.push("utente");
+    if (!cal.duration_minutes || cal.duration_minutes <= 0) warnings.push("durata");
+    if (!cal.base_formatted_address && !cal.base_address_city) warnings.push("sede");
+    return warnings;
+  };
 
   // ---- AVAILABILITY LOCAL STATE ----
   const [localAvail, setLocalAvail] = useState<{ day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]>([]);
@@ -341,6 +483,49 @@ export default function MarketingCalendarsConfig() {
         <p className="text-muted-foreground">Gestisci i calendari del modulo Marketing e Vendita</p>
       </div>
 
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Calendari</p>
+            <p className="mt-1 text-2xl font-semibold">{calendarStats.total}</p>
+            <p className="text-xs text-muted-foreground">{calendarStats.active} attivi</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-emerald-500">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Assegnati</p>
+            <p className="mt-1 text-2xl font-semibold">{calendarStats.assigned}</p>
+            <p className="text-xs text-muted-foreground">con responsabile</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-cyan-500">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Sedi base</p>
+            <p className="mt-1 text-2xl font-semibold">{calendarStats.withAddress}</p>
+            <p className="text-xs text-muted-foreground">utili per scheduling e percorrenze</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-amber-500">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Appuntamenti</p>
+            <p className="mt-1 text-2xl font-semibold">{calendarStats.appointments}</p>
+            <p className="text-xs text-muted-foreground">collegati ai calendari</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {!canManageCalendars && (
+        <Card className="border-amber-200 bg-amber-50/70">
+          <CardContent className="flex gap-3 py-4 text-sm text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-medium">Accesso in sola lettura</p>
+              <p className="text-amber-800/80">Puoi consultare calendari e collegamenti, ma solo un amministratore può creare, modificare, disattivare o sincronizzare configurazioni.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="calendars" className="gap-2"><CalendarDays className="h-4 w-4" />Calendari</TabsTrigger>
@@ -374,12 +559,22 @@ export default function MarketingCalendarsConfig() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={() => { setEditingCalendar(null); setDialogOpen(true); }} className="gap-2">
+            <Button onClick={() => { setEditingCalendar(null); setDialogOpen(true); }} disabled={!canManageCalendars} className="gap-2">
               <Plus className="h-4 w-4" /> Nuovo calendario
             </Button>
           </div>
 
-          {loadingCalendars ? (
+          {calendarsError ? (
+            <Card className="border-destructive/40">
+              <CardContent className="flex gap-3 py-6 text-sm text-destructive">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <div>
+                  <p className="font-medium">Impossibile caricare i calendari</p>
+                  <p className="text-destructive/80">Riprova tra poco o verifica i permessi dell'utente.</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : loadingCalendars ? (
             <div className="space-y-3">
               {[1, 2, 3].map(i => <Skeleton key={i} className="h-14 w-full" />)}
             </div>
@@ -389,7 +584,7 @@ export default function MarketingCalendarsConfig() {
                 <CalendarDays className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-1">Nessun calendario</h3>
                 <p className="text-muted-foreground mb-4">Crea il tuo primo calendario marketing per iniziare</p>
-                <Button onClick={() => { setEditingCalendar(null); setDialogOpen(true); }} className="gap-2">
+                <Button onClick={() => { setEditingCalendar(null); setDialogOpen(true); }} disabled={!canManageCalendars} className="gap-2">
                   <Plus className="h-4 w-4" /> Nuovo calendario
                 </Button>
               </CardContent>
@@ -400,9 +595,11 @@ export default function MarketingCalendarsConfig() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome</TableHead>
-                    <TableHead className="hidden sm:table-cell">Gruppo</TableHead>
+                    <TableHead className="hidden sm:table-cell">Responsabile</TableHead>
+                    <TableHead className="hidden lg:table-cell">Sede base</TableHead>
                     <TableHead>Durata</TableHead>
                     <TableHead>Tipo</TableHead>
+                    <TableHead className="hidden md:table-cell">App.</TableHead>
                     <TableHead>Stato</TableHead>
                     <TableHead className="hidden md:table-cell">Aggiornato</TableHead>
                     <TableHead className="text-right">Azioni</TableHead>
@@ -411,26 +608,39 @@ export default function MarketingCalendarsConfig() {
                 <TableBody>
                   {filtered.map(cal => (
                     <TableRow key={cal.id}>
-                      <TableCell className="font-medium">{cal.name}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground">{cal.group_name || "—"}</TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <p className="font-medium">{cal.name}</p>
+                          {getConfigWarnings(cal).length > 0 && (
+                            <p className="text-xs text-amber-600">
+                              Da completare: {getConfigWarnings(cal).join(", ")}
+                            </p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-muted-foreground">{ownerName(cal.owner_id)}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground">
+                        {cal.base_formatted_address || [cal.base_address_city, cal.base_address_province].filter(Boolean).join(", ") || "—"}
+                      </TableCell>
                       <TableCell>{cal.duration_minutes} min</TableCell>
                       <TableCell>
                         <Badge variant={cal.calendar_type === "team" ? "default" : "secondary"}>
                           {cal.calendar_type === "team" ? "Team" : "Personale"}
                         </Badge>
                       </TableCell>
+                      <TableCell className="hidden md:table-cell">{appointmentCountsByCalendar[cal.id] || 0}</TableCell>
                       <TableCell>
-                        <Switch checked={cal.is_active} onCheckedChange={(v) => toggleActive.mutate({ id: cal.id, is_active: v })} />
+                        <Switch checked={cal.is_active} disabled={!canManageCalendars || toggleActive.isPending} onCheckedChange={(v) => toggleActive.mutate({ id: cal.id, is_active: v })} />
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
                         {format(new Date(cal.updated_at), "dd MMM yyyy", { locale: it })}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => { setEditingCalendar(cal); setDialogOpen(true); }}>
+                          <Button variant="ghost" size="icon" disabled={!canManageCalendars} onClick={() => { setEditingCalendar(cal); setDialogOpen(true); }}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteId(cal.id)} className="text-destructive hover:text-destructive">
+                          <Button variant="ghost" size="icon" disabled={!canManageCalendars} onClick={() => setDeleteId(cal.id)} className="text-destructive hover:text-destructive">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -574,7 +784,7 @@ export default function MarketingCalendarsConfig() {
           </Card>
 
           <div className="flex justify-end">
-            <Button onClick={() => upsertPreferences.mutate(localPrefs)} disabled={upsertPreferences.isPending}>
+            <Button onClick={() => upsertPreferences.mutate(localPrefs)} disabled={!canManageCalendars || upsertPreferences.isPending}>
               {upsertPreferences.isPending ? "Salvataggio..." : "Salva preferenze"}
             </Button>
           </div>
@@ -607,13 +817,48 @@ export default function MarketingCalendarsConfig() {
               ) : (
                 <>
                   <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+                      <div>
+                        <p className="font-medium">Copertura settimanale</p>
+                        <p className="text-muted-foreground">
+                          {localAvail.filter(a => a.is_enabled).length} giorni attivi su 7
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!canManageCalendars}
+                          onClick={() => setLocalAvail(prev => prev.map(a => ({
+                            ...a,
+                            is_enabled: a.day_of_week >= 1 && a.day_of_week <= 5,
+                            start_time: "09:00",
+                            end_time: "18:00",
+                          })))}
+                        >
+                          Lun-Ven 09-18
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!canManageCalendars}
+                          onClick={() => setLocalAvail(prev => prev.map(a => ({ ...a, is_enabled: false })))}
+                        >
+                          Chiudi tutti
+                        </Button>
+                      </div>
+                    </div>
                     {DAYS.map(day => {
                       const row = localAvail.find(a => a.day_of_week === day.value);
                       if (!row) return null;
+                      const invalid = row.is_enabled && row.start_time >= row.end_time;
                       return (
-                        <div key={day.value} className="flex items-center gap-3 py-2 border-b last:border-0">
+                        <div key={day.value} className={`flex flex-wrap items-center gap-3 py-2 border-b last:border-0 ${invalid ? "rounded-md bg-destructive/5 px-2" : ""}`}>
                           <Checkbox
                             checked={row.is_enabled}
+                            disabled={!canManageCalendars}
                             onCheckedChange={(v) => setLocalAvail(prev => prev.map(a => a.day_of_week === day.value ? { ...a, is_enabled: !!v } : a))}
                           />
                           <span className="w-24 text-sm font-medium">{day.label}</span>
@@ -622,7 +867,7 @@ export default function MarketingCalendarsConfig() {
                             value={row.start_time}
                             onChange={e => setLocalAvail(prev => prev.map(a => a.day_of_week === day.value ? { ...a, start_time: e.target.value } : a))}
                             className="w-28"
-                            disabled={!row.is_enabled}
+                            disabled={!row.is_enabled || !canManageCalendars}
                           />
                           <span className="text-muted-foreground">–</span>
                           <Input
@@ -630,19 +875,20 @@ export default function MarketingCalendarsConfig() {
                             value={row.end_time}
                             onChange={e => setLocalAvail(prev => prev.map(a => a.day_of_week === day.value ? { ...a, end_time: e.target.value } : a))}
                             className="w-28"
-                            disabled={!row.is_enabled}
+                            disabled={!row.is_enabled || !canManageCalendars}
                           />
-                          <Button variant="ghost" size="icon" title="Copia a tutti i giorni attivi" onClick={() => {
+                          <Button variant="ghost" size="icon" title="Copia a tutti i giorni attivi" disabled={!canManageCalendars} onClick={() => {
                             setLocalAvail(prev => prev.map(a => a.is_enabled ? { ...a, start_time: row.start_time, end_time: row.end_time } : a));
                           }}>
                             <Copy className="h-4 w-4" />
                           </Button>
+                          {invalid && <span className="text-xs text-destructive">Fine prima dell'inizio</span>}
                         </div>
                       );
                     })}
                   </div>
                   <div className="flex justify-end pt-2">
-                    <Button onClick={() => saveAvailability.mutate(localAvail)} disabled={saveAvailability.isPending}>
+                    <Button onClick={() => saveAvailability.mutate(localAvail)} disabled={!canManageCalendars || saveAvailability.isPending}>
                       {saveAvailability.isPending ? "Salvataggio..." : "Salva disponibilità"}
                     </Button>
                   </div>
@@ -664,6 +910,10 @@ export default function MarketingCalendarsConfig() {
         open={dialogOpen}
         onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditingCalendar(null); }}
         onSubmit={(data) => {
+          if (!canManageCalendars) {
+            toast.error("Non hai i permessi per modificare calendari.");
+            return;
+          }
           if (editingCalendar) {
             updateCalendar.mutate({ id: editingCalendar.id, ...data });
           } else {

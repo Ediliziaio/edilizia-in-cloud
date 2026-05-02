@@ -47,6 +47,7 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
   const [activeTab, setActiveTab] = useState<"config" | "logs">("config");
   const [dirty, setDirty] = useState(false);
   const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
+  const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
   const pendingCloseRef = useRef(false);
 
   const hook = useMetaIntegration(integration);
@@ -125,6 +126,14 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
     onComplete();
   };
 
+  const handleDisconnect = async () => {
+    await hook.disconnect.mutateAsync();
+    setShowDisconnectAlert(false);
+    setDirty(false);
+    onComplete();
+    onOpenChange(false);
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -143,6 +152,20 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
               </TabsList>
 
               <TabsContent value="config" className="mt-4">
+                {integration && (
+                  <div className="mb-4 rounded-lg border bg-muted/30 p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Integrazione Meta attiva</p>
+                      <p className="text-xs text-muted-foreground">
+                        Disconnetti solo se vuoi fermare import lead, webhook e token collegati.
+                      </p>
+                    </div>
+                    <Button variant="destructive" size="sm" onClick={() => setShowDisconnectAlert(true)}>
+                      Disconnetti Meta
+                    </Button>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-1 mb-4">
                   {STEP_ORDER.map((s, i) => (
                     <div
@@ -225,6 +248,23 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
           <AlertDialogFooter>
             <AlertDialogCancel>Continua a modificare</AlertDialogCancel>
             <AlertDialogAction onClick={doClose}>Chiudi senza salvare</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDisconnectAlert} onOpenChange={setShowDisconnectAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disconnettere Meta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azione revoca le credenziali salvate, ferma il sync dei moduli Lead Ads e disattiva i moduli collegati. I lead già importati rimangono nel CRM.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDisconnect} disabled={hook.disconnect.isPending}>
+              {hook.disconnect.isPending ? "Disconnessione..." : "Disconnetti"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

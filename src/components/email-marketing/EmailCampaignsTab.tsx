@@ -93,6 +93,7 @@ export function EmailCampaignsTab() {
 
   const createFolderMut = useMutation({
     mutationFn: async (name: string) => {
+      if (!company?.id) throw new Error("Azienda non disponibile");
       const { error } = await supabase.from("email_folders").insert({
         company_id: company!.id,
         name,
@@ -111,7 +112,12 @@ export function EmailCampaignsTab() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("email_campaigns").delete().eq("id", id);
+      if (!company?.id) throw new Error("Azienda non disponibile");
+      const { error } = await supabase
+        .from("email_campaigns")
+        .delete()
+        .eq("id", id)
+        .eq("company_id", company.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -124,6 +130,7 @@ export function EmailCampaignsTab() {
 
   const duplicateMutation = useMutation({
     mutationFn: async (campaign: any) => {
+      if (!company?.id || !user?.id) throw new Error("Sessione non disponibile");
       const { error } = await supabase.from("email_campaigns").insert({
         company_id: company!.id,
         created_by: user!.id,
@@ -161,7 +168,12 @@ export function EmailCampaignsTab() {
 
   const renameMutation = useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
-      const { error } = await supabase.from("email_campaigns").update({ name }).eq("id", id);
+      if (!company?.id) throw new Error("Azienda non disponibile");
+      const { error } = await supabase
+        .from("email_campaigns")
+        .update({ name })
+        .eq("id", id)
+        .eq("company_id", company.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -174,7 +186,12 @@ export function EmailCampaignsTab() {
 
   const moveMutation = useMutation({
     mutationFn: async ({ id, folder_id }: { id: string; folder_id: string | null }) => {
-      const { error } = await supabase.from("email_campaigns").update({ folder_id }).eq("id", id);
+      if (!company?.id) throw new Error("Azienda non disponibile");
+      const { error } = await supabase
+        .from("email_campaigns")
+        .update({ folder_id })
+        .eq("id", id)
+        .eq("company_id", company.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -314,13 +331,21 @@ export function EmailCampaignsTab() {
               <TableBody>
                 {campaigns.map((c: any) => {
                   const badge = STATUS_BADGE[c.status] || { label: c.status, variant: "secondary" as const, className: "" };
+                  const isIncomplete = !c.subject || !c.html_content;
                   return (
                     <TableRow
                       key={c.id}
                       className="cursor-pointer"
                       onClick={() => navigate(`/azienda/marketing/email/campagna/${c.id}/${c.json_content ? 'builder' : 'editor'}`)}
                     >
-                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex flex-col gap-1">
+                          <span>{c.name}</span>
+                          {isIncomplete && (
+                            <span className="text-xs font-normal text-amber-600">Da completare prima dell'invio</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline">
                           {c.type === "broadcast" ? "Email" : c.type === "automation" ? "Flusso" : c.type === "bulk" ? "Blocco" : c.type}
@@ -353,7 +378,11 @@ export function EmailCampaignsTab() {
                               <FolderInput className="h-4 w-4 mr-2" /> Sposta in cartella
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(c.id)}>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              disabled={c.status === "sending"}
+                              onClick={() => setDeleteTarget(c.id)}
+                            >
                               <Trash2 className="h-4 w-4 mr-2" /> Elimina
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -401,7 +430,9 @@ export function EmailCampaignsTab() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Elimina campagna</AlertDialogTitle>
-            <AlertDialogDescription>Sei sicuro di voler eliminare questa campagna? L'azione non può essere annullata.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Sei sicuro di voler eliminare questa campagna? L'azione non può essere annullata e verrà applicata solo ai dati della tua azienda.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>

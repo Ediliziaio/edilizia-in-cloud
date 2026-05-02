@@ -1,6 +1,25 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Webhook, WebhookDelivery } from "@/types/webhooks";
+import { WEBHOOK_EVENTS } from "@/types/webhooks";
+
+const VALID_WEBHOOK_EVENTS = new Set(Object.values(WEBHOOK_EVENTS).flat() as string[]);
+
+function normalizeWebhookPayload<T extends Partial<Pick<Webhook, "name" | "url" | "secret" | "events" | "timeout_seconds" | "allowed_ips">>>(input: T): T {
+  const normalized = { ...input } as T;
+  if (typeof normalized.name === "string") normalized.name = normalized.name.trim() as T["name"];
+  if (typeof normalized.url === "string") normalized.url = normalized.url.trim() as T["url"];
+  if (Array.isArray(normalized.events)) {
+    normalized.events = Array.from(new Set(normalized.events)).filter((event) => VALID_WEBHOOK_EVENTS.has(event)) as T["events"];
+  }
+  if (normalized.timeout_seconds != null) {
+    normalized.timeout_seconds = Math.max(3, Math.min(60, Number(normalized.timeout_seconds) || 15)) as T["timeout_seconds"];
+  }
+  if (Array.isArray(normalized.allowed_ips)) {
+    normalized.allowed_ips = normalized.allowed_ips.map((ip) => ip.trim()).filter(Boolean) as T["allowed_ips"];
+  }
+  return normalized;
+}
 
 export function useWebhooks(companyId: string | undefined) {
   return useQuery({
@@ -50,10 +69,15 @@ export function useCreateWebhook(companyId: string | undefined) {
     ) => {
       if (!companyId) throw new Error("companyId richiesto");
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Non autenticato");
+      const payload = normalizeWebhookPayload(input);
+      if (!payload.name || !payload.url || !payload.events?.length) {
+        throw new Error("Nome, URL ed eventi sono obbligatori.");
+      }
       const { error } = await supabase.from("webhooks").insert({
-        ...input,
+        ...payload,
         company_id: companyId,
-        created_by: user?.id ?? null,
+        created_by: user.id,
       });
       if (error) throw error;
     },
@@ -65,10 +89,13 @@ export function useUpdateWebhook(companyId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...data }: Partial<Webhook> & { id: string }) => {
+      if (!companyId) throw new Error("companyId richiesto");
+      const payload = normalizeWebhookPayload(data);
       const { error } = await supabase
         .from("webhooks")
-        .update({ ...data, updated_at: new Date().toISOString() })
-        .eq("id", id);
+        .update({ ...payload, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks", companyId] }),
@@ -79,7 +106,8 @@ export function useDeleteWebhook(companyId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (webhookId: string) => {
-      const { error } = await supabase.from("webhooks").delete().eq("id", webhookId);
+      if (!companyId) throw new Error("companyId richiesto");
+      const { error } = await supabase.from("webhooks").delete().eq("id", webhookId).eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks", companyId] }),
@@ -90,10 +118,12 @@ export function useRetryDelivery(webhookId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (deliveryId: string) => {
+      if (!webhookId) throw new Error("Webhook richiesto");
       const { data: delivery, error: fetchErr } = await supabase
         .from("webhook_deliveries")
         .select("webhook_id, event_type, payload, attempt_count")
         .eq("id", deliveryId)
+        .eq("webhook_id", webhookId)
         .single();
       if (fetchErr || !delivery) throw new Error("Delivery non trovato");
 
@@ -105,7 +135,8 @@ export function useRetryDelivery(webhookId: string | null) {
           attempt_count: ((delivery as any).attempt_count ?? 1) + 1,
           last_attempt_at: new Date().toISOString(),
         } as any)
-        .eq("id", deliveryId);
+        .eq("id", deliveryId)
+        .eq("webhook_id", webhookId);
 
       const { error } = await supabase.functions.invoke("send-webhook", {
         body: {

@@ -49,6 +49,7 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
 
   const createDraftMut = useMutation({
     mutationFn: async (opts?: { htmlContent?: string; navigateTo?: "editor" | "builder" }) => {
+      if (!effectiveCompany?.id || !user?.id) throw new Error("Sessione non disponibile");
       const { data, error } = await supabase
         .from("email_campaigns")
         .insert({
@@ -76,6 +77,7 @@ export function CampaignCreateDropdown({ variant = "default", size = "sm" }: Cam
 
   const createFromTemplateMut = useMutation({
     mutationFn: async (template: any) => {
+      if (!effectiveCompany?.id || !user?.id) throw new Error("Sessione non disponibile");
       const { data, error } = await supabase
         .from("email_campaigns")
         .insert({

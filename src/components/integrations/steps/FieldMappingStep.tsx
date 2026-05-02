@@ -165,6 +165,27 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
   ];
 
   const handleSave = () => {
+    const mappedValues = Object.values(fieldMap).filter(Boolean);
+    const hasContactKey = mappedValues.some((value) => ["email", "phone", "full_name", "first_name", "last_name"].includes(value));
+    if (!hasContactKey) {
+      toast.error("Mappa almeno un campo identificativo", {
+        description: "Email, telefono o nome servono per deduplicare e creare contatti affidabili.",
+      });
+      return;
+    }
+    if (dedupePolicy === "email" && !mappedValues.includes("email")) {
+      toast.error("La deduplica per email richiede il campo Email mappato.");
+      return;
+    }
+    if (dedupePolicy === "phone" && !mappedValues.includes("phone")) {
+      toast.error("La deduplica per telefono richiede il campo Telefono mappato.");
+      return;
+    }
+    if (dedupePolicy === "email_or_phone" && !mappedValues.includes("email") && !mappedValues.includes("phone")) {
+      toast.error("La deduplica email/telefono richiede Email o Telefono mappati.");
+      return;
+    }
+
     saveMapping.mutate({
       formId,
       rules: {
@@ -225,6 +246,10 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
       <p className="text-sm text-muted-foreground">
         Associa ogni campo del modulo Meta al campo CRM corrispondente.
       </p>
+
+      <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+        Prima di attivare il modulo, mappa almeno un identificativo stabile del contatto. La deduplica userà la regola selezionata nelle opzioni avanzate.
+      </div>
 
       {/* Field mapping table */}
       <div className="border rounded-lg divide-y max-h-[250px] overflow-y-auto">
