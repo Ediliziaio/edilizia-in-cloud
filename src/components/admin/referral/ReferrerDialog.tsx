@@ -26,8 +26,10 @@ const schema = z.object({
     if (!value) return true;
     return /^\+?[0-9\s().-]{6,20}$/.test(value.trim());
   }, "Telefono non valido"),
+  partner_type: z.enum(["partner", "agency", "installer", "consultant"]),
   commission_type: z.enum(["percentage", "fixed"]),
   commission_value: z.coerce.number().min(0),
+  payout_method: z.enum(["bank_transfer", "manual", "credit"]),
   notes: z.string().optional().or(z.literal("")),
 }).superRefine((data, ctx) => {
   if (data.commission_type === "percentage" && data.commission_value > 100) {
@@ -49,6 +51,9 @@ function generateCode(): string {
 }
 
 async function generateUniqueReferralCode() {
+  const { data } = await (supabase as any).rpc("generate_referral_code_secure");
+  if (data) return data as string;
+
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const code = generateCode();
     const { data, error } = await supabase
@@ -60,6 +65,12 @@ async function generateUniqueReferralCode() {
     if ((data || []).length === 0) return code;
   }
   throw new Error("Impossibile generare un codice referral univoco. Riprova.");
+}
+
+function canFallbackToLegacyCreate(error: unknown) {
+  const name = String((error as any)?.name || "");
+  const message = String((error as any)?.message || "");
+  return name === "FunctionsFetchError" || /failed to fetch|network/i.test(message);
 }
 
 interface Props {
@@ -77,7 +88,10 @@ export function ReferrerDialog({ open, onOpenChange, referrer }: Props) {
     resolver: zodResolver(schema),
     defaultValues: {
       name: "", email: "", phone: "",
-      commission_type: "percentage", commission_value: 10, notes: "",
+      partner_type: "partner",
+      commission_type: "percentage", commission_value: 10,
+      payout_method: "bank_transfer",
+      notes: "",
     },
   });
 
@@ -87,14 +101,19 @@ export function ReferrerDialog({ open, onOpenChange, referrer }: Props) {
         name: referrer.name,
         email: referrer.email,
         phone: referrer.phone || "",
+        partner_type: (referrer.partner_type as FormData["partner_type"]) || "partner",
         commission_type: referrer.commission_type as "percentage" | "fixed",
         commission_value: referrer.commission_value,
+        payout_method: "bank_transfer",
         notes: referrer.notes || "",
       });
     } else {
       form.reset({
         name: "", email: "", phone: "",
-        commission_type: "percentage", commission_value: 10, notes: "",
+        partner_type: "partner",
+        commission_type: "percentage", commission_value: 10,
+        payout_method: "bank_transfer",
+        notes: "",
       });
     }
   }, [referrer, open]);
@@ -119,24 +138,53 @@ export function ReferrerDialog({ open, onOpenChange, referrer }: Props) {
             name: data.name.trim(),
             email: normalizedEmail,
             phone: normalizedPhone,
+            partner_type: data.partner_type,
             commission_type: data.commission_type,
             commission_value: data.commission_value,
+            payout_method: data.payout_method,
             notes: data.notes || null,
           })
           .eq("id", referrer!.id);
         if (error) throw error;
       } else {
-        const referralCode = await generateUniqueReferralCode();
-        const { error } = await supabase.from("referrers").insert({
-          name: data.name.trim(),
-          email: normalizedEmail,
-          phone: normalizedPhone,
-          referral_code: referralCode,
-          commission_type: data.commission_type,
-          commission_value: data.commission_value,
-          notes: data.notes || null,
-        });
-        if (error) throw error;
+        try {
+          const { error } = await supabase.functions.invoke("create-referral-partner", {
+            body: {
+              name: data.name.trim(),
+              email: normalizedEmail,
+              phone: normalizedPhone,
+              partner_type: data.partner_type,
+              commission_type: data.commission_type,
+              commission_value: data.commission_value,
+              payout_method: data.payout_method,
+              notes: data.notes || null,
+              is_active: true,
+            },
+          });
+          if (error) throw error;
+        } catch (edgeError) {
+          if (!canFallbackToLegacyCreate(edgeError)) throw edgeError;
+
+          const referralCode = await generateUniqueReferralCode();
+          const { data: inserted, error } = await supabase.from("referrers").insert({
+            name: data.name.trim(),
+            email: normalizedEmail,
+            phone: normalizedPhone,
+            referral_code: referralCode,
+            partner_type: data.partner_type,
+            commission_type: data.commission_type,
+            commission_value: data.commission_value,
+            payout_method: data.payout_method,
+            notes: data.notes || null,
+          }).select("id").single();
+          if (error) throw error;
+          if (inserted?.id) {
+            await (supabase as any).rpc("ensure_referral_link", {
+              p_referrer_id: inserted.id,
+              p_base_url: `${window.location.origin}/login`,
+            });
+          }
+        }
       }
     },
     onSuccess: () => {
@@ -181,6 +229,41 @@ export function ReferrerDialog({ open, onOpenChange, referrer }: Props) {
                 <FormMessage />
               </FormItem>
             )} />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="partner_type" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo partner</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="partner">Partner</SelectItem>
+                      <SelectItem value="agency">Agenzia</SelectItem>
+                      <SelectItem value="installer">Installatore</SelectItem>
+                      <SelectItem value="consultant">Consulente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="payout_method" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Payout</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="bank_transfer">Bonifico</SelectItem>
+                      <SelectItem value="manual">Manuale</SelectItem>
+                      <SelectItem value="credit">Credito</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <FormField control={form.control} name="commission_type" render={({ field }) => (
                 <FormItem>

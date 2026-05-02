@@ -375,6 +375,16 @@ export default function CreateCompany() {
           if (updErr) {
             console.error("[create-company] companies.referred_by update failed", updErr);
           }
+          const selectedReferrer = referrers.find((r) => r.id === selectedReferrerId);
+          if (selectedReferrer?.referral_code) {
+            await (supabase as any).rpc("record_referral_conversion", {
+              p_referral_code: selectedReferrer.referral_code,
+              p_company_id: companyId,
+              p_status: "registered",
+            }).catch((err: unknown) => {
+              console.error("[create-company] referral conversion tracking failed", err);
+            });
+          }
         }
       }
 

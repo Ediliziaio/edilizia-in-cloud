@@ -466,15 +466,21 @@ async function handleReferralAttribution(
       .eq('company_id', company.id)
       .maybeSingle();
 
-    if (existing) return; // Già attribuito
+    const { data: referrer } = await supabase
+      .from('referrers')
+      .select('referral_code')
+      .eq('id', company.referred_by)
+      .maybeSingle();
 
-    // Inserisci il referral
-    await supabase.from('referral_companies').insert({
-      referrer_id: company.referred_by,
-      company_id:  company.id,
-      referred_at: new Date().toISOString(),
-      is_active:   true,
-    });
+    if (referrer?.referral_code) {
+      await supabase.rpc('record_referral_conversion', {
+        p_referral_code: referrer.referral_code,
+        p_company_id: company.id,
+        p_status: 'active',
+      }).catch((e: unknown) => console.error('[stripe-webhook] record_referral_conversion error:', e));
+    }
+
+    if (existing) return; // Già attribuito
 
     // Aggiorna conversion_rate del referrer
     await supabase.rpc('update_referrer_stats', { p_referrer_id: company.referred_by });

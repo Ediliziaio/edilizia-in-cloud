@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, User, Link2, DollarSign, Wallet, FolderDown, LayoutDashboard } from "lucide-react";
+import { LogOut, User, Link2, DollarSign, Wallet, FolderDown, LayoutDashboard, Users, BarChart3 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
@@ -22,7 +22,9 @@ import { NavLink } from "@/components/NavLink";
 
 const MENU_ITEMS = [
   { to: "/partner", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/partner/referenze", label: "Referenze", icon: Users },
   { to: "/partner/link", label: "Il Mio Link", icon: Link2 },
+  { to: "/partner/performance", label: "Performance", icon: BarChart3 },
   { to: "/partner/commissioni", label: "Commissioni", icon: DollarSign },
   { to: "/partner/payout", label: "Payout", icon: Wallet },
   { to: "/partner/materiali", label: "Materiali", icon: FolderDown },

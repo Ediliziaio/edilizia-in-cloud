@@ -29,6 +29,8 @@ const SalespersonProfile = lazy(() => import("@/pages/venditore/SalespersonProfi
 // Partner pages
 const PartnerDashboard = lazy(() => import("@/pages/partner/PartnerDashboard"));
 const PartnerLink = lazy(() => import("@/pages/partner/PartnerLink"));
+const PartnerReferrals = lazy(() => import("@/pages/partner/PartnerReferrals"));
+const PartnerPerformance = lazy(() => import("@/pages/partner/PartnerPerformance"));
 const PartnerCommissions = lazy(() => import("@/pages/partner/PartnerCommissions"));
 const PartnerPayout = lazy(() => import("@/pages/partner/PartnerPayout"));
 const PartnerMaterials = lazy(() => import("@/pages/partner/PartnerMaterials"));
@@ -107,7 +109,9 @@ export function partnerRoutes() {
       }
     >
       <Route index element={<PartnerDashboard />} />
+      <Route path="referenze" element={<PartnerReferrals />} />
       <Route path="link" element={<PartnerLink />} />
+      <Route path="performance" element={<PartnerPerformance />} />
       <Route path="commissioni" element={<PartnerCommissions />} />
       <Route path="payout" element={<PartnerPayout />} />
       <Route path="materiali" element={<PartnerMaterials />} />
