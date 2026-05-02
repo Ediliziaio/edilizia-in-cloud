@@ -3,20 +3,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 
-export function useAnagraficheNative(search?: string) {
+export function useAnagraficheNative(search?: string, includeInactive = false) {
   const companyId = useEffectiveCompanyId();
 
   return useQuery({
-    queryKey: queryKeys.anagraficheNative.list(companyId ?? undefined, search),
+    queryKey: ["anagrafiche-native", "list", companyId ?? undefined, search, includeInactive] as const,
     enabled: !!companyId,
     queryFn: async () => {
       let query = supabase
         .from("anagrafiche_native" as never)
         .select("*")
         .eq("company_id", companyId!)
-        .eq("attivo", true)
         .order("ragione_sociale", { ascending: true })
         .limit(100);
+
+      if (!includeInactive) {
+        query = query.eq("attivo", true);
+      }
 
       if (search) {
         query = query.or(
@@ -43,6 +46,7 @@ export function useAnagraficaNative(id: string | undefined) {
       const { data, error } = await supabase
         .from("anagrafiche_native" as never)
         .select("*")
+        .eq("company_id", companyId!)
         .eq("id", id!)
         .single();
 

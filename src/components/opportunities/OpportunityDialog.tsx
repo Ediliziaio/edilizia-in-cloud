@@ -16,6 +16,7 @@ import { TagSelector } from "@/components/marketing/TagSelector";
 import { useNavigate } from "react-router-dom";
 import { syncTagsToContact } from "@/hooks/useTagSync";
 import { STATUS_OPTIONS } from "@/types/opportunities";
+import { cleanPhone } from "@/lib/contactUtils";
 
 interface Props {
   open: boolean;
@@ -23,6 +24,27 @@ interface Props {
   pipelineId: string;
   pipelineName?: string;
   stages: { id: string; name: string; auto_status?: string | null }[];
+}
+
+type ContactSearchResult = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  company_name: string | null;
+};
+
+type OpportunityCustomField = {
+  id: string;
+  name: string;
+  field_type: string | null;
+  options?: string[] | null;
+};
+
+function sanitizeSearchTerm(value: string) {
+  return value.replace(/[%,]/g, " ").trim();
 }
 
 export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName, stages }: Props) {
@@ -67,12 +89,13 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         .select("id, first_name, last_name, email, phone, city, company_name")
         .eq("company_id", companyId!)
         .limit(20);
-      if (contactSearch) {
-        query = query.or(`first_name.ilike.%${contactSearch}%,last_name.ilike.%${contactSearch}%,email.ilike.%${contactSearch}%`);
+      const safeSearch = sanitizeSearchTerm(contactSearch);
+      if (safeSearch) {
+        query = query.or(`first_name.ilike.%${safeSearch}%,last_name.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%`);
       }
       const { data, error } = await query.order("first_name");
       if (error) throw error;
-      return data;
+      return data as ContactSearchResult[];
     },
     enabled: !!companyId && open,
   });
@@ -83,7 +106,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
   const { data: customFields = [] } = useOpportunityCustomFields();
 
   // Auto-name from contact
-  const selectedContact = contacts.find((c: any) => c.id === selectedContactId);
+  const selectedContact = contacts.find((c) => c.id === selectedContactId);
 
   useEffect(() => {
     if (selectedContact && !nameManuallySet) {
@@ -114,7 +137,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
     setCustomFieldValues({});
   };
 
-  const handleSelectContact = (c: any) => {
+  const handleSelectContact = (c: ContactSearchResult) => {
     setSelectedContactId(c.id);
     setShowNewContact(false);
     setContactSearch(`${c.first_name} ${c.last_name || ""}`.trim());
@@ -154,6 +177,27 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
       toast.error("Seleziona o crea un contatto");
       return;
     }
+
+    if (selectedContactId && selectedContact) {
+      const nextEmail = newContactEmail.trim().toLowerCase() || null;
+      const nextPhone = newContactPhone.trim() ? cleanPhone(newContactPhone) : null;
+      if ((selectedContact.email || null) !== nextEmail || (selectedContact.phone || null) !== nextPhone) {
+        const { error } = await supabase
+          .from("marketing_contacts")
+          .update({
+            email: nextEmail,
+            phone: nextPhone,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", selectedContactId)
+          .eq("company_id", companyId!);
+        if (error) {
+          toast.error("Contatto non aggiornato", { description: error.message });
+          return;
+        }
+      }
+    }
+
     if (!stageId) {
       toast.error("Seleziona una fase");
       return;
@@ -174,7 +218,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
         company_name: oppCompanyName || undefined,
       },
       {
-        onSuccess: async (data: any) => {
+        onSuccess: async (data: { id?: string } | null | undefined) => {
           const oppId = data?.id;
           if (oppId) {
             // Save tags and sync to contact
@@ -245,7 +289,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     {showDropdown && !showNewContact && (
                       <div className="absolute z-50 w-full mt-1 border rounded-lg bg-popover shadow-lg max-h-[220px] overflow-y-auto">
                         {contacts.length > 0 ? (
-                          contacts.map((c: any) => (
+                          contacts.map((c) => (
                             <button
                               key={c.id}
                               className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors border-b last:border-b-0 flex items-center gap-2 ${selectedContactId === c.id ? "bg-primary/10 text-primary" : ""}`}
@@ -466,7 +510,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 {customFields && customFields.length > 0 && (
                   <div className="space-y-3 pt-2 border-t">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Campi personalizzati dell'opportunità</Label>
-                    {customFields.map((field: any) => (
+                    {(customFields as OpportunityCustomField[]).map((field) => (
                       <div key={field.id} className="space-y-1">
                         <Label className="text-xs font-medium">{field.name}</Label>
                         {field.field_type === "select" && field.options?.length ? (

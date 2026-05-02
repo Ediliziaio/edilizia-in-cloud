@@ -42,7 +42,7 @@ import {
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle, Wrench, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import type { CalendarOrder, GanttZoom, OrderStatus, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
+import type { CalendarAppointment, CalendarOrder, GanttZoom, OrderStatus, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
 import { DraggableOrderBar } from "./DraggableOrderBar";
 import { LeadTimeStats, calculateLeadTime, getLeadTimeColor } from "./LeadTimeStats";
 
@@ -54,6 +54,7 @@ interface CalendarGanttViewProps {
   onDateChange: (date: Date) => void;
   interventi?: CalendarIntervento[];
   manutenzioni?: CalendarManutenzione[];
+  appointments?: CalendarAppointment[];
 }
 
 const ZOOM_CONFIG: Record<GanttZoom, { dayWidth: number; label: string }> = {
@@ -83,6 +84,7 @@ export function CalendarGanttView({
   onDateChange,
   interventi = [],
   manutenzioni = [],
+  appointments = [],
 }: CalendarGanttViewProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -295,6 +297,21 @@ export function CalendarGanttView({
     return "bg-red-500/60";
   };
 
+  const ganttStats = useMemo(() => {
+    const visibleAppointmentCount = appointments.filter((appointment) => {
+      const date = parseISO(appointment.appointment_date);
+      return date >= startDate && date <= endDate;
+    }).length;
+    const peak = capacityPerDay.reduce((max, count) => Math.max(max, count), 0);
+    const overloadedDays = capacityPerDay.filter((count) => count >= 5).length;
+    return {
+      orders: sortedOrders.length,
+      appointments: visibleAppointmentCount,
+      peak,
+      overloadedDays,
+    };
+  }, [appointments, capacityPerDay, endDate, sortedOrders.length, startDate]);
+
   return (
     <Card className="p-4 overflow-hidden">
       <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
@@ -336,6 +353,25 @@ export function CalendarGanttView({
             Anno
           </ToggleGroupItem>
         </ToggleGroup>
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Commesse</p>
+          <p className="text-lg font-bold">{ganttStats.orders}</p>
+        </div>
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Appuntamenti</p>
+          <p className="text-lg font-bold">{ganttStats.appointments}</p>
+        </div>
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Picco carico</p>
+          <p className="text-lg font-bold">{ganttStats.peak}</p>
+        </div>
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Giorni saturi</p>
+          <p className={cn("text-lg font-bold", ganttStats.overloadedDays > 0 && "text-destructive")}>{ganttStats.overloadedDays}</p>
+        </div>
       </div>
 
       {sortedOrders.length === 0 ? (

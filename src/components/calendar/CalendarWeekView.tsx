@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   format,
   startOfWeek,
@@ -17,7 +17,7 @@ import { Card } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Loader2, Settings } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
+import { APPOINTMENT_ICONS, DEFAULT_CALENDAR_EVENT_COLORS, getCalendarEventStyle, mapAppointmentToEditData, type CalendarEventColors } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,7 +27,27 @@ import { WeatherBadge, WeatherBadgeMulti } from "./WeatherBadge";
 import type { WeatherDay, MultiLocationWeather, LocationWeatherDay } from "@/hooks/useWeatherForecast";
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00
+const SLOT_MINUTES = 15;
+const TIME_SLOTS = HOURS.flatMap((hour) =>
+  Array.from({ length: 60 / SLOT_MINUTES }, (_, index) => {
+    const minutes = index * SLOT_MINUTES;
+    return {
+      hour,
+      minutes,
+      label: `${String(hour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
+      isHourStart: minutes === 0,
+    };
+  })
+);
 const WEEK_DAYS_IT_FULL = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+
+function floorToSlot(time?: string | null) {
+  if (!time) return "";
+  const [hourRaw, minuteRaw] = time.slice(0, 5).split(":").map(Number);
+  if (!Number.isFinite(hourRaw) || !Number.isFinite(minuteRaw)) return "";
+  const minute = Math.floor(minuteRaw / SLOT_MINUTES) * SLOT_MINUTES;
+  return `${String(hourRaw).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
 
 interface CalendarWeekViewProps {
   orders: CalendarOrder[];
@@ -44,6 +64,7 @@ interface CalendarWeekViewProps {
   orderWeatherMap?: Map<string, { weather?: LocationWeatherDay; distanceKm?: number; durationMin?: number; durationLabel?: string; address?: string }>;
   interventi?: CalendarIntervento[];
   manutenzioni?: CalendarManutenzione[];
+  eventColors?: CalendarEventColors;
 }
 
 // ── Draggable wrapper ──
@@ -80,6 +101,7 @@ export function CalendarWeekView({
   orderWeatherMap,
   interventi = [],
   manutenzioni = [],
+  eventColors = DEFAULT_CALENDAR_EVENT_COLORS,
 }: CalendarWeekViewProps) {
   const queryClient = useQueryClient();
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -88,6 +110,7 @@ export function CalendarWeekView({
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
+  const [newAppointmentSlot, setNewAppointmentSlot] = useState<{ date: string; time: string } | null>(null);
   // DnD confirmation
   const [pendingDrop, setPendingDrop] = useState<{
     type: "appointment" | "order";
@@ -227,7 +250,7 @@ export function CalendarWeekView({
     // Handle intervento and manutenzione types
     if (evt.type === "intervento" && evt.intervento) {
       return (
-        <div key={`iv-${evt.intervento.id}-${idx}`} className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1" style={{ backgroundColor: "#E87722", color: "white" }}>
+        <div key={`iv-${evt.intervento.id}-${idx}`} className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 border-l-2 text-foreground" style={getCalendarEventStyle(eventColors.intervento)}>
           <Wrench className="h-3 w-3 shrink-0" />
           <span className="truncate">{evt.intervento.subject}</span>
         </div>
@@ -235,18 +258,18 @@ export function CalendarWeekView({
     }
     if (evt.type === "manutenzione" && evt.manutenzione) {
       return (
-        <div key={`mn-${evt.manutenzione.id}-${idx}`} className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1" style={{ backgroundColor: "#3B82F6", color: "white" }}>
+        <div key={`mn-${evt.manutenzione.id}-${idx}`} className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 border-l-2 text-foreground" style={getCalendarEventStyle(eventColors.manutenzione)}>
           <Settings className="h-3 w-3 shrink-0" />
           <span className="truncate">{evt.manutenzione.titolo}</span>
         </div>
       );
     }
     const colorMap: Record<string, string> = {
-      posa: "bg-orange-500/20 border-l-2 border-orange-500 text-orange-900 dark:text-orange-200",
-      lavoro: "bg-blue-500/20 border-l-2 border-blue-500 text-blue-900 dark:text-blue-200",
-      merce: "bg-emerald-500/20 border-l-2 border-emerald-500 text-emerald-900 dark:text-emerald-200",
-      google_busy: "bg-muted border-l-2 border-muted-foreground/50 text-muted-foreground",
-      leave: "bg-amber-500/20 border-l-2 border-amber-500 text-amber-900 dark:text-amber-200",
+      posa: eventColors.posa,
+      lavoro: eventColors.lavoro,
+      merce: eventColors.merce,
+      google_busy: eventColors.google_busy,
+      leave: eventColors.leave,
     };
     const IconMap: Record<string, React.ComponentType<{ className?: string }>> = { posa: Hammer, lavoro: Wrench, merce: Package };
     const Icon = IconMap[evt.type];
@@ -255,7 +278,8 @@ export function CalendarWeekView({
 
     const content = (
       <div
-        className={cn("text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 cursor-pointer", colorMap[evt.type])}
+        className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 cursor-pointer border-l-2 text-foreground"
+        style={getCalendarEventStyle(colorMap[evt.type] || eventColors.appuntamento)}
         onClick={() => o && setEditingOrder(o)}
       >
         {Icon && <Icon className="h-3 w-3 shrink-0" />}
@@ -294,12 +318,14 @@ export function CalendarWeekView({
       >
         <div
           className={cn(
-            "text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 cursor-pointer",
-            "bg-purple-500/20 border-l-2 border-purple-500 text-purple-900 dark:text-purple-200",
+            "text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 cursor-pointer border-l-2 text-foreground",
             apt.is_completed && "opacity-60 line-through"
           )}
-          onClick={() => {
+          style={getCalendarEventStyle(eventColors.appuntamento)}
+          onClick={(event) => {
+            event.stopPropagation();
             setEditingAppointment(mapAppointmentToEditData(apt));
+            setNewAppointmentSlot(null);
             setAppointmentDialogOpen(true);
           }}
         >
@@ -308,6 +334,7 @@ export function CalendarWeekView({
             <span className="font-medium">{apt.appointment_time.slice(0, 5)}</span>
           )}
           <span className="truncate">{apt.title}</span>
+          {isSynced && <Check className="h-3 w-3 shrink-0 text-green-600" />}
           {apt.is_completed && <Check className="h-3 w-3 shrink-0 text-green-600" />}
         </div>
       </DraggableEvent>
@@ -330,7 +357,7 @@ export function CalendarWeekView({
       </div>
 
       <DndContext onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-[50px_repeat(7,1fr)] min-w-[700px]">
+        <div className="grid grid-cols-[56px_repeat(7,minmax(112px,1fr))] min-w-[880px]">
           {/* Header row */}
           <div className="border-b border-r bg-muted/50 p-1" />
           {weekDays.map((day, i) => (
@@ -368,25 +395,27 @@ export function CalendarWeekView({
             const events = allDayByDate.get(dateStr) || [];
             return (
               <DroppableDay key={`allday-${i}`} dateStr={dateStr}>
-                <div className={cn("border-b border-r p-1 space-y-0.5 min-h-[40px]", day.getDay() === 0 && "bg-muted/20")}>
+                <div className={cn("border-b border-r p-1 space-y-0.5 min-h-[54px] max-h-[116px] overflow-y-auto", day.getDay() === 0 && "bg-muted/20")}>
                   {events.map((evt, idx) => renderAllDayEvent(evt, idx))}
                 </div>
               </DroppableDay>
             );
           })}
 
-          {/* Hourly rows */}
-          {HOURS.map(hour => (
-            <>
-              <div key={`label-${hour}`} className="border-r text-[10px] text-muted-foreground text-right pr-1 pt-0.5 h-10">
-                {String(hour).padStart(2, "0")}:00
+          {/* 15-minute rows */}
+          {TIME_SLOTS.map((slot) => (
+            <Fragment key={`slot-${slot.label}`}>
+              <div className={cn(
+                "border-r text-[10px] text-muted-foreground text-right pr-1 h-4",
+                slot.isHourStart && "pt-0.5"
+              )}>
+                {slot.isHourStart ? `${String(slot.hour).padStart(2, "0")}:00` : ""}
               </div>
               {weekDays.map((day, i) => {
                 const dateStr = format(day, "yyyy-MM-dd");
-                const hourStr = String(hour).padStart(2, "0");
                 const dayApts = (timedByDate.get(dateStr) || []).filter(apt => {
                   if (!apt.appointment_time) return false;
-                  return apt.appointment_time.startsWith(hourStr);
+                  return floorToSlot(apt.appointment_time) === slot.label;
                 });
 
                 // Google busy non-allday
@@ -394,24 +423,39 @@ export function CalendarWeekView({
                   ? busySlots.filter(s => {
                       if (s.is_all_day) return false;
                       const start = new Date(s.start_at);
-                      return format(start, "yyyy-MM-dd") === dateStr && start.getHours() === hour;
+                      return format(start, "yyyy-MM-dd") === dateStr && floorToSlot(format(start, "HH:mm")) === slot.label;
                     })
                   : [];
 
                 return (
-                  <DroppableDay key={`cell-${hour}-${i}`} dateStr={dateStr}>
-                    <div className={cn("border-b border-r h-10 p-0.5 space-y-0.5", day.getDay() === 0 && "bg-muted/20")}>
+                  <DroppableDay key={`cell-${slot.label}-${i}`} dateStr={dateStr}>
+                    <button
+                      type="button"
+                      aria-label={`Crea appuntamento ${format(day, "dd/MM/yyyy")} alle ${slot.label}`}
+                      className={cn(
+                        "group block w-full border-r px-1 text-left transition-colors hover:bg-blue-50/70 focus:outline-none focus:ring-1 focus:ring-blue-400",
+                        slot.isHourStart ? "border-t h-4" : "border-t border-dashed h-4",
+                        day.getDay() === 0 && "bg-muted/20"
+                      )}
+                      onClick={() => {
+                        setEditingAppointment(null);
+                        setNewAppointmentSlot({ date: dateStr, time: slot.label });
+                        setAppointmentDialogOpen(true);
+                      }}
+                    >
+                      <div className="space-y-0.5 overflow-visible">
                       {dayApts.map(apt => renderTimedAppointment(apt))}
                       {hourBusy.map((s, idx) => (
                         <div key={`busy-${idx}`} className="text-[10px] bg-muted px-1 rounded truncate text-muted-foreground">
                           {s.summary || "Occupato"}
                         </div>
                       ))}
-                    </div>
+                      </div>
+                    </button>
                   </DroppableDay>
                 );
               })}
-            </>
+            </Fragment>
           ))}
         </div>
       </DndContext>
@@ -454,13 +498,23 @@ export function CalendarWeekView({
       {/* Appointment edit dialog */}
       <AppointmentDialog
         open={appointmentDialogOpen}
-        onOpenChange={setAppointmentDialogOpen}
+        onOpenChange={(open) => {
+          setAppointmentDialogOpen(open);
+          if (!open) {
+            setEditingAppointment(null);
+            setNewAppointmentSlot(null);
+          }
+        }}
         appointment={editingAppointment}
         hideMarketingFields
         showOrderSelect
+        defaultDate={newAppointmentSlot?.date}
+        defaultTime={newAppointmentSlot?.time}
+        requireTime
         onSaved={() => {
           queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
           setEditingAppointment(null);
+          setNewAppointmentSlot(null);
         }}
       />
     </Card>

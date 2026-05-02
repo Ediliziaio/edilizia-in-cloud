@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   Plus, Search, Loader2, Upload, Link2, Unlink, ArrowRightLeft,
   Check, RefreshCw, Info, Users,
@@ -34,6 +35,9 @@ const TIPO_COLORS: Record<string, string> = {
   Estero: "bg-amber-100 text-amber-700",
 };
 
+const TIPO_TAB_VALUES = ["tutti", "cliente", "fornitore"] as const;
+type TipoTab = (typeof TIPO_TAB_VALUES)[number];
+
 function getInitials(name?: string | null): string {
   if (!name) return "?";
   return name
@@ -46,7 +50,6 @@ function getInitials(name?: string | null): string {
 }
 
 export default function AnagraficheList() {
-  const navigate = useNavigate();
   const companyId = useEffectiveCompanyId();
   const { user } = useAuth();
   const [mainTab, setMainTab] = useState<"anagrafiche" | "riconciliazione">("anagrafiche");
@@ -59,7 +62,12 @@ export default function AnagraficheList() {
           <Button variant="outline" size="sm">
             <Upload className="h-4 w-4 mr-1" /> Importa Excel
           </Button>
-          <Button size="sm" onClick={() => navigate("/azienda/documenti/anagrafiche/nuovo")}>
+          <Button
+            size="sm"
+            onClick={() => toast.info("Creazione manuale anagrafica non ancora disponibile", {
+              description: "Usa l'import Excel o crea l'anagrafica durante l'emissione di un documento.",
+            })}
+          >
             <Plus className="h-4 w-4 mr-1" /> Nuova anagrafica
           </Button>
         </div>
@@ -103,13 +111,13 @@ function SuggestedMatchBadge({ companyId }: { companyId: string | null }) {
 
 function AnagraficheTable() {
   const navigate = useNavigate();
-  const [tipoTab, setTipoTab] = useState<"tutti" | "cliente" | "fornitore">("tutti");
+  const [tipoTab, setTipoTab] = useState<TipoTab>("tutti");
   const [search, setSearch] = useState("");
   const [tipoCliente, setTipoCliente] = useState<string>("all");
   const [soloAttivi, setSoloAttivi] = useState(true);
 
-  const { data: rawData, isLoading } = useAnagraficheNative(search || undefined);
-  const anagrafiche = (rawData ?? []) as unknown as AnagraficaNative[];
+  const { data: rawData, isLoading } = useAnagraficheNative(search || undefined, !soloAttivi);
+  const anagrafiche = useMemo(() => (rawData ?? []) as unknown as AnagraficaNative[], [rawData]);
 
   const filtered = useMemo(() => {
     return anagrafiche.filter((a) => {
@@ -123,7 +131,12 @@ function AnagraficheTable() {
 
   return (
     <div className="space-y-4 mt-4">
-      <Tabs value={tipoTab} onValueChange={(v) => setTipoTab(v as any)}>
+      <Tabs
+        value={tipoTab}
+        onValueChange={(v) => {
+          if (TIPO_TAB_VALUES.includes(v as TipoTab)) setTipoTab(v as TipoTab);
+        }}
+      >
         <TabsList>
           <TabsTrigger value="tutti">Tutti</TabsTrigger>
           <TabsTrigger value="cliente">Clienti</TabsTrigger>

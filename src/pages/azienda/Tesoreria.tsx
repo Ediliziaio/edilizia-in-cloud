@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,12 @@ import ExpenseReports from "@/components/tesoreria/ExpenseReports";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "Errore sconosciuto";
+}
+
 export default function Tesoreria() {
   const { effectiveCompany } = useAuth();
   const [searchParams] = useSearchParams();
@@ -29,15 +35,35 @@ export default function Tesoreria() {
 
   const bankCallback = searchParams.get("bank_callback");
 
+  const checkConnections = useCallback(async () => {
+    if (!effectiveCompany?.id) {
+      setHasConnections(false);
+      return;
+    }
+
+    const { count, error } = await supabase
+      .from("bank_connections")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", effectiveCompany.id);
+
+    if (error) {
+      toast.error("Impossibile verificare le connessioni bancarie", { description: error.message });
+      setHasConnections(false);
+      return;
+    }
+
+    setHasConnections((count ?? 0) > 0);
+  }, [effectiveCompany?.id]);
+
   useEffect(() => {
     if (effectiveCompany?.id) {
-      checkConnections();
+      void checkConnections();
     } else {
       // No company context: show onboarding after brief delay
       const t = setTimeout(() => setHasConnections(false), 2000);
       return () => clearTimeout(t);
     }
-  }, [effectiveCompany?.id]);
+  }, [effectiveCompany?.id, checkConnections]);
 
   useEffect(() => {
     if (bankCallback === "1") {
@@ -46,23 +72,25 @@ export default function Tesoreria() {
     }
   }, [bankCallback]);
 
-  async function checkConnections() {
-    const { count } = await supabase
-      .from("bank_connections")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", effectiveCompany!.id);
-    setHasConnections((count ?? 0) > 0);
-  }
-
   async function handleSync() {
+    if (!effectiveCompany?.id) {
+      toast.error("Azienda non disponibile");
+      return;
+    }
+
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("bank-sync", {
-        body: { company_id: effectiveCompany?.id },
+        body: { company_id: effectiveCompany.id },
       });
       if (error) {
-        let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        let errBody: { error?: string; message?: string } | null = null;
+        try {
+          const ctx = (error as { context?: unknown }).context;
+          if (ctx instanceof Response) errBody = await ctx.json();
+        } catch {
+          errBody = null;
+        }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       if (data?.success) {
@@ -70,10 +98,11 @@ export default function Tesoreria() {
       } else {
         toast.error("Sincronizzazione fallita");
       }
-    } catch (e: any) {
-      toast.error("Errore: " + e.message);
+    } catch (e: unknown) {
+      toast.error("Errore: " + getErrorMessage(e));
+    } finally {
+      setSyncing(false);
     }
-    setSyncing(false);
   }
 
   if (isScopriPlan) return <UpgradeScopriWall type="banca_psd2" inline />;

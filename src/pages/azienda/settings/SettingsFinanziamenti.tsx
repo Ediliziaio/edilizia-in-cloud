@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Table,
   TableBody,
@@ -43,6 +44,7 @@ import {
   Trash2,
   FileText,
   ExternalLink,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTabelle, useDeleteTabella } from "@/lib/finanziamenti/queries";
@@ -52,7 +54,7 @@ export default function SettingsFinanziamenti() {
   const { role } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
   const navigate = useNavigate();
-  const { data: tabelle = [], isLoading } = useTabelle();
+  const { data: tabelle = [], isLoading, isError, error, refetch } = useTabelle();
   const deleteTabella = useDeleteTabella();
   const [search, setSearch] = useState("");
   const [confermaDelete, setConfermaDelete] = useState<{
@@ -135,6 +137,19 @@ export default function SettingsFinanziamenti() {
           </Button>
         </div>
       </div>
+
+      {isError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Finanziamenti non caricati</AlertTitle>
+          <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>{error instanceof Error ? error.message : "Errore durante il caricamento delle tabelle."}</span>
+            <Button size="sm" variant="outline" onClick={() => void refetch()}>
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Empty state */}
       {!isLoading && tabelle.length === 0 && (

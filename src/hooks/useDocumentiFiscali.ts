@@ -306,14 +306,18 @@ export function useCreateDocumento() {
 // ─── Update mutation ──────────────────────────────────────────
 
 export function useUpdateDocumento() {
+  const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string; [key: string]: unknown }) => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
+
       const { data, error } = await supabase
         .from("documenti_fiscali" as never)
         .update({ ...updates, updated_at: new Date().toISOString() } as never)
         .eq("id", id)
+        .eq("company_id", companyId)
         .select()
         .single();
 
@@ -388,14 +392,18 @@ export function useDeleteDocumento() {
 // ─── Emit mutation (bozza → emessa) ──────────────────────────
 
 export function useEmittiDocumento() {
+  const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
+
       const { data: doc, error: fetchErr } = await supabase
         .from("documenti_fiscali" as never)
         .select("*")
         .eq("id", id)
+        .eq("company_id", companyId)
         .single();
 
       if (fetchErr) throw fetchErr;
@@ -420,6 +428,7 @@ export function useEmittiDocumento() {
         .from("documenti_fiscali" as never)
         .update({ stato: "emessa", updated_at: new Date().toISOString() } as never)
         .eq("id", id)
+        .eq("company_id", companyId)
         .select()
         .single();
 

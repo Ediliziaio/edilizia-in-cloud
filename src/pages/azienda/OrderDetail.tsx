@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning } from "lucide-react";
+import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download } from "lucide-react";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
@@ -56,6 +56,7 @@ import { CreaFatturaDialog } from "@/components/orders/CreaFatturaDialog";
 import { CreaDDTDialog } from "@/components/orders/CreaDDTDialog";
 import { CreaProformaDialog } from "@/components/orders/CreaProformaDialog";
 import { CreaNotaCreditoDialog } from "@/components/orders/CreaNotaCreditoDialog";
+import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
 
@@ -187,6 +188,25 @@ interface OrderItemAttachmentData {
   file_size: number;
 }
 
+interface OrderDocumentSummary {
+  id: string;
+  file_name: string;
+  file_url: string;
+  file_type: string;
+  file_size: number;
+  visible_to_customer: boolean;
+  created_at: string;
+}
+
+interface LinkedFiscalDocument {
+  id: string;
+  numero: string;
+  data_emissione: string;
+  stato: string;
+  tipo: string;
+  totale_da_pagare: number;
+}
+
 // ── Inner Component ───────────────────────────────────────────────
 
 function OrderDetailInner() {
@@ -194,7 +214,7 @@ function OrderDetailInner() {
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const isNativeBilling = (effectiveCompany as any)?.billing_mode === "native";
+  const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
   const queryClient = useQueryClient();
 
   const { downloadPDF, isGenerating: isGeneratingPDF } = useOrdinePDF();
@@ -232,8 +252,8 @@ function OrderDetailInner() {
   const { data: dbInstallments = [] } = useQuery({
     queryKey: queryKeys.orders.installments(id),
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("order_installments")
+      const { data, error } = await supabase
+        .from("order_installments" as never)
         .select("*")
         .eq("order_id", id!)
         .order("position");
@@ -264,7 +284,7 @@ function OrderDetailInner() {
   }, [dbInstallments, order]);
 
   // Fetch order items
-  const { data: orderItems = [], refetch: refetchItems } = useQuery({
+  const { data: orderItems = [] } = useQuery({
     queryKey: ["order-items", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -328,6 +348,23 @@ function OrderDetailInner() {
 
   // Fetch linked fatture
   const { data: fattureCollegate = [] } = useFattureByOrdine(id);
+
+  const { data: documentiCommessa = [] } = useQuery<OrderDocumentSummary[]>({
+    queryKey: ["order-documents-summary", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_attachments")
+        .select("id, file_name, file_url, file_type, file_size, visible_to_customer, created_at")
+        .eq("order_id", id!)
+        .order("created_at", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      return (data ?? []) as OrderDocumentSummary[];
+    },
+    enabled: !!id && !!user,
+    staleTime: 120_000,
+    gcTime: 10 * 60 * 1000,
+  });
 
   // Fetch labor costs for PDF
   const { data: pdfLaborEmployees = [] } = useQuery({
@@ -413,7 +450,7 @@ function OrderDetailInner() {
         .select("*, user:profiles(first_name, last_name), subappaltatore:external_teams(name)")
         .eq("order_id", id!);
       if (error) throw error;
-      return (data ?? []).map((d: any) => ({
+      return ((data ?? []) as Array<{ subappaltatore?: { name?: string } | null }>).map((d) => ({
         ...d,
         subappaltatore: d.subappaltatore ? { nome: d.subappaltatore.name } : null,
       }));
@@ -544,8 +581,15 @@ function OrderDetailInner() {
         body: { source_order_id: id },
       });
       if (error) {
-        let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        let errBody: { error?: string; message?: string } | null = null;
+        try {
+          const ctx = (error as { context?: unknown }).context;
+          if (ctx instanceof Response) {
+            errBody = (await ctx.json()) as { error?: string; message?: string };
+          }
+        } catch {
+          errBody = null;
+        }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       if (data?.error) throw new Error(data.error);
@@ -580,22 +624,24 @@ function OrderDetailInner() {
         // Auto-migrate all legacy installments to order_installments table,
         // then update the target one.
         // Idempotency check: verify no installments already exist (prevents duplicates on double-click)
-        const { count } = await (supabase as any)
-          .from("order_installments")
+        const { count } = await supabase
+          .from("order_installments" as never)
           .select("id", { count: "exact", head: true })
           .eq("order_id", id!);
         if (count && count > 0) {
           // Installments were already migrated (race condition / double-click).
           // Reload and update the target one by position+type.
-          const { data: existing } = await (supabase as any)
-            .from("order_installments")
+          const { data: existing } = await supabase
+            .from("order_installments" as never)
             .select("id, position, type")
             .eq("order_id", id!);
-          const match = (existing || []).find((r: any) => r.position === installment.position && r.type === installment.type);
+          const match = ((existing || []) as Array<{ id: string; position: number; type: string }>).find(
+            (r) => r.position === installment.position && r.type === installment.type
+          );
           if (match) {
-            const { error } = await (supabase as any)
-              .from("order_installments")
-              .update({ is_paid: paid, paid_date: paid ? today : null })
+            const { error } = await supabase
+              .from("order_installments" as never)
+              .update({ is_paid: paid, paid_date: paid ? today : null } as never)
               .eq("id", match.id);
             if (error) throw error;
           }
@@ -613,7 +659,7 @@ function OrderDetailInner() {
               : (inst.paid_date || null),
             expected_date: inst.expected_date || null,
           }));
-          const { error } = await (supabase as any).from("order_installments").insert(rows);
+          const { error } = await supabase.from("order_installments" as never).insert(rows as never);
           if (error) throw error;
         }
       }
@@ -748,6 +794,58 @@ function OrderDetailInner() {
   }, [order, displayItems]);
 
   const handleAttachmentsRefresh = () => { refetchAttachments(); };
+
+  const linkedDocumentsCount = fattureCollegate.length + documentiCommessa.length;
+
+  const formatFiscalType = (tipo: string) => {
+    const labels: Record<string, string> = {
+      fattura: "Fattura",
+      fattura_pa: "Fattura PA",
+      nota_credito: "Nota credito",
+      nota_debito: "Nota debito",
+      ddt: "DDT",
+      proforma: "Proforma",
+      preventivo: "Preventivo",
+      parcella: "Parcella",
+      fattura_accompagnatoria: "Fattura accompagnatoria",
+    };
+    return labels[tipo] ?? tipo;
+  };
+
+  const formatAttachmentType = (documento: OrderDocumentSummary) => {
+    const name = documento.file_name.toLowerCase();
+    if (name.includes("collaudo") || name.includes("verbale")) return "Collaudo";
+    if (name.includes("contratto")) return "Contratto";
+    if (name.includes("ddt")) return "DDT";
+    if (documento.file_type.includes("image")) return "Foto";
+    return "Documento";
+  };
+
+  const handleDownloadFiscalDocument = async (documento: LinkedFiscalDocument) => {
+    try {
+      await downloadNativePDF(documento.id, documento.numero || "documento");
+      toast.success("Documento scaricato");
+    } catch (error) {
+      toast.error("Download non riuscito", {
+        description: error instanceof Error ? error.message : "Apri il documento e riprova dal dettaglio.",
+      });
+    }
+  };
+
+  const handleOpenOrderDocument = async (documento: OrderDocumentSummary) => {
+    const { data, error } = await supabase.storage
+      .from("order-attachments")
+      .createSignedUrl(documento.file_url, 3600);
+
+    if (error || !data?.signedUrl) {
+      toast.error("Documento non scaricabile", {
+        description: "Il file potrebbe essere stato spostato o eliminato.",
+      });
+      return;
+    }
+
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
 
   const handleDownloadPDF = useCallback(() => {
     if (!order) return;
@@ -919,6 +1017,9 @@ function OrderDetailInner() {
                 warehouseArrivalDate={order.warehouse_arrival_date}
                 workStartDate={order.work_start_date}
                 workEndDate={order.work_end_date}
+                orderCode={order.order_code}
+                orderDescription={order.description}
+                defaultAddress={order.work_address || order.customer?.address}
               />
             </TabsContent>
 
@@ -952,13 +1053,13 @@ function OrderDetailInner() {
                 collectedAmount={collectedAmount}
                 onInstallmentPaidToggle={handleInstallmentPaidToggle}
               />
-              {/* Fatturazione */}
+              {/* Fatturazione e documenti */}
               <QuoteCard
                 title={
                   <span className="flex items-center gap-2">
-                    Fatturazione
-                    {fattureCollegate.length > 0 && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{fattureCollegate.length}</span>
+                    Fatturazione e Documenti
+                    {linkedDocumentsCount > 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{linkedDocumentsCount}</span>
                     )}
                   </span>
                 }
@@ -967,17 +1068,19 @@ function OrderDetailInner() {
                 <div className="space-y-3">
                   {fattureCollegate.length > 0 ? (
                     <div className="space-y-2">
-                      {fattureCollegate.map((f: any) => (
-                        <Link
+                      {fattureCollegate.map((f: LinkedFiscalDocument) => (
+                        <div
                           key={f.id}
-                          to={`/azienda/documenti/${f.id}`}
-                          className="flex items-center justify-between p-2 rounded-md border hover:bg-accent transition-colors text-sm"
+                          className="flex items-center justify-between gap-2 p-2 rounded-md border bg-white text-sm"
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{f.numero}</span>
+                          <Link to={`/azienda/documenti/${f.id}`} className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium truncate">{f.numero}</span>
+                              <span className="text-[11px] text-muted-foreground">{formatFiscalType(f.tipo)}</span>
+                            </div>
                             <Badge
                               variant="outline"
-                              className={`text-xs ${
+                              className={`mt-1 text-xs ${
                                 f.stato === "pagata" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                                 f.stato === "emessa" || f.stato === "consegnata" ? "bg-blue-50 text-blue-700 border-blue-200" :
                                 f.stato === "rifiutata" || f.stato === "scaduta" ? "bg-red-50 text-red-700 border-red-200" :
@@ -993,17 +1096,50 @@ function OrderDetailInner() {
                                f.stato === "scaduta" ? "Scaduta" :
                                f.stato}
                             </Badge>
+                          </Link>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground whitespace-nowrap">
+                              {formatCurrency(f.totale_da_pagare)}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label={`Scarica ${f.numero}`}
+                              onClick={() => handleDownloadFiscalDocument(f)}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
                           </div>
-                          <span className="text-muted-foreground">
-                            {formatCurrency(f.totale_da_pagare)}
-                          </span>
-                        </Link>
+                        </div>
                       ))}
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-2">
-                      Nessuna fattura collegata
+                      Nessun documento fiscale collegato
                     </p>
+                  )}
+                  {documentiCommessa.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Allegati commessa
+                      </div>
+                      {documentiCommessa.map((documento) => (
+                        <button
+                          key={documento.id}
+                          type="button"
+                          onClick={() => handleOpenOrderDocument(documento)}
+                          className="flex w-full items-center justify-between gap-2 rounded-md border p-2 text-left text-sm transition-colors hover:bg-accent"
+                        >
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{documento.file_name}</div>
+                            <div className="text-xs text-muted-foreground">{formatAttachmentType(documento)}</div>
+                          </div>
+                          <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </button>
+                      ))}
+                    </div>
                   )}
                   <div className="grid grid-cols-4 gap-2">
                     <Button
@@ -1249,6 +1385,9 @@ function OrderDetailInner() {
               warehouseArrivalDate={order.warehouse_arrival_date}
               workStartDate={order.work_start_date}
               workEndDate={order.work_end_date}
+              orderCode={order.order_code}
+              orderDescription={order.description}
+              defaultAddress={order.work_address || order.customer?.address}
             />
 
             {/* Storico stati */}
@@ -1280,13 +1419,13 @@ function OrderDetailInner() {
               )}
             </QuoteCard>
 
-            {/* Fatturazione */}
+            {/* Fatturazione e documenti */}
             <QuoteCard
               title={
                 <span className="flex items-center gap-2">
-                  Fatturazione
-                  {fattureCollegate.length > 0 && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{fattureCollegate.length}</span>
+                  Fatturazione e Documenti
+                  {linkedDocumentsCount > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{linkedDocumentsCount}</span>
                   )}
                 </span>
               }
@@ -1295,29 +1434,43 @@ function OrderDetailInner() {
               <div className="space-y-3">
                 {fattureCollegate.length > 0 ? (
                   <div className="space-y-2">
-                    {fattureCollegate.map((f: any) => (
-                      <Link
+                    {fattureCollegate.map((f: LinkedFiscalDocument) => (
+                      <div
                         key={f.id}
-                        to={`/azienda/documenti/${f.id}`}
-                        className="flex items-center justify-between p-2 rounded-md border hover:bg-accent transition-colors text-sm"
+                        className="flex items-center justify-between gap-2 p-2 rounded-md border bg-white text-sm"
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{f.numero}</span>
+                        <Link to={`/azienda/documenti/${f.id}`} className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium truncate">{f.numero}</span>
+                            <span className="text-[11px] text-muted-foreground">{formatFiscalType(f.tipo)}</span>
+                          </div>
                           <Badge variant="outline" className="text-xs">
                             {f.stato}
                           </Badge>
+                        </Link>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground whitespace-nowrap">
+                            {formatCurrency(f.totale_da_pagare)}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            aria-label={`Scarica ${f.numero}`}
+                            onClick={() => handleDownloadFiscalDocument(f)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <span className="text-muted-foreground">
-                          {formatCurrency(f.totale_da_pagare)}
-                        </span>
-                      </Link>
+                      </div>
                     ))}
                     <div className="pt-1 border-t flex justify-between text-sm">
                       <span className="text-muted-foreground">Totale fatturato</span>
                       <span className="font-medium">
                         {formatCurrency(
                           fattureCollegate.reduce(
-                            (s: number, f: any) => s + (f.totale_da_pagare ?? 0),
+                            (s: number, f: LinkedFiscalDocument) => s + (f.totale_da_pagare ?? 0),
                             0
                           )
                         )}
@@ -1326,8 +1479,29 @@ function OrderDetailInner() {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground text-center py-2">
-                    Nessuna fattura collegata
+                    Nessun documento fiscale collegato
                   </p>
+                )}
+                {documentiCommessa.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Allegati commessa
+                    </div>
+                    {documentiCommessa.map((documento) => (
+                      <button
+                        key={documento.id}
+                        type="button"
+                        onClick={() => handleOpenOrderDocument(documento)}
+                        className="flex w-full items-center justify-between gap-2 rounded-md border p-2 text-left text-sm transition-colors hover:bg-accent"
+                      >
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{documento.file_name}</div>
+                          <div className="text-xs text-muted-foreground">{formatAttachmentType(documento)}</div>
+                        </div>
+                        <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      </button>
+                    ))}
+                  </div>
                 )}
                 <div className="grid grid-cols-4 gap-2">
                   <Button

@@ -44,11 +44,11 @@ export default function RegistroIncassi() {
   const { data: invoicesData } = useDocumentiFiscali({
     stato: ["emessa", "parzialmente_pagata"],
   });
-  const unpaidInvoices = invoicesData?.documenti ?? [];
+  const unpaidInvoices = useMemo(() => invoicesData?.documenti ?? [], [invoicesData?.documenti]);
 
   // All invoices for scadenzario
   const { data: allInvoicesData } = useDocumentiFiscali({});
-  const allInvoices = allInvoicesData?.documenti ?? [];
+  const allInvoices = useMemo(() => allInvoicesData?.documenti ?? [], [allInvoicesData?.documenti]);
 
   // KPIs
   const kpis = useMemo(() => {
@@ -86,10 +86,21 @@ export default function RegistroIncassi() {
       toast.error("Seleziona una fattura e inserisci l'importo");
       return;
     }
+    const parsedImporto = Number(formImporto);
+    if (!Number.isFinite(parsedImporto) || parsedImporto <= 0) {
+      toast.error("Inserisci un importo valido maggiore di zero");
+      return;
+    }
+    if (selectedInvoice && parsedImporto > maxImporto + 0.005) {
+      toast.error("L'importo supera il residuo della fattura", {
+        description: `Residuo disponibile: € ${maxImporto.toFixed(2)}`,
+      });
+      return;
+    }
     createMovimento.mutate(
       {
         documento_id: formDocId,
-        importo: parseFloat(formImporto),
+        importo: parsedImporto,
         metodo: formMetodo,
         data_movimento: format(formData, "yyyy-MM-dd"),
         riferimento: formRiferimento || undefined,

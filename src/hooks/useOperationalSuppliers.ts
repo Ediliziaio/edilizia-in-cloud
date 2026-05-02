@@ -38,6 +38,19 @@ export interface SupplierWithStats {
   scadenze_importo?: number;
 }
 
+type SupplierBaseRow = Omit<SupplierWithStats, "oda_count" | "oda_total" | "scadenze_aperte" | "scadenze_importo">;
+
+interface SupplierOdaSummary {
+  supplier_id: string | null;
+  total: number | string | null;
+}
+
+interface SupplierScadenzaSummary {
+  supplier_id: string | null;
+  amount: number | string | null;
+  paid_amount: number | string | null;
+}
+
 export function useOperationalSuppliers() {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
@@ -67,19 +80,21 @@ export function useOperationalSuppliers() {
       ]);
 
       if (suppliersRes.error) throw suppliersRes.error;
-      const suppliers = suppliersRes.data;
-      const odaStats = odaRes.data;
-      const scadStats = scadRes.data;
+      if (odaRes.error) throw odaRes.error;
+      if (scadRes.error) throw scadRes.error;
+      const suppliers = (suppliersRes.data ?? []) as SupplierBaseRow[];
+      const odaStats = (odaRes.data ?? []) as SupplierOdaSummary[];
+      const scadStats = (scadRes.data ?? []) as SupplierScadenzaSummary[];
 
-      return (suppliers || []).map((s: any) => {
-        const myOda = (odaStats || []).filter((o: any) => o.supplier_id === s.id);
-        const myScad = (scadStats || []).filter((sc: any) => sc.supplier_id === s.id);
+      return suppliers.map((s) => {
+        const myOda = odaStats.filter((o) => o.supplier_id === s.id);
+        const myScad = scadStats.filter((sc) => sc.supplier_id === s.id);
         return {
           ...s,
           oda_count: myOda.length,
-          oda_total: myOda.reduce((sum: number, o: any) => sum + Number(o.total || 0), 0),
+          oda_total: myOda.reduce((sum, o) => sum + Number(o.total || 0), 0),
           scadenze_aperte: myScad.length,
-          scadenze_importo: myScad.reduce((sum: number, sc: any) => sum + (Number(sc.amount) - Number(sc.paid_amount)), 0),
+          scadenze_importo: myScad.reduce((sum, sc) => sum + (Number(sc.amount) - Number(sc.paid_amount)), 0),
         } as SupplierWithStats;
       });
     },
@@ -89,11 +104,13 @@ export function useOperationalSuppliers() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (params: { id: string; updates: Record<string, any> }) => {
+    mutationFn: async (params: { id: string; updates: Record<string, unknown> }) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
       const { error } = await supabase
         .from("suppliers")
         .update(params.updates)
-        .eq("id", params.id);
+        .eq("id", params.id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -116,7 +133,7 @@ export function useSupplierDetail(supplierId: string | null) {
   const companyId = effectiveCompany?.id;
 
   const odaQuery = useQuery({
-    queryKey: ["supplier-oda", supplierId],
+    queryKey: ["supplier-oda", companyId, supplierId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
@@ -131,7 +148,7 @@ export function useSupplierDetail(supplierId: string | null) {
   });
 
   const scadenzeQuery = useQuery({
-    queryKey: ["supplier-scadenze", supplierId],
+    queryKey: ["supplier-scadenze", companyId, supplierId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scadenze")
@@ -146,7 +163,7 @@ export function useSupplierDetail(supplierId: string | null) {
   });
 
   const primaNotaQuery = useQuery({
-    queryKey: ["supplier-prima-nota", supplierId],
+    queryKey: ["supplier-prima-nota", companyId, supplierId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("prima_nota_entries")

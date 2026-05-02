@@ -40,6 +40,20 @@ const FONTS: { key: FontFamily; label: string; desc: string }[] = [
 const getLogoPublicUrl = (path: string) =>
   supabase.storage.from("quote-template-assets").getPublicUrl(path).data.publicUrl;
 
+const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg"]);
+
+type TemplateFormPayload = Partial<Omit<QuoteTemplate, "created_at" | "updated_at">>;
+type TemplateColorKey = "primary_color" | "secondary_color" | "accent_color" | "text_color" | "header_text_color";
+type TemplateVisibilityKey =
+  | "show_quote_number"
+  | "show_validity_date"
+  | "show_company_details"
+  | "show_client_details"
+  | "show_payment_terms"
+  | "show_delivery_terms"
+  | "show_notes"
+  | "show_page_numbers";
+
 export default function SettingsQuoteTemplates() {
   const { role, effectiveCompany } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
@@ -70,7 +84,7 @@ export default function SettingsQuoteTemplates() {
   };
 
   const handleDuplicate = (tmpl: QuoteTemplate) => {
-    const { id, created_at, updated_at, ...rest } = tmpl;
+    const { id: _id, created_at: _createdAt, updated_at: _updatedAt, ...rest } = tmpl;
     setEditId(null);
     setForm({ ...rest, name: `${tmpl.name} (copia)`, is_default: false });
     setEditing(true);
@@ -82,11 +96,15 @@ export default function SettingsQuoteTemplates() {
   };
 
   const handleSave = async (asDefault = false) => {
-    const payload: any = { ...form };
+    const templateName = form.name?.trim();
+    if (!templateName) {
+      toast.error("Inserisci un nome template");
+      return;
+    }
+    const payload: TemplateFormPayload = { ...form };
+    payload.name = templateName;
     if (asDefault) payload.is_default = true;
     if (editId) payload.id = editId;
-    delete payload.created_at;
-    delete payload.updated_at;
     if (!editId) delete payload.id;
 
     try {
@@ -94,8 +112,8 @@ export default function SettingsQuoteTemplates() {
       toast.success(editId ? "Template aggiornato" : "Template creato");
       setEditing(false);
       setEditId(null);
-    } catch (err: any) {
-      toast.error(err.message || "Errore salvataggio");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Errore salvataggio");
     }
   };
 
@@ -115,18 +133,24 @@ export default function SettingsQuoteTemplates() {
     const file = e.target.files?.[0];
     if (!file || !effectiveCompany?.id) return;
     if (file.size > 2 * 1024 * 1024) { toast.error("Max 2MB"); return; }
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      toast.error("Carica un logo PNG o JPG");
+      e.target.value = "";
+      return;
+    }
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop();
+      const ext = file.type === "image/png" ? "png" : "jpg";
       const path = `${effectiveCompany.id}/template-logo-${Date.now()}.${ext}`;
       const { error } = await supabase.storage.from("quote-template-assets").upload(path, file, { upsert: true });
       if (error) throw error;
       updateForm({ logo_url: path });
       toast.success("Logo caricato");
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Errore caricamento logo");
     } finally {
       setUploading(false);
+      e.target.value = "";
     }
   };
 
@@ -366,14 +390,14 @@ export default function SettingsQuoteTemplates() {
                     { key: 'accent_color' as const, label: 'Sfondo leggero' },
                     { key: 'text_color' as const, label: 'Testo corpo' },
                     { key: 'header_text_color' as const, label: 'Testo header' },
-                  ].map(c => (
+                  ].map((c: { key: TemplateColorKey; label: string }) => (
                     <div key={c.key}>
                       <Label className="text-xs">{c.label}</Label>
                       <div className="flex items-center gap-2 mt-1">
                         <input
                           type="color"
                           value={form[c.key] || '#000000'}
-                          onChange={e => updateForm({ [c.key]: e.target.value } as any)}
+                          onChange={e => updateForm({ [c.key]: e.target.value })}
                           className="h-8 w-8 rounded border border-border cursor-pointer"
                         />
                         <span className="text-xs text-muted-foreground">{form[c.key]}</span>
@@ -603,9 +627,9 @@ export default function SettingsQuoteTemplates() {
                   { key: 'show_delivery_terms' as const, label: 'Condizioni di consegna' },
                   { key: 'show_notes' as const, label: 'Note per il cliente' },
                   { key: 'show_page_numbers' as const, label: 'Numerazione pagine' },
-                ].map(el => (
+                ].map((el: { key: TemplateVisibilityKey; label: string }) => (
                   <div key={el.key} className="flex items-center gap-3">
-                    <Switch checked={(form as any)[el.key] ?? true} onCheckedChange={v => updateForm({ [el.key]: v } as any)} />
+                    <Switch checked={form[el.key] ?? true} onCheckedChange={v => updateForm({ [el.key]: v })} />
                     <Label>{el.label}</Label>
                   </div>
                 ))}
@@ -720,8 +744,13 @@ export default function SettingsQuoteTemplates() {
                         body: { preview_mode: true, template_data: form, company_name: effectiveCompany?.name },
                       });
                       if (error) {
-                        let errBody: any = null;
-                        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+                        let errBody: { error?: string; message?: string } | null = null;
+                        try {
+                          const ctx = (error as { context?: unknown }).context;
+                          if (ctx instanceof Response) errBody = await ctx.json() as { error?: string; message?: string };
+                        } catch {
+                          errBody = null;
+                        }
                         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
                       }
                       if (!data?.pdf_base64) throw new Error("Nessun PDF ricevuto");
@@ -736,8 +765,8 @@ export default function SettingsQuoteTemplates() {
                       a.click();
                       URL.revokeObjectURL(url);
                       toast.success("PDF scaricato");
-                    } catch (err: any) {
-                      toast.error(err.message || "Errore generazione PDF");
+                    } catch (err: unknown) {
+                      toast.error(err instanceof Error ? err.message : "Errore generazione PDF");
                     } finally {
                       setDownloadingPdf(false);
                     }

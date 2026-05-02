@@ -314,7 +314,7 @@ function MarketingOpportunitiesContent() {
             return { success: 0, errors: ["Seleziona una pipeline con almeno una fase"] };
           }
           const customKeys = oppCustomFields.map(f => `custom_${f.id}`);
-          const defaultStageId = stages.sort((a: any, b: any) => a.position - b.position)[0].id;
+          const defaultStageId = [...stages].sort((a: any, b: any) => a.position - b.position)[0].id;
           let success = 0;
           const errors: string[] = [];
           for (let i = 0; i < rows.length; i++) {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { User, Copy, Check, ShieldCheck, ShieldOff, Upload, X, FileCheck2, FileWarning } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -78,6 +78,13 @@ export function CreateCustomerDialog({
   const [passwordCopied, setPasswordCopied] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const selectedDocumentCount = Object.values(customerDocuments).filter(Boolean).length;
+
+  useEffect(() => {
+    if (!companyPortalEnabled) {
+      setCreatePortalAccount(false);
+      setSendWelcomeEmail(false);
+    }
+  }, [companyPortalEnabled]);
 
   const handleDocumentChange = (type: CustomerDocumentType, file: File | null) => {
     setCustomerDocuments((prev) => {
@@ -506,53 +513,56 @@ export function CreateCustomerDialog({
 
               {/* Toggle area privata */}
               <div className="rounded-lg border p-3 space-y-3 bg-muted/30">
-                {!companyPortalEnabled && (
+                {!companyPortalEnabled ? (
                   <Alert className="py-2">
                     <ShieldOff className="h-4 w-4" />
                     <AlertDescription className="text-xs">
-                      Area privata disattivata dalle impostazioni azienda.
+                      Area privata disattivata dalle impostazioni azienda. Il cliente verrà creato
+                      solo in anagrafica e non è possibile creare l'accesso al portale.
                     </AlertDescription>
                   </Alert>
-                )}
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex items-center gap-2">
-                    {companyPortalEnabled && createPortalAccount ? (
-                      <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
-                    ) : (
-                      <ShieldOff className="h-4 w-4 text-muted-foreground shrink-0" />
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex items-center gap-2">
+                        {createPortalAccount ? (
+                          <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+                        ) : (
+                          <ShieldOff className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <Label htmlFor="dialog-toggle-portal" className="text-sm">
+                            Crea account portale
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Genera password di accesso per il cliente.
+                          </p>
+                        </div>
+                      </div>
+                      <Switch
+                        id="dialog-toggle-portal"
+                        checked={createPortalAccount}
+                        onCheckedChange={setCreatePortalAccount}
+                      />
+                    </div>
+                    {createPortalAccount && (
+                      <div className="flex items-center justify-between gap-3 pt-1 border-t">
+                        <div className="min-w-0">
+                          <Label htmlFor="dialog-toggle-welcome" className="text-sm">
+                            Invia email di benvenuto
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Email con credenziali al cliente.
+                          </p>
+                        </div>
+                        <Switch
+                          id="dialog-toggle-welcome"
+                          checked={sendWelcomeEmail}
+                          onCheckedChange={setSendWelcomeEmail}
+                        />
+                      </div>
                     )}
-                    <div className="min-w-0">
-                      <Label htmlFor="dialog-toggle-portal" className="text-sm">
-                        Crea account portale
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Genera password di accesso per il cliente.
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    id="dialog-toggle-portal"
-                    checked={companyPortalEnabled && createPortalAccount}
-                    onCheckedChange={setCreatePortalAccount}
-                    disabled={!companyPortalEnabled}
-                  />
-                </div>
-                {companyPortalEnabled && createPortalAccount && (
-                  <div className="flex items-center justify-between gap-3 pt-1 border-t">
-                    <div className="min-w-0">
-                      <Label htmlFor="dialog-toggle-welcome" className="text-sm">
-                        Invia email di benvenuto
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Email con credenziali al cliente.
-                      </p>
-                    </div>
-                    <Switch
-                      id="dialog-toggle-welcome"
-                      checked={sendWelcomeEmail}
-                      onCheckedChange={setSendWelcomeEmail}
-                    />
-                  </div>
+                  </>
                 )}
               </div>
 

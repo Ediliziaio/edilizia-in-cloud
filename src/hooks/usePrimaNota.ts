@@ -112,7 +112,10 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
       payment_method?: string;
       reference_number?: string;
       supplier_id?: string | null;
+      order_id?: string | null;
       account_label?: string;
+      attachment_url?: string;
+      attachment_name?: string;
       notes?: string;
     }) => {
       const { error } = await supabase.from("prima_nota_entries").insert({
@@ -125,7 +128,10 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
         payment_method: params.payment_method || null,
         reference_number: params.reference_number || null,
         supplier_id: params.supplier_id || null,
+        order_id: params.order_id || null,
         account_label: params.account_label || "banca",
+        attachment_url: params.attachment_url || null,
+        attachment_name: params.attachment_name || null,
         notes: params.notes || null,
         is_auto: false,
         created_by: (await supabase.auth.getUser()).data.user?.id,

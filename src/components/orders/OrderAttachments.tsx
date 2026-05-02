@@ -38,24 +38,7 @@ import {
   Download,
   Loader2 
 } from "lucide-react";
-
-// Shared MIME whitelist
-export const ALLOWED_MIME_TYPES = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-];
-
-export const MAX_FILES_PER_ORDER = 20;
-
-export function isValidMimeType(type: string): boolean {
-  return ALLOWED_MIME_TYPES.includes(type);
-}
+import { MAX_FILES_PER_ORDER, isValidMimeType } from "./orderAttachmentRules";
 
 interface OrderAttachment {
   id: string;
@@ -100,7 +83,7 @@ async function getSignedUrl(filePath: string): Promise<string | null> {
 }
 
 export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsProps) {
-  const { user } = useAuth();
+  const { user, profile, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -249,15 +232,26 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
 
       if (dbError) throw dbError;
 
-      // Diary log
-      void supabase.from("order_events" as never).insert({
-        order_id: orderId,
-        event_type: "allegato_caricato",
-        payload: { file_name: file.name, file_type: file.type },
-        actor_id: user!.id,
-      } as never);
+      if (effectiveCompany?.id) {
+        const actorName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.email || user.email || "Utente";
+        void supabase.from("order_events" as never).insert({
+          order_id: orderId,
+          company_id: effectiveCompany.id,
+          event_type: "allegato_caricato",
+          payload: {
+            file_name: file.name,
+            file_type: file.type,
+            file_size: file.size,
+            visible_to_customer: false,
+          },
+          actor_id: user.id,
+          actor_name: actorName,
+        } as never);
+      }
 
       queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["order-events", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["order-diary-audit", orderId] });
       toast({
         title: "Documento caricato",
         description: "Il documento è stato caricato con successo.",

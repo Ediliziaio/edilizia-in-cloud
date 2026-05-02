@@ -17,7 +17,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, FileText, Loader2, Save, Paperclip, Package, Info, Search, ExternalLink } from "lucide-react";
+import { Upload, FileText, Loader2, Save, Paperclip, Package, Info, Search, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "react-router-dom";
@@ -34,6 +34,18 @@ import { SortableMaterialItem } from "@/components/settings/SortableMaterialItem
 // ad ogni render (che farebbe triggerare inutilmente gli useEffect che
 // lo hanno in dependency list).
 const EMPTY_ARRAY: ReadonlyArray<never> = Object.freeze([]);
+
+type QuotePdfMaterial = {
+  id: string;
+  company_id: string;
+  name: string;
+  category: string | null;
+  storage_path: string;
+  file_size_bytes: number | null;
+  article_template_id: string | null;
+  sort_order: number | null;
+  created_by: string;
+};
 
 const CATEGORIES = ["generale", "scheda_prodotto", "garanzia", "certificazione", "contratto", "altro"];
 const categoryLabels: Record<string, string> = {
@@ -56,14 +68,14 @@ export default function SettingsQuoteMaterials() {
   const [activeTab, setActiveTab] = useState("tutti");
   const [searchQuery, setSearchQuery] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [editItem, setEditItem] = useState<any | null>(null);
+  const [editItem, setEditItem] = useState<QuotePdfMaterial | null>(null);
   const [editName, setEditName] = useState("");
   const [editCategory, setEditCategory] = useState("generale");
-  const [deleteItem, setDeleteItem] = useState<any | null>(null);
+  const [deleteItem, setDeleteItem] = useState<QuotePdfMaterial | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // Local sorted state for DnD
-  const [localMaterials, setLocalMaterials] = useState<any[]>([]);
+  const [localMaterials, setLocalMaterials] = useState<QuotePdfMaterial[]>([]);
   const [hasOrderChanges, setHasOrderChanges] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
 
@@ -71,7 +83,7 @@ export default function SettingsQuoteMaterials() {
     if (!isAdmin) navigate("/azienda", { replace: true });
   }, [isAdmin, navigate]);
 
-  const { data: materialsData, isLoading } = useQuery({
+  const { data: materialsData, isLoading, isError, error: materialsError, refetch } = useQuery({
     queryKey: ["quote-pdf-materials", companyId],
     enabled: !!companyId,
     queryFn: async () => {
@@ -81,7 +93,7 @@ export default function SettingsQuoteMaterials() {
         .eq("company_id", companyId!)
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as QuotePdfMaterial[];
     },
   });
   // Bug fix: usare il riferimento diretto da useQuery senza default inline `= []`.
@@ -133,7 +145,7 @@ export default function SettingsQuoteMaterials() {
     setSavingOrder(true);
     try {
       const updates = localMaterials.map((m, i) =>
-        supabase.from("quote_pdf_materials").update({ sort_order: i }).eq("id", m.id)
+        supabase.from("quote_pdf_materials").update({ sort_order: i }).eq("id", m.id).eq("company_id", companyId!)
       );
       const results = await Promise.all(updates);
       const failed = results.find((r) => r.error);
@@ -154,6 +166,10 @@ export default function SettingsQuoteMaterials() {
       if (!companyId) throw new Error("Company ID mancante");
       if (file.size > 20 * 1024 * 1024) throw new Error("File troppo grande (max 20MB)");
       if (file.type !== "application/pdf") throw new Error("Solo file PDF");
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      const createdBy = user?.id ?? authData.user?.id;
+      if (!createdBy) throw new Error("Utente non disponibile");
 
       const fileId = crypto.randomUUID();
       const storagePath = `${companyId}/${fileId}.pdf`;
@@ -170,7 +186,7 @@ export default function SettingsQuoteMaterials() {
           name: file.name.replace(/\.pdf$/i, ""),
           storage_path: storagePath,
           file_size_bytes: file.size,
-          created_by: user?.id ?? (await supabase.auth.getUser()).data.user?.id ?? "",
+          created_by: createdBy,
           sort_order: sortIndex,
         });
       if (dbError) throw dbError;
@@ -179,7 +195,7 @@ export default function SettingsQuoteMaterials() {
       queryClient.invalidateQueries({ queryKey: ["quote-pdf-materials"] });
       toast.success("PDF caricato con successo");
     },
-    onError: (e: any) => toast.error(e.message || "Errore upload"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore upload"),
   });
 
   const updateMutation = useMutation({
@@ -187,7 +203,8 @@ export default function SettingsQuoteMaterials() {
       const { error } = await supabase
         .from("quote_pdf_materials")
         .update({ name, category })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -199,10 +216,15 @@ export default function SettingsQuoteMaterials() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (item: any) => {
-      await supabase.storage.from("quote-materials").remove([item.storage_path]);
-      const { error } = await supabase.from("quote_pdf_materials").delete().eq("id", item.id);
+    mutationFn: async (item: QuotePdfMaterial) => {
+      const { error } = await supabase
+        .from("quote_pdf_materials")
+        .delete()
+        .eq("id", item.id)
+        .eq("company_id", companyId!);
       if (error) throw error;
+      const { error: storageError } = await supabase.storage.from("quote-materials").remove([item.storage_path]);
+      if (storageError) throw storageError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quote-pdf-materials"] });
@@ -250,7 +272,7 @@ export default function SettingsQuoteMaterials() {
   };
 
   // Search + tab filter (composti)
-  const filtered = localMaterials.filter((m: any) => {
+  const filtered = localMaterials.filter((m) => {
     if (activeTab === "globali" && m.article_template_id) return false;
     if (activeTab === "prodotto" && !m.article_template_id) return false;
     if (searchQuery.trim()) {
@@ -265,8 +287,8 @@ export default function SettingsQuoteMaterials() {
 
   // Stats per KPI
   const totalSizeMB = localMaterials.reduce((s, m) => s + Number(m.file_size_bytes || 0), 0) / (1024 * 1024);
-  const globali = localMaterials.filter((m: any) => !m.article_template_id).length;
-  const perProdotto = localMaterials.filter((m: any) => !!m.article_template_id).length;
+  const globali = localMaterials.filter((m) => !m.article_template_id).length;
+  const perProdotto = localMaterials.filter((m) => !!m.article_template_id).length;
 
   if (!isAdmin) return null;
 
@@ -399,7 +421,18 @@ export default function SettingsQuoteMaterials() {
       </div>
 
       {/* Materials list with DnD */}
-      {isLoading ? (
+      {isError ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Errore nel caricamento dei materiali</AlertTitle>
+          <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>{materialsError instanceof Error ? materialsError.message : "Riprova tra qualche istante."}</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -412,7 +445,7 @@ export default function SettingsQuoteMaterials() {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={filtered.map((m) => m.id)} strategy={verticalListSortingStrategy}>
             <div className="space-y-2">
-              {filtered.map((m: any, index: number) => (
+              {filtered.map((m, index) => (
                 <SortableMaterialItem
                   key={m.id}
                   material={m}

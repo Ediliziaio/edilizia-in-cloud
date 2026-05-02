@@ -128,6 +128,7 @@ export function useMacrocategorieMutations() {
       id: string;
       patch: Partial<MacrocategoriaPayload>;
     }): Promise<ListinoMacrocategoria> => {
+      if (!companyId) throw new Error("Company non disponibile");
       const { data, error } = await supabase
         .from("listino_macrocategorie" as never)
         .update({
@@ -141,6 +142,7 @@ export function useMacrocategorieMutations() {
           ...(patch.attivo !== undefined ? { attivo: patch.attivo } : {}),
         } as never)
         .eq("id", id)
+        .eq("company_id", companyId)
         .select()
         .single();
       if (error) throw new Error(error.message);
@@ -151,10 +153,12 @@ export function useMacrocategorieMutations() {
 
   const remove = useMutation({
     mutationFn: async (id: string): Promise<void> => {
+      if (!companyId) throw new Error("Company non disponibile");
       const { error } = await supabase
         .from("listino_macrocategorie" as never)
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw new Error(error.message);
     },
     onSuccess: invalidate,

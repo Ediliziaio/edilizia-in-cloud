@@ -11,6 +11,7 @@ import { useSediAnalytics } from "@/hooks/useSediAnalytics";
 import { useSedeFilter } from "@/store/sedeFilterStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
@@ -38,11 +39,14 @@ import {
   ArrowUpRight,
   Info,
   HardHat,
+  RefreshCw,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const MARGINALITA_FETCH_LIMIT = 1000;
 
 interface MarginalitaRow {
   id: string;
@@ -86,6 +90,16 @@ function compareSortValues(
   if (normalizedA < normalizedB) return -1;
   if (normalizedA > normalizedB) return 1;
   return 0;
+}
+
+function safeNumber(value: number | null | undefined): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function clampPercentage(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, value));
 }
 
 function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {
@@ -226,23 +240,30 @@ export default function MarginalitaCantieri() {
     direction: "asc",
   });
 
-  const { data: rows = [], isLoading, error } = useQuery({
+  const { data: marginalitaData, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["marginalita-cantieri", companyId],
     queryFn: async () => {
-      // Limit to 500 to prevent excessive payload; select only fields used in the component
-      const { data, error } = await supabase
+      // Limit payload deterministically and expose the cap in UI instead of hiding truncated data.
+      const { data, error, count } = await supabase
         .from("v_ordine_marginalita")
-        .select("id, company_id, order_code, description, preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_errori, consuntivo, margine, margine_perc, cliente_nome, work_start_date, work_end_date, created_at")
+        .select("id, company_id, order_code, description, preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_errori, consuntivo, margine, margine_perc, cliente_nome, work_start_date, work_end_date, created_at", { count: "exact" })
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
-        .limit(500);
+        .limit(MARGINALITA_FETCH_LIMIT);
       if (error) throw error;
-      return (data || []) as MarginalitaRow[];
+      return {
+        rows: (data || []) as MarginalitaRow[],
+        totalCount: count ?? (data?.length ?? 0),
+      };
     },
     enabled: !!companyId,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
+
+  const rows = useMemo(() => marginalitaData?.rows ?? [], [marginalitaData]);
+  const totalRows = marginalitaData?.totalCount ?? rows.length;
+  const hasMoreRows = totalRows > rows.length;
 
   // ── Anni disponibili per il filtro ───────────────────────────
   const anniDisponibili = useMemo(() => {
@@ -266,16 +287,17 @@ export default function MarginalitaCantieri() {
       );
     }
     result = result.filter((r) => {
-      const netto = r.margine_perc - overheadPct;
+      const netto = safeNumber(r.margine_perc) - overheadPct;
       if (healthFilter === "critici") return netto < 0;
       if (healthFilter === "sotto_target") return netto >= 0 && netto < 10;
       if (healthFilter === "sani") return netto >= 25;
       return true;
     });
     const getSortValue = (row: MarginalitaRow, key: MarginalitaSortKey) => {
-      const margineNetto = row.margine_perc - overheadPct;
-      const overheadAllocato = row.preventivo_totale * (overheadPct / 100);
-      const margineNettoAbs = row.preventivo_totale * (margineNetto / 100);
+      const margineNetto = safeNumber(row.margine_perc) - overheadPct;
+      const preventivoTotale = safeNumber(row.preventivo_totale);
+      const overheadAllocato = preventivoTotale * (overheadPct / 100);
+      const margineNettoAbs = preventivoTotale * (margineNetto / 100);
       switch (key) {
         case "order":
           return row.order_code ?? row.description ?? "";
@@ -284,21 +306,21 @@ export default function MarginalitaCantieri() {
         case "stato":
           return margineNetto;
         case "preventivo":
-          return Number(row.preventivo_totale ?? 0);
+          return safeNumber(row.preventivo_totale);
         case "consuntivo":
-          return Number(row.consuntivo ?? 0);
+          return safeNumber(row.consuntivo);
         case "margine":
-          return Number(row.margine ?? 0);
+          return safeNumber(row.margine);
         case "marginePerc":
-          return Number(row.margine_perc ?? 0);
+          return safeNumber(row.margine_perc);
         case "overhead":
           return overheadAllocato;
         case "margineNetto":
           return margineNettoAbs;
         case "acquisti":
-          return Number(row.costo_acquisti ?? 0);
+          return safeNumber(row.costo_acquisti);
         case "errori":
-          return Number(row.costo_errori ?? 0);
+          return safeNumber(row.costo_errori);
         default:
           return "";
       }
@@ -319,15 +341,15 @@ export default function MarginalitaCantieri() {
 
   // ── KPI aggregati (su filtered) ──────────────────────────────
   const kpi = useMemo(() => {
-    const totPreventivo = filtered.reduce((s, r) => s + r.preventivo_totale, 0);
-    const totConsuntivo = filtered.reduce((s, r) => s + r.consuntivo, 0);
-    const totMargine = filtered.reduce((s, r) => s + r.margine, 0);
+    const totPreventivo = filtered.reduce((s, r) => s + safeNumber(r.preventivo_totale), 0);
+    const totConsuntivo = filtered.reduce((s, r) => s + safeNumber(r.consuntivo), 0);
+    const totMargine = filtered.reduce((s, r) => s + safeNumber(r.margine), 0);
     const avgMarginePerc = totPreventivo > 0 ? (totMargine / totPreventivo) * 100 : 0;
-    const cantierInRosso = filtered.filter((r) => r.margine_perc < 0).length;
+    const cantierInRosso = filtered.filter((r) => safeNumber(r.margine_perc) < 0).length;
     const avgMargineNettoPerc = avgMarginePerc - overheadPct;
-    const riskCount = filtered.filter((r) => r.margine_perc - overheadPct < 10).length;
-    const errorCost = filtered.reduce((s, r) => s + r.costo_errori, 0);
-    const purchaseCost = filtered.reduce((s, r) => s + r.costo_acquisti, 0);
+    const riskCount = filtered.filter((r) => safeNumber(r.margine_perc) - overheadPct < 10).length;
+    const errorCost = filtered.reduce((s, r) => s + safeNumber(r.costo_errori), 0);
+    const purchaseCost = filtered.reduce((s, r) => s + safeNumber(r.costo_acquisti), 0);
     return { totPreventivo, totConsuntivo, totMargine, avgMarginePerc, cantierInRosso, avgMargineNettoPerc, riskCount, errorCost, purchaseCost };
   }, [filtered, overheadPct]);
 
@@ -344,6 +366,7 @@ export default function MarginalitaCantieri() {
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="rounded-2xl border border-slate-200 bg-white px-4 sm:px-6 pt-5 pb-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-3">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <BarChart3 className="h-5 w-5" />
@@ -354,6 +377,11 @@ export default function MarginalitaCantieri() {
               Controlla preventivo, acquisti, errori e overhead per capire quali commesse stanno erodendo margine.
             </p>
           </div>
+        </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="shrink-0">
+            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isFetching && "animate-spin")} />
+            Aggiorna dati
+          </Button>
         </div>
       </div>
 
@@ -451,6 +479,13 @@ export default function MarginalitaCantieri() {
         </div>
       </div>
 
+      {hasMoreRows && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Vista limitata alle prime {rows.length.toLocaleString("it-IT")} commesse su {totalRows.toLocaleString("it-IT")}.
+          Raffina ricerca o periodo per analisi operative precise su grandi volumi.
+        </div>
+      )}
+
       {/* ── Filtri ─────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
@@ -470,7 +505,7 @@ export default function MarginalitaCantieri() {
             max={100}
             step={1}
             value={overheadPct}
-            onChange={(e) => setOverheadPct(Number(e.target.value))}
+            onChange={(e) => setOverheadPct(clampPercentage(Number(e.target.value)))}
             className="w-20 h-8 text-sm"
           />
           <Tooltip>
@@ -538,7 +573,12 @@ export default function MarginalitaCantieri() {
               {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
           ) : error ? (
-            <p className="text-sm text-destructive p-4 text-center">Errore nel caricamento dati.</p>
+            <div className="flex flex-col items-center gap-3 p-6 text-center">
+              <p className="text-sm text-destructive">Errore nel caricamento dati.</p>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                Riprova
+              </Button>
+            </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
               <HardHat className="h-12 w-12 text-muted-foreground/40" aria-hidden="true" />
@@ -576,9 +616,15 @@ export default function MarginalitaCantieri() {
               </TableHeader>
               <TableBody>
                 {filtered.map((row) => {
-                  const margineNetto = row.margine_perc - overheadPct;
-                  const margineNettoAbs = row.preventivo_totale * (margineNetto / 100);
-                  const overheadAllocato = row.preventivo_totale * (overheadPct / 100);
+                  const preventivoTotale = safeNumber(row.preventivo_totale);
+                  const consuntivo = safeNumber(row.consuntivo);
+                  const margine = safeNumber(row.margine);
+                  const marginePerc = safeNumber(row.margine_perc);
+                  const costoAcquisti = safeNumber(row.costo_acquisti);
+                  const costoErrori = safeNumber(row.costo_errori);
+                  const margineNetto = marginePerc - overheadPct;
+                  const margineNettoAbs = preventivoTotale * (margineNetto / 100);
+                  const overheadAllocato = preventivoTotale * (overheadPct / 100);
                   return (
                     <TableRow
                       key={row.id}
@@ -596,18 +642,18 @@ export default function MarginalitaCantieri() {
                       <TableCell>
                         <MarginHealthBadge perc={margineNetto} />
                       </TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(row.preventivo_totale)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(row.consuntivo)}</TableCell>
-                      <TableCell className={cn("text-right font-semibold", MargineColorClass(row.margine_perc))}>
-                        {formatCurrency(row.margine)}
+                      <TableCell className="text-right font-medium">{formatCurrency(preventivoTotale)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(consuntivo)}</TableCell>
+                      <TableCell className={cn("text-right font-semibold", MargineColorClass(marginePerc))}>
+                        {formatCurrency(margine)}
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <MargineBadge perc={row.margine_perc} />
+                          <MargineBadge perc={marginePerc} />
                           <Progress
-                            value={Math.min(Math.max(row.margine_perc, 0), 100)}
+                            value={clampPercentage(marginePerc)}
                             className="h-1 w-20"
-                            indicatorClassName={MargineProgressClass(row.margine_perc)}
+                            indicatorClassName={MargineProgressClass(marginePerc)}
                           />
                         </div>
                       </TableCell>
@@ -619,11 +665,11 @@ export default function MarginalitaCantieri() {
                         <span className="text-xs ml-1">({margineNetto.toFixed(1)}%)</span>
                       </TableCell>
                       <TableCell className="text-right text-sm text-muted-foreground">
-                        {row.costo_acquisti > 0 ? formatCurrency(row.costo_acquisti) : "–"}
+                        {costoAcquisti > 0 ? formatCurrency(costoAcquisti) : "–"}
                       </TableCell>
                       <TableCell className="text-right text-sm">
-                        {row.costo_errori > 0 ? (
-                          <span className="text-red-600">{formatCurrency(row.costo_errori)}</span>
+                        {costoErrori > 0 ? (
+                          <span className="text-red-600">{formatCurrency(costoErrori)}</span>
                         ) : (
                           <span className="text-muted-foreground">–</span>
                         )}
@@ -642,7 +688,12 @@ export default function MarginalitaCantieri() {
         {isLoading ? (
           [1, 2, 3].map((i) => <Skeleton key={i} className="h-28 w-full" />)
         ) : error ? (
-          <p className="text-sm text-destructive text-center py-8">Errore nel caricamento dati.</p>
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <p className="text-sm text-destructive">Errore nel caricamento dati.</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              Riprova
+            </Button>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
             <HardHat className="h-10 w-10 text-muted-foreground/40" aria-hidden="true" />
@@ -651,7 +702,12 @@ export default function MarginalitaCantieri() {
             </p>
           </div>
         ) : (
-          filtered.map((row) => (
+          filtered.map((row) => {
+            const preventivoTotale = safeNumber(row.preventivo_totale);
+            const consuntivo = safeNumber(row.consuntivo);
+            const margine = safeNumber(row.margine);
+            const marginePerc = safeNumber(row.margine_perc);
+            return (
             <Card key={row.id}>
               <CardContent className="pt-4 pb-3 space-y-2">
                 <div className="flex items-start justify-between gap-2">
@@ -668,35 +724,36 @@ export default function MarginalitaCantieri() {
                       <p className="text-xs text-muted-foreground">{row.cliente_nome}</p>
                     )}
                   </div>
-                  <MargineBadge perc={row.margine_perc} />
+                  <MargineBadge perc={marginePerc} />
                 </div>
-                <MarginHealthBadge perc={row.margine_perc - overheadPct} />
+                <MarginHealthBadge perc={marginePerc - overheadPct} />
 
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div>
                     <p className="text-muted-foreground">Preventivo</p>
-                    <p className="font-medium">{formatCurrency(row.preventivo_totale)}</p>
+                    <p className="font-medium">{formatCurrency(preventivoTotale)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Consuntivo</p>
-                    <p className="font-medium">{formatCurrency(row.consuntivo)}</p>
+                    <p className="font-medium">{formatCurrency(consuntivo)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Margine</p>
-                    <p className={cn("font-semibold", MargineColorClass(row.margine_perc))}>
-                      {formatCurrency(row.margine)}
+                    <p className={cn("font-semibold", MargineColorClass(marginePerc))}>
+                      {formatCurrency(margine)}
                     </p>
                   </div>
                 </div>
 
                 <Progress
-                  value={Math.min(Math.max(row.margine_perc, 0), 100)}
+                  value={clampPercentage(marginePerc)}
                   className="h-1.5"
-                  indicatorClassName={MargineProgressClass(row.margine_perc)}
+                  indicatorClassName={MargineProgressClass(marginePerc)}
                 />
               </CardContent>
             </Card>
-          ))
+            );
+          })
         )}
       </div>
 

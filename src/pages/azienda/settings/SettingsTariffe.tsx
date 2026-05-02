@@ -10,7 +10,7 @@ import {
   TrendingUp, Percent, Package, Activity, Archive, RotateCcw, Info,
   Building2, Layers3, Wallet, CheckCircle2, Hammer, HardHat, Wrench,
   ClipboardList, Sparkles, Paintbrush, Bath, Sun, PaintBucket, Cloud,
-  Construction, Shovel, Waves,
+  Construction, Shovel, Waves, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
@@ -688,9 +689,34 @@ function TariffaDialog({
 
   const handleSave = async () => {
     if (!nome.trim()) { toast.error("Il nome è obbligatorio"); return; }
+    if (!companyId) { toast.error("Azienda non disponibile"); return; }
     if (blockReason) { toast.error(blockReason); return; }
     setSaving(true);
     try {
+      const parseNonNegative = (value: string, label: string): number | null => {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        const parsed = Number.parseFloat(trimmed);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          throw new Error(`${label} deve essere un numero positivo o zero`);
+        }
+        return parsed;
+      };
+      const parseNonNegativeInt = (value: string, label: string, fallback: number): number => {
+        const trimmed = value.trim();
+        if (!trimmed) return fallback;
+        const parsed = Number.parseInt(trimmed, 10);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          throw new Error(`${label} deve essere un numero intero positivo o zero`);
+        }
+        return parsed;
+      };
+
+      const prezzoVenditaValue = parseNonNegative(prezzoVendita, "Prezzo vendita");
+      const costoInternoValue = parseNonNegative(costoInterno, "Costo interno") ?? 0;
+      const prezzoPianoAggValue = parseNonNegative(prezzoPianoAgg, "Prezzo piano aggiuntivo");
+      const pianoBaseValue = parseNonNegativeInt(pianoBase, "Piano base", 1);
+
       const payload: Record<string, unknown> = {
         company_id: companyId,
         nome: nome.trim(),
@@ -700,26 +726,24 @@ function TariffaDialog({
         unita: legacyUnitaFrom(unitaFatturazione),
         unita_fatturazione: unitaFatturazione,
         vertical_associato: verticalAssociato.trim() || null,
-        prezzo_vendita: prezzoVendita.trim() !== "" ? parseFloat(prezzoVendita) : null,
+        prezzo_vendita: prezzoVenditaValue,
         attivo,
-        piano_base: tipo === "tiro_piano"
-          ? (pianoBase.trim() !== "" ? parseInt(pianoBase, 10) : 1)
-          : null,
-        prezzo_piano_aggiuntivo: tipo === "tiro_piano"
-          ? (prezzoPianoAgg.trim() !== "" ? parseFloat(prezzoPianoAgg) : null)
-          : null,
+        piano_base: tipo === "tiro_piano" ? pianoBaseValue : null,
+        prezzo_piano_aggiuntivo: tipo === "tiro_piano" ? prezzoPianoAggValue : null,
       };
       // costo_interno only visible/writable by admins
       if (isAdmin) {
-        const v = costoInterno.trim() !== "" ? parseFloat(costoInterno) : 0;
-        payload.costo_interno = v;
+        payload.costo_interno = costoInternoValue;
         // Manteniamo il legacy prezzo_costo allineato finché esiste la colonna
-        payload.prezzo_costo = v;
+        payload.prezzo_costo = costoInternoValue;
       }
 
       const tbl = supabase.from("tariffe_aziendali");
       if (editing) {
-        const { error } = await tbl.update(payload as never).eq("id", editing.id);
+        const { error } = await tbl
+          .update(payload as never)
+          .eq("id", editing.id)
+          .eq("company_id", companyId);
         if (error) throw error;
       } else {
         const { error } = await tbl.insert(payload as never);
@@ -1030,7 +1054,11 @@ function StandardTariffeDialog({
   /** Vertical dell'azienda — guida la pre-selezione del preset al first-run. */
   vertical: Vertical;
 }) {
-  const existingNames = useMemo(() => new Set(existing.map((t) => t.nome)), [existing]);
+  const existingNames = useMemo(
+    () => new Set(existing.map((t) => t.nome.trim().toLowerCase())),
+    [existing],
+  );
+  const isExistingName = (nome: string) => existingNames.has(nome.trim().toLowerCase());
 
   // Default: se l'azienda è "vuota", pre-seleziona il preset coerente col
   // vertical dell'azienda (caduta su "essenziale" se vertical non mappa a
@@ -1060,7 +1088,7 @@ function StandardTariffeDialog({
    *  selezionate → deseleziona le sole voci di quel preset; altrimenti aggiunge
    *  quelle mancanti (senza toccare il resto della selezione). */
   const togglePreset = (presetId: PresetId) => {
-    const items = STANDARD_TARIFFE.filter((d) => d.presets.includes(presetId) && !existingNames.has(d.nome));
+    const items = STANDARD_TARIFFE.filter((d) => d.presets.includes(presetId) && !isExistingName(d.nome));
     const allSelected = items.length > 0 && items.every((d) => selected.has(d.nome));
     setSelected((prev) => {
       const next = new Set(prev);
@@ -1076,20 +1104,24 @@ function StandardTariffeDialog({
   /** Quante voci di questo preset sono attualmente selezionate (sul totale importabile). */
   const presetStats = (presetId: PresetId) => {
     const all = STANDARD_TARIFFE.filter((d) => d.presets.includes(presetId));
-    const importabili = all.filter((d) => !existingNames.has(d.nome));
+    const importabili = all.filter((d) => !isExistingName(d.nome));
     const sel = importabili.filter((d) => selected.has(d.nome)).length;
     return { total: all.length, importabili: importabili.length, selected: sel };
   };
 
   const selectAll = () =>
-    setSelected(new Set(STANDARD_TARIFFE.filter((d) => !existingNames.has(d.nome)).map((d) => d.nome)));
+    setSelected(new Set(STANDARD_TARIFFE.filter((d) => !isExistingName(d.nome)).map((d) => d.nome)));
   const selectNone = () => setSelected(new Set());
 
-  const toCreate = STANDARD_TARIFFE.filter((d) => selected.has(d.nome) && !existingNames.has(d.nome));
+  const toCreate = STANDARD_TARIFFE.filter((d) => selected.has(d.nome) && !isExistingName(d.nome));
 
   const handleCreate = async () => {
     if (toCreate.length === 0) {
       toast.info("Nessuna tariffa selezionata");
+      return;
+    }
+    if (!companyId) {
+      toast.error("Azienda non disponibile");
       return;
     }
     setCreating(true);
@@ -1134,7 +1166,7 @@ function StandardTariffeDialog({
     );
   }, []);
 
-  const importabiliCount = STANDARD_TARIFFE.filter((d) => !existingNames.has(d.nome)).length;
+  const importabiliCount = STANDARD_TARIFFE.filter((d) => !isExistingName(d.nome)).length;
   const giaPresentiCount = STANDARD_TARIFFE.length - importabiliCount;
 
   return (
@@ -1244,7 +1276,7 @@ function StandardTariffeDialog({
               </div>
               <div className="space-y-1">
                 {items.map((d) => {
-                  const alreadyExists = existingNames.has(d.nome);
+                  const alreadyExists = isExistingName(d.nome);
                   const isChecked = selected.has(d.nome);
                   return (
                     <label
@@ -1492,7 +1524,7 @@ export default function SettingsTariffe() {
   const [verticalFilter, setVerticalFilter] = useState<VerticalFilter>("all");
   const [statoFilter, setStatoFilter] = useState<StatoFilter>("attive");
 
-  const { data: tariffe = [], isLoading } = useQuery({
+  const { data: tariffe = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["tariffe-aziendali-full", companyId],
     enabled: !!companyId,
     queryFn: async () => {
@@ -1508,6 +1540,7 @@ export default function SettingsTariffe() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       const { error } = await supabase
         .from("tariffe_aziendali")
         .delete()
@@ -1527,6 +1560,7 @@ export default function SettingsTariffe() {
 
   const toggleAttivoMutation = useMutation({
     mutationFn: async (t: Tariffa) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       const next = !(t.attivo !== false);
       const { error } = await supabase
         .from("tariffe_aziendali")
@@ -1547,6 +1581,7 @@ export default function SettingsTariffe() {
 
   const duplicaMutation = useMutation({
     mutationFn: async (t: Tariffa) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       const payload: Record<string, unknown> = {
         company_id: companyId,
         nome: `${t.nome} (copia)`,
@@ -1641,6 +1676,18 @@ export default function SettingsTariffe() {
       </div>
 
       {/* KPI */}
+      {isError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Tariffe non caricate</AlertTitle>
+          <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>{error instanceof Error ? error.message : "Errore durante il caricamento delle tariffe."}</span>
+            <Button size="sm" variant="outline" onClick={() => void refetch()}>
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       <KpiHeader tariffe={tariffe} isAdmin={isAdmin} />
 
       {/* Filter bar */}

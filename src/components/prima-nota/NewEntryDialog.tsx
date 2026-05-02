@@ -41,6 +41,9 @@ interface Props {
     reference_number?: string;
     account_label?: string;
     supplier_id?: string | null;
+    order_id?: string | null;
+    attachment_url?: string;
+    attachment_name?: string;
     notes?: string;
   }) => void;
   isPending: boolean;
@@ -147,6 +150,9 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
       reference_number: reference || undefined,
       account_label: accountLabel,
       supplier_id: supplierId || null,
+      order_id: orderId || null,
+      attachment_url: attachmentUrl,
+      attachment_name: attachmentName,
       notes: notes || undefined,
     });
   };

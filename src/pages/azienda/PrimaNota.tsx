@@ -45,7 +45,6 @@ function PrimaNotaInner() {
 
   const importMutation = useMutation({
     mutationFn: async (action: "from_banking" | "from_invoices" | "both") => {
-      const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("sync-prima-nota", {
         body: { company_id: effectiveCompany?.id, action },
       });
@@ -271,7 +270,13 @@ function PrimaNotaInner() {
             </ToggleGroupItem>
             <ToggleGroupItem value="manuali" className="text-xs h-9 px-3">Manuali</ToggleGroupItem>
           </ToggleGroup>
-          <Select value={direction || "all"} onValueChange={(v) => { setDirection(v === "all" ? "" : v as any); setPage(1); }}>
+          <Select
+            value={direction || "all"}
+            onValueChange={(v) => {
+              setDirection(v === "all" ? "" : (v as "entrata" | "uscita"));
+              setPage(1);
+            }}
+          >
             <SelectTrigger className="h-9 w-[110px]"><SelectValue placeholder="Direzione" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutte</SelectItem>

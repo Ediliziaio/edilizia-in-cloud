@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { PAYMENT_METHODS } from "@/components/orders/OrderItemsList";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Truck, Plus, Pencil, Trash2, Loader2, Search, Check, ChevronsUpDown, QrCode } from "lucide-react";
+import { Truck, Plus, Pencil, Trash2, Loader2, Search, Check, ChevronsUpDown, QrCode, AlertCircle } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -208,7 +209,7 @@ export function SuppliersConfig() {
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
 
-  const { data: suppliers, isLoading } = useQuery({
+  const { data: suppliers, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["suppliers-config", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -248,10 +249,13 @@ export function SuppliersConfig() {
   const invalidateSuppliers = () => {
     queryClient.invalidateQueries({ queryKey: ["suppliers-config"] });
     queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+    queryClient.invalidateQueries({ queryKey: ["suppliers-export"] });
+    queryClient.invalidateQueries({ queryKey: ["operational-suppliers"] });
   };
 
   const createMutation = useMutation({
     mutationFn: async (data: SupplierFormData) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
       const { error } = await supabase.from("suppliers").insert({
         name: data.name.trim(),
         vat_rate: data.vat_rate,
@@ -290,6 +294,7 @@ export function SuppliersConfig() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: SupplierFormData & { id: string }) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
       const { error } = await supabase
         .from("suppliers")
         .update({
@@ -331,6 +336,7 @@ export function SuppliersConfig() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
       const { error } = await supabase.from("suppliers").delete().eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
@@ -422,6 +428,17 @@ export function SuppliersConfig() {
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
           </div>
+        ) : isError ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Impossibile caricare i fornitori</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p className="text-xs">{(error as Error | null)?.message || "Errore durante il caricamento dell'anagrafica fornitori."}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+                Riprova
+              </Button>
+            </AlertDescription>
+          </Alert>
         ) : (
           <div className="space-y-4">
             <div className="relative max-w-sm">

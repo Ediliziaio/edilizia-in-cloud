@@ -18,7 +18,7 @@ import {
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, TrendingUp, CalendarOff, AlertTriangle, BarChart3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -28,7 +28,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Hammer, Wrench, Users, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT } from "@/lib/calendarUtils";
-import type { CalendarOrder } from "@/types/calendar";
+import type { CalendarAppointment, CalendarOrder } from "@/types/calendar";
 
 interface Employee {
   id: string;
@@ -41,6 +41,7 @@ interface CalendarHeatmapViewProps {
   currentDate: Date;
   onDateChange: (date: Date) => void;
   employees?: Employee[];
+  appointments?: CalendarAppointment[];
 }
 
 interface DayWorkload {
@@ -102,7 +103,7 @@ function getHeatTextColor(count: number): string {
   return "text-red-900 dark:text-red-200";
 }
 
-export function CalendarHeatmapView({ orders, currentDate, onDateChange, employees = [] }: CalendarHeatmapViewProps) {
+export function CalendarHeatmapView({ orders, currentDate, onDateChange, employees = [], appointments = [] }: CalendarHeatmapViewProps) {
   const navigate = useNavigate();
   const [heatmapMode, setHeatmapMode] = useState<"day" | "employee">("day");
 
@@ -152,8 +153,12 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange, employe
       peakDay,
       emptyDays,
       criticalDays,
+      appointments: appointments.filter((appointment) => {
+        const date = parseISO(appointment.appointment_date);
+        return date >= monthStart && date <= monthEnd;
+      }).length,
     };
-  }, [currentDate, dayWorkloads]);
+  }, [appointments, currentDate, dayWorkloads]);
 
   const employeeWorkloads = useMemo((): EmployeeWorkload[] => {
     const monthStart = startOfMonth(currentDate);
@@ -233,6 +238,29 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange, employe
           <Button variant="ghost" size="icon" onClick={() => onDateChange(addMonths(currentDate, 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
+        </div>
+
+        <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-5">
+          <div className="rounded-lg border bg-card px-3 py-2">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Media</p>
+            <p className="text-lg font-bold">{stats.avg}</p>
+          </div>
+          <div className="rounded-lg border bg-card px-3 py-2">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Picco</p>
+            <p className="text-lg font-bold">{stats.peakCount || "0"}</p>
+          </div>
+          <div className="rounded-lg border bg-card px-3 py-2">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Critici</p>
+            <p className={cn("text-lg font-bold", stats.criticalDays > 0 && "text-destructive")}>{stats.criticalDays}</p>
+          </div>
+          <div className="rounded-lg border bg-card px-3 py-2">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Giorni vuoti</p>
+            <p className="text-lg font-bold">{stats.emptyDays}</p>
+          </div>
+          <div className="rounded-lg border bg-card px-3 py-2">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Appunt.</p>
+            <p className="text-lg font-bold">{stats.appointments}</p>
+          </div>
         </div>
 
         {heatmapMode === "day" ? (
@@ -459,40 +487,6 @@ export function CalendarHeatmapView({ orders, currentDate, onDateChange, employe
           </div>
         )}
       </Card>
-
-      {/* Statistiche */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4 flex items-center gap-3">
-          <BarChart3 className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-          <div>
-            <p className="text-xs text-muted-foreground">Media/giorno</p>
-            <p className="text-lg font-bold">{stats.avg}</p>
-          </div>
-        </Card>
-        <Card className="p-4 flex items-center gap-3">
-          <TrendingUp className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-          <div>
-            <p className="text-xs text-muted-foreground">Picco</p>
-            <p className="text-lg font-bold">
-              {stats.peakDay ? `${stats.peakCount} (${format(stats.peakDay, "d MMM", { locale: it })})` : "—"}
-            </p>
-          </div>
-        </Card>
-        <Card className="p-4 flex items-center gap-3">
-          <CalendarOff className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-          <div>
-            <p className="text-xs text-muted-foreground">Giorni vuoti</p>
-            <p className="text-lg font-bold">{stats.emptyDays}</p>
-          </div>
-        </Card>
-        <Card className="p-4 flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
-          <div>
-            <p className="text-xs text-muted-foreground">Giorni critici (5+)</p>
-            <p className={cn("text-lg font-bold", stats.criticalDays > 0 && "text-destructive")}>{stats.criticalDays}</p>
-          </div>
-        </Card>
-      </div>
     </div>
   );
 }

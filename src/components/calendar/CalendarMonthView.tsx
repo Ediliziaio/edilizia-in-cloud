@@ -25,7 +25,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
+import { DEFAULT_CALENDAR_EVENT_COLORS, hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData, type CalendarEventColors } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
 import { weatherCodeToEmoji, weatherCodeToLabel, type WeatherDay, type MultiLocationWeather, type LocationWeatherDay } from "@/hooks/useWeatherForecast";
@@ -61,6 +61,8 @@ interface CalendarMonthViewProps {
   orderWeatherMap?: Map<string, { weather?: LocationWeatherDay; distanceKm?: number; durationMin?: number; durationLabel?: string; address?: string }>;
   interventi?: CalendarIntervento[];
   manutenzioni?: CalendarManutenzione[];
+  onOpenDay?: (date: Date) => void;
+  eventColors?: CalendarEventColors;
 }
 
 export function CalendarMonthView({
@@ -78,6 +80,8 @@ export function CalendarMonthView({
   orderWeatherMap,
   interventi = [],
   manutenzioni = [],
+  onOpenDay,
+  eventColors = DEFAULT_CALENDAR_EVENT_COLORS,
 }: CalendarMonthViewProps) {
   const queryClient = useQueryClient();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
@@ -115,54 +119,54 @@ export function CalendarMonthView({
 
     orders.forEach((order) => {
       if (!hiddenEventTypes.has("posa") && order.expected_date) {
-        addEvent(order.expected_date, { type: "posa", order, color: "#3B82F6" });
+        addEvent(order.expected_date, { type: "posa", order, color: eventColors.posa });
       }
       if (!hiddenEventTypes.has("merce") && order.warehouse_arrival_date) {
-        addEvent(order.warehouse_arrival_date, { type: "merce", order, color: "#F59E0B" });
+        addEvent(order.warehouse_arrival_date, { type: "merce", order, color: eventColors.merce });
       }
       if (!hiddenEventTypes.has("lavoro") && order.work_start_date) {
         const workStart = parseISO(order.work_start_date);
         const workEnd = order.work_end_date ? parseISO(order.work_end_date) : workStart;
-        addEventForRange(workStart, workEnd, { type: "lavoro", order, color: "#22C55E" });
+        addEventForRange(workStart, workEnd, { type: "lavoro", order, color: eventColors.lavoro });
       }
     });
     if (!hiddenEventTypes.has("appuntamento")) {
       appointments.forEach((apt) => {
-        addEvent(apt.appointment_date, { type: "appointment", appointment: apt, color: "#6366F1" });
+        addEvent(apt.appointment_date, { type: "appointment", appointment: apt, color: eventColors.appuntamento });
       });
     }
     if (!hiddenEventTypes.has("google_busy")) {
       busySlots.forEach((slot) => {
         const slotStart = parseISO(slot.start_at);
         if (slot.is_all_day) {
-          addEvent(format(slotStart, "yyyy-MM-dd"), { type: "google_busy", busySlot: slot, color: "#9CA3AF" });
+          addEvent(format(slotStart, "yyyy-MM-dd"), { type: "google_busy", busySlot: slot, color: eventColors.google_busy });
         } else {
           const slotEnd = parseISO(slot.end_at);
-          addEventForRange(slotStart, slotEnd, { type: "google_busy", busySlot: slot, color: "#9CA3AF" });
+          addEventForRange(slotStart, slotEnd, { type: "google_busy", busySlot: slot, color: eventColors.google_busy });
         }
       });
     }
     if (!hiddenEventTypes.has("leaves")) {
       approvedLeaves.forEach((lr) => {
-        addEventForRange(parseISO(lr.start_date), parseISO(lr.end_date), { type: "leave", leave: lr, color: "#F59E0B" });
+        addEventForRange(parseISO(lr.start_date), parseISO(lr.end_date), { type: "leave", leave: lr, color: eventColors.leave });
       });
     }
     if (!hiddenEventTypes.has("intervento")) {
       interventi.forEach((iv) => {
         if (iv.data_intervento_prevista) {
-          addEvent(iv.data_intervento_prevista, { type: "intervento", intervento: iv, color: "#E87722" });
+          addEvent(iv.data_intervento_prevista, { type: "intervento", intervento: iv, color: eventColors.intervento });
         }
       });
     }
     if (!hiddenEventTypes.has("manutenzione")) {
       manutenzioni.forEach((mn) => {
         if (mn.prossima_scadenza) {
-          addEvent(mn.prossima_scadenza, { type: "manutenzione", manutenzione: mn, color: "#3B82F6" });
+          addEvent(mn.prossima_scadenza, { type: "manutenzione", manutenzione: mn, color: eventColors.manutenzione });
         }
       });
     }
     return map;
-  }, [orders, appointments, busySlots, approvedLeaves, interventi, manutenzioni, hiddenEventTypes, days]);
+  }, [orders, appointments, busySlots, approvedLeaves, interventi, manutenzioni, hiddenEventTypes, days, eventColors]);
 
   const getEventsForDay = (day: Date): CalendarEvent[] => {
     return eventsByDate.get(format(day, "yyyy-MM-dd")) || [];
@@ -171,7 +175,7 @@ export function CalendarMonthView({
   const weekDays = WEEK_DAYS_IT;
 
   return (
-    <Card className="p-4">
+    <Card className="p-3 sm:p-4">
       <div className="flex items-center justify-between mb-4">
         <Button variant="ghost" size="icon" onClick={() => onDateChange(subMonths(currentDate, 1))}>
           <ChevronLeft className="h-4 w-4" />
@@ -209,7 +213,7 @@ export function CalendarMonthView({
                   setAppointmentDialogOpen(true);
                 }}
                 className={cn(
-                  "min-h-[100px] bg-background p-1 transition-colors cursor-pointer hover:bg-muted/30",
+                  "min-h-[112px] sm:min-h-[132px] bg-background p-1.5 transition-colors cursor-pointer hover:bg-muted/30",
                   !isCurrentMonth && "bg-muted/50"
                 )}
               >
@@ -238,6 +242,13 @@ export function CalendarMonthView({
                     return null;
                   })()}
                 </div>
+
+                {dayEvents.length > 0 && (
+                  <div className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span>{dayEvents.length} attività</span>
+                    {dayEvents.length > 5 && <span className="font-medium text-primary">dense</span>}
+                  </div>
+                )}
 
                 <div className="space-y-1">
                   {dayEvents.slice(0, 5).map((event, eventIdx) => {
@@ -484,7 +495,17 @@ export function CalendarMonthView({
                     );
                   })}
                   {dayEvents.length > 5 && (
-                    <div className="text-xs text-muted-foreground text-center">+{dayEvents.length - 5} altri</div>
+                    <button
+                      type="button"
+                      className="w-full rounded bg-muted/70 px-1 py-0.5 text-center text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onOpenDay) onOpenDay(day);
+                        else onDateChange(day);
+                      }}
+                    >
+                      +{dayEvents.length - 5} altri · vai al giorno
+                    </button>
                   )}
                 </div>
               </div>

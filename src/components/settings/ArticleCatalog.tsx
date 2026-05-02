@@ -889,7 +889,11 @@ export function ArticleCatalog() {
 
   const toggleAttivoMutation = useMutation({
     mutationFn: async ({ id, attivo }: { id: string; attivo: boolean }) => {
-      const { error } = await (supabase.from("article_templates") as any).update({ attivo }).eq("id", id);
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const { error } = await (supabase.from("article_templates") as any)
+        .update({ attivo })
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onMutate: async ({ id, attivo }) => {
@@ -908,6 +912,7 @@ export function ArticleCatalog() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       const { error } = await (supabase.from("article_templates") as any).delete().eq("id", id).eq("company_id", companyId);
       if (error) throw error;
     },
@@ -921,9 +926,10 @@ export function ArticleCatalog() {
 
   const duplicateMutation = useMutation({
     mutationFn: async (article: ArticleRow) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       const { id, ...rest } = article;
       const { error } = await (supabase.from("article_templates") as any).insert({
-        ...rest, name: `${article.name} (copia)`, sku: null,
+        ...rest, company_id: companyId, name: `${article.name} (copia)`, sku: null,
       });
       if (error) throw error;
     },

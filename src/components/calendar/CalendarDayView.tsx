@@ -11,10 +11,10 @@ import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Car, Settings } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Car, Settings, type LucideIcon } from "lucide-react";
 import { useOperativeTravelLegs } from "@/hooks/useOperativeTravelLegs";
 import { cn } from "@/lib/utils";
-import { APPOINTMENT_ICONS, mapAppointmentToEditData } from "@/lib/calendarUtils";
+import { APPOINTMENT_ICONS, DEFAULT_CALENDAR_EVENT_COLORS, getCalendarEventStyle, mapAppointmentToEditData, type CalendarEventColors } from "@/lib/calendarUtils";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ interface CalendarDayViewProps {
   orderWeatherMap?: Map<string, { weather?: LocationWeatherDay; distanceKm?: number; durationMin?: number; durationLabel?: string; address?: string }>;
   interventi?: CalendarIntervento[];
   manutenzioni?: CalendarManutenzione[];
+  eventColors?: CalendarEventColors;
 }
 
 export function CalendarDayView({
@@ -54,6 +55,7 @@ export function CalendarDayView({
   orderWeatherMap,
   interventi = [],
   manutenzioni = [],
+  eventColors = DEFAULT_CALENDAR_EVENT_COLORS,
 }: CalendarDayViewProps) {
   const queryClient = useQueryClient();
   const dateStr = format(currentDate, "yyyy-MM-dd");
@@ -126,15 +128,17 @@ export function CalendarDayView({
     return map;
   }, [travelLegs]);
   const hasTravelData = appointmentsWithLocation.length > 0;
+  const dailyWorkCount = allDayEvents.filter((event) => event.type === "posa" || event.type === "lavoro").length;
+  const dailyOperationalCount = allDayEvents.length + timedAppointments.length;
 
   const colorMap: Record<string, string> = {
-    posa: "bg-orange-500/20 border-l-2 border-orange-500 text-orange-900 dark:text-orange-200",
-    lavoro: "bg-blue-500/20 border-l-2 border-blue-500 text-blue-900 dark:text-blue-200",
-    merce: "bg-emerald-500/20 border-l-2 border-emerald-500 text-emerald-900 dark:text-emerald-200",
-    google_busy: "bg-muted border-l-2 border-muted-foreground/50 text-muted-foreground",
-    leave: "bg-amber-500/20 border-l-2 border-amber-500 text-amber-900 dark:text-amber-200",
+    posa: eventColors.posa,
+    lavoro: eventColors.lavoro,
+    merce: eventColors.merce,
+    google_busy: eventColors.google_busy,
+    leave: eventColors.leave,
   };
-  const IconMap: Record<string, any> = { posa: Hammer, lavoro: Wrench, merce: Package };
+  const IconMap: Record<string, LucideIcon> = { posa: Hammer, lavoro: Wrench, merce: Package };
 
   const handleCreateAppointment = (hour: number) => {
     const time = `${String(hour).padStart(2, "0")}:00`;
@@ -255,6 +259,21 @@ export function CalendarDayView({
         </div>
       )}
 
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Attività</p>
+          <p className="text-lg font-bold">{dailyOperationalCount}</p>
+        </div>
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Lavori</p>
+          <p className="text-lg font-bold">{dailyWorkCount}</p>
+        </div>
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Appunt.</p>
+          <p className="text-lg font-bold">{timedAppointments.length}</p>
+        </div>
+      </div>
+
       {/* All-day events */}
       {allDayEvents.length > 0 && (
         <div className="mb-3 p-2 bg-muted/30 rounded-lg border space-y-1">
@@ -262,7 +281,7 @@ export function CalendarDayView({
           {allDayEvents.map((evt, idx) => {
             if (evt.type === "intervento" && evt.intervento) {
               return (
-                <div key={idx} className="text-xs px-2 py-1 rounded flex items-center gap-1.5" style={{ backgroundColor: "#E87722", color: "white" }}>
+                <div key={idx} className="text-xs px-2 py-1 rounded flex items-center gap-1.5 border-l-2" style={getCalendarEventStyle(eventColors.intervento)}>
                   <Wrench className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{evt.intervento.subject}</span>
                 </div>
@@ -270,7 +289,7 @@ export function CalendarDayView({
             }
             if (evt.type === "manutenzione" && evt.manutenzione) {
               return (
-                <div key={idx} className="text-xs px-2 py-1 rounded flex items-center gap-1.5" style={{ backgroundColor: "#3B82F6", color: "white" }}>
+                <div key={idx} className="text-xs px-2 py-1 rounded flex items-center gap-1.5 border-l-2" style={getCalendarEventStyle(eventColors.manutenzione)}>
                   <Settings className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{evt.manutenzione.titolo}</span>
                 </div>
@@ -287,7 +306,8 @@ export function CalendarDayView({
             return (
               <div
                 key={idx}
-                className={cn("text-xs px-2 py-1 rounded flex items-center gap-1.5 cursor-pointer", colorMap[evt.type])}
+                className="text-xs px-2 py-1 rounded flex items-center gap-1.5 cursor-pointer border-l-2"
+                style={getCalendarEventStyle(colorMap[evt.type] || eventColors.appuntamento)}
                 onClick={() => o && setEditingOrder(o)}
               >
                 {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
@@ -331,6 +351,7 @@ export function CalendarDayView({
                 {hourApts.map(apt => {
                   const Icon = APPOINTMENT_ICONS[apt.appointment_type] || CalendarClock;
                   const leg = travelLegMap.get(apt.id);
+                  const isSynced = syncedAppointmentIds?.has(apt.id);
                   return (
                     <div key={apt.id}>
                       {leg && (
@@ -343,10 +364,10 @@ export function CalendarDayView({
                       )}
                       <div
                         className={cn(
-                          "text-xs px-2 py-1 rounded flex items-center gap-1.5 cursor-pointer",
-                          "bg-purple-500/20 border-l-2 border-purple-500 text-purple-900 dark:text-purple-200",
+                          "text-xs px-2 py-1 rounded flex items-center gap-1.5 cursor-pointer border-l-2",
                           apt.is_completed && "opacity-60 line-through"
                         )}
+                        style={getCalendarEventStyle(eventColors.appuntamento)}
                         onClick={(e) => {
                           e.stopPropagation();
                           setEditingAppointment(mapAppointmentToEditData(apt));
@@ -356,7 +377,7 @@ export function CalendarDayView({
                         <Icon className="h-3.5 w-3.5 shrink-0" />
                         <span className="font-medium">{apt.appointment_time?.slice(0, 5)}</span>
                         <span className="truncate">{apt.title}</span>
-                        {apt.is_completed && <Check className="h-3.5 w-3.5 shrink-0 text-green-600 ml-auto" />}
+                        {(apt.is_completed || isSynced) && <Check className="h-3.5 w-3.5 shrink-0 text-green-600 ml-auto" />}
                       </div>
                     </div>
                   );
@@ -386,6 +407,8 @@ export function CalendarDayView({
             if (!open) setEditingAppointment(null);
           }}
           initialData={editingAppointment ?? undefined}
+          hideMarketingFields
+          showOrderSelect
           onSaved={() => {
             queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
             setAppointmentDialogOpen(false);

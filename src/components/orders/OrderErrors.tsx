@@ -133,20 +133,26 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
 
   const addErrorMutation = useMutation({
     mutationFn: async () => {
+      if (!effectiveCompany?.id || !user?.id) {
+        throw new Error("sessione_non_valida");
+      }
       const { error } = await supabase.from("order_errors").insert({
         order_id: orderId,
-        company_id: effectiveCompany!.id,
+        company_id: effectiveCompany.id,
         error_type: errorType,
         error_category: errorCategory,
         amount: parseFloat(amount) || 0,
         description: description.trim(),
         error_date: errorDate,
-        created_by: user!.id,
+        created_by: user.id,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-errors", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["global-errors", effectiveCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["marginalita-cantieri", effectiveCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["marginalita-widget", effectiveCompany?.id] });
       toast.success("Errore registrato", { description: "L'errore è stato aggiunto alla commessa." });
       resetForm();
     },
@@ -162,6 +168,9 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-errors", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["global-errors", effectiveCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["marginalita-cantieri", effectiveCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["marginalita-widget", effectiveCompany?.id] });
       toast.success("Errore rimosso", { description: "L'errore è stato eliminato." });
     },
     onError: () => {
@@ -185,6 +194,10 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
     }
     if (!amount || parseFloat(amount) <= 0) {
       toast.error("Errore", { description: "Inserisci un importo valido." });
+      return;
+    }
+    if (!effectiveCompany?.id || !user?.id) {
+      toast.error("Sessione non valida", { description: "Ricarica la pagina e riprova." });
       return;
     }
     addErrorMutation.mutate();

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, BookOpen, Pencil } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BookOpen, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,21 @@ import { DiaryComposer, type DiaryComposerPayload } from "@/components/orders/Di
 import { toast } from "sonner";
 
 type Channel = "email" | "sms" | "whatsapp" | "nota_interna";
+
+interface OrderDiaryCustomer {
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+interface OrderDiaryOrder {
+  id: string;
+  order_code: string | null;
+  description: string | null;
+  current_status_id: string | null;
+  customer: OrderDiaryCustomer | null;
+}
 
 export default function OrderDiaryPage() {
   const { id } = useParams<{ id: string }>();
@@ -35,21 +50,28 @@ export default function OrderDiaryPage() {
         .eq("company_id", effectiveCompany!.id)
         .single();
       if (error) throw error;
-      return data;
+      return data as OrderDiaryOrder;
     },
     enabled: !!id && !!user && !!effectiveCompany,
   });
 
   // ── Hook diario (timeline + mutations) ───────────────────────────────────
-  const { timeline, sendMutation, addNoteMutation } = useOrderDiary(id);
+  const {
+    timeline,
+    templates,
+    sendMutation,
+    addNoteMutation,
+    isLoading: diaryLoading,
+    isError: diaryError,
+  } = useOrderDiary(id);
 
   const customerName = order?.customer
-    ? `${(order.customer as any).first_name} ${(order.customer as any).last_name}`
+    ? [order.customer.first_name, order.customer.last_name].filter(Boolean).join(" ")
     : "";
-  const customerEmail = (order?.customer as any)?.email as string | undefined;
-  const customerPhone = (order?.customer as any)?.phone as string | undefined;
+  const customerEmail = order?.customer?.email ?? undefined;
+  const customerPhone = order?.customer?.phone ?? undefined;
 
-  const isEmpty = timeline.length === 0;
+  const isEmpty = !diaryLoading && timeline.length === 0;
 
   // ── Invio messaggio ───────────────────────────────────────────────────────
   const handleSend = async (payload: DiaryComposerPayload) => {
@@ -144,17 +166,42 @@ export default function OrderDiaryPage() {
             )}
 
             {/* Empty state (nessun messaggio + composer chiuso) */}
+            {diaryLoading && (
+              <div className="space-y-3 rounded-xl border border-gray-100 bg-white p-4">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            )}
+
+            {diaryError && (
+              <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="font-semibold">Diario non aggiornato in tempo reale</p>
+                  <p className="mt-0.5 text-amber-700">
+                    Alcune voci potrebbero non essere state caricate. Riprova o aggiorna la pagina.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {isEmpty && !composerChannel && (
               <DiaryEmptyState onSelectChannel={setComposerChannel} />
             )}
 
             {/* Timeline diario (sempre visibile se ci sono voci) */}
-            {!isEmpty && (
+            {!diaryLoading && !isEmpty && (
               <OrderDiaryTab
                 orderId={id!}
                 customerName={customerName}
                 customerEmail={customerEmail}
                 customerPhone={customerPhone}
+                timeline={timeline}
+                templates={templates}
+                onSend={sendMutation.mutate}
+                onAddNote={addNoteMutation.mutate}
+                isSending={sendMutation.isPending || addNoteMutation.isPending}
               />
             )}
           </>

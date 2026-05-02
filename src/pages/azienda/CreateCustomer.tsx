@@ -153,6 +153,13 @@ export default function CreateCustomer() {
     if (isAppaltatore && !isBusiness) setIsBusiness(true);
   }, [isAppaltatore, isBusiness]);
 
+  useEffect(() => {
+    if (!companyPortalEnabled) {
+      setCreatePortalAccount(false);
+      setSendWelcomeEmail(false);
+    }
+  }, [companyPortalEnabled]);
+
   // ── Success dialog ─────────────────────────────────────────
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
@@ -791,64 +798,70 @@ export default function CreateCustomer() {
                   )}
                   Accesso al portale
                 </CardTitle>
-                <CardDescription>Genera credenziali di accesso al portale clienti</CardDescription>
+                <CardDescription>
+                  {companyPortalEnabled
+                    ? "Genera credenziali di accesso al portale clienti"
+                    : "Disattivato dal profilo aziendale"}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {!companyPortalEnabled && (
+                {!companyPortalEnabled ? (
                   <Alert>
                     <ShieldOff className="h-4 w-4" />
                     <AlertDescription className="text-xs">
                       L'area privata clienti è <strong>disattivata</strong> nelle impostazioni azienda.
-                      Il cliente verrà creato solo in anagrafica, senza account di accesso.
+                      Il cliente verrà creato solo in anagrafica: non è possibile aprire o creare
+                      un accesso al portale finché il portale resta disattivato.
                     </AlertDescription>
                   </Alert>
-                )}
-
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <Label htmlFor="toggle-portal" className="text-sm">
-                      Crea account portale
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Il cliente potrà accedere con email e password.
-                    </p>
-                  </div>
-                  <Switch
-                    id="toggle-portal"
-                    checked={companyPortalEnabled && createPortalAccount}
-                    onCheckedChange={setCreatePortalAccount}
-                    disabled={!companyPortalEnabled}
-                  />
-                </div>
-
-                {companyPortalEnabled && createPortalAccount && (
+                ) : (
                   <>
-                    <Separator />
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <Label htmlFor="toggle-welcome" className="text-sm">
-                          Invia email di benvenuto
+                        <Label htmlFor="toggle-portal" className="text-sm">
+                          Crea account portale
                         </Label>
                         <p className="text-xs text-muted-foreground">
-                          Invia email con credenziali (consuma 1 credito).
+                          Il cliente potrà accedere con email e password.
                         </p>
                       </div>
                       <Switch
-                        id="toggle-welcome"
-                        checked={sendWelcomeEmail}
-                        onCheckedChange={setSendWelcomeEmail}
+                        id="toggle-portal"
+                        checked={createPortalAccount}
+                        onCheckedChange={setCreatePortalAccount}
                       />
                     </div>
-                  </>
-                )}
 
-                {!createPortalAccount && companyPortalEnabled && (
-                  <Alert variant="default" className="bg-muted/50">
-                    <AlertDescription className="text-xs">
-                      Il cliente sarà creato <strong>solo in anagrafica</strong>: nessuna password,
-                      nessuna email, nessun accesso al portale.
-                    </AlertDescription>
-                  </Alert>
+                    {createPortalAccount && (
+                      <>
+                        <Separator />
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <Label htmlFor="toggle-welcome" className="text-sm">
+                              Invia email di benvenuto
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Invia email con credenziali (consuma 1 credito).
+                            </p>
+                          </div>
+                          <Switch
+                            id="toggle-welcome"
+                            checked={sendWelcomeEmail}
+                            onCheckedChange={setSendWelcomeEmail}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {!createPortalAccount && (
+                      <Alert variant="default" className="bg-muted/50">
+                        <AlertDescription className="text-xs">
+                          Il cliente sarà creato <strong>solo in anagrafica</strong>: nessuna password,
+                          nessuna email, nessun accesso al portale.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>

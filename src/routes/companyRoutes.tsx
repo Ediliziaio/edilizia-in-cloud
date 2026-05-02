@@ -304,10 +304,10 @@ export function companyRoutes() {
         <Route path="clienti/nuovo" element={<CreateCustomer />} />
         <Route path="clienti/:id" element={<CompanyCustomerDetail />} />
         
-        <Route path="assistenza-lavori" element={<AssistenzaLavoriHub />} />
-        <Route path="assistenza" element={<TicketsList />} />
-        <Route path="assistenza/nuovo" element={<CreateCompanyTicket />} />
-        <Route path="assistenza/:id" element={<TicketDetail />} />
+        <Route path="assistenza-lavori" element={<ErrorBoundary title="Errore nel caricamento assistenza lavori"><AssistenzaLavoriHub /></ErrorBoundary>} />
+        <Route path="assistenza" element={<ErrorBoundary title="Errore nel caricamento assistenza"><TicketsList /></ErrorBoundary>} />
+        <Route path="assistenza/nuovo" element={<ErrorBoundary title="Errore nella creazione ticket"><CreateCompanyTicket /></ErrorBoundary>} />
+        <Route path="assistenza/:id" element={<ErrorBoundary title="Errore nel dettaglio ticket"><TicketDetail /></ErrorBoundary>} />
         <Route path="assistenza/:id/chiudi" element={<FeatureRoute featureKey="cantieri_avanzati"><ChiusuraIntervento /></FeatureRoute>} />
         {/* Interventi unificati dentro Assistenza — redirect retrocompat: */}
         <Route path="interventi" element={<Navigate to="/azienda/assistenza?tipo=intervento" replace />} />

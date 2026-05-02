@@ -131,6 +131,7 @@ export function useCategorieMutations() {
       id: string;
       patch: Partial<CategoriaPayload>;
     }): Promise<ListinoCategoria> => {
+      if (!companyId) throw new Error("Company non disponibile");
       const { data, error } = await supabase
         .from("listino_categorie")
         .update({
@@ -146,6 +147,7 @@ export function useCategorieMutations() {
             : {}),
         } as never)
         .eq("id", id)
+        .eq("company_id", companyId)
         .select()
         .single();
       if (error) throw new Error(error.message);
@@ -156,7 +158,12 @@ export function useCategorieMutations() {
 
   const remove = useMutation({
     mutationFn: async (id: string): Promise<void> => {
-      const { error } = await supabase.from("listino_categorie").delete().eq("id", id);
+      if (!companyId) throw new Error("Company non disponibile");
+      const { error } = await supabase
+        .from("listino_categorie")
+        .delete()
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw new Error(error.message);
     },
     onSuccess: invalidate,

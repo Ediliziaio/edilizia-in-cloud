@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +9,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
-import { useWeatherForecast, useCalendarWeather, type CalendarLocation } from "@/hooks/useWeatherForecast";
+import { useCalendarWeather, type CalendarLocation } from "@/hooks/useWeatherForecast";
 import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
 import { CalendarDayView } from "@/components/calendar/CalendarDayView";
@@ -39,15 +39,53 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DEFAULT_CALENDAR_EVENT_COLORS, normalizeCalendarEventColors, type CalendarEventColorKey } from "@/lib/calendarUtils";
+
+type CalendarEmployee = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  user_id: string | null;
+  role_type?: string | null;
+  area?: string | null;
+};
+
+type CalendarWarehouseItem = {
+  id: string;
+  name: string;
+  status: string | null;
+  order_id: string | null;
+};
+
+const calendarViews: CalendarViewType[] = ["month", "week", "day", "gantt", "heatmap"];
+
+const normalizeCalendarView = (value: string | null | undefined, isMobile: boolean): CalendarViewType => {
+  if (!value || !calendarViews.includes(value as CalendarViewType)) return "month";
+  if (isMobile && value === "gantt") return "month";
+  return value as CalendarViewType;
+};
+
+const getPersonName = (firstName?: string | null, lastName?: string | null, fallback = "Senza nome") => {
+  return [firstName, lastName].filter(Boolean).join(" ").trim() || fallback;
+};
+
+const isWorkCalendarEmployee = (employee: CalendarEmployee) => {
+  const area = (employee.area || "").toLowerCase();
+  const roleType = (employee.role_type || "").toLowerCase();
+  if (area === "cantiere" || area === "tecnico") return true;
+  if (area === "commerciale" || area === "amministrazione") return false;
+  return roleType !== "staff_interno";
+};
 
 function CalendarInner() {
   const { effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
-  const { isGoogleConnected, pullBusySlots, reconcileSync, syncMode } = useGoogleCalendarSync();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { isGoogleConnected, pullBusySlots } = useGoogleCalendarSync();
   const { isAppleConnected } = useAppleCalendarSync();
-  const [view, setView] = useState<CalendarViewType>("month");
+  const [view, setViewState] = useState<CalendarViewType>(() => normalizeCalendarView(searchParams.get("view"), isMobile));
   const [currentDate, setCurrentDate] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [customerFilter, setCustomerFilter] = useState<string>("all");
@@ -58,24 +96,28 @@ function CalendarInner() {
   const [syncing, setSyncing] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   // Layer visibility state — initialize from localStorage (parse once)
-  const savedPrefs = (() => {
+  const savedPrefs = useMemo(() => {
     try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}"); }
     catch { return {}; }
-  })();
+  }, []);
   const [layerPanelOpen, setLayerPanelOpen] = useState(savedPrefs.layerPanelOpen ?? !isMobile);
   const [layerVisibility, setLayerVisibility] = useState({
     showPosa: savedPrefs.showPosa ?? true,
     showLavoro: savedPrefs.showLavoro ?? true,
     showAppuntamento: savedPrefs.showAppuntamento ?? true,
-    showMerce: savedPrefs.showMerce ?? true,
-    showGoogleBusy: savedPrefs.showGoogleBusy ?? true,
-    showLeaves: savedPrefs.showLeaves ?? true,
+    showMerce: false,
+    showGoogleBusy: false,
+    showLeaves: false,
     showWeather: savedPrefs.showWeather ?? true,
-    showInterventi: savedPrefs.showInterventi ?? true,
-    showManutenzioni: savedPrefs.showManutenzioni ?? true,
+    showInterventi: false,
+    showManutenzioni: false,
   });
   const setLayer = useCallback((layer: keyof typeof layerVisibility, v: boolean) => {
     setLayerVisibility(prev => ({ ...prev, [layer]: v }));
+  }, []);
+  const [eventColors, setEventColors] = useState(() => normalizeCalendarEventColors(savedPrefs.eventColors));
+  const setEventColor = useCallback((key: CalendarEventColorKey, color: string) => {
+    setEventColors(prev => ({ ...prev, [key]: color }));
   }, []);
   const { showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, showWeather, showInterventi, showManutenzioni } = layerVisibility;
   const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(
@@ -84,6 +126,27 @@ function CalendarInner() {
   const [visibleTeamIds, setVisibleTeamIds] = useState<Set<string> | null>(
     savedPrefs.visibleTeamIds ? new Set<string>(savedPrefs.visibleTeamIds) : null
   );
+
+  useEffect(() => {
+    const requestedView = searchParams.get("view");
+    const nextView = normalizeCalendarView(requestedView, isMobile);
+    setViewState(prev => prev === nextView ? prev : nextView);
+    if (requestedView && requestedView !== nextView) {
+      const nextParams = new URLSearchParams(searchParams);
+      if (nextView === "month") nextParams.delete("view");
+      else nextParams.set("view", nextView);
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, isMobile, setSearchParams]);
+
+  const setView = useCallback((nextView: CalendarViewType) => {
+    const safeView = normalizeCalendarView(nextView, isMobile);
+    setViewState(safeView);
+    const nextParams = new URLSearchParams(searchParams);
+    if (safeView === "month") nextParams.delete("view");
+    else nextParams.set("view", safeView);
+    setSearchParams(nextParams, { replace: true });
+  }, [isMobile, searchParams, setSearchParams]);
 
   // Persist layer prefs to localStorage (debounced)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -95,11 +158,12 @@ function CalendarInner() {
         ...layerVisibility,
         visibleEmployeeIds: visibleEmployeeIds ? Array.from(visibleEmployeeIds) : null,
         visibleTeamIds: visibleTeamIds ? Array.from(visibleTeamIds) : null,
+        eventColors,
       };
       localStorage.setItem("calendar-layer-prefs", JSON.stringify(prefs));
     }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [layerPanelOpen, layerVisibility, visibleEmployeeIds, visibleTeamIds]);
+  }, [layerPanelOpen, layerVisibility, visibleEmployeeIds, visibleTeamIds, eventColors]);
 
   // Compute a ±2-month window around the current date for calendar queries
   const calendarRangeStart = useMemo(() => {
@@ -180,7 +244,7 @@ function CalendarInner() {
         .select(`
           *,
           order:orders!appointments_order_id_fkey(order_code, description, customer:profiles!orders_customer_id_fkey(first_name, last_name)),
-          contact:contacts!appointments_contact_id_fkey(first_name, last_name)
+          contact:marketing_contacts!appointments_contact_id_fkey(first_name, last_name)
         `)
         .eq("company_id", effectiveCompany.id)
         // B10 — rimosso .is("calendar_id", null) che escludeva appuntamenti con calendario specifico
@@ -200,6 +264,7 @@ function CalendarInner() {
   const appointmentLocations = useMemo<CalendarLocation[]>(() => {
     const locMap = new Map<string, CalendarLocation>();
     for (const apt of appointments) {
+      if (!apt.order_id) continue;
       if (apt.lat && apt.lng) {
         const key = `${Math.round(apt.lat * 100)},${Math.round(apt.lng * 100)}`;
         const existing = locMap.get(key);
@@ -423,10 +488,11 @@ function CalendarInner() {
     queryKey: ["apple-busy-slots", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("apple_calendar_busy_slots")
         .select("id, start_at, end_at, summary, is_all_day, user_id, caldav_calendar_url")
         .eq("company_id", effectiveCompany.id);
+      if (error) throw error;
       return (data || []).map((s: { id: string; start_at: string; end_at: string; summary: string | null; is_all_day: boolean; user_id: string; caldav_calendar_url: string }) => ({
         ...s,
         google_calendar_id: s.caldav_calendar_url,
@@ -477,26 +543,28 @@ function CalendarInner() {
   const { data: companyEmployees = [] } = useQuery({
     queryKey: ["employees-filter", effectiveCompany?.id],
     queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("employees")
         .select("id, first_name, last_name, user_id, area, role_type")
-        .eq("company_id", effectiveCompany!.id)
+        .eq("company_id", effectiveCompany.id)
         .eq("is_active", true)
         .order("last_name");
       if (error) {
         // Fallback if area column doesn't exist yet
-        const { data: fallback } = await supabase
+        const { data: fallback, error: fallbackError } = await supabase
           .from("employees")
           .select("id, first_name, last_name, user_id, role_type")
-          .eq("company_id", effectiveCompany!.id)
+          .eq("company_id", effectiveCompany.id)
           .eq("is_active", true)
           .order("last_name");
-        return (fallback || []).map((e: any) => ({
+        if (fallbackError) throw fallbackError;
+        return ((fallback || []) as CalendarEmployee[]).map((e) => ({
           ...e,
           area: e.role_type === "staff_interno" ? "amministrazione" : "cantiere",
         }));
       }
-      return (data || []).map((e: any) => ({
+      return ((data || []) as CalendarEmployee[]).map((e) => ({
         ...e,
         area: e.area || (e.role_type === "staff_interno" ? "amministrazione" : "cantiere"),
       }));
@@ -508,18 +576,37 @@ function CalendarInner() {
   const filteredEmployees = useMemo(() => {
     const areas = permissions.visibleAreas;
     if (!areas || areas.length === 0) return companyEmployees; // Empty = all areas visible
-    return companyEmployees.filter((e: any) => areas.includes(e.area));
+    return companyEmployees.filter((e) => !!e.area && areas.includes(e.area));
   }, [companyEmployees, permissions.visibleAreas]);
+
+  const workEmployees = useMemo(
+    () => filteredEmployees.filter(isWorkCalendarEmployee),
+    [filteredEmployees],
+  );
+  const workEmployeeIds = useMemo(
+    () => new Set(workEmployees.map((employee) => employee.id)),
+    [workEmployees],
+  );
+  const effectiveWorkVisibleEmployeeIds = useMemo(() => {
+    if (!visibleEmployeeIds) return new Set(workEmployeeIds);
+    const next = new Set(Array.from(visibleEmployeeIds).filter((id) => workEmployeeIds.has(id)));
+    if (next.size === 0 && visibleEmployeeIds.size > 0 && workEmployeeIds.size > 0) {
+      return new Set(workEmployeeIds);
+    }
+    return next;
+  }, [visibleEmployeeIds, workEmployeeIds]);
 
   const { data: externalTeams = [] } = useQuery({
     queryKey: ["external-teams-filter", effectiveCompany?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      if (!effectiveCompany?.id) return [];
+      const { data, error } = await supabase
         .from("external_teams")
         .select("id, name")
-        .eq("company_id", effectiveCompany!.id)
+        .eq("company_id", effectiveCompany.id)
         .eq("is_active", true)
         .order("name");
+      if (error) throw error;
       return data || [];
     },
     enabled: !!effectiveCompany?.id,
@@ -530,13 +617,14 @@ function CalendarInner() {
   const { data: approvedLeaves = [] } = useQuery({
     queryKey: ["approved-leaves", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
     queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("leave_requests")
         .select("id, employee_id, type, start_date, end_date, total_days, total_hours, employee:employees!leave_requests_employee_id_fkey(id, first_name, last_name)")
-        .eq("company_id", effectiveCompany!.id)
+        .eq("company_id", effectiveCompany.id)
         .eq("status", "approved")
-        .gte("start_date", calendarRangeStart)
-        .lte("end_date", calendarRangeEnd)
+        .lte("start_date", calendarRangeEnd)
+        .gte("end_date", calendarRangeStart)
         .order("start_date");
       if (error) throw error;
       return data ?? [];
@@ -552,11 +640,11 @@ function CalendarInner() {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("order_items")
-        .select("id, name, status, order_id")
+        .select("id, name, status, order_id, order:orders!inner(company_id)")
         .eq("order.company_id", effectiveCompany.id)
         .not("order_id", "is", null);
       if (error) throw error;
-      return data || [];
+      return ((data || []) as Array<CalendarWarehouseItem & { order?: { company_id: string } }>).map(({ order: _order, ...item }) => item);
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
@@ -591,14 +679,19 @@ function CalendarInner() {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("piani_manutenzione")
-        .select("id, titolo, prossima_scadenza, stato")
+        .select("id, titolo, prossima_scadenza, attivo")
         .eq("company_id", effectiveCompany.id)
         .not("prossima_scadenza", "is", null)
         .gte("prossima_scadenza", calendarRangeStart)
         .lte("prossima_scadenza", calendarRangeEnd)
         .order("prossima_scadenza");
       if (error) throw error;
-      return (data ?? []) as CalendarManutenzione[];
+      return (data ?? []).map((piano) => ({
+        id: piano.id,
+        titolo: piano.titolo,
+        prossima_scadenza: piano.prossima_scadenza,
+        stato: piano.attivo === false ? "inattivo" : "attivo",
+      })) as CalendarManutenzione[];
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
@@ -608,11 +701,12 @@ function CalendarInner() {
   const uniqueCustomers = useMemo(() => {
     const customersMap = new Map<string, CustomerFilter>();
     orders.forEach(order => {
+      if (!order.customer_id || !order.customer) return;
       if (!customersMap.has(order.customer_id)) {
         customersMap.set(order.customer_id, {
           id: order.customer_id,
-          first_name: order.customer.first_name,
-          last_name: order.customer.last_name,
+          first_name: order.customer.first_name || "",
+          last_name: order.customer.last_name || "Cliente senza nome",
         });
       }
     });
@@ -631,7 +725,7 @@ function CalendarInner() {
       const existing = map.get(item.order_id) ?? {
         orderId: item.order_id,
         orderCode: order.order_code,
-        customerName: `${order.customer.first_name} ${order.customer.last_name}`,
+        customerName: getPersonName(order.customer?.first_name, order.customer?.last_name, "Cliente non associato"),
         readyCount: 0,
         pendingCount: 0,
         items: [],
@@ -652,6 +746,14 @@ function CalendarInner() {
   };
 
   const { data: assignableUsers = [] } = useCompanyStaffUsers(effectiveCompany?.id);
+  const assignableWorkUserIds = useMemo(
+    () => new Set(workEmployees.map((employee) => employee.user_id).filter(Boolean) as string[]),
+    [workEmployees],
+  );
+  const assignableWorkUsers = useMemo(
+    () => assignableUsers.filter((user) => assignableWorkUserIds.has(user.id)),
+    [assignableUsers, assignableWorkUserIds],
+  );
 
   const resetFilters = () => {
     setStatusFilter("all");
@@ -676,25 +778,25 @@ function CalendarInner() {
         }
         if (employeeFilter !== "all") {
           const hasEmployee = order.order_employees?.some(
-            ae => ae.employee.id === employeeFilter
+            ae => ae.employee?.id === employeeFilter
           );
           if (!hasEmployee) return false;
         }
         if (externalTeamFilter !== "all") {
           const hasTeam = order.order_external_teams?.some(
-            aet => aet.external_team.id === externalTeamFilter
+            aet => aet.external_team?.id === externalTeamFilter
           );
           if (!hasTeam) return false;
         }
         // Resource layer filtering
-        const effectiveEmployeeIds = visibleEmployeeIds ?? new Set(filteredEmployees.map(e => e.id));
+        const effectiveEmployeeIds = effectiveWorkVisibleEmployeeIds;
         const effectiveTeamIds = visibleTeamIds ?? new Set(externalTeams.map(t => t.id));
-        const hasVisibleEmployee = !order.order_employees?.length || order.order_employees.some(ae => effectiveEmployeeIds.has(ae.employee.id));
-        const hasVisibleTeam = !order.order_external_teams?.length || order.order_external_teams.some(aet => effectiveTeamIds.has(aet.external_team.id));
+        const hasVisibleEmployee = !order.order_employees?.length || order.order_employees.some(ae => !!ae.employee?.id && effectiveEmployeeIds.has(ae.employee.id));
+        const hasVisibleTeam = !order.order_external_teams?.length || order.order_external_teams.some(aet => !!aet.external_team?.id && effectiveTeamIds.has(aet.external_team.id));
         if (!hasVisibleEmployee && !hasVisibleTeam) return false;
         return true;
       });
-  }, [orders, statusFilter, customerFilter, employeeFilter, externalTeamFilter, visibleEmployeeIds, visibleTeamIds, filteredEmployees, externalTeams]);
+  }, [orders, statusFilter, customerFilter, employeeFilter, externalTeamFilter, effectiveWorkVisibleEmployeeIds, visibleTeamIds, externalTeams]);
 
   // Enrich appointments with assigned profile names (using cached company profiles)
   const profilesById = useMemo(() => {
@@ -710,8 +812,9 @@ function CalendarInner() {
 
   // Filter appointments by assignedTo
   const filteredAppointments = useMemo(() => {
-    if (assignedToFilter === "all") return enrichedAppointments;
-    return enrichedAppointments.filter(apt => apt.assigned_to === assignedToFilter);
+    const workAppointments = enrichedAppointments.filter(apt => !!apt.order_id);
+    if (assignedToFilter === "all") return workAppointments;
+    return workAppointments.filter(apt => apt.assigned_to === assignedToFilter);
   }, [enrichedAppointments, assignedToFilter]);
 
   // Compute hidden event types for views
@@ -720,16 +823,16 @@ function CalendarInner() {
     if (!showPosa) hidden.add("posa");
     if (!showLavoro) hidden.add("lavoro");
     if (!showAppuntamento) hidden.add("appuntamento");
-    if (!showMerce) hidden.add("merce");
-    if (!showGoogleBusy) hidden.add("google_busy");
-    if (!showLeaves) hidden.add("leaves");
-    if (!showInterventi) hidden.add("intervento");
-    if (!showManutenzioni) hidden.add("manutenzione");
+    hidden.add("merce");
+    hidden.add("google_busy");
+    hidden.add("leaves");
+    hidden.add("intervento");
+    hidden.add("manutenzione");
     return hidden;
-  }, [showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, showInterventi, showManutenzioni]);
+  }, [showPosa, showLavoro, showAppuntamento]);
 
   // Effective visible sets for layer panel
-  const effectiveVisibleEmployees = useMemo(() => visibleEmployeeIds ?? new Set(filteredEmployees.map(e => e.id)), [visibleEmployeeIds, filteredEmployees]);
+  const effectiveVisibleEmployees = effectiveWorkVisibleEmployeeIds;
   const effectiveVisibleTeams = useMemo(() => visibleTeamIds ?? new Set(externalTeams.map(t => t.id)), [visibleTeamIds, externalTeams]);
 
   // M13 — ordini non pianificati con drawer
@@ -744,16 +847,44 @@ function CalendarInner() {
   // Build employee user_id → employee mapping for conflict detection bridge
   const employeeByUserId = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>();
-    for (const emp of companyEmployees) {
+    for (const emp of workEmployees) {
       if (emp.user_id) {
-        map.set(emp.user_id, { id: emp.id, name: `${emp.first_name} ${emp.last_name}` });
+        map.set(emp.user_id, { id: emp.id, name: getPersonName(emp.first_name, emp.last_name, "Operatore senza nome") });
       }
     }
     return map;
-  }, [companyEmployees]);
+  }, [workEmployees]);
 
   // Conflict detection
   const { conflicts, conflictCount } = useConflictDetection(scheduledOrders, filteredAppointments, employeeByUserId);
+  const conflictBreakdown = useMemo(() => ({
+    employees: conflicts.filter((conflict) => conflict.resourceType === "employee").length,
+    teams: conflicts.filter((conflict) => conflict.resourceType === "team").length,
+    warnings: conflicts.filter((conflict) => conflict.severity === "warning").length,
+  }), [conflicts]);
+
+  const viewStats = useMemo(() => {
+    const workDays = scheduledOrders.reduce((total, order) => {
+      if (!order.work_start_date) return total;
+      const start = new Date(order.work_start_date);
+      const end = order.work_end_date ? new Date(order.work_end_date) : start;
+      const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+      return total + days;
+    }, 0);
+    const ordersWithoutTeam = scheduledOrders.filter((order) => {
+      const internalCount = order.order_employees?.length ?? 0;
+      const externalCount = order.order_external_teams?.length ?? 0;
+      return internalCount + externalCount === 0;
+    }).length;
+    return {
+      scheduled: scheduledOrders.length,
+      appointments: filteredAppointments.length,
+      workDays,
+      unplanned: unplannedOrdersCount,
+      conflicts: conflictCount,
+      ordersWithoutTeam,
+    };
+  }, [conflictCount, filteredAppointments.length, scheduledOrders, unplannedOrdersCount]);
 
   return (
     <div className="space-y-4">
@@ -867,8 +998,11 @@ function CalendarInner() {
                       queryClient.invalidateQueries({ queryKey: ["gcal-busy-slots"] });
                       queryClient.invalidateQueries({ queryKey: ["gcal-synced-ids"] });
                       queryClient.invalidateQueries({ queryKey: ["appointments"] });
+                      const pulled = typeof result === "object" && result !== null && "pulled" in result
+                        ? Number((result as { pulled?: unknown }).pulled ?? 0)
+                        : 0;
                       toast.success("Sincronizzazione completata", {
-                        description: `${(result as any)?.pulled ?? 0} eventi importati`,
+                        description: `${pulled} eventi importati`,
                       });
                     } catch {
                       toast.error("Errore sincronizzazione Google Calendar");
@@ -915,7 +1049,7 @@ function CalendarInner() {
           )}
           {employeeFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
-              Operaio: {filteredEmployees.find(e => e.id === employeeFilter)?.last_name ?? employeeFilter}
+              Operaio: {workEmployees.find(e => e.id === employeeFilter)?.last_name ?? employeeFilter}
               <button onClick={() => setEmployeeFilter("all")} className="ml-0.5 hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
@@ -931,7 +1065,7 @@ function CalendarInner() {
           )}
           {assignedToFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
-              Assegnato: {assignableUsers.find(u => u.id === assignedToFilter)?.last_name ?? assignedToFilter}
+              Assegnato: {assignableWorkUsers.find(u => u.id === assignedToFilter)?.last_name ?? assignedToFilter}
               <button onClick={() => setAssignedToFilter("all")} className="ml-0.5 hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
@@ -940,6 +1074,50 @@ function CalendarInner() {
           <button onClick={resetFilters} className="text-xs text-muted-foreground hover:text-foreground underline">
             Resetta tutti
           </button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Lavori pianificati</p>
+          <p className="mt-1 text-xl font-bold">{viewStats.scheduled}</p>
+        </div>
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Giornate lavoro</p>
+          <p className="mt-1 text-xl font-bold">{viewStats.workDays}</p>
+        </div>
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Appuntamenti</p>
+          <p className="mt-1 text-xl font-bold">{viewStats.appointments}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => viewStats.unplanned > 0 && setUnplannedOpen(true)}
+          className={cn(
+            "rounded-lg border bg-card px-3 py-2 text-left transition-colors",
+            viewStats.unplanned > 0 && "border-amber-200 bg-amber-50 hover:bg-amber-100"
+          )}
+        >
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Da pianificare</p>
+          <p className={cn("mt-1 text-xl font-bold", viewStats.unplanned > 0 && "text-amber-700")}>{viewStats.unplanned}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => viewStats.conflicts > 0 && setConflictsOpen(true)}
+          className={cn(
+            "rounded-lg border bg-card px-3 py-2 text-left transition-colors",
+            viewStats.conflicts > 0 && "border-red-200 bg-red-50 hover:bg-red-100"
+          )}
+        >
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Conflitti</p>
+          <p className={cn("mt-1 text-xl font-bold", viewStats.conflicts > 0 && "text-red-700")}>{viewStats.conflicts}</p>
+        </button>
+      </div>
+
+      {viewStats.ordersWithoutTeam > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>{viewStats.ordersWithoutTeam} lavori pianificati non hanno ancora operai o subappaltatori assegnati.</span>
         </div>
       )}
 
@@ -952,7 +1130,8 @@ function CalendarInner() {
             </SheetHeader>
             <div className="mt-4 overflow-y-auto">
               <CalendarLayerPanel
-                employees={filteredEmployees}
+                scope="work"
+                employees={workEmployees}
                 externalTeams={externalTeams}
                 visibleEmployees={effectiveVisibleEmployees}
                 visibleTeams={effectiveVisibleTeams}
@@ -976,7 +1155,7 @@ function CalendarInner() {
                   setVisibleTeamIds(next);
                 }}
                 onToggleAllEmployees={(v) => {
-                  setVisibleEmployeeIds(v ? new Set(filteredEmployees.map(e => e.id)) : new Set());
+                  setVisibleEmployeeIds(v ? new Set(workEmployees.map(e => e.id)) : new Set());
                 }}
                 onToggleAllTeams={(v) => {
                   setVisibleTeamIds(v ? new Set(externalTeams.map(t => t.id)) : new Set());
@@ -990,6 +1169,9 @@ function CalendarInner() {
                 onToggleWeather={(v) => setLayer("showWeather", v)}
                 onToggleInterventi={(v) => setLayer("showInterventi", v)}
                 onToggleManutenzioni={(v) => setLayer("showManutenzioni", v)}
+                eventColors={eventColors}
+                onEventColorChange={setEventColor}
+                onResetEventColors={() => setEventColors(DEFAULT_CALENDAR_EVENT_COLORS)}
               />
             </div>
           </SheetContent>
@@ -1038,7 +1220,7 @@ function CalendarInner() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti gli operai</SelectItem>
-                  {filteredEmployees.map((emp) => (
+                  {workEmployees.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.last_name} {emp.first_name}
                     </SelectItem>
@@ -1066,7 +1248,7 @@ function CalendarInner() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti gli utenti</SelectItem>
-                  {assignableUsers.map((user) => (
+                  {assignableWorkUsers.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.last_name} {user.first_name}
                     </SelectItem>
@@ -1131,6 +1313,11 @@ function CalendarInner() {
               orderWeatherMap={showWeather ? orderWeatherMap : undefined}
               interventi={showInterventi ? calInterventi : []}
               manutenzioni={showManutenzioni ? calManutenzioni : []}
+              eventColors={eventColors}
+              onOpenDay={(date) => {
+                setCurrentDate(date);
+                setView("day");
+              }}
             />
           ) : view === "week" ? (
             <CalendarWeekView
@@ -1148,6 +1335,7 @@ function CalendarInner() {
               orderWeatherMap={showWeather ? orderWeatherMap : undefined}
               interventi={showInterventi ? calInterventi : []}
               manutenzioni={showManutenzioni ? calManutenzioni : []}
+              eventColors={eventColors}
             />
           ) : view === "day" ? (
             <CalendarDayView
@@ -1165,13 +1353,15 @@ function CalendarInner() {
               orderWeatherMap={showWeather ? orderWeatherMap : undefined}
               interventi={showInterventi ? calInterventi : []}
               manutenzioni={showManutenzioni ? calManutenzioni : []}
+              eventColors={eventColors}
             />
           ) : view === "heatmap" ? (
             <CalendarHeatmapView
               orders={scheduledOrders}
               currentDate={currentDate}
               onDateChange={setCurrentDate}
-              employees={filteredEmployees}
+              employees={workEmployees}
+              appointments={filteredAppointments}
             />
           ) : (
             <CalendarGanttView
@@ -1182,13 +1372,15 @@ function CalendarInner() {
               onDateChange={setCurrentDate}
               interventi={showInterventi ? calInterventi : []}
               manutenzioni={showManutenzioni ? calManutenzioni : []}
+              appointments={filteredAppointments}
             />
           )}
         </div>
 
         {layerPanelOpen && !isMobile && (
           <CalendarLayerPanel
-            employees={filteredEmployees}
+            scope="work"
+            employees={workEmployees}
             externalTeams={externalTeams}
             visibleEmployees={effectiveVisibleEmployees}
             visibleTeams={effectiveVisibleTeams}
@@ -1212,7 +1404,7 @@ function CalendarInner() {
               setVisibleTeamIds(next);
             }}
             onToggleAllEmployees={(v) => {
-              setVisibleEmployeeIds(v ? new Set(filteredEmployees.map(e => e.id)) : new Set());
+              setVisibleEmployeeIds(v ? new Set(workEmployees.map(e => e.id)) : new Set());
             }}
             onToggleAllTeams={(v) => {
               setVisibleTeamIds(v ? new Set(externalTeams.map(t => t.id)) : new Set());
@@ -1226,6 +1418,9 @@ function CalendarInner() {
             onToggleWeather={(v) => setLayer("showWeather", v)}
             onToggleInterventi={(v) => setLayer("showInterventi", v)}
             onToggleManutenzioni={(v) => setLayer("showManutenzioni", v)}
+            eventColors={eventColors}
+            onEventColorChange={setEventColor}
+            onResetEventColors={() => setEventColors(DEFAULT_CALENDAR_EVENT_COLORS)}
           />
         )}
       </div>
@@ -1258,7 +1453,7 @@ function CalendarInner() {
                 <div className="min-w-0">
                   <p className="font-medium text-sm">
                     {order.order_code ? `${order.order_code} · ` : ""}
-                    {order.customer.first_name} {order.customer.last_name}
+                    {getPersonName(order.customer?.first_name, order.customer?.last_name, "Cliente non associato")}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">{order.description}</p>
                 </div>
@@ -1291,16 +1486,46 @@ function CalendarInner() {
               Conflitti risorse ({conflictCount})
             </SheetTitle>
             <SheetDescription>
-              Tecnici assegnati a più eventi nello stesso giorno.
+              Operai, squadre e appuntamenti collegati alle commesse con assegnazioni incoerenti.
             </SheetDescription>
           </SheetHeader>
+          {conflicts.length > 0 && (
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="rounded-lg border bg-card px-2 py-1.5">
+                <p className="text-[10px] uppercase text-muted-foreground">Operai</p>
+                <p className="font-semibold">{conflictBreakdown.employees}</p>
+              </div>
+              <div className="rounded-lg border bg-card px-2 py-1.5">
+                <p className="text-[10px] uppercase text-muted-foreground">Squadre</p>
+                <p className="font-semibold">{conflictBreakdown.teams}</p>
+              </div>
+              <div className="rounded-lg border bg-card px-2 py-1.5">
+                <p className="text-[10px] uppercase text-muted-foreground">Avvisi</p>
+                <p className="font-semibold">{conflictBreakdown.warnings}</p>
+              </div>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto space-y-3 mt-4">
             {conflicts.map((conflict, idx) => (
-              <div key={idx} className="border border-destructive/30 rounded-lg p-3 space-y-2 bg-destructive/5">
+              <div
+                key={`${conflict.date}-${conflict.resourceType}-${conflict.resourceId}-${idx}`}
+                className={cn(
+                  "border rounded-lg p-3 space-y-2",
+                  conflict.severity === "warning"
+                    ? "border-amber-300 bg-amber-50"
+                    : "border-destructive/30 bg-destructive/5"
+                )}
+              >
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="font-medium text-sm">{conflict.employeeName}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm">{conflict.resourceName}</p>
+                      <Badge variant={conflict.severity === "warning" ? "secondary" : "destructive"} className="text-[10px]">
+                        {conflict.resourceType === "team" ? "Squadra" : conflict.resourceType === "assignment" ? "Assegnazione" : "Operaio"}
+                      </Badge>
+                    </div>
                     <p className="text-xs text-muted-foreground">{conflict.date}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{conflict.reason}</p>
                   </div>
                   <TooltipProvider>
                     <Tooltip>

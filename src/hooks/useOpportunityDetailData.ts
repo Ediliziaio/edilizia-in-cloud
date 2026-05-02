@@ -4,6 +4,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 
+function getErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+  return "Errore durante il salvataggio";
+}
+
 export function useContactCustomFields() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -84,7 +91,7 @@ export function useUpdateContact() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; [key: string]: any }) => {
+    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
       const { error } = await supabase
         .from("marketing_contacts")
         .update(data)
@@ -95,7 +102,7 @@ export function useUpdateContact() {
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 }
 
@@ -146,7 +153,7 @@ export function useUpsertContactFieldValues() {
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.customFields.all });
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 }
 
@@ -197,6 +204,6 @@ export function useUpsertOpportunityFieldValues() {
       queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.customFields.all });
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 }

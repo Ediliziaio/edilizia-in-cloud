@@ -112,7 +112,7 @@ function PanoramicaTab() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading, isError: statsIsError, error: statsError, refetch: refetchStats } = useQuery({
     queryKey: queryKeys.warehouse.qrStats(companyId),
     queryFn: async (): Promise<QrStats> => {
       if (!companyId) {
@@ -146,6 +146,8 @@ function PanoramicaTab() {
         supabase.from("warehouse_scan_events").select("id", { count: "exact", head: true })
           .eq("company_id", companyId).gte("created_at", sevenDaysAgo).eq("resolution_status", "matched"),
       ]);
+      const failedCount = [items, itemsBc, itemsSer, units, unitsAvail, scans, scansMatched].find((res) => res.error);
+      if (failedCount?.error) throw failedCount.error;
 
       return {
         totalItems: items.count ?? 0,
@@ -161,7 +163,7 @@ function PanoramicaTab() {
     staleTime: 30_000,
   });
 
-  const { data: recentScans = [], isLoading: scansLoading } = useQuery({
+  const { data: recentScans = [], isLoading: scansLoading, isError: scansIsError, error: scansError, refetch: refetchScans } = useQuery({
     queryKey: queryKeys.warehouse.scanEvents(companyId, "recent"),
     queryFn: async (): Promise<ScanEventRow[]> => {
       if (!companyId) return [];
@@ -185,6 +187,31 @@ function PanoramicaTab() {
   const matchRate7d = stats && stats.scans7d > 0
     ? Math.round((stats.matchedScans7d / stats.scans7d) * 100)
     : 0;
+
+  if (statsIsError || scansIsError) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Impossibile caricare i dati QR</AlertTitle>
+        <AlertDescription className="space-y-3">
+          <p className="text-xs">
+            {(statsError as Error | null)?.message || (scansError as Error | null)?.message || "Errore durante il caricamento delle statistiche QR."}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void refetchStats();
+              void refetchScans();
+            }}
+          >
+            Riprova
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -337,7 +364,7 @@ function PerFornitoreTab() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.warehouse.qrBySupplier(companyId),
     queryFn: async (): Promise<SupplierCoverageRow[]> => {
       if (!companyId) return [];
@@ -399,7 +426,18 @@ function PerFornitoreTab() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
+        {isError ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Impossibile caricare la copertura fornitori</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p className="text-xs">{(error as Error | null)?.message || "Errore durante il caricamento."}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+                Riprova
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>

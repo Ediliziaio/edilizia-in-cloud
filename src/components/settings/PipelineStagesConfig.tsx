@@ -34,6 +34,40 @@ interface Stage {
   stalled_threshold_days: number | null;
 }
 
+type StageUpdatePayload = {
+  name: string;
+  position: number;
+  auto_status: string | null;
+  win_probability: number | null;
+  stalled_threshold_days: number | null;
+};
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Operazione non riuscita";
+}
+
+function normalizeName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function hasDuplicateStageNames(stages: Stage[]) {
+  const seen = new Set<string>();
+  for (const stage of stages) {
+    const name = normalizeName(stage.name).toLowerCase();
+    if (!name) continue;
+    if (seen.has(name)) return true;
+    seen.add(name);
+  }
+  return false;
+}
+
+function normalizeNumber(value: string, min: number, max?: number) {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return null;
+  return Math.min(Math.max(parsed, min), max ?? parsed);
+}
+
 function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChange, onSalesOSChange }: {
   stage: Stage;
   onUpdate: (id: string, name: string) => void;
@@ -83,7 +117,7 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
         <Input
           type="number"
           value={stage.win_probability ?? ""}
-          onChange={(e) => onSalesOSChange(stage.id, "win_probability", e.target.value ? parseInt(e.target.value) : null)}
+          onChange={(e) => onSalesOSChange(stage.id, "win_probability", normalizeNumber(e.target.value, 0, 100))}
           className="h-7 text-xs w-[72px]"
           min={0}
           max={100}
@@ -96,7 +130,7 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
             onSalesOSChange(
               stage.id,
               "stalled_threshold_days",
-              e.target.value ? parseInt(e.target.value) : null
+              normalizeNumber(e.target.value, 1)
             )
           }
           className="h-7 text-xs w-[72px]"
@@ -116,18 +150,20 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   const [hasChanges, setHasChanges] = useState(false);
   const originalStagesRef = useRef<Stage[]>([]);
 
-  const { data: queryData, isLoading } = useQuery({
+  const { data: queryData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["pipeline_stages", pipelineId],
     queryFn: async () => {
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from("marketing_pipeline_stages")
         .select("id, name, position, auto_status, win_probability, stalled_threshold_days")
         .eq("pipeline_id", pipelineId)
+        .eq("company_id", companyId)
         .order("position");
       if (error) throw error;
       return data as Stage[];
     },
-    enabled: !!pipelineId,
+    enabled: !!pipelineId && !!companyId,
   });
 
   useEffect(() => {
@@ -148,6 +184,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
       setStages((items) => {
         const oldIndex = items.findIndex((i) => i.id === active.id);
         const newIndex = items.findIndex((i) => i.id === over.id);
+        if (oldIndex < 0 || newIndex < 0) return items;
         return arrayMove(items, oldIndex, newIndex).map((item, idx) => ({ ...item, position: idx }));
       });
       setHasChanges(true);
@@ -170,11 +207,17 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   }, []);
 
   const handleDelete = useCallback(async (id: string) => {
+    if (!companyId) {
+      toast.error("Azienda non disponibile. Ricarica la pagina e riprova.");
+      return;
+    }
+
     if (!id.startsWith("temp-")) {
       const { count, error } = await supabase
-        .from("marketing_opportunities")
-        .select("id", { count: "exact", head: true })
-        .eq("stage_id", id);
+          .from("marketing_opportunities")
+          .select("id", { count: "exact", head: true })
+          .eq("stage_id", id)
+          .eq("company_id", companyId);
 
       if (!error && count && count > 0) {
         toast.error(`Impossibile rimuovere: ${count} opportunità collegate a questa fase. Spostale prima.`);
@@ -184,7 +227,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
 
     setStages((prev) => prev.filter((s) => s.id !== id).map((s, idx) => ({ ...s, position: idx })));
     setHasChanges(true);
-  }, []);
+  }, [companyId]);
 
   const handleAdd = useCallback(() => {
     setStages((prev) => [...prev, {
@@ -202,9 +245,25 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
     if (!companyId) return;
     setIsSaving(true);
     try {
+      const normalizedStages = stages
+        .map((stage, idx) => ({ ...stage, name: normalizeName(stage.name), position: idx }))
+        .filter((stage) => stage.name);
+
+      if (normalizedStages.length === 0) {
+        toast.error("Aggiungi almeno una fase valida prima di salvare.");
+        setIsSaving(false);
+        return;
+      }
+
+      if (hasDuplicateStageNames(normalizedStages)) {
+        toast.error("Le fasi non possono avere nomi duplicati.");
+        setIsSaving(false);
+        return;
+      }
+
       const original = originalStagesRef.current;
       const originalIds = new Set(original.map((s) => s.id));
-      const currentIds = new Set(stages.map((s) => s.id));
+      const currentIds = new Set(normalizedStages.map((s) => s.id));
 
       const toDelete = original.filter((s) => !currentIds.has(s.id));
 
@@ -212,7 +271,8 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
         const { count, error } = await supabase
           .from("marketing_opportunities")
           .select("id", { count: "exact", head: true })
-          .eq("stage_id", stage.id);
+          .eq("stage_id", stage.id)
+          .eq("company_id", companyId);
 
         if (!error && count && count > 0) {
           toast.error(`Impossibile eliminare la fase "${stage.name}": ${count} opportunità collegate.`);
@@ -226,7 +286,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
         if (error) throw error;
       }
 
-      for (const stage of stages) {
+      for (const stage of normalizedStages) {
         if (originalIds.has(stage.id)) {
           const { error } = await supabase
             .from("marketing_pipeline_stages")
@@ -236,14 +296,14 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
               auto_status: stage.auto_status,
               win_probability: stage.win_probability,
               stalled_threshold_days: stage.stalled_threshold_days,
-            } as any)
+            } satisfies StageUpdatePayload)
             .eq("id", stage.id)
-            .eq("company_id", companyId!);
+            .eq("company_id", companyId);
           if (error) throw error;
         }
       }
 
-      const toInsert = stages
+      const toInsert = normalizedStages
         .filter((s) => s.id.startsWith("temp-"))
         .map((s) => ({
           pipeline_id: pipelineId,
@@ -261,11 +321,12 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
       }
 
       setHasChanges(false);
+      setStages(normalizedStages);
       queryClient.invalidateQueries({ queryKey: ["pipeline_stages", pipelineId] });
       queryClient.invalidateQueries({ queryKey: ["marketing_pipelines", companyId] });
       toast.success("Fasi salvate");
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e));
     } finally {
       setIsSaving(false);
     }
@@ -273,6 +334,22 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Fasi non disponibili</CardTitle>
+          <CardDescription>{getErrorMessage(error)}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={() => refetch()}>
+            Riprova
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

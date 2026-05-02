@@ -17,6 +17,13 @@ interface EntityCustomFieldsSectionProps {
   entityId: string;
 }
 
+type EntityCustomFieldDefinition = {
+  id: string;
+  name: string;
+  field_type: string;
+  options: string[] | null;
+};
+
 export function EntityCustomFieldsSection({ entityType, entityId }: EntityCustomFieldsSectionProps) {
   const { data: fieldDefs = [], isLoading: defsLoading } = useEntityCustomFields(entityType);
   const { data: fieldValues = [], isLoading: valsLoading } = useEntityFieldValues(entityType, entityId);
@@ -56,7 +63,7 @@ export function EntityCustomFieldsSection({ entityType, entityId }: EntityCustom
       <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5">
         Campi personalizzati
       </p>
-      {fieldDefs.map((field: any) => (
+      {(fieldDefs as EntityCustomFieldDefinition[]).map((field) => (
         <InlineField
           key={field.id}
           label={field.name}

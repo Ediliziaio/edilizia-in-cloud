@@ -44,6 +44,10 @@ const FIELD_TO_COLUMN: Record<string, string> = {
   attr_campaign: "attr_campaign",
 };
 
+function sanitizeSearchTerm(value: string) {
+  return value.replace(/[%,]/g, " ").trim();
+}
+
 function applyRuleToQuery(query: any, rule: FilterRule) {
   const column = FIELD_TO_COLUMN[rule.field];
   if (!column) return query;
@@ -184,14 +188,15 @@ export default function MarketingContacts() {
       while (hasMore) {
         let query = supabase
           .from("marketing_contacts")
-          .select("id, first_name, last_name, email, phone, source, tags, assigned_to, company_id, created_at, updated_at, lead_score, last_activity_at, lifecycle_stage, call_center_status, call_center_assigned_to, call_center_last_call_at, call_center_next_call_at, call_center_call_count, call_center_notes")
+          .select("id, first_name, last_name, email, phone, company_name, city, province, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, lead_score, last_activity_at, lifecycle_stage, call_center_status, call_center_assigned_to, call_center_last_call_at, call_center_next_call_at, call_center_call_count, call_center_notes")
           .eq("company_id", companyId)
           .order("created_at", { ascending: false })
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
         // Apply search filter if active
-        if (search && search.trim()) {
-          const s = `%${search.trim()}%`;
+        const safeSearch = sanitizeSearchTerm(search);
+        if (safeSearch) {
+          const s = `%${safeSearch}%`;
           query = query.or(`first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
         }
 
@@ -467,8 +472,9 @@ export default function MarketingContacts() {
         query = query.eq("source", "Meta Lead Ads");
       }
 
-      if (search.trim()) {
-        const s = `%${search.trim()}%`;
+      const safeSearch = sanitizeSearchTerm(search);
+      if (safeSearch) {
+        const s = `%${safeSearch}%`;
         query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s},company_name.ilike.${s}`);
       }
 
@@ -718,6 +724,9 @@ export default function MarketingContacts() {
     if (mode === "create") {
       // Simple insert
       const toInsert = finalParsed.map(p => p.data);
+      if (toInsert.length === 0) {
+        return { success: 0, errors: errors.length ? errors : ["Nessun contatto valido da importare"] };
+      }
       const { error, data } = await supabase.from("marketing_contacts").insert(toInsert).select("id");
       if (error) return { success: 0, errors: [...errors, error.message] };
       created = data?.length || 0;

@@ -26,8 +26,20 @@ interface OrderSignatureCardProps {
   customerName?: string;
 }
 
+interface SignatureRequestRow {
+  id: string;
+  token: string;
+  signer_email: string;
+  signer_name: string | null;
+  status: string;
+  signed_at: string | null;
+  created_at: string;
+  expires_at: string;
+  signature_data?: string | null;
+}
+
 export function OrderSignatureCard({ orderId, customerEmail, customerName }: OrderSignatureCardProps) {
-  const { user } = useAuth();
+  const { user, profile, effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [email, setEmail] = useState(customerEmail || "");
@@ -38,11 +50,11 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
     queryFn: async () => {
       const { data, error } = await supabase
         .from("signature_requests")
-        .select("id, token, signer_email, signer_name, status, signed_at, created_at, expires_at")
+        .select("id, token, signer_email, signer_name, status, signed_at, created_at, expires_at, signature_data")
         .eq("order_id", orderId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as SignatureRequestRow[];
     },
     staleTime: 2 * 60 * 1000,
   });
@@ -59,14 +71,26 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
       toast.success("Richiesta di firma creata");
       qc.invalidateQueries({ queryKey: ["signature-requests", orderId] });
       setDialogOpen(false);
-      // Diary log
-      void supabase.from("order_events" as never).insert({
-        order_id: orderId,
-        event_type: "contratto_firmato",
-        payload: { signer_email: email, signer_name: name },
-      } as never);
+      if (effectiveCompany?.id) {
+        const actorName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.email || user?.email || "Utente";
+        void supabase.from("order_events" as never).insert({
+          order_id: orderId,
+          company_id: effectiveCompany.id,
+          event_type: "contratto_firmato",
+          actor_id: user?.id ?? null,
+          actor_name: actorName,
+          payload: {
+            action: "richiesta_firma_creata",
+            signer_email: email,
+            signer_name: name,
+            document_type: "Contratto commessa",
+          },
+        } as never);
+      }
+      qc.invalidateQueries({ queryKey: ["order-events", orderId] });
+      qc.invalidateQueries({ queryKey: ["order-diary-audit", orderId] });
     },
-    onError: (e: any) => toast.error(e.message || "Errore nella creazione"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore nella creazione"),
   });
 
   const getSignUrl = (token: string) => {
@@ -133,10 +157,10 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
           </div>
         )}
 
-        {latestSigned && (latestSigned as any).signature_data && (
+        {latestSigned?.signature_data && (
           <div className="mt-4 border rounded-lg p-3">
             <p className="text-xs text-muted-foreground mb-2">Ultima firma:</p>
-            <img src={(latestSigned as any).signature_data} alt="Firma" className="max-h-24 mx-auto" />
+            <img src={latestSigned.signature_data} alt="Firma" className="max-h-24 mx-auto" />
           </div>
         )}
       </CardContent>

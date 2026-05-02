@@ -54,6 +54,18 @@ const sedeSchema = z.object({
 })
 
 type SedeFormData = z.infer<typeof sedeSchema>
+type Sede = {
+  id: string
+  nome: string
+  tipo: SedeFormData['tipo']
+  indirizzo: string | null
+  citta: string | null
+  cap: string | null
+  provincia: string | null
+  colore: string | null
+  attiva: boolean | null
+  principale: boolean | null
+}
 
 const TIPO_LABELS: Record<string, string> = {
   showroom: 'Showroom',
@@ -68,6 +80,19 @@ const COLORI_PRESET = [
   '#DC2626', '#0891B2', '#CA8A04', '#9333EA',
 ]
 
+async function parseFunctionError(error: unknown, fallback: string) {
+  const err = error as { context?: unknown; message?: string }
+  try {
+    if (err.context instanceof Response) {
+      const body = await err.context.json()
+      return body?.error ?? body?.message ?? err.message ?? fallback
+    }
+  } catch {
+    return err.message ?? fallback
+  }
+  return err.message ?? fallback
+}
+
 // ── Componente principale ───────────────────────────────────
 export default function SettingsSedi() {
   const { effectiveCompany } = useAuth()
@@ -76,7 +101,7 @@ export default function SettingsSedi() {
   const { data: sedi = [], isLoading } = useSediList()
 
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editSede, setEditSede] = useState<any>(null)
+  const [editSede, setEditSede] = useState<Sede | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
   const form = useForm<SedeFormData>({
@@ -89,21 +114,17 @@ export default function SettingsSedi() {
   // ── Mutations ─────────────────────────────────────────────
   const saveMutation = useMutation({
     mutationFn: async (values: SedeFormData) => {
+      if (!company_id) throw new Error('Azienda non disponibile')
       const action = editSede ? 'aggiorna' : 'crea'
       const { data, error } = await supabase.functions.invoke('gestisci-sede', {
         body: { action, company_id, sede_id: editSede?.id, ...values },
       })
       if (error) {
         // Edge function non-2xx: estraiamo il body JSON dalla response
-        let errBody: any = null
-        try {
-          const ctx = (error as any).context
-          if (ctx instanceof Response) errBody = await ctx.json()
-        } catch { /* ignore parse errors */ }
-        const code = errBody?.error ?? ''
-        const msg = code === 'LIMITE_PIANO'
+        const message = await parseFunctionError(error, 'Errore nel salvataggio')
+        const msg = message === 'LIMITE_PIANO'
           ? 'LIMITE_PIANO'
-          : (errBody?.message ?? errBody?.error ?? error.message ?? 'Errore nel salvataggio')
+          : message
         throw new Error(msg)
       }
       if (data?.error) throw new Error(data.error === 'LIMITE_PIANO' ? 'LIMITE_PIANO' : (data.message ?? data.error))
@@ -127,13 +148,12 @@ export default function SettingsSedi() {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, attiva }: { id: string; attiva: boolean }) => {
+      if (!company_id) throw new Error('Azienda non disponibile')
       const { error } = await supabase.functions.invoke('gestisci-sede', {
         body: { action: 'aggiorna', company_id, sede_id: id, attiva },
       })
       if (error) {
-        let errBody: any = null
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json() } catch {}
-        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? 'Errore nell\'aggiornamento')
+        throw new Error(await parseFunctionError(error, 'Errore nell\'aggiornamento'))
       }
     },
     onSuccess: () => { invalidate() },
@@ -142,13 +162,12 @@ export default function SettingsSedi() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!company_id) throw new Error('Azienda non disponibile')
       const { error } = await supabase.functions.invoke('gestisci-sede', {
         body: { action: 'elimina', company_id, sede_id: id },
       })
       if (error) {
-        let errBody: any = null
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json() } catch {}
-        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? 'Errore nell\'eliminazione')
+        throw new Error(await parseFunctionError(error, 'Errore nell\'eliminazione'))
       }
     },
     onSuccess: () => {
@@ -161,13 +180,12 @@ export default function SettingsSedi() {
 
   const setPrincipaleMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!company_id) throw new Error('Azienda non disponibile')
       const { error } = await supabase.functions.invoke('gestisci-sede', {
         body: { action: 'aggiorna', company_id, sede_id: id, principale: true },
       })
       if (error) {
-        let errBody: any = null
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json() } catch {}
-        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? 'Errore')
+        throw new Error(await parseFunctionError(error, 'Errore'))
       }
     },
     onSuccess: () => { toast.success('Sede principale aggiornata'); invalidate() },
@@ -181,7 +199,7 @@ export default function SettingsSedi() {
     setDialogOpen(true)
   }
 
-  function openEdit(sede: any) {
+  function openEdit(sede: Sede) {
     setEditSede(sede)
     form.reset({
       nome:      sede.nome,
@@ -280,7 +298,7 @@ export default function SettingsSedi() {
 
                 {/* Azioni */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {!sede.principale && sede.attiva && (
+                    {!sede.principale && sede.attiva && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -293,7 +311,7 @@ export default function SettingsSedi() {
                     </Button>
                   )}
                   <Switch
-                    checked={sede.attiva}
+                    checked={Boolean(sede.attiva)}
                     aria-label={`${sede.attiva ? 'Disattiva' : 'Attiva'} sede ${sede.nome}`}
                     onCheckedChange={(v) => toggleMutation.mutate({ id: sede.id, attiva: v })}
                   />
@@ -344,7 +362,7 @@ export default function SettingsSedi() {
               <Label>Tipo *</Label>
               <Select
                 value={form.watch('tipo')}
-                onValueChange={(v) => form.setValue('tipo', v as any)}
+                onValueChange={(v) => form.setValue('tipo', v as SedeFormData['tipo'])}
               >
                 <SelectTrigger>
                   <SelectValue />

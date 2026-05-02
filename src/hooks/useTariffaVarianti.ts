@@ -99,10 +99,12 @@ export function useTariffaVariantiMutations() {
 
   const updateVariante = useMutation({
     mutationFn: async (params: { id: string; patch: VarianteUpdateInput }) => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from as any)("tariffa_costi_varianti")
         .update(params.patch)
         .eq("id", params.id)
+        .eq("company_id", companyId)
         .select()
         .single();
       if (error) throw new Error(error.message);
@@ -119,10 +121,12 @@ export function useTariffaVariantiMutations() {
    */
   const disableVariante = useMutation({
     mutationFn: async (id: string) => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from as any)("tariffa_costi_varianti")
         .update({ attivo: false, is_default: false })
         .eq("id", id)
+        .eq("company_id", companyId)
         .select()
         .single();
       if (error) throw new Error(error.message);
@@ -141,17 +145,21 @@ export function useTariffaVariantiMutations() {
    */
   const setDefault = useMutation({
     mutationFn: async (params: { tariffaId: string; varianteId: string }) => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
       // Step 1: azzera eventuale default corrente (potrebbe non esserci)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.from as any)("tariffa_costi_varianti")
+      const { error: clearError } = await (supabase.from as any)("tariffa_costi_varianti")
         .update({ is_default: false })
+        .eq("company_id", companyId)
         .eq("tariffa_id", params.tariffaId)
         .eq("is_default", true);
+      if (clearError) throw new Error(clearError.message);
       // Step 2: setta nuovo default
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from as any)("tariffa_costi_varianti")
         .update({ is_default: true })
-        .eq("id", params.varianteId);
+        .eq("id", params.varianteId)
+        .eq("company_id", companyId);
       if (error) throw new Error(error.message);
     },
     onSuccess: (_data, vars) => {

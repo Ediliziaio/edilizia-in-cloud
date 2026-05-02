@@ -8,11 +8,15 @@ Deno.serve(async (req: Request) => {
 
   const corsH = getCorsHeaders(req);
   try {
+    if (req.method !== "POST") {
+      return errorResponse("Metodo non consentito", 405, corsH);
+    }
+
     const { userId, supabaseAdmin } = await requireAuth(req, corsH);
 
-    const { order_id, company_id } = await req.json();
+    const { order_id, company_id, costi_sicurezza } = await req.json().catch(() => ({}));
     if (!order_id || !company_id) {
-      return errorResponse("order_id e company_id sono obbligatori", 400);
+      return errorResponse("order_id e company_id sono obbligatori", 400, corsH);
     }
 
     // Fetch order
@@ -24,7 +28,7 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (orderError || !order) {
-      return errorResponse("Ordine non trovato", 404);
+      return errorResponse("Ordine non trovato", 404, corsH);
     }
 
     // Fetch subappaltatori tramite purchase_orders
@@ -47,7 +51,7 @@ Deno.serve(async (req: Request) => {
 
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) {
-      return errorResponse("ANTHROPIC_API_KEY non configurata", 500);
+      return errorResponse("ANTHROPIC_API_KEY non configurata", 500, corsH);
     }
 
     const cantiereData = {
@@ -55,6 +59,7 @@ Deno.serve(async (req: Request) => {
       committente: anagrafica?.ragione_sociale || "Non specificato",
       subappaltatori: subappaltatori.map((s: any) => s.nome),
       numero_subappaltatori: subappaltatori.length,
+      costi_sicurezza_stimati: Number(costi_sicurezza) || 0,
     };
 
     const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
@@ -98,7 +103,7 @@ Rispondi SOLO con JSON valido, senza markdown.`,
 
     if (!claudeResponse.ok) {
       const err = await claudeResponse.text();
-      return errorResponse(`Errore Claude API: ${err}`, 502);
+      return errorResponse(`Errore Claude API: ${err}`, 502, corsH);
     }
 
     const claudeData = await claudeResponse.json();
@@ -122,7 +127,7 @@ Rispondi SOLO con JSON valido, senza markdown.`,
         subappaltatori: subappaltatori,
         interferenze: parsed.interferenze || [],
         misure_prevenzione: parsed.misure_generali || "",
-        costi_sicurezza: parsed.costi_sicurezza_stimati || 0,
+        costi_sicurezza: Number(costi_sicurezza) || parsed.costi_sicurezza_stimati || 0,
         generated_content: rawContent,
         created_by: userId,
       })
@@ -130,12 +135,12 @@ Rispondi SOLO con JSON valido, senza markdown.`,
       .single();
 
     if (insertError) {
-      return errorResponse(`Errore salvataggio: ${insertError.message}`, 500);
+      return errorResponse(`Errore salvataggio: ${insertError.message}`, 500, corsH);
     }
 
-    return jsonResponse({ success: true, document: duvriDoc });
+    return jsonResponse({ success: true, document: duvriDoc }, 200, corsH);
   } catch (err) {
     if (err instanceof Response) return err;
-    return errorResponse(`Errore interno: ${String(err)}`, 500);
+    return errorResponse(`Errore interno: ${String(err)}`, 500, corsH);
   }
 });

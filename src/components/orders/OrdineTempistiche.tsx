@@ -6,6 +6,9 @@ interface OrdineTempIsticheProps {
   warehouseArrivalDate?: string | null;
   workStartDate?: string | null;
   workEndDate?: string | null;
+  orderCode?: string | null;
+  orderDescription?: string | null;
+  defaultAddress?: string | null;
 }
 
 export function OrdineTempistiche({
@@ -14,6 +17,9 @@ export function OrdineTempistiche({
   warehouseArrivalDate,
   workStartDate,
   workEndDate,
+  orderCode,
+  orderDescription,
+  defaultAddress,
 }: OrdineTempIsticheProps) {
   return (
     <InlineEditableDatesCard
@@ -22,6 +28,9 @@ export function OrdineTempistiche({
       warehouseArrivalDate={warehouseArrivalDate}
       workStartDate={workStartDate}
       workEndDate={workEndDate}
+      orderCode={orderCode}
+      orderDescription={orderDescription}
+      defaultAddress={defaultAddress}
     />
   );
 }

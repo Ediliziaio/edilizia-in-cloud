@@ -9,6 +9,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 
+function getErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+  return "Errore nel salvataggio";
+}
+
 /** Definizioni dei campi personalizzati per un dato object_type */
 export function useEntityCustomFields(objectType: string) {
   const { effectiveCompany } = useAuth();
@@ -81,6 +88,6 @@ export function useUpsertEntityFieldValues() {
         });
       }
     },
-    onError: (e: any) => toast.error(e.message ?? "Errore nel salvataggio"),
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 }

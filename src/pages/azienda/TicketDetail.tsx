@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,6 +71,11 @@ export default function TicketDetail() {
     }
   }, [id, markTicketAsRead]);
 
+  useEffect(() => {
+    setNotesLoaded(false);
+    setInterventoLoaded(false);
+  }, [id]);
+
   const { data: ticket, isLoading: ticketLoading, isError: ticketError, refetch: refetchTicket } = useQuery({
     queryKey: queryKeys.adminTicket.detail(id),
     queryFn: async () => {
@@ -97,6 +102,7 @@ export default function TicketDetail() {
   useEffect(() => {
     if (ticket && !notesLoaded) {
       setInternalNotes(ticket.internal_notes || "");
+      if (ticket.internal_notes) setNotesOpen(true);
       setNotesLoaded(true);
     }
   }, [ticket, notesLoaded]);
@@ -176,6 +182,15 @@ export default function TicketDetail() {
     enabled: !!effectiveCompany?.id,
     staleTime: 10 * 60 * 1000,
   });
+
+  const chatInvalidateKeys = useMemo(
+    () => [
+      queryKeys.adminTicketMessages.byTicket(id),
+      queryKeys.ticketAttachments.byTicket(id),
+      queryKeys.companyTickets.all,
+    ],
+    [id]
+  );
 
   const { data: tecnici = [] } = useQuery({
     queryKey: ["tecnici-escalation", effectiveCompany?.id],
@@ -273,11 +288,12 @@ export default function TicketDetail() {
 
   const updateTicketMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
+      if (!id || !effectiveCompany?.id) throw new Error("Dati mancanti");
       const { error } = await supabase
         .from("tickets")
         .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq("id", id!)
-        .eq("company_id", effectiveCompany!.id);
+        .eq("id", id)
+        .eq("company_id", effectiveCompany.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -350,11 +366,6 @@ export default function TicketDetail() {
       const newIso = interventoData ? new Date(interventoData).toISOString() : "";
       return cur !== newIso;
     })();
-
-  // Update notesOpen when ticket loads with notes
-  if (ticket.internal_notes && !notesOpen && !notesLoaded) {
-    setNotesOpen(true);
-  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-200px)] md:h-[calc(100vh-120px)]">
@@ -681,10 +692,7 @@ export default function TicketDetail() {
             ticketId={ticket.id}
             messages={messages}
             customerId={ticket.customer_id}
-            invalidateKeys={[
-              ["admin-ticket-messages", id!],
-              ["company-tickets"],
-            ]}
+            invalidateKeys={chatInvalidateKeys}
             height="min(60vh, calc(100vh - 220px))"
           />
         </div>
@@ -771,8 +779,15 @@ export default function TicketDetail() {
             : undefined
         }
         showOrderSelect
+        hideMarketingFields
+        requireTime
+        defaultAppointmentType="assistenza"
+        defaultTitle={ticket.subject ? `Assistenza · ${ticket.subject}` : "Assistenza cliente"}
+        defaultAddress={ticket.indirizzo_intervento}
+        defaultAssignedTo={ticket.assigned_to}
         onSaved={() => {
           setAppointmentOpen(false);
+          queryClient.invalidateQueries({ queryKey: ["appointments"] });
           toast.success("Appuntamento creato in calendario");
         }}
       />

@@ -2,6 +2,139 @@ import { getCorsHeaders } from '../_shared/headers.ts'
 import { requireAuth } from '../_shared/auth.ts'
 import { verifyCompanyAccess } from '../_shared/companyAuth.ts'
 
+const TIPI_SEDE = new Set(['showroom', 'magazzino', 'cantiere', 'ufficio', 'altro'])
+const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
+const CAP = /^\d{5}$/
+
+type SedePayload = {
+  nome?: string
+  tipo?: string
+  indirizzo?: string | null
+  citta?: string | null
+  cap?: string | null
+  provincia?: string | null
+  colore?: string
+  attiva?: boolean
+  principale?: boolean
+}
+
+function json(body: unknown, status: number, corsH: Record<string, string>) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsH, 'Content-Type': 'application/json' },
+  })
+}
+
+function cleanOptionalText(value: unknown) {
+  if (value === null) return null
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed === '' ? null : trimmed
+}
+
+function normalizeName(value: unknown) {
+  if (typeof value !== 'string') return undefined
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+function sanitizePayload(raw: Record<string, unknown>, isCreate: boolean): SedePayload {
+  const payload: SedePayload = {}
+
+  const nome = normalizeName(raw.nome)
+  if (nome !== undefined) payload.nome = nome
+
+  if (typeof raw.tipo === 'string') payload.tipo = raw.tipo
+
+  const indirizzo = cleanOptionalText(raw.indirizzo)
+  if (indirizzo !== undefined) payload.indirizzo = indirizzo
+
+  const citta = cleanOptionalText(raw.citta)
+  if (citta !== undefined) payload.citta = citta
+
+  const cap = cleanOptionalText(raw.cap)
+  if (cap !== undefined) payload.cap = cap
+
+  const provincia = cleanOptionalText(raw.provincia)
+  if (provincia !== undefined) payload.provincia = provincia?.toUpperCase() ?? null
+
+  if (typeof raw.colore === 'string') payload.colore = raw.colore
+  if (typeof raw.attiva === 'boolean') payload.attiva = raw.attiva
+  if (typeof raw.principale === 'boolean') payload.principale = raw.principale
+
+  if (isCreate || payload.nome !== undefined) {
+    if (!payload.nome || payload.nome.length < 2) throw new Error('Nome sede richiesto')
+  }
+  if (isCreate || payload.tipo !== undefined) {
+    if (!payload.tipo || !TIPI_SEDE.has(payload.tipo)) throw new Error('Tipo sede non valido')
+  }
+  if (payload.cap && !CAP.test(payload.cap)) throw new Error('CAP non valido')
+  if (payload.provincia && payload.provincia.length !== 2) throw new Error('Provincia non valida')
+  if (payload.colore && !HEX_COLOR.test(payload.colore)) throw new Error('Colore sede non valido')
+
+  return payload
+}
+
+async function ensureUniqueName(
+  supabase: any,
+  companyId: string,
+  nome: string | undefined,
+  sedeId?: string,
+) {
+  if (!nome) return
+  const { data, error } = await supabase
+    .from('sedi')
+    .select('id,nome')
+    .eq('company_id', companyId)
+
+  if (error) throw new Error('Impossibile verificare duplicati sede')
+
+  const normalized = nome.toLocaleLowerCase('it-IT')
+  const duplicate = (data ?? []).find((sede: { id: string; nome: string }) =>
+    sede.id !== sedeId && sede.nome.trim().replace(/\s+/g, ' ').toLocaleLowerCase('it-IT') === normalized
+  )
+  if (duplicate) throw new Error('Esiste già una sede con questo nome')
+}
+
+async function ensureSinglePrimary(supabase: any, companyId: string) {
+  const { data: activePrimary = [] } = await supabase
+    .from('sedi')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('attiva', true)
+    .eq('principale', true)
+    .order('created_at', { ascending: true })
+
+  if (activePrimary.length > 0) {
+    const keepId = activePrimary[0].id
+    if (activePrimary.length > 1) {
+      await supabase
+        .from('sedi')
+        .update({ principale: false })
+        .eq('company_id', companyId)
+        .eq('attiva', true)
+        .neq('id', keepId)
+    }
+    return
+  }
+
+  const { data: next } = await supabase
+    .from('sedi')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('attiva', true)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (!next?.id) return
+
+  await supabase
+    .from('sedi')
+    .update({ principale: true })
+    .eq('company_id', companyId)
+    .eq('id', next.id)
+}
+
 Deno.serve(async (req) => {
   const corsH = getCorsHeaders(req)
 
@@ -17,10 +150,7 @@ Deno.serve(async (req) => {
     const { action, company_id, sede_id, ...payload } = body
 
     if (!action || !company_id) {
-      return new Response(
-        JSON.stringify({ error: 'action e company_id richiesti' }),
-        { status: 400, headers: { ...corsH, 'Content-Type': 'application/json' } }
-      )
+      return json({ error: 'action e company_id richiesti' }, 400, corsH)
     }
 
     // Verifica che l'utente autenticato appartenga alla company richiesta
@@ -28,6 +158,9 @@ Deno.serve(async (req) => {
 
     // ── CREA SEDE ────────────────────────────────────────────
     if (action === 'crea') {
+      const sedePayload = sanitizePayload(payload, true)
+      await ensureUniqueName(supabase, company_id, sedePayload.nome)
+
       // Verifica limite sedi per piano (Free = max 1, Pro = illimitato)
       const { count } = await supabase
         .from('sedi')
@@ -44,89 +177,97 @@ Deno.serve(async (req) => {
 
       const isFree = !subscription || subscription.plan_id === 'free' || subscription.plan_id === null
       if (isFree && (count ?? 0) >= 1) {
-        return new Response(
-          JSON.stringify({
-            error:   'LIMITE_PIANO',
-            message: 'Upgrade a Pro per aggiungere più sedi'
-          }),
-          { status: 403, headers: { ...corsH, 'Content-Type': 'application/json' } }
-        )
+        return json({
+          error:   'LIMITE_PIANO',
+          message: 'Upgrade a Pro per aggiungere più sedi',
+        }, 403, corsH)
       }
 
       // Se è la prima sede, la rendiamo principale automaticamente
       const isPrima = (count ?? 0) === 0
+      const principale = isPrima || sedePayload.principale === true
+      if (principale) {
+        await supabase
+          .from('sedi')
+          .update({ principale: false })
+          .eq('company_id', company_id)
+      }
+
       const { data, error } = await supabase
         .from('sedi')
-        .insert({ company_id, principale: isPrima, ...payload })
+        .insert({ company_id, attiva: true, ...sedePayload, principale })
         .select()
         .single()
 
-      return new Response(
-        JSON.stringify({ sede: data, error }),
-        { status: error ? 500 : 200, headers: { ...corsH, 'Content-Type': 'application/json' } }
-      )
+      if (!error) await ensureSinglePrimary(supabase, company_id)
+
+      return json({ sede: data, error }, error ? 500 : 200, corsH)
     }
 
     // ── AGGIORNA SEDE ────────────────────────────────────────
     if (action === 'aggiorna') {
       if (!sede_id) {
-        return new Response(
-          JSON.stringify({ error: 'sede_id richiesto per aggiornamento' }),
-          { status: 400, headers: { ...corsH, 'Content-Type': 'application/json' } }
-        )
+        return json({ error: 'sede_id richiesto per aggiornamento' }, 400, corsH)
       }
 
+      const sedePayload = sanitizePayload(payload, false)
+      await ensureUniqueName(supabase, company_id, sedePayload.nome, sede_id)
+
       // Se si imposta come principale, de-imposta le altre
-      if (payload.principale === true) {
+      if (sedePayload.principale === true) {
         await supabase
           .from('sedi')
           .update({ principale: false })
           .eq('company_id', company_id)
           .neq('id', sede_id)
+        sedePayload.attiva = true
       }
 
       const { data, error } = await supabase
         .from('sedi')
-        .update(payload)
+        .update(sedePayload)
         .eq('id', sede_id)
         .eq('company_id', company_id)
         .select()
         .single()
 
-      return new Response(
-        JSON.stringify({ sede: data, error }),
-        { status: error ? 500 : 200, headers: { ...corsH, 'Content-Type': 'application/json' } }
-      )
+      if (!error && sedePayload.attiva === false) {
+        await supabase
+          .from('sedi')
+          .update({ principale: false })
+          .eq('company_id', company_id)
+          .eq('id', sede_id)
+          .eq('attiva', false)
+        await ensureSinglePrimary(supabase, company_id)
+      }
+      if (!error && sedePayload.attiva !== false) {
+        await ensureSinglePrimary(supabase, company_id)
+      }
+
+      return json({ sede: data, error }, error ? 500 : 200, corsH)
     }
 
     // ── DISATTIVA SEDE ───────────────────────────────────────
     if (action === 'disattiva') {
       if (!sede_id) {
-        return new Response(
-          JSON.stringify({ error: 'sede_id richiesto per disattivazione' }),
-          { status: 400, headers: { ...corsH, 'Content-Type': 'application/json' } }
-        )
+        return json({ error: 'sede_id richiesto per disattivazione' }, 400, corsH)
       }
 
       const { error } = await supabase
         .from('sedi')
-        .update({ attiva: false })
+        .update({ attiva: false, principale: false })
         .eq('id', sede_id)
         .eq('company_id', company_id)
 
-      return new Response(
-        JSON.stringify({ ok: !error, error }),
-        { status: error ? 500 : 200, headers: { ...corsH, 'Content-Type': 'application/json' } }
-      )
+      if (!error) await ensureSinglePrimary(supabase, company_id)
+
+      return json({ ok: !error, error }, error ? 500 : 200, corsH)
     }
 
     // ── ELIMINA SEDE ─────────────────────────────────────────
     if (action === 'elimina') {
       if (!sede_id) {
-        return new Response(
-          JSON.stringify({ error: 'sede_id richiesto per eliminazione' }),
-          { status: 400, headers: { ...corsH, 'Content-Type': 'application/json' } }
-        )
+        return json({ error: 'sede_id richiesto per eliminazione' }, 400, corsH)
       }
 
       const { error } = await supabase
@@ -135,16 +276,12 @@ Deno.serve(async (req) => {
         .eq('id', sede_id)
         .eq('company_id', company_id)
 
-      return new Response(
-        JSON.stringify({ ok: !error, error }),
-        { status: error ? 500 : 200, headers: { ...corsH, 'Content-Type': 'application/json' } }
-      )
+      if (!error) await ensureSinglePrimary(supabase, company_id)
+
+      return json({ ok: !error, error }, error ? 500 : 200, corsH)
     }
 
-    return new Response(
-      JSON.stringify({ error: `Azione non riconosciuta: ${action}` }),
-      { status: 400, headers: { ...corsH, 'Content-Type': 'application/json' } }
-    )
+    return json({ error: `Azione non riconosciuta: ${action}` }, 400, corsH)
 
   } catch (err) {
     // requireAuth lancia Response direttamente
@@ -153,9 +290,6 @@ Deno.serve(async (req) => {
     const message = err instanceof Error ? err.message : 'Errore interno del server'
     console.error('[gestisci-sede] error:', message)
     const status = message.includes('Non autorizzato') ? 403 : 500
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status, headers: { ...corsH, 'Content-Type': 'application/json' } }
-    )
+    return json({ error: message }, status, corsH)
   }
 })

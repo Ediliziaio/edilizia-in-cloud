@@ -16,6 +16,13 @@ interface TagSelectorProps {
   onTagsChange: (tags: string[]) => void;
 }
 
+function getTagErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+  return "";
+}
+
 export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selectedTags, onTagsChange }, ref) => {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -40,9 +47,11 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
 
   const createMutation = useMutation({
     mutationFn: async (name: string) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const normalizedName = name.trim().toLowerCase();
       const { error } = await supabase.from("marketing_tags").insert({
-        company_id: companyId!,
-        name: name.trim().toLowerCase(),
+        company_id: companyId,
+        name: normalizedName,
       });
       if (error) throw error;
     },
@@ -55,8 +64,10 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
       setSearch("");
       toast.success("Tag creato");
     },
-    onError: (e: any) => {
-      if (e.message?.includes("duplicate") || e.code === "23505") {
+    onError: (e: unknown) => {
+      const message = getTagErrorMessage(e);
+      const code = e && typeof e === "object" && "code" in e ? String(e.code) : "";
+      if (message.includes("duplicate") || code === "23505") {
         toast.error("Tag già esistente");
       } else {
         toast.error("Errore nella creazione del tag");
@@ -77,7 +88,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
   };
 
   const searchNormalized = search.trim().toLowerCase();
-  const canCreate = searchNormalized && !tags.some((t) => t.name === searchNormalized);
+  const canCreate = searchNormalized.length > 0 && !!companyId && !tags.some((t) => t.name === searchNormalized);
 
   return (
     <div ref={ref} className="space-y-1.5">

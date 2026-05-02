@@ -65,6 +65,19 @@ const TIPO_TABS: {
 
 const NC_ALLOWED: StatoDocumento[] = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
 const PAGABILE: StatoDocumento[] = ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"];
+const TIPI_PAGABILI: TipoDocumento[] = ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_debito"];
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Operazione non riuscita";
+}
+
+function isDocumentoPagabile(doc: DocumentoFiscale) {
+  return TIPI_PAGABILI.includes(doc.tipo) && PAGABILE.includes(doc.stato);
+}
+
+function isDocumentoEliminabile(doc: DocumentoFiscale) {
+  return doc.stato === "bozza" || doc.stato === "annullata";
+}
 
 // ─── Scadenza helper ──────────────────────────────────────
 function getScadenzaInfo(doc: DocumentoFiscale) {
@@ -127,11 +140,14 @@ function DocumentiFiscaliListInner() {
 
   // Build filters for useDocumentiFiscali
   const tipoFilter = isTrash ? undefined : currentTab.tipos ?? undefined;
-  const statoFilterArr = isTrash
-    ? undefined // Cestino uses showDeleted flag instead
-    : statoFilter !== "all"
-      ? ([statoFilter] as StatoDocumento[])
-      : undefined;
+  const statoFilterArr = useMemo(
+    () => isTrash
+      ? undefined // Cestino uses showDeleted flag instead
+      : statoFilter !== "all"
+        ? ([statoFilter] as StatoDocumento[])
+        : undefined,
+    [isTrash, statoFilter]
+  );
 
   // Month → date range
   const dataDa = selectedMonth ? `${selectedMonth}-01` : undefined;
@@ -161,7 +177,7 @@ function DocumentiFiscaliListInner() {
   const { data: counts } = useDocumentCounts();
   const { data: timelineMonths } = useMonthlyTimeline(isTrash ? null : currentTab.tipos, timelineYear);
 
-  const docs = data?.documenti ?? [];
+  const docs = useMemo(() => data?.documenti ?? [], [data?.documenti]);
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PER_PAGE);
 
@@ -206,8 +222,12 @@ function DocumentiFiscaliListInner() {
   const handleBulkPay = async () => {
     const now = new Date().toISOString();
     let ok = 0;
+    let skipped = 0;
     for (const doc of selectedDocs) {
-      if (!PAGABILE.includes(doc.stato)) continue;
+      if (!isDocumentoPagabile(doc)) {
+        skipped++;
+        continue;
+      }
       try {
         await updateMutation.mutateAsync({
           id: doc.id,
@@ -216,31 +236,33 @@ function DocumentiFiscaliListInner() {
           pagato_at: now,
         });
         ok++;
-      } catch (err) {
-        console.error("Errore durante la marcatura come pagato:", err);
+      } catch (err: unknown) {
+        toast.error("Pagamento non aggiornato", { description: getErrorMessage(err) });
       }
     }
     if (ok > 0) toast.success(`${ok} documenti segnati come pagati`);
+    if (skipped > 0) toast.info(`${skipped} documenti non pagabili ignorati`);
     clearSelection();
     setBulkPayOpen(false);
   };
 
   const handleBulkDelete = async () => {
     let ok = 0;
+    let skipped = 0;
     for (const doc of selectedDocs) {
+      if (!isDocumentoEliminabile(doc)) {
+        skipped++;
+        continue;
+      }
       try {
-        if (doc.stato === "bozza") {
-          await deleteMutation.mutateAsync(doc.id);
-          ok++;
-        } else {
-          await updateMutation.mutateAsync({ id: doc.id, stato: "annullata" as StatoDocumento, deleted_at: new Date().toISOString() });
-          ok++;
-        }
-      } catch (err) {
-        console.error("Errore durante eliminazione/annullamento documento:", err);
+        await deleteMutation.mutateAsync(doc.id);
+        ok++;
+      } catch (err: unknown) {
+        toast.error("Documento non eliminato", { description: getErrorMessage(err) });
       }
     }
     if (ok > 0) toast.success(`${ok} documenti spostati nel cestino`);
+    if (skipped > 0) toast.info(`${skipped} documenti emessi ignorati: usa una nota di credito per stornarli`);
     clearSelection();
     setBulkDeleteOpen(false);
   };
@@ -281,8 +303,8 @@ function DocumentiFiscaliListInner() {
         try {
           await downloadNativePDF(doc.id, doc.numero);
           toast.success("PDF scaricato");
-        } catch (e: any) {
-          toast.error(e.message);
+        } catch (e: unknown) {
+          toast.error(getErrorMessage(e));
         }
         break;
       case "xml":
@@ -300,16 +322,16 @@ function DocumentiFiscaliListInner() {
           a.click();
           URL.revokeObjectURL(url);
           toast.success("XML scaricato");
-        } catch (e: any) {
-          toast.error(e.message);
+        } catch (e: unknown) {
+          toast.error(getErrorMessage(e));
         }
         break;
       case "nc":
         try {
           const prefilled = await creaNotaCredito(doc.id, "totale");
           navigate("/azienda/documenti/nuovo?tipo=nota_credito", { state: { prefilled } });
-        } catch (e: any) {
-          toast.error(e.message);
+        } catch (e: unknown) {
+          toast.error(getErrorMessage(e));
         }
         break;
       case "pagata":
@@ -323,8 +345,8 @@ function DocumentiFiscaliListInner() {
           const fattura = await convertiProformaInFattura(doc.id);
           toast.success(`Convertito in fattura ${fattura.numero}`);
           navigate(`/azienda/documenti/${fattura.id}/dettaglio`);
-        } catch (e: any) {
-          toast.error(e.message);
+        } catch (e: unknown) {
+          toast.error(getErrorMessage(e));
         }
         break;
       case "restore":
@@ -574,7 +596,7 @@ function DocumentiFiscaliListInner() {
                 {docs.map((doc) => {
                   const scadenza = getScadenzaInfo(doc);
                   const isDdt = doc.tipo === "ddt";
-                  const ddtFatturato = isDdt && !!(doc as any).ddt_fattura_id;
+                  const ddtFatturato = isDdt && !!doc.ddt_fattura_id;
 
                   return (
                     <TableRow
@@ -696,12 +718,12 @@ function DocumentiFiscaliListInner() {
                       {/* Fattura Collegata (solo DDT) */}
                       {showColFatturaCollegata && (
                         <TableCell>
-                          {(doc as any).ddt_fattura_id ? (
+                          {doc.ddt_fattura_id ? (
                             <button
                               className="text-xs text-primary hover:underline"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/azienda/documenti/${(doc as any).ddt_fattura_id}/dettaglio`);
+                                navigate(`/azienda/documenti/${doc.ddt_fattura_id}/dettaglio`);
                               }}
                             >
                               Vedi fattura
@@ -770,7 +792,7 @@ function DocumentiFiscaliListInner() {
                                 )}
 
                                 {/* DDT: fattura da DDT */}
-                                {doc.tipo === "ddt" && !(doc as any).ddt_fattura_id && (
+                                {doc.tipo === "ddt" && !doc.ddt_fattura_id && (
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem className="text-emerald-600" onClick={() => handleAction("fattura_ddt", doc)}>
@@ -788,16 +810,16 @@ function DocumentiFiscaliListInner() {
                                     </DropdownMenuItem>
                                   </>
                                 )}
-                                {PAGABILE.includes(doc.stato) && (
+                                {isDocumentoPagabile(doc) && (
                                   <DropdownMenuItem onClick={() => handleAction("pagata", doc)}>
                                     <CreditCard className="h-4 w-4 mr-2" /> Segna pagata
                                   </DropdownMenuItem>
                                 )}
-                {(doc.stato === "bozza" || ["emessa", "inviata_sdi", "consegnata", "scaduta"].includes(doc.stato)) && (
+                {isDocumentoEliminabile(doc) && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="text-destructive" onClick={() => handleAction("delete", doc)}>
-                      <Trash2 className="h-4 w-4 mr-2" /> {doc.stato === "bozza" ? "Elimina" : "Annulla documento"}
+                      <Trash2 className="h-4 w-4 mr-2" /> Elimina
                     </DropdownMenuItem>
                   </>
                 )}
@@ -850,14 +872,14 @@ function DocumentiFiscaliListInner() {
                 ? "Eliminare il documento?"
                 : deleteTarget?.stato === "annullata"
                   ? "Eliminare definitivamente?"
-                  : "Annullare il documento?"}
+                  : "Documento non eliminabile"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget?.stato === "bozza"
-                ? <>Stai per eliminare il documento <strong>{deleteTarget?.numero}</strong>. Questa azione non può essere annullata.</>
+                ? <>Stai per spostare nel cestino il documento <strong>{deleteTarget?.numero}</strong>.</>
                 : deleteTarget?.stato === "annullata"
-                  ? <>Il documento <strong>{deleteTarget?.numero}</strong> verrà eliminato definitivamente dal database. Questa azione è irreversibile.</>
-                  : <>Il documento <strong>{deleteTarget?.numero}</strong> verrà spostato nel cestino (stato: annullata). Potrai ripristinarlo in seguito.</>
+                  ? <>Il documento <strong>{deleteTarget?.numero}</strong> verrà mantenuto nel cestino secondo le regole di conservazione fiscale.</>
+                  : <>Il documento <strong>{deleteTarget?.numero}</strong> è emesso: usa una nota di credito per stornarlo.</>
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -867,23 +889,18 @@ function DocumentiFiscaliListInner() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteMutation.isPending || updateMutation.isPending}
               onClick={() => {
-                if (deleteTarget) {
-                  if (deleteTarget.stato === "bozza" || deleteTarget.stato === "annullata") {
-                    deleteMutation.mutate(deleteTarget.id, { onSettled: () => setDeleteTarget(null) });
-                  } else {
-                    updateMutation.mutate(
-                      { id: deleteTarget.id, stato: "annullata" as StatoDocumento, deleted_at: new Date().toISOString() },
-                      { onSettled: () => setDeleteTarget(null) }
-                    );
-                  }
+                if (deleteTarget && isDocumentoEliminabile(deleteTarget)) {
+                  deleteMutation.mutate(deleteTarget.id, { onSettled: () => setDeleteTarget(null) });
+                } else {
+                  setDeleteTarget(null);
                 }
               }}
             >
               {(deleteMutation.isPending || updateMutation.isPending)
                 ? "Elaborazione..."
-                : deleteTarget?.stato === "bozza" || deleteTarget?.stato === "annullata"
-                  ? "Elimina definitivamente"
-                  : "Annulla documento"}
+                : deleteTarget && isDocumentoEliminabile(deleteTarget)
+                  ? "Sposta nel cestino"
+                  : "Chiudi"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -929,7 +946,7 @@ function DocumentiFiscaliListInner() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare {selectedIds.size} documenti?</AlertDialogTitle>
             <AlertDialogDescription>
-              Solo i documenti in bozza verranno eliminati. Questa azione non può essere annullata.
+              Solo bozze e documenti già annullati verranno spostati nel cestino. I documenti emessi devono essere stornati con nota di credito.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -939,7 +956,7 @@ function DocumentiFiscaliListInner() {
               disabled={deleteMutation.isPending}
               onClick={handleBulkDelete}
             >
-              {deleteMutation.isPending ? "Eliminazione..." : "Elimina"}
+              {deleteMutation.isPending ? "Eliminazione..." : "Elimina consentiti"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

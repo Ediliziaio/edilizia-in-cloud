@@ -20,6 +20,11 @@ import { useState } from "react";
 import type { AnagraficaAzienda } from "@/types/fatturazione";
 
 const NC_ALLOWED_STATES = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
+const TIPI_PAGABILI = ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_debito"];
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Operazione non riuscita";
+}
 
 const STATO_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   bozza: { label: "Bozza", variant: "secondary" },
@@ -63,19 +68,20 @@ export default function DocumentoDetail() {
   const paymentProgress = doc.totale_da_pagare > 0 ? (doc.importo_pagato / doc.totale_da_pagare) * 100 : 0;
   const isProforma = doc.tipo === "proforma";
   const isPreventivo = doc.tipo === "preventivo";
+  const canSegnaPagata = TIPI_PAGABILI.includes(doc.tipo) && ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"].includes(doc.stato);
 
   const handleCreaNC = async (modalita: "totale" | "parziale") => {
     try {
       setNcLoading(true);
       const prefilled = await creaNotaCredito(doc.id, modalita);
       navigate("/azienda/documenti/nuovo?tipo=nota_credito", { state: { prefilled } });
-    } catch (err: any) { toast.error("Errore nella creazione della NC", { description: err.message }); }
+    } catch (err: unknown) { toast.error("Errore nella creazione della NC", { description: getErrorMessage(err) }); }
     finally { setNcLoading(false); }
   };
 
   const handleDownloadPDF = async () => {
     try { await downloadNativePDF(doc.id, doc.numero); toast.success("PDF scaricato"); }
-    catch (err: any) { toast.error("Errore nel download PDF", { description: err.message }); }
+    catch (err: unknown) { toast.error("Errore nel download PDF", { description: getErrorMessage(err) }); }
   };
 
   const handleDownloadXML = () => {
@@ -86,7 +92,7 @@ export default function DocumentoDetail() {
       const a = document.createElement("a"); a.href = url; a.download = `${doc.numero}.xml`; a.click();
       URL.revokeObjectURL(url);
       toast.success("XML scaricato");
-    } catch (err: any) { toast.error("Errore nella generazione XML", { description: err.message }); }
+    } catch (err: unknown) { toast.error("Errore nella generazione XML", { description: getErrorMessage(err) }); }
   };
 
   const TIPI_SDI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura",
@@ -100,13 +106,13 @@ export default function DocumentoDetail() {
       const { supabase: sb } = await import("@/integrations/supabase/client");
       const resp = await sb.functions.invoke("invia-sdi", { body: { documento_id: doc.id } });
       if (resp.error) throw new Error(resp.error.message);
-      const result = resp.data as { success: boolean; sdi_id?: string; errors?: any[] };
+      const result = resp.data as { success: boolean; sdi_id?: string; errors?: unknown[] };
       if (!result.success) {
         toast.error("Errore invio SDI", { description: JSON.stringify(result.errors) });
         return;
       }
       toast.success("Fattura inviata al SDI", { description: `ID: ${result.sdi_id}` });
-    } catch (err: any) { toast.error("Errore invio SDI", { description: err.message }); }
+    } catch (err: unknown) { toast.error("Errore invio SDI", { description: getErrorMessage(err) }); }
     finally { setSdiLoading(false); }
   };
 
@@ -116,7 +122,7 @@ export default function DocumentoDetail() {
       const newDoc = await convertiProformaInFattura(doc.id);
       toast.success("Convertito in fattura");
       navigate(`/azienda/documenti/${newDoc.id}`);
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) { toast.error(getErrorMessage(err)); }
     finally { setConvertLoading(false); }
   };
 
@@ -236,7 +242,7 @@ export default function DocumentoDetail() {
             </>
           )}
 
-          {["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"].includes(doc.stato) && !isProforma && !isPreventivo && (
+          {canSegnaPagata && (
             <Button variant="outline" size="sm" onClick={handleSegnaPagata}>
               <CreditCard className="h-4 w-4 mr-1" /> Segna pagata
             </Button>

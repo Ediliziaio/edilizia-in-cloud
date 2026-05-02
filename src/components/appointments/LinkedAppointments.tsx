@@ -71,10 +71,16 @@ export function LinkedAppointments({ orderId }: LinkedAppointmentsProps) {
       description: apt.description,
       appointment_date: apt.appointment_date,
       appointment_time: apt.appointment_time,
+      appointment_end_time: apt.appointment_end_time,
       appointment_type: apt.appointment_type,
       assigned_to: apt.assigned_to,
       order_id: apt.order_id,
       is_completed: apt.is_completed,
+      status: apt.status,
+      reminder_minutes: apt.reminder_minutes,
+      formatted_address: apt.formatted_address,
+      address_city: apt.address_city,
+      address_province: apt.address_province,
     });
     setDialogOpen(true);
   };
@@ -168,6 +174,8 @@ export function LinkedAppointments({ orderId }: LinkedAppointmentsProps) {
           queryClient.invalidateQueries({ queryKey: ["appointments"] });
         }}
         defaultOrderId={orderId}
+        defaultAppointmentType="sopralluogo_preventivo"
+        hideMarketingFields
       />
     </>
   );

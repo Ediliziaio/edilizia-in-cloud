@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   closestCenter,
@@ -15,24 +15,26 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { StatusItem } from "./StatusItem";
 import { OrderProgressTracker, type OrderStatus } from "@/components/orders/OrderProgressTracker";
 
 export function OrderStatusConfig() {
   const { effectiveCompany } = useAuth();
   const company = effectiveCompany;
+  const queryClient = useQueryClient();
   
   const [statuses, setStatuses] = useState<OrderStatus[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  const { data: queryData, isLoading } = useQuery({
+  const { data: queryData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["order-statuses-config", company?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -69,6 +71,7 @@ export function OrderStatusConfig() {
       setStatuses((items) => {
         const oldIndex = items.findIndex((i) => i.id === active.id);
         const newIndex = items.findIndex((i) => i.id === over.id);
+        if (oldIndex < 0 || newIndex < 0) return items;
 
         const newItems = arrayMove(items, oldIndex, newIndex).map((item, index) => ({
           ...item,
@@ -91,6 +94,7 @@ export function OrderStatusConfig() {
 
   // Delete a status — blocca eliminazione fase Assistenza
   const handleDeleteStatus = useCallback((id: string) => {
+    let deleted = false;
     setStatuses((prev) => {
       const target = prev.find((s) => s.id === id);
       if (target?.is_support_phase) {
@@ -98,9 +102,10 @@ export function OrderStatusConfig() {
         return prev;
       }
       const filtered = prev.filter((s) => s.id !== id);
+      deleted = filtered.length !== prev.length;
       return filtered.map((s, index) => ({ ...s, position: index }));
     });
-    setHasChanges(true);
+    if (deleted) setHasChanges(true);
   }, []);
 
   // Add a new status
@@ -119,7 +124,20 @@ export function OrderStatusConfig() {
   // Save all changes — usa RPC atomica save_order_statuses (non distruttiva,
   // preserva UUID, storico ordini e current_status_id degli ordini esistenti)
   async function handleSave() {
-    if (!company?.id) return;
+    if (!company?.id) {
+      toast.error("Azienda non selezionata: impossibile salvare gli stati ordine.");
+      return;
+    }
+
+    const normalizedNames = statuses.map((s) => s.name.trim().toLowerCase());
+    if (normalizedNames.some((name) => !name)) {
+      toast.error("Ogni stato deve avere un nome.");
+      return;
+    }
+    if (new Set(normalizedNames).size !== normalizedNames.length) {
+      toast.error("Hai inserito due stati con lo stesso nome.");
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -144,6 +162,10 @@ export function OrderStatusConfig() {
         setStatuses(data as OrderStatus[]);
       }
 
+      await queryClient.invalidateQueries({ queryKey: ["order-statuses-config", company.id] });
+      await queryClient.invalidateQueries({ queryKey: ["orders", "statuses", company.id] });
+      await queryClient.invalidateQueries({ queryKey: ["orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setHasChanges(false);
       toast.success("Salvato: gli stati ordine sono stati aggiornati");
     } catch (error: unknown) {
@@ -178,6 +200,24 @@ export function OrderStatusConfig() {
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Stati ordine non disponibili</AlertTitle>
+        <AlertDescription className="space-y-3">
+          <p>
+            Non riesco a caricare la configurazione degli stati ordine. Verifica la connessione o riprova.
+          </p>
+          <p className="text-xs">{error instanceof Error ? error.message : "Errore sconosciuto"}</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Riprova
+          </Button>
+        </AlertDescription>
+      </Alert>
     );
   }
 

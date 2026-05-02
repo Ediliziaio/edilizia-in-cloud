@@ -16,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface PasswordPolicy {
   password_min_length: number;
@@ -37,7 +38,7 @@ export function ChangePasswordForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Fetch company password policy
-  const { data: policy } = useQuery({
+  const { data: policy, isError: isPolicyError, error: policyError, refetch: refetchPolicy } = useQuery({
     queryKey: ["password-policy", effectiveCompany?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -68,17 +69,17 @@ export function ChangePasswordForm() {
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!currentPassword.trim()) {
+    if (currentPassword.length === 0) {
       newErrors.currentPassword = "Inserisci la password attuale";
     }
 
-    if (!newPassword.trim()) {
+    if (newPassword.length === 0) {
       newErrors.newPassword = "Inserisci la nuova password";
     } else if (!allChecksPassed) {
       newErrors.newPassword = "La password non soddisfa i requisiti di complessità";
     }
 
-    if (!confirmPassword.trim()) {
+    if (confirmPassword.length === 0) {
       newErrors.confirmPassword = "Conferma la nuova password";
     } else if (newPassword !== confirmPassword) {
       newErrors.confirmPassword = "Le password non corrispondono";
@@ -90,6 +91,7 @@ export function ChangePasswordForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
 
     if (!validate()) return;
 
@@ -127,7 +129,7 @@ export function ChangePasswordForm() {
       // Update password_changed_at on profile
       await supabase
         .from("profiles")
-        .update({ password_changed_at: new Date().toISOString() } as any)
+        .update({ password_changed_at: new Date().toISOString() })
         .eq("id", user.id);
 
       toast.success("Password cambiata con successo!");
@@ -157,6 +159,22 @@ export function ChangePasswordForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {isPolicyError && (
+          <Alert variant="destructive" className="mb-4">
+            <XCircle className="h-4 w-4" />
+            <AlertTitle>Policy password non disponibile</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>
+                {policyError instanceof Error
+                  ? policyError.message
+                  : "Non è stato possibile caricare le regole aziendali. Riprova prima di cambiare password."}
+              </p>
+              <Button type="button" variant="outline" size="sm" onClick={() => refetchPolicy()}>
+                Riprova
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
           {/* Current Password */}
           <div className="space-y-2">
@@ -168,6 +186,7 @@ export function ChangePasswordForm() {
                 placeholder="Inserisci la password attuale"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
                 className={errors.currentPassword ? "border-destructive" : ""}
               />
               <Button
@@ -176,6 +195,7 @@ export function ChangePasswordForm() {
                 size="icon"
                 className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                 onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                aria-label={showCurrentPassword ? "Nascondi password attuale" : "Mostra password attuale"}
               >
                 {showCurrentPassword ? (
                   <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -199,6 +219,7 @@ export function ChangePasswordForm() {
                 placeholder={`Inserisci la nuova password (min. ${minLength} caratteri)`}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
                 className={errors.newPassword ? "border-destructive" : ""}
               />
               <Button
@@ -207,6 +228,7 @@ export function ChangePasswordForm() {
                 size="icon"
                 className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                 onClick={() => setShowNewPassword(!showNewPassword)}
+                aria-label={showNewPassword ? "Nascondi nuova password" : "Mostra nuova password"}
               >
                 {showNewPassword ? (
                   <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -247,6 +269,7 @@ export function ChangePasswordForm() {
                 placeholder="Conferma la nuova password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
                 className={errors.confirmPassword ? "border-destructive" : ""}
               />
               <Button
@@ -255,6 +278,7 @@ export function ChangePasswordForm() {
                 size="icon"
                 className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                aria-label={showConfirmPassword ? "Nascondi conferma password" : "Mostra conferma password"}
               >
                 {showConfirmPassword ? (
                   <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -268,7 +292,7 @@ export function ChangePasswordForm() {
             )}
           </div>
 
-          <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+          <Button type="submit" disabled={isLoading || isPolicyError} className="w-full sm:w-auto">
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

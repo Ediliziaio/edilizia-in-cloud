@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
@@ -16,6 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import type { TicketPriority } from "@/types/tickets";
+import { queryKeys } from "@/lib/queryKeys";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_FILES = 5;
@@ -34,6 +35,7 @@ export default function CreateCompanyTicket() {
   const [searchParams] = useSearchParams();
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [customerId, setCustomerId] = useState<string>("");
   const [orderId, setOrderId] = useState<string>("");
   const [subject, setSubject] = useState("");
@@ -105,11 +107,15 @@ export default function CreateCompanyTicket() {
     mutationFn: async () => {
       if (!effectiveCompany?.id) throw new Error("Azienda non disponibile");
       if (!user?.id) throw new Error("Utente non autenticato");
+      const durataNum = durataOre ? parseFloat(durataOre) : null;
+      if (durataOre && (!Number.isFinite(durataNum) || durataNum <= 0)) {
+        throw new Error("Inserisci una durata intervento valida.");
+      }
       // Create ticket
       const { data: ticket, error: ticketError } = await supabase
         .from("tickets")
         .insert({
-          company_id: effectiveCompany!.id,
+          company_id: effectiveCompany.id,
           customer_id: customerId,
           order_id: (orderId && orderId !== "none") ? orderId : null,
           subject,
@@ -120,7 +126,7 @@ export default function CreateCompanyTicket() {
           ...(isIntervento && {
             indirizzo_intervento: indirizzoIntervento.trim() || null,
             data_intervento_prevista: dataInterventoPrevista ? new Date(dataInterventoPrevista).toISOString() : null,
-            durata_ore: durataOre ? parseFloat(durataOre) : null,
+            durata_ore: durataNum,
             impianto_id: impiantoId && impiantoId !== "__none__" ? impiantoId : null,
           }),
         })
@@ -134,7 +140,7 @@ export default function CreateCompanyTicket() {
           .from("ticket_messages")
           .insert({
             ticket_id: ticket.id,
-            sender_id: user!.id,
+            sender_id: user.id,
             message: message.trim(),
           });
         if (msgError) throw msgError;
@@ -154,7 +160,7 @@ export default function CreateCompanyTicket() {
           .from("ticket_messages")
           .insert({
             ticket_id: ticket.id,
-            sender_id: user!.id,
+            sender_id: user.id,
             message: `📎 ${file.name}`,
             attachment_url: signedData?.signedUrl || path,
           });
@@ -165,11 +171,14 @@ export default function CreateCompanyTicket() {
     },
     onSuccess: (ticketId) => {
       toast({ title: isIntervento ? "Intervento creato" : "Ticket creato", description: "Creato con successo." });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminTicketMessages.byTicket(ticketId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.ticketAttachments.byTicket(ticketId) });
       // Unificato dentro Assistenza (era /interventi/:id per tipo=intervento)
       navigate(`/azienda/assistenza/${ticketId}`);
     },
-    onError: () => {
-      toast({ title: "Errore", description: "Impossibile creare il ticket.", variant: "destructive" });
+    onError: (err: Error) => {
+      toast({ title: "Errore", description: err.message || "Impossibile creare il ticket.", variant: "destructive" });
     },
   });
 

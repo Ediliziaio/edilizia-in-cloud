@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -8,14 +8,14 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldAlert, Plus, AlertTriangle, CheckCircle, Download, Loader2, HardHat, Users, ClipboardList, Building2, CalendarClock } from "lucide-react";
+import { ShieldAlert, Plus, AlertTriangle, CheckCircle, Download, Loader2, HardHat, Users, ClipboardList, Building2, CalendarClock, FileCheck2 } from "lucide-react";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -35,6 +35,153 @@ const STATUS_LABELS: Record<string, string> = {
   firmato: "Firmato",
 };
 
+type OrderOption = {
+  id: string;
+  description: string | null;
+  order_code: string | null;
+};
+
+type RelatedOrder = Pick<OrderOption, "description" | "order_code">;
+
+type RiskItem = {
+  rischio?: string;
+  livello?: string;
+  misura_prevenzione?: string;
+};
+
+type DpiItem = string | {
+  mansione?: string;
+  dpi?: string | string[];
+};
+
+type InterferenceItem = {
+  rischio?: string;
+  misura?: string;
+  misura_prevenzione?: string;
+  livello_rischio?: string;
+  responsabile?: string;
+};
+
+type PosDocument = {
+  id: string;
+  order_id: string | null;
+  orders?: RelatedOrder | null;
+  version?: number | string | null;
+  created_at: string;
+  responsabile_sicurezza?: string | null;
+  status: string;
+  tipo_lavori?: string | null;
+  numero_lavoratori?: number | null;
+  rischi_presenti?: RiskItem[] | null;
+  dpi_richiesti?: DpiItem[] | null;
+  procedure_operative?: string | null;
+  generated_content?: string | null;
+};
+
+type DuvriDocument = {
+  id: string;
+  order_id: string | null;
+  orders?: RelatedOrder | null;
+  created_at: string;
+  status: string;
+  committente_nome?: string | null;
+  subappaltatori?: unknown[] | null;
+  interferenze?: InterferenceItem[] | null;
+  costi_sicurezza?: number | null;
+  misure_prevenzione?: string | null;
+  generated_content?: string | null;
+};
+
+type VerbaleSicurezza = {
+  id: string;
+  orders?: RelatedOrder | null;
+  tipo: string;
+  esito: string;
+  data?: string | null;
+  redatto_da?: string | null;
+  note?: string | null;
+};
+
+type SubappaltatoreSicurezza = {
+  id: string;
+  orders?: RelatedOrder | null;
+  ragione_sociale: string;
+  tipo_lavori?: string | null;
+  responsabile?: string | null;
+  durc_scadenza?: string | null;
+};
+
+type AdempimentoSicurezza = {
+  id: string;
+  titolo: string;
+  tipo?: string | null;
+  scadenza_data?: string | null;
+  stato: string;
+  note?: string | null;
+};
+
+type PrintableSafetyDoc = Pick<PosDocument | DuvriDocument, "id" | "order_id" | "status" | "created_at" | "generated_content">;
+
+const getSupabaseErrorMessage = (error: { message?: string; details?: string | null; hint?: string | null }) =>
+  error.message || error.details || error.hint || "Operazione non riuscita";
+
+const escapeHtml = (value: unknown) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const readFunctionError = async (res: Response, fallback: string) => {
+  const text = await res.text();
+  if (!text) return fallback;
+  try {
+    const parsed = JSON.parse(text) as { error?: string; message?: string };
+    return parsed.error || parsed.message || fallback;
+  } catch {
+    return text;
+  }
+};
+
+const toStartOfDay = (value: Date) => {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const parseDateOnly = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const isPastDate = (value?: string | null) => {
+  const date = parseDateOnly(value);
+  return !!date && date < toStartOfDay(new Date());
+};
+
+const formatDpi = (item: DpiItem) => {
+  if (typeof item === "string") return item;
+  const dpi = Array.isArray(item.dpi) ? item.dpi.join(", ") : item.dpi;
+  return [item.mansione, dpi].filter(Boolean).join(": ") || "DPI da verificare";
+};
+
+const statToneClass = (tone: string) => {
+  switch (tone) {
+    case "red":
+      return "border-red-200 bg-red-50/70 text-red-700";
+    case "green":
+      return "border-green-200 bg-green-50/70 text-green-700";
+    case "amber":
+      return "border-amber-200 bg-amber-50/70 text-amber-700";
+    case "indigo":
+      return "border-indigo-200 bg-indigo-50/70 text-indigo-700";
+    default:
+      return "border-blue-200 bg-blue-50/70 text-blue-700";
+  }
+};
+
 export default function SicurezzaCantiere() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -44,7 +191,6 @@ export default function SicurezzaCantiere() {
   const [posDialogOpen, setPosDialogOpen] = useState(false);
   const [duvriDialogOpen, setDuvriDialogOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState("");
-  const [indirizzoCantiere, setIndirizzoCantiere] = useState("");
   const [responsabileSicurezza, setResponsabileSicurezza] = useState("");
   const [costiSicurezza, setCostiSicurezza] = useState("0");
   const [expandedPos, setExpandedPos] = useState<string | null>(null);
@@ -61,82 +207,128 @@ export default function SicurezzaCantiere() {
   const [adempimentoForm, setAdempimentoForm] = useState({ order_id: "", titolo: "", tipo: "corso_formazione", scadenza_data: "", note: "" });
 
   // Fetch orders for selector
-  const { data: orders = [] } = useQuery({
+  const { data: orders = [], isError: ordersError } = useQuery<OrderOption[]>({
     queryKey: ["orders-for-sicurezza", companyId],
     queryFn: async () => {
-      const { data } = await supabase
+      if (!companyId) return [];
+      const { data, error } = await supabase
         .from("orders")
-        .select("id, description, code")
-        .eq("company_id", companyId!)
+        .select("id, description, order_code")
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false })
         .limit(50);
-      return data || [];
+      if (error) throw new Error(getSupabaseErrorMessage(error));
+      return (data || []) as OrderOption[];
     },
     enabled: !!companyId,
   });
 
   // Fetch POS documents
-  const { data: posDocs = [], isLoading: posLoading } = useQuery({
+  const { data: posDocs = [], isLoading: posLoading, isError: posError } = useQuery<PosDocument[]>({
     queryKey: ["pos-documents", companyId],
     queryFn: async () => {
-      const { data } = await supabase
+      if (!companyId) return [];
+      const { data, error } = await supabase
         .from("pos_documents")
-        .select("*, orders(description, code)")
-        .eq("company_id", companyId!)
+        .select("*, orders(description, order_code)")
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false });
-      return data || [];
+      if (error) throw new Error(getSupabaseErrorMessage(error));
+      return (data || []) as PosDocument[];
     },
     enabled: !!companyId,
   });
 
   // Fetch DUVRI documents
-  const { data: duvriDocs = [], isLoading: duvriLoading } = useQuery({
+  const { data: duvriDocs = [], isLoading: duvriLoading, isError: duvriError } = useQuery<DuvriDocument[]>({
     queryKey: ["duvri-documents", companyId],
     queryFn: async () => {
-      const { data } = await supabase
+      if (!companyId) return [];
+      const { data, error } = await supabase
         .from("duvri_documents")
-        .select("*, orders(description, code)")
-        .eq("company_id", companyId!)
+        .select("*, orders(description, order_code)")
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false });
-      return data || [];
+      if (error) throw new Error(getSupabaseErrorMessage(error));
+      return (data || []) as DuvriDocument[];
     },
     enabled: !!companyId,
   });
 
   // M3 queries
-  const { data: verbali = [], isLoading: verbaliLoading } = useQuery({
+  const { data: verbali = [], isLoading: verbaliLoading, isError: verbaliError } = useQuery<VerbaleSicurezza[]>({
     queryKey: ["verbali-sicurezza", companyId],
     queryFn: async () => {
-      const { data } = await supabase.from("verbali_sicurezza").select("*, orders(description, order_code)").eq("company_id", companyId!).order("data", { ascending: false });
-      return data || [];
+      if (!companyId) return [];
+      const { data, error } = await supabase.from("verbali_sicurezza").select("*, orders(description, order_code)").eq("company_id", companyId).order("data", { ascending: false });
+      if (error) throw new Error(getSupabaseErrorMessage(error));
+      return (data || []) as VerbaleSicurezza[];
     },
     enabled: !!companyId,
   });
 
-  const { data: subappaltatori = [], isLoading: subappaltatoriLoading } = useQuery({
+  const { data: subappaltatori = [], isLoading: subappaltatoriLoading, isError: subappaltatoriError } = useQuery<SubappaltatoreSicurezza[]>({
     queryKey: ["subappaltatori-sicurezza", companyId],
     queryFn: async () => {
-      const { data } = await supabase.from("subappaltatori_sicurezza").select("*, orders(description, order_code)").eq("company_id", companyId!).order("created_at", { ascending: false });
-      return data || [];
+      if (!companyId) return [];
+      const { data, error } = await supabase.from("subappaltatori_sicurezza").select("*, orders(description, order_code)").eq("company_id", companyId).order("created_at", { ascending: false });
+      if (error) throw new Error(getSupabaseErrorMessage(error));
+      return (data || []) as SubappaltatoreSicurezza[];
     },
     enabled: !!companyId,
   });
 
-  const { data: adempimenti = [], isLoading: adempimentiLoading } = useQuery({
+  const { data: adempimenti = [], isLoading: adempimentiLoading, isError: adempimentiError } = useQuery<AdempimentoSicurezza[]>({
     queryKey: ["adempimenti-sicurezza", companyId],
     queryFn: async () => {
-      const { data } = await supabase.from("adempimenti_sicurezza").select("*, orders(description, order_code)").eq("company_id", companyId!).order("scadenza_data", { ascending: true });
-      return data || [];
+      if (!companyId) return [];
+      const { data, error } = await supabase.from("adempimenti_sicurezza").select("*, orders(description, order_code)").eq("company_id", companyId).order("scadenza_data", { ascending: true });
+      if (error) throw new Error(getSupabaseErrorMessage(error));
+      return (data || []) as AdempimentoSicurezza[];
     },
     enabled: !!companyId,
   });
+
+  const safetyStats = useMemo(() => {
+    const durcScaduti = subappaltatori.filter((s) => isPastDate(s.durc_scadenza)).length;
+    const adempimentiScaduti = adempimenti.filter((a) => a.stato !== "completato" && isPastDate(a.scadenza_data)).length;
+    const adempimentiDaFare = adempimenti.filter((a) => a.stato !== "completato").length;
+
+    return [
+      {
+        label: "POS",
+        value: posDocs.length,
+        helper: `${posDocs.filter((d) => d.status === "bozza").length} bozze`,
+        tone: "blue",
+      },
+      {
+        label: "DUVRI",
+        value: duvriDocs.length,
+        helper: `${duvriDocs.filter((d) => d.status === "bozza").length} bozze`,
+        tone: "indigo",
+      },
+      {
+        label: "Subappaltatori",
+        value: subappaltatori.length,
+        helper: durcScaduti ? `${durcScaduti} DURC scaduti` : "DURC sotto controllo",
+        tone: durcScaduti ? "red" : "green",
+      },
+      {
+        label: "Scadenze aperte",
+        value: adempimentiDaFare,
+        helper: adempimentiScaduti ? `${adempimentiScaduti} scadute` : "Nessuna scaduta",
+        tone: adempimentiScaduti ? "red" : "amber",
+      },
+    ];
+  }, [adempimenti, duvriDocs, posDocs, subappaltatori]);
 
   // M3 mutations
   const createVerbaleMutation = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
       if (!verbaleForm.note.trim() && !verbaleForm.redatto_da.trim()) throw new Error("Inserisci almeno le note o il nome del redattore");
       const { error } = await supabase.from("verbali_sicurezza").insert({ company_id: companyId, order_id: verbaleForm.order_id || null, data: verbaleForm.data, tipo: verbaleForm.tipo, esito: verbaleForm.esito, note: verbaleForm.note.trim() || null, redatto_da: verbaleForm.redatto_da.trim() || null });
-      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
+      if (error) throw new Error(getSupabaseErrorMessage(error));
     },
     onSuccess: () => { toast.success("Verbale salvato"); queryClient.invalidateQueries({ queryKey: ["verbali-sicurezza", companyId] }); setVerbaleDialogOpen(false); setVerbaleForm({ order_id: "", data: format(new Date(), "yyyy-MM-dd"), tipo: "sopralluogo", esito: "conforme", note: "", redatto_da: "" }); },
     onError: (err: Error) => toast.error(err.message),
@@ -144,9 +336,10 @@ export default function SicurezzaCantiere() {
 
   const createSubappaltatoreM = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
       if (!subappaltatoreForm.ragione_sociale.trim()) throw new Error("Ragione sociale obbligatoria");
       const { error } = await supabase.from("subappaltatori_sicurezza").insert({ company_id: companyId, order_id: subappaltatoreForm.order_id || null, ragione_sociale: subappaltatoreForm.ragione_sociale.trim(), tipo_lavori: subappaltatoreForm.tipo_lavori || null, responsabile: subappaltatoreForm.responsabile || null, telefono: subappaltatoreForm.telefono || null, data_inizio: subappaltatoreForm.data_inizio || null, data_fine: subappaltatoreForm.data_fine || null, durc_scadenza: subappaltatoreForm.durc_scadenza || null });
-      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
+      if (error) throw new Error(getSupabaseErrorMessage(error));
     },
     onSuccess: () => { toast.success("Subappaltatore aggiunto"); queryClient.invalidateQueries({ queryKey: ["subappaltatori-sicurezza", companyId] }); setSubappaltatoreDialogOpen(false); setSubappaltatoreForm({ order_id: "", ragione_sociale: "", tipo_lavori: "", responsabile: "", telefono: "", data_inizio: "", data_fine: "", durc_scadenza: "" }); },
     onError: (err: Error) => toast.error(err.message),
@@ -154,9 +347,10 @@ export default function SicurezzaCantiere() {
 
   const createAdempimentoM = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
       if (!adempimentoForm.titolo.trim()) throw new Error("Titolo obbligatorio");
       const { error } = await supabase.from("adempimenti_sicurezza").insert({ company_id: companyId, order_id: adempimentoForm.order_id || null, titolo: adempimentoForm.titolo.trim(), tipo: adempimentoForm.tipo, scadenza_data: adempimentoForm.scadenza_data || null, stato: "da_fare", note: adempimentoForm.note || null });
-      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
+      if (error) throw new Error(getSupabaseErrorMessage(error));
     },
     onSuccess: () => { toast.success("Adempimento aggiunto"); queryClient.invalidateQueries({ queryKey: ["adempimenti-sicurezza", companyId] }); setAdempimentoDialogOpen(false); setAdempimentoForm({ order_id: "", titolo: "", tipo: "corso_formazione", scadenza_data: "", note: "" }); },
     onError: (err: Error) => toast.error(err.message),
@@ -164,8 +358,9 @@ export default function SicurezzaCantiere() {
 
   const toggleAdempimentoStato = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
-      const { error } = await supabase.from("adempimenti_sicurezza").update({ stato }).eq("id", id);
-      if (error) throw new Error(error.message || error.details || error.hint || "Errore");
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      const { error } = await supabase.from("adempimenti_sicurezza").update({ stato }).eq("id", id).eq("company_id", companyId);
+      if (error) throw new Error(getSupabaseErrorMessage(error));
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["adempimenti-sicurezza", companyId] }),
     onError: (err: Error) => toast.error(err.message),
@@ -175,11 +370,13 @@ export default function SicurezzaCantiere() {
   const { data: hasSubappaltatori } = useQuery({
     queryKey: ["has-subappaltatori", selectedOrderId],
     queryFn: async () => {
-      const { count } = await supabase
+      if (!companyId || !selectedOrderId) return false;
+      const { count, error } = await supabase
         .from("purchase_orders")
         .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId!)
+        .eq("company_id", companyId)
         .eq("order_id", selectedOrderId);
+      if (error) throw new Error(getSupabaseErrorMessage(error));
       return (count || 0) > 0;
     },
     enabled: !!companyId && !!selectedOrderId,
@@ -188,8 +385,11 @@ export default function SicurezzaCantiere() {
   // Generate POS
   const generatePos = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      if (!selectedOrderId) throw new Error("Seleziona una commessa prima di generare il POS");
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token;
+      if (!token) throw new Error("Sessione non valida. Accedi di nuovo e riprova.");
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/genera-pos`,
         {
@@ -206,8 +406,7 @@ export default function SicurezzaCantiere() {
         }
       );
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Errore generazione POS");
+        throw new Error(await readFunctionError(res, "Errore generazione POS"));
       }
       return res.json();
     },
@@ -223,8 +422,11 @@ export default function SicurezzaCantiere() {
   // Generate DUVRI
   const generateDuvri = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      if (!selectedOrderId) throw new Error("Seleziona una commessa prima di generare il DUVRI");
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token;
+      if (!token) throw new Error("Sessione non valida. Accedi di nuovo e riprova.");
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/genera-duvri`,
         {
@@ -241,8 +443,7 @@ export default function SicurezzaCantiere() {
         }
       );
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Errore generazione DUVRI");
+        throw new Error(await readFunctionError(res, "Errore generazione DUVRI"));
       }
       return res.json();
     },
@@ -258,26 +459,50 @@ export default function SicurezzaCantiere() {
   // Update POS status
   const updatePosStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
       const { error } = await supabase
         .from("pos_documents")
         .update({ status, updated_at: new Date().toISOString() })
-        .eq("id", id);
-      if (error) throw error;
+        .eq("id", id)
+        .eq("company_id", companyId);
+      if (error) throw new Error(getSupabaseErrorMessage(error));
     },
     onSuccess: () => {
       toast.success("Stato aggiornato");
       queryClient.invalidateQueries({ queryKey: ["pos-documents", companyId] });
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 
-  const buildDocHtml = (doc: any, tipo: "POS" | "DUVRI") => {
-    const contenuto = doc.contenuto_generato || "Nessun contenuto disponibile.";
-    const orderLabel = orders.find((o: any) => o.id === doc.order_id)?.description ?? doc.order_id ?? "";
+  const updateDuvriStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      const { error } = await supabase
+        .from("duvri_documents")
+        .update({ status })
+        .eq("id", id)
+        .eq("company_id", companyId);
+      if (error) throw new Error(getSupabaseErrorMessage(error));
+    },
+    onSuccess: () => {
+      toast.success("Stato DUVRI aggiornato");
+      queryClient.invalidateQueries({ queryKey: ["duvri-documents", companyId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const buildDocHtml = (doc: PrintableSafetyDoc, tipo: "POS" | "DUVRI") => {
+    const contenuto = doc.generated_content || "Nessun contenuto disponibile.";
+    const order = orders.find((o) => o.id === doc.order_id);
+    const orderLabel = order?.order_code || order?.description || doc.order_id || "";
+    const safeOrderLabel = escapeHtml(orderLabel);
+    const safeStatus = escapeHtml(doc.status || "—");
+    const safeGeneratedDate = escapeHtml(doc.created_at ? new Date(doc.created_at).toLocaleDateString("it-IT") : "—");
     return `<!DOCTYPE html>
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
-  <title>${tipo} — ${orderLabel}</title>
+  <title>${escapeHtml(tipo)} — ${safeOrderLabel}</title>
   <style>
     body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; color: #111; line-height: 1.6; }
     h1 { font-size: 1.5rem; border-bottom: 2px solid #333; padding-bottom: 8px; }
@@ -288,13 +513,13 @@ export default function SicurezzaCantiere() {
   </style>
 </head>
 <body>
-  <h1>D.Lgs 81/08 — ${tipo}</h1>
+  <h1>D.Lgs 81/08 — ${escapeHtml(tipo)}</h1>
   <div class="meta">
-    <span><strong>Ordine:</strong> ${orderLabel}</span>
-    <span><strong>Stato:</strong> ${doc.status ?? "—"}</span>
-    <span><strong>Generato:</strong> ${doc.created_at ? new Date(doc.created_at).toLocaleDateString("it-IT") : "—"}</span>
+    <span><strong>Ordine:</strong> ${safeOrderLabel}</span>
+    <span><strong>Stato:</strong> ${safeStatus}</span>
+    <span><strong>Generato:</strong> ${safeGeneratedDate}</span>
   </div>
-  <div class="content">${contenuto.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+  <div class="content">${escapeHtml(contenuto)}</div>
 </body>
 </html>`;
   };
@@ -320,6 +545,21 @@ export default function SicurezzaCantiere() {
         <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-400">
           POS e DUVRI sono documenti obbligatori ai sensi del D.Lgs 81/08. Generati automaticamente dall'AI sulla base dei dati dell'ordine.
         </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {safetyStats.map((stat) => (
+          <Card key={stat.label} className={`border ${statToneClass(stat.tone)}`}>
+            <CardContent className="p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{stat.label}</p>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                <FileCheck2 className="h-5 w-5 opacity-70" aria-hidden="true" />
+              </div>
+              <p className="mt-1 text-xs font-medium">{stat.helper}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Tabs POS / DUVRI */}
@@ -356,6 +596,14 @@ export default function SicurezzaCantiere() {
               <Skeleton className="h-20 w-full" />
               <Skeleton className="h-20 w-full" />
             </div>
+          ) : posError || ordersError ? (
+            <Card>
+              <CardContent className="py-10 text-center space-y-2">
+                <AlertTriangle className="h-10 w-10 text-destructive/70 mx-auto" aria-hidden="true" />
+                <p className="font-medium">Documenti POS non disponibili</p>
+                <p className="text-sm text-muted-foreground">Riprova tra poco o aggiorna la pagina.</p>
+              </CardContent>
+            </Card>
           ) : posDocs.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center space-y-3">
@@ -371,14 +619,14 @@ export default function SicurezzaCantiere() {
             </Card>
           ) : (
             <div className="space-y-3">
-              {posDocs.map((doc: any) => (
+              {posDocs.map((doc) => (
                 <Card key={doc.id} className="overflow-hidden">
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <CardTitle className="text-sm font-medium truncate">
-                          {(doc.orders as any)?.description || "Ordine"}
-                          {(doc.orders as any)?.code && <span className="ml-2 text-xs text-muted-foreground font-mono">#{(doc.orders as any).code}</span>}
+                          {doc.orders?.description || "Ordine"}
+                          {doc.orders?.order_code && <span className="ml-2 text-xs text-muted-foreground font-mono">#{doc.orders.order_code}</span>}
                         </CardTitle>
                         <CardDescription className="text-xs">
                           v{doc.version} · {format(new Date(doc.created_at), "dd/MM/yyyy", { locale: it })}
@@ -406,10 +654,11 @@ export default function SicurezzaCantiere() {
                           <div>
                             <p className="text-xs font-semibold mb-1">Rischi e misure preventive</p>
                             <div className="space-y-1">
-                              {doc.rischi_presenti.map((r: any, i: number) => (
+                              {doc.rischi_presenti.map((r, i) => (
                                 <div key={i} className="text-xs p-2 rounded bg-muted/50">
-                                  <span className="font-medium text-destructive">⚠️ {r.rischio}</span>
-                                  <span className="text-muted-foreground"> → {r.misura_prevenzione}</span>
+                                  <span className="font-medium text-destructive">⚠️ {r.rischio || "Rischio da verificare"}</span>
+                                  {r.livello && <span className="ml-1 text-muted-foreground">({r.livello})</span>}
+                                  <span className="text-muted-foreground"> → {r.misura_prevenzione || "Misura preventiva da completare"}</span>
                                 </div>
                               ))}
                             </div>
@@ -419,8 +668,8 @@ export default function SicurezzaCantiere() {
                           <div>
                             <p className="text-xs font-semibold mb-1">DPI richiesti</p>
                             <div className="flex flex-wrap gap-1">
-                              {doc.dpi_richiesti.map((dpi: string, i: number) => (
-                                <Badge key={i} variant="outline" className="text-xs">{dpi}</Badge>
+                              {doc.dpi_richiesti.map((dpi, i) => (
+                                <Badge key={i} variant="outline" className="text-xs">{formatDpi(dpi)}</Badge>
                               ))}
                             </div>
                           </div>
@@ -484,6 +733,14 @@ export default function SicurezzaCantiere() {
               <Skeleton className="h-20 w-full" />
               <Skeleton className="h-20 w-full" />
             </div>
+          ) : duvriError || ordersError ? (
+            <Card>
+              <CardContent className="py-10 text-center space-y-2">
+                <AlertTriangle className="h-10 w-10 text-destructive/70 mx-auto" aria-hidden="true" />
+                <p className="font-medium">Documenti DUVRI non disponibili</p>
+                <p className="text-sm text-muted-foreground">Riprova tra poco o aggiorna la pagina.</p>
+              </CardContent>
+            </Card>
           ) : duvriDocs.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center space-y-3">
@@ -499,14 +756,14 @@ export default function SicurezzaCantiere() {
             </Card>
           ) : (
             <div className="space-y-3">
-              {duvriDocs.map((doc: any) => (
+              {duvriDocs.map((doc) => (
                 <Card key={doc.id} className="overflow-hidden">
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <CardTitle className="text-sm font-medium truncate">
-                          {(doc.orders as any)?.description || "Ordine"}
-                          {(doc.orders as any)?.code && <span className="ml-2 text-xs text-muted-foreground font-mono">#{(doc.orders as any).code}</span>}
+                          {doc.orders?.description || "Ordine"}
+                          {doc.orders?.order_code && <span className="ml-2 text-xs text-muted-foreground font-mono">#{doc.orders.order_code}</span>}
                         </CardTitle>
                         <CardDescription className="text-xs">
                           Committente: {doc.committente_nome} · {format(new Date(doc.created_at), "dd/MM/yyyy", { locale: it })}
@@ -536,11 +793,12 @@ export default function SicurezzaCantiere() {
                           <div>
                             <p className="text-xs font-semibold mb-1">Interferenze e misure</p>
                             <div className="space-y-1">
-                              {doc.interferenze.map((i: any, idx: number) => (
+                              {doc.interferenze.map((i, idx) => (
                                 <div key={idx} className="text-xs p-2 rounded bg-muted/50 space-y-0.5">
-                                  <div className="font-medium">⚠️ {i.rischio}</div>
-                                  <div className="text-muted-foreground">✅ {i.misura}</div>
-                                  <div className="text-muted-foreground">👷 {i.responsabile}</div>
+                                  <div className="font-medium">⚠️ {i.rischio || "Interferenza da verificare"}</div>
+                                  {i.livello_rischio && <div className="text-muted-foreground">Livello: {i.livello_rischio}</div>}
+                                  <div className="text-muted-foreground">✅ {i.misura || i.misura_prevenzione || "Misura da completare"}</div>
+                                  {i.responsabile && <div className="text-muted-foreground">👷 {i.responsabile}</div>}
                                 </div>
                               ))}
                             </div>
@@ -565,6 +823,16 @@ export default function SicurezzaCantiere() {
                       >
                         {expandedDuvri === doc.id ? "Nascondi dettagli" : "Vedi dettagli"}
                       </Button>
+                      {doc.status === "bozza" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => updateDuvriStatus.mutate({ id: doc.id, status: "firmato" })}
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" /> Segna firmato
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -589,7 +857,13 @@ export default function SicurezzaCantiere() {
               <Plus className="h-4 w-4 mr-1" /> Nuovo verbale
             </Button>
           </div>
-          {verbaliLoading ? <Skeleton className="h-20 w-full" /> : verbali.length === 0 ? (
+          {verbaliLoading ? <Skeleton className="h-20 w-full" /> : verbaliError ? (
+            <Card><CardContent className="py-10 text-center space-y-2">
+              <AlertTriangle className="h-10 w-10 text-destructive/70 mx-auto" aria-hidden="true" />
+              <p className="font-medium">Verbali non disponibili</p>
+              <p className="text-sm text-muted-foreground">Riprova tra poco o aggiorna la pagina.</p>
+            </CardContent></Card>
+          ) : verbali.length === 0 ? (
             <Card><CardContent className="py-10 text-center space-y-2">
               <ClipboardList className="h-10 w-10 text-muted-foreground/40 mx-auto" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">Nessun verbale registrato</p>
@@ -597,7 +871,7 @@ export default function SicurezzaCantiere() {
             </CardContent></Card>
           ) : (
             <div className="space-y-2">
-              {verbali.map((v: any) => (
+              {verbali.map((v) => (
                 <Card key={v.id}>
                   <CardContent className="py-3 px-4 flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -608,7 +882,7 @@ export default function SicurezzaCantiere() {
                         </Badge>
                         <span className="text-xs text-muted-foreground">{v.data?.split("-").reverse().join("/")}</span>
                       </div>
-                      {v.orders && <p className="text-xs text-muted-foreground mt-0.5">Cantiere: {(v.orders as any)?.description}</p>}
+                      {v.orders && <p className="text-xs text-muted-foreground mt-0.5">Cantiere: {v.orders.description}</p>}
                       {v.redatto_da && <p className="text-xs text-muted-foreground">Redatto da: {v.redatto_da}</p>}
                       {v.note && <p className="text-xs text-muted-foreground mt-1 italic">{v.note}</p>}
                     </div>
@@ -627,7 +901,13 @@ export default function SicurezzaCantiere() {
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
           </div>
-          {subappaltatoriLoading ? <Skeleton className="h-20 w-full" /> : subappaltatori.length === 0 ? (
+          {subappaltatoriLoading ? <Skeleton className="h-20 w-full" /> : subappaltatoriError ? (
+            <Card><CardContent className="py-10 text-center space-y-2">
+              <AlertTriangle className="h-10 w-10 text-destructive/70 mx-auto" aria-hidden="true" />
+              <p className="font-medium">Subappaltatori non disponibili</p>
+              <p className="text-sm text-muted-foreground">Riprova tra poco o aggiorna la pagina.</p>
+            </CardContent></Card>
+          ) : subappaltatori.length === 0 ? (
             <Card><CardContent className="py-10 text-center space-y-2">
               <Building2 className="h-10 w-10 text-muted-foreground/40 mx-auto" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">Nessun subappaltatore registrato</p>
@@ -645,14 +925,13 @@ export default function SicurezzaCantiere() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {subappaltatori.map((s: any) => {
-                    const durcScad = s.durc_scadenza ? new Date(s.durc_scadenza) : null;
-                    const durcScaduto = durcScad && durcScad < new Date();
+                  {subappaltatori.map((s) => {
+                    const durcScaduto = isPastDate(s.durc_scadenza);
                     return (
                       <TableRow key={s.id}>
                         <TableCell>
                           <p className="font-medium text-sm">{s.ragione_sociale}</p>
-                          {s.orders && <p className="text-xs text-muted-foreground">{(s.orders as any)?.description}</p>}
+                          {s.orders && <p className="text-xs text-muted-foreground">{s.orders.description}</p>}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell text-sm">{s.tipo_lavori || "—"}</TableCell>
                         <TableCell className="hidden md:table-cell text-sm">{s.responsabile || "—"}</TableCell>
@@ -680,7 +959,13 @@ export default function SicurezzaCantiere() {
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
           </div>
-          {adempimentiLoading ? <Skeleton className="h-20 w-full" /> : adempimenti.length === 0 ? (
+          {adempimentiLoading ? <Skeleton className="h-20 w-full" /> : adempimentiError ? (
+            <Card><CardContent className="py-10 text-center space-y-2">
+              <AlertTriangle className="h-10 w-10 text-destructive/70 mx-auto" aria-hidden="true" />
+              <p className="font-medium">Scadenzario non disponibile</p>
+              <p className="text-sm text-muted-foreground">Riprova tra poco o aggiorna la pagina.</p>
+            </CardContent></Card>
+          ) : adempimenti.length === 0 ? (
             <Card><CardContent className="py-10 text-center space-y-2">
               <CalendarClock className="h-10 w-10 text-muted-foreground/40 mx-auto" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">Nessun adempimento in scadenzario</p>
@@ -688,9 +973,8 @@ export default function SicurezzaCantiere() {
             </CardContent></Card>
           ) : (
             <div className="space-y-2">
-              {adempimenti.map((a: any) => {
-                const scad = a.scadenza_data ? new Date(a.scadenza_data) : null;
-                const isScaduto = scad && scad < new Date() && a.stato !== "completato";
+              {adempimenti.map((a) => {
+                const isScaduto = isPastDate(a.scadenza_data) && a.stato !== "completato";
                 return (
                   <Card key={a.id} className={isScaduto ? "border-red-200" : ""}>
                     <CardContent className="py-3 px-4 flex items-start justify-between gap-3">
@@ -731,6 +1015,9 @@ export default function SicurezzaCantiere() {
               <HardHat className="h-5 w-5 text-primary" />
               Genera POS con AI
             </DialogTitle>
+            <DialogDescription>
+              Seleziona la commessa e genera il Piano Operativo di Sicurezza collegato.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -740,9 +1027,9 @@ export default function SicurezzaCantiere() {
                   <SelectValue placeholder="Seleziona ordine" />
                 </SelectTrigger>
                 <SelectContent>
-                  {orders.map((o: any) => (
+                  {orders.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
-                      {o.code ? `#${o.code} — ` : ""}{o.description}
+                      {o.order_code ? `#${o.order_code} — ` : ""}{o.description}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -787,6 +1074,9 @@ export default function SicurezzaCantiere() {
               <Users className="h-5 w-5 text-primary" />
               Genera DUVRI con AI
             </DialogTitle>
+            <DialogDescription>
+              Seleziona la commessa, verifica i subappaltatori e genera il documento DUVRI.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -796,9 +1086,9 @@ export default function SicurezzaCantiere() {
                   <SelectValue placeholder="Seleziona ordine" />
                 </SelectTrigger>
                 <SelectContent>
-                  {orders.map((o: any) => (
+                  {orders.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
-                      {o.code ? `#${o.code} — ` : ""}{o.description}
+                      {o.order_code ? `#${o.order_code} — ` : ""}{o.description}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -843,6 +1133,9 @@ export default function SicurezzaCantiere() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" />Nuovo Verbale</DialogTitle>
+            <DialogDescription>
+              Registra un sopralluogo, una riunione o un'ispezione di sicurezza.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
@@ -851,7 +1144,7 @@ export default function SicurezzaCantiere() {
                 <SelectTrigger><SelectValue placeholder="Tutti i cantieri" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Nessun cantiere</SelectItem>
-                  {orders.map((o: any) => <SelectItem key={o.id} value={o.id}>{o.description}</SelectItem>)}
+                  {orders.map((o) => <SelectItem key={o.id} value={o.id}>{o.description}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -907,6 +1200,9 @@ export default function SicurezzaCantiere() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Nuovo Subappaltatore</DialogTitle>
+            <DialogDescription>
+              Collega un subappaltatore alla sicurezza di cantiere e monitora la scadenza DURC.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
@@ -919,7 +1215,7 @@ export default function SicurezzaCantiere() {
                 <SelectTrigger><SelectValue placeholder="Tutti i cantieri" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Nessun cantiere</SelectItem>
-                  {orders.map((o: any) => <SelectItem key={o.id} value={o.id}>{o.description}</SelectItem>)}
+                  {orders.map((o) => <SelectItem key={o.id} value={o.id}>{o.description}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -962,6 +1258,9 @@ export default function SicurezzaCantiere() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5" />Nuovo Adempimento</DialogTitle>
+            <DialogDescription>
+              Inserisci una scadenza obbligatoria per formazione, certificati o controlli.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">

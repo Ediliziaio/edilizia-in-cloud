@@ -11,11 +11,12 @@ import { SuppliersOperational } from "@/pages/azienda/Suppliers";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Truck, Download, ChevronDown, FileText, FileSpreadsheet, Users, Euro,
+  Truck, Download, ChevronDown, FileText, FileSpreadsheet, Users, Euro, AlertCircle,
 } from "lucide-react";
 
 /**
@@ -46,7 +47,7 @@ export default function SettingsSuppliers() {
   // non esistono su suppliers (lo schema ha solo `payment_method`).
   // Prima la query falliva silenziosamente e i KPI mostravano tutti 0
   // mentre la tabella interna (che seleziona *) mostrava i dati.
-  const { data: suppliers = [] } = useQuery({
+  const { data: suppliers = [], isError: suppliersExportIsError, error: suppliersExportError } = useQuery({
     queryKey: ["suppliers-export", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -225,6 +226,15 @@ export default function SettingsSuppliers() {
       </div>
 
       {/* KPI quick */}
+      {suppliersExportIsError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Statistiche fornitori non disponibili</AlertTitle>
+          <AlertDescription className="text-xs">
+            {(suppliersExportError as Error | null)?.message || "Non è stato possibile caricare i dati per KPI ed export."}
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-lg border-l-4 border-l-primary bg-card p-3">
           <div className="flex items-center justify-between">

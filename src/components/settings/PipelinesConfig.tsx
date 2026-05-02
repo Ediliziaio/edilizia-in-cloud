@@ -17,6 +17,13 @@ import { it } from "date-fns/locale";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+type PipelineRow = {
+  id: string;
+  name: string;
+  updated_at: string;
+  marketing_pipeline_stages?: { id: string; name: string; position: number }[] | null;
+};
+
 const AUTO_STATUS_OPTIONS = [
   { value: "none", label: "Nessuno" },
   { value: "open", label: "Aperta" },
@@ -41,6 +48,32 @@ interface CreateStage {
   auto_status: string | null;
 }
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Operazione non riuscita";
+}
+
+class PipelineInUseError extends Error {
+  constructor(public readonly count: number) {
+    super(`Questa sequenza ha ${count} opportunita collegate. Spostale o archiviale prima di eliminarla.`);
+    this.name = "PipelineInUseError";
+  }
+}
+
+function normalizeName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function hasDuplicateNames(values: string[]) {
+  const seen = new Set<string>();
+  for (const value of values) {
+    const normalized = normalizeName(value).toLowerCase();
+    if (!normalized) continue;
+    if (seen.has(normalized)) return true;
+    seen.add(normalized);
+  }
+  return false;
+}
+
 export function PipelinesConfig() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -56,16 +89,20 @@ export function PipelinesConfig() {
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const { data: pipelines = [], isLoading } = useQuery({
+  const validCreateStages = createStages.filter((stage) => normalizeName(stage.name));
+  const createHasDuplicateStages = hasDuplicateNames(createStages.map((stage) => stage.name));
+
+  const { data: pipelines = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.pipelinesConfig.list(companyId),
     queryFn: async () => {
+      if (!companyId) return [];
       const { data, error } = await supabase
         .from("marketing_pipelines")
         .select("*, marketing_pipeline_stages(id, name, position)")
-        .eq("company_id", companyId!)
+        .eq("company_id", companyId)
         .order("position");
       if (error) throw error;
-      return data;
+      return data as PipelineRow[];
     },
     enabled: !!companyId,
   });
@@ -90,17 +127,32 @@ export function PipelinesConfig() {
 
   const createPipeline = useMutation({
     mutationFn: async ({ name, stages }: { name: string; stages: CreateStage[] }) => {
+      if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
+      const cleanName = normalizeName(name);
+      const cleanStages = stages
+        .map((stage) => ({ ...stage, name: normalizeName(stage.name) }))
+        .filter((stage) => stage.name);
+
+      if (!cleanName) throw new Error("Inserisci il nome della sequenza.");
+      if (cleanStages.length === 0) throw new Error("Aggiungi almeno una fase valida.");
+      if (hasDuplicateNames(cleanStages.map((stage) => stage.name))) {
+        throw new Error("Le fasi non possono avere nomi duplicati.");
+      }
+      if (pipelines.some((pipeline) => normalizeName(pipeline.name).toLowerCase() === cleanName.toLowerCase())) {
+        throw new Error("Esiste gia una sequenza con questo nome.");
+      }
+
       const { data: pipeline, error: pipelineError } = await supabase
         .from("marketing_pipelines")
-        .insert({ company_id: companyId!, name, position: pipelines.length })
+        .insert({ company_id: companyId, name: cleanName, position: pipelines.length })
         .select("id")
         .single();
       if (pipelineError) throw pipelineError;
 
-      if (stages.length > 0) {
-        const stagesToInsert = stages.map((s, idx) => ({
+      if (cleanStages.length > 0) {
+        const stagesToInsert = cleanStages.map((s, idx) => ({
           pipeline_id: pipeline.id,
-          company_id: companyId!,
+          company_id: companyId,
           name: s.name,
           position: idx,
           auto_status: s.auto_status,
@@ -116,12 +168,19 @@ export function PipelinesConfig() {
       setCreateStages([]);
       toast.success("Sequenza creata con le fasi");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
   const updatePipeline = useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
-      const { error } = await supabase.from("marketing_pipelines").update({ name }).eq("id", id).eq("company_id", companyId!);
+      if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
+      const cleanName = normalizeName(name);
+      if (!cleanName) throw new Error("Inserisci il nome della sequenza.");
+      if (pipelines.some((pipeline) => pipeline.id !== id && normalizeName(pipeline.name).toLowerCase() === cleanName.toLowerCase())) {
+        throw new Error("Esiste gia una sequenza con questo nome.");
+      }
+
+      const { error } = await supabase.from("marketing_pipelines").update({ name: cleanName }).eq("id", id).eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -129,12 +188,21 @@ export function PipelinesConfig() {
       setEditOpen(false);
       toast.success("Sequenza aggiornata");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
   const deletePipeline = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("marketing_pipelines").delete().eq("id", id).eq("company_id", companyId!);
+      if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
+      const { count, error: countError } = await supabase
+        .from("marketing_opportunities")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("pipeline_id", id);
+      if (countError) throw countError;
+      if ((count ?? 0) > 0) throw new PipelineInUseError(count ?? 0);
+
+      const { error } = await supabase.from("marketing_pipelines").delete().eq("id", id).eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -143,7 +211,9 @@ export function PipelinesConfig() {
       setDeleteId(null);
       toast.success("Sequenza eliminata");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: unknown) => {
+      toast.error(e instanceof PipelineInUseError ? e.message : getErrorMessage(e));
+    },
   });
 
   if (isLoading) {
@@ -154,8 +224,24 @@ export function PipelinesConfig() {
     );
   }
 
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Sequenze non disponibili</CardTitle>
+          <CardDescription>{getErrorMessage(error)}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={() => refetch()}>
+            Riprova
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (selectedPipelineId) {
-    const pipeline = pipelines.find((p: any) => p.id === selectedPipelineId);
+    const pipeline = pipelines.find((p) => p.id === selectedPipelineId);
     return (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" className="gap-2" onClick={() => setSelectedPipelineId(null)}>
@@ -186,7 +272,7 @@ export function PipelinesConfig() {
             </div>
           ) : (
             <div className="space-y-2">
-              {pipelines.map((p: any) => (
+              {pipelines.map((p) => (
                 <div
                   key={p.id}
                   className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
@@ -290,9 +376,9 @@ export function PipelinesConfig() {
             <Button
               onClick={() => createPipeline.mutate({
                 name: newName,
-                stages: createStages.filter((s) => s.name.trim()),
+                stages: validCreateStages,
               })}
-              disabled={!newName.trim() || createStages.length === 0 || createPipeline.isPending}
+              disabled={!normalizeName(newName) || validCreateStages.length === 0 || createHasDuplicateStages || createPipeline.isPending}
             >
               {createPipeline.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Crea
             </Button>
@@ -319,7 +405,9 @@ export function PipelinesConfig() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare questa sequenza?</AlertDialogTitle>
-            <AlertDialogDescription>Verranno eliminate anche tutte le fasi e le opportunità associate.</AlertDialogDescription>
+            <AlertDialogDescription>
+              L'eliminazione e' consentita solo se non ci sono opportunita collegate. Le fasi verranno rimosse insieme alla sequenza.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>

@@ -117,6 +117,29 @@ const initialState: FormState = {
   ai_cost_cents: null,
 };
 
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
+function parsePercentuale(value: string, label: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed.replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+    throw new Error(`${label} deve essere un numero tra 0 e 100`);
+  }
+  return parsed;
+}
+
+function emailValida(value: string): boolean {
+  const trimmed = value.trim();
+  return !trimmed || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+}
+
+function validaDate(decorrenza: string, scadenza: string): void {
+  if (decorrenza && scadenza && scadenza < decorrenza) {
+    throw new Error("La data di scadenza non può essere precedente alla decorrenza");
+  }
+}
+
 export default function SettingsFinanziamentiNuova() {
   const { role, effectiveCompany } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
@@ -143,6 +166,14 @@ export default function SettingsFinanziamentiNuova() {
       !form.finanziaria_nome_nuova.trim()
     )
       return false;
+    if (form.finanziaria_modalita === "nuova" && !emailValida(form.finanziaria_email))
+      return false;
+    try {
+      parsePercentuale(form.tan_base, "TAN base");
+      validaDate(form.data_decorrenza, form.data_scadenza);
+    } catch {
+      return false;
+    }
     return true;
   }, [form]);
 
@@ -190,8 +221,8 @@ export default function SettingsFinanziamentiNuova() {
       toast.error("Solo file PDF supportati per estrazione AI.");
       return;
     }
-    if (file.size > 22 * 1024 * 1024) {
-      toast.error("PDF troppo grande (max 22 MB per estrazione AI).");
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("PDF troppo grande (max 20 MB).");
       return;
     }
 
@@ -207,7 +238,7 @@ export default function SettingsFinanziamentiNuova() {
     }));
 
     const ts = Date.now();
-    const path = `${effectiveCompany.id}/ai-staging/${ts}-${file.name.replace(/[^\w.\-]/g, "_")}`;
+    const path = `${effectiveCompany.id}/ai-staging/${ts}-${file.name.replace(/[^\w.-]/g, "_")}`;
 
     try {
       // 1. Upload PDF in staging (lo riusiamo come allegato finale al salvataggio)
@@ -360,6 +391,18 @@ export default function SettingsFinanziamentiNuova() {
 
     setIsSaving(true);
     try {
+      parsePercentuale(form.tan_base, "TAN base");
+      validaDate(form.data_decorrenza, form.data_scadenza);
+      if (form.finanziaria_modalita === "nuova" && !emailValida(form.finanziaria_email)) {
+        throw new Error("Email pratiche non valida");
+      }
+      if (form.csv_file && form.csv_file.size > MAX_UPLOAD_BYTES) {
+        throw new Error("CSV troppo grande (max 20 MB)");
+      }
+      if (form.pdf_file && form.pdf_file.size > MAX_UPLOAD_BYTES) {
+        throw new Error("PDF troppo grande (max 20 MB)");
+      }
+
       // 1. Risolvi finanziaria_id (nuova o esistente)
       let finanziariaId = form.finanziaria_id;
       if (form.finanziaria_modalita === "nuova") {
@@ -413,7 +456,7 @@ export default function SettingsFinanziamentiNuova() {
         nome_prodotto: form.nome_prodotto.trim(),
         codice_condizione: form.codice_condizione.trim() || null,
         subtariffa_default: form.subtariffa_default.trim() || null,
-        tan_base: form.tan_base ? Number(form.tan_base.replace(",", ".")) : null,
+        tan_base: parsePercentuale(form.tan_base, "TAN base"),
         pdf_url: pdfUrl,
         pdf_filename: pdfFilename,
         csv_url: csvUrl,

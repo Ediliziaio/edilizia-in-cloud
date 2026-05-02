@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,7 +43,7 @@ interface TicketChatProps {
 export function TicketChat({
   ticketId,
   messages,
-  customerId,
+  customerId: _customerId,
   disabled = false,
   disabledMessage,
   invalidateKeys = [],
@@ -91,8 +91,6 @@ export function TicketChat({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const stableInvalidateKeys = useMemo(() => invalidateKeys, [JSON.stringify(invalidateKeys)]);
-
   useEffect(() => {
     const channel = supabase
       .channel(`ticket-messages-${ticketId}`)
@@ -105,7 +103,7 @@ export function TicketChat({
           filter: `ticket_id=eq.${ticketId}`,
         },
         () => {
-          stableInvalidateKeys.forEach((key) =>
+          invalidateKeys.forEach((key) =>
             queryClient.invalidateQueries({ queryKey: key })
           );
         }
@@ -115,7 +113,7 @@ export function TicketChat({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [ticketId, queryClient, stableInvalidateKeys]);
+  }, [ticketId, queryClient, invalidateKeys]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -134,6 +132,9 @@ export function TicketChat({
   };
 
   const uploadFile = async (file: File): Promise<string | null> => {
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error("La dimensione massima consentita è 10MB.");
+    }
     const path = `${ticketId}/${crypto.randomUUID()}-${file.name}`;
     const { error } = await supabase.storage
       .from("ticket-attachments")
@@ -152,6 +153,7 @@ export function TicketChat({
 
   const sendMessageMutation = useMutation({
     mutationFn: async () => {
+      if (!user?.id) throw new Error("Sessione non valida. Ricarica la pagina e riprova.");
       setUploading(true);
       let attachmentUrl: string | null = null;
 
@@ -166,7 +168,7 @@ export function TicketChat({
         attachment_url?: string;
       } = {
         ticket_id: ticketId,
-        sender_id: user!.id,
+        sender_id: user.id,
         message: newMessage.trim() || (selectedFile ? `📎 ${selectedFile.name}` : ""),
       };
 
@@ -187,11 +189,11 @@ export function TicketChat({
         queryClient.invalidateQueries({ queryKey: key })
       );
     },
-    onError: () => {
+    onError: (err: Error) => {
       setUploading(false);
       toast({
         title: "Errore",
-        description: "Impossibile inviare il messaggio. Riprova.",
+        description: err.message || "Impossibile inviare il messaggio. Riprova.",
         variant: "destructive",
       });
     },

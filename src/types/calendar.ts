@@ -98,6 +98,7 @@ export interface CalendarAppointment {
   description: string | null;
   appointment_date: string;
   appointment_time: string | null;
+  appointment_end_time?: string | null;
   appointment_type: string;
   assigned_to: string | null;
   order_id: string | null;
@@ -121,8 +122,15 @@ export interface CalendarAppointment {
     last_name: string;
   } | null;
   status?: string;
+  reminder_minutes?: number | null;
   formatted_address?: string | null;
+  address_line?: string | null;
   address_city?: string | null;
+  address_postal_code?: string | null;
+  address_province?: string | null;
+  address_country?: string | null;
+  address_notes?: string | null;
+  place_id?: string | null;
   lat?: number | null;
   lng?: number | null;
   assigned_profile?: {

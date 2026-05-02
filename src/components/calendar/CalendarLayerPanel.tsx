@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, Search, Users, UsersRound, Package, CalendarClock, Hammer, Wrench, Palmtree, AlertTriangle, Cloud, Settings } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { DEFAULT_CALENDAR_EVENT_COLORS, type CalendarEventColorKey, type CalendarEventColors } from "@/lib/calendarUtils";
 
 interface Employee {
   id: string;
@@ -30,6 +30,7 @@ interface CalendarLayerPanelProps {
   externalTeams: ExternalTeam[];
   visibleEmployees: Set<string>;
   visibleTeams: Set<string>;
+  scope?: "full" | "work";
   showPosa: boolean;
   showLavoro: boolean;
   showAppuntamento: boolean;
@@ -52,6 +53,9 @@ interface CalendarLayerPanelProps {
   onToggleInterventi: (v: boolean) => void;
   showManutenzioni: boolean;
   onToggleManutenzioni: (v: boolean) => void;
+  eventColors?: CalendarEventColors;
+  onEventColorChange?: (key: CalendarEventColorKey, color: string) => void;
+  onResetEventColors?: () => void;
 }
 
 export function CalendarLayerPanel({
@@ -59,6 +63,7 @@ export function CalendarLayerPanel({
   externalTeams,
   visibleEmployees,
   visibleTeams,
+  scope = "full",
   showPosa,
   showLavoro,
   showAppuntamento,
@@ -81,8 +86,12 @@ export function CalendarLayerPanel({
   onToggleInterventi,
   showManutenzioni,
   onToggleManutenzioni,
+  eventColors = DEFAULT_CALENDAR_EVENT_COLORS,
+  onEventColorChange,
+  onResetEventColors,
 }: CalendarLayerPanelProps) {
   const [search, setSearch] = useState("");
+  const isWorkScope = scope === "work";
 
   const filteredEmployees = employees.filter(
     (e) =>
@@ -95,7 +104,9 @@ export function CalendarLayerPanel({
   const allEmployeesVisible = employees.length > 0 && employees.every((e) => visibleEmployees.has(e.id));
   const allTeamsVisible = externalTeams.length > 0 && externalTeams.every((t) => visibleTeams.has(t.id));
 
-  const allLayersHidden = !showPosa && !showLavoro && !showAppuntamento && !showMerce && !showGoogleBusy && !showLeaves && !showInterventi && !showManutenzioni;
+  const allLayersHidden = isWorkScope
+    ? !showPosa && !showLavoro && !showAppuntamento
+    : !showPosa && !showLavoro && !showAppuntamento && !showMerce && !showGoogleBusy && !showLeaves && !showInterventi && !showManutenzioni;
 
   return (
     <div className="w-64 shrink-0 border rounded-lg bg-card p-3 space-y-3">
@@ -127,23 +138,23 @@ export function CalendarLayerPanel({
               <LayerCheckbox
                 checked={showPosa}
                 onCheckedChange={onTogglePosa}
-                icon={<Hammer className="h-3 w-3 text-blue-500" />}
+                icon={<Hammer className="h-3 w-3" style={{ color: eventColors.posa }} />}
                 label="Data Posa"
-                colorDot="bg-blue-500"
+                color={eventColors.posa}
               />
               <LayerCheckbox
                 checked={showLavoro}
                 onCheckedChange={onToggleLavoro}
-                icon={<Wrench className="h-3 w-3 text-green-500" />}
+                icon={<Wrench className="h-3 w-3" style={{ color: eventColors.lavoro }} />}
                 label="Lavori in corso"
-                colorDot="bg-green-500"
+                color={eventColors.lavoro}
               />
               <LayerCheckbox
                 checked={showAppuntamento}
                 onCheckedChange={onToggleAppuntamento}
-                icon={<CalendarClock className="h-3 w-3 text-indigo-500" />}
+                icon={<CalendarClock className="h-3 w-3" style={{ color: eventColors.appuntamento }} />}
                 label="Appuntamenti"
-                colorDot="bg-indigo-500"
+                color={eventColors.appuntamento}
               />
 
               {/* Employees grouped by area */}
@@ -156,7 +167,7 @@ export function CalendarLayerPanel({
                       className="h-3.5 w-3.5"
                     />
                     <Users className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-[11px] font-medium text-muted-foreground">Tutti i dipendenti</span>
+                    <span className="text-[11px] font-medium text-muted-foreground">Squadra lavori</span>
                   </div>
                   {(() => {
                     const grouped = new Map<string, Employee[]>();
@@ -165,7 +176,7 @@ export function CalendarLayerPanel({
                       if (!grouped.has(area)) grouped.set(area, []);
                       grouped.get(area)!.push(emp);
                     }
-                    const areaOrder = ["cantiere", "commerciale", "tecnico", "amministrazione"];
+                    const areaOrder = isWorkScope ? ["cantiere", "tecnico"] : ["cantiere", "commerciale", "tecnico", "amministrazione"];
                     return areaOrder
                       .filter(a => grouped.has(a))
                       .map(area => {
@@ -229,74 +240,75 @@ export function CalendarLayerPanel({
             </CollapsibleContent>
           </Collapsible>
 
-          {/* Calendario Magazzino */}
-          <Collapsible defaultOpen>
-            <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
-              <div className="flex items-center gap-1.5">
-                <Package className="h-3.5 w-3.5 text-orange-500" />
-                <span>Calendario Magazzino</span>
+          {!isWorkScope && (
+            <>
+              {/* Calendario Magazzino */}
+              <Collapsible defaultOpen>
+                <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
+                  <div className="flex items-center gap-1.5">
+                    <Package className="h-3.5 w-3.5 text-orange-500" />
+                    <span>Calendario Magazzino</span>
+                  </div>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pl-2 space-y-1 pt-1">
+                  <LayerCheckbox
+                    checked={showMerce}
+                    onCheckedChange={onToggleMerce}
+                    icon={<Package className="h-3 w-3" style={{ color: eventColors.merce }} />}
+                    label="Arrivo Merce"
+                    color={eventColors.merce}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+
+              <div className="pt-1">
+                <LayerCheckbox
+                  checked={showLeaves}
+                  onCheckedChange={onToggleLeaves}
+                  icon={<Palmtree className="h-3 w-3 text-amber-500" />}
+                  label="Ferie & Permessi"
+                  color={eventColors.leave}
+                />
               </div>
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pl-2 space-y-1 pt-1">
-              <LayerCheckbox
-                checked={showMerce}
-                onCheckedChange={onToggleMerce}
-                icon={<Package className="h-3 w-3 text-orange-500" />}
-                label="Arrivo Merce"
-                colorDot="bg-orange-500"
-              />
-            </CollapsibleContent>
-          </Collapsible>
 
-          {/* Ferie */}
-          <div className="pt-1">
-            <LayerCheckbox
-              checked={showLeaves}
-              onCheckedChange={onToggleLeaves}
-              icon={<Palmtree className="h-3 w-3 text-amber-500" />}
-              label="Ferie & Permessi"
-              colorDot="bg-amber-500"
-            />
-          </div>
-
-          {/* Google Calendar */}
-          <div className="pt-1">
-            <LayerCheckbox
-              checked={showGoogleBusy}
-              onCheckedChange={onToggleGoogleBusy}
-              icon={<CalendarClock className="h-3 w-3 text-muted-foreground" />}
-              label="Google Calendar"
-              colorDot="bg-muted-foreground"
-            />
-          </div>
-
-          {/* Assistenza / Interventi / Manutenzioni */}
-          <Collapsible defaultOpen>
-            <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
-              <div className="flex items-center gap-1.5">
-                <Wrench className="h-3.5 w-3.5 text-orange-500" />
-                <span>Assistenza</span>
+              <div className="pt-1">
+                <LayerCheckbox
+                  checked={showGoogleBusy}
+                  onCheckedChange={onToggleGoogleBusy}
+                  icon={<CalendarClock className="h-3 w-3 text-muted-foreground" />}
+                  label="Google Calendar"
+                  color={eventColors.google_busy}
+                />
               </div>
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pl-2 space-y-1 pt-1">
-              <LayerCheckbox
-                checked={showInterventi}
-                onCheckedChange={onToggleInterventi}
-                icon={<Wrench className="h-3 w-3 text-orange-500" />}
-                label="Interventi"
-                colorDot="bg-orange-500"
-              />
-              <LayerCheckbox
-                checked={showManutenzioni}
-                onCheckedChange={onToggleManutenzioni}
-                icon={<Settings className="h-3 w-3 text-blue-500" />}
-                label="Manutenzioni"
-                colorDot="bg-blue-500"
-              />
-            </CollapsibleContent>
-          </Collapsible>
+
+              <Collapsible defaultOpen>
+                <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
+                  <div className="flex items-center gap-1.5">
+                    <Wrench className="h-3.5 w-3.5 text-orange-500" />
+                    <span>Assistenza</span>
+                  </div>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pl-2 space-y-1 pt-1">
+                  <LayerCheckbox
+                    checked={showInterventi}
+                    onCheckedChange={onToggleInterventi}
+                    icon={<Wrench className="h-3 w-3" style={{ color: eventColors.intervento }} />}
+                    label="Interventi"
+                    color={eventColors.intervento}
+                  />
+                  <LayerCheckbox
+                    checked={showManutenzioni}
+                    onCheckedChange={onToggleManutenzioni}
+                    icon={<Settings className="h-3 w-3" style={{ color: eventColors.manutenzione }} />}
+                    label="Manutenzioni"
+                    color={eventColors.manutenzione}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+            </>
+          )}
 
           {/* Meteo */}
           <div className="pt-1">
@@ -305,9 +317,35 @@ export function CalendarLayerPanel({
               onCheckedChange={onToggleWeather}
               icon={<Cloud className="h-3 w-3 text-sky-500" />}
               label="Previsioni Meteo"
-              colorDot="bg-sky-500"
+              color={eventColors.weather}
             />
           </div>
+
+          <Collapsible>
+            <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
+              <span>Colori calendario</span>
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1 pt-1">
+              <ColorRow label="Data posa" value={eventColors.posa} onChange={(color) => onEventColorChange?.("posa", color)} />
+              <ColorRow label="Lavori" value={eventColors.lavoro} onChange={(color) => onEventColorChange?.("lavoro", color)} />
+              <ColorRow label="Appuntamenti" value={eventColors.appuntamento} onChange={(color) => onEventColorChange?.("appuntamento", color)} />
+              {!isWorkScope && (
+                <>
+                  <ColorRow label="Arrivo merce" value={eventColors.merce} onChange={(color) => onEventColorChange?.("merce", color)} />
+                  <ColorRow label="Interventi" value={eventColors.intervento} onChange={(color) => onEventColorChange?.("intervento", color)} />
+                  <ColorRow label="Manutenzioni" value={eventColors.manutenzione} onChange={(color) => onEventColorChange?.("manutenzione", color)} />
+                </>
+              )}
+              <button
+                type="button"
+                onClick={onResetEventColors}
+                className="mt-1 w-full rounded border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
+              >
+                Ripristina colori standard
+              </button>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       </ScrollArea>
 
@@ -320,49 +358,57 @@ export function CalendarLayerPanel({
       <div className="pt-2 border-t border-border/50 space-y-1">
         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-1">Legenda</p>
         <div className="flex items-center gap-1.5 px-1">
-          <div className="w-3 h-3 rounded bg-blue-500 flex items-center justify-center shrink-0">
+          <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.posa }}>
             <Hammer className="h-2 w-2 text-white" />
           </div>
           <span className="text-[10px] text-muted-foreground">Data Posa Prevista</span>
         </div>
-        <div className="flex items-center gap-1.5 px-1">
-          <div className="w-3 h-3 rounded bg-orange-500 flex items-center justify-center shrink-0">
-            <Package className="h-2 w-2 text-white" />
+        {!isWorkScope && (
+          <div className="flex items-center gap-1.5 px-1">
+            <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.merce }}>
+              <Package className="h-2 w-2 text-white" />
+            </div>
+            <span className="text-[10px] text-muted-foreground">Arrivo Merce</span>
           </div>
-          <span className="text-[10px] text-muted-foreground">Arrivo Merce</span>
-        </div>
+        )}
         <div className="flex items-center gap-1.5 px-1">
-          <div className="w-3 h-3 rounded bg-green-500 flex items-center justify-center shrink-0">
+          <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.lavoro }}>
             <Wrench className="h-2 w-2 text-white" />
           </div>
           <span className="text-[10px] text-muted-foreground">Lavori in corso</span>
         </div>
         <div className="flex items-center gap-1.5 px-1">
-          <div className="w-3 h-3 rounded bg-indigo-500 flex items-center justify-center shrink-0">
+          <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.appuntamento }}>
             <CalendarClock className="h-2 w-2 text-white" />
           </div>
           <span className="text-[10px] text-muted-foreground">Appuntamenti</span>
         </div>
-        <div className="flex items-center gap-1.5 px-1">
-          <div className="w-3 h-3 rounded bg-orange-500 flex items-center justify-center shrink-0">
-            <Wrench className="h-2 w-2 text-white" />
-          </div>
-          <span className="text-[10px] text-muted-foreground">Interventi</span>
-        </div>
-        <div className="flex items-center gap-1.5 px-1">
-          <div className="w-3 h-3 rounded bg-blue-500 flex items-center justify-center shrink-0">
-            <Settings className="h-2 w-2 text-white" />
-          </div>
-          <span className="text-[10px] text-muted-foreground">Manutenzioni</span>
-        </div>
+        {!isWorkScope && (
+          <>
+            <div className="flex items-center gap-1.5 px-1">
+              <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.intervento }}>
+                <Wrench className="h-2 w-2 text-white" />
+              </div>
+              <span className="text-[10px] text-muted-foreground">Interventi</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-1">
+              <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.manutenzione }}>
+                <Settings className="h-2 w-2 text-white" />
+              </div>
+              <span className="text-[10px] text-muted-foreground">Manutenzioni</span>
+            </div>
+          </>
+        )}
         <div className="flex items-center gap-1.5 px-1">
           <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
           <span className="text-[10px] text-muted-foreground">Rischio logistico</span>
         </div>
-        <div className="flex items-center gap-1.5 px-1">
-          <div className="w-3 h-3 rounded border border-dashed border-muted-foreground/40 bg-muted/60 shrink-0" />
-          <span className="text-[10px] text-muted-foreground">Google Calendar</span>
-        </div>
+        {!isWorkScope && (
+          <div className="flex items-center gap-1.5 px-1">
+            <div className="w-3 h-3 rounded border border-dashed border-muted-foreground/40 bg-muted/60 shrink-0" />
+            <span className="text-[10px] text-muted-foreground">Google Calendar</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -373,13 +419,13 @@ function LayerCheckbox({
   onCheckedChange,
   icon,
   label,
-  colorDot,
+  color,
 }: {
   checked: boolean;
   onCheckedChange: (v: boolean) => void;
   icon: React.ReactNode;
   label: string;
-  colorDot: string;
+  color: string;
 }) {
   return (
     <label className="flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-muted/30 rounded px-1">
@@ -388,9 +434,24 @@ function LayerCheckbox({
         onCheckedChange={(c) => onCheckedChange(!!c)}
         className="h-3.5 w-3.5"
       />
-      <div className={cn("w-2 h-2 rounded-full", colorDot)} />
+      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
       {icon}
       <span className="text-[11px]">{label}</span>
+    </label>
+  );
+}
+
+function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (color: string) => void }) {
+  return (
+    <label className="flex items-center justify-between gap-2 rounded px-1 py-0.5 hover:bg-muted/30">
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <input
+        type="color"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-6 w-8 cursor-pointer rounded border bg-transparent p-0.5"
+        aria-label={`Colore ${label}`}
+      />
     </label>
   );
 }

@@ -9,6 +9,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -43,6 +44,11 @@ interface Props {
   row: MarginalitaRow | null;
 }
 
+function safeNumber(value: number | null | undefined): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function BreakdownBar({
   label,
   value,
@@ -54,12 +60,14 @@ function BreakdownBar({
   total: number;
   colorClass: string;
 }) {
-  const pct = total > 0 ? Math.min((value / total) * 100, 100) : 0;
+  const cleanValue = safeNumber(value);
+  const cleanTotal = safeNumber(total);
+  const pct = cleanTotal > 0 ? Math.min((cleanValue / cleanTotal) * 100, 100) : 0;
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-xs">
         <span className="text-muted-foreground">{label}</span>
-        <span className="font-medium">{formatCurrency(value)} ({pct.toFixed(1)}%)</span>
+        <span className="font-medium">{formatCurrency(cleanValue)} ({pct.toFixed(1)}%)</span>
       </div>
       <div className="h-2 rounded-full bg-muted overflow-hidden">
         <div className={cn("h-full rounded-full transition-all", colorClass)} style={{ width: `${pct}%` }} />
@@ -70,7 +78,7 @@ function BreakdownBar({
 
 export default function MargineVociDetail({ open, onClose, row }: Props) {
   // Fetch order items with costs
-  const { data: items = [], isLoading: itemsLoading } = useQuery({
+  const { data: items = [], isLoading: itemsLoading, error: itemsError, refetch: refetchItems } = useQuery({
     queryKey: ["margine-voci-detail", row?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -96,7 +104,13 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
 
   if (!row) return null;
 
-  const marginePerc = row.margine_perc ?? 0;
+  const preventivoTotale = safeNumber(row.preventivo_totale);
+  const variazioniApprovate = safeNumber(row.variazioni_approvate);
+  const costoAcquisti = safeNumber(row.costo_acquisti);
+  const costoErrori = safeNumber(row.costo_errori);
+  const consuntivo = safeNumber(row.consuntivo);
+  const margine = safeNumber(row.margine);
+  const marginePerc = safeNumber(row.margine_perc);
   const margineColor =
     marginePerc >= 25 ? "bg-green-500" : marginePerc >= 10 ? "bg-amber-500" : "bg-red-500";
   const margineTextColor =
@@ -104,8 +118,9 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
 
   // Per-voce computed values
   const vociWithMargin = items.map((item) => {
-    const ricavo = (item.unit_price ?? 0) * (item.quantity ?? 1);
-    const costo = ((item.purchase_price ?? item.standard_cost ?? 0) * (item.quantity ?? 1));
+    const quantity = safeNumber(item.quantity) || 1;
+    const ricavo = safeNumber(item.unit_price) * quantity;
+    const costo = (safeNumber(item.purchase_price) || safeNumber(item.standard_cost)) * quantity;
     const margineVoce = ricavo - costo;
     const margineVocePerc = ricavo > 0 ? (margineVoce / ricavo) * 100 : 0;
     return { ...item, ricavo, costo, margineVoce, margineVocePerc };
@@ -140,18 +155,18 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-lg border p-3 space-y-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Preventivo</p>
-              <p className="text-lg font-bold text-primary">{formatCurrency(row.preventivo_totale)}</p>
-              {row.variazioni_approvate > 0 && (
-                <p className="text-xs text-muted-foreground">+{formatCurrency(row.variazioni_approvate)} varianti</p>
+              <p className="text-lg font-bold text-primary">{formatCurrency(preventivoTotale)}</p>
+              {variazioniApprovate > 0 && (
+                <p className="text-xs text-muted-foreground">+{formatCurrency(variazioniApprovate)} varianti</p>
               )}
             </div>
             <div className="rounded-lg border p-3 space-y-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Consuntivo</p>
-              <p className="text-lg font-bold">{formatCurrency(row.consuntivo)}</p>
+              <p className="text-lg font-bold">{formatCurrency(consuntivo)}</p>
             </div>
             <div className="rounded-lg border p-3 space-y-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Margine</p>
-              <p className={cn("text-lg font-bold", margineTextColor)}>{formatCurrency(row.margine)}</p>
+              <p className={cn("text-lg font-bold", margineTextColor)}>{formatCurrency(margine)}</p>
               <Badge className={cn("text-xs border-0",
                 marginePerc >= 25 ? "bg-green-100 text-green-800" :
                 marginePerc >= 10 ? "bg-amber-100 text-amber-800" :
@@ -167,22 +182,22 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Breakdown costi</p>
             <BreakdownBar
               label="Costi acquisti materiali"
-              value={row.costo_acquisti}
-              total={row.preventivo_totale}
+              value={costoAcquisti}
+              total={preventivoTotale}
               colorClass="bg-blue-500"
             />
-            {row.costo_errori > 0 && (
+            {costoErrori > 0 && (
               <BreakdownBar
                 label="Costi errori / rilavorazioni"
-                value={row.costo_errori}
-                total={row.preventivo_totale}
+                value={costoErrori}
+                total={preventivoTotale}
                 colorClass="bg-red-500"
               />
             )}
             <BreakdownBar
               label="Margine lordo"
-              value={Math.max(row.margine, 0)}
-              total={row.preventivo_totale}
+              value={Math.max(margine, 0)}
+              total={preventivoTotale}
               colorClass={margineColor}
             />
           </div>
@@ -197,6 +212,13 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
             {itemsLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+              </div>
+            ) : itemsError ? (
+              <div className="flex flex-col items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-5 text-center">
+                <p className="text-sm text-red-700">Impossibile caricare le voci d'ordine.</p>
+                <Button variant="outline" size="sm" onClick={() => refetchItems()}>
+                  Riprova
+                </Button>
               </div>
             ) : vociWithMargin.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
@@ -259,13 +281,13 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
           </div>
 
           {/* Warnings */}
-          {(row.costo_errori > 0 || marginePerc < 10) && (
+          {(costoErrori > 0 || marginePerc < 10) && (
             <div className="space-y-2">
-              {row.costo_errori > 0 && (
+              {costoErrori > 0 && (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-sm">
                   <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" aria-hidden="true" />
                   <div>
-                    <p className="font-medium text-red-800">Costi da errori: {formatCurrency(row.costo_errori)}</p>
+                    <p className="font-medium text-red-800">Costi da errori: {formatCurrency(costoErrori)}</p>
                     <p className="text-xs text-red-700">Analizza le cause per prevenire futuri errori su questo tipo di cantiere.</p>
                   </div>
                 </div>

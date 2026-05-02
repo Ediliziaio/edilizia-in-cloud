@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { format, subMonths, startOfMonth, parseISO } from "date-fns";
+import { endOfDay, format, isValid, parseISO, startOfMonth, subMonths } from "date-fns";
 import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import {
@@ -297,6 +297,22 @@ function compareSortValues(
   return 0;
 }
 
+function parseErrorDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const parsed = parseISO(value);
+  return isValid(parsed) ? parsed : null;
+}
+
+function getErrorAmount(value: number | null | undefined): number {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function formatErrorDate(value: string | null | undefined): string {
+  const parsed = parseErrorDate(value);
+  return parsed ? format(parsed, "dd/MM/yyyy") : "Data mancante";
+}
+
 function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {
   if (!active) return <ArrowUpDown className="h-3.5 w-3.5 opacity-45" />;
   return direction === "asc"
@@ -453,7 +469,7 @@ export default function GlobalErrors() {
     }));
   };
 
-  const { data: errors = [], isLoading, error } = useQuery({
+  const { data: errors = [], isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["global-errors", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -466,6 +482,8 @@ export default function GlobalErrors() {
       return (data || []) as unknown as OrderError[];
     },
     enabled: !!companyId,
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   });
 
   const enrichedErrors = useMemo(() => errors.map(enrichError), [errors]);
@@ -478,9 +496,10 @@ export default function GlobalErrors() {
       if (filters.responsibility !== "all" && e.responsibility !== filters.responsibility) return false;
       if (filters.severity !== "all" && e.severity !== filters.severity) return false;
       if (filters.dateFrom || filters.dateTo) {
-        const d = parseISO(e.error_date);
+        const d = parseErrorDate(e.error_date);
+        if (!d) return false;
         if (filters.dateFrom && d < filters.dateFrom) return false;
-        if (filters.dateTo && d > filters.dateTo) return false;
+        if (filters.dateTo && d > endOfDay(filters.dateTo)) return false;
       }
       if (q) {
         const haystack = [
@@ -503,7 +522,7 @@ export default function GlobalErrors() {
     const getSortValue = (e: EnrichedOrderError, key: ErrorSortKey) => {
       switch (key) {
         case "date":
-          return parseISO(e.error_date).getTime();
+          return parseErrorDate(e.error_date)?.getTime() ?? 0;
         case "order":
           return e.orders?.order_code ?? e.orders?.description ?? "";
         case "type":
@@ -515,7 +534,7 @@ export default function GlobalErrors() {
         case "severity":
           return e.severity === "high" ? 3 : e.severity === "medium" ? 2 : 1;
         case "amount":
-          return Number(e.amount ?? 0);
+          return getErrorAmount(e.amount);
         case "description":
           return e.description ?? "";
         default:
@@ -530,12 +549,15 @@ export default function GlobalErrors() {
   }, [enrichedErrors, filters, search, sort]);
 
   const stats = useMemo(() => {
-    const totalLoss = filtered.reduce((s, e) => s + Number(e.amount ?? 0), 0);
+    const totalLoss = filtered.reduce((s, e) => s + getErrorAmount(e.amount), 0);
     const critical = filtered.filter((e) => e.severity === "high");
     const thisMonthStart = startOfMonth(new Date());
-    const thisMonth = enrichedErrors
-      .filter((e) => parseISO(e.error_date) >= thisMonthStart)
-      .reduce((s, e) => s + Number(e.amount ?? 0), 0);
+    const thisMonth = filtered
+      .filter((e) => {
+        const d = parseErrorDate(e.error_date);
+        return d ? d >= thisMonthStart : false;
+      })
+      .reduce((s, e) => s + getErrorAmount(e.amount), 0);
 
     const responsibilityTotals: Record<ResponsibilityKey, { amount: number; count: number }> = {
       supplier: { amount: 0, count: 0 },
@@ -559,7 +581,7 @@ export default function GlobalErrors() {
     };
 
     filtered.forEach((e) => {
-      responsibilityTotals[e.responsibility].amount += Number(e.amount ?? 0);
+      responsibilityTotals[e.responsibility].amount += getErrorAmount(e.amount);
       responsibilityTotals[e.responsibility].count += 1;
       categoryTotals[e.normalizedCategory] += 1;
     });
@@ -574,7 +596,7 @@ export default function GlobalErrors() {
       .sort((a, b) => b[1] - a[1])[0] as [NormalizedCategory, number] | undefined;
 
     return { totalLoss, critical, thisMonth, responsibilityTotals, topResponsibility, topCategory };
-  }, [filtered, enrichedErrors]);
+  }, [filtered]);
 
   const categoryChart = useMemo(() => {
     const map: Record<NormalizedCategory, number> = {
@@ -590,7 +612,7 @@ export default function GlobalErrors() {
       altro: 0,
     };
     filtered.forEach((e) => {
-      map[e.normalizedCategory] += Number(e.amount ?? 0);
+      map[e.normalizedCategory] += getErrorAmount(e.amount);
     });
     return Object.entries(map)
       .filter(([, amount]) => amount > 0)
@@ -625,13 +647,14 @@ export default function GlobalErrors() {
     return months.map((m) => {
       const row = { month: m.label, fornitura: 0, esecuzione: 0, logistica: 0, altro: 0 };
       enrichedErrors.forEach((e) => {
-        const d = parseISO(e.error_date);
+        const d = parseErrorDate(e.error_date);
+        if (!d) return;
         if (d < m.start || d >= m.end) return;
         const chartKey = TYPE_META[e.normalizedType].chartKey;
-        if (chartKey === "supply") row.fornitura += Number(e.amount ?? 0);
-        if (chartKey === "execution") row.esecuzione += Number(e.amount ?? 0);
-        if (chartKey === "logistics") row.logistica += Number(e.amount ?? 0);
-        if (chartKey === "other") row.altro += Number(e.amount ?? 0);
+        if (chartKey === "supply") row.fornitura += getErrorAmount(e.amount);
+        if (chartKey === "execution") row.esecuzione += getErrorAmount(e.amount);
+        if (chartKey === "logistics") row.logistica += getErrorAmount(e.amount);
+        if (chartKey === "other") row.altro += getErrorAmount(e.amount);
       });
       return row;
     });
@@ -640,7 +663,12 @@ export default function GlobalErrors() {
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-        Impossibile caricare le anomalie. Riprova tra qualche secondo o verifica i permessi aziendali.
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span>Impossibile caricare le anomalie. Riprova tra qualche secondo o verifica i permessi aziendali.</span>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Riprova
+          </Button>
+        </div>
       </div>
     );
   }
@@ -714,7 +742,7 @@ export default function GlobalErrors() {
           value={String(stats.critical.length)}
           detail={
             stats.critical.length > 0
-              ? `${formatCurrency(stats.critical.reduce((s, e) => s + Number(e.amount ?? 0), 0))} da presidiare`
+              ? `${formatCurrency(stats.critical.reduce((s, e) => s + getErrorAmount(e.amount), 0))} da presidiare`
               : "Nessuna perdita sopra soglia"
           }
           icon={Target}
@@ -794,6 +822,9 @@ export default function GlobalErrors() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Andamento mensile per sorgente</CardTitle>
+          {isFetching && !isLoading && (
+            <p className="text-xs text-muted-foreground">Aggiornamento dati in corso...</p>
+          )}
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={260}>
@@ -864,7 +895,7 @@ export default function GlobalErrors() {
                     const orderLabel = e.orders?.order_code || e.orders?.description?.slice(0, 30) || "Commessa non trovata";
                     return (
                       <TableRow key={e.id}>
-                        <TableCell className="whitespace-nowrap">{format(parseISO(e.error_date), "dd/MM/yyyy")}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatErrorDate(e.error_date)}</TableCell>
                         <TableCell>
                           <Link
                             to={`/azienda/ordini/${e.order_id}`}
@@ -891,7 +922,7 @@ export default function GlobalErrors() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-semibold text-red-600">
-                          {formatCurrency(Number(e.amount ?? 0))}
+                          {formatCurrency(getErrorAmount(e.amount))}
                         </TableCell>
                         <TableCell className="min-w-[300px] max-w-[360px]">
                           <div className="space-y-1">

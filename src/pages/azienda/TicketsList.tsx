@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,8 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   MessageSquare,
   Search,
@@ -26,6 +36,12 @@ import {
   CalendarClock,
   UserX,
   ClipboardList,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  CheckSquare,
+  Euro,
+  BriefcaseBusiness,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/shared/ExportButton";
@@ -53,7 +69,8 @@ import {
 } from "@/components/ui/table";
 import type { TicketListItem } from "@/types/tickets";
 import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
-import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { type StaffUser, useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { toast } from "sonner";
 
 const TIPO_LABEL: Record<string, string> = {
   supporto: "Supporto",
@@ -72,6 +89,26 @@ const TIPO_COLORS: Record<string, { bg: string; text: string; border: string }> 
   intervento:{ bg: "#fef3c7", text: "#92400e", border: "#fcd34d" },
   emergenza: { bg: "#fee2e2", text: "#991b1b", border: "#fca5a5" },
 };
+
+const TICKETS_FETCH_LIMIT = 500;
+const TICKETS_QUERY_TIMEOUT_MS = 12_000;
+const KEEP_VALUE = "__keep__";
+const UNASSIGNED_VALUE = "__unassigned__";
+
+const TICKET_STATUS_OPTIONS = [
+  { value: "aperto", label: "Aperto" },
+  { value: "in_lavorazione", label: "In lavorazione" },
+  { value: "in_attesa", label: "In attesa" },
+  { value: "risolto", label: "Risolto" },
+  { value: "chiuso", label: "Chiuso" },
+] as const;
+
+type TicketSortKey = "tipo" | "cliente" | "priority" | "scadenza" | "status" | "assigned" | "order" | "updated";
+type SortDirection = "asc" | "desc";
+
+function safeText(value: string | null | undefined): string {
+  return value ?? "";
+}
 
 /** Categorizza la data_intervento_prevista in rispetto a oggi */
 type ScadenzaBucket = "scaduto" | "oggi" | "settimana" | "futuro" | "nessuna";
@@ -97,8 +134,14 @@ function formatScadenza(iso: string | null | undefined): string {
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" });
 }
 
+function compareSortValues(a: string | number, b: string | number): number {
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a).localeCompare(String(b), "it", { numeric: true, sensitivity: "base" });
+}
+
 const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const { effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -106,6 +149,14 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const [fonteFilter, setFonteFilter] = useState<string>("tutti");
   const [scadenzaFilter, setScadenzaFilter] = useState<string>("tutte");
   const [assegnatoFilter, setAssegnatoFilter] = useState<string>("tutti");
+  const [sort, setSort] = useState<{ key: TicketSortKey; direction: SortDirection }>({
+    key: "updated",
+    direction: "desc",
+  });
+  const [selectedTicketIds, setSelectedTicketIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState(KEEP_VALUE);
+  const [bulkAssignee, setBulkAssignee] = useState(KEEP_VALUE);
   // Filtro tipo da URL (?tipo=intervento) o default = all (retrocompatibilità redirect)
   const tipoFilter = searchParams.get("tipo") ?? "all";
   const setTipoFilter = (v: string) => {
@@ -119,6 +170,8 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const { data: queryResult, isLoading, isError, refetch } = useQuery({
     queryKey: [...queryKeys.companyTickets.list(effectiveCompany?.id), tipoFilter, statusFilter, priorityFilter],
     queryFn: async () => {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), TICKETS_QUERY_TIMEOUT_MS);
       let query = supabase
         .from("tickets")
         .select(`
@@ -140,15 +193,28 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       if (statusFilter !== "all") query = query.eq("status", statusFilter);
       if (priorityFilter !== "all") query = query.eq("priority", priorityFilter);
 
-      const { data, error, count } = await query.range(0, 499);
-      if (error) throw error;
-      return { tickets: data as unknown as TicketListItem[], totalCount: count ?? 0 };
+      try {
+        const { data, error, count } = await query
+          .abortSignal(controller.signal)
+          .range(0, TICKETS_FETCH_LIMIT - 1);
+        if (error) throw error;
+        return { tickets: data as unknown as TicketListItem[], totalCount: count ?? 0 };
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          throw new Error("Il caricamento dei ticket sta impiegando troppo tempo. Riprova o restringi i filtri.");
+        }
+        throw error;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 2 * 60 * 1000,
   });
 
-  const tickets = queryResult?.tickets ?? [];
+  const tickets = useMemo(() => queryResult?.tickets ?? [], [queryResult]);
+  const totalTickets = queryResult?.totalCount ?? tickets.length;
+  const hasMoreTickets = totalTickets > tickets.length;
 
   const { data: staffList = [] } = useCompanyStaffUsers(effectiveCompany?.id);
 
@@ -169,12 +235,156 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
-      ticket.subject.toLowerCase().includes(q) ||
+      safeText(ticket.subject).toLowerCase().includes(q) ||
       ticket.customer?.first_name?.toLowerCase().includes(q) ||
       ticket.customer?.last_name?.toLowerCase().includes(q) ||
-      ticket.customer?.email?.toLowerCase().includes(q)
+      ticket.customer?.email?.toLowerCase().includes(q) ||
+      ticket.assignee?.first_name?.toLowerCase().includes(q) ||
+      ticket.assignee?.last_name?.toLowerCase().includes(q) ||
+      ticket.order?.description?.toLowerCase().includes(q)
     );
   }), [tickets, fonteFilter, assegnatoFilter, scadenzaFilter, searchQuery]);
+
+  const sortedTickets = useMemo(() => {
+    const priorityRank: Record<string, number> = { urgente: 4, alta: 3, normale: 2, media: 2, bassa: 1 };
+    const statusRank: Record<string, number> = { aperto: 1, in_lavorazione: 2, in_attesa: 3, risolto: 4, chiuso: 5 };
+    const getSortValue = (ticket: TicketListItem, key: TicketSortKey): string | number => {
+      switch (key) {
+        case "tipo":
+          return safeText(ticket.tipo);
+        case "cliente":
+          return `${safeText(ticket.customer?.last_name)} ${safeText(ticket.customer?.first_name)} ${safeText(ticket.customer?.email)}`;
+        case "priority":
+          return priorityRank[ticket.priority] ?? 0;
+        case "scadenza": {
+          const raw = (ticket as unknown as { data_intervento_prevista?: string }).data_intervento_prevista;
+          const date = raw ? new Date(raw).getTime() : Number.MAX_SAFE_INTEGER;
+          return Number.isFinite(date) ? date : Number.MAX_SAFE_INTEGER;
+        }
+        case "status":
+          return statusRank[ticket.status] ?? 0;
+        case "assigned":
+          return `${safeText(ticket.assignee?.last_name)} ${safeText(ticket.assignee?.first_name)}`;
+        case "order":
+          return safeText(ticket.order?.description);
+        case "updated": {
+          const date = new Date(ticket.last_message_at || ticket.updated_at || ticket.created_at).getTime();
+          return Number.isFinite(date) ? date : 0;
+        }
+        default:
+          return "";
+      }
+    };
+
+    return [...filteredTickets].sort((a, b) => {
+      const order = compareSortValues(getSortValue(a, sort.key), getSortValue(b, sort.key));
+      return sort.direction === "asc" ? order : -order;
+    });
+  }, [filteredTickets, sort]);
+
+  const selectedTickets = useMemo(
+    () => sortedTickets.filter((ticket) => selectedTicketIds.has(ticket.id)),
+    [selectedTicketIds, sortedTickets],
+  );
+  const selectedAllVisible = sortedTickets.length > 0 && sortedTickets.every((ticket) => selectedTicketIds.has(ticket.id));
+  const selectedHasOrder = selectedTickets.filter((ticket) => ticket.order_id).length;
+  const selectedOpen = selectedTickets.filter((ticket) => ticket.status !== "risolto" && ticket.status !== "chiuso").length;
+
+  const invalidateTickets = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
+
+  const updateTicketsMutation = useMutation({
+    mutationFn: async ({ ids, updates }: { ids: string[]; updates: Record<string, unknown> }) => {
+      if (!effectiveCompany?.id || ids.length === 0) return;
+      const { error } = await supabase
+        .from("tickets")
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq("company_id", effectiveCompany.id)
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: async (_data, variables) => {
+      await invalidateTickets();
+      toast.success(variables.ids.length === 1 ? "Ticket aggiornato" : `${variables.ids.length} ticket aggiornati`);
+    },
+    onError: (error: Error) => toast.error(error.message || "Aggiornamento non riuscito"),
+  });
+
+  const toggleTicketSelection = (ticketId: string) => {
+    setSelectedTicketIds((current) => {
+      const next = new Set(current);
+      if (next.has(ticketId)) next.delete(ticketId);
+      else next.add(ticketId);
+      return next;
+    });
+  };
+
+  const toggleAllVisible = () => {
+    setSelectedTicketIds((current) => {
+      const next = new Set(current);
+      if (selectedAllVisible) {
+        sortedTickets.forEach((ticket) => next.delete(ticket.id));
+      } else {
+        sortedTickets.forEach((ticket) => next.add(ticket.id));
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedTicketIds(new Set());
+    setBulkStatus(KEEP_VALUE);
+    setBulkAssignee(KEEP_VALUE);
+  };
+
+  const updateTicketStatus = (ticketId: string, status: string) => {
+    const updates: Record<string, unknown> = { status };
+    if (status === "risolto" || status === "chiuso") {
+      updates.data_intervento_effettiva = new Date().toISOString();
+    }
+    updateTicketsMutation.mutate({ ids: [ticketId], updates });
+  };
+
+  const updateTicketAssignee = (ticketId: string, assigneeId: string) => {
+    updateTicketsMutation.mutate({
+      ids: [ticketId],
+      updates: { assigned_to: assigneeId === UNASSIGNED_VALUE ? null : assigneeId },
+    });
+  };
+
+  const applyBulkUpdates = () => {
+    const ids = Array.from(selectedTicketIds);
+    const updates: Record<string, unknown> = {};
+    if (bulkStatus !== KEEP_VALUE) {
+      updates.status = bulkStatus;
+      if (bulkStatus === "risolto" || bulkStatus === "chiuso") {
+        updates.data_intervento_effettiva = new Date().toISOString();
+      }
+    }
+    if (bulkAssignee !== KEEP_VALUE) {
+      updates.assigned_to = bulkAssignee === UNASSIGNED_VALUE ? null : bulkAssignee;
+    }
+    if (ids.length === 0 || Object.keys(updates).length === 0) {
+      toast.info("Seleziona almeno una modifica da applicare");
+      return;
+    }
+    updateTicketsMutation.mutate(
+      { ids, updates },
+      {
+        onSuccess: () => {
+          clearSelection();
+          setBulkOpen(false);
+        },
+      },
+    );
+  };
+
+  const handleSort = (key: TicketSortKey) => {
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  };
 
   // Metriche aggregate (basate su TUTTI i ticket azienda, non filtrati)
   const metrics = useMemo(() => {
@@ -200,8 +410,14 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-10 w-48" />
-        <Skeleton className="h-32 w-full" />
+        <div>
+          <h1 className="text-2xl font-bold">Assistenza</h1>
+          <p className="text-muted-foreground">Caricamento ticket, interventi e richieste clienti...</p>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
+        </div>
+        <Skeleton className="h-12 w-full" />
         <Skeleton className="h-64 w-full" />
       </div>
     );
@@ -230,14 +446,26 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   return (
     <div ref={ref} className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Assistenza</h1>
-          <p className="text-muted-foreground">
-            Supporto clienti, interventi sul campo e chiamate di emergenza — in un'unica vista.
-          </p>
-        </div>
+      <div className="rounded-2xl border bg-card px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-[0_8px_22px_rgba(37,99,235,0.24)]">
+              <LifeBuoy className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold tracking-tight">Assistenza</h1>
+              <p className="text-sm text-muted-foreground">
+                Ticket clienti, interventi collegati alle commesse, responsabilita e costi da tenere sotto controllo.
+              </p>
+            </div>
+          </div>
         <div className="flex items-center gap-2">
+          {selectedTicketIds.size > 0 && (
+            <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2">
+              <CheckSquare className="h-4 w-4" />
+              {selectedTicketIds.size} selezionati
+            </Button>
+          )}
           <ExportButton
             getData={() => filteredTickets.map((t) => ({
               id: t.id?.slice(0, 8) || "",
@@ -272,6 +500,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               <span className="hidden sm:inline">Nuovo Ticket</span>
             </Link>
           </Button>
+        </div>
         </div>
       </div>
 
@@ -348,6 +577,21 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         />
       </div>
 
+      {selectedTicketIds.size > 0 && (
+        <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50/80 p-3 text-sm text-blue-950 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge className="bg-blue-600">{selectedTicketIds.size} selezionati</Badge>
+            <span>{selectedOpen} ancora aperti</span>
+            <span className="hidden sm:inline">·</span>
+            <span>{selectedHasOrder} collegati a commesse</span>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={clearSelection}>Annulla selezione</Button>
+            <Button size="sm" onClick={() => setBulkOpen(true)}>Azioni massive</Button>
+          </div>
+        </div>
+      )}
+
       {/* Filters row */}
       <div className="flex flex-col gap-3">
         <div className="relative">
@@ -414,8 +658,18 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         </div>
       </div>
 
+      {hasMoreTickets && (
+        <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Vista limitata ai primi {tickets.length.toLocaleString("it-IT")} ticket su {totalTickets.toLocaleString("it-IT")}.
+            Usa filtri e ricerca per lavorare con precisione su archivi molto grandi.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Tickets Table */}
-      {filteredTickets.length === 0 ? (
+      {sortedTickets.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
@@ -431,7 +685,15 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         <Card>
           {/* Mobile list */}
           <div className="sm:hidden divide-y">
-            {filteredTickets.map((ticket) => <MobileTicketRow key={ticket.id} ticket={ticket} unreadCount={unreadByTicket[ticket.id]} />)}
+            {sortedTickets.map((ticket) => (
+              <MobileTicketRow
+                key={ticket.id}
+                ticket={ticket}
+                unreadCount={unreadByTicket[ticket.id]}
+                selected={selectedTicketIds.has(ticket.id)}
+                onToggleSelected={() => toggleTicketSelection(ticket.id)}
+              />
+            ))}
           </div>
 
           {/* Desktop table */}
@@ -439,24 +701,53 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-24">Tipo</TableHead>
-                  <TableHead>Cliente · Oggetto</TableHead>
-                  <TableHead>Priorità</TableHead>
-                  <TableHead>Scadenza</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead className="hidden lg:table-cell">Assegnato</TableHead>
-                  <TableHead className="hidden xl:table-cell">Ordine</TableHead>
-                  <TableHead className="hidden md:table-cell">Aggiornato</TableHead>
+                  <TableHead className="w-10">
+                    <Checkbox checked={selectedAllVisible} onCheckedChange={toggleAllVisible} aria-label="Seleziona ticket visibili" />
+                  </TableHead>
+                  <SortableTableHead className="w-24" active={sort.key === "tipo"} direction={sort.direction} onClick={() => handleSort("tipo")}>Tipo</SortableTableHead>
+                  <SortableTableHead active={sort.key === "cliente"} direction={sort.direction} onClick={() => handleSort("cliente")}>Cliente · Oggetto</SortableTableHead>
+                  <SortableTableHead active={sort.key === "priority"} direction={sort.direction} onClick={() => handleSort("priority")}>Priorità</SortableTableHead>
+                  <SortableTableHead active={sort.key === "scadenza"} direction={sort.direction} onClick={() => handleSort("scadenza")}>Scadenza</SortableTableHead>
+                  <SortableTableHead active={sort.key === "status"} direction={sort.direction} onClick={() => handleSort("status")}>Stato</SortableTableHead>
+                  <SortableTableHead className="hidden lg:table-cell" active={sort.key === "assigned"} direction={sort.direction} onClick={() => handleSort("assigned")}>Assegnato</SortableTableHead>
+                  <SortableTableHead className="hidden xl:table-cell" active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Ordine</SortableTableHead>
+                  <SortableTableHead className="hidden md:table-cell" active={sort.key === "updated"} direction={sort.direction} onClick={() => handleSort("updated")}>Aggiornato</SortableTableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTickets.map((ticket) => <DesktopTicketRow key={ticket.id} ticket={ticket} unreadCount={unreadByTicket[ticket.id]} />)}
+                {sortedTickets.map((ticket) => (
+                  <DesktopTicketRow
+                    key={ticket.id}
+                    ticket={ticket}
+                    unreadCount={unreadByTicket[ticket.id]}
+                    selected={selectedTicketIds.has(ticket.id)}
+                    onToggleSelected={() => toggleTicketSelection(ticket.id)}
+                    onStatusChange={updateTicketStatus}
+                    onAssigneeChange={updateTicketAssignee}
+                    staffList={staffList}
+                    isUpdating={updateTicketsMutation.isPending}
+                  />
+                ))}
               </TableBody>
             </Table>
           </div>
         </Card>
       )}
+
+      <TicketBulkActionsSheet
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        selectedTickets={selectedTickets}
+        staffList={staffList}
+        bulkStatus={bulkStatus}
+        onBulkStatusChange={setBulkStatus}
+        bulkAssignee={bulkAssignee}
+        onBulkAssigneeChange={setBulkAssignee}
+        onApply={applyBulkUpdates}
+        onClear={clearSelection}
+        isPending={updateTicketsMutation.isPending}
+      />
     </div>
   );
 });
@@ -503,6 +794,34 @@ function KpiCard({ icon, label, value, accent, badge, active, onClick }: {
   );
 }
 
+function SortableTableHead({
+  children,
+  active,
+  direction,
+  onClick,
+  className,
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  direction: SortDirection;
+  onClick: () => void;
+  className?: string;
+}) {
+  const Icon = !active ? ArrowUpDown : direction === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <TableHead className={className}>
+      <button
+        type="button"
+        onClick={onClick}
+        className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+      >
+        {children}
+        <Icon className="h-3.5 w-3.5" />
+      </button>
+    </TableHead>
+  );
+}
+
 function TipoChip({ tipo }: { tipo: string | null | undefined }) {
   const key = (tipo ?? "supporto") as keyof typeof TIPO_LABEL;
   const Icon = TIPO_ICON[key] ?? LifeBuoy;
@@ -544,55 +863,82 @@ function ScadenzaCell({ iso }: { iso: string | null | undefined }) {
   );
 }
 
-function MobileTicketRow({ ticket, unreadCount }: { ticket: TicketListItem; unreadCount: number | undefined }) {
+function MobileTicketRow({
+  ticket,
+  unreadCount,
+  selected,
+  onToggleSelected,
+}: {
+  ticket: TicketListItem;
+  unreadCount: number | undefined;
+  selected: boolean;
+  onToggleSelected: () => void;
+}) {
   const statusColor = getTicketStatusColor(ticket.status);
   const priorityColor = getTicketPriorityColor(ticket.priority);
   const scadenza = (ticket as unknown as { data_intervento_prevista?: string }).data_intervento_prevista;
   return (
-    <Link
-      to={`/azienda/assistenza/${ticket.id}`}
-      className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted transition-colors"
-    >
-      <div className="flex-1 min-w-0 space-y-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <TipoChip tipo={ticket.tipo} />
-          <span className="font-semibold text-sm line-clamp-1">{ticket.subject}</span>
-          {unreadCount !== undefined && unreadCount > 0 && (
-            <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shrink-0">
-              {unreadCount}
-            </span>
-          )}
+    <div className="flex items-start gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted transition-colors">
+      <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`Seleziona ${ticket.subject}`} className="mt-1" />
+      <Link to={`/azienda/assistenza/${ticket.id}`} className="flex min-w-0 flex-1 items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <TipoChip tipo={ticket.tipo} />
+            <span className="font-semibold text-sm line-clamp-1">{ticket.subject}</span>
+            {unreadCount !== undefined && unreadCount > 0 && (
+              <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shrink-0">
+                {unreadCount}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {ticket.customer?.first_name} {ticket.customer?.last_name}
+          </p>
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            <span>{formatRelativeTime(ticket.last_message_at || ticket.updated_at)}</span>
+            {scadenza && <ScadenzaCell iso={scadenza} />}
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {ticket.customer?.first_name} {ticket.customer?.last_name}
-        </p>
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-          <span>{formatRelativeTime(ticket.last_message_at || ticket.updated_at)}</span>
-          {scadenza && <ScadenzaCell iso={scadenza} />}
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <Badge
+            variant="outline"
+            className="text-[10px] px-1.5 py-0"
+            style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}
+          >
+            {getTicketStatusLabel(ticket.status)}
+          </Badge>
+          <Badge
+            variant="outline"
+            className="text-[10px] px-1.5 py-0"
+            style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}
+          >
+            {getTicketPriorityLabel(ticket.priority)}
+          </Badge>
         </div>
-      </div>
-      <div className="flex flex-col items-end gap-1 shrink-0">
-        <Badge
-          variant="outline"
-          className="text-[10px] px-1.5 py-0"
-          style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}
-        >
-          {getTicketStatusLabel(ticket.status)}
-        </Badge>
-        <Badge
-          variant="outline"
-          className="text-[10px] px-1.5 py-0"
-          style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}
-        >
-          {getTicketPriorityLabel(ticket.priority)}
-        </Badge>
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 }
 
-function DesktopTicketRow({ ticket, unreadCount }: { ticket: TicketListItem; unreadCount: number | undefined }) {
-  const statusColor = getTicketStatusColor(ticket.status);
+function DesktopTicketRow({
+  ticket,
+  unreadCount,
+  selected,
+  onToggleSelected,
+  onStatusChange,
+  onAssigneeChange,
+  staffList,
+  isUpdating,
+}: {
+  ticket: TicketListItem;
+  unreadCount: number | undefined;
+  selected: boolean;
+  onToggleSelected: () => void;
+  onStatusChange: (ticketId: string, status: string) => void;
+  onAssigneeChange: (ticketId: string, assigneeId: string) => void;
+  staffList: StaffUser[];
+  isUpdating: boolean;
+}) {
   const priorityColor = getTicketPriorityColor(ticket.priority);
   const scadenza = (ticket as unknown as { data_intervento_prevista?: string }).data_intervento_prevista;
   const isUrgent = ticket.priority === "urgente";
@@ -600,6 +946,9 @@ function DesktopTicketRow({ ticket, unreadCount }: { ticket: TicketListItem; unr
   const isOverdue = (bucketS === "scaduto" || bucketS === "oggi") && ticket.status !== "risolto" && ticket.status !== "chiuso";
   return (
     <TableRow className={cn(isUrgent && "bg-red-50/50 dark:bg-red-950/10", isOverdue && !isUrgent && "bg-orange-50/50 dark:bg-orange-950/10")}>
+      <TableCell>
+        <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`Seleziona ${ticket.subject}`} />
+      </TableCell>
       <TableCell><TipoChip tipo={ticket.tipo} /></TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
@@ -628,21 +977,15 @@ function DesktopTicketRow({ ticket, unreadCount }: { ticket: TicketListItem; unr
       </TableCell>
       <TableCell><ScadenzaCell iso={scadenza} /></TableCell>
       <TableCell>
-        <Badge
-          variant="outline"
-          style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}
-        >
-          {getTicketStatusLabel(ticket.status)}
-        </Badge>
+        <TicketStatusSelect value={ticket.status} disabled={isUpdating} onChange={(value) => onStatusChange(ticket.id, value)} />
       </TableCell>
       <TableCell className="hidden lg:table-cell">
-        {ticket.assignee ? (
-          <span className="text-sm">
-            {ticket.assignee.first_name} {ticket.assignee.last_name}
-          </span>
-        ) : (
-          <Badge variant="outline" className="text-[10px] text-muted-foreground">Non assegnato</Badge>
-        )}
+        <TicketAssigneeSelect
+          value={ticket.assigned_to || UNASSIGNED_VALUE}
+          staffList={staffList}
+          disabled={isUpdating}
+          onChange={(value) => onAssigneeChange(ticket.id, value)}
+        />
       </TableCell>
       <TableCell className="hidden xl:table-cell">
         {ticket.order ? (
@@ -665,5 +1008,169 @@ function DesktopTicketRow({ ticket, unreadCount }: { ticket: TicketListItem; unr
         </Button>
       </TableCell>
     </TableRow>
+  );
+}
+
+function TicketStatusSelect({ value, disabled, onChange }: { value: string; disabled?: boolean; onChange: (value: string) => void }) {
+  const statusColor = getTicketStatusColor(value);
+  return (
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger
+        className="h-8 w-[138px] border px-2 text-xs font-medium"
+        style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {TICKET_STATUS_OPTIONS.map((status) => (
+          <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function TicketAssigneeSelect({
+  value,
+  staffList,
+  disabled,
+  onChange,
+}: {
+  value: string;
+  staffList: StaffUser[];
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger className="h-8 w-[170px] px-2 text-xs">
+        <SelectValue placeholder="Assegna" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={UNASSIGNED_VALUE}>Non assegnato</SelectItem>
+        {staffList.map((staff) => (
+          <SelectItem key={staff.id} value={staff.id}>
+            {[staff.first_name, staff.last_name].filter(Boolean).join(" ") || "Senza nome"}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function TicketBulkActionsSheet({
+  open,
+  onOpenChange,
+  selectedTickets,
+  staffList,
+  bulkStatus,
+  onBulkStatusChange,
+  bulkAssignee,
+  onBulkAssigneeChange,
+  onApply,
+  onClear,
+  isPending,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  selectedTickets: TicketListItem[];
+  staffList: StaffUser[];
+  bulkStatus: string;
+  onBulkStatusChange: (value: string) => void;
+  bulkAssignee: string;
+  onBulkAssigneeChange: (value: string) => void;
+  onApply: () => void;
+  onClear: () => void;
+  isPending: boolean;
+}) {
+  const selectedOpen = selectedTickets.filter((ticket) => ticket.status !== "risolto" && ticket.status !== "chiuso").length;
+  const selectedResolved = selectedTickets.length - selectedOpen;
+  const linkedOrders = selectedTickets.filter((ticket) => ticket.order_id).length;
+  const priorityCount = selectedTickets.filter((ticket) => ticket.priority === "urgente" || ticket.priority === "alta").length;
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Azioni assistenza</SheetTitle>
+          <SheetDescription>
+            Cambia stato e responsabile dei ticket selezionati senza entrare uno per uno.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="mt-6 space-y-5">
+          <div className="grid grid-cols-2 gap-3">
+            <BulkStat icon={<CheckSquare className="h-4 w-4" />} label="Selezionati" value={selectedTickets.length} />
+            <BulkStat icon={<AlertCircle className="h-4 w-4" />} label="Aperti" value={selectedOpen} />
+            <BulkStat icon={<BriefcaseBusiness className="h-4 w-4" />} label="Commesse" value={linkedOrders} />
+            <BulkStat icon={<Euro className="h-4 w-4" />} label="Priorita alta" value={priorityCount} />
+          </div>
+
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              I costi assistenza si consolidano su commessa tramite rapportini, anomalie e consuntivi. Qui gestisci il flusso operativo: stato, responsabilita e chiusura.
+            </AlertDescription>
+          </Alert>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Nuovo stato</label>
+            <Select value={bulkStatus} onValueChange={onBulkStatusChange}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={KEEP_VALUE}>Non cambiare stato</SelectItem>
+                {TICKET_STATUS_OPTIONS.map((status) => (
+                  <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Responsabile</label>
+            <Select value={bulkAssignee} onValueChange={onBulkAssigneeChange}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={KEEP_VALUE}>Non cambiare responsabile</SelectItem>
+                <SelectItem value={UNASSIGNED_VALUE}>Rimuovi assegnazione</SelectItem>
+                {staffList.map((staff) => (
+                  <SelectItem key={staff.id} value={staff.id}>
+                    {[staff.first_name, staff.last_name].filter(Boolean).join(" ") || "Senza nome"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+            <div className="font-medium">Riepilogo impatto</div>
+            <p className="mt-1 text-muted-foreground">
+              {selectedResolved} gia risolti/chiusi, {linkedOrders} con commessa collegata. La chiusura imposta anche la data effettiva intervento.
+            </p>
+          </div>
+        </div>
+
+        <SheetFooter className="mt-6 gap-2 sm:flex-col">
+          <Button onClick={onApply} disabled={isPending || selectedTickets.length === 0}>
+            {isPending ? "Aggiornamento..." : "Applica modifiche"}
+          </Button>
+          <Button variant="outline" onClick={onClear} disabled={isPending}>Svuota selezione</Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function BulkStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+  return (
+    <div className="rounded-lg border bg-card p-3">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        {icon}
+        <span className="text-xs">{label}</span>
+      </div>
+      <div className="mt-1 text-xl font-bold">{value}</div>
+    </div>
   );
 }

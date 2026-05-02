@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -17,8 +18,12 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, Search, Copy, FolderPlus, Lock } from "lucide-react";
+import { Plus, Trash2, Search, Copy, FolderPlus, Lock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -46,6 +51,56 @@ interface MarketingCustomFieldRow {
   created_at: string;
   field_type: string;
   options: string[] | null;
+}
+
+type CustomFieldUsageCounts = {
+  contacts: number;
+  opportunities: number;
+  entities: number;
+};
+
+class CustomFieldInUseError extends Error {
+  usage: CustomFieldUsageCounts;
+
+  constructor(usage: CustomFieldUsageCounts) {
+    super("CUSTOM_FIELD_IN_USE");
+    this.name = "CustomFieldInUseError";
+    this.usage = usage;
+  }
+}
+
+function getErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+  return "";
+}
+
+async function getCustomFieldUsageCounts(fieldId: string): Promise<CustomFieldUsageCounts> {
+  const [contactsRes, opportunitiesRes, entitiesRes] = await Promise.all([
+    supabase
+      .from("marketing_contact_field_values")
+      .select("id", { count: "exact", head: true })
+      .eq("field_id", fieldId),
+    supabase
+      .from("marketing_opportunity_field_values")
+      .select("id", { count: "exact", head: true })
+      .eq("field_id", fieldId),
+    supabase
+      .from("entity_custom_field_values")
+      .select("id", { count: "exact", head: true })
+      .eq("field_id", fieldId),
+  ]);
+
+  if (contactsRes.error) throw contactsRes.error;
+  if (opportunitiesRes.error) throw opportunitiesRes.error;
+  if (entitiesRes.error) throw entitiesRes.error;
+
+  return {
+    contacts: contactsRes.count ?? 0,
+    opportunities: opportunitiesRes.count ?? 0,
+    entities: entitiesRes.count ?? 0,
+  };
 }
 
 /* ───── folder colors & labels ───── */
@@ -925,8 +980,9 @@ export function CustomFieldsConfig() {
   const [groupBy, setGroupBy] = useState("all");
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<UnifiedField | null>(null);
 
-  const { data: customFields = [], isLoading } = useQuery({
+  const { data: customFields = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["marketing_custom_fields", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -1000,14 +1056,27 @@ export function CustomFieldsConfig() {
 
   const addMutation = useMutation({
     mutationFn: async () => {
-      if (!companyId || !name.trim()) return;
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const normalizedName = name.trim();
+      if (!normalizedName) throw new Error("Inserisci il nome del campo");
       const options =
         fieldType === "select"
           ? optionsInput.split(",").map((o) => o.trim()).filter(Boolean)
           : [];
+      if (fieldType === "select" && options.length === 0) {
+        throw new Error("Inserisci almeno un'opzione per il campo a selezione");
+      }
+      const duplicate = (customFields as MarketingCustomFieldRow[]).some(
+        (field) =>
+          field.object_type === objectType &&
+          field.name.trim().toLowerCase() === normalizedName.toLowerCase()
+      );
+      if (duplicate) {
+        throw new Error("Esiste già un campo con questo nome per l'oggetto selezionato");
+      }
       const { error } = await supabase.from("marketing_custom_fields").insert({
         company_id: companyId,
-        name: name.trim(),
+        name: normalizedName,
         field_type: fieldType,
         options,
         section,
@@ -1026,24 +1095,39 @@ export function CustomFieldsConfig() {
       setObjectType("contact");
       setOptionsInput("");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: unknown) => toast.error(getErrorMessage(e) || "Errore nel salvataggio"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("marketing_custom_fields").delete().eq("id", id).eq("company_id", companyId!);
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const usage = await getCustomFieldUsageCounts(id);
+      if (usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0) {
+        throw new CustomFieldInUseError(usage);
+      }
+
+      const { error } = await supabase.from("marketing_custom_fields").delete().eq("id", id).eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
       toast.success("Campo eliminato");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: unknown) => {
+      if (e instanceof CustomFieldInUseError) {
+        const total = e.usage.contacts + e.usage.opportunities + e.usage.entities;
+        toast.error(`Campo già usato in ${total} valore/i. Non eliminato per proteggere i dati salvati.`);
+        return;
+      }
+      toast.error(getErrorMessage(e) || "Errore nell'eliminazione");
+    },
   });
 
   const copyKey = (key: string) => {
-    navigator.clipboard.writeText(key);
-    toast.success("Chiave copiata");
+    navigator.clipboard
+      .writeText(key)
+      .then(() => toast.success("Chiave copiata"))
+      .catch(() => toast.error("Non è stato possibile copiare la chiave"));
   };
 
   const total = filtered.length;
@@ -1076,7 +1160,7 @@ export function CustomFieldsConfig() {
           <Button variant="outline" size="sm" disabled>
             <FolderPlus className="h-4 w-4 mr-1.5" /> Aggiungi cartella
           </Button>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
+          <Button size="sm" onClick={() => setDialogOpen(true)} disabled={!companyId}>
             <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
           </Button>
         </div>
@@ -1109,7 +1193,18 @@ export function CustomFieldsConfig() {
       </div>
 
       {/* ── Table ── */}
-      {isLoading ? (
+      {isError ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Campi personalizzati non disponibili</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>{getErrorMessage(error) || "Non è stato possibile caricare i campi personalizzati aziendali."}</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : isLoading ? (
         <p className="text-muted-foreground text-sm py-12 text-center">Caricamento...</p>
       ) : (
         <div className="border rounded-md">
@@ -1170,7 +1265,8 @@ export function CustomFieldsConfig() {
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => deleteMutation.mutate(f.id)}
+                          onClick={() => setDeleteTarget(f)}
+                          disabled={deleteMutation.isPending}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -1194,6 +1290,29 @@ export function CustomFieldsConfig() {
         onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
         pageSizeOptions={[25, 50, 100, 200]}
       />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina campo personalizzato</AlertDialogTitle>
+            <AlertDialogDescription>
+              L'eliminazione e' consentita solo se il campo non contiene valori salvati su contatti, opportunita' o altre entita'. Questo evita perdita dati.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+                setDeleteTarget(null);
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Add field dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -1281,7 +1400,7 @@ export function CustomFieldsConfig() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
-            <Button onClick={() => addMutation.mutate()} disabled={!name.trim() || addMutation.isPending}>
+            <Button onClick={() => addMutation.mutate()} disabled={!companyId || !name.trim() || addMutation.isPending}>
               {addMutation.isPending ? "Salvataggio..." : "Aggiungi"}
             </Button>
           </DialogFooter>

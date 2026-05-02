@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileText, Download, Loader2 } from "lucide-react";
+import { Upload, FileText, Download, Loader2, RefreshCw, AlertCircle } from "lucide-react";
 
 interface TicketAttachmentsProps {
   ticketId: string;
@@ -64,7 +64,7 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
     if (files.length > 0) uploadMutation.mutate(files);
   };
 
-  const { data: attachments = [], isLoading } = useQuery({
+  const { data: attachments = [], isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.ticketAttachments.byTicket(ticketId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -81,17 +81,14 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
 
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
-      if (!user) throw new Error("Non autenticato");
+      if (!user?.id) throw new Error("Sessione non valida. Ricarica la pagina e riprova.");
 
       for (const file of files) {
-        if (file.size > MAX_FILE_SIZE) {
-          throw new Error(`"${file.name}" supera il limite di 10MB`);
-        }
-        if (!ALLOWED_TYPES.includes(file.type)) {
-          throw new Error(`"${file.name}": tipo file non supportato`);
-        }
+        if (file.size > MAX_FILE_SIZE) throw new Error(`"${file.name}" supera il limite di 10MB`);
+        if (!ALLOWED_TYPES.includes(file.type)) throw new Error(`"${file.name}": tipo file non supportato`);
+      }
 
-        const ext = file.name.split(".").pop() || "bin";
+      for (const file of files) {
         const path = `${ticketId}/${crypto.randomUUID()}_${file.name}`;
 
         const { error: uploadErr } = await supabase.storage
@@ -99,15 +96,16 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
           .upload(path, file, { contentType: file.type });
         if (uploadErr) throw uploadErr;
 
-        const { data: urlData } = supabase.storage
+        const { data: signedData, error: signedErr } = await supabase.storage
           .from("ticket-attachments")
-          .getPublicUrl(path);
+          .createSignedUrl(path, 60 * 60 * 24);
+        if (signedErr) throw signedErr;
 
         const { error: msgErr } = await supabase.from("ticket_messages").insert({
           ticket_id: ticketId,
           sender_id: user.id,
           message: `📎 ${file.name}`,
-          attachment_url: urlData.publicUrl,
+          attachment_url: signedData?.signedUrl || path,
         });
         if (msgErr) throw msgErr;
       }
@@ -116,6 +114,7 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
       toast({ title: "Caricato", description: "Allegato caricato con successo." });
       queryClient.invalidateQueries({ queryKey: queryKeys.ticketAttachments.byTicket(ticketId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicketMessages.byTicket(ticketId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
     },
     onError: (err: Error) => {
       toast({ title: "Errore", description: err.message, variant: "destructive" });
@@ -171,6 +170,15 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
       <CardContent>
         {isLoading ? (
           <p className="text-xs text-muted-foreground">Caricamento...</p>
+        ) : isError ? (
+          <div className="flex flex-col items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-center">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <p className="text-xs text-red-700">Impossibile caricare gli allegati.</p>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => refetch()}>
+              <RefreshCw className="mr-1.5 h-3 w-3" />
+              Riprova
+            </Button>
+          </div>
         ) : attachments.length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-2">Nessun allegato</p>
         ) : (

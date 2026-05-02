@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface CostCategory {
   id: string;
@@ -71,7 +72,13 @@ export default function SettingsCostCategories() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  const { data: categories = [], isLoading } = useQuery({
+  const {
+    data: categories = [],
+    isLoading,
+    isError: categoriesIsError,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useQuery({
     queryKey: queryKeys.costCategories.list(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -86,7 +93,12 @@ export default function SettingsCostCategories() {
   });
 
   // Conteggio utilizzi per ogni nome di categoria (company_costs.category = stringa)
-  const { data: usageCounts = {} } = useQuery<Record<string, number>>({
+  const {
+    data: usageCounts = {},
+    isError: usageIsError,
+    error: usageError,
+    refetch: refetchUsage,
+  } = useQuery<Record<string, number>>({
     queryKey: queryKeys.costCategories.usage(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -127,6 +139,7 @@ export default function SettingsCostCategories() {
 
   const addMutation = useMutation({
     mutationFn: async ({ name, color }: { name: string; color: string }) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
       const { error } = await supabase.from("cost_categories").insert({
         company_id: companyId!,
         name: name.trim(),
@@ -149,10 +162,12 @@ export default function SettingsCostCategories() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, name, color }: { id: string; name: string; color: string }) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
       const { error } = await supabase
         .from("cost_categories")
         .update({ name: name.trim(), color })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) {
         if (error.code === "23505") throw new Error("Categoria già esistente");
         throw error;
@@ -169,7 +184,12 @@ export default function SettingsCostCategories() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("cost_categories").delete().eq("id", id);
+      if (!companyId) throw new Error("Azienda non selezionata");
+      const { error } = await supabase
+        .from("cost_categories")
+        .delete()
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -183,17 +203,21 @@ export default function SettingsCostCategories() {
 
   const importMutation = useMutation({
     mutationFn: async () => {
-      const { data: costs } = await supabase
+      if (!companyId) throw new Error("Azienda non selezionata");
+
+      const { data: costs, error: costsError } = await supabase
         .from("company_costs")
         .select("category")
         .eq("company_id", companyId!)
         .not("category", "is", null);
+      if (costsError) throw costsError;
 
-      const { data: supplierData } = await supabase
+      const { data: supplierData, error: suppliersError } = await supabase
         .from("suppliers")
         .select("product_category")
         .eq("company_id", companyId!)
         .not("product_category", "is", null);
+      if (suppliersError) throw suppliersError;
 
       const cats = new Set<string>();
       (costs ?? []).forEach((c) => {
@@ -236,8 +260,13 @@ export default function SettingsCostCategories() {
 
   const handleAdd = useCallback(() => {
     if (!newName.trim() || addMutation.isPending) return;
+    const normalizedName = newName.trim().toLowerCase();
+    if (categories.some((category) => category.name.trim().toLowerCase() === normalizedName)) {
+      toast.error("Categoria già esistente");
+      return;
+    }
     addMutation.mutate({ name: newName, color: newColor });
-  }, [newName, newColor, addMutation]);
+  }, [newName, newColor, addMutation, categories]);
 
   const startEdit = useCallback((cat: CostCategory) => {
     setEditingId(cat.id);
@@ -248,9 +277,18 @@ export default function SettingsCostCategories() {
   const saveEdit = useCallback(
     (id: string) => {
       if (!editName.trim() || updateMutation.isPending) return;
+      const normalizedName = editName.trim().toLowerCase();
+      if (
+        categories.some(
+          (category) => category.id !== id && category.name.trim().toLowerCase() === normalizedName,
+        )
+      ) {
+        toast.error("Categoria già esistente");
+        return;
+      }
       updateMutation.mutate({ id, name: editName, color: editColor });
     },
-    [editName, editColor, updateMutation],
+    [editName, editColor, updateMutation, categories],
   );
 
   // ─── Render ───────────────────────────────────────────
@@ -283,6 +321,33 @@ export default function SettingsCostCategories() {
           {importMutation.isPending ? "Importo…" : "Importa dai costi"}
         </Button>
       </div>
+
+      {(categoriesIsError || usageIsError) && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Categorie costi non disponibili</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              Non riesco a caricare correttamente categorie o utilizzi. I dati potrebbero non essere completi.
+            </p>
+            <p className="text-xs">
+              {(categoriesError instanceof Error && categoriesError.message) ||
+                (usageError instanceof Error && usageError.message) ||
+                "Errore sconosciuto"}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                refetchCategories();
+                refetchUsage();
+              }}
+            >
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* KPI row */}
       <div className="grid grid-cols-3 gap-3">
