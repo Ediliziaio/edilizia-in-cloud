@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 interface QuoteSummary {
   id: string;
@@ -52,14 +53,16 @@ interface Props {
 }
 
 export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
+  const companyId = useEffectiveCompanyId();
   const { data: quote, isLoading } = useQuery({
-    queryKey: ["quote-quickview", quoteId],
-    enabled: !!quoteId && open,
+    queryKey: ["quote-quickview", companyId, quoteId],
+    enabled: !!companyId && !!quoteId && open,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
         .select("id, quote_number, client_name, title, status, total, subtotal, vat_amount, discount_percent, discount_amount, created_at, expires_at, sent_at, viewed_at, signed_at, signed_by_name, contact_id, opportunity_id, salesperson_id, approval_status, margine_pct_snapshot, commission_amount_snapshot, tipo_lavoro, totale_costo_interno, totale_overhead")
         .eq("id", quoteId!)
+        .eq("company_id", companyId as string)
         .maybeSingle();
       if (error) throw error;
       return data as QuoteSummary | null;
@@ -67,8 +70,8 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
   });
 
   const { data: items = [] } = useQuery({
-    queryKey: ["quote-quickview-items", quoteId],
-    enabled: !!quoteId && open,
+    queryKey: ["quote-quickview-items", companyId, quoteId],
+    enabled: !!companyId && !!quoteId && open,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quote_items")
@@ -81,13 +84,14 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
   });
 
   const { data: approvals = [] } = useQuery({
-    queryKey: ["quote-quickview-approvals", quoteId],
-    enabled: !!quoteId && open,
+    queryKey: ["quote-quickview-approvals", companyId, quoteId],
+    enabled: !!companyId && !!quoteId && open,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quote_approvals")
         .select("id, sconto_richiesto_pct, sconto_autorizzato_pct, margine_stimato_pct, decision, note_richiesta, note_decisione, requested_at, decided_at")
         .eq("quote_id", quoteId!)
+        .eq("company_id", companyId as string)
         .order("requested_at", { ascending: false });
       if (error) throw error;
       return data as Array<{

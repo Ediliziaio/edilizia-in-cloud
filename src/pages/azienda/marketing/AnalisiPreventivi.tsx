@@ -109,6 +109,7 @@ export default function AnalisiPreventivi() {
       const { data, error } = await supabase
         .from("quotes")
         .select("id, discount_percent, commission_amount_snapshot, approval_status, salesperson_id")
+        .eq("company_id", companyId!)
         .in("id", ids);
       if (error) throw error;
       return data as Array<{ id: string; discount_percent: number | null; commission_amount_snapshot: number | null; approval_status: string | null; salesperson_id: string | null }>;

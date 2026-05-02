@@ -5,6 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type {
   FvProgetto,
   FvComponente,
@@ -17,29 +18,37 @@ import type {
 } from "./tipi";
 
 const QK = {
-  progetti: ["fv", "progetti"] as const,
-  progetto: (id: string) => ["fv", "progetto", id] as const,
-  componenti: (progettoId: string) => ["fv", "componenti", progettoId] as const,
-  manodopera: (progettoId: string) => ["fv", "manodopera", progettoId] as const,
-  servizi: (progettoId: string) => ["fv", "servizi", progettoId] as const,
-  pannelli: (progettoId: string) => ["fv", "pannelli", progettoId] as const,
-  calcolo: (progettoId: string) => ["fv", "calcolo", progettoId] as const,
+  progetti: (companyId?: string | null) => ["fv", "progetti", companyId ?? "no-company"] as const,
+  progetto: (companyId: string | null | undefined, id: string) => ["fv", "progetto", companyId ?? "no-company", id] as const,
+  componenti: (companyId: string | null | undefined, progettoId: string) => ["fv", "componenti", companyId ?? "no-company", progettoId] as const,
+  manodopera: (companyId: string | null | undefined, progettoId: string) => ["fv", "manodopera", companyId ?? "no-company", progettoId] as const,
+  servizi: (companyId: string | null | undefined, progettoId: string) => ["fv", "servizi", companyId ?? "no-company", progettoId] as const,
+  pannelli: (companyId: string | null | undefined, progettoId: string) => ["fv", "pannelli", companyId ?? "no-company", progettoId] as const,
+  calcolo: (companyId: string | null | undefined, progettoId: string) => ["fv", "calcolo", companyId ?? "no-company", progettoId] as const,
   incentiviCatalogo: ["fv", "incentivi-catalogo"] as const,
   parametriCalcolo: ["fv", "parametri-calcolo"] as const,
   profiliAutoconsumo: ["fv", "profili-autoconsumo"] as const,
-  templatePdf: ["fv", "template-pdf"] as const,
-  statsAzienda: ["fv", "stats-azienda"] as const,
-  servizioCatalogo: ["fv", "servizi-catalogo"] as const,
+  templatePdf: (companyId?: string | null) => ["fv", "template-pdf", companyId ?? "no-company"] as const,
+  statsAzienda: (companyId?: string | null) => ["fv", "stats-azienda", companyId ?? "no-company"] as const,
+  servizioCatalogo: (companyId?: string | null) => ["fv", "servizi-catalogo", companyId ?? "no-company"] as const,
+  articoli: (companyId: string | null | undefined, categoria?: string) => ["fv", "articoli", companyId ?? "no-company", categoria ?? "all"] as const,
+  tabelleFinanziamento: (companyId: string | null | undefined, importoTarget?: number) => ["fv", "tabelle-finanziamento", companyId ?? "no-company", importoTarget ?? "all"] as const,
+  lookupRata: (companyId: string | null | undefined, tabellaId: string | null, importo: number | null, durataMesi: number | null) => ["fv", "lookup-rata", companyId ?? "no-company", tabellaId, importo, durataMesi] as const,
+  topFinanziamenti: (companyId: string | null | undefined, importo: number | null, durataMesi: number | null) => ["fv", "top-finanziamenti", companyId ?? "no-company", importo, durataMesi] as const,
+  tariffe: (companyId?: string | null) => ["fv", "tariffe-aziendali", companyId ?? "no-company"] as const,
 };
 
 // ─── Lista progetti ─────────────────────────────────────────────────────────
 export function useProgetti() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: QK.progetti,
+    queryKey: QK.progetti(companyId),
+    enabled: Boolean(companyId),
     queryFn: async (): Promise<Array<FvProgetto & { cliente_nome: string | null }>> => {
       const { data, error } = await supabase
         .from("v_fv_progetti_dashboard" as never)
         .select("*")
+        .eq("company_id", companyId as string)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data as never) ?? [];
@@ -48,15 +57,17 @@ export function useProgetti() {
 }
 
 export function useProgetto(id: string | undefined) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: QK.progetto(id ?? ""),
-    enabled: Boolean(id),
+    queryKey: QK.progetto(companyId, id ?? ""),
+    enabled: Boolean(id && companyId),
     queryFn: async (): Promise<FvProgetto | null> => {
       if (!id) return null;
       const { data, error } = await supabase
         .from("fv_progetti" as never)
         .select("*")
         .eq("id", id)
+        .eq("company_id", companyId as string)
         .maybeSingle();
       if (error) throw error;
       return data as never;
@@ -66,6 +77,7 @@ export function useProgetto(id: string | undefined) {
 
 export function useCreaProgetto() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (input: {
       titolo: string;
@@ -74,23 +86,18 @@ export function useCreaProgetto() {
       cliente_id?: string | null;
       prima_casa?: boolean;
     }): Promise<FvProgetto> => {
-      // Recupera company_id corrente
-      const { data: profile } = await supabase
-        .from("profiles" as never)
-        .select("company_id")
-        .single();
-      const company_id = (profile as { company_id: string }).company_id;
+      if (!companyId) throw new Error("Azienda non disponibile");
 
       // Genera numero progressivo lato DB
       const { data: numero } = await supabase.rpc(
         "fv_genera_numero_progetto" as never,
-        { p_company_id: company_id } as never
+        { p_company_id: companyId } as never
       );
 
       const { data, error } = await supabase
         .from("fv_progetti" as never)
         .insert({
-          company_id,
+          company_id: companyId,
           numero: numero as string,
           titolo: input.titolo,
           archetipo: input.archetipo,
@@ -105,49 +112,63 @@ export function useCreaProgetto() {
       return data as never;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QK.progetti });
+      qc.invalidateQueries({ queryKey: QK.progetti(companyId) });
     },
   });
 }
 
 export function useAggiornaProgetto() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (input: { id: string; patch: Partial<FvProgetto> }) => {
-      const { error } = await supabase
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const { data, error } = await supabase
         .from("fv_progetti" as never)
         .update(input.patch as never)
-        .eq("id", input.id);
+        .eq("id", input.id)
+        .eq("company_id", companyId)
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("Progetto non trovato o non modificabile");
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: QK.progetto(vars.id) });
-      qc.invalidateQueries({ queryKey: QK.progetti });
+      qc.invalidateQueries({ queryKey: QK.progetto(companyId, vars.id) });
+      qc.invalidateQueries({ queryKey: QK.progetti(companyId) });
     },
   });
 }
 
 export function useEliminaProgetto() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const { data, error } = await supabase
         .from("fv_progetti" as never)
         .update({ annullato: true, annullato_il: new Date().toISOString() } as never)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId)
+        .neq("stato", "firmato")
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("Progetto non trovato o non annullabile");
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QK.progetti });
+      qc.invalidateQueries({ queryKey: QK.progetti(companyId) });
     },
   });
 }
 
 // ─── Componenti, manodopera, servizi ────────────────────────────────────────
 export function useComponentiProgetto(progettoId: string | undefined) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: QK.componenti(progettoId ?? ""),
-    enabled: Boolean(progettoId),
+    queryKey: QK.componenti(companyId, progettoId ?? ""),
+    enabled: Boolean(progettoId && companyId),
     queryFn: async (): Promise<FvComponente[]> => {
       if (!progettoId) return [];
       const { data, error } = await supabase
@@ -162,9 +183,10 @@ export function useComponentiProgetto(progettoId: string | undefined) {
 }
 
 export function useManodoperaProgetto(progettoId: string | undefined) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: QK.manodopera(progettoId ?? ""),
-    enabled: Boolean(progettoId),
+    queryKey: QK.manodopera(companyId, progettoId ?? ""),
+    enabled: Boolean(progettoId && companyId),
     queryFn: async (): Promise<FvManodopera[]> => {
       if (!progettoId) return [];
       const { data, error } = await supabase
@@ -179,9 +201,10 @@ export function useManodoperaProgetto(progettoId: string | undefined) {
 }
 
 export function useServiziProgetto(progettoId: string | undefined) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: QK.servizi(progettoId ?? ""),
-    enabled: Boolean(progettoId),
+    queryKey: QK.servizi(companyId, progettoId ?? ""),
+    enabled: Boolean(progettoId && companyId),
     queryFn: async (): Promise<FvServizio[]> => {
       if (!progettoId) return [];
       const { data, error } = await supabase
@@ -196,9 +219,10 @@ export function useServiziProgetto(progettoId: string | undefined) {
 }
 
 export function usePannelliProgetto(progettoId: string | undefined) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: QK.pannelli(progettoId ?? ""),
-    enabled: Boolean(progettoId),
+    queryKey: QK.pannelli(companyId, progettoId ?? ""),
+    enabled: Boolean(progettoId && companyId),
     queryFn: async (): Promise<FvPannelloLayout[]> => {
       if (!progettoId) return [];
       const { data, error } = await supabase
@@ -266,12 +290,15 @@ export function useProfiliAutoconsumo() {
 
 // ─── Stats azienda dashboard ────────────────────────────────────────────────
 export function useStatsAzienda() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: QK.statsAzienda,
+    queryKey: QK.statsAzienda(companyId),
+    enabled: Boolean(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("v_fv_stats_azienda" as never)
         .select("*")
+        .eq("company_id", companyId as string)
         .maybeSingle();
       if (error && error.code !== "PGRST116") throw error;
       return (data as Record<string, unknown> | null) ?? null;
@@ -282,13 +309,16 @@ export function useStatsAzienda() {
 // ─── Articoli listino con categoria_fv ──────────────────────────────────────
 // Cache 1h: il listino può cambiare ma non spesso, evita refetch inutili.
 export function useArticoliFv(categoria?: string) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["fv", "articoli", categoria ?? "all"],
+    queryKey: QK.articoli(companyId, categoria),
+    enabled: Boolean(companyId),
     staleTime: 60 * 60 * 1000, // 1h
     queryFn: async () => {
       let q = supabase
         .from("articoli_native" as never)
         .select("*")
+        .eq("company_id", companyId as string)
         .not("categoria_fv", "is", null)
         .eq("attivo", true)
         .order("descrizione");
@@ -349,8 +379,10 @@ export interface FvRigaFinanziamento {
  * anche per FV). Restituisce tabelle + nome finanziaria pre-joined.
  */
 export function useTabelleFinanziamentoFv(importoTarget?: number) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["fv", "tabelle-finanziamento", importoTarget ?? "all"],
+    queryKey: QK.tabelleFinanziamento(companyId, importoTarget),
+    enabled: Boolean(companyId),
     staleTime: 60 * 60 * 1000, // 1h
     queryFn: async (): Promise<FvTabellaFinanziamento[]> => {
       let q = supabase
@@ -358,6 +390,7 @@ export function useTabelleFinanziamentoFv(importoTarget?: number) {
         .select(
           "id, finanziaria_id, nome_prodotto, codice_condizione, tan_base, importo_min, importo_max, durate_disponibili, righe_count, attiva, data_decorrenza, data_scadenza, eic_finanziarie!inner(nome, ragione_sociale, attiva)",
         )
+        .eq("company_id", companyId as string)
         .eq("attiva", true)
         .gte("righe_count", 1);
       if (importoTarget != null) {
@@ -406,9 +439,10 @@ export function useLookupRataFv(
   importo: number | null,
   durataMesi: number | null,
 ) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["fv", "lookup-rata", tabellaId, importo, durataMesi],
-    enabled: Boolean(tabellaId && importo && importo > 0 && durataMesi && durataMesi > 0),
+    queryKey: QK.lookupRata(companyId, tabellaId, importo, durataMesi),
+    enabled: Boolean(companyId && tabellaId && importo && importo > 0 && durataMesi && durataMesi > 0),
     staleTime: 60 * 60 * 1000,
     queryFn: async (): Promise<FvRigaFinanziamento | null> => {
       if (!tabellaId || !importo || !durataMesi) return null;
@@ -474,9 +508,10 @@ export function useTopFinanziamentiFv(
   importo: number | null,
   durataMesi: number | null,
 ) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["fv", "top-finanziamenti", importo, durataMesi],
-    enabled: Boolean(importo && importo > 0 && durataMesi && durataMesi > 0),
+    queryKey: QK.topFinanziamenti(companyId, importo, durataMesi),
+    enabled: Boolean(companyId && importo && importo > 0 && durataMesi && durataMesi > 0),
     staleTime: 60 * 60 * 1000,
     queryFn: async (): Promise<
       Array<FvTabellaFinanziamento & { rata: FvRigaFinanziamento }>
@@ -488,6 +523,7 @@ export function useTopFinanziamentiFv(
         .select(
           "id, finanziaria_id, nome_prodotto, codice_condizione, tan_base, importo_min, importo_max, durate_disponibili, righe_count, attiva, eic_finanziarie!inner(nome, attiva)",
         )
+        .eq("company_id", companyId as string)
         .eq("attiva", true)
         .lte("importo_min", importo)
         .gte("importo_max", importo);
@@ -588,8 +624,10 @@ export interface FvTariffaAziendale {
 }
 
 export function useTariffeFv() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["fv", "tariffe-aziendali"],
+    queryKey: QK.tariffe(companyId),
+    enabled: Boolean(companyId),
     staleTime: 60 * 60 * 1000, // 1h
     queryFn: async (): Promise<FvTariffaAziendale[]> => {
       const { data, error } = await supabase
@@ -597,6 +635,7 @@ export function useTariffeFv() {
         .select(
           "id, tipo, nome, descrizione, unita, prezzo_costo, prezzo_vendita, vertical_associato",
         )
+        .eq("company_id", companyId as string)
         .eq("attivo", true)
         .or("vertical_associato.eq.fotovoltaico,vertical_associato.eq.generico,vertical_associato.is.null")
         .order("tipo", { ascending: true })
@@ -610,12 +649,14 @@ export function useTariffeFv() {
 // ─── Aggiungi/rimuovi componente / manodopera / servizio ────────────────────
 export function useUpsertComponenti() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (input: {
       progetto_id: string;
       righe: Array<Omit<FvComponente, "id" | "progetto_id" | "created_at">>;
       replace?: boolean;
     }) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       if (input.replace) {
         await supabase
           .from("fv_componenti_progetto" as never)
@@ -633,19 +674,21 @@ export function useUpsertComponenti() {
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: QK.componenti(vars.progetto_id) });
+      qc.invalidateQueries({ queryKey: QK.componenti(companyId, vars.progetto_id) });
     },
   });
 }
 
 export function useUpsertManodopera() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (input: {
       progetto_id: string;
       righe: Array<Omit<FvManodopera, "id" | "progetto_id" | "created_at">>;
       replace?: boolean;
     }) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       if (input.replace) {
         await supabase
           .from("fv_manodopera_progetto" as never)
@@ -663,19 +706,21 @@ export function useUpsertManodopera() {
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: QK.manodopera(vars.progetto_id) });
+      qc.invalidateQueries({ queryKey: QK.manodopera(companyId, vars.progetto_id) });
     },
   });
 }
 
 export function useUpsertServizi() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (input: {
       progetto_id: string;
       righe: Array<Omit<FvServizio, "id" | "progetto_id" | "created_at">>;
       replace?: boolean;
     }) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       if (input.replace) {
         await supabase
           .from("fv_servizi_progetto" as never)
@@ -693,19 +738,22 @@ export function useUpsertServizi() {
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: QK.servizi(vars.progetto_id) });
+      qc.invalidateQueries({ queryKey: QK.servizi(companyId, vars.progetto_id) });
     },
   });
 }
 
 // ─── Template PDF impresa ───────────────────────────────────────────────────
 export function useTemplatePdf() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: QK.templatePdf,
+    queryKey: QK.templatePdf(companyId),
+    enabled: Boolean(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("fv_template_pdf" as never)
         .select("*")
+        .eq("company_id", companyId as string)
         .maybeSingle();
       if (error && error.code !== "PGRST116") throw error;
       return (data as Record<string, unknown> | null) ?? null;
@@ -715,15 +763,17 @@ export function useTemplatePdf() {
 
 export function useUpsertTemplatePdf() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (input: Record<string, unknown>) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       const { error } = await supabase
         .from("fv_template_pdf" as never)
-        .upsert(input as never, { onConflict: "company_id" });
+        .upsert({ ...input, company_id: companyId } as never, { onConflict: "company_id" });
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QK.templatePdf });
+      qc.invalidateQueries({ queryKey: QK.templatePdf(companyId) });
     },
   });
 }
@@ -731,13 +781,16 @@ export function useUpsertTemplatePdf() {
 // ─── Servizi catalogo per azienda ───────────────────────────────────────────
 // Cache 1h: il catalogo servizi è company-scoped ma cambia raramente.
 export function useServiziCatalogo() {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: QK.servizioCatalogo,
+    queryKey: QK.servizioCatalogo(companyId),
+    enabled: Boolean(companyId),
     staleTime: 60 * 60 * 1000, // 1h
     queryFn: async () => {
       const { data, error } = await supabase
         .from("fv_servizi_catalogo" as never)
         .select("*")
+        .eq("company_id", companyId as string)
         .eq("attivo", true)
         .order("ordinamento");
       if (error) throw error;
@@ -757,19 +810,15 @@ export function useServiziCatalogo() {
  * Nuovi consumer: usare `useFeatureAccess("modulo_fotovoltaico_attivo")`.
  */
 export function useFvModuloAttivo() {
+  const companyIdFromContext = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["fv", "modulo-attivo"],
+    queryKey: ["fv", "modulo-attivo", companyIdFromContext ?? "no-company"],
+    enabled: Boolean(companyIdFromContext),
     queryFn: async (): Promise<{ attivo: boolean; setup_completato: boolean }> => {
-      // Ricava company_id effettivo via RPC esistente in EiC
-      const { data: companyId } = await supabase.rpc(
-        "get_effective_company_id" as never
-      );
-      if (!companyId) return { attivo: false, setup_completato: false };
-
       const { data, error } = await supabase
         .from("companies" as never)
         .select("fv_modulo_attivo, fv_setup_completato")
-        .eq("id", companyId as string)
+        .eq("id", companyIdFromContext as string)
         .maybeSingle();
       if (error) throw error;
       const row = data as { fv_modulo_attivo: boolean; fv_setup_completato: boolean } | null;

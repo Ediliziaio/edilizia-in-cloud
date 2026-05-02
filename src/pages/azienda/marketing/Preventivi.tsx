@@ -147,13 +147,20 @@ import {
   type HubTab,
 } from "@/components/marketing/preventivi/ui/builderUI";
 
+const QUOTE_LIST_SELECT =
+  "id, quote_number, client_name, title, status, total, created_at, expires_at, source, salesperson_id, approval_status, contact_id, opportunity_id, margine_pct_snapshot, commission_amount_snapshot, pdf_storage_path";
+const ALLOWED_USER_TABS = new Set(["lista", "moduli"]);
+const ALLOWED_ADMIN_TABS = new Set(["lista", "moduli", "approvazioni", "analisi"]);
+
+const escapeSupabaseSearch = (value: string) =>
+  value.trim().replace(/[%_]/g, "\\$&").replace(/[(),]/g, " ");
+
 export default function Preventivi() {
   const { effectiveCompany, user, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") || "lista";
   // NOTA: `isAdmin` controlla l'accesso a dati finanziari sensibili
   // (margine %, commissioni, approvazioni sconto, analisi).
   // - `company_admin`: admin DELL'AZIENDA corrente → corretto vedere margini
@@ -165,8 +172,15 @@ export default function Preventivi() {
   //   profile.company_id per evitare visibilità indesiderata su margini
   //   commerciali di terzi.
   const isAdmin = role === "company_admin" || role === "super_admin";
+  const requestedTab = searchParams.get("tab") || "lista";
+  const activeTab = (isAdmin ? ALLOWED_ADMIN_TABS : ALLOWED_USER_TABS).has(requestedTab)
+    ? requestedTab
+    : "lista";
   const handleTabChange = (tab: string) => {
-    setSearchParams(tab === "lista" ? {} : { tab });
+    const next = new URLSearchParams(searchParams);
+    if (tab === "lista") next.delete("tab");
+    else next.set("tab", tab);
+    setSearchParams(next);
   };
 
   // Count richieste approvazione sconto pending (solo per admin — badge nel tab)
@@ -217,6 +231,46 @@ export default function Preventivi() {
   );
   const isColVisible = (k: QuoteColumnKey) => visibleColumns.has(k);
 
+  const applyQuoteListFilters = (query: any) => {
+    let next = query;
+    if (statusFilter !== "tutti") {
+      next = next.eq("status", statusFilter);
+    }
+    if (filters.statuses.length > 0) {
+      next = next.in("status", filters.statuses);
+    }
+    if (filters.salespersonId) {
+      if (filters.salespersonId === "none") {
+        next = next.is("salesperson_id", null);
+      } else {
+        next = next.eq("salesperson_id", filters.salespersonId);
+      }
+    }
+    if (filters.source) {
+      if (filters.source === "manuale") {
+        next = next.or("source.is.null,source.eq.manual");
+      } else {
+        next = next.eq("source", filters.source);
+      }
+    }
+    if (filters.approvalStatus) {
+      next = next.eq("approval_status", filters.approvalStatus);
+    }
+    if (filters.dateFrom) next = next.gte("created_at", filters.dateFrom);
+    if (filters.dateTo) next = next.lte("created_at", `${filters.dateTo}T23:59:59`);
+    if (filters.importoMin) next = next.gte("total", parseFloat(filters.importoMin));
+    if (filters.importoMax) next = next.lte("total", parseFloat(filters.importoMax));
+    if (isAdmin && filters.marginMin) next = next.gte("margine_pct_snapshot", parseFloat(filters.marginMin));
+    if (isAdmin && filters.marginMax) next = next.lte("margine_pct_snapshot", parseFloat(filters.marginMax));
+    const searchTerm = escapeSupabaseSearch(debouncedSearch);
+    if (searchTerm) {
+      next = next.or(
+        `quote_number.ilike.%${searchTerm}%,client_name.ilike.%${searchTerm}%,title.ilike.%${searchTerm}%`,
+      );
+    }
+    return next;
+  };
+
   // Debounce ricerca: aspetta 300ms prima di filtrare, resetta la pagina
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -229,45 +283,16 @@ export default function Preventivi() {
   }, [search]);
 
   const { data: quotesPage = { data: [], total: 0 }, isLoading } = useQuery({
-    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter, filters],
+    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter, filters, debouncedSearch],
     enabled: !!companyId,
     queryFn: async () => {
-      let query = supabase
+      let query = applyQuoteListFilters(
+        supabase
         .from("quotes")
-        .select("id, quote_number, client_name, title, status, total, created_at, expires_at, source, salesperson_id, approval_status, contact_id, opportunity_id, margine_pct_snapshot, commission_amount_snapshot, pdf_storage_path", { count: "exact" })
+          .select(QUOTE_LIST_SELECT, { count: "exact" })
         .eq("company_id", companyId!)
-        .order("created_at", { ascending: false })
-        .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
-
-      if (statusFilter !== "tutti") {
-        query = query.eq("status", statusFilter);
-      }
-      if (filters.statuses.length > 0) {
-        query = query.in("status", filters.statuses);
-      }
-      if (filters.salespersonId) {
-        if (filters.salespersonId === "none") {
-          query = query.is("salesperson_id", null);
-        } else {
-          query = query.eq("salesperson_id", filters.salespersonId);
-        }
-      }
-      if (filters.source) {
-        if (filters.source === "manuale") {
-          query = query.or("source.is.null,source.eq.manual");
-        } else {
-          query = query.eq("source", filters.source);
-        }
-      }
-      if (filters.approvalStatus) {
-        query = query.eq("approval_status", filters.approvalStatus);
-      }
-      if (filters.dateFrom) query = query.gte("created_at", filters.dateFrom);
-      if (filters.dateTo) query = query.lte("created_at", `${filters.dateTo}T23:59:59`);
-      if (filters.importoMin) query = query.gte("total", parseFloat(filters.importoMin));
-      if (filters.importoMax) query = query.lte("total", parseFloat(filters.importoMax));
-      if (isAdmin && filters.marginMin) query = query.gte("margine_pct_snapshot", parseFloat(filters.marginMin));
-      if (isAdmin && filters.marginMax) query = query.lte("margine_pct_snapshot", parseFloat(filters.marginMax));
+          .order("created_at", { ascending: false }),
+      ).range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
 
       const { data, error, count } = await query;
       if (error) throw error;
@@ -374,8 +399,17 @@ export default function Preventivi() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("quotes").delete().eq("id", id);
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const { data, error } = await supabase
+        .from("quotes")
+        .delete()
+        .eq("id", id)
+        .eq("company_id", companyId)
+        .eq("status", "bozza")
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("Preventivo non trovato o non eliminabile");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
@@ -387,6 +421,17 @@ export default function Preventivi() {
 
   const duplicateMutation = useMutation({
     mutationFn: async (quote: QuoteForDuplicate) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+
+      const { data: originalQuote, error: quoteLoadErr } = await supabase
+        .from("quotes")
+        .select("*")
+        .eq("id", quote.id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (quoteLoadErr) throw quoteLoadErr;
+      if (!originalQuote) throw new Error("Preventivo sorgente non trovato");
+
       // 1. Carica righe originali
       const { data: originalItems, error: itemsErr } = await supabase
         .from("quote_items")
@@ -417,15 +462,17 @@ export default function Preventivi() {
         signed_by_name, signed_by_ip, refused_at, refused_reason,
         pdf_storage_path, pdf_generated_at, expires_at, created_by,
         ...rest
-      } = quote;
+      } = originalQuote as QuoteForDuplicate;
 
       const { data: newQuote, error: quoteErr } = await supabase
         .from("quotes")
         .insert({
           ...rest,
+          company_id: companyId,
           quote_number: numData,
           status: "bozza",
-          created_by: user?.id,
+          approval_status: null,
+          created_by: user?.id ?? null,
           created_at: new Date().toISOString(),
         })
         .select("id")
@@ -465,9 +512,10 @@ export default function Preventivi() {
 
       // 6. Copia allegati PDF
       if (originalAttachments && originalAttachments.length > 0) {
-        await supabase.from("quote_pdf_attachments").insert(
+        const { error: attachmentsErr } = await supabase.from("quote_pdf_attachments").insert(
           originalAttachments.map((a) => ({ ...a, quote_id: newQuote.id }))
         );
+        if (attachmentsErr) throw attachmentsErr;
       }
 
       return newQuote.id;
@@ -486,17 +534,11 @@ export default function Preventivi() {
     setCurrentPage(0);
   };
 
-  const filtered = quotes.filter((q: QuoteRow) => {
-    if (debouncedSearch) {
-      const s = debouncedSearch.toLowerCase();
-      return (
-        q.quote_number?.toLowerCase().includes(s) ||
-        q.client_name?.toLowerCase().includes(s) ||
-        q.title?.toLowerCase().includes(s)
-      );
-    }
-    return true;
-  });
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [statusFilter, filters, debouncedSearch, currentPage]);
+
+  const filtered = quotes;
 
   // KPIs — query separata senza paginazione né filtro status
   const { data: kpiData } = useQuery({
@@ -549,7 +591,23 @@ export default function Preventivi() {
   // Export Excel
   const handleExportExcel = async () => {
     const ExcelJS = (await import("exceljs")).default;
-    const exportRows = filtered.map((q: QuoteRow) => {
+    if (!companyId) {
+      toast.error("Azienda non disponibile");
+      return;
+    }
+    let exportQuery = applyQuoteListFilters(
+      supabase
+        .from("quotes")
+        .select(QUOTE_LIST_SELECT)
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false }),
+    ).limit(5000);
+    const { data: exportData, error: exportError } = await exportQuery;
+    if (exportError) {
+      toast.error("Errore esportazione preventivi");
+      throw exportError;
+    }
+    const exportRows = ((exportData || []) as QuoteRow[]).map((q: QuoteRow) => {
       const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
       return {
         Numero: q.quote_number || "",
@@ -561,6 +619,11 @@ export default function Preventivi() {
         Scadenza: q.expires_at ? format(new Date(q.expires_at), "dd/MM/yyyy", { locale: it }) : "",
       };
     });
+
+    if (exportRows.length === 0) {
+      toast.info("Nessun preventivo da esportare con i filtri attuali");
+      return;
+    }
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Preventivi");

@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 export interface BulkQuoteLite {
   id: string;
@@ -61,6 +62,7 @@ export function QuoteBulkToolbar({
   onClearSelection,
   onReload,
 }: Props) {
+  const companyId = useEffectiveCompanyId();
   const [pendingStatus, setPendingStatus] = useState<QuoteStatus | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [working, setWorking] = useState<null | "delete" | "status" | "csv" | "zip">(null);
@@ -77,11 +79,18 @@ export function QuoteBulkToolbar({
       setConfirmDelete(false);
       return;
     }
+    if (!companyId) {
+      toast.error("Azienda non disponibile");
+      setConfirmDelete(false);
+      return;
+    }
     setWorking("delete");
     try {
       const { error } = await supabase
         .from("quotes")
         .delete()
+        .eq("company_id", companyId)
+        .eq("status", "bozza")
         .in(
           "id",
           onlyDrafts.map((q) => q.id)
@@ -101,12 +110,17 @@ export function QuoteBulkToolbar({
   };
 
   const handleBulkStatus = async (newStatus: QuoteStatus) => {
+    if (!companyId) {
+      toast.error("Azienda non disponibile");
+      return;
+    }
     setPendingStatus(null);
     setWorking("status");
     try {
       const { error } = await supabase
         .from("quotes")
         .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq("company_id", companyId)
         .in("id", Array.from(selectedIds));
       if (error) throw error;
       toast.success(`${count} preventivi impostati a "${QUOTE_STATUS_CONFIG[newStatus].label}"`);

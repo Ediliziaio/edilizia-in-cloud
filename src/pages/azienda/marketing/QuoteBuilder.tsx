@@ -1567,7 +1567,7 @@ export default function QuoteBuilder() {
         client_name: clientName,
         discount_percent: discountPercent,
         updated_at: new Date().toISOString(),
-      }).eq("id", id!);
+      }).eq("id", id!).eq("company_id", companyId);
       lastSavedHashRef.current = hash;
       setAutosaveFailed(false);
     } catch {
@@ -1728,7 +1728,8 @@ export default function QuoteBuilder() {
         const { error } = await supabase
           .from("quotes")
           .update(quoteData)
-          .eq("id", id!);
+          .eq("id", id!)
+          .eq("company_id", companyId);
         if (error) throw error;
       } else {
         const { data: numData } = await supabase.rpc("generate_quote_number", {

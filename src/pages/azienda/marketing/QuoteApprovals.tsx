@@ -123,6 +123,7 @@ export default function QuoteApprovals() {
         .select(
           "id, quote_number, client_name, title, total, salesperson_id, commission_amount_snapshot"
         )
+        .eq("company_id", companyId!)
         .in("id", quoteIds);
       if (error) throw error;
       return data as QuoteInfo[];

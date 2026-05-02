@@ -31,6 +31,7 @@ import {
   FileText,
   Trash2,
   ExternalLink,
+  Loader2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -137,8 +138,8 @@ export default function FotovoltaicoIndex() {
           <div className="border-t border-slate-200 pt-5 mt-2">
             <h3 className="text-sm font-bold text-slate-900 mb-3 text-center">Per ottenere il massimo dal modulo</h3>
             <ul className="text-sm text-slate-600 space-y-2 max-w-lg mx-auto">
-              <li className="flex gap-2"><span className="text-emerald-500 font-bold">1.</span> Configura il listino prodotti (pannelli, inverter, accumuli) in <Link to="/azienda/listino" className="text-orange-600 underline">Listino prodotti</Link> con categoria FV.</li>
-              <li className="flex gap-2"><span className="text-emerald-500 font-bold">2.</span> Aggiungi le tue tariffe di manodopera in <Link to="/azienda/impostazioni" className="text-orange-600 underline">Impostazioni</Link> (vertical "fotovoltaico" o "generico").</li>
+              <li className="flex gap-2"><span className="text-emerald-500 font-bold">1.</span> Configura il listino prodotti (pannelli, inverter, accumuli) in <Link to="/azienda/impostazioni/listino" className="text-orange-600 underline">Listino prodotti</Link> con categoria FV.</li>
+              <li className="flex gap-2"><span className="text-emerald-500 font-bold">2.</span> Aggiungi le tue tariffe di manodopera in <Link to="/azienda/impostazioni/tariffe" className="text-orange-600 underline">Tariffe aziendali</Link> (vertical "fotovoltaico" o "generico").</li>
               <li className="flex gap-2"><span className="text-emerald-500 font-bold">3.</span> Crea il primo progetto qui sotto. Tutto il resto si configura strada facendo.</li>
             </ul>
           </div>
@@ -314,6 +315,15 @@ export default function FotovoltaicoIndex() {
         </FvCard>
 
         {/* Tabella o empty state */}
+        {isLoading && (
+          <FvCard>
+            <div className="py-14 flex flex-col items-center justify-center gap-3 text-slate-500">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <p className="text-sm">Caricamento progetti fotovoltaici…</p>
+            </div>
+          </FvCard>
+        )}
+
         {!isLoading && progetti.length === 0 && (
           <FvCard>
             <div className="py-16 text-center space-y-4">
@@ -328,16 +338,22 @@ export default function FotovoltaicoIndex() {
                   finanziario, PDF Vendita personalizzato.
                 </p>
               </div>
-              <Button
-                asChild
-                size="lg"
-                className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 shadow-lg"
-              >
-                <Link to="/azienda/marketing/fotovoltaico/nuovo">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Crea il tuo primo progetto
-                </Link>
-              </Button>
+              {isAdmin ? (
+                <Button
+                  asChild
+                  size="lg"
+                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 shadow-lg"
+                >
+                  <Link to="/azienda/marketing/fotovoltaico/nuovo">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Crea il tuo primo progetto
+                  </Link>
+                </Button>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Chiedi a un admin aziendale di creare il primo progetto.
+                </p>
+              )}
               <FvCallout variant="tip" title="Suggerimento" >
                 Inizia da un cliente esistente del CRM. Il modulo precompila contatti, indirizzo e
                 consumi se disponibili.
@@ -346,7 +362,7 @@ export default function FotovoltaicoIndex() {
           </FvCard>
         )}
 
-        {progetti.length > 0 && (
+        {!isLoading && progetti.length > 0 && (
           <FvCard compact>
             <div className="overflow-x-auto -mx-4 sm:mx-0">
               <Table>
@@ -377,10 +393,22 @@ export default function FotovoltaicoIndex() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {progettiFiltrati.length === 0 && search && (
+                  {progettiFiltrati.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-8 text-slate-500">
-                        Nessun progetto trovato per "{search}".
+                        Nessun progetto trovato con i filtri attuali.
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="ml-1 h-auto px-1 text-orange-600"
+                          onClick={() => {
+                            setSearch("");
+                            setFiltroStato("all");
+                            setFiltroArchetipo("all");
+                          }}
+                        >
+                          Azzera filtri
+                        </Button>
                       </TableCell>
                     </TableRow>
                   )}
