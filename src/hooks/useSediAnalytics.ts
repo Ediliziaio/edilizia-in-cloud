@@ -67,7 +67,7 @@ export function useSediList() {
     queryFn:   async () => {
       const { data, error } = await supabase
         .from('sedi')
-        .select('id, nome, tipo, indirizzo, citta, cap, provincia, colore, attiva, principale')
+        .select('id, nome, tipo, indirizzo, citta, cap, provincia, regione, nazione, telefono, email, responsabile_sede, orari_apertura, note_interne, lat, lng, colore, attiva, principale')
         .eq('company_id', company_id!)
         .order('principale', { ascending: false })
         .order('nome')

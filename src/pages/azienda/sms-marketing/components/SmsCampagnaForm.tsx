@@ -6,7 +6,7 @@
  * Step 4: Pianificazione + Conferma con stima costo
  */
 import { useState, useEffect, useCallback } from "react";
-import { ChevronRight, ChevronLeft, Loader2, Send } from "lucide-react";
+import { ChevronRight, ChevronLeft, Loader2, Send, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ import {
 import { SmsMittenteInput } from "./SmsMittenteInput";
 import { SmsMessaggioEditor } from "./SmsMessaggioEditor";
 import { useSmsCampagne } from "@/hooks/useSmsCampagne";
+import { calcolaPartiSms } from "@/lib/sms-utils";
 import type { SmsCampagnaFormData, SmsCampagnaTipo } from "@/types/sms-marketing";
 
 const COSTO_PER_SMS_EUR = 0.05; // stima Brevo ~0.05€/SMS
@@ -39,6 +40,8 @@ interface FormErrors {
   nome?: string;
   mittente?: string;
   messaggio?: string;
+  destinatari?: string;
+  programmata_per?: string;
 }
 
 const defaultForm: SmsCampagnaFormData = {
@@ -58,6 +61,7 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
   const [tagsInput, setTagsInput] = useState("");
   const [nDestinatari, setNDestinatari] = useState<number | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const isSaving = isCreating || isAvviando;
 
   const set = <K extends keyof SmsCampagnaFormData>(key: K, val: SmsCampagnaFormData[K]) =>
@@ -82,9 +86,23 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
     if (step === 2) {
       if (!form.messaggio.trim()) newErrors.messaggio = "Il messaggio è obbligatorio";
     }
+    if (step === 3) {
+      if (nDestinatari !== null && nDestinatari <= 0) {
+        newErrors.destinatari = "Nessun destinatario valido con consenso SMS. Modifica filtri o contatti.";
+      }
+    }
+    if (step === 4) {
+      if (form.tipo === "pianificata") {
+        if (!form.programmata_per) {
+          newErrors.programmata_per = "Se pianifichi l'invio devi indicare data e ora.";
+        } else if (new Date(form.programmata_per).getTime() <= Date.now() + 60_000) {
+          newErrors.programmata_per = "La data di invio deve essere futura.";
+        }
+      }
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [step, form]);
+  }, [step, form, nDestinatari]);
 
   const handleNext = () => {
     if (!validateStep()) return;
@@ -93,15 +111,23 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
   };
 
   const handleConfirmAvvia = async () => {
-    setShowConfirm(false);
-    const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
-    const data = { ...form, filtro_tags: tags };
-    const campagna = await create(data);
-    if (campagna) await avvia(campagna.id);
-    onSuccess();
+    if (isConfirming || isSaving) return;
+    try {
+      setIsConfirming(true);
+      const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
+      const data = { ...form, filtro_tags: tags };
+      const campagna = await create(data);
+      if (campagna && form.tipo === "immediata") await avvia(campagna.id);
+      setShowConfirm(false);
+      onSuccess();
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
-  const stimaCosto = (nDestinatari ?? 0) * COSTO_PER_SMS_EUR;
+  const smsInfo = calcolaPartiSms(form.messaggio);
+  const stimaCosto = (nDestinatari ?? 0) * smsInfo.parti * COSTO_PER_SMS_EUR;
+  const canConfirm = (nDestinatari ?? 0) > 0 && !!form.messaggio.trim();
 
   return (
     <div className="space-y-6">
@@ -164,6 +190,7 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
               {nDestinatari === null ? "..." : nDestinatari.toLocaleString("it-IT")}
             </Badge>
           </div>
+          {errors.destinatari && <p className="text-xs text-destructive">{errors.destinatari}</p>}
         </div>
       )}
 
@@ -191,7 +218,9 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
                 type="datetime-local"
                 value={form.programmata_per?.slice(0, 16) ?? ""}
                 onChange={(e) => set("programmata_per", e.target.value ? new Date(e.target.value).toISOString() : null)}
+                className={errors.programmata_per ? "border-destructive" : ""}
               />
+              {errors.programmata_per && <p className="text-xs text-destructive">{errors.programmata_per}</p>}
             </div>
           )}
           {/* Riepilogo */}
@@ -201,7 +230,18 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
               <div className="flex justify-between"><span>Nome:</span><span className="font-medium text-foreground">{form.nome}</span></div>
               <div className="flex justify-between"><span>Mittente:</span><span className="font-medium text-foreground">{form.mittente}</span></div>
               <div className="flex justify-between"><span>Destinatari:</span><span className="font-medium text-foreground">{(nDestinatari ?? 0).toLocaleString("it-IT")}</span></div>
+              <div className="flex justify-between"><span>SMS per destinatario:</span><span className="font-medium text-foreground">{smsInfo.parti} ({smsInfo.tipoCharset})</span></div>
               <div className="flex justify-between"><span>Stima costo:</span><span className="font-medium text-foreground">~{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(stimaCosto)}</span></div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+            <div className="flex items-start gap-2">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="space-y-1">
+                <p className="font-medium">Checklist invio sicuro</p>
+                <p>Verranno considerati solo contatti del tenant corrente con consenso SMS, non in opt-out e con numero deduplicato.</p>
+                {form.tipo === "pianificata" && <p>La campagna verra' salvata come pianificata: non parte subito da questo form.</p>}
+              </div>
             </div>
           </div>
         </div>
@@ -224,17 +264,19 @@ export function SmsCampagnaForm({ onSuccess, onCancel }: SmsCampagnaFormProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Avviare la campagna SMS?</AlertDialogTitle>
             <AlertDialogDescription>
-              Verranno inviati SMS a{" "}
-              <strong>{(nDestinatari ?? 0).toLocaleString("it-IT")}</strong> contatti.<br />
+              {form.tipo === "immediata" ? "Verranno inviati SMS a " : "La campagna verra' programmata per "}
+              <strong>{form.tipo === "immediata" ? (nDestinatari ?? 0).toLocaleString("it-IT") : new Date(form.programmata_per ?? "").toLocaleString("it-IT")}</strong>
+              {form.tipo === "immediata" ? " contatti." : "."}<br />
+              SMS stimati: <strong>{((nDestinatari ?? 0) * smsInfo.parti).toLocaleString("it-IT")}</strong>.<br />
               Costo stimato: <strong>~{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(stimaCosto)}</strong>.<br />
-              L'azione non può essere interrotta una volta avviata.
+              {form.tipo === "immediata" ? "L'azione non puo' essere interrotta una volta avviata." : "L'invio reale sara' gestito dalla pianificazione."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmAvvia}>
-              <Send className="h-4 w-4 mr-2" />
-              Conferma e invia
+            <AlertDialogAction onClick={handleConfirmAvvia} disabled={!canConfirm || isConfirming || isSaving}>
+              {(isConfirming || isSaving) ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+              {form.tipo === "immediata" ? "Conferma e invia" : "Conferma pianificazione"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -5,6 +5,8 @@ import { verifyCompanyAccess } from '../_shared/companyAuth.ts'
 const TIPI_SEDE = new Set(['showroom', 'magazzino', 'cantiere', 'ufficio', 'altro'])
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
 const CAP = /^\d{5}$/
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+const PHONE = /^[+()0-9\s.-]{6,30}$/
 
 type SedePayload = {
   nome?: string
@@ -13,6 +15,15 @@ type SedePayload = {
   citta?: string | null
   cap?: string | null
   provincia?: string | null
+  regione?: string | null
+  nazione?: string | null
+  telefono?: string | null
+  email?: string | null
+  responsabile_sede?: string | null
+  orari_apertura?: string | null
+  note_interne?: string | null
+  lat?: number | null
+  lng?: number | null
   colore?: string
   attiva?: boolean
   principale?: boolean
@@ -57,6 +68,33 @@ function sanitizePayload(raw: Record<string, unknown>, isCreate: boolean): SedeP
   const provincia = cleanOptionalText(raw.provincia)
   if (provincia !== undefined) payload.provincia = provincia?.toUpperCase() ?? null
 
+  const regione = cleanOptionalText(raw.regione)
+  if (regione !== undefined) payload.regione = regione
+
+  const nazione = cleanOptionalText(raw.nazione)
+  if (nazione !== undefined) payload.nazione = nazione
+
+  const telefono = cleanOptionalText(raw.telefono)
+  if (telefono !== undefined) payload.telefono = telefono
+
+  const email = cleanOptionalText(raw.email)
+  if (email !== undefined) payload.email = email?.toLowerCase() ?? null
+
+  const responsabile = cleanOptionalText(raw.responsabile_sede)
+  if (responsabile !== undefined) payload.responsabile_sede = responsabile
+
+  const orari = cleanOptionalText(raw.orari_apertura)
+  if (orari !== undefined) payload.orari_apertura = orari
+
+  const note = cleanOptionalText(raw.note_interne)
+  if (note !== undefined) payload.note_interne = note
+
+  if (raw.lat === null || raw.lat === '') payload.lat = null
+  else if (raw.lat !== undefined) payload.lat = Number(raw.lat)
+
+  if (raw.lng === null || raw.lng === '') payload.lng = null
+  else if (raw.lng !== undefined) payload.lng = Number(raw.lng)
+
   if (typeof raw.colore === 'string') payload.colore = raw.colore
   if (typeof raw.attiva === 'boolean') payload.attiva = raw.attiva
   if (typeof raw.principale === 'boolean') payload.principale = raw.principale
@@ -69,6 +107,14 @@ function sanitizePayload(raw: Record<string, unknown>, isCreate: boolean): SedeP
   }
   if (payload.cap && !CAP.test(payload.cap)) throw new Error('CAP non valido')
   if (payload.provincia && payload.provincia.length !== 2) throw new Error('Provincia non valida')
+  if (payload.email && !EMAIL.test(payload.email)) throw new Error('Email sede non valida')
+  if (payload.telefono && !PHONE.test(payload.telefono)) throw new Error('Telefono sede non valido')
+  if (payload.lat !== undefined && payload.lat !== null && (!Number.isFinite(payload.lat) || payload.lat < -90 || payload.lat > 90)) {
+    throw new Error('Latitudine sede non valida')
+  }
+  if (payload.lng !== undefined && payload.lng !== null && (!Number.isFinite(payload.lng) || payload.lng < -180 || payload.lng > 180)) {
+    throw new Error('Longitudine sede non valida')
+  }
   if (payload.colore && !HEX_COLOR.test(payload.colore)) throw new Error('Colore sede non valido')
 
   return payload
@@ -135,6 +181,57 @@ async function ensureSinglePrimary(supabase: any, companyId: string) {
     .eq('id', next.id)
 }
 
+async function ensureCanManageSedi(supabase: any, userId: string, companyId: string) {
+  const [{ data: roles }, { data: access }, { data: permissions }] = await Promise.all([
+    supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId),
+    supabase
+      .from('multi_company_access')
+      .select('access_role')
+      .eq('user_id', userId)
+      .eq('company_id', companyId)
+      .maybeSingle(),
+    supabase
+      .from('staff_permissions')
+      .select('can_edit_settings, can_edit_settings_orders')
+      .eq('user_id', userId)
+      .eq('company_id', companyId)
+      .maybeSingle(),
+  ])
+
+  const roleNames = new Set((roles ?? []).map((row: { role: string }) => row.role))
+  if (roleNames.has('super_admin') || roleNames.has('company_admin')) return
+  if (access?.access_role === 'company_admin') return
+  if (permissions?.can_edit_settings === true || permissions?.can_edit_settings_orders === true) return
+
+  throw new Error('Permesso insufficiente per modificare le sedi')
+}
+
+async function ensureSedeIsNotLinked(supabase: any, companyId: string, sedeId: string) {
+  const checks = [
+    { table: 'quotes', label: 'preventivi' },
+    { table: 'orders', label: 'ordini' },
+    { table: 'marketing_contacts', label: 'contatti' },
+    { table: 'company_costs', label: 'costi' },
+    { table: 'invoices', label: 'fatture' },
+  ]
+
+  for (const check of checks) {
+    const { count, error } = await supabase
+      .from(check.table)
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .eq('sede_id', sedeId)
+
+    if (error) throw new Error('Impossibile verificare i collegamenti della sede')
+    if ((count ?? 0) > 0) {
+      throw new Error(`Sede collegata a ${check.label}: disattivala invece di eliminarla`)
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   const corsH = getCorsHeaders(req)
 
@@ -155,6 +252,7 @@ Deno.serve(async (req) => {
 
     // Verifica che l'utente autenticato appartenga alla company richiesta
     await verifyCompanyAccess(supabase, userId, company_id)
+    await ensureCanManageSedi(supabase, userId, company_id)
 
     // ── CREA SEDE ────────────────────────────────────────────
     if (action === 'crea') {
@@ -270,6 +368,8 @@ Deno.serve(async (req) => {
         return json({ error: 'sede_id richiesto per eliminazione' }, 400, corsH)
       }
 
+      await ensureSedeIsNotLinked(supabase, company_id, sede_id)
+
       const { error } = await supabase
         .from('sedi')
         .delete()
@@ -289,7 +389,11 @@ Deno.serve(async (req) => {
     // verifyCompanyAccess lancia Error
     const message = err instanceof Error ? err.message : 'Errore interno del server'
     console.error('[gestisci-sede] error:', message)
-    const status = message.includes('Non autorizzato') ? 403 : 500
+    const status = message.includes('Non autorizzato') || message.includes('Permesso insufficiente')
+      ? 403
+      : message.includes('Sede collegata')
+        ? 409
+        : 500
     return json({ error: message }, status, corsH)
   }
 })

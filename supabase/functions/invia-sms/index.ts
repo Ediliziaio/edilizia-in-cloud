@@ -36,6 +36,35 @@ interface BrevoSmsResponse {
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
+const GSM7_EXTENDED = new Set(["{", "}", "\\", "[", "]", "~", "|", "€", "^"]);
+const GSM7_BASE = new Set([
+  "@", "£", "$", "¥", "è", "é", "ù", "ì", "ò", "Ç", "\n", "Ø", "ø", "\r", "Å", "å",
+  "Δ", "_", "Φ", "Γ", "Λ", "Ω", "Π", "Ψ", "Σ", "Θ", "Ξ", "\x1B", "Æ", "æ", "ß", "É",
+  " ", "!", "\"", "#", "¤", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/",
+  "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ":", ";", "<", "=", ">", "?",
+  "¡", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+  "Ä", "Ö", "Ñ", "Ü", "§", "¿", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+  "ä", "ö", "ñ", "ü", "à",
+]);
+
+function calcolaPartiSms(messaggio: string): number {
+  let hasUnicode = false;
+  let gsm7Length = 0;
+  for (const char of messaggio) {
+    if (GSM7_EXTENDED.has(char)) gsm7Length += 2;
+    else if (GSM7_BASE.has(char)) gsm7Length += 1;
+    else {
+      hasUnicode = true;
+      break;
+    }
+  }
+  if (hasUnicode) {
+    const len = messaggio.length;
+    return len <= 70 ? 1 : Math.ceil(len / 67);
+  }
+  return gsm7Length <= 160 ? 1 : Math.ceil(gsm7Length / 153);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -63,6 +92,14 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !userData.user) {
+      return new Response(JSON.stringify({ error: "Sessione non valida" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const body = await req.json() as InviaSmsRequest;
     const { campagna_id, company_id } = body;
@@ -72,6 +109,22 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: "campagna_id e company_id sono obbligatori" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    const [{ data: profile }, { data: delegatedAccess }] = await Promise.all([
+      supabase.from("profiles").select("company_id").eq("id", userData.user.id).maybeSingle(),
+      supabase
+        .from("multi_company_access")
+        .select("company_id")
+        .eq("user_id", userData.user.id)
+        .eq("company_id", company_id)
+        .maybeSingle(),
+    ]);
+    if (profile?.company_id !== company_id && !delegatedAccess) {
+      return new Response(JSON.stringify({ error: "Non autorizzato per questa azienda" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Carica la campagna
@@ -96,11 +149,23 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Aggiorna stato campagna a in_corso
-    await supabase
+    const statoPrecedente = campagna.stato;
+
+    // Lock atomico: evita doppio click, doppio addebito e doppio invio.
+    const { data: lockedCampaign, error: lockError } = await supabase
       .from("sms_campaigns")
       .update({ stato: "in_corso" })
-      .eq("id", campagna_id);
+      .eq("id", campagna_id)
+      .eq("company_id", company_id)
+      .in("stato", ["bozza", "pianificata"])
+      .select("id")
+      .maybeSingle();
+    if (lockError || !lockedCampaign) {
+      return new Response(
+        JSON.stringify({ error: "Campagna gia' in invio o non piu' avviabile" }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Costruisce query contatti con filtro tag opzionale
     let contattiQuery = supabase
@@ -128,15 +193,33 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const destinatari = contatti ?? [];
+    const destinatari = Array.from(
+      new Map(
+        (contatti ?? [])
+          .map((contatto) => ({ ...contatto, telefono: String(contatto.telefono ?? "").trim() }))
+          .filter((contatto) => /^\+\d{7,15}$/.test(contatto.telefono))
+          .map((contatto) => [contatto.telefono, contatto])
+      ).values()
+    );
+    if (destinatari.length === 0) {
+      await supabase
+        .from("sms_campaigns")
+        .update({ stato: statoPrecedente })
+        .eq("id", campagna_id);
+      return new Response(
+        JSON.stringify({ error: "Nessun destinatario valido con consenso SMS" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     let inviati = 0;
     let errori = 0;
     let costoTotale = 0;
+    const partiSms = calcolaPartiSms(campagna.messaggio);
 
     // Aggiorna totale destinatari
     await supabase
       .from("sms_campaigns")
-      .update({ totale_destinatari: destinatari.length })
+      .update({ totale_destinatari: destinatari.length, parti_sms: partiSms })
       .eq("id", campagna_id);
 
     // Invio in batch da BATCH_SIZE
@@ -184,7 +267,7 @@ Deno.serve(async (req: Request) => {
             if (resp.ok) {
               statoLog = "inviato";
               providerMessageId = String(respJson.messageId ?? "");
-              costoSms = respJson.usedCredits ?? null;
+              costoSms = respJson.usedCredits ?? partiSms;
               inviati++;
               costoTotale += costoSms ?? 0;
             } else {
@@ -234,11 +317,18 @@ Deno.serve(async (req: Request) => {
 
     await supabase
       .from("sms_campaigns")
-      .update({ stato: statoFinale, inviati, errori, costo_totale: costoTotale })
+      .update({
+        stato: statoFinale,
+        inviati,
+        errori,
+        costo_totale: costoTotale,
+        costo_totale_cliente: costoTotale,
+        parti_sms: partiSms,
+      })
       .eq("id", campagna_id);
 
     return new Response(
-      JSON.stringify({ success: true, inviati, errori }),
+      JSON.stringify({ success: true, inviati, errori, costo_totale: costoTotale }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {

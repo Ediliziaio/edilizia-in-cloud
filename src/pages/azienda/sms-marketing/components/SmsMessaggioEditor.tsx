@@ -11,6 +11,9 @@ import { Smartphone } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { calcolaPartiSms } from "@/lib/sms-utils";
+
+const MAX_SMS_CHARS = 1530;
 
 const VARIABILI = [
   { label: "{{nome}}", desc: "Nome contatto" },
@@ -33,17 +36,18 @@ function interpolaVariabili(msg: string, nome: string): string {
 }
 
 export function SmsMessaggioEditor({ value, onChange, previewNome = "Mario", error }: SmsMessaggioEditorProps) {
-  const charCount = value.length;
-  const maxChars = 160;
-  const smsParts = charCount > 160 ? Math.ceil(charCount / 153) : 1;
+  const smsInfo = calcolaPartiSms(value);
+  const charCount = smsInfo.caratteriUsati;
+  const smsParts = smsInfo.parti;
+  const hardLimitReached = value.length >= MAX_SMS_CHARS;
 
   const counterColor =
-    charCount >= 156 ? "text-destructive font-semibold" :
-    charCount >= 120 ? "text-amber-600 font-medium" :
+    smsParts > 6 || smsInfo.caratteriRimanenti <= 5 ? "text-destructive font-semibold" :
+    smsParts > 1 || smsInfo.caratteriRimanenti <= 30 ? "text-amber-600 font-medium" :
     "text-muted-foreground";
 
   const insertVariabile = (variabile: string) => {
-    if (value.length + variabile.length > maxChars) return;
+    if (value.length + variabile.length > MAX_SMS_CHARS) return;
     onChange(value + variabile);
   };
 
@@ -75,19 +79,31 @@ export function SmsMessaggioEditor({ value, onChange, previewNome = "Mario", err
         <Textarea
           id="messaggio"
           value={value}
-          onChange={(e) => onChange(e.target.value.slice(0, maxChars))}
+          onChange={(e) => onChange(e.target.value.slice(0, MAX_SMS_CHARS))}
           rows={4}
           placeholder="Scrivi il tuo messaggio SMS..."
           className={`resize-none pr-14 ${error ? "border-destructive" : ""}`}
         />
         <span className={`absolute bottom-2 right-2 text-xs ${counterColor}`}>
-          {charCount}/{maxChars}
+          {charCount}/{smsInfo.caratteriPerParte}
         </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span>{smsInfo.tipoCharset}</span>
+        <span>{smsParts} SMS stimati</span>
+        <span>{Math.max(0, smsInfo.caratteriRimanenti)} caratteri residui nella parte corrente</span>
       </div>
 
       {smsParts > 1 && (
         <p className="text-xs text-amber-600">
-          ⚠️ Il messaggio supera 160 caratteri e verrà diviso in {smsParts} SMS (multi-part).
+          Il testo verra' inviato come {smsParts} SMS concatenati. Controlla costo e anteprima prima dell'invio.
+        </p>
+      )}
+
+      {hardLimitReached && (
+        <p className="text-xs text-destructive">
+          Limite massimo raggiunto: accorcia il messaggio prima di salvarlo.
         </p>
       )}
 

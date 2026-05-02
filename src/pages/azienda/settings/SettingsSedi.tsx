@@ -1,19 +1,21 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Pencil, MapPin, Building2, Trash2, Star } from 'lucide-react'
+import { Building2, Clock, Mail, MapPin, Pencil, Phone, Plus, Search, Star, Trash2, UserRound } from 'lucide-react'
 
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useSediList } from '@/hooks/useSediAnalytics'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -50,6 +52,15 @@ const sedeSchema = z.object({
   citta:     z.preprocess(emptyToUndefined, z.string().optional()),
   cap:       z.preprocess(emptyToUndefined, z.string().regex(/^\d{5}$/, 'CAP non valido').optional()),
   provincia: z.preprocess(emptyToUndefined, z.string().length(2, 'Inserisci 2 lettere').optional()),
+  regione:   z.preprocess(emptyToUndefined, z.string().optional()),
+  nazione:   z.preprocess(emptyToUndefined, z.string().optional()),
+  telefono:  z.preprocess(emptyToUndefined, z.string().regex(/^[+()0-9\s.-]{6,30}$/, 'Telefono non valido').optional()),
+  email:     z.preprocess(emptyToUndefined, z.string().email('Email non valida').optional()),
+  responsabile_sede: z.preprocess(emptyToUndefined, z.string().optional()),
+  orari_apertura:    z.preprocess(emptyToUndefined, z.string().optional()),
+  note_interne:      z.preprocess(emptyToUndefined, z.string().optional()),
+  lat:       z.preprocess(emptyToUndefined, z.coerce.number().min(-90, 'Latitudine non valida').max(90, 'Latitudine non valida').optional()),
+  lng:       z.preprocess(emptyToUndefined, z.coerce.number().min(-180, 'Longitudine non valida').max(180, 'Longitudine non valida').optional()),
   colore:    z.string().regex(/^#[0-9A-Fa-f]{6}$/).default('#1E3A5F'),
 })
 
@@ -62,6 +73,15 @@ type Sede = {
   citta: string | null
   cap: string | null
   provincia: string | null
+  regione: string | null
+  nazione: string | null
+  telefono: string | null
+  email: string | null
+  responsabile_sede: string | null
+  orari_apertura: string | null
+  note_interne: string | null
+  lat: number | null
+  lng: number | null
   colore: string | null
   attiva: boolean | null
   principale: boolean | null
@@ -96,17 +116,47 @@ async function parseFunctionError(error: unknown, fallback: string) {
 // ── Componente principale ───────────────────────────────────
 export default function SettingsSedi() {
   const { effectiveCompany } = useAuth()
+  const permissions = usePermissions()
   const company_id = effectiveCompany?.id
   const qc = useQueryClient()
   const { data: sedi = [], isLoading } = useSediList()
+  const canEditSedi = permissions.isAdmin || permissions.canEditSettingsOrders
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editSede, setEditSede] = useState<Sede | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [tipoFilter, setTipoFilter] = useState<'all' | SedeFormData['tipo']>('all')
+  const [statoFilter, setStatoFilter] = useState<'all' | 'attive' | 'disattive'>('all')
+
+  const filteredSedi = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    return (sedi as Sede[]).filter((sede) => {
+      const matchesSearch = !term || [
+        sede.nome,
+        sede.citta,
+        sede.provincia,
+        sede.regione,
+        sede.nazione,
+        sede.indirizzo,
+        sede.telefono,
+        sede.email,
+        sede.responsabile_sede,
+      ].some((value) => value?.toLowerCase().includes(term))
+      const matchesTipo = tipoFilter === 'all' || sede.tipo === tipoFilter
+      const matchesStato =
+        statoFilter === 'all' ||
+        (statoFilter === 'attive' && sede.attiva) ||
+        (statoFilter === 'disattive' && !sede.attiva)
+      return matchesSearch && matchesTipo && matchesStato
+    })
+  }, [search, sedi, statoFilter, tipoFilter])
+
+  const activeCount = (sedi as Sede[]).filter((sede) => sede.attiva).length
 
   const form = useForm<SedeFormData>({
     resolver: zodResolver(sedeSchema),
-    defaultValues: { nome: '', tipo: 'showroom', colore: '#1E3A5F' },
+    defaultValues: { nome: '', tipo: 'showroom', colore: '#1E3A5F', nazione: 'Italia' },
   })
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['sedi-list'] })
@@ -194,12 +244,20 @@ export default function SettingsSedi() {
 
   // ── Dialog ────────────────────────────────────────────────
   function openCreate() {
+    if (!canEditSedi) {
+      toast.error('Non hai il permesso di modificare le sedi.')
+      return
+    }
     setEditSede(null)
-    form.reset({ nome: '', tipo: 'showroom', colore: '#1E3A5F' })
+    form.reset({ nome: '', tipo: 'showroom', colore: '#1E3A5F', nazione: 'Italia' })
     setDialogOpen(true)
   }
 
   function openEdit(sede: Sede) {
+    if (!canEditSedi) {
+      toast.error('Non hai il permesso di modificare le sedi.')
+      return
+    }
     setEditSede(sede)
     form.reset({
       nome:      sede.nome,
@@ -208,13 +266,22 @@ export default function SettingsSedi() {
       citta:     sede.citta ?? '',
       cap:       sede.cap ?? '',
       provincia: sede.provincia ?? '',
+      regione:   sede.regione ?? '',
+      nazione:   sede.nazione ?? 'Italia',
+      telefono:  sede.telefono ?? '',
+      email:     sede.email ?? '',
+      responsabile_sede: sede.responsabile_sede ?? '',
+      orari_apertura:    sede.orari_apertura ?? '',
+      note_interne:      sede.note_interne ?? '',
+      lat:       sede.lat ?? undefined,
+      lng:       sede.lng ?? undefined,
       colore:    sede.colore ?? '#1E3A5F',
     })
     setDialogOpen(true)
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-5xl">
       {/* Header pattern h-10 w-10 bg-primary/10 — bug fix: rimosso colore
           hardcoded #1E3A5F che non rispettava il white-label per i clienti
           con brand personalizzato. */}
@@ -227,15 +294,50 @@ export default function SettingsSedi() {
             <h1 className="text-xl sm:text-2xl font-bold leading-tight">Sedi Aziendali</h1>
             <p className="text-sm text-muted-foreground">
               Showroom, cantieri, magazzini. Usa le sedi per analytics disaggregati su
-              dashboard, ordini e fatturazione. {sedi.length} {sedi.length === 1 ? "sede" : "sedi"} configurate.
+              dashboard, ordini e fatturazione. {sedi.length} {sedi.length === 1 ? "sede" : "sedi"} configurate, {activeCount} attive.
             </p>
           </div>
         </div>
-        <Button onClick={openCreate} size="sm" className="shrink-0">
+        <Button onClick={openCreate} size="sm" className="shrink-0" disabled={!canEditSedi}>
           <Plus className="h-4 w-4 mr-1.5" />
           Nuova Sede
         </Button>
       </div>
+
+      {sedi.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Cerca per nome, città, responsabile, telefono o email..."
+              className="pl-9"
+            />
+          </div>
+          <Select value={tipoFilter} onValueChange={(value) => setTipoFilter(value as typeof tipoFilter)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Tipo sede" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i tipi</SelectItem>
+              {Object.entries(TIPO_LABELS).map(([k, v]) => (
+                <SelectItem key={k} value={k}>{v}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statoFilter} onValueChange={(value) => setStatoFilter(value as typeof statoFilter)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Stato" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli stati</SelectItem>
+              <SelectItem value="attive">Solo attive</SelectItem>
+              <SelectItem value="disattive">Solo disattive</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Lista sedi */}
       {isLoading ? (
@@ -255,49 +357,84 @@ export default function SettingsSedi() {
               Aggiungi le sedi della tua azienda (showroom, cantieri, magazzini) per
               visualizzare analytics disaggregati in ogni dashboard.
             </p>
-            <Button onClick={openCreate} size="sm" className="mt-2 gap-2 ">
+            <Button onClick={openCreate} size="sm" className="mt-2 gap-2 " disabled={!canEditSedi}>
               <Plus className="h-4 w-4" />
               Aggiungi la prima sede
             </Button>
           </CardContent>
         </Card>
+      ) : filteredSedi.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+            <Search className="h-9 w-9 text-muted-foreground/40" />
+            <p className="text-sm font-medium text-muted-foreground">Nessuna sede trovata</p>
+            <p className="text-xs text-muted-foreground">Modifica ricerca o filtri per visualizzare altre sedi.</p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-3">
-          {sedi.map((sede) => (
+          {filteredSedi.map((sede) => (
             <Card key={sede.id} className={`transition-opacity ${!sede.attiva ? 'opacity-60' : ''}`}>
-              <CardContent className="flex items-center gap-4 py-4">
+              <CardContent className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center">
                 {/* Colore badge */}
-                <span
-                  className="w-4 h-4 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: sede.colore ?? '#1E3A5F' }}
-                />
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <span
+                    className="mt-1 w-4 h-4 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: sede.colore ?? '#1E3A5F' }}
+                  />
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold truncate">{sede.nome}</span>
-                    <Badge variant="outline" className="capitalize text-xs">
-                      {TIPO_LABELS[sede.tipo] ?? sede.tipo}
-                    </Badge>
-                    {sede.principale && (
-                      <Badge className="bg-amber-100 text-amber-700 text-xs hover:bg-amber-100 gap-1">
-                        <Star className="h-3 w-3" /> Principale
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold truncate">{sede.nome}</span>
+                      <Badge variant="outline" className="capitalize text-xs">
+                        {TIPO_LABELS[sede.tipo] ?? sede.tipo}
                       </Badge>
+                      {sede.principale && (
+                        <Badge className="bg-amber-100 text-amber-700 text-xs hover:bg-amber-100 gap-1">
+                          <Star className="h-3 w-3" /> Principale
+                        </Badge>
+                      )}
+                      {!sede.attiva && (
+                        <Badge variant="secondary" className="text-xs">Disattiva</Badge>
+                      )}
+                    </div>
+                    {(sede.indirizzo || sede.citta || sede.provincia || sede.regione) && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <Building2 className="inline h-3 w-3 mr-1" />
+                        {[sede.indirizzo, sede.cap, sede.citta, sede.provincia, sede.regione].filter(Boolean).join(', ')}
+                      </p>
                     )}
-                    {!sede.attiva && (
-                      <Badge variant="secondary" className="text-xs">Disattiva</Badge>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      {sede.responsabile_sede && (
+                        <span className="inline-flex items-center gap-1">
+                          <UserRound className="h-3 w-3" /> {sede.responsabile_sede}
+                        </span>
+                      )}
+                      {sede.telefono && (
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="h-3 w-3" /> {sede.telefono}
+                        </span>
+                      )}
+                      {sede.email && (
+                        <span className="inline-flex items-center gap-1">
+                          <Mail className="h-3 w-3" /> {sede.email}
+                        </span>
+                      )}
+                      {sede.orari_apertura && (
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-3 w-3" /> {sede.orari_apertura}
+                        </span>
+                      )}
+                    </div>
+                    {sede.note_interne && (
+                      <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{sede.note_interne}</p>
                     )}
                   </div>
-                  {sede.citta && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      <Building2 className="inline h-3 w-3 mr-1" />
-                      {sede.citta}
-                    </p>
-                  )}
                 </div>
 
                 {/* Azioni */}
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0 justify-end">
                     {!sede.principale && sede.attiva && (
                     <Button
                       variant="ghost"
@@ -305,6 +442,7 @@ export default function SettingsSedi() {
                       className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
                       aria-label={`Imposta ${sede.nome} come sede principale`}
                       onClick={() => setPrincipaleMutation.mutate(sede.id)}
+                      disabled={!canEditSedi || setPrincipaleMutation.isPending}
                     >
                       <Star className="h-3 w-3 mr-1" />
                       Principale
@@ -314,6 +452,7 @@ export default function SettingsSedi() {
                     checked={Boolean(sede.attiva)}
                     aria-label={`${sede.attiva ? 'Disattiva' : 'Attiva'} sede ${sede.nome}`}
                     onCheckedChange={(v) => toggleMutation.mutate({ id: sede.id, attiva: v })}
+                    disabled={!canEditSedi || toggleMutation.isPending}
                   />
                   <Button
                     variant="ghost"
@@ -321,6 +460,7 @@ export default function SettingsSedi() {
                     className="h-8 w-8"
                     aria-label={`Modifica sede ${sede.nome}`}
                     onClick={() => openEdit(sede)}
+                    disabled={!canEditSedi}
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -330,6 +470,7 @@ export default function SettingsSedi() {
                     className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                     aria-label={`Elimina sede ${sede.nome}`}
                     onClick={() => setDeleteId(sede.id)}
+                    disabled={!canEditSedi}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -342,7 +483,7 @@ export default function SettingsSedi() {
 
       {/* Dialog crea/modifica */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) { setDialogOpen(false); setEditSede(null) } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editSede ? 'Modifica Sede' : 'Nuova Sede'}</DialogTitle>
           </DialogHeader>
@@ -383,21 +524,88 @@ export default function SettingsSedi() {
 
             {/* Città + CAP + Provincia */}
             <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-1 space-y-1.5">
+              <div className="col-span-3 sm:col-span-1 space-y-1.5">
                 <Label>Città</Label>
                 <Input placeholder="Milano" {...form.register('citta')} />
               </div>
-              <div className="col-span-1 space-y-1.5">
+              <div className="col-span-3 sm:col-span-1 space-y-1.5">
                 <Label>CAP</Label>
                 <Input placeholder="20100" maxLength={5} {...form.register('cap')} />
                 {form.formState.errors.cap && (
                   <p className="text-xs text-destructive">{form.formState.errors.cap.message}</p>
                 )}
               </div>
-              <div className="col-span-1 space-y-1.5">
+              <div className="col-span-3 sm:col-span-1 space-y-1.5">
                 <Label>Prov.</Label>
                 <Input placeholder="MI" maxLength={2} {...form.register('provincia')} />
+                {form.formState.errors.provincia && (
+                  <p className="text-xs text-destructive">{form.formState.errors.provincia.message}</p>
+                )}
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label>Regione</Label>
+                <Input placeholder="Lombardia" {...form.register('regione')} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nazione</Label>
+                <Input placeholder="Italia" {...form.register('nazione')} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label>Telefono sede</Label>
+                <Input placeholder="+39 02 123456" {...form.register('telefono')} />
+                {form.formState.errors.telefono && (
+                  <p className="text-xs text-destructive">{form.formState.errors.telefono.message}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Email sede</Label>
+                <Input placeholder="sede@azienda.it" {...form.register('email')} />
+                {form.formState.errors.email && (
+                  <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label>Responsabile sede</Label>
+                <Input placeholder="Nome referente" {...form.register('responsabile_sede')} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Orari apertura</Label>
+                <Input placeholder="Lun-Ven 09:00-18:00" {...form.register('orari_apertura')} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label>Latitudine</Label>
+                <Input placeholder="45.4642" inputMode="decimal" {...form.register('lat')} />
+                {form.formState.errors.lat && (
+                  <p className="text-xs text-destructive">{form.formState.errors.lat.message}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Longitudine</Label>
+                <Input placeholder="9.1900" inputMode="decimal" {...form.register('lng')} />
+                {form.formState.errors.lng && (
+                  <p className="text-xs text-destructive">{form.formState.errors.lng.message}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Note interne</Label>
+              <Textarea
+                placeholder="Informazioni operative, riferimenti interni, note per appuntamenti o logistica..."
+                {...form.register('note_interne')}
+              />
             </div>
 
             {/* Colore */}
@@ -456,6 +664,7 @@ export default function SettingsSedi() {
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90"
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              disabled={!canEditSedi || deleteMutation.isPending}
             >
               Elimina
             </AlertDialogAction>

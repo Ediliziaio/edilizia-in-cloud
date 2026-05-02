@@ -187,6 +187,7 @@ export interface SmsCampagna {
 export interface SmsCampagnaFormData {
   nome: string;
   messaggio: string;
+  mittente: string;
   tipo: SmsCampagnaTipo;
   programmata_per: string | null;
   filtro_tags: string[];
@@ -261,7 +262,7 @@ export interface SmsStatsCampagna {
   consegnati: number;
   errori: number;
   tasso_consegna: number;
-  costo_totale_cliente: number;
+  costo_totale_cliente?: number;
 }
 
 // ─── Edge Function I/O ──────────────────────────────────────

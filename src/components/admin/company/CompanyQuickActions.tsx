@@ -15,9 +15,11 @@ import {
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
+import type { SuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 
 interface QuickActionsProps {
   company: { id: string; name: string; email: string; status: string; trial_ends_at: string | null };
+  permissions: SuperAdminPermissions;
 }
 
 const statusLabels: Record<string, string> = {
@@ -27,7 +29,7 @@ const statusLabels: Record<string, string> = {
   expired: "Scaduto",
 };
 
-export function CompanyQuickActions({ company }: QuickActionsProps) {
+export function CompanyQuickActions({ company, permissions }: QuickActionsProps) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [confirmDialog, setConfirmDialog] = useState<{ status: string; label: string } | null>(null);
@@ -51,6 +53,12 @@ export function CompanyQuickActions({ company }: QuickActionsProps) {
 
   const statusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
+      if (!permissions.bulk_actions) {
+        throw new Error("Permesso negato: non puoi modificare lo stato aziende");
+      }
+      if (permissions.allowed_company_ids?.length && !permissions.allowed_company_ids.includes(company.id)) {
+        throw new Error("Permesso negato: azienda non autorizzata");
+      }
       const { error } = await supabase
         .from("companies")
         .update({ status: newStatus, updated_at: new Date().toISOString() })
@@ -67,11 +75,17 @@ export function CompanyQuickActions({ company }: QuickActionsProps) {
       toast.success(`Stato aggiornato a "${statusLabels[newStatus] || newStatus}"`);
       setConfirmDialog(null);
     },
-    onError: () => { toast.error("Errore nel cambio stato"); setConfirmDialog(null); },
+    onError: (error: Error) => { toast.error("Errore nel cambio stato", { description: error.message }); setConfirmDialog(null); },
   });
 
   const extendTrialMutation = useMutation({
     mutationFn: async (days: number) => {
+      if (!permissions.billing_write) {
+        throw new Error("Permesso negato: non puoi modificare trial o billing");
+      }
+      if (permissions.allowed_company_ids?.length && !permissions.allowed_company_ids.includes(company.id)) {
+        throw new Error("Permesso negato: azienda non autorizzata");
+      }
       const base = company.trial_ends_at ? new Date(company.trial_ends_at) : new Date();
       const newEnd = new Date(base.getTime() + days * 86400000);
       const { error } = await supabase
@@ -95,7 +109,7 @@ export function CompanyQuickActions({ company }: QuickActionsProps) {
       toast.success(`Trial esteso di ${days} giorni`);
       setConfirmExtend(null);
     },
-    onError: () => { toast.error("Errore nell'estensione trial"); setConfirmExtend(null); },
+    onError: (error: Error) => { toast.error("Errore nell'estensione trial", { description: error.message }); setConfirmExtend(null); },
   });
 
   const statusOptions = [
@@ -117,7 +131,7 @@ export function CompanyQuickActions({ company }: QuickActionsProps) {
           <DropdownMenuLabel className="text-xs">{company.name}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="text-xs">
+            <DropdownMenuSubTrigger className="text-xs" disabled={!permissions.bulk_actions}>
               <RefreshCw className="h-3.5 w-3.5 mr-2" />Cambia stato
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
@@ -129,7 +143,7 @@ export function CompanyQuickActions({ company }: QuickActionsProps) {
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="text-xs">
+            <DropdownMenuSubTrigger className="text-xs" disabled={!permissions.billing_write}>
               <Clock className="h-3.5 w-3.5 mr-2" />Estendi trial
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>

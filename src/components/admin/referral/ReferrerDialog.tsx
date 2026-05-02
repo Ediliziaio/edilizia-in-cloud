@@ -21,11 +21,22 @@ import type { Referrer } from "@/pages/admin/ReferralDashboard";
 
 const schema = z.object({
   name: z.string().min(2, "Minimo 2 caratteri"),
-  email: z.string().email("Email non valida"),
-  phone: z.string().optional().or(z.literal("")),
+  email: z.string().trim().toLowerCase().email("Email non valida"),
+  phone: z.string().optional().or(z.literal("")).refine((value) => {
+    if (!value) return true;
+    return /^\+?[0-9\s().-]{6,20}$/.test(value.trim());
+  }, "Telefono non valido"),
   commission_type: z.enum(["percentage", "fixed"]),
   commission_value: z.coerce.number().min(0),
   notes: z.string().optional().or(z.literal("")),
+}).superRefine((data, ctx) => {
+  if (data.commission_type === "percentage" && data.commission_value > 100) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["commission_value"],
+      message: "La percentuale non può superare il 100%",
+    });
+  }
 });
 
 type FormData = z.infer<typeof schema>;
@@ -35,6 +46,20 @@ function generateCode(): string {
   let code = "";
   for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
+}
+
+async function generateUniqueReferralCode() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const code = generateCode();
+    const { data, error } = await supabase
+      .from("referrers")
+      .select("id")
+      .eq("referral_code", code)
+      .limit(1);
+    if (error) throw error;
+    if ((data || []).length === 0) return code;
+  }
+  throw new Error("Impossibile generare un codice referral univoco. Riprova.");
 }
 
 interface Props {
@@ -76,13 +101,24 @@ export function ReferrerDialog({ open, onOpenChange, referrer }: Props) {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
+      const normalizedEmail = data.email.trim().toLowerCase();
+      const normalizedPhone = data.phone?.trim() || null;
+      const { data: duplicateEmails, error: duplicateError } = await supabase
+        .from("referrers")
+        .select("id")
+        .eq("email", normalizedEmail)
+        .neq("id", referrer?.id || "00000000-0000-0000-0000-000000000000")
+        .limit(1);
+      if (duplicateError) throw duplicateError;
+      if ((duplicateEmails || []).length > 0) throw new Error("Esiste già un referrer con questa email");
+
       if (isEdit) {
         const { error } = await supabase
           .from("referrers")
           .update({
-            name: data.name,
-            email: data.email,
-            phone: data.phone || null,
+            name: data.name.trim(),
+            email: normalizedEmail,
+            phone: normalizedPhone,
             commission_type: data.commission_type,
             commission_value: data.commission_value,
             notes: data.notes || null,
@@ -90,11 +126,12 @@ export function ReferrerDialog({ open, onOpenChange, referrer }: Props) {
           .eq("id", referrer!.id);
         if (error) throw error;
       } else {
+        const referralCode = await generateUniqueReferralCode();
         const { error } = await supabase.from("referrers").insert({
-          name: data.name,
-          email: data.email,
-          phone: data.phone || null,
-          referral_code: generateCode(),
+          name: data.name.trim(),
+          email: normalizedEmail,
+          phone: normalizedPhone,
+          referral_code: referralCode,
           commission_type: data.commission_type,
           commission_value: data.commission_value,
           notes: data.notes || null,

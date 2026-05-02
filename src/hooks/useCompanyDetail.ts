@@ -527,6 +527,7 @@ export function useCompanyDetail(id: string | undefined) {
 
   const createSalespersonMutation = useMutation({
     mutationFn: async (data: SalespersonFormPayload) => {
+      assertCanManage();
       const { error } = await supabase.from("salespeople").insert({
         company_id: id!, first_name: data.first_name, last_name: data.last_name,
         email: data.email || null, phone: data.phone || null,
@@ -681,6 +682,10 @@ export function useCompanyDetail(id: string | undefined) {
       bank_name: string | null;
       payment_notes: string | null;
     }) => {
+      assertCanManage();
+      if (!saPermissions.billing_write) {
+        throw new Error("Permesso negato: non puoi modificare dati billing");
+      }
       if (!id) return;
       const { error } = await supabase.from("companies").update({
         payment_method: data.payment_method,
@@ -714,6 +719,10 @@ export function useCompanyDetail(id: string | undefined) {
 
   const createCheckoutMutation = useMutation({
     mutationFn: async ({ billingPeriod }: { billingPeriod?: string } = {}) => {
+      assertCanManage();
+      if (!saPermissions.billing_write) {
+        throw new Error("Permesso negato: non puoi generare link di pagamento");
+      }
       if (!id || !company?.subscription_plan_id) throw new Error("Piano non assegnato");
       const { data: sessionData } = await supabase.auth.getSession();
       const resp = await supabase.functions.invoke("create-checkout-session", {
@@ -749,6 +758,10 @@ export function useCompanyDetail(id: string | undefined) {
 
   const handleExportCompany = () => {
     if (!company) return;
+    if (!saPermissions.data_export) {
+      toast.error("Permesso negato", { description: "Non puoi esportare dati aziendali" });
+      return;
+    }
     const exportData = {
       ...company,
       stats,

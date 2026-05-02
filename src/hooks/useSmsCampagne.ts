@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { calcolaPartiSms } from "@/lib/sms-utils";
 import type {
   SmsCampagna,
   SmsCampagnaFormData,
@@ -27,7 +28,7 @@ export function useSmsCampagne() {
       const { data, error: queryError } = await supabase
         .from("sms_campaigns")
         .select(
-          "id, company_id, nome, messaggio, mittente, stato, tipo, programmata_per, totale_destinatari, inviati, consegnati, errori, costo_totale, filtro_tags, created_at, updated_at"
+          "id, company_id, nome, messaggio, mittente, stato, tipo, programmata_per, totale_destinatari, inviati, consegnati, errori, costo_totale, parti_sms, costo_per_sms_snapshot, costo_totale_cliente, filtro_tags, created_at, updated_at"
         )
         .eq("company_id", companyId)
         .order("created_at", { ascending: false });
@@ -49,20 +50,36 @@ export function useSmsCampagne() {
   const createMutation = useMutation({
     mutationFn: async (formData: SmsCampagnaFormData): Promise<SmsCampagna> => {
       if (!companyId) throw new Error("Azienda non selezionata");
+      const nome = formData.nome.trim();
+      const messaggio = formData.messaggio.trim();
+      const mittente = formData.mittente.trim();
+      if (!nome) throw new Error("Il nome della campagna è obbligatorio.");
+      if (!messaggio) throw new Error("Il messaggio è obbligatorio.");
+      if (!/^[A-Za-z0-9]{1,11}$/.test(mittente)) {
+        throw new Error("Il mittente deve contenere solo lettere e numeri, massimo 11 caratteri.");
+      }
+      if (formData.tipo === "pianificata") {
+        if (!formData.programmata_per) throw new Error("Indica data e ora per pianificare la campagna.");
+        if (new Date(formData.programmata_per).getTime() <= Date.now() + 60_000) {
+          throw new Error("La data di invio deve essere futura.");
+        }
+      }
+      const smsInfo = calcolaPartiSms(messaggio);
       const { data, error: insertError } = await supabase
         .from("sms_campaigns")
         .insert({
           company_id: companyId,
-          nome: formData.nome,
-          messaggio: formData.messaggio,
-          mittente: formData.mittente,
+          nome,
+          messaggio,
+          mittente,
           tipo: formData.tipo,
-          stato: "bozza",
+          stato: formData.tipo === "pianificata" ? "pianificata" : "bozza",
           programmata_per: formData.programmata_per,
           filtro_tags: formData.filtro_tags,
+          parti_sms: smsInfo.parti,
         })
         .select(
-          "id, company_id, nome, messaggio, mittente, stato, tipo, programmata_per, totale_destinatari, inviati, consegnati, errori, costo_totale, filtro_tags, created_at, updated_at"
+          "id, company_id, nome, messaggio, mittente, stato, tipo, programmata_per, totale_destinatari, inviati, consegnati, errori, costo_totale, parti_sms, costo_per_sms_snapshot, costo_totale_cliente, filtro_tags, created_at, updated_at"
         )
         .single();
       if (insertError) {
@@ -73,7 +90,7 @@ export function useSmsCampagne() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [SMS_CAMPAGNE_KEY, companyId] });
-      toast.success("Campagna creata con successo");
+      toast.success("Campagna salvata con successo");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -124,17 +141,22 @@ export function useSmsCampagne() {
     if (!companyId) return 0;
     let q = supabase
       .from("sms_contacts")
-      .select("id", { count: "exact", head: true })
+      .select("telefono")
       .eq("company_id", companyId)
       .eq("opt_out", false)
       .eq("consenso_marketing", true);
     if (filtroTags.length > 0) q = q.overlaps("tags", filtroTags);
-    const { count, error: countError } = await q;
+    const { data, error: countError } = await q;
     if (countError) {
       console.error("[useSmsCampagne] countDestinatari:", countError);
       return 0;
     }
-    return count ?? 0;
+    const numeriValidi = new Set(
+      (data ?? [])
+        .map((row) => String(row.telefono ?? "").trim())
+        .filter((telefono) => /^\+\d{7,15}$/.test(telefono))
+    );
+    return numeriValidi.size;
   };
 
   return {

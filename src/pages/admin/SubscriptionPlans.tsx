@@ -20,6 +20,7 @@ import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { getCompanyMonthlyRevenue, isRevenueEligibleCompany } from "@/lib/adminRevenue";
 import { DeletePlanDialog } from "@/components/admin/plan/DeletePlanDialog";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PlanForm {
   name: string;
@@ -96,8 +97,24 @@ function parseNumberInput(value: string, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function validatePlanForm(plan: PlanForm, cleanSlug: string): string[] {
+  const errors: string[] = [];
+  if (!plan.name.trim()) errors.push("Il nome del piano è obbligatorio.");
+  if (!cleanSlug) errors.push("Lo slug del piano è obbligatorio.");
+  if (!Number.isFinite(plan.price_monthly) || plan.price_monthly < 0) errors.push("Il prezzo mensile non può essere negativo.");
+  if (!Number.isFinite(plan.price_yearly) || plan.price_yearly < 0) errors.push("Il prezzo annuale non può essere negativo.");
+  if (!Number.isInteger(plan.max_orders) || plan.max_orders < -1) errors.push("Il limite ordini deve essere -1 oppure un numero positivo.");
+  if (!Number.isInteger(plan.max_users) || plan.max_users < -1) errors.push("Il limite utenti deve essere -1 oppure un numero positivo.");
+  if (!Number.isInteger(plan.max_storage_mb) || plan.max_storage_mb < 0) errors.push("Lo storage non può essere negativo.");
+  if (!Number.isInteger(plan.trial_days) || plan.trial_days < 0 || plan.trial_days > 365) errors.push("Il trial deve essere compreso tra 0 e 365 giorni.");
+  if (!Number.isInteger(plan.position) || plan.position < 0) errors.push("La posizione deve essere un numero positivo.");
+  if (plan.included_modules.length === 0) errors.push("Seleziona almeno un modulo incluso.");
+  return errors;
+}
+
 export default function SubscriptionPlans() {
   const { permissions: saPermissions } = useSuperAdminPermissions();
+  const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -186,6 +203,19 @@ export default function SubscriptionPlans() {
       if (!saPermissions.can_manage_plans) throw new Error("Non hai i permessi per gestire i piani");
       const cleanName = plan.name.trim();
       const cleanSlug = slugifyPlan(plan.slug || plan.name);
+      const validationErrors = validatePlanForm(plan, cleanSlug);
+      if (validationErrors.length > 0) throw new Error(validationErrors.join(" "));
+
+      let duplicateSlugQuery = supabase
+        .from("subscription_plans")
+        .select("id", { count: "exact", head: true })
+        .eq("slug", cleanSlug);
+      if (plan.id) duplicateSlugQuery = duplicateSlugQuery.neq("id", plan.id);
+      const { count: duplicateCount, error: duplicateError } = await duplicateSlugQuery;
+      if (duplicateError) throw duplicateError;
+      if ((duplicateCount ?? 0) > 0) {
+        throw new Error("Esiste già un piano con questo slug. Usa uno slug univoco.");
+      }
       // Shape del record da persistere su subscription_plans.
       // Manteniamo il tipo esplicito per evitare `any` e allinearci alla
       // colonna SQL (features JSONB array, included_modules text[] — entrambi
@@ -236,11 +266,53 @@ export default function SubscriptionPlans() {
           .update(payload as never)
           .eq("id", plan.id);
         if (error) throw error;
+        if (user?.id) {
+          await supabase.from("admin_audit_log").insert({
+            user_id: user.id,
+            action: "subscription_plan_update",
+            target_type: "subscription_plan",
+            target_id: plan.id,
+            details: {
+              plan_name: cleanName,
+              slug: cleanSlug,
+              price_monthly: payload.price_monthly,
+              price_yearly: payload.price_yearly,
+              max_orders: payload.max_orders,
+              max_users: payload.max_users,
+              max_storage_mb: payload.max_storage_mb,
+              trial_days: payload.trial_days,
+              included_modules_count: payload.included_modules.length,
+              source: "admin_plans_list",
+            },
+          });
+        }
       } else {
-        const { error } = await supabase
+        const { data: created, error } = await supabase
           .from("subscription_plans")
-          .insert(payload as never);
+          .insert(payload as never)
+          .select("id")
+          .single();
         if (error) throw error;
+        if (user?.id && created?.id) {
+          await supabase.from("admin_audit_log").insert({
+            user_id: user.id,
+            action: "subscription_plan_create",
+            target_type: "subscription_plan",
+            target_id: created.id,
+            details: {
+              plan_name: cleanName,
+              slug: cleanSlug,
+              price_monthly: payload.price_monthly,
+              price_yearly: payload.price_yearly,
+              max_orders: payload.max_orders,
+              max_users: payload.max_users,
+              max_storage_mb: payload.max_storage_mb,
+              trial_days: payload.trial_days,
+              included_modules_count: payload.included_modules.length,
+              source: "admin_plans_list",
+            },
+          });
+        }
       }
     },
     onSuccess: () => {
@@ -261,6 +333,15 @@ export default function SubscriptionPlans() {
       if (!saPermissions.can_manage_plans) throw new Error("Non hai i permessi per gestire i piani");
       const { error } = await supabase.from("subscription_plans").update({ is_active }).eq("id", id);
       if (error) throw error;
+      if (user?.id) {
+        await supabase.from("admin_audit_log").insert({
+          user_id: user.id,
+          action: is_active ? "subscription_plan_activate" : "subscription_plan_deactivate",
+          target_type: "subscription_plan",
+          target_id: id,
+          details: { is_active, source: "admin_plans_list" },
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subscription-plans"] });
@@ -339,12 +420,13 @@ export default function SubscriptionPlans() {
 
   const handleSave = () => {
     const cleanSlug = slugifyPlan(form.slug || form.name);
-    if (!form.name.trim() || !cleanSlug) {
-      toast({ title: "Compila nome e slug", variant: "destructive" });
-      return;
-    }
-    if (form.price_monthly < 0 || form.price_yearly < 0) {
-      toast({ title: "I prezzi non possono essere negativi", variant: "destructive" });
+    const validationErrors = validatePlanForm(form, cleanSlug);
+    if (validationErrors.length > 0) {
+      toast({
+        title: "Controlla i dati del piano",
+        description: validationErrors[0],
+        variant: "destructive",
+      });
       return;
     }
     const features = featuresText.split("\n").map((f) => f.trim()).filter(Boolean);

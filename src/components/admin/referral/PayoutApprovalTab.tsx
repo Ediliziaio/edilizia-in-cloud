@@ -69,20 +69,41 @@ export function PayoutApprovalTab() {
     },
   });
 
+  const recalculateReferrerTotalPaid = async (referrerId: string) => {
+    const { data: paidRows, error: fetchError } = await supabase
+      .from("referral_payouts")
+      .select("amount")
+      .eq("referrer_id", referrerId)
+      .eq("status", "paid");
+    if (fetchError) throw fetchError;
+
+    const totalPaid = (paidRows || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const { error: updateError } = await supabase
+      .from("referrers")
+      .update({ total_paid: totalPaid })
+      .eq("id", referrerId);
+    if (updateError) throw updateError;
+  };
+
   const approveMutation = useMutation({
     mutationFn: async (payoutId: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("referral_payouts")
         .update({
           status: "approved",
           approved_by: user?.id,
           approved_at: new Date().toISOString(),
         })
-        .eq("id", payoutId);
+        .eq("id", payoutId)
+        .eq("status", "pending")
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("Payout già elaborato o non più approvabile");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-pending-payouts"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-payout-count"] });
       toast.success("Payout approvato");
     },
     onError: (err: any) => toast.error(err.message),
@@ -90,14 +111,22 @@ export function PayoutApprovalTab() {
 
   const rejectMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const { error } = await supabase
+      const cleanReason = reason.trim();
+      if (cleanReason.length < 3) throw new Error("Inserisci una motivazione di rifiuto");
+      const { data, error } = await supabase
         .from("referral_payouts")
-        .update({ status: "rejected", rejection_reason: reason })
-        .eq("id", id);
+        .update({ status: "rejected", rejection_reason: cleanReason })
+        .eq("id", id)
+        .in("status", ["pending", "approved", "processing"])
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("Payout già elaborato o non più rifiutabile");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-pending-payouts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-paid-payouts"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-payout-count"] });
       setRejectId(null);
       setRejectReason("");
       toast.success("Payout rifiutato");
@@ -107,17 +136,19 @@ export function PayoutApprovalTab() {
 
   const markPaid = useMutation({
     mutationFn: async ({ id, referrerId, amount, txRef }: { id: string; referrerId: string; amount: number; txRef: string }) => {
-      const { error } = await supabase
+      const cleanTxRef = txRef.trim();
+      if (!cleanTxRef) throw new Error("Inserisci un riferimento transazione valido");
+      const { data, error } = await supabase
         .from("referral_payouts")
-        .update({ status: "paid", transaction_reference: txRef })
-        .eq("id", id);
+        .update({ status: "paid", transaction_reference: cleanTxRef, paid_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("status", "approved")
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("Payout già pagato o non approvato");
 
-      // Update referrer total_paid
-      const { data: ref } = await supabase.from("referrers").select("total_paid").eq("id", referrerId).single();
-      if (ref) {
-        await supabase.from("referrers").update({ total_paid: (ref.total_paid || 0) + amount }).eq("id", referrerId);
-      }
+      await recalculateReferrerTotalPaid(referrerId);
 
       // Send notification
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
@@ -134,6 +165,7 @@ export function PayoutApprovalTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-pending-payouts"] });
       queryClient.invalidateQueries({ queryKey: ["admin-paid-payouts"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-payout-count"] });
       queryClient.invalidateQueries({ queryKey: ["referrers"] });
       toast.success("Payout marcato come pagato");
     },
@@ -267,10 +299,13 @@ export function PayoutApprovalTab() {
                           size="sm"
                           onClick={() => {
                             const txRef = prompt("Riferimento transazione/bonifico:");
-                            if (txRef !== null) {
+                            if (txRef !== null && txRef.trim()) {
                               markPaid.mutate({ id: p.id, referrerId: p.referrer_id, amount: p.amount, txRef });
+                            } else if (txRef !== null) {
+                              toast.error("Riferimento transazione obbligatorio");
                             }
                           }}
+                          disabled={markPaid.isPending}
                         >
                           Segna come Pagato
                         </Button>
@@ -328,7 +363,7 @@ export function PayoutApprovalTab() {
           <Button
             variant="destructive"
             onClick={() => rejectId && rejectMutation.mutate({ id: rejectId, reason: rejectReason })}
-            disabled={rejectMutation.isPending}
+            disabled={rejectMutation.isPending || rejectReason.trim().length < 3}
           >
             Conferma Rifiuto
           </Button>

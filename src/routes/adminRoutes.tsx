@@ -157,9 +157,9 @@ export function adminRoutes() {
       >
         <Route index element={<AdminDashboard />} />
         <Route path="menu" element={<AdminMobileMenu />} />
-        <Route path="aziende" element={<CompaniesList />} />
-        <Route path="aziende/nuova" element={<CreateCompany />} />
-        <Route path="aziende/:id" element={<CompanyDetail />} />
+        <Route path="aziende" element={<RequireSuperAdmin><CompaniesList /></RequireSuperAdmin>} />
+        <Route path="aziende/nuova" element={<RequireSuperAdmin><CreateCompany /></RequireSuperAdmin>} />
+        <Route path="aziende/:id" element={<RequireSuperAdmin><CompanyDetail /></RequireSuperAdmin>} />
         <Route path="ticket" element={<GlobalTickets />} />
         <Route path="impostazioni" element={<Navigate to="/admin/impostazioni/profilo" replace />} />
         <Route path="impostazioni/profilo" element={<AdminSettingsProfile />} />
@@ -183,7 +183,7 @@ export function adminRoutes() {
         <Route path="impostazioni/ai-usage" element={<Navigate to="/admin/ai-usage" replace />} />
         <Route path="piani" element={<RequireSuperAdmin><SubscriptionPlans /></RequireSuperAdmin>} />
         <Route path="piani/:id" element={<RequireSuperAdmin><PlanDetail /></RequireSuperAdmin>} />
-        <Route path="referral" element={<ReferralDashboard />} />
+        <Route path="referral" element={<RequireSuperAdmin><ReferralDashboard /></RequireSuperAdmin>} />
         <Route path="feature-flags" element={<RequireSuperAdmin><FeatureFlags /></RequireSuperAdmin>} />
         <Route path="implementazioni" element={<Navigate to="/admin/feature-flags" replace />} />
         <Route path="fv-modulo" element={<RequireSuperAdmin><AdminFvModulo /></RequireSuperAdmin>} />

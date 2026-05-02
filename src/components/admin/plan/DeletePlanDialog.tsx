@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { deleteUnusedPlan, fetchPlanDeleteImpact } from "@/lib/adminPlanDeletion";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface DeletePlanTarget {
   id: string;
@@ -31,6 +33,7 @@ interface DeletePlanDialogProps {
 export function DeletePlanDialog({ open, plan, onOpenChange, onDeleted }: DeletePlanDialogProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   const planId = plan?.id ?? null;
 
   const impactQuery = useQuery({
@@ -41,7 +44,22 @@ export function DeletePlanDialog({ open, plan, onOpenChange, onDeleted }: Delete
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => deleteUnusedPlan(id),
+    mutationFn: async (id: string) => {
+      await deleteUnusedPlan(id);
+      if (user?.id) {
+        await supabase.from("admin_audit_log").insert({
+          user_id: user.id,
+          action: "subscription_plan_delete",
+          target_type: "subscription_plan",
+          target_id: id,
+          details: {
+            plan_name: plan?.name ?? null,
+            slug: plan?.slug ?? null,
+            source: "admin_plan_delete_dialog",
+          },
+        });
+      }
+    },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["subscription-plans"] }),

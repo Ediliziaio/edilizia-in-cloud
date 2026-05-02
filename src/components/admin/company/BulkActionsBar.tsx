@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 
 interface BulkActionsBarProps {
   selectedIds: Set<string>;
@@ -42,6 +43,7 @@ async function getFunctionErrorMessage(error: unknown): Promise<string> {
 export function BulkActionsBar({ selectedIds, companies, onClearSelection }: BulkActionsBarProps) {
   const queryClient = useQueryClient();
   const { profile } = useAuth();
+  const { permissions } = useSuperAdminPermissions();
   const [confirmAction, setConfirmAction] = useState<{ type: string; label: string; variant: "default" | "destructive" } | null>(null);
   const [planDialog, setPlanDialog] = useState(false);
   const [trialDialog, setTrialDialog] = useState(false);
@@ -55,6 +57,9 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
 
   const selectedCompanies = companies.filter((c) => selectedIds.has(c.id));
   const count = selectedIds.size;
+  const selectedIdList = Array.from(selectedIds);
+  const hasUnauthorizedSelection = !!permissions.allowed_company_ids?.length
+    && selectedIdList.some((id) => !permissions.allowed_company_ids?.includes(id));
 
   const invalidateCompanies = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
@@ -88,7 +93,13 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
 
   const bulkStatusMutation = useMutation({
     mutationFn: async ({ status }: { status: string }) => {
-      const ids = Array.from(selectedIds);
+      if (!permissions.bulk_actions) {
+        throw new Error("Permesso negato: non puoi modificare lo stato aziende");
+      }
+      if (hasUnauthorizedSelection) {
+        throw new Error("Permesso negato: selezione fuori perimetro amministrativo");
+      }
+      const ids = selectedIdList;
       const { error } = await supabase
         .from("companies")
         .update({ status, updated_at: new Date().toISOString() })
@@ -102,12 +113,18 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
       toast.success(`${count} aziende ${labels[vars.status] || "aggiornate"}`);
       onClearSelection();
     },
-    onError: () => toast.error("Errore nell'operazione bulk"),
+    onError: (error: Error) => toast.error("Errore nell'operazione bulk", { description: error.message }),
   });
 
   const bulkPlanMutation = useMutation({
     mutationFn: async ({ planId }: { planId: string }) => {
-      const ids = Array.from(selectedIds);
+      if (!permissions.billing_write) {
+        throw new Error("Permesso negato: non puoi cambiare piano alle aziende");
+      }
+      if (hasUnauthorizedSelection) {
+        throw new Error("Permesso negato: selezione fuori perimetro amministrativo");
+      }
+      const ids = selectedIdList;
       for (const companyId of ids) {
         const { data, error } = await supabase.functions.invoke("admin-change-plan", {
           body: { company_id: companyId, new_plan_id: planId },
@@ -125,12 +142,18 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
       onClearSelection();
       setPlanDialog(false);
     },
-    onError: () => toast.error("Errore nel cambio piano"),
+    onError: (error: Error) => toast.error("Errore nel cambio piano", { description: error.message }),
   });
 
   const bulkExtendTrialMutation = useMutation({
     mutationFn: async ({ days }: { days: number }) => {
-      const ids = Array.from(selectedIds);
+      if (!permissions.billing_write) {
+        throw new Error("Permesso negato: non puoi modificare trial o billing");
+      }
+      if (hasUnauthorizedSelection) {
+        throw new Error("Permesso negato: selezione fuori perimetro amministrativo");
+      }
+      const ids = selectedIdList;
       // Extend trial for each company individually since we need interval math
       for (const id of ids) {
         const { error } = await supabase.rpc("extend_company_trial" as any, {
@@ -162,13 +185,19 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
       onClearSelection();
       setTrialDialog(false);
     },
-    onError: () => toast.error("Errore nell'estensione trial"),
+    onError: (error: Error) => toast.error("Errore nell'estensione trial", { description: error.message }),
   });
 
   const bulkCsTaskMutation = useMutation({
     mutationFn: async () => {
+      if (!permissions.bulk_actions) {
+        throw new Error("Permesso negato: non puoi creare task massivi");
+      }
+      if (hasUnauthorizedSelection) {
+        throw new Error("Permesso negato: selezione fuori perimetro amministrativo");
+      }
       if (!profile?.id) throw new Error("Profilo admin non disponibile");
-      const ids = Array.from(selectedIds);
+      const ids = selectedIdList;
       const rows = ids.map((company_id) => ({
         company_id,
         title: csTitle,
@@ -193,6 +222,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
   });
 
   const isPending = bulkStatusMutation.isPending || bulkPlanMutation.isPending || bulkExtendTrialMutation.isPending || bulkCsTaskMutation.isPending;
+  const actionsBlocked = hasUnauthorizedSelection || (!permissions.bulk_actions && !permissions.billing_write);
 
   if (count === 0) return null;
 
@@ -208,7 +238,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
             variant="outline"
             size="sm"
             onClick={() => setPlanDialog(true)}
-            disabled={isPending}
+            disabled={isPending || !permissions.billing_write || hasUnauthorizedSelection}
           >
             <CreditCard className="h-3.5 w-3.5 mr-1.5" />
             Cambia Piano
@@ -217,7 +247,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
             variant="outline"
             size="sm"
             onClick={() => setTrialDialog(true)}
-            disabled={isPending}
+            disabled={isPending || !permissions.billing_write || hasUnauthorizedSelection}
           >
             <CalendarPlus className="h-3.5 w-3.5 mr-1.5" />
             Estendi Trial
@@ -226,7 +256,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
             variant="outline"
             size="sm"
             onClick={() => setConfirmAction({ type: "suspended", label: "Sospendi", variant: "destructive" })}
-            disabled={isPending}
+            disabled={isPending || !permissions.bulk_actions || hasUnauthorizedSelection}
           >
             <Pause className="h-3.5 w-3.5 mr-1.5" />
             Sospendi
@@ -235,7 +265,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
             variant="outline"
             size="sm"
             onClick={() => setConfirmAction({ type: "active", label: "Riattiva", variant: "default" })}
-            disabled={isPending}
+            disabled={isPending || !permissions.bulk_actions || hasUnauthorizedSelection}
           >
             <Play className="h-3.5 w-3.5 mr-1.5" />
             Riattiva
@@ -244,7 +274,7 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
             variant="outline"
             size="sm"
             onClick={() => setCsTaskDialog(true)}
-            disabled={isPending}
+            disabled={isPending || !permissions.bulk_actions || hasUnauthorizedSelection}
           >
             <ClipboardList className="h-3.5 w-3.5 mr-1.5" />
             Crea CS Task
@@ -255,6 +285,11 @@ export function BulkActionsBar({ selectedIds, companies, onClearSelection }: Bul
           <X className="h-4 w-4" />
         </Button>
       </div>
+      {actionsBlocked && (
+        <p className="mt-1 text-xs text-destructive">
+          Alcune azioni massive sono bloccate: verifica permessi e perimetro aziende assegnato.
+        </p>
+      )}
 
       {/* Confirm status change */}
       <AlertDialog open={!!confirmAction} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>

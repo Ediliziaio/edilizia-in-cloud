@@ -28,6 +28,7 @@ import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
 import { ContactFiltersSheet, type ContactFilters, type FilterRule, type FilterGroup, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
 import { usePermissions } from "@/hooks/usePermissions";
+import { queryKeys } from "@/lib/queryKeys";
 
 // Map filter field keys to actual DB columns
 const FIELD_TO_COLUMN: Record<string, string> = {
@@ -574,7 +575,44 @@ export default function MarketingContacts() {
   });
 
   // Mutations
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["marketing-contacts"] });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+    queryClient.invalidateQueries({ queryKey: ["marketing_contacts_search"] });
+  };
+
+  const assertContactsAreSafeToDelete = async (ids: string[]) => {
+    const linkedChecks = await Promise.all([
+      supabase
+        .from("marketing_opportunities")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .in("contact_id", ids),
+      supabase
+        .from("appointments")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .in("contact_id", ids),
+      supabase
+        .from("quotes")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .in("contact_id", ids),
+      supabase
+        .from("tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .in("contact_id", ids),
+    ]);
+
+    const error = linkedChecks.find((result) => result.error)?.error;
+    if (error) throw error;
+
+    const linkedCount = linkedChecks.reduce((sum, result) => sum + (result.count || 0), 0);
+    if (linkedCount > 0) {
+      throw new Error("Impossibile eliminare contatti collegati a opportunità, appuntamenti, preventivi o task. Rimuovi prima i collegamenti oppure mantieni il contatto nello storico CRM.");
+    }
+  };
 
   const saveMutation = useMutation({
     mutationFn: async (formData: ContactFormData) => {
@@ -620,6 +658,7 @@ export default function MarketingContacts() {
     mutationFn: async (ids: string[]) => {
       if (!companyId) throw new Error("No company");
       if (!canEditContacts) throw new Error("Non hai i permessi per eliminare i contatti");
+      await assertContactsAreSafeToDelete(ids);
       const { error } = await supabase.from("marketing_contacts").delete().eq("company_id", companyId).in("id", ids);
       if (error) throw error;
     },

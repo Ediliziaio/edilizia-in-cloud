@@ -48,11 +48,15 @@ function sanitizeSearchTerm(value: string) {
   return value.replace(/[%,]/g, " ").trim();
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_RE = /^\+?[0-9\s().-]{6,20}$/;
+
 export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName, stages }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
   const canEditOpportunities = permissions.canEditMarketingOpportunities || permissions.canEditMarketing;
+  const canEditContacts = permissions.canEditMarketingContacts || permissions.canEditMarketing;
   const createOpportunity = useCreateOpportunity();
   const navigate = useNavigate();
 
@@ -148,16 +152,80 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
     setNewContactPhone(c.phone || "");
   };
 
+  const normalizeContactPayload = () => {
+    const email = newContactEmail.trim().toLowerCase() || null;
+    const phone = newContactPhone.trim() ? cleanPhone(newContactPhone) : null;
+    return { email, phone };
+  };
+
+  const validateContactPayload = (email: string | null, phone: string | null) => {
+    if (!email && !phone) return "Inserisci almeno email o telefono del contatto";
+    if (email && !EMAIL_RE.test(email)) return "Email del contatto non valida";
+    if (phone && !PHONE_RE.test(phone)) return "Telefono del contatto non valido";
+    return null;
+  };
+
+  const findDuplicateContact = async (email: string | null, phone: string | null, excludeId?: string) => {
+    const checks: Promise<{ data: ContactSearchResult[] | null; error: any }>[] = [];
+    if (email) {
+      checks.push(
+        supabase
+          .from("marketing_contacts")
+          .select("id, first_name, last_name, email, phone, city, company_name")
+          .eq("company_id", companyId!)
+          .eq("email", email)
+          .limit(1)
+      );
+    }
+    if (phone) {
+      checks.push(
+        supabase
+          .from("marketing_contacts")
+          .select("id, first_name, last_name, email, phone, city, company_name")
+          .eq("company_id", companyId!)
+          .eq("phone", phone)
+          .limit(1)
+      );
+    }
+
+    const results = await Promise.all(checks);
+    const error = results.find((result) => result.error)?.error;
+    if (error) throw error;
+
+    return results
+      .flatMap((result) => result.data || [])
+      .find((contact) => contact.id !== excludeId) || null;
+  };
+
   const handleSubmit = async () => {
     if (!canEditOpportunities) {
       toast.error("Non hai i permessi per creare opportunità");
       return;
     }
+    if (!companyId) {
+      toast.error("Azienda non selezionata");
+      return;
+    }
     let contactId = selectedContactId;
 
     if (showNewContact) {
+      if (!canEditContacts) {
+        toast.error("Non hai i permessi per creare contatti");
+        return;
+      }
       if (!newContactName.trim()) {
         toast.error("Inserisci il nome del contatto");
+        return;
+      }
+      const { email, phone } = normalizeContactPayload();
+      const contactError = validateContactPayload(email, phone);
+      if (contactError) {
+        toast.error(contactError);
+        return;
+      }
+      const duplicate = await findDuplicateContact(email, phone);
+      if (duplicate) {
+        toast.error("Contatto già presente", { description: "Seleziona il contatto esistente per evitare duplicati nel CRM." });
         return;
       }
       const nameParts = newContactName.trim().split(" ");
@@ -170,8 +238,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
           company_id: companyId!,
           first_name: firstName,
           last_name: lastName,
-          email: newContactEmail.trim().toLowerCase() || null,
-          phone: newContactPhone.trim() ? cleanPhone(newContactPhone) : null,
+          email,
+          phone,
         })
         .select("id")
         .single();
@@ -186,9 +254,22 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
     }
 
     if (selectedContactId && selectedContact) {
-      const nextEmail = newContactEmail.trim().toLowerCase() || null;
-      const nextPhone = newContactPhone.trim() ? cleanPhone(newContactPhone) : null;
+      const { email: nextEmail, phone: nextPhone } = normalizeContactPayload();
       if ((selectedContact.email || null) !== nextEmail || (selectedContact.phone || null) !== nextPhone) {
+        if (!canEditContacts) {
+          toast.error("Non hai i permessi per modificare i contatti");
+          return;
+        }
+        const contactError = validateContactPayload(nextEmail, nextPhone);
+        if (contactError) {
+          toast.error(contactError);
+          return;
+        }
+        const duplicate = await findDuplicateContact(nextEmail, nextPhone, selectedContactId);
+        if (duplicate) {
+          toast.error("Email o telefono già usati da un altro contatto");
+          return;
+        }
         const { error } = await supabase
           .from("marketing_contacts")
           .update({

@@ -132,6 +132,8 @@ export default function SettingsFinanziamentiDetail() {
     return calcolaFinanziamento({ importo, numero_rate, righe });
   }, [importoCalc, rateCalc, righe]);
 
+  const economicSummary = useMemo(() => summarizeRows(righe), [righe]);
+
   if (!isAdmin) {
     return (
       <Card className="max-w-xl mx-auto mt-8">
@@ -324,6 +326,14 @@ export default function SettingsFinanziamentiDetail() {
       </div>
 
       <ValidityAlert decorrenza={tabella.data_decorrenza} scadenza={tabella.data_scadenza} attiva={tabella.attiva} />
+      <Alert>
+        <ShieldAlert className="h-4 w-4" />
+        <AlertTitle>Condizioni finanziarie versionate</AlertTitle>
+        <AlertDescription>
+          Se questa tabella e' gia' stata usata in preventivi, ordini o progetti, non modificarla in modo distruttivo:
+          duplica la tabella o disattivala per preservare lo storico delle condizioni applicate.
+        </AlertDescription>
+      </Alert>
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -349,6 +359,15 @@ export default function SettingsFinanziamentiDetail() {
           value={tabella.data_decorrenza ?? "—"}
         />
       </div>
+
+      {economicSummary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <KpiCard label="Rata completa" value={`€ ${formatEur(economicSummary.rataMin, 2)} - € ${formatEur(economicSummary.rataMax, 2)}`} />
+          <KpiCard label="TAN" value={`${economicSummary.tanMin.toFixed(2)}% - ${economicSummary.tanMax.toFixed(2)}%`} />
+          <KpiCard label="TAEG" value={`${economicSummary.taegMin.toFixed(2)}% - ${economicSummary.taegMax.toFixed(2)}%`} />
+          <KpiCard label="Provvigione media" value={`€ ${formatEur(economicSummary.provvigioneMedia, 2)}`} />
+        </div>
+      )}
 
       <Tabs defaultValue="righe">
         <TabsList>
@@ -667,6 +686,21 @@ function KpiCard({ label, value }: { label: string; value: string }) {
       </CardContent>
     </Card>
   );
+}
+
+type FinanceRow = ReturnType<typeof useRighe> extends { data: infer T } ? NonNullable<T> extends Array<infer R> ? R : never : never;
+
+function summarizeRows(rows: FinanceRow[]) {
+  if (!rows.length) return null;
+  return {
+    rataMin: Math.min(...rows.map((r) => r.importo_rata + r.spese_incasso_rata)),
+    rataMax: Math.max(...rows.map((r) => r.importo_rata + r.spese_incasso_rata)),
+    tanMin: Math.min(...rows.map((r) => r.tan)),
+    tanMax: Math.max(...rows.map((r) => r.tan)),
+    taegMin: Math.min(...rows.map((r) => r.taeg)),
+    taegMax: Math.max(...rows.map((r) => r.taeg)),
+    provvigioneMedia: rows.reduce((sum, r) => sum + r.provvigione_dealer, 0) / rows.length,
+  };
 }
 
 function formatEur(n: number, frac = 0): string {

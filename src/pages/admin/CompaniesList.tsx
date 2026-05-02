@@ -809,6 +809,12 @@ export default function CompaniesList() {
   }, [pagedCompanies]);
 
   const handleExportCSV = () => {
+    if (!permissions.data_export) {
+      toast.error("Permesso negato", {
+        description: "Non puoi esportare dati aziende.",
+      });
+      return;
+    }
     const headers = ["Nome", "Email", "Settore", "Piano", "Stato", "Ordini", "Utenti", "MRR", "Stripe Customer ID", "Data Creazione", "Fine Trial"];
     const exportList = selectedIds.size > 0
       ? pagedCompanies.filter((c) => selectedIds.has(c.id))
@@ -841,6 +847,18 @@ export default function CompaniesList() {
 
   const handleImpersonate = async (e: React.MouseEvent, companyId: string) => {
     e.stopPropagation();
+    if (!permissions.impersonation) {
+      toast.error("Permesso negato", {
+        description: "Non puoi impersonare aziende.",
+      });
+      return;
+    }
+    if (permissions.allowed_company_ids?.length && !permissions.allowed_company_ids.includes(companyId)) {
+      toast.error("Permesso negato", {
+        description: "Questa azienda non rientra nel tuo perimetro amministrativo.",
+      });
+      return;
+    }
     const impToken = await impersonateCompany(companyId, permissions);
     if (impToken) {
       // Use the module-level cached tokens — they are kept up-to-date by
@@ -885,6 +903,12 @@ export default function CompaniesList() {
   const queryClient = useQueryClient();
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (!permissions.bulk_actions) {
+        throw new Error("Permesso negato: non puoi modificare lo stato aziende");
+      }
+      if (permissions.allowed_company_ids?.length && !permissions.allowed_company_ids.includes(id)) {
+        throw new Error("Permesso negato: azienda non autorizzata");
+      }
       const { error } = await supabase
         .from("companies")
         .update({ status, updated_at: new Date().toISOString() })
@@ -1373,7 +1397,7 @@ export default function CompaniesList() {
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Select
                             value={status}
-                            disabled={updateStatusMutation.isPending}
+                            disabled={updateStatusMutation.isPending || !permissions.bulk_actions}
                             onValueChange={(v) => updateStatusMutation.mutate({ id: company.id, status: v })}
                           >
                             <SelectTrigger className="h-7 w-[110px] text-xs border-0 shadow-none px-1">
@@ -1403,11 +1427,16 @@ export default function CompaniesList() {
                         {col("tags") && <TableCell><CompanyTagsCell companyId={company.id} tags={companyTags[company.id] || []} /></TableCell>}
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <CompanyQuickActions company={company} />
+                            <CompanyQuickActions company={company} permissions={permissions} />
                             <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/admin/aziende/${company.id}`); }}>
                               <ExternalLink className="h-4 w-4 mr-1" />Apri
                             </Button>
-                            <Button variant="outline" size="sm" onClick={(e) => handleImpersonate(e, company.id)}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => handleImpersonate(e, company.id)}
+                              disabled={!permissions.impersonation}
+                            >
                               <LogIn className="h-4 w-4 mr-1" />Accedi
                             </Button>
                           </div>

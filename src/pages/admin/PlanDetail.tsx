@@ -30,6 +30,7 @@ import { ALL_MODULES } from "@/lib/adminConstants";
 import { useState } from "react";
 import { PlanFeatureDefaultsCard } from "@/components/admin/plan/PlanFeatureDefaultsCard";
 import { DeletePlanDialog } from "@/components/admin/plan/DeletePlanDialog";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function PlanDetail() {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +38,7 @@ export default function PlanDetail() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { permissions: saPermissions } = useSuperAdminPermissions();
+  const { user } = useAuth();
   const [duplicateConfirmOpen, setDuplicateConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -113,6 +115,20 @@ export default function PlanDetail() {
         .update({ is_active })
         .eq("id", id);
       if (error) throw error;
+      if (user?.id) {
+        await supabase.from("admin_audit_log").insert({
+          user_id: user.id,
+          action: is_active ? "subscription_plan_activate" : "subscription_plan_deactivate",
+          target_type: "subscription_plan",
+          target_id: id,
+          details: {
+            plan_name: plan?.name ?? null,
+            slug: plan?.slug ?? null,
+            is_active,
+            source: "admin_plan_detail",
+          },
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-plan-detail", id] });
@@ -153,6 +169,21 @@ export default function PlanDetail() {
         .select("id")
         .single();
       if (error) throw error;
+      if (user?.id && data?.id) {
+        await supabase.from("admin_audit_log").insert({
+          user_id: user.id,
+          action: "subscription_plan_duplicate",
+          target_type: "subscription_plan",
+          target_id: data.id,
+          details: {
+            source_plan_id: plan.id,
+            source_plan_name: plan.name,
+            new_plan_name: payload.name,
+            new_slug: payload.slug,
+            source: "admin_plan_detail",
+          },
+        });
+      }
       return data;
     },
     onSuccess: (created) => {

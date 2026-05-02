@@ -35,8 +35,11 @@ export function SmsCampagneList() {
 
   const handleAvvia = async (id: string) => {
     setAvviandoId(id);
-    await avvia(id);
-    setAvviandoId(null);
+    try {
+      await avvia(id);
+    } finally {
+      setAvviandoId(null);
+    }
   };
 
   if (isLoading) {

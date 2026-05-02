@@ -56,9 +56,10 @@ import {
   CheckCircle2,
   Clock,
   Filter,
+  Power,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useTabelle, useDeleteTabella } from "@/lib/finanziamenti/queries";
+import { useTabelle, useDeleteTabella, useToggleTabellaAttiva } from "@/lib/finanziamenti/queries";
 import { toast } from "sonner";
 
 export default function SettingsFinanziamenti() {
@@ -67,6 +68,7 @@ export default function SettingsFinanziamenti() {
   const navigate = useNavigate();
   const { data: tabelle = [], isLoading, isError, error, refetch } = useTabelle();
   const deleteTabella = useDeleteTabella();
+  const toggleTabella = useToggleTabellaAttiva();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [finanziariaFilter, setFinanziariaFilter] = useState("all");
@@ -149,6 +151,17 @@ export default function SettingsFinanziamenti() {
       setConfermaDelete(null);
     } catch (e) {
       toast.error("Errore durante l'eliminazione", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
+  const handleToggle = async (id: string, attiva: boolean) => {
+    try {
+      await toggleTabella.mutateAsync({ id, attiva: !attiva });
+      toast.success(attiva ? "Finanziamento archiviato." : "Finanziamento riattivato.");
+    } catch (e) {
+      toast.error("Errore durante il cambio stato", {
         description: e instanceof Error ? e.message : String(e),
       });
     }
@@ -388,6 +401,15 @@ export default function SettingsFinanziamenti() {
                           >
                             <ExternalLink className="h-4 w-4" />
                           </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void handleToggle(t.id, t.attiva)}
+                          disabled={toggleTabella.isPending}
+                          aria-label={`${t.attiva ? "Archivia" : "Riattiva"} ${t.nome_prodotto}`}
+                        >
+                          <Power className={t.attiva ? "h-4 w-4 text-amber-600" : "h-4 w-4 text-emerald-600"} />
                         </Button>
                         <Button
                           variant="ghost"

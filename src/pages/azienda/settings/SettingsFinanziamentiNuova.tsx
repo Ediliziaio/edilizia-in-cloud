@@ -210,6 +210,11 @@ export default function SettingsFinanziamentiNuova() {
     return true;
   }, [form]);
 
+  const financeSummary = useMemo(() => {
+    if (!form.parse_result) return null;
+    return summarizeRows(form.parse_result.righe_valide);
+  }, [form.parse_result]);
+
   if (!isAdmin) {
     return (
       <Card className="max-w-xl mx-auto mt-8">
@@ -1073,6 +1078,24 @@ export default function SettingsFinanziamentiNuova() {
                 value={form.pdf_file?.name ?? "—"}
               />
             </div>
+            {financeSummary && (
+              <div className="grid sm:grid-cols-3 gap-3">
+                <SummaryMetric label="Range importi" value={`€ ${formatEur(financeSummary.importoMin)} - € ${formatEur(financeSummary.importoMax)}`} />
+                <SummaryMetric label="Durate" value={`${financeSummary.durate.join(", ")} mesi`} />
+                <SummaryMetric label="TAEG" value={`${financeSummary.taegMin.toFixed(2)}% - ${financeSummary.taegMax.toFixed(2)}%`} />
+                <SummaryMetric label="Rata" value={`€ ${formatEur(financeSummary.rataMin, 2)} - € ${formatEur(financeSummary.rataMax, 2)}`} />
+                <SummaryMetric label="Totale dovuto max" value={`€ ${formatEur(financeSummary.totaleDovutoMax, 2)}`} />
+                <SummaryMetric label="Provvigioni totali" value={`€ ${formatEur(financeSummary.provvigioniTotali, 2)}`} />
+              </div>
+            )}
+            <Alert>
+              <ShieldAlert className="h-4 w-4" />
+              <AlertTitle>Controllo condizioni economiche</AlertTitle>
+              <AlertDescription>
+                Le rate mostrate sono indicative e dipendono dalle condizioni ufficiali della finanziaria.
+                Le tabelle storiche gia' usate nei preventivi devono essere disattivate, non sovrascritte.
+              </AlertDescription>
+            </Alert>
             {form.parse_result.errori.length > 0 && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
@@ -1117,6 +1140,34 @@ export default function SettingsFinanziamentiNuova() {
 }
 
 // ─── Sotto-componenti ──────────────────────────────────────────────────────
+type FinanceRowInput = RisultatoImportCsv["righe_valide"][number];
+
+function summarizeRows(rows: FinanceRowInput[]) {
+  const durate = Array.from(new Set(rows.map((r) => r.numero_rate))).sort((a, b) => a - b);
+  return {
+    importoMin: Math.min(...rows.map((r) => r.importo_erogato)),
+    importoMax: Math.max(...rows.map((r) => r.importo_erogato)),
+    durataMin: Math.min(...durate),
+    durataMax: Math.max(...durate),
+    durate,
+    taegMin: Math.min(...rows.map((r) => r.taeg)),
+    taegMax: Math.max(...rows.map((r) => r.taeg)),
+    rataMin: Math.min(...rows.map((r) => r.importo_rata + r.spese_incasso_rata)),
+    rataMax: Math.max(...rows.map((r) => r.importo_rata + r.spese_incasso_rata)),
+    totaleDovutoMax: Math.max(...rows.map((r) => r.importo_totale_dovuto)),
+    provvigioniTotali: rows.reduce((sum, r) => sum + r.provvigione_dealer, 0),
+  };
+}
+
+function SummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border bg-muted/20 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 font-semibold tabular-nums">{value}</p>
+    </div>
+  );
+}
+
 function ParseResultCard({
   result,
   fileName,

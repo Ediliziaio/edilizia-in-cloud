@@ -26,6 +26,9 @@ const schema = z.object({
   period_end: z.string().min(1, "Data fine obbligatoria"),
   payment_method: z.enum(["bank_transfer", "paypal", "other"]),
   notes: z.string().optional().or(z.literal("")),
+}).refine((data) => new Date(data.period_end) >= new Date(data.period_start), {
+  path: ["period_end"],
+  message: "La data fine deve essere successiva o uguale alla data inizio",
 });
 
 type FormData = z.infer<typeof schema>;
@@ -38,6 +41,7 @@ interface Props {
 export function PayoutDialog({ referrer, onOpenChange }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const availableBalance = referrer ? Math.max(0, (referrer.total_earned || 0) - (referrer.total_paid || 0)) : 0;
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -64,11 +68,17 @@ export function PayoutDialog({ referrer, onOpenChange }: Props) {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
+      if (!referrer) throw new Error("Referrer non selezionato");
+      if (data.amount > availableBalance) {
+        throw new Error("L'importo supera il saldo commissioni disponibile");
+      }
       const { error: payoutError } = await supabase.from("referral_payouts").insert({
-        referrer_id: referrer!.id,
+        referrer_id: referrer.id,
         amount: data.amount,
         period_start: data.period_start,
         period_end: data.period_end,
+        paid_at: new Date().toISOString(),
+        status: "paid",
         payment_method: data.payment_method,
         notes: data.notes || null,
       });
@@ -78,19 +88,22 @@ export function PayoutDialog({ referrer, onOpenChange }: Props) {
       const { data: allPayouts, error: fetchError } = await supabase
         .from("referral_payouts")
         .select("amount")
-        .eq("referrer_id", referrer!.id);
+        .eq("referrer_id", referrer.id)
+        .eq("status", "paid");
       if (fetchError) throw fetchError;
 
       const newTotal = (allPayouts || []).reduce((sum, p) => sum + Number(p.amount), 0);
       const { error: updateError } = await supabase
         .from("referrers")
         .update({ total_paid: newTotal })
-        .eq("id", referrer!.id);
+        .eq("id", referrer.id);
       if (updateError) throw updateError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.referrers });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.referralPayouts });
+      queryClient.invalidateQueries({ queryKey: ["admin-pending-payouts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-paid-payouts"] });
       toast({ title: "Pagamento registrato" });
       form.reset();
       onOpenChange();
@@ -160,6 +173,9 @@ export function PayoutDialog({ referrer, onOpenChange }: Props) {
             <Button type="submit" className="w-full" disabled={mutation.isPending}>
               Registra Pagamento
             </Button>
+            <p className="text-xs text-muted-foreground">
+              Saldo disponibile: {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(availableBalance)}
+            </p>
           </form>
         </Form>
       </DialogContent>
