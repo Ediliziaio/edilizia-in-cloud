@@ -9,8 +9,7 @@
 
 import { useMemo } from "react";
 import { Package, ShoppingCart, Truck, AlertOctagon } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { formatCurrency } from "@/lib/formatters";
 import { isItemOverdue } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem } from "@/types/warehouse";
@@ -128,12 +127,12 @@ export default function WarehouseStats({ items, activeFilter, onCardClick, visib
   );
 }
 
-const accentClasses = {
-  destructive: { ring: "ring-destructive", text: "text-destructive", border: "border-destructive" },
-  emerald: { ring: "ring-emerald-500", text: "text-emerald-600", border: "border-emerald-500" },
-  blue: { ring: "ring-blue-500", text: "text-blue-600", border: "border-blue-500" },
-  amber: { ring: "ring-amber-500", text: "text-amber-600", border: "border-amber-500" },
-  muted: { ring: "ring-muted", text: "text-muted-foreground", border: "border-muted" },
+const accentTone = {
+  destructive: "red",
+  emerald: "green",
+  blue: "blue",
+  amber: "amber",
+  muted: "slate",
 } as const;
 
 function ClickableCard({
@@ -148,37 +147,23 @@ function ClickableCard({
 }: {
   active: boolean;
   onClick: () => void;
-  accent: keyof typeof accentClasses;
+  accent: keyof typeof accentTone;
   title: string;
   icon: typeof Package;
   value: number;
   primaryHint: string;
   secondaryHint: string;
 }) {
-  const a = accentClasses[accent];
   return (
-    <button
-      type="button"
+    <OperationalKpiCard
+      icon={Icon}
+      label={title}
+      value={value}
+      hint={`${primaryHint} · ${secondaryHint}`}
+      tone={accentTone[accent]}
       onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "text-left transition-all rounded-lg",
-        active && `ring-2 ring-offset-1 ${a.ring}`,
-      )}
-    >
-      <Card className={cn("h-full", active && `${a.border} bg-muted/30`)}>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium">{title}</CardTitle>
-          <Icon className={cn("h-4 w-4", a.text)} />
-        </CardHeader>
-        <CardContent>
-          <div className={cn("text-2xl font-bold", a.text)}>{value}</div>
-          <p className="text-xs text-muted-foreground">{primaryHint}</p>
-          <p className={cn("text-sm font-medium mt-1", value > 0 ? a.text : "text-muted-foreground")}>
-            {secondaryHint}
-          </p>
-        </CardContent>
-      </Card>
-    </button>
+      active={active}
+      className="h-full text-left"
+    />
   );
 }

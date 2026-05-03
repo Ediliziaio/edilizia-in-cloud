@@ -27,8 +27,8 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: "today", label: "Oggi" },
   { value: "yesterday", label: "Ieri" },
   { value: "last7", label: "7 giorni" },
-  { value: "last30", label: "30 giorni" },
   { value: "month", label: "Mese" },
+  { value: "last30", label: "30 giorni" },
   { value: "custom", label: "Personalizzato" },
 ];
 

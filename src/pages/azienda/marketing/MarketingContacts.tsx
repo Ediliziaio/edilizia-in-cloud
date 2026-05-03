@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -954,73 +954,83 @@ export default function MarketingContacts() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">Contatti</h1>
-          {!isLoading && activeTab === "all" && (
-            <Badge variant="secondary" className="text-sm">{totalCount}</Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Desktop: Export + Import */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="hidden sm:flex" disabled={exporting || isLoading}>
-                <Download className="h-4 w-4 mr-2" />
-                {exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}
-                <ChevronDown className="h-3 w-3 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => doExport("csv")}>
-                <Download className="h-4 w-4 mr-2" /> Esporta CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => doExport("xlsx")}>
-                <Download className="h-4 w-4 mr-2" /> Esporta XLSX
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button variant="outline" className="hidden sm:flex" onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
-            <Upload className="h-4 w-4 mr-2" /> Importa
-          </Button>
-          {/* Mobile: ... menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="sm:hidden h-9 w-9">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
-                <Upload className="mr-2 h-4 w-4" /> Importa
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => doExport("csv")} disabled={exporting}>
-                <Download className="mr-2 h-4 w-4" /> Esporta CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => doExport("xlsx")} disabled={exporting}>
-                <Download className="mr-2 h-4 w-4" /> Esporta XLSX
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setFieldsSheetOpen(true)}>
-                <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
-            <Plus className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">Aggiungi Contatto</span>
-            <span className="sm:hidden">Aggiungi</span>
-          </Button>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+              <ContactRound className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-slate-950">Contatti</h1>
+                {!isLoading && activeTab === "all" && (
+                  <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">{totalCount}</Badge>
+                )}
+              </div>
+              <p className="text-sm text-slate-600">Gestisci lead, clienti e liste commerciali.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Desktop: Export + Import */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="hidden border-slate-200 bg-white/80 hover:bg-white sm:flex" disabled={exporting || isLoading}>
+                  <Download className="h-4 w-4 mr-2" />
+                  {exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}
+                  <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => doExport("csv")}>
+                  <Download className="h-4 w-4 mr-2" /> Esporta CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => doExport("xlsx")}>
+                  <Download className="h-4 w-4 mr-2" /> Esporta XLSX
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="outline" className="hidden border-slate-200 bg-white/80 hover:bg-white sm:flex" onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
+              <Upload className="h-4 w-4 mr-2" /> Importa
+            </Button>
+            {/* Mobile: ... menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="sm:hidden h-9 w-9 border-slate-200 bg-white/80">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
+                  <Upload className="mr-2 h-4 w-4" /> Importa
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => doExport("csv")} disabled={exporting}>
+                  <Download className="mr-2 h-4 w-4" /> Esporta CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => doExport("xlsx")} disabled={exporting}>
+                  <Download className="mr-2 h-4 w-4" /> Esporta XLSX
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFieldsSheetOpen(true)}>
+                  <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
+              <Plus className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Aggiungi Contatto</span>
+              <span className="sm:hidden">Aggiungi</span>
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "all" | "lists" | "meta")}>
-        <TabsList>
-          <TabsTrigger value="all">Tutti</TabsTrigger>
-          <TabsTrigger value="meta" className="gap-1.5">
+        <TabsList className="h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+          <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">Tutti</TabsTrigger>
+          <TabsTrigger value="meta" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             🎯 Lead Facebook
           </TabsTrigger>
-          <TabsTrigger value="lists" className="gap-1.5">
+          <TabsTrigger value="lists" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             Liste
             {listCount > 0 && <Badge variant="secondary" className="text-xs h-5 px-1.5">{listCount}</Badge>}
           </TabsTrigger>
@@ -1032,7 +1042,7 @@ export default function MarketingContacts() {
       ) : activeTab === "meta" || activeTab === "all" ? (
         <>
           {/* Filter bar */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             {/* Mobile: full-width search */}
             <div className="relative sm:hidden">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

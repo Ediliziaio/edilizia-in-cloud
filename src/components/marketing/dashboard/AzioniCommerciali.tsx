@@ -152,13 +152,13 @@ export function AzioniCommerciali(props: Props) {
 
   if (topActions.length === 0) {
     return (
-      <div className="rounded-xl border bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 p-4">
+      <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-white to-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:from-slate-950 dark:to-emerald-950/20">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900">
             <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Performance eccellente!</h3>
+            <h3 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Nessuna urgenza commerciale</h3>
             <p className="text-xs text-emerald-600 dark:text-emerald-500">Nessuna azione urgente. Il team sta performando bene.</p>
           </div>
         </div>
@@ -167,12 +167,17 @@ export function AzioniCommerciali(props: Props) {
   }
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <Zap className="h-4 w-4 text-amber-500" />
-        <h3 className="text-sm font-bold text-foreground">Da fare oggi</h3>
+    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700">
+          <Zap className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Priorità operative</p>
+          <h3 className="text-sm font-bold text-foreground">Cosa muovere ora</h3>
+        </div>
         {allActions.length > 3 && (
-          <span className="text-[11px] text-muted-foreground ml-auto">
+          <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
             +{allActions.length - 3} altr{allActions.length - 3 === 1 ? "a" : "e"}
           </span>
         )}
@@ -187,7 +192,7 @@ export function AzioniCommerciali(props: Props) {
               key={action.id}
               onClick={() => action.route && navigate(action.route)}
               className={cn(
-                "w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
+                "w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
                 styles.bg, styles.border,
                 action.route && "cursor-pointer"
               )}

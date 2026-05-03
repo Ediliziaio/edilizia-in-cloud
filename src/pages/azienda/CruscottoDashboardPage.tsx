@@ -7,7 +7,7 @@
  * URL: /azienda/cruscotto?d=<dashboardId>
  */
 import { useEffect, useMemo } from "react";
-import { useSearchParams, useNavigate, Link } from "react-router-dom";
+import { Navigate, useSearchParams, useNavigate, Link } from "react-router-dom";
 import { ArrowRight, Plus, Pencil, RefreshCw, LayoutGrid, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +25,9 @@ import {
   useDashboard,
 } from "@/lib/dashboardBuilder/hooks";
 import type { PeriodPreset, WidgetFilter } from "@/lib/dashboardBuilder/types";
+import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { cn } from "@/lib/utils";
 
 const PERIODS: Array<{ value: PeriodPreset; label: string }> = [
@@ -44,6 +47,8 @@ const PERIOD_VALUES = new Set<PeriodPreset>(PERIODS.map((period) => period.value
 export default function CruscottoDashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { role } = useAuth();
+  const permissions = usePermissions();
 
   const { data: dashboards = [], isLoading: dashLoading } = useDashboards();
 
@@ -107,6 +112,12 @@ export default function CruscottoDashboardPage() {
 
   const layout  = dash.data?.version?.layout;
   const canEdit = dash.data?.can_edit ?? false;
+  const shouldOpenSmartDefault = !paramId && !permissions.isLoading;
+  const smartDefaultPath = getSmartCruscottoPath(permissions, role);
+
+  if (shouldOpenSmartDefault) {
+    return <Navigate to={smartDefaultPath} replace />;
+  }
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (dashLoading) {

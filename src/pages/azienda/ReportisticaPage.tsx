@@ -30,15 +30,22 @@ const ReportisticaPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <BarChart3 className="h-7 w-7 text-primary" />
-        <h1 className="text-2xl font-bold tracking-tight">Reportistica</h1>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+            <BarChart3 className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-950">Reportistica</h1>
+            <p className="text-sm text-slate-600">Controlla performance, marketing, cantieri e attribuzione.</p>
+          </div>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setSearchParams({ tab: v })}>
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+        <TabsList className="flex flex-wrap h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           {TABS.map((t) => (
-            <TabsTrigger key={t.key} value={t.key} className="text-xs sm:text-sm">
+            <TabsTrigger key={t.key} value={t.key} className="text-xs data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 sm:text-sm">
               {t.label}
             </TabsTrigger>
           ))}

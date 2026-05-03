@@ -446,10 +446,10 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   return (
     <div ref={ref} className="space-y-6">
       {/* Header */}
-      <div className="rounded-2xl border bg-card px-4 py-5 shadow-sm sm:px-6">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-[0_8px_22px_rgba(37,99,235,0.24)]">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <LifeBuoy className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -493,7 +493,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             ]}
             filename="assistenza-interventi"
           />
-          <Button asChild>
+          <Button asChild className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
             <Link to="/azienda/assistenza/nuovo">
               <Plus className="mr-2 h-4 w-4" />
               <span className="sm:hidden">Nuovo</span>
@@ -505,7 +505,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       </div>
 
       {/* Tab tipo (supporto / intervento / emergenza / tutti) */}
-      <div className="flex gap-1 border-b overflow-x-auto">
+      <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
         {[
           { value: "all",        label: "Tutti",         icon: ClipboardList },
           { value: "supporto",   label: "Supporto",      icon: LifeBuoy },
@@ -519,10 +519,10 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               key={tab.value}
               onClick={() => setTipoFilter(tab.value)}
               className={cn(
-                "flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+                "flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap",
                 active
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+                  ? "bg-orange-50 text-orange-700 shadow-sm ring-1 ring-orange-100"
+                  : "text-muted-foreground hover:bg-slate-50 hover:text-slate-900"
               )}
             >
               <Icon className="h-4 w-4" />
@@ -593,7 +593,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       )}
 
       {/* Filters row */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -770,14 +770,18 @@ function KpiCard({ icon, label, value, accent, badge, active, onClick }: {
   return (
     <Card
       className={cn(
-        "transition-all",
-        onClick && "cursor-pointer hover:shadow-md",
-        active && "ring-2 ring-primary/50"
+        "relative overflow-hidden border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all",
+        onClick && "cursor-pointer hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
+        active && "border-orange-200 ring-2 ring-orange-200/80"
       )}
       onClick={onClick}
     >
+      <div className={cn(
+        "absolute inset-y-0 left-0 w-1",
+        accent.includes("red") ? "bg-red-500" : accent.includes("amber") ? "bg-amber-400" : accent.includes("orange") ? "bg-orange-500" : accent.includes("blue") ? "bg-blue-500" : "bg-slate-300"
+      )} />
       <CardContent className="p-3 sm:p-4 flex items-center gap-3">
-        <div className={cn("p-2 rounded-lg shrink-0", accent)}>{icon}</div>
+        <div className={cn("p-2 rounded-lg shrink-0 ring-1 ring-inset", accent)}>{icon}</div>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{label}</p>
           <div className="flex items-center gap-1.5">

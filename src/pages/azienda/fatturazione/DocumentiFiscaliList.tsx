@@ -370,32 +370,36 @@ function DocumentiFiscaliListInner() {
   return (
     <div className="space-y-4">
       {/* ── Header ─────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Fatturazione</h1>
-          <p className="text-sm text-muted-foreground">Gestisci tutti i tuoi documenti fiscali</p>
-        </div>
-        {/* Link discreti a Report Fiscali e Impostazioni — rimossi dalla sidebar (CLEANUP-2) */}
-        <div className="flex items-center gap-1 mr-3">
-          <Button variant="ghost" size="sm" asChild className="gap-1.5 text-muted-foreground hover:text-foreground">
-            <Link to="/azienda/documenti/report">
-              <BarChart3 className="h-4 w-4" />
-              <span className="hidden sm:inline">Report fiscali</span>
-            </Link>
-          </Button>
-          <Button variant="ghost" size="sm" asChild className="gap-1.5 text-muted-foreground hover:text-foreground">
-            <Link to="/azienda/impostazioni/fatturazione-nativa">
-              <Settings2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Impostazioni</span>
-            </Link>
-          </Button>
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" /> Nuovo documento
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Fatturazione</h1>
+              <p className="mt-0.5 text-sm text-slate-500">Gestisci documenti fiscali, SDI, incassi e scadenze operative.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" asChild className="gap-1.5">
+              <Link to="/azienda/documenti/report">
+                <BarChart3 className="h-4 w-4" />
+                <span className="hidden sm:inline">Report fiscali</span>
+              </Link>
             </Button>
-          </DropdownMenuTrigger>
+            <Button variant="outline" size="sm" asChild className="gap-1.5">
+              <Link to="/azienda/impostazioni/fatturazione-nativa">
+                <Settings2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Impostazioni</span>
+              </Link>
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+                  <Plus className="h-4 w-4" /> Nuovo documento
+                </Button>
+              </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura")}>Fattura (TD01)</DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_pa")}>Fattura PA</DropdownMenuItem>
@@ -416,7 +420,9 @@ function DocumentiFiscaliListInner() {
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_ue")}>Integrazione Beni UE (TD18)</DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_extra_ue")}>Integrazione Beni Extra-UE (TD19)</DropdownMenuItem>
           </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenu>
+          </div>
+        </div>
       </div>
 
       {/* ── Monthly Timeline ───────────────────────────── */}
@@ -438,7 +444,7 @@ function DocumentiFiscaliListInner() {
       )}
 
       {/* ── Tabs ───────────────────────────────────────── */}
-      <div className="flex items-center border-b border-border overflow-x-auto">
+      <div className="flex items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
         {TIPO_TABS.map((tab) => {
           const count = counts?.[tab.countKey as keyof typeof counts] ?? 0;
           const isActive = activeTab === tab.id;
@@ -448,10 +454,10 @@ function DocumentiFiscaliListInner() {
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
               className={cn(
-                "flex items-center gap-1.5 px-4 py-2.5 text-sm border-b-2 transition-colors whitespace-nowrap",
+                "flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm transition-all whitespace-nowrap",
                 isActive
-                  ? "border-primary text-primary font-medium"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
+                  ? "bg-orange-50 text-orange-700 font-medium shadow-sm ring-1 ring-orange-100"
+                  : "text-muted-foreground hover:bg-slate-50 hover:text-slate-900",
                 tab.tabColor && !isActive && tab.tabColor
               )}
             >
@@ -481,7 +487,7 @@ function DocumentiFiscaliListInner() {
       )}
 
       {/* ── Filters ────────────────────────────────────── */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
         {!isTrash && (
           <Select value={statoFilter} onValueChange={(v) => { setStatoFilter(v); setPage(0); }}>
             <SelectTrigger className="w-[140px] h-9 text-xs">

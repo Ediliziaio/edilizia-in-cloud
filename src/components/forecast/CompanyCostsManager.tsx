@@ -283,8 +283,8 @@ export default function CompanyCostsManager() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
+        <CardHeader className="border-b border-slate-100 bg-gradient-to-br from-white to-orange-50/30">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -326,7 +326,7 @@ export default function CompanyCostsManager() {
               <Button variant="outline" size="sm" onClick={() => { data.exportCostsCSV(); toast({ title: "CSV esportato" }); }} className="gap-1">
                 <Download className="h-4 w-4" /> Esporta
               </Button>
-              <Button size="sm" onClick={() => openCreate("fixed")} className="gap-1">
+              <Button size="sm" onClick={() => openCreate("fixed")} className="gap-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
                 <Plus className="h-4 w-4" /> Nuovo Costo
               </Button>
             </div>
@@ -357,8 +357,9 @@ export default function CompanyCostsManager() {
             <button
               type="button"
               onClick={() => setStatusTabFilter("in_ritardo")}
-              className="rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+              className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
+              <div className="absolute inset-y-0 left-0 w-1 bg-orange-500" />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Scaduti</span>
                 <AlertTriangle className="h-4 w-4 text-orange-600" />
@@ -369,8 +370,9 @@ export default function CompanyCostsManager() {
             <button
               type="button"
               onClick={() => setCategoryFilter("none")}
-              className="rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+              className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
+              <div className="absolute inset-y-0 left-0 w-1 bg-blue-500" />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Senza categoria</span>
                 <Tags className="h-4 w-4 text-blue-600" />
@@ -381,8 +383,9 @@ export default function CompanyCostsManager() {
             <button
               type="button"
               onClick={() => setSupplierFilter("none")}
-              className="rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+              className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
+              <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500" />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Senza fornitore</span>
                 <Users className="h-4 w-4 text-emerald-600" />
@@ -393,8 +396,9 @@ export default function CompanyCostsManager() {
             <button
               type="button"
               onClick={() => setOriginFilter("order")}
-              className="rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+              className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
+              <div className="absolute inset-y-0 left-0 w-1 bg-orange-500" />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Collegati a ordini</span>
                 <Link2 className="h-4 w-4 text-primary" />
@@ -424,7 +428,7 @@ export default function CompanyCostsManager() {
           />
 
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Cerca costo, fornitore, categoria, ordine o note..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />

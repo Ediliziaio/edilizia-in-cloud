@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCashFlowRealData } from "@/hooks/useCashFlowRealData";
 import { CashFlowProjectionChart } from "@/components/forecast/CashFlowProjectionChart";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 
 
 export default function CashFlowForecast() {
@@ -169,13 +170,19 @@ export default function CashFlowForecast() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:mb-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Previsionale Cassa</h1>
-          <p className="text-muted-foreground">
-            Analizza entrate, uscite e flusso di cassa previsto
-          </p>
-        </div>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6 print:mb-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Previsionale Cassa</h1>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Analizza entrate, uscite e flusso di cassa previsto.
+              </p>
+            </div>
+          </div>
         <div className="flex items-center gap-2 print:hidden flex-wrap">
           <Button variant="outline" size="sm" onClick={() => navigate("/azienda/scadenzario")} className="gap-1">
             <CalendarClock className="h-4 w-4" />
@@ -194,32 +201,27 @@ export default function CashFlowForecast() {
             <span className="hidden sm:inline">Stampa PDF</span>
           </Button>
         </div>
+        </div>
       </div>
 
       {/* Saldo bancario reale */}
       {bankingSummary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
-            { label: "Saldo Banca", value: bankingSummary.bankBalance, icon: Landmark, color: "text-primary" },
-            { label: "Entrate Attese", value: bankingSummary.pendingIncome, icon: TrendingUp, color: "text-green-600" },
-            { label: "Uscite Attese", value: bankingSummary.pendingExpenses, icon: TrendingDown, color: "text-destructive" },
-            { label: "Forecast 30gg", value: bankingSummary.forecast30, icon: CalendarClock, color: bankingSummary.forecast30 >= 0 ? "text-primary" : "text-destructive" },
-          ].map((kpi) => {
-            const Icon = kpi.icon;
-            return (
-              <Card key={kpi.label}>
-                <CardContent className="p-4 flex items-center gap-3">
-                  <Icon className={`h-5 w-5 flex-shrink-0 ${kpi.color}`} />
-                  <div>
-                    <p className={`text-lg font-bold leading-tight ${kpi.color}`}>
-                      €{kpi.value.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">{kpi.label}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+            { label: "Saldo Banca", value: bankingSummary.bankBalance, icon: Landmark, tone: "blue" as const, hint: "saldo reale conti" },
+            { label: "Entrate Attese", value: bankingSummary.pendingIncome, icon: TrendingUp, tone: "green" as const, hint: "incassi aperti" },
+            { label: "Uscite Attese", value: bankingSummary.pendingExpenses, icon: TrendingDown, tone: "red" as const, hint: "pagamenti previsti" },
+            { label: "Forecast 30gg", value: bankingSummary.forecast30, icon: CalendarClock, tone: bankingSummary.forecast30 >= 0 ? "green" as const : "red" as const, hint: "saldo stimato" },
+          ].map((kpi) => (
+            <OperationalKpiCard
+              key={kpi.label}
+              icon={kpi.icon}
+              label={kpi.label}
+              value={`€${kpi.value.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+              hint={kpi.hint}
+              tone={kpi.tone}
+            />
+          ))}
         </div>
       )}
 

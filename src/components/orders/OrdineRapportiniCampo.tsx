@@ -26,6 +26,13 @@ import { SourceBadge } from "@/components/whatsapp/SourceBadge";
 
 interface Props { orderId: string; }
 
+const fmtSafeDate = (value: string | null | undefined, pattern: string) => {
+  if (!value) return "—";
+  const parsed = parseISO(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return format(parsed, pattern, { locale: it });
+};
+
 // ── Badge stato ────────────────────────────────────────────────────────────────
 function StatoBadge({ stato }: { stato: RapportinoStato }) {
   const map: Record<RapportinoStato, { label: string; cls: string }> = {
@@ -168,7 +175,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                         <p className="text-sm font-medium">
                           {r.autore?.first_name} {r.autore?.last_name}
                           <span className="ml-1 text-muted-foreground text-xs">
-                            — {format(parseISO(r.data_lavoro), "d MMM yyyy", { locale: it })}
+                            — {fmtSafeDate(r.data_lavoro, "d MMM yyyy")}
                           </span>
                         </p>
                         <div className="flex items-center gap-1 mt-0.5 flex-wrap">
@@ -297,7 +304,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                         {stato === "approvato" && r.approvato_at && (
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Clock className="h-3 w-3" />
-                            {format(parseISO(r.approvato_at), "d MMM yyyy HH:mm", { locale: it })}
+                            {fmtSafeDate(r.approvato_at, "d MMM yyyy HH:mm")}
                           </div>
                         )}
                       </div>

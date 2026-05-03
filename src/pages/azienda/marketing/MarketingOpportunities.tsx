@@ -499,10 +499,10 @@ function MarketingOpportunitiesContent() {
 
   return (
     <div className="flex flex-col h-full gap-3 md:pb-0">
-      <div className="flex items-center justify-between flex-wrap gap-2 shrink-0">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm">
         <div className="flex items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
-          <Badge className="bg-primary text-primary-foreground hover:bg-primary/90 h-6 px-2 text-xs">
+          <Badge className="h-6 bg-orange-100 px-2 text-xs text-orange-700 hover:bg-orange-100">
             {filteredOpportunities.length} lead
           </Badge>
         </div>
@@ -539,7 +539,7 @@ function MarketingOpportunitiesContent() {
           <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities}>
             <Upload className="mr-1.5 h-3.5 w-3.5" /> Importa
           </Button>
-          <Button size="sm" className="h-8 text-xs" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities}>
+          <Button size="sm" className="h-8 bg-gradient-to-r from-orange-500 to-amber-500 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             <span className="hidden sm:inline">Aggiungi opportunità</span>
             <span className="sm:hidden">Aggiungi</span>
@@ -577,11 +577,11 @@ function MarketingOpportunitiesContent() {
         </div>
       )}
 
-      <div className="flex items-center gap-1 border-b shrink-0 overflow-x-auto scrollbar-none">
+      <div className="flex shrink-0 items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm scrollbar-none">
         <Button
           variant="ghost"
           size="sm"
-          className={`h-8 text-xs rounded-none ${!activeListId ? "border-b-2 border-primary font-semibold" : "text-muted-foreground"}`}
+          className={`h-8 rounded-xl text-xs ${!activeListId ? "bg-orange-50 font-semibold text-orange-700" : "text-muted-foreground hover:bg-slate-50"}`}
           onClick={() => { setActiveListId(null); setFilters(EMPTY_FILTERS); }}
         >
           Tutto
@@ -591,7 +591,7 @@ function MarketingOpportunitiesContent() {
             <Button
               variant="ghost"
               size="sm"
-              className={`h-8 text-xs rounded-none ${activeListId === list.id ? "border-b-2 border-primary font-semibold" : "text-muted-foreground"}`}
+              className={`h-8 rounded-xl text-xs ${activeListId === list.id ? "bg-orange-50 font-semibold text-orange-700" : "text-muted-foreground hover:bg-slate-50"}`}
               onClick={() => {
                 setActiveListId(list.id);
                 if (list.filters && typeof list.filters === "object") {
@@ -614,14 +614,14 @@ function MarketingOpportunitiesContent() {
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 text-xs rounded-none text-muted-foreground"
+          className="h-8 rounded-xl text-xs text-muted-foreground hover:bg-slate-50"
           onClick={() => setCreateListOpen(true)}
         >
           + Elenco
         </Button>
       </div>
 
-      <div className="flex flex-col gap-2 shrink-0">
+      <div className="flex shrink-0 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="relative w-full">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input placeholder="Cerca Lead..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="h-8 w-full pl-8 text-xs" />
@@ -631,7 +631,7 @@ function MarketingOpportunitiesContent() {
             <Button
               variant={onlyMine ? "default" : "outline"}
               size="sm"
-              className="h-8 text-xs"
+              className={`h-8 text-xs ${onlyMine ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600" : ""}`}
               onClick={() => setOnlyMine(!onlyMine)}
             >
               {onlyMine ? "I miei deal" : "Tutti i deal"}

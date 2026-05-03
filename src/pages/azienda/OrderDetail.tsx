@@ -69,6 +69,12 @@ interface OrderAlert {
   icon: React.ReactNode;
 }
 
+function parseValidOrderDate(value: string | null): Date | null {
+  if (!value) return null;
+  const parsed = parseISO(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function getOrderAlerts(
   order: { expected_date: string | null; warehouse_arrival_date: string | null },
   items: { name: string; status: string }[]
@@ -81,29 +87,35 @@ function getOrderAlerts(
   const itemsNonPronti = items.filter(i => i.status === 'da_ordinare' || i.status === 'ordinato');
 
   if (order.expected_date && itemsNonPronti.length > 0) {
-    const expectedDate = startOfDay(parseISO(order.expected_date));
-    const daysUntilPosa = differenceInDays(expectedDate, today);
-    if (daysUntilPosa <= 7) {
-      const itemNames = itemsNonPronti.slice(0, 3).map(i => i.name).join(', ');
-      const moreItems = itemsNonPronti.length > 3 ? ` e altri ${itemsNonPronti.length - 3}` : '';
-      alerts.push({
-        type: 'urgent',
-        title: daysUntilPosa <= 0 ? 'Posa scaduta!' : daysUntilPosa === 1 ? 'Posa prevista domani!' : `Posa prevista tra ${daysUntilPosa} giorni`,
-        description: `${itemsNonPronti.length} articol${itemsNonPronti.length > 1 ? 'i' : 'o'} non ancora pront${itemsNonPronti.length > 1 ? 'i' : 'o'}: ${itemNames}${moreItems}`,
-        icon: <AlertTriangle className="h-4 w-4" />,
-      });
+    const parsedExpectedDate = parseValidOrderDate(order.expected_date);
+    if (parsedExpectedDate) {
+      const expectedDate = startOfDay(parsedExpectedDate);
+      const daysUntilPosa = differenceInDays(expectedDate, today);
+      if (daysUntilPosa <= 7) {
+        const itemNames = itemsNonPronti.slice(0, 3).map(i => i.name).join(', ');
+        const moreItems = itemsNonPronti.length > 3 ? ` e altri ${itemsNonPronti.length - 3}` : '';
+        alerts.push({
+          type: 'urgent',
+          title: daysUntilPosa <= 0 ? 'Posa scaduta!' : daysUntilPosa === 1 ? 'Posa prevista domani!' : `Posa prevista tra ${daysUntilPosa} giorni`,
+          description: `${itemsNonPronti.length} articol${itemsNonPronti.length > 1 ? 'i' : 'o'} non ancora pront${itemsNonPronti.length > 1 ? 'i' : 'o'}: ${itemNames}${moreItems}`,
+          icon: <AlertTriangle className="h-4 w-4" />,
+        });
+      }
     }
   }
 
   if (order.warehouse_arrival_date && itemsOrdinati.length > 0) {
-    const arrivalDate = startOfDay(parseISO(order.warehouse_arrival_date));
-    if (isBefore(arrivalDate, today)) {
-      alerts.push({
-        type: 'warning',
-        title: 'Merce in ritardo',
-        description: `${itemsOrdinati.length} articol${itemsOrdinati.length > 1 ? 'i' : 'o'} dovrebbe${itemsOrdinati.length > 1 ? 'ro' : ''} essere già arrivat${itemsOrdinati.length > 1 ? 'i' : 'o'} in magazzino`,
-        icon: <AlertCircle className="h-4 w-4" />,
-      });
+    const parsedArrivalDate = parseValidOrderDate(order.warehouse_arrival_date);
+    if (parsedArrivalDate) {
+      const arrivalDate = startOfDay(parsedArrivalDate);
+      if (isBefore(arrivalDate, today)) {
+        alerts.push({
+          type: 'warning',
+          title: 'Merce in ritardo',
+          description: `${itemsOrdinati.length} articol${itemsOrdinati.length > 1 ? 'i' : 'o'} dovrebbe${itemsOrdinati.length > 1 ? 'ro' : ''} essere già arrivat${itemsOrdinati.length > 1 ? 'i' : 'o'} in magazzino`,
+          icon: <AlertCircle className="h-4 w-4" />,
+        });
+      }
     }
   }
 

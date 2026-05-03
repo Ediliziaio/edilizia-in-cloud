@@ -364,7 +364,11 @@ export function usePermissions(): Permissions {
   // This prevents the startup race where sessionStorage tokens are present but the
   // role has not been verified yet.
   // The actual data access is governed by server-side RLS + the impersonation token.
-  if (isImpersonationReady && (isImpersonating || (!!impersonatedCompanyId && !!impersonationToken))) {
+  const hasActiveImpersonationSession = !!impersonatedCompanyId && !!impersonationToken;
+  if (
+    (isImpersonationReady || (hasActiveImpersonationSession && !!effectiveCompany)) &&
+    (isImpersonating || hasActiveImpersonationSession)
+  ) {
     return ALL_PERMISSIONS;
   }
 

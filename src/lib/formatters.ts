@@ -1,6 +1,12 @@
 import { format, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 
+function toValidDate(date: string | Date | null | undefined): Date | null {
+  if (!date) return null;
+  const parsed = date instanceof Date ? date : new Date(date);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
@@ -18,19 +24,23 @@ export function formatCurrencyCompact(v: number): string {
 }
 
 export function formatDate(date: string | Date): string {
-  return format(new Date(date), "d MMMM yyyy", { locale: it });
+  const parsed = toValidDate(date);
+  return parsed ? format(parsed, "d MMMM yyyy", { locale: it }) : "—";
 }
 
 export function formatDateShort(date: string | Date): string {
-  return format(new Date(date), "d MMM yyyy", { locale: it });
+  const parsed = toValidDate(date);
+  return parsed ? format(parsed, "d MMM yyyy", { locale: it }) : "—";
 }
 
 export function formatDateTime(date: string | Date): string {
-  return format(new Date(date), "d MMM yyyy 'alle' HH:mm", { locale: it });
+  const parsed = toValidDate(date);
+  return parsed ? format(parsed, "d MMM yyyy 'alle' HH:mm", { locale: it }) : "—";
 }
 
 export function formatRelativeTime(date: string | Date): string {
-  return formatDistanceToNow(new Date(date), { addSuffix: true, locale: it });
+  const parsed = toValidDate(date);
+  return parsed ? formatDistanceToNow(parsed, { addSuffix: true, locale: it }) : "—";
 }
 
 export function getTicketStatusColor(status: string): {

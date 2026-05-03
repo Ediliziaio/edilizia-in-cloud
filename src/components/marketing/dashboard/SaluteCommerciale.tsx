@@ -66,7 +66,6 @@ function getScoreConfig(score: number) {
     trackColor: "stroke-emerald-100 dark:stroke-emerald-900",
     label: "Performance top",
     message: "Marketing e vendite girano a pieno regime. Continua così!",
-    emoji: "🚀",
   };
   if (score >= 60) return {
     color: "text-blue-600 dark:text-blue-400",
@@ -74,7 +73,6 @@ function getScoreConfig(score: number) {
     trackColor: "stroke-blue-100 dark:stroke-blue-900",
     label: "Buona performance",
     message: "I numeri sono positivi, alcune metriche possono migliorare.",
-    emoji: "📈",
   };
   if (score >= 40) return {
     color: "text-amber-600 dark:text-amber-400",
@@ -82,7 +80,6 @@ function getScoreConfig(score: number) {
     trackColor: "stroke-amber-100 dark:stroke-amber-900",
     label: "Da migliorare",
     message: "Show rate o close rate sotto target. Controlla le azioni.",
-    emoji: "⚠️",
   };
   return {
     color: "text-red-600 dark:text-red-400",
@@ -90,14 +87,13 @@ function getScoreConfig(score: number) {
     trackColor: "stroke-red-100 dark:stroke-red-900",
     label: "Critico",
     message: "Le conversioni sono troppo basse. Serve un intervento immediato.",
-    emoji: "🚨",
   };
 }
 
 export function SaluteCommerciale(props: Props) {
   if (props.isLoading) {
     return (
-      <div className="rounded-xl border bg-card p-5 flex items-center justify-center gap-6">
+      <div className="flex items-center justify-center gap-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="h-[136px] w-[136px] rounded-full bg-muted animate-pulse" />
         <div className="space-y-2 flex-1">
           <div className="h-5 w-24 bg-muted rounded animate-pulse" />
@@ -114,7 +110,7 @@ export function SaluteCommerciale(props: Props) {
   const dashOffset = circumference - (score / 100) * circumference;
 
   return (
-    <div className="rounded-xl border bg-card p-3 sm:p-5">
+    <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3 shadow-sm sm:p-5">
       <div className="flex items-center gap-3 sm:gap-6 flex-wrap sm:flex-nowrap">
         {/* Gauge */}
         <div className="relative inline-flex items-center justify-center flex-shrink-0">
@@ -132,8 +128,8 @@ export function SaluteCommerciale(props: Props) {
 
         {/* Label */}
         <div className="flex-1 min-w-0 space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">{config.emoji}</span>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Salute commerciale</p>
             <h3 className={cn("text-lg font-bold", config.color)}>{config.label}</h3>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">{config.message}</p>

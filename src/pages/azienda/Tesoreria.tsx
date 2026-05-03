@@ -118,11 +118,15 @@ export default function Tesoreria() {
   if (!hasConnections) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <Landmark className="h-7 w-7 text-primary" />
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Tesoreria</h1>
-            <p className="text-muted-foreground text-sm">Gestisci i tuoi conti bancari e monitora il cash flow in tempo reale</p>
+        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <Landmark className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Tesoreria</h1>
+              <p className="mt-0.5 text-sm text-slate-500">Gestisci conti bancari e monitora il cash flow in tempo reale.</p>
+            </div>
           </div>
         </div>
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 py-20 gap-5 text-center">
@@ -140,7 +144,7 @@ export default function Tesoreria() {
             <Badge variant="outline">Sicuro e crittografato</Badge>
             <Badge variant="outline">Aggiornamento automatico</Badge>
           </div>
-          <Button onClick={() => setActiveTab("connessioni")} className="mt-2">
+          <Button onClick={() => setActiveTab("connessioni")} className="mt-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
             <Link className="h-4 w-4 mr-2" />
             Collega primo conto
           </Button>
@@ -158,27 +162,31 @@ export default function Tesoreria() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-3">
-          <Landmark className="h-7 w-7 text-primary" />
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Tesoreria</h1>
-            <p className="text-muted-foreground text-sm">
-              Gestisci i tuoi conti bancari e monitora il cash flow in tempo reale
-            </p>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <Landmark className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Tesoreria</h1>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Gestisci conti bancari e monitora il cash flow in tempo reale.
+              </p>
+            </div>
           </div>
-        </div>
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="text-xs">Open Banking · PSD2</Badge>
-          <Button onClick={handleSync} disabled={syncing} size="sm">
+          <Button onClick={handleSync} disabled={syncing} size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
             {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Sincronizza
           </Button>
         </div>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start">
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           <TabsTrigger value="overview" className="gap-2">
             <LayoutDashboard className="h-4 w-4" /> Overview
           </TabsTrigger>

@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, RefreshCw, ExternalLink, FileText, Search, Eye } from "lucide-react";
+import { Download, RefreshCw, ExternalLink, FileText, Search, Eye, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 
 /** Indenta XML grezzo per visualizzazione leggibile */
 function formatXml(xml: string): string {
@@ -154,11 +155,17 @@ export default function CassettoSDI() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Cassetto SDI</h1>
-          <p className="text-sm text-muted-foreground">Monitoraggio trasmissioni al Sistema di Interscambio</p>
-        </div>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Cassetto SDI</h1>
+              <p className="mt-0.5 text-sm text-slate-500">Monitoraggio trasmissioni, ricevute e scarti dal Sistema di Interscambio.</p>
+            </div>
+          </div>
         <div className="flex items-center gap-3">
           <Select value={String(anno)} onValueChange={(v) => setAnno(Number(v))}>
             <SelectTrigger className="w-[120px]">
@@ -171,47 +178,20 @@ export default function CassettoSDI() {
             </SelectContent>
           </Select>
         </div>
+        </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Trasmesse</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpi.trasmesse}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Consegnate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{kpi.consegnate}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Scartate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{kpi.scartate}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">In attesa</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{kpi.inAttesa}</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <OperationalKpiCard icon={FileText} label="Trasmesse" value={kpi.trasmesse} hint="documenti inviati" tone="blue" />
+        <OperationalKpiCard icon={CheckCircle2} label="Consegnate" value={kpi.consegnate} hint="ricevute RC" tone="green" />
+        <OperationalKpiCard icon={AlertTriangle} label="Scartate" value={kpi.scartate} hint="da correggere" tone={kpi.scartate > 0 ? "red" : "green"} />
+        <OperationalKpiCard icon={Clock} label="In attesa" value={kpi.inAttesa} hint="in lavorazione SDI" tone="amber" />
       </div>
 
       {/* Filters */}
-      <Card>
-        <CardContent className="pt-4">
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
+        <CardContent className="p-2.5">
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

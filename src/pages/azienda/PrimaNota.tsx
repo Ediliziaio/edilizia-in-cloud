@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 
 const CATEGORY_LABELS: Record<string, string> = {
   incasso: "Incasso",
@@ -145,11 +146,17 @@ function PrimaNotaInner() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <BookOpen className="h-7 w-7 text-primary" />
-          <h1 className="text-xl sm:text-2xl font-bold">Prima Nota</h1>
-        </div>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <BookOpen className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Prima Nota</h1>
+              <p className="mt-0.5 text-sm text-slate-500">Registrazioni contabili, movimenti automatici e saldo operativo.</p>
+            </div>
+          </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={exportCSV}>
             <Download className="h-4 w-4 mr-1" /> CSV
@@ -177,49 +184,20 @@ function PrimaNotaInner() {
             <span className="hidden sm:inline">Importa Auto</span>
             <span className="sm:hidden">Importa</span>
           </Button>
-          <Button onClick={() => setNewOpen(true)}>
+          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
             <Plus className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Nuova Registrazione</span>
             <span className="sm:hidden">Aggiungi</span>
           </Button>
         </div>
+        </div>
       </div>
 
       {/* Saldo Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="h-4 w-4 text-green-600" />
-              <p className="text-xs text-muted-foreground">Entrate</p>
-            </div>
-            <p className="text-xl font-bold text-green-600">
-              {isSaldoLoading ? "..." : formatCurrency(saldo?.entrate || 0)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingDown className="h-4 w-4 text-destructive" />
-              <p className="text-xs text-muted-foreground">Uscite</p>
-            </div>
-            <p className="text-xl font-bold text-destructive">
-              {isSaldoLoading ? "..." : formatCurrency(saldo?.uscite || 0)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Wallet className="h-4 w-4 text-primary" />
-              <p className="text-xs text-muted-foreground">Saldo netto</p>
-            </div>
-            <p className={`text-xl font-bold ${(saldo?.saldo || 0) >= 0 ? "text-green-600" : "text-destructive"}`}>
-              {isSaldoLoading ? "..." : formatCurrency(saldo?.saldo || 0)}
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <OperationalKpiCard icon={TrendingUp} label="Entrate" value={isSaldoLoading ? "..." : formatCurrency(saldo?.entrate || 0)} hint="periodo filtrato" tone="green" />
+        <OperationalKpiCard icon={TrendingDown} label="Uscite" value={isSaldoLoading ? "..." : formatCurrency(saldo?.uscite || 0)} hint="periodo filtrato" tone="red" />
+        <OperationalKpiCard icon={Wallet} label="Saldo netto" value={isSaldoLoading ? "..." : formatCurrency(saldo?.saldo || 0)} hint="entrate meno uscite" tone={(saldo?.saldo || 0) >= 0 ? "green" : "red"} />
       </div>
 
       {/* Chart */}
@@ -245,7 +223,7 @@ function PrimaNotaInner() {
       )}
 
       {/* Filters */}
-      <div className="space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex sm:flex-wrap sm:items-center sm:gap-3">
         {/* Search — full width on mobile, flexible on desktop */}
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />

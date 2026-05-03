@@ -988,32 +988,34 @@ export default function SalesOSDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Target className="h-6 w-6 text-primary" />
-              Sales OS
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Centro di comando commerciale
-            </p>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+              <Target className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-950">Sales OS</h1>
+              <p className="text-sm text-slate-600">
+                Centro di comando commerciale
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-          <Select value={period} onValueChange={(v) => setPeriod(v as SalesOSPeriod)}>
-            <SelectTrigger className="w-[180px] h-9">
-              <SelectValue placeholder="Periodo" />
-            </SelectTrigger>
-            <SelectContent>
-              {PERIOD_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-2 py-1 shadow-sm">
+            <Calendar className="h-4 w-4 text-orange-500" />
+            <Select value={period} onValueChange={(v) => setPeriod(v as SalesOSPeriod)}>
+              <SelectTrigger className="h-9 w-[180px] border-0 bg-transparent shadow-none">
+                <SelectValue placeholder="Periodo" />
+              </SelectTrigger>
+              <SelectContent>
+                {PERIOD_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -1036,24 +1038,24 @@ export default function SalesOSDashboard() {
 
       {/* Tabs principali */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto p-1 sm:grid sm:grid-cols-5 sm:max-w-2xl">
-          <TabsTrigger value="pipeline" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+        <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid sm:max-w-2xl sm:grid-cols-5">
+          <TabsTrigger value="pipeline" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <TrendingUp className="h-3.5 w-3.5" />
             Pipeline
           </TabsTrigger>
-          <TabsTrigger value="stalled" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+          <TabsTrigger value="stalled" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <AlertTriangle className="h-3.5 w-3.5" />
             Ferme
           </TabsTrigger>
-          <TabsTrigger value="team" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+          <TabsTrigger value="team" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <Users className="h-3.5 w-3.5" />
             Team
           </TabsTrigger>
-          <TabsTrigger value="analisi" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+          <TabsTrigger value="analisi" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <Zap className="h-3.5 w-3.5" />
             Analisi
           </TabsTrigger>
-          <TabsTrigger value="config" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+          <TabsTrigger value="config" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <Settings2 className="h-3.5 w-3.5" />
             Config
           </TabsTrigger>

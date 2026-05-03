@@ -27,6 +27,9 @@ interface OrdersFiltersProps {
   statusFilter: string;
   onStatusFilterChange: (value: string) => void;
   statuses: Status[];
+  yearFilter: string;
+  onYearFilterChange: (value: string) => void;
+  availableYears: number[];
   paymentFilter: "all" | "pending" | "paid";
   onPaymentFilterChange: (value: "all" | "pending" | "paid") => void;
   monthFilter: string;
@@ -43,6 +46,9 @@ export function OrdersFilters({
   statusFilter,
   onStatusFilterChange,
   statuses,
+  yearFilter,
+  onYearFilterChange,
+  availableYears,
   paymentFilter,
   onPaymentFilterChange,
   monthFilter,
@@ -53,22 +59,26 @@ export function OrdersFilters({
   onHideCompletedChange,
 }: OrdersFiltersProps) {
   return (
-    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+    <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+      <div className="flex flex-col sm:flex-row gap-2.5 items-start sm:items-center">
       <div className="relative flex-1">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Cerca per codice, descrizione o cliente..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-10"
+          className="h-10 border-slate-200 pl-10 shadow-none"
         />
       </div>
       <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-        <SelectTrigger className="w-full sm:w-[180px]">
+        <SelectTrigger className="h-10 w-full border-slate-200 shadow-none sm:w-[170px]">
           <SelectValue placeholder="Filtra per stato" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Tutti gli stati</SelectItem>
+          <SelectItem value="__da_completare__">Da completare</SelectItem>
+          <SelectItem value="__completati__">Completati</SelectItem>
+          <SelectItem value="__assistenza__">In assistenza</SelectItem>
           {statuses.map((status) => (
             <SelectItem key={status.id} value={status.id}>
               <div className="flex items-center gap-2">
@@ -83,7 +93,7 @@ export function OrdersFilters({
         </SelectContent>
       </Select>
       <Select value={paymentFilter} onValueChange={(val) => onPaymentFilterChange(val as "all" | "pending" | "paid")}>
-        <SelectTrigger className="w-full sm:w-[180px]">
+        <SelectTrigger className="h-10 w-full border-slate-200 shadow-none sm:w-[170px]">
           <SelectValue placeholder="Filtra pagamenti" />
         </SelectTrigger>
         <SelectContent>
@@ -92,8 +102,20 @@ export function OrdersFilters({
           <SelectItem value="paid">Tutto Pagato</SelectItem>
         </SelectContent>
       </Select>
+      <Select value={yearFilter} onValueChange={onYearFilterChange}>
+        <SelectTrigger className="h-10 w-full border-slate-200 shadow-none sm:w-[132px]">
+          <CalendarDays className="h-4 w-4 mr-2" />
+          <SelectValue placeholder="Anno" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Tutti gli anni</SelectItem>
+          {availableYears.map((year) => (
+            <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Select value={monthFilter} onValueChange={onMonthFilterChange}>
-        <SelectTrigger className="w-full sm:w-[140px]">
+        <SelectTrigger className="h-10 w-full border-slate-200 shadow-none sm:w-[135px]">
           <CalendarDays className="h-4 w-4 mr-2" />
           <SelectValue placeholder="Mese" />
         </SelectTrigger>
@@ -110,17 +132,18 @@ export function OrdersFilters({
         variant={hideCompleted ? "default" : "outline"}
         size="sm"
         onClick={() => onHideCompletedChange(!hideCompleted)}
-        className="shrink-0"
+        className="h-10 shrink-0"
       >
         <CheckCircle2 className="h-4 w-4 mr-2" />
         In Corso
       </Button>
 
       {hasAnyFilter && (
-        <Button variant="ghost" size="icon" onClick={onClearAllFilters} className="h-8 w-8 text-muted-foreground/60 hover:text-muted-foreground shrink-0">
+        <Button variant="ghost" size="icon" onClick={onClearAllFilters} className="h-10 w-10 text-muted-foreground/60 hover:text-muted-foreground shrink-0">
           <X className="h-3.5 w-3.5" />
         </Button>
       )}
+      </div>
     </div>
   );
 }

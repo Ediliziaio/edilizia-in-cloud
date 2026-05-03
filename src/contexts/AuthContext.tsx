@@ -14,7 +14,7 @@ import { queryKeys } from "@/lib/queryKeys";
  * ibernato → 10-15s), preferiamo dare all'utente uno stato "non autenticato"
  * ritentabile piuttosto che spinner infinito.
  */
-const AUTH_CRITICAL_FETCH_TIMEOUT_MS = 10_000;
+const AUTH_CRITICAL_FETCH_TIMEOUT_MS = 20_000;
 const WARMUP_FETCH_TIMEOUT_MS = 8_000;
 
 interface AuthContextType extends AuthState {
@@ -525,7 +525,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             logger.warn("[security] cache super_admin rifiutato: email non in allowlist — cache invalidata");
             clearProfileCache();
           }
-          if (cached && cached.role !== null && !cacheSuperAdminRejected) {
+          const usedCachedAuth = !!(cached && cached.role !== null && !cacheSuperAdminRejected);
+          if (usedCachedAuth) {
             resolvedRoleRef.current = cached.role;
             setState({
               user: session.user,
@@ -544,7 +545,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             userData = await Promise.race([
               fetchUserData(session.user.id, session.user.email),
               new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error("fetchUserData timeout")), 12_000)
+                setTimeout(() => reject(new Error("fetchUserData timeout")), 22_000)
               ),
             ]);
           } catch {
@@ -556,6 +557,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Setting userData = { role: null } here was the root cause of the sidebar
             // blanking to only "Attività" after a 12 s DB timeout mid-session.
             logger.warn("[auth] SIGNED_IN/INITIAL_SESSION: background fetchUserData failed — keeping existing state");
+            if (!usedCachedAuth && myGen === authGenRef.current) {
+              setState(prev => prev.isLoading
+                ? { ...prev, user: session.user, isLoading: false }
+                : prev
+              );
+            }
             return;
           }
 
@@ -615,7 +622,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               userData = await Promise.race([
                 fetchUserData(session.user.id, session.user.email),
                 new Promise<never>((_, reject) =>
-                  setTimeout(() => reject(new Error("fetchUserData timeout")), 12_000)
+                  setTimeout(() => reject(new Error("fetchUserData timeout")), 22_000)
                 ),
               ]);
             } catch {

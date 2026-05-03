@@ -16,7 +16,6 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -43,6 +42,7 @@ import { DDTStatusBadge, DDT_STATO_META } from "@/components/ddt/DDTStatusBadge"
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useToast } from "@/hooks/use-toast";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 
 type FilterKey = "tutti" | DDTStato;
 type SortDirection = "asc" | "desc";
@@ -386,7 +386,7 @@ export default function DDTRicezioneList() {
   return (
     <div className="space-y-5">
       {/* ─── Header ──────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 sm:px-6 pt-5 pb-5 shadow-sm flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 sm:px-6 pt-5 pb-5 shadow-sm flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <FileCheck className="h-5 w-5" />
@@ -495,7 +495,7 @@ export default function DDTRicezioneList() {
             onClick={() => setNewOpen(true)}
             size="sm"
             disabled={availablePOs.length === 0}
-            className="shrink-0"
+            className="shrink-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25"
           >
             <Plus className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Nuovo DDT</span>
@@ -506,41 +506,38 @@ export default function DDTRicezioneList() {
 
       {/* ─── KPI Cards ──────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-        <KPICard
+        <OperationalKpiCard
           icon={FileCheck}
           label="DDT totali"
           value={kpis.total.toString()}
-          iconClassName="text-primary"
-          bgClassName="from-primary/5 to-transparent"
+          tone="blue"
         />
-        <KPICard
+        <OperationalKpiCard
           icon={ShieldCheck}
           label="Verificati"
           value={kpis.verificati.toString()}
-          sublabel={`${kpis.pct}% del totale`}
-          iconClassName="text-green-600"
-          bgClassName="from-green-50 to-transparent dark:from-green-950/30"
+          hint={`${kpis.pct}% del totale`}
+          tone="green"
         />
-        <KPICard
+        <OperationalKpiCard
           icon={Clock}
           label="Pendenti"
           value={kpis.pendenti.toString()}
-          sublabel="Attesi / parziali"
-          iconClassName="text-amber-600"
-          bgClassName="from-amber-50 to-transparent dark:from-amber-950/30"
+          hint="Attesi / parziali"
+          tone="amber"
         />
-        <KPICard
+        <OperationalKpiCard
           icon={AlertTriangle}
           label="Non conformi"
           value={kpis.damaged.toString()}
-          sublabel={kpis.damaged > 0 ? "Richiede attenzione" : "Nessuno"}
-          iconClassName={kpis.damaged > 0 ? "text-rose-600" : "text-muted-foreground"}
-          bgClassName={kpis.damaged > 0 ? "from-rose-50 to-transparent dark:from-rose-950/30" : ""}
+          hint={kpis.damaged > 0 ? "Richiede attenzione" : "Nessuno"}
+          tone={kpis.damaged > 0 ? "red" : "slate"}
         />
       </div>
 
       {/* ─── Filter pills + Search ─────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
         <div className="flex overflow-x-auto gap-1 p-0.5 rounded-lg bg-muted/50 scrollbar-none">
           {FILTERS.map((f) => {
             const c = counts[f.key] ?? 0;
@@ -553,15 +550,15 @@ export default function DDTRicezioneList() {
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-all flex items-center gap-1.5",
                   isActive
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-orange-50 text-slate-950 shadow-sm ring-1 ring-orange-100"
+                    : "text-muted-foreground hover:bg-white hover:text-slate-900"
                 )}
               >
                 {f.label}
                 <span
                   className={cn(
                     "inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] rounded-full",
-                    isActive ? "bg-primary/15 text-primary" : "bg-muted-foreground/15"
+                    isActive ? "bg-orange-100 text-orange-700" : "bg-muted-foreground/15"
                   )}
                 >
                   {c}
@@ -577,8 +574,9 @@ export default function DDTRicezioneList() {
             placeholder="Cerca DDT, ODA, fornitore, corriere…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-9 text-sm"
+            className="h-10 border-slate-200 pl-8 text-sm shadow-none"
           />
+        </div>
         </div>
       </div>
 
@@ -737,46 +735,6 @@ export default function DDTRicezioneList() {
       {/* ─── New DDT Wizard ─────────────────────────────────── */}
       <NewDDTDialog open={newOpen} onOpenChange={setNewOpen} />
     </div>
-  );
-}
-
-// ============================================================================
-// KPI Card
-// ============================================================================
-function KPICard({
-  icon: Icon,
-  label,
-  value,
-  sublabel,
-  iconClassName,
-  bgClassName,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  sublabel?: string;
-  iconClassName?: string;
-  bgClassName?: string;
-}) {
-  return (
-    <Card className={cn("overflow-hidden", bgClassName && `bg-gradient-to-br ${bgClassName}`)}>
-      <CardContent className="p-3 sm:p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-[10px] sm:text-xs text-muted-foreground font-medium uppercase tracking-wide">
-              {label}
-            </p>
-            <p className="text-xl sm:text-2xl font-bold mt-0.5 tabular-nums">{value}</p>
-            {sublabel && (
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">
-                {sublabel}
-              </p>
-            )}
-          </div>
-          <Icon className={cn("h-4 w-4 sm:h-5 sm:w-5 shrink-0", iconClassName)} />
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

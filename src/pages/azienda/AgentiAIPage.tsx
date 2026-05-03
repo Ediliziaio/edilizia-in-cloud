@@ -87,43 +87,47 @@ export default function AgentiAIPage() {
     <div className="space-y-0">
       {/* Header */}
       <div className="px-6 pt-6 pb-4">
-        <div className="flex items-start justify-between mb-1">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <Bot className="h-6 w-6 text-primary" />
-              Agenti AI
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Gestisci agenti vocali, chat, campagne e knowledge base. WhatsApp vive nel suo hub dedicato.
-            </p>
-          </div>
-
-          {/* ElevenLabs status badge (read-only) */}
-          {elConfig?.api_key_valida && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-accent/50 border-accent">
-              <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-              <span className="text-xs font-medium text-foreground">ElevenLabs connesso</span>
-              {elConfig.crediti_rimanenti != null && (
-                <span className="text-xs text-muted-foreground ml-1">
-                  · {Math.round(elConfig.crediti_rimanenti).toLocaleString("it-IT")} crediti
-                </span>
-              )}
+        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm">
+          <div className="mb-1 flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+                <Bot className="h-5 w-5" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-950">Agenti AI</h1>
+                <p className="mt-1 text-sm text-slate-600">
+                  Gestisci agenti vocali, chat, campagne e knowledge base. WhatsApp vive nel suo hub dedicato.
+                </p>
+              </div>
             </div>
-          )}
+
+            {/* ElevenLabs status badge (read-only) */}
+            {elConfig?.api_key_valida && (
+              <div className="flex items-center gap-1.5 rounded-lg border border-orange-100 bg-white/80 px-3 py-1.5 shadow-sm">
+                <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
+                <span className="text-xs font-medium text-slate-800">ElevenLabs connesso</span>
+                {elConfig.crediti_rimanenti != null && (
+                  <span className="ml-1 text-xs text-slate-500">
+                    · {Math.round(elConfig.crediti_rimanenti).toLocaleString("it-IT")} crediti
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <div className="px-6 border-b border-border">
-          <TabsList className="bg-transparent h-auto p-0 gap-0">
+        <div className="px-6 pb-3">
+          <TabsList className="h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               return (
                 <TabsTrigger
                   key={tab.key}
                   value={tab.key}
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+                  className="rounded-xl px-4 py-2.5 text-sm data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 data-[state=active]:shadow-sm"
                 >
                   <Icon className="h-4 w-4 mr-1.5" />
                   {tab.label}

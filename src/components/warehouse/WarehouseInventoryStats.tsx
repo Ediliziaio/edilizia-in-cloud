@@ -22,9 +22,8 @@ import {
   TrendingDown,
   type LucideIcon,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { formatCurrency } from "@/lib/formatters";
-import { cn } from "@/lib/utils";
 import type { WarehouseItem } from "@/types/warehouse";
 
 export type WarehouseInventoryMetricKey =
@@ -182,11 +181,11 @@ export default function WarehouseInventoryStats({ stockItems = [], orderItems = 
 }
 
 const accentMap = {
-  primary: "border-l-primary",
-  emerald: "border-l-emerald-500",
-  amber: "border-l-amber-500",
-  blue: "border-l-blue-500",
-  red: "border-l-red-500",
+  primary: "blue",
+  emerald: "green",
+  amber: "amber",
+  blue: "blue",
+  red: "red",
 } as const;
 
 function KpiCard({
@@ -203,17 +202,12 @@ function KpiCard({
   accent: keyof typeof accentMap;
 }) {
   return (
-    <Card className={cn("border-l-4 transition-colors", accentMap[accent])}>
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-1.5">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
-            {label}
-          </p>
-          <Icon className="h-4 w-4 text-muted-foreground" />
-        </div>
-        <p className="text-2xl font-bold leading-tight">{value}</p>
-        <p className="text-[11px] text-muted-foreground mt-1">{hint}</p>
-      </CardContent>
-    </Card>
+    <OperationalKpiCard
+      icon={Icon}
+      label={label}
+      value={value}
+      hint={hint}
+      tone={accentMap[accent]}
+    />
   );
 }

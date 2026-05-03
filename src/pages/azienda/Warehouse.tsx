@@ -601,7 +601,7 @@ export default function Warehouse() {
   return (
     <div className="space-y-6 print:space-y-4">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 sm:px-6 pt-5 pb-5 shadow-sm flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between print:hidden">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 sm:px-6 pt-5 pb-5 shadow-sm flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between print:hidden">
         <div className="flex items-start gap-3 min-w-0">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <WarehouseIcon className="h-5 w-5" />
@@ -738,7 +738,7 @@ export default function Warehouse() {
         </Alert>
       )}
 
-      <section className="rounded-lg border bg-card p-4 print:hidden" aria-label="Azioni rapide magazzino">
+      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 print:hidden" aria-label="Azioni rapide magazzino">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-base font-semibold">Operazioni magazzino</h2>
@@ -747,7 +747,10 @@ export default function Warehouse() {
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:items-center">
-            <Button onClick={() => openStockAction("receive")} className="justify-start gap-2">
+            <Button
+              onClick={() => openStockAction("receive")}
+              className="justify-start gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+            >
               <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
               Registra arrivo merce
             </Button>
@@ -793,7 +796,8 @@ export default function Warehouse() {
                 const quantity = Number(card.item.quantity ?? 0);
                 const unitCost = Number(card.item.unit_cost ?? 0);
                 return (
-                  <Card key={card.id} className="border-l-4 border-l-emerald-500">
+                  <Card key={card.id} className="relative overflow-hidden border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
+                    <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500" />
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">

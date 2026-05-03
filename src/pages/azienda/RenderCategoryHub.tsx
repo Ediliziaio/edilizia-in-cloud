@@ -364,35 +364,39 @@ export default function RenderCategoryHub() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-              Render AI
-            </span>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="mb-1 text-sm font-medium uppercase tracking-wider text-orange-700">
+                Render AI
+              </div>
+              <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">Centro render</h1>
+              <p className="mt-1 max-w-2xl text-sm text-slate-600">
+                Scegli il modulo giusto, filtra per categoria e ritrova subito i render collegati a utenti, contatti e opportunità.
+              </p>
+            </div>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Centro render</h1>
-          <p className="mt-1 text-muted-foreground text-sm max-w-2xl">
-            Scegli il modulo giusto, filtra per categoria e ritrova subito i render collegati a utenti, contatti e opportunità.
-          </p>
-        </div>
-        <div className="shrink-0">
-          <RenderCreditsWidget />
+          <div className="shrink-0">
+            <RenderCreditsWidget />
+          </div>
         </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <Card>
+        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
           <CardContent className="p-4 flex items-center gap-3">
-            <GalleryHorizontalEnd className="h-5 w-5 text-primary" />
+            <GalleryHorizontalEnd className="h-5 w-5 text-orange-500" />
             <div>
               <p className="text-2xl font-bold">{recentRenders.length}</p>
               <p className="text-xs text-muted-foreground">render recenti</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
           <CardContent className="p-4 flex items-center gap-3">
             <CheckCircle2 className="h-5 w-5 text-green-600" />
             <div>
@@ -401,7 +405,7 @@ export default function RenderCategoryHub() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
           <CardContent className="p-4 flex items-center gap-3">
             <Clock className="h-5 w-5 text-amber-600" />
             <div>
@@ -410,7 +414,7 @@ export default function RenderCategoryHub() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
           <CardContent className="p-4 flex items-center gap-3">
             <Link2 className="h-5 w-5 text-blue-600" />
             <div>
@@ -465,7 +469,7 @@ export default function RenderCategoryHub() {
             </h2>
             <p className="text-sm text-muted-foreground">Filtra per area di intervento o cerca materiale, ambiente e sistema.</p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 lg:min-w-[520px]">
+          <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-row lg:min-w-[520px]">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -497,7 +501,7 @@ export default function RenderCategoryHub() {
               variant={groupFilter === group ? "default" : "outline"}
               size="sm"
               onClick={() => setGroupFilter(group)}
-              className="gap-2"
+              className={`gap-2 ${groupFilter === group ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600" : ""}`}
             >
               <Filter className="h-3.5 w-3.5" />
               {groupLabels[group]}
@@ -512,8 +516,8 @@ export default function RenderCategoryHub() {
             return (
               <Card
                 key={cat.id}
-                className={`transition-all duration-200 ${
-                  cat.active ? "hover:shadow-md hover:border-primary/40 cursor-pointer" : "opacity-60 cursor-not-allowed"
+                className={`border-slate-200 transition-all duration-200 ${
+                  cat.active ? "cursor-pointer hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md" : "cursor-not-allowed opacity-60"
                 }`}
                 onClick={() => handleCategoryClick(cat)}
               >
@@ -563,7 +567,7 @@ export default function RenderCategoryHub() {
               Vista unica di tutti i moduli, con stato, autore e collegamento CRM.
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[560px]">
+          <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-3 lg:min-w-[560px]">
             <Select value={recentTypeFilter} onValueChange={setRecentTypeFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Tipo render" />

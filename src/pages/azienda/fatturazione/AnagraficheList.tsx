@@ -56,20 +56,31 @@ export default function AnagraficheList() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Anagrafica</h1>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <Users className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Anagrafica fiscale</h1>
+              <p className="mt-0.5 text-sm text-slate-500">Rubrica clienti e fornitori per fatturazione, SDI e riconciliazione.</p>
+            </div>
+          </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm">
             <Upload className="h-4 w-4 mr-1" /> Importa Excel
           </Button>
           <Button
             size="sm"
+            className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
             onClick={() => toast.info("Creazione manuale anagrafica non ancora disponibile", {
               description: "Usa l'import Excel o crea l'anagrafica durante l'emissione di un documento.",
             })}
           >
             <Plus className="h-4 w-4 mr-1" /> Nuova anagrafica
           </Button>
+        </div>
         </div>
       </div>
 
@@ -145,7 +156,7 @@ function AnagraficheTable() {
       </Tabs>
 
       {/* Filters */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

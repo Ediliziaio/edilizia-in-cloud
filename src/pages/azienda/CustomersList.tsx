@@ -52,6 +52,7 @@ import {
   type CustomerImportField,
   type ImportOptions,
 } from "@/components/clients/CustomerImportDialog";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { logger } from "@/utils/logger";
 
 interface Salesperson {
@@ -336,42 +337,27 @@ function KpiCard({
   trend?: { value: number; positive: boolean } | null;
   hint?: string;
 }) {
+  const tone = accentClass.includes("emerald")
+    ? "green"
+    : accentClass.includes("amber")
+      ? "amber"
+      : accentClass.includes("red") || accentClass.includes("destructive")
+        ? "red"
+        : accentClass.includes("blue")
+          ? "blue"
+          : "orange";
+  const trendHint = trend !== undefined && trend !== null
+    ? `${trend.positive ? "+" : ""}${trend.value}% vs mese scorso`
+    : undefined;
+
   return (
-    <Card className={`border-l-4 ${accentClass}`}>
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wide font-semibold">
-              {label}
-              {hint && (
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-3 w-3 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="max-w-[220px] text-xs">{hint}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-            </div>
-            <p className="text-2xl font-bold mt-1 leading-tight">{value}</p>
-            {trend !== undefined && trend !== null && (
-              <div className={`flex items-center gap-1 mt-1 text-xs font-medium ${
-                trend.positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
-              }`}>
-                {trend.positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                <span>{trend.positive ? "+" : ""}{trend.value}% vs mese scorso</span>
-              </div>
-            )}
-          </div>
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <Icon className="h-5 w-5 text-primary" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <OperationalKpiCard
+      icon={Icon}
+      label={label}
+      value={value}
+      hint={trendHint ?? hint}
+      tone={tone}
+    />
   );
 }
 
@@ -1073,7 +1059,7 @@ function CustomersListInner() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -1173,7 +1159,7 @@ function CustomersListInner() {
           </DropdownMenu>
 
           {/* New customer */}
-          <Button asChild size="sm">
+          <Button asChild size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
             <Link to="/azienda/clienti/nuovo">
               <Plus className="mr-1.5 h-4 w-4" />
               <span className="sm:hidden">Nuovo</span>
@@ -1245,7 +1231,7 @@ function CustomersListInner() {
       </div>
 
       {/* Search + Filters */}
-      <div className="space-y-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
         <div className="flex flex-col sm:flex-row gap-3 items-stretch">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

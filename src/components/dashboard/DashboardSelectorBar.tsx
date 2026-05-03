@@ -44,6 +44,8 @@ import {
 } from "@/lib/dashboardBuilder/hooks";
 import type { DashboardListItem } from "@/lib/dashboardBuilder/types";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAuth } from "@/contexts/AuthContext";
+import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -223,6 +225,7 @@ export function DashboardSelectorBar({
   const setDefault = useSetDefaultDashboard();
   const deleteDash = useDeleteDashboard();
   const permissions = usePermissions();
+  const { role } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -275,7 +278,7 @@ export function DashboardSelectorBar({
         toast.success(`"${target.name}" eliminata`);
         setDeleteTarget(null);
         if (target.id === activeDashId) {
-          navigate("/azienda/cruscotto", { replace: true });
+          navigate(getSmartCruscottoPath(permissions, role), { replace: true });
         }
       },
       onError: (err) => {

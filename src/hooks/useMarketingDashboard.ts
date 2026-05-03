@@ -4,7 +4,6 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useState, useMemo, useCallback } from "react";
-import { subDays } from "date-fns";
 import { getDateRange } from "@/lib/dateRangeUtils";
 
 export type DatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "custom";
@@ -124,11 +123,12 @@ export function useMarketingDashboard() {
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
+  const initialMonthRange = useMemo(() => getDateRange("month"), []);
 
   const [filters, setFilters] = useState<DashboardFiltersState>({
-    datePreset: "last30",
-    dateFrom: subDays(new Date(), 30),
-    dateTo: new Date(),
+    datePreset: "month",
+    dateFrom: initialMonthRange.from,
+    dateTo: initialMonthRange.to,
     assignedUserIds: [],
     sources: [],
     pipelineId: null,

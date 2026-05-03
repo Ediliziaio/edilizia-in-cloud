@@ -27,6 +27,7 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { NuovoImpiantoWizard } from "@/components/manutenzione/NuovoImpiantoWizard";
 import { type StaffUser, useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 
 const KEEP_VALUE = "__keep__";
 const UNASSIGNED_VALUE = "__unassigned__";
@@ -309,7 +310,7 @@ export default function ManutenzioneList() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -320,7 +321,10 @@ export default function ManutenzioneList() {
               <p className="mt-0.5 text-sm text-slate-500">Impianti, contratti e piani manutenzione clienti.</p>
             </div>
           </div>
-          <Button onClick={() => setWizardOpen(true)} className="self-start gap-2 sm:self-auto">
+          <Button
+            onClick={() => setWizardOpen(true)}
+            className="self-start gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 sm:self-auto"
+          >
             <Plus className="h-4 w-4" />
             Nuovo Impianto
           </Button>
@@ -328,23 +332,11 @@ export default function ManutenzioneList() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-sm text-gray-500 flex items-center gap-1"><Settings className="h-4 w-4 text-blue-500" />Impianti</div>
-          <div className="text-2xl font-bold text-blue-600 mt-1">{impianti.length}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-sm text-gray-500 flex items-center gap-1"><AlertCircle className="h-4 w-4 text-orange-500" />In scadenza</div>
-          <div className="text-2xl font-bold text-orange-600 mt-1">{pianiInScadenza.length}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-sm text-gray-500 flex items-center gap-1"><CheckCircle2 className="h-4 w-4 text-green-500" />Contratti attivi</div>
-          <div className="text-2xl font-bold text-green-600 mt-1">{contratti.filter((c) => c.stato === "attivo").length}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-sm text-gray-500 flex items-center gap-1"><TrendingUp className="h-4 w-4 text-purple-500" />MRR</div>
-          <div className="text-2xl font-bold text-purple-600 mt-1">€{mrr.toFixed(0)}</div>
-        </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <OperationalKpiCard icon={Settings} label="Impianti" value={impianti.length} hint="installazioni censite" tone="blue" />
+        <OperationalKpiCard icon={AlertCircle} label="In scadenza" value={pianiInScadenza.length} hint="prossimi 14 giorni" tone={pianiInScadenza.length > 0 ? "orange" : "green"} />
+        <OperationalKpiCard icon={CheckCircle2} label="Contratti attivi" value={contratti.filter((c) => c.stato === "attivo").length} hint="canoni ricorrenti" tone="green" />
+        <OperationalKpiCard icon={TrendingUp} label="MRR" value={`€${mrr.toFixed(0)}`} hint="ricavi mensili stimati" tone="amber" />
       </div>
 
       {selectedPianoIds.size > 0 && (

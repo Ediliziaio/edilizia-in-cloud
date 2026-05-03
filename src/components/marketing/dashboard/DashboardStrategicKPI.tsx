@@ -38,9 +38,9 @@ const STRATEGIC_CARDS: StrategicCard[] = [
 export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, kpiPrev, isLoading }: Props) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {STRATEGIC_CARDS.map(c => (
-          <Card key={c.key} className="p-5">
+          <Card key={c.key} className="rounded-2xl border-slate-200 p-5 shadow-sm">
             <Skeleton className="h-4 w-24 mb-3" />
             <Skeleton className="h-10 w-20 mb-2" />
             <Skeleton className="h-2 w-full" />
@@ -52,7 +52,7 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {STRATEGIC_CARDS.map(c => {
           const value = Number(kpi?.[c.key] ?? 0);
           const prevValue = Number(kpiPrev?.[c.key] ?? 0);
@@ -63,25 +63,27 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
           return (
             <Tooltip key={c.key}>
               <TooltipTrigger asChild>
-                <Card className={cn("p-3 sm:p-5 hover:shadow-lg transition-all duration-200 cursor-default border-l-4 overflow-hidden", c.borderClass)}>
-                  <div className="flex items-center justify-between mb-1 sm:mb-2 gap-1">
-                    <span className="text-[9px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">{c.label}</span>
-                    <Icon className={cn("h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0", c.accentClass)} />
+                <Card className={cn("cursor-default overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md", c.borderClass)}>
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <span className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{c.label}</span>
+                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+                      <Icon className={cn("h-4 w-4", c.accentClass)} />
+                    </span>
                   </div>
-                  <div className="text-lg sm:text-2xl lg:text-3xl font-black tracking-tight mb-0.5 sm:mb-1 truncate">{formatValue(value, c.format)}</div>
-                  <div className={cn("flex items-center gap-1 text-[9px] sm:text-xs font-semibold mb-1 sm:mb-2",
+                  <div className="mb-1 truncate text-2xl font-black tracking-tight text-slate-950">{formatValue(value, c.format)}</div>
+                  <div className={cn("mb-2 flex items-center gap-1 text-xs font-semibold",
                     delta.direction === "up" && "text-emerald-600 dark:text-emerald-400",
                     delta.direction === "down" && "text-red-600 dark:text-red-400",
                     delta.direction === "flat" && "text-muted-foreground"
                   )}>
-                    {delta.direction === "up" && <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5 flex-shrink-0" />}
-                    {delta.direction === "down" && <TrendingDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 flex-shrink-0" />}
-                    {delta.direction === "flat" && <Minus className="h-3 w-3 sm:h-3.5 sm:w-3.5 flex-shrink-0" />}
+                    {delta.direction === "up" && <TrendingUp className="h-3.5 w-3.5 flex-shrink-0" />}
+                    {delta.direction === "down" && <TrendingDown className="h-3.5 w-3.5 flex-shrink-0" />}
+                    {delta.direction === "flat" && <Minus className="h-3.5 w-3.5 flex-shrink-0" />}
                     <span className="truncate">{delta.value}% vs prec.</span>
                   </div>
                   {targetPct !== null && (
-                    <div className="space-y-0.5 sm:space-y-1">
-                      <div className="flex justify-between text-[9px] sm:text-[10px] text-muted-foreground gap-1">
+                    <div className="space-y-1">
+                      <div className="flex justify-between gap-1 text-[10px] text-muted-foreground">
                         <span className="truncate">Target: {formatValue(c.target!, c.format)}</span>
                         <span className="flex-shrink-0">{Math.round(targetPct)}%</span>
                       </div>

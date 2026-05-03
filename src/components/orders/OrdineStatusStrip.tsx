@@ -30,7 +30,9 @@ export function OrdineStatusStrip({
   const getDate = (statusId: string): string | null => {
     const h = statusHistory.find((h) => h.status_id === statusId);
     if (!h) return null;
-    return new Date(h.changed_at).toLocaleDateString("it-IT", {
+    const changedAt = new Date(h.changed_at);
+    if (Number.isNaN(changedAt.getTime())) return null;
+    return changedAt.toLocaleDateString("it-IT", {
       day: "2-digit",
       month: "short",
     });

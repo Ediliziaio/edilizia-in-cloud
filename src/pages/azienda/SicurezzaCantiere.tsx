@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ShieldAlert, Plus, AlertTriangle, CheckCircle, Download, Loader2, HardHat, Users, ClipboardList, Building2, CalendarClock, FileCheck2 } from "lucide-react";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
@@ -300,24 +301,28 @@ export default function SicurezzaCantiere() {
         value: posDocs.length,
         helper: `${posDocs.filter((d) => d.status === "bozza").length} bozze`,
         tone: "blue",
+        icon: HardHat,
       },
       {
         label: "DUVRI",
         value: duvriDocs.length,
         helper: `${duvriDocs.filter((d) => d.status === "bozza").length} bozze`,
         tone: "indigo",
+        icon: Users,
       },
       {
         label: "Subappaltatori",
         value: subappaltatori.length,
         helper: durcScaduti ? `${durcScaduti} DURC scaduti` : "DURC sotto controllo",
         tone: durcScaduti ? "red" : "green",
+        icon: Building2,
       },
       {
         label: "Scadenze aperte",
         value: adempimentiDaFare,
         helper: adempimentiScaduti ? `${adempimentiScaduti} scadute` : "Nessuna scaduta",
         tone: adempimentiScaduti ? "red" : "amber",
+        icon: CalendarClock,
       },
     ];
   }, [adempimenti, duvriDocs, posDocs, subappaltatori]);
@@ -529,12 +534,14 @@ export default function SicurezzaCantiere() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <ShieldAlert className="h-6 w-6 sm:h-7 sm:w-7 text-primary shrink-0" />
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <ShieldAlert className="h-5 w-5" />
+          </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold truncate">Sicurezza Cantiere</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">D.Lgs 81/08 — Documenti obbligatori</p>
+            <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Sicurezza Cantiere</h1>
+            <p className="mt-0.5 text-sm text-slate-500">D.Lgs 81/08 — documenti obbligatori, scadenze e subappalti.</p>
           </div>
         </div>
       </div>
@@ -549,16 +556,14 @@ export default function SicurezzaCantiere() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {safetyStats.map((stat) => (
-          <Card key={stat.label} className={`border ${statToneClass(stat.tone)}`}>
-            <CardContent className="p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{stat.label}</p>
-              <div className="mt-2 flex items-end justify-between gap-3">
-                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                <FileCheck2 className="h-5 w-5 opacity-70" aria-hidden="true" />
-              </div>
-              <p className="mt-1 text-xs font-medium">{stat.helper}</p>
-            </CardContent>
-          </Card>
+          <OperationalKpiCard
+            key={stat.label}
+            icon={stat.icon}
+            label={stat.label}
+            value={stat.value}
+            hint={stat.helper}
+            tone={stat.tone === "green" ? "green" : stat.tone === "red" ? "red" : stat.tone === "amber" ? "amber" : "blue"}
+          />
         ))}
       </div>
 
@@ -586,7 +591,7 @@ export default function SicurezzaCantiere() {
         <TabsContent value="pos" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Piano Operativo di Sicurezza</p>
-            <Button size="sm" onClick={() => setPosDialogOpen(true)}>
+            <Button size="sm" onClick={() => setPosDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Genera POS
             </Button>
           </div>
@@ -612,7 +617,7 @@ export default function SicurezzaCantiere() {
                   <p className="font-medium">Nessun POS generato</p>
                   <p className="text-sm text-muted-foreground">Seleziona un ordine e genera il tuo primo POS con AI</p>
                 </div>
-                <Button size="sm" onClick={() => setPosDialogOpen(true)}>
+                <Button size="sm" onClick={() => setPosDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
                   <Plus className="h-4 w-4 mr-1" /> Genera POS
                 </Button>
               </CardContent>
@@ -723,7 +728,7 @@ export default function SicurezzaCantiere() {
         <TabsContent value="duvri" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Documento Unico Valutazione Rischi Interferenza</p>
-            <Button size="sm" onClick={() => setDuvriDialogOpen(true)}>
+            <Button size="sm" onClick={() => setDuvriDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Genera DUVRI
             </Button>
           </div>
@@ -749,7 +754,7 @@ export default function SicurezzaCantiere() {
                   <p className="font-medium">Nessun DUVRI generato</p>
                   <p className="text-sm text-muted-foreground">Il DUVRI è richiesto quando ci sono subappaltatori sull'ordine</p>
                 </div>
-                <Button size="sm" onClick={() => setDuvriDialogOpen(true)}>
+                <Button size="sm" onClick={() => setDuvriDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
                   <Plus className="h-4 w-4 mr-1" /> Genera DUVRI
                 </Button>
               </CardContent>
@@ -853,7 +858,7 @@ export default function SicurezzaCantiere() {
         <TabsContent value="verbali" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Verbali ispezioni e sopralluoghi D.Lgs 81/08</p>
-            <Button size="sm" onClick={() => setVerbaleDialogOpen(true)}>
+            <Button size="sm" onClick={() => setVerbaleDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Nuovo verbale
             </Button>
           </div>
@@ -867,7 +872,7 @@ export default function SicurezzaCantiere() {
             <Card><CardContent className="py-10 text-center space-y-2">
               <ClipboardList className="h-10 w-10 text-muted-foreground/40 mx-auto" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">Nessun verbale registrato</p>
-              <Button size="sm" onClick={() => setVerbaleDialogOpen(true)}><Plus className="h-4 w-4 mr-1" />Aggiungi verbale</Button>
+              <Button size="sm" onClick={() => setVerbaleDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="h-4 w-4 mr-1" />Aggiungi verbale</Button>
             </CardContent></Card>
           ) : (
             <div className="space-y-2">
@@ -897,7 +902,7 @@ export default function SicurezzaCantiere() {
         <TabsContent value="subappaltatori" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Registro subappaltatori con verifica DURC</p>
-            <Button size="sm" onClick={() => setSubappaltatoreDialogOpen(true)}>
+            <Button size="sm" onClick={() => setSubappaltatoreDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
           </div>
@@ -911,7 +916,7 @@ export default function SicurezzaCantiere() {
             <Card><CardContent className="py-10 text-center space-y-2">
               <Building2 className="h-10 w-10 text-muted-foreground/40 mx-auto" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">Nessun subappaltatore registrato</p>
-              <Button size="sm" onClick={() => setSubappaltatoreDialogOpen(true)}><Plus className="h-4 w-4 mr-1" />Aggiungi subappaltatore</Button>
+              <Button size="sm" onClick={() => setSubappaltatoreDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="h-4 w-4 mr-1" />Aggiungi subappaltatore</Button>
             </CardContent></Card>
           ) : (
             <div className="border rounded-lg overflow-hidden">
@@ -955,7 +960,7 @@ export default function SicurezzaCantiere() {
         <TabsContent value="scadenzario" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Adempimenti obbligatori D.Lgs 81/08</p>
-            <Button size="sm" onClick={() => setAdempimentoDialogOpen(true)}>
+            <Button size="sm" onClick={() => setAdempimentoDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
           </div>
@@ -969,7 +974,7 @@ export default function SicurezzaCantiere() {
             <Card><CardContent className="py-10 text-center space-y-2">
               <CalendarClock className="h-10 w-10 text-muted-foreground/40 mx-auto" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">Nessun adempimento in scadenzario</p>
-              <Button size="sm" onClick={() => setAdempimentoDialogOpen(true)}><Plus className="h-4 w-4 mr-1" />Aggiungi adempimento</Button>
+              <Button size="sm" onClick={() => setAdempimentoDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="h-4 w-4 mr-1" />Aggiungi adempimento</Button>
             </CardContent></Card>
           ) : (
             <div className="space-y-2">

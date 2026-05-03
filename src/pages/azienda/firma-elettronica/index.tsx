@@ -155,35 +155,39 @@ export default function FirmaElettronicaHub() {
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <FEABannerEsVsFea />
 
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <FileSignature className="h-6 w-6 text-orange-500" />
-            Documenti & FEA
-          </h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Gestisci template, documenti personalizzati e firme elettroniche avanzate
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {emailProvider?.is_active ? (
-            <Badge variant="outline" className="gap-1.5 border-green-200 text-green-700 bg-green-50">
-              <Mail className="h-3 w-3" />
-              Email transazionale · {emailProvider.provider ?? "attivo"}
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="gap-1.5 border-yellow-200 text-yellow-700 bg-yellow-50">
-              <AlertTriangle className="h-3 w-3" />
-              Email transazionale non configurata
-            </Badge>
-          )}
-          <Button
-            className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"
-            onClick={() => navigate('/azienda/firma-elettronica/nuovo-template')}
-          >
-            <Plus className="h-4 w-4" />
-            Nuovo Template
-          </Button>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+              <FileSignature className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-950">Documenti & FEA</h1>
+              <p className="text-sm text-slate-600">
+                Gestisci template, documenti personalizzati e firme elettroniche avanzate
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {emailProvider?.is_active ? (
+              <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
+                <Mail className="h-3 w-3" />
+                Email transazionale · {emailProvider.provider ?? "attivo"}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="gap-1.5 border-yellow-200 bg-yellow-50 text-yellow-700">
+                <AlertTriangle className="h-3 w-3" />
+                Email transazionale non configurata
+              </Badge>
+            )}
+            <Button
+              className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600"
+              onClick={() => navigate('/azienda/firma-elettronica/nuovo-template')}
+            >
+              <Plus className="h-4 w-4" />
+              Nuovo Template
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -211,22 +215,22 @@ export default function FirmaElettronicaHub() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="richieste" className="gap-1.5">
+        <TabsList className="h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+          <TabsTrigger value="richieste" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <Send className="h-3.5 w-3.5" /> Richieste firma
             {kpi.totale > 0 && <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[10px]">{kpi.totale}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="documenti" className="gap-1.5">
+          <TabsTrigger value="documenti" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <FileText className="h-3.5 w-3.5" /> Documenti compilati
           </TabsTrigger>
-          <TabsTrigger value="template" className="gap-1.5">
+          <TabsTrigger value="template" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <FileStack className="h-3.5 w-3.5" /> Template
           </TabsTrigger>
         </TabsList>
 
         {/* ── Tab RICHIESTE FIRMA ─────────────────────────────────────────── */}
         <TabsContent value="richieste" className="mt-4 space-y-3">
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input

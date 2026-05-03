@@ -30,6 +30,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import type { Permissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileAppGrid } from "@/components/layouts/MobileAppGrid";
+import { useAuth } from "@/contexts/AuthContext";
+import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 
 /* ── Tipi ──────────────────────────────────────────────── */
 interface BottomNavItem {
@@ -119,6 +121,7 @@ export function MobileBottomNav() {
   const location = useLocation();
   const { unreadCount } = useNotifications();
   const permissions = usePermissions();
+  const { role } = useAuth();
   const isMobile = useIsMobile();
   const [appGridOpen, setAppGridOpen] = useState(false);
 
@@ -149,7 +152,7 @@ export function MobileBottomNav() {
   const homeHref = section === "marketing"
     ? "/azienda/marketing"
     : section === "cruscotto"
-      ? "/azienda/cruscotto/aziendale"
+      ? (permissions.isLoading ? "/azienda/cruscotto" : getSmartCruscottoPath(permissions, role))
       : "/azienda";
 
   const isHomeActive = section === "marketing"

@@ -13,6 +13,7 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useAuth } from "@/contexts/AuthContext";
+import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
@@ -28,7 +29,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
   const { mode: billingMode } = useBillingMode();
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
   const gatingLoading = limitsLoading || flagsLoading;
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, role } = useAuth();
   const location = useLocation();
   const [search, setSearch] = useState("");
 
@@ -136,11 +137,18 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
                   <div className="grid grid-cols-4 gap-3">
                     {area.items.map((item) => {
                       const Icon = item.icon;
-                      const isActive = location.pathname === item.url || location.pathname.startsWith(item.url + "/");
+                      const itemUrl =
+                        item.url === "/azienda/cruscotto"
+                          ? (permissions.isLoading ? item.url : getSmartCruscottoPath(permissions, role))
+                          : item.url;
+                      const isActive =
+                        location.pathname === itemUrl ||
+                        location.pathname.startsWith(itemUrl + "/") ||
+                        (item.url === "/azienda/cruscotto" && location.pathname.startsWith("/azienda/cruscotto"));
                       return (
                         <Link
                           key={item.url}
-                          to={item.url}
+                          to={itemUrl}
                           onClick={handleNavigate}
                           className="flex flex-col items-center gap-1.5 min-w-0"
                         >

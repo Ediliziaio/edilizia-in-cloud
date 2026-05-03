@@ -100,46 +100,59 @@ export default function MarketingDashboard() {
 
       <ApiHealthBanner filter={["meta", "email_marketing"]} />
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <h1 className="text-lg sm:text-xl font-bold tracking-tight flex items-center gap-2">
-          <LayoutDashboard className="h-4 w-4 sm:h-5 sm:w-5" />
-          <span className="hidden sm:inline">Dashboard Marketing & Vendite</span>
-          <span className="sm:hidden">Marketing & Vendite</span>
-        </h1>
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-          {permissions.isAdmin && <SalesTargetsDialog />}
-          <DashboardCustomizePanel tabs={tabs} onToggle={toggleTabVisibility} />
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => refetch()} disabled={isLoading}>
-            <RefreshCw className="h-3.5 w-3.5 sm:mr-1" />
-            <span className="hidden sm:inline">Aggiorna</span>
-          </Button>
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleExportKPI} disabled={!data?.kpi}>
-            <Download className="h-3.5 w-3.5 sm:mr-1" />
-            <span className="hidden sm:inline">Esporta</span>
-          </Button>
-        </div>
-      </div>
-
       {/* Alert Banner */}
       <AlertBanner alerts={data?.alerts} isLoading={isLoading} />
 
-      {/* Filters */}
-      <DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} compact />
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 bg-gradient-to-br from-white via-white to-blue-50/80 p-4 sm:p-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 gap-3 sm:gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/20">
+              <LayoutDashboard className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#1e3a5f]">Regia commerciale</p>
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">Vista mese</span>
+              </div>
+              <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Marketing & Vendite</h1>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                Lead, pipeline, appuntamenti e conversioni in una vista unica. Prima guarda lo stato commerciale, poi passa alle azioni operative.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {permissions.isAdmin && <SalesTargetsDialog />}
+            <DashboardCustomizePanel tabs={tabs} onToggle={toggleTabVisibility} />
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => refetch()} disabled={isLoading}>
+              <RefreshCw className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Aggiorna</span>
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleExportKPI} disabled={!data?.kpi}>
+              <Download className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Esporta</span>
+            </Button>
+          </div>
+        </div>
 
-      {/* ═══ SEMAFORO COMMERCIALE ═══ */}
-      {data?.kpi && (
-        <SemaforoMarketing
-          leadsTotal={data.kpi.leads_total}
-          leadsNew={data.kpi.leads_new}
-          staleLeads={data.alerts?.stale_leads ?? 0}
-          pipelineValue={data.kpi.pipeline_active_value ?? 0}
-          pipelineDeclining={data.alerts?.pipeline_declining ?? false}
-          showRate={data.kpi.show_rate}
-          closeRate={data.kpi.close_rate}
-          contractsWon={data.kpi.contracts_won}
-        />
-      )}
+        <div className="border-t border-slate-200 bg-slate-50/70 p-3 sm:p-4">
+          <DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} compact />
+        </div>
+
+        {data?.kpi && (
+          <div className="border-t border-slate-200 p-3 sm:p-4">
+            <SemaforoMarketing
+              leadsTotal={data.kpi.leads_total}
+              leadsNew={data.kpi.leads_new}
+              staleLeads={data.alerts?.stale_leads ?? 0}
+              pipelineValue={data.kpi.pipeline_active_value ?? 0}
+              pipelineDeclining={data.alerts?.pipeline_declining ?? false}
+              showRate={data.kpi.show_rate}
+              closeRate={data.kpi.close_rate}
+              contractsWon={data.kpi.contracts_won}
+            />
+          </div>
+        )}
+      </section>
 
       {/* ═══ SALUTE COMMERCIALE + AZIONI DA FARE ═══ */}
       {data?.kpi && (

@@ -39,6 +39,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DEFAULT_CALENDAR_EVENT_COLORS, normalizeCalendarEventColors, type CalendarEventColorKey } from "@/lib/calendarUtils";
 
 type CalendarEmployee = {
@@ -235,7 +236,7 @@ function CalendarInner() {
   });
 
   // Fetch appointments
-  const { data: appointments = [] } = useQuery({
+  const { data: appointments = [], isLoading: isAppointmentsLoading } = useQuery({
     queryKey: ["appointments", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -886,6 +887,8 @@ function CalendarInner() {
     };
   }, [conflictCount, filteredAppointments.length, scheduledOrders, unplannedOrdersCount]);
 
+  const isStatsLoading = isLoading || isAppointmentsLoading;
+
   return (
     <div className="space-y-4">
       {/* Header compatto: titolo + toggle viste + azioni */}
@@ -1080,15 +1083,15 @@ function CalendarInner() {
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         <div className="rounded-lg border bg-card px-3 py-2">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Lavori pianificati</p>
-          <p className="mt-1 text-xl font-bold">{viewStats.scheduled}</p>
+          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className="mt-1 text-xl font-bold">{viewStats.scheduled}</p>}
         </div>
         <div className="rounded-lg border bg-card px-3 py-2">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Giornate lavoro</p>
-          <p className="mt-1 text-xl font-bold">{viewStats.workDays}</p>
+          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className="mt-1 text-xl font-bold">{viewStats.workDays}</p>}
         </div>
         <div className="rounded-lg border bg-card px-3 py-2">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Appuntamenti</p>
-          <p className="mt-1 text-xl font-bold">{viewStats.appointments}</p>
+          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className="mt-1 text-xl font-bold">{viewStats.appointments}</p>}
         </div>
         <button
           type="button"
@@ -1099,7 +1102,7 @@ function CalendarInner() {
           )}
         >
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Da pianificare</p>
-          <p className={cn("mt-1 text-xl font-bold", viewStats.unplanned > 0 && "text-amber-700")}>{viewStats.unplanned}</p>
+          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className={cn("mt-1 text-xl font-bold", viewStats.unplanned > 0 && "text-amber-700")}>{viewStats.unplanned}</p>}
         </button>
         <button
           type="button"
@@ -1110,7 +1113,7 @@ function CalendarInner() {
           )}
         >
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Conflitti</p>
-          <p className={cn("mt-1 text-xl font-bold", viewStats.conflicts > 0 && "text-red-700")}>{viewStats.conflicts}</p>
+          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className={cn("mt-1 text-xl font-bold", viewStats.conflicts > 0 && "text-red-700")}>{viewStats.conflicts}</p>}
         </button>
       </div>
 

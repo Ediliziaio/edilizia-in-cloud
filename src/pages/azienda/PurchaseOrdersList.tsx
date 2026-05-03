@@ -24,10 +24,10 @@ import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { formatCurrency } from "@/lib/formatters";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import {
   QuotePageHeader,
-  QuoteKpi,
-  QuoteHubTabs,
   QuoteChip,
   QuotePrimaryButton,
   type HubTab,
@@ -310,6 +310,7 @@ export default function PurchaseOrdersList() {
         title="Ordini d'Acquisto"
         subtitle="Documenti fornitore collegati a commesse, DDT, magazzino di arrivo e inventario."
         icon={<ShoppingCart className="h-5 w-5" />}
+        className="bg-gradient-to-br from-white via-white to-orange-50/40"
         actions={
           <>
             <DropdownMenu>
@@ -401,36 +402,36 @@ export default function PurchaseOrdersList() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <QuoteKpi
+        <OperationalKpiCard
           label="OdA attivi"
           value={kpis.activeCount}
-          variant="orange"
-          icon={<Activity className="h-4 w-4" />}
+          icon={Activity}
           hint={formatCurrency(kpis.activeTotal)}
+          tone="orange"
         />
-        <QuoteKpi
+        <OperationalKpiCard
           label="Da ricevere"
           value={kpis.toReceiveCount}
-          variant="orange"
-          icon={<Truck className="h-4 w-4" />}
+          icon={Truck}
           hint="monitor DDT"
+          tone="amber"
         />
-        <QuoteKpi
+        <OperationalKpiCard
           label="Valore totale"
           value={formatCurrency(kpis.totalAll)}
-          variant="green"
-          icon={<Wallet className="h-4 w-4" />}
+          icon={Wallet}
+          tone="green"
         />
-        <QuoteKpi
+        <OperationalKpiCard
           label="Collegati commesse"
           value={kpis.linkedCount}
-          variant="blue"
-          icon={<Link2 className="h-4 w-4" />}
+          icon={Link2}
           hint="origine lavori"
+          tone="blue"
         />
       </div>
 
-      <div className="grid gap-3 rounded-lg border bg-slate-50/70 p-3 text-sm lg:grid-cols-3">
+      <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm shadow-sm lg:grid-cols-3">
         <div className="flex gap-3">
           <ShoppingCart className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
           <div>
@@ -460,13 +461,43 @@ export default function PurchaseOrdersList() {
       </div>
 
       {/* Tabs + Search */}
-      <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
         <div className="flex-1 min-w-0">
-          <QuoteHubTabs tabs={hubTabs} active={tab} onSelect={setTab} />
+          <div className="flex overflow-x-auto gap-1 rounded-lg bg-slate-50 p-0.5">
+            {hubTabs.map((item) => {
+              const isActive = item.key === tab;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setTab(item.key)}
+                  className={cn(
+                    "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                    isActive
+                      ? "bg-orange-50 text-slate-950 shadow-sm ring-1 ring-orange-100"
+                      : "text-slate-500 hover:bg-white hover:text-slate-900"
+                  )}
+                >
+                  <span className={isActive ? "text-orange-500" : "text-slate-400"}>{item.icon}</span>
+                  {item.label}
+                  {typeof item.count === "number" && (
+                    <span className={cn(
+                      "rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
+                      isActive ? "bg-orange-100 text-orange-700" : "bg-slate-200 text-slate-500"
+                    )}>
+                      {item.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Cerca OdA..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
+          <Input placeholder="Cerca OdA..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-10 border-slate-200 pl-8 shadow-none" />
+        </div>
         </div>
       </div>
 

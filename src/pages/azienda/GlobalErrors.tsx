@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { endOfDay, format, isValid, parseISO, startOfMonth, subMonths } from "date-fns";
@@ -23,7 +23,15 @@ import {
   Wrench,
   UserCheck,
   Target,
+  Download,
+  UserRound,
+  Users,
+  CheckCircle2,
+  ClipboardCheck,
+  Clock3,
+  Sparkles,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -48,6 +56,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import {
   BarChart,
   Bar,
@@ -86,6 +95,8 @@ type ResponsibilityKey =
   | "internal"
   | "unassigned";
 type SeverityKey = "high" | "medium" | "low";
+type AttributionKind = "salesperson" | "employee" | "subcontractor" | "supplier" | "creator" | "unassigned";
+type ReviewStatus = "aperta" | "in_verifica" | "assegnata" | "risolta" | "non_imputabile";
 
 const TYPE_META: Record<NormalizedType, { label: string; icon: typeof Package; color: string; chartKey: "supply" | "execution" | "logistics" | "other" }> = {
   merce: { label: "Merce", icon: Package, color: "bg-red-50 text-red-700 border-red-200", chartKey: "supply" },
@@ -122,6 +133,23 @@ const SEVERITY_META: Record<SeverityKey, { label: string; color: string }> = {
   high: { label: "Critica", color: "bg-red-50 text-red-700 border-red-200" },
   medium: { label: "Da gestire", color: "bg-amber-50 text-amber-700 border-amber-200" },
   low: { label: "Minore", color: "bg-slate-50 text-slate-700 border-slate-200" },
+};
+
+const ATTRIBUTION_META: Record<AttributionKind, { label: string; shortLabel: string; icon: typeof UserRound; color: string }> = {
+  salesperson: { label: "Venditore", shortLabel: "Vend.", icon: UserRound, color: "bg-blue-50 text-blue-700 border-blue-200" },
+  employee: { label: "Operaio", shortLabel: "Operaio", icon: HardHat, color: "bg-purple-50 text-purple-700 border-purple-200" },
+  subcontractor: { label: "Subappaltatore", shortLabel: "Sub", icon: Users, color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  supplier: { label: "Fornitore", shortLabel: "Forn.", icon: Truck, color: "bg-orange-50 text-orange-700 border-orange-200" },
+  creator: { label: "Registrata da", shortLabel: "Autore", icon: UserCheck, color: "bg-slate-50 text-slate-700 border-slate-200" },
+  unassigned: { label: "Da assegnare", shortLabel: "N/D", icon: AlertTriangle, color: "bg-slate-50 text-slate-700 border-slate-200" },
+};
+
+const REVIEW_STATUS_META: Record<ReviewStatus, { label: string; color: string; icon: typeof Clock3 }> = {
+  aperta: { label: "Aperta", color: "bg-red-50 text-red-700 border-red-200", icon: AlertTriangle },
+  in_verifica: { label: "In verifica", color: "bg-amber-50 text-amber-700 border-amber-200", icon: Clock3 },
+  assegnata: { label: "Assegnata", color: "bg-blue-50 text-blue-700 border-blue-200", icon: ClipboardCheck },
+  risolta: { label: "Risolta", color: "bg-green-50 text-green-700 border-green-200", icon: CheckCircle2 },
+  non_imputabile: { label: "Non imputabile", color: "bg-slate-50 text-slate-700 border-slate-200", icon: CheckCircle2 },
 };
 
 const TYPE_ALIASES: Record<string, NormalizedType> = {
@@ -172,7 +200,41 @@ type OrderError = {
   amount: number | null;
   description: string | null;
   order_id: string;
+  created_by: string | null;
+  review_status?: ReviewStatus | null;
+  detailed_cause?: string | null;
+  process_origin?: string | null;
+  verify_role?: string | null;
+  corrective_action?: string | null;
+  corrective_due_date?: string | null;
+  confirmed_responsibility_kind?: string | null;
+  confirmed_responsibility_id?: string | null;
+  confirmed_responsibility_name?: string | null;
+  ai_cause_summary?: string | null;
+  ai_recommendation?: string | null;
+  resolved_at?: string | null;
+  resolved_by?: string | null;
   orders: { order_code: string | null; description: string | null } | null;
+};
+
+type ActorRef = {
+  id: string;
+  name: string;
+  kind: AttributionKind;
+};
+
+type ActorMaps = {
+  salespeople: Map<string, ActorRef[]>;
+  employees: Map<string, ActorRef[]>;
+  subcontractors: Map<string, ActorRef[]>;
+  suppliers: Map<string, ActorRef[]>;
+  creators: Map<string, ActorRef>;
+};
+
+type Attribution = {
+  actor: ActorRef;
+  confidence: "alta" | "media" | "bassa";
+  reason: string;
 };
 
 type EnrichedOrderError = OrderError & {
@@ -181,6 +243,15 @@ type EnrichedOrderError = OrderError & {
   responsibility: ResponsibilityKey;
   severity: SeverityKey;
   actionHint: string;
+  attributions: Attribution[];
+  reporter: ActorRef | null;
+  reviewStatus: ReviewStatus;
+  detailedCause: string | null;
+  processOrigin: string | null;
+  verifyRole: string | null;
+  correctiveAction: string | null;
+  aiRecommendation: string | null;
+  operationalDetail: string | null;
 };
 
 type SortDirection = "asc" | "desc";
@@ -260,11 +331,82 @@ function getActionHint(
   return "Assegna un responsabile e collega commessa, fornitore o DDT.";
 }
 
-function enrichError(error: OrderError): EnrichedOrderError {
+function extractStructuredField(description: string | null | undefined, label: string): string | null {
+  if (!description) return null;
+  const prefix = `${label}:`;
+  const line = description
+    .split("\n")
+    .map((item) => item.trim())
+    .find((item) => item.toLowerCase().startsWith(prefix.toLowerCase()));
+  if (!line) return null;
+  const value = line.slice(prefix.length).trim();
+  return value || null;
+}
+
+function normalizeReviewStatus(value: string | null | undefined): ReviewStatus {
+  if (value === "in_verifica" || value === "assegnata" || value === "risolta" || value === "non_imputabile") return value;
+  return "aperta";
+}
+
+function uniqueActors(actors: ActorRef[]): ActorRef[] {
+  const map = new Map<string, ActorRef>();
+  actors.forEach((actor) => map.set(`${actor.kind}:${actor.id}:${actor.name}`, actor));
+  return [...map.values()];
+}
+
+function addActors(
+  attributions: Attribution[],
+  actors: ActorRef[],
+  confidence: Attribution["confidence"],
+  reason: string,
+) {
+  uniqueActors(actors).forEach((actor) => {
+    attributions.push({ actor, confidence, reason });
+  });
+}
+
+function inferAttributions(error: OrderError, actorMaps: ActorMaps): Attribution[] {
+  const type = normalizeType(error.error_type);
+  const category = normalizeCategory(error.error_category);
+  const suppliers = actorMaps.suppliers.get(error.order_id) ?? [];
+  const employees = actorMaps.employees.get(error.order_id) ?? [];
+  const subcontractors = actorMaps.subcontractors.get(error.order_id) ?? [];
+  const salespeople = actorMaps.salespeople.get(error.order_id) ?? [];
+  const attributions: Attribution[] = [];
+
+  if (type === "fornitura" || ["fornitore", "difetto_prodotto", "difetto_materiale", "ritardo"].includes(category)) {
+    addActors(attributions, suppliers, "alta", "Causa collegata a fornitura, materiale o ritardo su commessa con fornitore associato.");
+  }
+  if (type === "logistica" || category === "danno_materiale") {
+    addActors(attributions, suppliers, suppliers.length ? "media" : "bassa", "Possibile responsabilità logistica o consegna materiale.");
+    addActors(attributions, subcontractors, "media", "Danno o logistica su commessa con squadra esterna collegata.");
+  }
+  if (type === "manodopera" || type === "esecuzione" || category === "lavorazione") {
+    addActors(attributions, employees, "alta", "Causa collegata a lavorazione o manodopera su commessa con operai assegnati.");
+    addActors(attributions, subcontractors, "alta", "Causa collegata a esecuzione su commessa con subappaltatore assegnato.");
+  }
+  if (category === "misura" || category === "quantita" || category === "comunicazione") {
+    addActors(attributions, salespeople, "media", "Causa commerciale/tecnica ricorrente su ordine con venditore associato.");
+    addActors(attributions, employees, "media", "Possibile contributo operativo su misura, quantità o passaggio informazioni.");
+  }
+
+  if (attributions.length === 0) {
+    attributions.push({
+      actor: { id: "unassigned", name: "Da assegnare", kind: "unassigned" },
+      confidence: "bassa",
+      reason: "Non ci sono venditori, operai, subappaltatori o fornitori collegati alla commessa.",
+    });
+  }
+
+  return attributions;
+}
+
+function enrichError(error: OrderError, actorMaps: ActorMaps): EnrichedOrderError {
   const normalizedType = normalizeType(error.error_type);
   const normalizedCategory = normalizeCategory(error.error_category);
   const responsibility = inferResponsibility(normalizedType, normalizedCategory);
   const severity = inferSeverity(Number(error.amount ?? 0));
+  const reporter = error.created_by ? actorMaps.creators.get(error.created_by) ?? null : null;
   return {
     ...error,
     normalizedType,
@@ -272,6 +414,15 @@ function enrichError(error: OrderError): EnrichedOrderError {
     responsibility,
     severity,
     actionHint: getActionHint(responsibility, normalizedCategory),
+    attributions: inferAttributions(error, actorMaps),
+    reporter,
+    reviewStatus: normalizeReviewStatus(error.review_status),
+    detailedCause: error.detailed_cause ?? extractStructuredField(error.description, "Causa precisa"),
+    processOrigin: error.process_origin ?? extractStructuredField(error.description, "Origine processo"),
+    verifyRole: error.verify_role ?? extractStructuredField(error.description, "Soggetto da verificare"),
+    correctiveAction: error.corrective_action ?? extractStructuredField(error.description, "Azione correttiva"),
+    aiRecommendation: error.ai_recommendation ?? null,
+    operationalDetail: extractStructuredField(error.description, "Dettaglio") ?? error.description,
   };
 }
 
@@ -308,9 +459,49 @@ function getErrorAmount(value: number | null | undefined): number {
   return Number.isFinite(amount) ? amount : 0;
 }
 
+function getActorKey(actor: ActorRef): string {
+  return `${actor.kind}:${actor.id}`;
+}
+
+function getConfidenceScore(confidence: Attribution["confidence"]): number {
+  if (confidence === "alta") return 90;
+  if (confidence === "media") return 60;
+  return 30;
+}
+
+function getAttributionAction(item: {
+  actor: ActorRef;
+  high: number;
+  topCause: string;
+  amount: number;
+  count: number;
+}) {
+  if (item.actor.kind === "supplier") {
+    return item.high > 0
+      ? "Apri verifica fornitore: DDT, foto danni, reclamo e blocco riordini critici."
+      : "Controlla condizioni fornitore e ricorrenza su materiali/ritardi.";
+  }
+  if (item.actor.kind === "employee") {
+    return "Pianifica confronto operativo: checklist posa, rilievi e correzione processo.";
+  }
+  if (item.actor.kind === "subcontractor") {
+    return "Rivedi SLA subappalto, qualità consegna e trattenute su lavorazioni ricorrenti.";
+  }
+  if (item.actor.kind === "salesperson") {
+    return "Rivedi passaggio commerciale-tecnico: misure, quantità e informazioni cliente.";
+  }
+  return "Manca un collegamento operativo: assegna venditore, fornitore, squadra o operaio alla commessa.";
+}
+
 function formatErrorDate(value: string | null | undefined): string {
   const parsed = parseErrorDate(value);
   return parsed ? format(parsed, "dd/MM/yyyy") : "Data mancante";
+}
+
+function csvEscape(value: string | number | null | undefined): string {
+  const raw = String(value ?? "");
+  const escaped = raw.replace(/"/g, '""');
+  return `"${escaped}"`;
 }
 
 function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {
@@ -398,53 +589,21 @@ function FilterSelect({
   );
 }
 
-function MetricCard({
-  title,
-  value,
-  detail,
-  icon: Icon,
-  tone = "default",
-}: {
-  title: string;
-  value: string;
-  detail?: string;
-  icon: typeof Package;
-  tone?: "default" | "danger" | "warning" | "success";
-}) {
-  const toneClasses = {
-    default: "text-slate-900",
-    danger: "text-red-600",
-    warning: "text-orange-600",
-    success: "text-emerald-600",
-  };
-
-  return (
-    <Card className="overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className={cn("h-4 w-4", toneClasses[tone])} />
-      </CardHeader>
-      <CardContent>
-        <div className={cn("text-2xl font-bold", toneClasses[tone])}>{value}</div>
-        {detail && <p className="mt-1 text-xs text-muted-foreground">{detail}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function GlobalErrors() {
   const companyId = useEffectiveCompanyId();
+  const queryClient = useQueryClient();
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [localFilters, setLocalFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const [attributionFilter, setAttributionFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<{ key: ErrorSortKey; direction: SortDirection }>({
     key: "date",
     direction: "desc",
   });
 
-  const activeFilterCount = countActiveFilters(filters);
+  const activeFilterCount = countActiveFilters(filters) + (attributionFilter !== "all" ? 1 : 0);
 
   const handleOpenFilters = () => {
     setLocalFilters(filters);
@@ -459,7 +618,14 @@ export default function GlobalErrors() {
   const handleResetFilters = () => {
     setLocalFilters(EMPTY_FILTERS);
     setFilters(EMPTY_FILTERS);
+    setAttributionFilter("all");
     setFiltersOpen(false);
+  };
+
+  const applyQuickFilter = (patch: Partial<FilterState>) => {
+    const next = { ...EMPTY_FILTERS, ...patch };
+    setLocalFilters(next);
+    setFilters(next);
   };
 
   const handleSort = (key: ErrorSortKey) => {
@@ -468,6 +634,37 @@ export default function GlobalErrors() {
       direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
     }));
   };
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: ReviewStatus }) => {
+      const patch: Record<string, unknown> = {
+        review_status: status,
+        updated_at: new Date().toISOString(),
+      };
+      if (status === "risolta" || status === "non_imputabile") {
+        patch.resolved_at = new Date().toISOString();
+      }
+      const { error: updateError } = await (supabase.from("order_errors") as any)
+        .update(patch)
+        .eq("id", id)
+        .eq("company_id", companyId);
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["global-errors", companyId] });
+      toast.success("Stato anomalia aggiornato");
+    },
+    onError: (err: any) => {
+      const message = String(err?.message ?? "");
+      if (/schema cache|column|review_status/i.test(message)) {
+        toast.error("Migration richiesta", {
+          description: "I nuovi campi workflow non sono ancora presenti nel database.",
+        });
+        return;
+      }
+      toast.error("Impossibile aggiornare lo stato");
+    },
+  });
 
   const { data: errors = [], isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["global-errors", companyId],
@@ -486,7 +683,98 @@ export default function GlobalErrors() {
     gcTime: 5 * 60 * 1000,
   });
 
-  const enrichedErrors = useMemo(() => errors.map(enrichError), [errors]);
+  const errorOrderIds = useMemo(() => [...new Set(errors.map((e) => e.order_id).filter(Boolean))], [errors]);
+  const errorCreatorIds = useMemo(() => [...new Set(errors.map((e) => e.created_by).filter(Boolean) as string[])], [errors]);
+
+  const emptyActorMaps = useMemo<ActorMaps>(() => ({
+    salespeople: new Map(),
+    employees: new Map(),
+    subcontractors: new Map(),
+    suppliers: new Map(),
+    creators: new Map(),
+  }), []);
+
+  const { data: actorMaps = emptyActorMaps, isFetching: isFetchingActors } = useQuery({
+    queryKey: ["order-error-attribution-actors", companyId, errorOrderIds, errorCreatorIds],
+    enabled: !!companyId && errorOrderIds.length > 0,
+    queryFn: async (): Promise<ActorMaps> => {
+      const [salespeopleRes, employeesRes, teamsRes, itemsRes, creatorsRes] = await Promise.all([
+        supabase
+          .from("order_salespeople")
+          .select("order_id, salesperson_id, salesperson:salespeople(id, first_name, last_name)")
+          .in("order_id", errorOrderIds),
+        supabase
+          .from("order_employees")
+          .select("order_id, employee_id, employee:employees(id, first_name, last_name)")
+          .in("order_id", errorOrderIds),
+        supabase
+          .from("order_external_teams")
+          .select("order_id, external_team_id, external_team:external_teams(id, name)")
+          .in("order_id", errorOrderIds),
+        supabase
+          .from("order_items")
+          .select("order_id, supplier_id, supplier:suppliers(id, name)")
+          .in("order_id", errorOrderIds),
+        errorCreatorIds.length > 0
+          ? supabase
+              .from("profiles")
+              .select("id, first_name, last_name, email")
+              .in("id", errorCreatorIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      const firstError = [salespeopleRes.error, employeesRes.error, teamsRes.error, itemsRes.error, creatorsRes.error].find(Boolean);
+      if (firstError) throw firstError;
+
+      const maps: ActorMaps = {
+        salespeople: new Map(),
+        employees: new Map(),
+        subcontractors: new Map(),
+        suppliers: new Map(),
+        creators: new Map(),
+      };
+      const pushActor = (map: Map<string, ActorRef[]>, orderId: string, actor: ActorRef) => {
+        const existing = map.get(orderId) ?? [];
+        if (!existing.some((item) => item.kind === actor.kind && item.id === actor.id)) {
+          existing.push(actor);
+        }
+        map.set(orderId, existing);
+      };
+
+      (salespeopleRes.data ?? []).forEach((row: any) => {
+        const person = row.salesperson;
+        if (!person) return;
+        const name = `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Venditore senza nome";
+        pushActor(maps.salespeople, row.order_id, { id: row.salesperson_id, name, kind: "salesperson" });
+      });
+      (employeesRes.data ?? []).forEach((row: any) => {
+        const person = row.employee;
+        if (!person) return;
+        const name = `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim() || "Operaio senza nome";
+        pushActor(maps.employees, row.order_id, { id: row.employee_id, name, kind: "employee" });
+      });
+      (teamsRes.data ?? []).forEach((row: any) => {
+        const team = row.external_team;
+        if (!team) return;
+        pushActor(maps.subcontractors, row.order_id, { id: row.external_team_id, name: team.name || "Subappaltatore senza nome", kind: "subcontractor" });
+      });
+      (itemsRes.data ?? []).forEach((row: any) => {
+        const supplier = row.supplier;
+        if (!supplier || !row.supplier_id) return;
+        pushActor(maps.suppliers, row.order_id, { id: row.supplier_id, name: supplier.name || "Fornitore senza nome", kind: "supplier" });
+      });
+      (creatorsRes.data ?? []).forEach((profile: any) => {
+        const name = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email || "Utente";
+        maps.creators.set(profile.id, { id: profile.id, name, kind: "creator" });
+      });
+
+      return maps;
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  const enrichedErrors = useMemo(() => errors.map((item) => enrichError(item, actorMaps)), [errors, actorMaps]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -495,6 +783,7 @@ export default function GlobalErrors() {
       if (filters.type !== "all" && e.normalizedType !== filters.type) return false;
       if (filters.responsibility !== "all" && e.responsibility !== filters.responsibility) return false;
       if (filters.severity !== "all" && e.severity !== filters.severity) return false;
+      if (attributionFilter !== "all" && !e.attributions.some((item) => getActorKey(item.actor) === attributionFilter)) return false;
       if (filters.dateFrom || filters.dateTo) {
         const d = parseErrorDate(e.error_date);
         if (!d) return false;
@@ -510,6 +799,14 @@ export default function GlobalErrors() {
           CATEGORY_META[e.normalizedCategory].label,
           RESPONSIBILITY_META[e.responsibility].label,
           SEVERITY_META[e.severity].label,
+          e.detailedCause,
+          e.processOrigin,
+          e.verifyRole,
+          REVIEW_STATUS_META[e.reviewStatus].label,
+          ...e.attributions.map((item) => item.actor.name),
+          ...e.attributions.map((item) => ATTRIBUTION_META[item.actor.kind].label),
+          e.reporter?.name,
+          e.reporter ? "registrata da" : "",
         ]
           .filter(Boolean)
           .join(" ")
@@ -546,7 +843,7 @@ export default function GlobalErrors() {
       const order = compareSortValues(getSortValue(a, sort.key), getSortValue(b, sort.key));
       return sort.direction === "asc" ? order : -order;
     });
-  }, [enrichedErrors, filters, search, sort]);
+  }, [enrichedErrors, filters, attributionFilter, search, sort]);
 
   const stats = useMemo(() => {
     const totalLoss = filtered.reduce((s, e) => s + getErrorAmount(e.amount), 0);
@@ -579,11 +876,21 @@ export default function GlobalErrors() {
       ritardo: 0,
       altro: 0,
     };
+    const detailedTotals = new Map<string, number>();
+    const statusTotals: Record<ReviewStatus, number> = {
+      aperta: 0,
+      in_verifica: 0,
+      assegnata: 0,
+      risolta: 0,
+      non_imputabile: 0,
+    };
 
     filtered.forEach((e) => {
       responsibilityTotals[e.responsibility].amount += getErrorAmount(e.amount);
       responsibilityTotals[e.responsibility].count += 1;
       categoryTotals[e.normalizedCategory] += 1;
+      if (e.detailedCause) detailedTotals.set(e.detailedCause, (detailedTotals.get(e.detailedCause) ?? 0) + 1);
+      statusTotals[e.reviewStatus] += 1;
     });
 
     const topResponsibility = Object.entries(responsibilityTotals)
@@ -594,8 +901,9 @@ export default function GlobalErrors() {
     const topCategory = Object.entries(categoryTotals)
       .filter(([, count]) => count > 0)
       .sort((a, b) => b[1] - a[1])[0] as [NormalizedCategory, number] | undefined;
+    const topDetailedCause = [...detailedTotals.entries()].sort((a, b) => b[1] - a[1])[0];
 
-    return { totalLoss, critical, thisMonth, responsibilityTotals, topResponsibility, topCategory };
+    return { totalLoss, critical, thisMonth, responsibilityTotals, topResponsibility, topCategory, topDetailedCause, statusTotals };
   }, [filtered]);
 
   const categoryChart = useMemo(() => {
@@ -636,6 +944,182 @@ export default function GlobalErrors() {
       .sort((a, b) => b.amount - a.amount);
   }, [stats.responsibilityTotals]);
 
+  const detailedCauseChart = useMemo(() => {
+    const map = new Map<string, { cause: string; amount: number; count: number }>();
+    filtered.forEach((errorRow) => {
+      const cause = errorRow.detailedCause || CATEGORY_META[errorRow.normalizedCategory].label;
+      const current = map.get(cause) ?? { cause, amount: 0, count: 0 };
+      current.amount += getErrorAmount(errorRow.amount);
+      current.count += 1;
+      map.set(cause, current);
+    });
+    return [...map.values()].sort((a, b) => b.amount - a.amount || b.count - a.count).slice(0, 7);
+  }, [filtered]);
+
+  const attributionStats = useMemo(() => {
+    const map = new Map<string, {
+      actor: ActorRef;
+      amount: number;
+      count: number;
+      high: number;
+      score: number;
+      causes: Map<NormalizedCategory, number>;
+      reasons: Set<string>;
+    }>();
+
+    enrichedErrors.forEach((errorRow) => {
+      const amount = getErrorAmount(errorRow.amount);
+      uniqueActors(errorRow.attributions.map((item) => item.actor)).forEach((actor) => {
+        const attribution = errorRow.attributions.find((item) => getActorKey(item.actor) === getActorKey(actor));
+        if (!attribution) return;
+        const key = getActorKey(actor);
+        const current = map.get(key) ?? {
+          actor,
+          amount: 0,
+          count: 0,
+          high: 0,
+          score: 0,
+          causes: new Map<NormalizedCategory, number>(),
+          reasons: new Set<string>(),
+        };
+        current.amount += amount;
+        current.count += 1;
+        current.high += errorRow.severity === "high" ? 1 : 0;
+        current.score += getConfidenceScore(attribution.confidence);
+        current.causes.set(errorRow.normalizedCategory, (current.causes.get(errorRow.normalizedCategory) ?? 0) + 1);
+        current.reasons.add(attribution.reason);
+        map.set(key, current);
+      });
+    });
+
+    return [...map.values()]
+      .map((item) => {
+        const topCause = [...item.causes.entries()].sort((a, b) => b[1] - a[1])[0];
+        return {
+          ...item,
+          avgConfidence: item.count > 0 ? Math.round(item.score / item.count) : 0,
+          topCause: topCause ? CATEGORY_META[topCause[0]].label : "Nessuna causa",
+          topCauseCount: topCause?.[1] ?? 0,
+          firstReason: [...item.reasons][0] ?? "Pattern rilevato dal collegamento alla commessa.",
+        };
+      })
+      .filter((item) => item.actor.kind !== "creator")
+      .sort((a, b) => b.amount - a.amount || b.count - a.count);
+  }, [enrichedErrors]);
+
+  const filteredAttributionStats = useMemo(() => {
+    const currentKeys = new Set(filtered.flatMap((errorRow) => errorRow.attributions.map((item) => getActorKey(item.actor))));
+    return attributionStats.filter((item) => currentKeys.has(getActorKey(item.actor)));
+  }, [attributionStats, filtered]);
+
+  const topAttribution = filteredAttributionStats[0] ?? null;
+
+  const attributionRoleStats = useMemo(() => {
+    const map = new Map<AttributionKind, { kind: AttributionKind; amount: number; count: number; actors: number; high: number }>();
+    filteredAttributionStats.forEach((item) => {
+      const current = map.get(item.actor.kind) ?? {
+        kind: item.actor.kind,
+        amount: 0,
+        count: 0,
+        actors: 0,
+        high: 0,
+      };
+      current.amount += item.amount;
+      current.count += item.count;
+      current.actors += 1;
+      current.high += item.high;
+      map.set(item.actor.kind, current);
+    });
+    return [...map.values()].sort((a, b) => b.amount - a.amount || b.count - a.count);
+  }, [filteredAttributionStats]);
+
+  const controlPlan = useMemo(() => {
+    return filteredAttributionStats
+      .filter((item) => item.actor.kind !== "creator")
+      .slice(0, 3)
+      .map((item) => ({
+        key: getActorKey(item.actor),
+        title: `${ATTRIBUTION_META[item.actor.kind].label}: ${item.actor.name}`,
+        impact: item.amount,
+        cases: item.count,
+        action: getAttributionAction(item),
+      }));
+  }, [filteredAttributionStats]);
+
+  const aiExecutiveInsight = useMemo(() => {
+    const openCritical = filtered.filter((item) => item.severity === "high" && item.reviewStatus !== "risolta" && item.reviewStatus !== "non_imputabile");
+    const topCause = detailedCauseChart[0];
+    const topActor = filteredAttributionStats[0];
+    if (!topCause && !topActor && openCritical.length === 0) {
+      return "Non emergono pattern critici nel perimetro filtrato. Continua a registrare cause precise per migliorare l'analisi.";
+    }
+    const parts = [];
+    if (openCritical.length > 0) parts.push(`${openCritical.length} anomalie critiche sono ancora aperte o in verifica`);
+    if (topCause) parts.push(`la causa più costosa è ${topCause.cause} (${formatCurrency(topCause.amount)})`);
+    if (topActor) parts.push(`il soggetto più ricorrente da verificare è ${topActor.actor.name}`);
+    return `AI controllo perdite: ${parts.join(", ")}. Azione consigliata: parti dal piano di autocontrollo e chiudi prima le anomalie critiche.`;
+  }, [detailedCauseChart, filtered, filteredAttributionStats]);
+
+  const highestLoss = filtered[0]
+    ? [...filtered].sort((a, b) => getErrorAmount(b.amount) - getErrorAmount(a.amount))[0]
+    : null;
+
+  const unassignedCount = filtered.filter((e) => e.responsibility === "unassigned").length;
+  const supplierCount = filtered.filter((e) => e.responsibility === "supplier").length;
+
+  const exportFilteredCsv = () => {
+    const headers = [
+      "Data",
+      "Commessa",
+      "Descrizione commessa",
+      "Registrata da",
+      "Sorgente",
+      "Causa",
+      "Causa precisa",
+      "Origine processo",
+      "Soggetto da verificare",
+      "Stato gestione",
+      "Responsabilita",
+      "Priorita",
+      "Attribuzione probabile",
+      "Confidenza",
+      "Importo",
+      "Descrizione anomalia",
+      "Azione suggerita",
+    ];
+    const rows = filtered.map((e) => [
+      formatErrorDate(e.error_date),
+      e.orders?.order_code ?? "",
+      e.orders?.description ?? "",
+      e.reporter?.name ?? "",
+      TYPE_META[e.normalizedType].label,
+      CATEGORY_META[e.normalizedCategory].label,
+      e.detailedCause ?? "",
+      e.processOrigin ?? "",
+      e.verifyRole ?? "",
+      REVIEW_STATUS_META[e.reviewStatus].label,
+      RESPONSIBILITY_META[e.responsibility].label,
+      SEVERITY_META[e.severity].label,
+      e.attributions.map((item) => `${ATTRIBUTION_META[item.actor.kind].label}: ${item.actor.name}`).join(" | "),
+      e.attributions.map((item) => item.confidence).join(" | "),
+      getErrorAmount(e.amount).toFixed(2),
+      e.description ?? "",
+      e.actionHint,
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map(csvEscape).join(";"))
+      .join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `anomalie-ordini-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const monthlyChart = useMemo(() => {
     const now = new Date();
     const months: { label: string; start: Date; end: Date }[] = [];
@@ -675,7 +1159,7 @@ export default function GlobalErrors() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 pb-5 pt-5 shadow-sm sm:px-6">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 pb-5 pt-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -690,77 +1174,394 @@ export default function GlobalErrors() {
               </p>
             </div>
           </div>
-          <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
-            <div className="relative min-w-[260px] flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Cerca commessa, causa, responsabile..."
-                className="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="relative h-9 shrink-0 text-xs"
-              onClick={handleOpenFilters}
-            >
-              <Filter className="mr-1.5 h-3.5 w-3.5" />
-              Filtri
-              {activeFilterCount > 0 && (
-                <span className="ml-1.5 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                  {activeFilterCount}
-                </span>
-              )}
-            </Button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+          <div className="relative min-w-[260px] flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Cerca commessa, causa, responsabile..."
+              className="h-10 w-full rounded-md border border-slate-200 bg-background pl-9 pr-3 text-sm shadow-none outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+            />
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="relative h-10 shrink-0 text-xs"
+            onClick={handleOpenFilters}
+          >
+            <Filter className="mr-1.5 h-3.5 w-3.5" />
+            Filtri
+            {activeFilterCount > 0 && (
+              <span className="ml-1.5 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <MetricCard
-          title="Totale perdite"
+        <OperationalKpiCard
+          label="Totale perdite"
           value={formatCurrency(stats.totalLoss)}
-          detail={`${filtered.length} anomalie nel perimetro`}
+          hint={`${filtered.length} anomalie nel perimetro`}
           icon={TrendingDown}
-          tone="danger"
+          tone="red"
         />
-        <MetricCard
-          title="Responsabilità principale"
+        <OperationalKpiCard
+          label="Responsabilità principale"
           value={stats.topResponsibility ? RESPONSIBILITY_META[stats.topResponsibility[0]].shortLabel : "Nessuna"}
-          detail={
+          hint={
             stats.topResponsibility
               ? `${formatCurrency(stats.topResponsibility[1].amount)} su ${stats.topResponsibility[1].count} casi`
               : "Nessuna anomalia filtrata"
           }
           icon={UserCheck}
-          tone="warning"
+          tone="orange"
         />
-        <MetricCard
-          title="Anomalie critiche"
+        <OperationalKpiCard
+          label="Anomalie critiche"
           value={String(stats.critical.length)}
-          detail={
+          hint={
             stats.critical.length > 0
               ? `${formatCurrency(stats.critical.reduce((s, e) => s + getErrorAmount(e.amount), 0))} da presidiare`
               : "Nessuna perdita sopra soglia"
           }
           icon={Target}
-          tone={stats.critical.length > 0 ? "danger" : "success"}
+          tone={stats.critical.length > 0 ? "red" : "green"}
         />
-        <MetricCard
-          title="Questo mese"
+        <OperationalKpiCard
+          label="Questo mese"
           value={formatCurrency(stats.thisMonth)}
-          detail={
-            stats.topCategory
-              ? `Causa frequente: ${CATEGORY_META[stats.topCategory[0]].label} (${stats.topCategory[1]})`
+          hint={
+            stats.topDetailedCause
+              ? `Causa precisa: ${stats.topDetailedCause[0]} (${stats.topDetailedCause[1]})`
+              : stats.topCategory
+                ? `Causa frequente: ${CATEGORY_META[stats.topCategory[0]].label} (${stats.topCategory[1]})`
               : "Nessuna causa ricorrente"
           }
           icon={CalendarDays}
+          tone="blue"
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_0.72fr]">
+      <div className="grid gap-4 lg:grid-cols-[1fr_0.74fr]">
+        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Cosa fare ora</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => applyQuickFilter({ severity: "high" })}
+              className="rounded-xl border border-red-100 bg-red-50/70 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm"
+            >
+              <p className="text-xs font-semibold uppercase text-red-700">Priorità</p>
+              <p className="mt-1 text-lg font-bold text-red-700">{stats.critical.length} critiche</p>
+              <p className="text-xs text-red-700/80">Isola le anomalie sopra soglia.</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => applyQuickFilter({ responsibility: "supplier" })}
+              className="rounded-xl border border-orange-100 bg-orange-50/70 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm"
+            >
+              <p className="text-xs font-semibold uppercase text-orange-700">Fornitori</p>
+              <p className="mt-1 text-lg font-bold text-orange-700">{supplierCount} casi</p>
+              <p className="text-xs text-orange-700/80">Apri reclami e ricorrenze.</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => applyQuickFilter({ responsibility: "unassigned" })}
+              className="rounded-xl border border-slate-200 bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm"
+            >
+              <p className="text-xs font-semibold uppercase text-slate-600">Governance</p>
+              <p className="mt-1 text-lg font-bold text-slate-900">{unassignedCount} da assegnare</p>
+              <p className="text-xs text-slate-500">Dai un responsabile operativo.</p>
+            </button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 bg-white shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Azioni rapide</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              className="justify-start border-slate-200"
+              onClick={() => applyQuickFilter({ dateFrom: startOfMonth(new Date()), dateTo: new Date() })}
+            >
+              <CalendarDays className="mr-2 h-4 w-4 text-orange-500" />
+              Vedi solo questo mese
+            </Button>
+            <Button
+              variant="outline"
+              className="justify-start border-slate-200"
+              onClick={exportFilteredCsv}
+              disabled={filtered.length === 0}
+            >
+              <Download className="mr-2 h-4 w-4 text-orange-500" />
+              Esporta anomalie filtrate
+            </Button>
+            {highestLoss && (
+              <Button
+                asChild
+                variant="outline"
+                className="justify-start border-slate-200"
+              >
+                <Link to={`/azienda/ordini/${highestLoss.order_id}`}>
+                  <Target className="mr-2 h-4 w-4 text-red-500" />
+                  Apri perdita maggiore: {formatCurrency(getErrorAmount(highestLoss.amount))}
+                </Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+        <Card className="border-orange-200 bg-gradient-to-br from-orange-50/80 via-white to-white shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="h-4 w-4 text-orange-500" />
+              AI controllo perdite
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm leading-relaxed text-slate-700">{aiExecutiveInsight}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 bg-white shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Stato gestione anomalie</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-2 md:grid-cols-5">
+            {(Object.entries(REVIEW_STATUS_META) as [ReviewStatus, typeof REVIEW_STATUS_META[ReviewStatus]][]).map(([status, meta]) => {
+              const Icon = meta.icon;
+              return (
+                <div key={status} className="rounded-xl border border-slate-200 bg-slate-50/70 p-2">
+                  <div className="flex items-center gap-1.5">
+                    <Icon className="h-3.5 w-3.5 text-slate-500" />
+                    <span className="text-[11px] font-medium text-slate-600">{meta.label}</span>
+                  </div>
+                  <p className="mt-1 text-lg font-bold text-slate-950">{stats.statusTotals[status]}</p>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-slate-200 bg-white shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-base">Statistiche responsabilità specifiche</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Il sistema incrocia anomalie, causa, commessa, venditori, operai, subappaltatori e fornitori collegati. Chi registra l'anomalia resta tracciato, ma non viene contato come causa.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {attributionFilter !== "all" && (
+                <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setAttributionFilter("all")}>
+                  <RotateCcw className="mr-1 h-3 w-3" />
+                  Tutti
+                </Button>
+              )}
+              {isFetchingActors && <span className="text-xs text-muted-foreground">Aggiornamento attribuzioni...</span>}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {filteredAttributionStats.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-6 text-center">
+              <p className="text-sm font-medium text-slate-700">Nessun collegamento persona/fornitore trovato</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Assegna venditori, operai, subappaltatori o fornitori alle commesse per attivare l'analisi automatica.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+                {attributionRoleStats.map((role) => {
+                  const meta = ATTRIBUTION_META[role.kind];
+                  const Icon = meta.icon;
+                  return (
+                    <div key={role.kind} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                      <div className="flex items-center gap-2">
+                        <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg border", meta.color)}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-800">{meta.label}</p>
+                          <p className="text-[11px] text-muted-foreground">{role.actors} soggetti</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-end justify-between gap-2">
+                        <p className="text-sm font-bold text-slate-950">{formatCurrency(role.amount)}</p>
+                        <p className={cn("text-xs font-semibold", role.high > 0 ? "text-red-600" : "text-slate-500")}>
+                          {role.count} casi
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+                {filteredAttributionStats.slice(0, 8).map((item) => {
+                  const meta = ATTRIBUTION_META[item.actor.kind];
+                  const Icon = meta.icon;
+                  const actorKey = getActorKey(item.actor);
+                  const active = attributionFilter === actorKey;
+                  return (
+                    <button
+                      key={actorKey}
+                      type="button"
+                      onClick={() => setAttributionFilter(active ? "all" : actorKey)}
+                      className={cn(
+                        "rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md",
+                        active ? "border-orange-200 bg-orange-50/70 shadow-sm" : "border-slate-200 bg-gradient-to-br from-white to-slate-50/80",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border", meta.color)}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-950">{item.actor.name}</p>
+                            <p className="text-xs text-muted-foreground">{meta.label}</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className={cn("shrink-0 border", meta.color)}>
+                          {item.avgConfidence}%
+                        </Badge>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <div>
+                          <p className="text-lg font-bold text-slate-950">{formatCurrency(item.amount)}</p>
+                          <p className="text-[11px] text-muted-foreground">impatto attribuito</p>
+                        </div>
+                        <div>
+                          <p className={cn("text-lg font-bold", item.high > 0 ? "text-red-600" : "text-slate-950")}>{item.count}</p>
+                          <p className="text-[11px] text-muted-foreground">casi · {item.high} critici</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 rounded-xl bg-white/75 p-2 text-xs text-slate-600">
+                        <span className="font-semibold text-slate-800">Causa top:</span> {item.topCause} ({item.topCauseCount})
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-[11px] text-muted-foreground">
+                        {getAttributionAction(item)}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {(topAttribution || controlPlan.length > 0) && (
+        <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          {topAttribution && (
+            <Card className="border-orange-200 bg-orange-50/65 shadow-sm">
+              <CardContent className="grid gap-3 p-4 md:grid-cols-[auto_1fr] md:items-start">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-orange-600">
+                  <Target className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-orange-950">Pattern principale rilevato</p>
+                  <p className="mt-1 text-sm text-orange-800">
+                    {ATTRIBUTION_META[topAttribution.actor.kind].label} <strong>{topAttribution.actor.name}</strong> concentra {formatCurrency(topAttribution.amount)} su {topAttribution.count} anomalie. {topAttribution.firstReason}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 border-orange-200 bg-white/80 text-orange-700 hover:bg-white"
+                    onClick={() => setAttributionFilter(getActorKey(topAttribution.actor))}
+                  >
+                    Analizza pattern
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {controlPlan.length > 0 && (
+            <Card className="border-slate-200 bg-white shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Piano di autocontrollo</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Prime azioni suggerite dal sistema in base a impatto, frequenza e responsabilità probabile.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {controlPlan.map((item, index) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setAttributionFilter(item.key)}
+                    className="flex w-full gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-50/40 hover:shadow-sm"
+                  >
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-xs font-bold text-orange-600">
+                      {index + 1}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-slate-900">{item.title}</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        {formatCurrency(item.impact)} · {item.cases} casi
+                      </span>
+                      <span className="mt-1 block text-xs text-slate-600">{item.action}</span>
+                    </span>
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Cause precise ricorrenti</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {detailedCauseChart.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Nessuna causa precisa registrata</p>
+            ) : (
+              detailedCauseChart.map((item) => {
+                const percentage = stats.totalLoss > 0 ? Math.round((item.amount / stats.totalLoss) * 100) : 0;
+                return (
+                  <div key={item.cause} className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="font-medium text-slate-800">{item.cause}</span>
+                      <span className="text-muted-foreground">{formatCurrency(item.amount)}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-orange-500"
+                        style={{ width: `${Math.max(percentage, 4)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {item.count} casi · {percentage}% delle perdite filtrate
+                    </p>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Perdite per causa</CardTitle>
@@ -870,6 +1671,7 @@ export default function GlobalErrors() {
                   <SortableTableHead active={sort.key === "type"} direction={sort.direction} onClick={() => handleSort("type")}>Sorgente</SortableTableHead>
                   <SortableTableHead active={sort.key === "category"} direction={sort.direction} onClick={() => handleSort("category")}>Causa</SortableTableHead>
                   <SortableTableHead active={sort.key === "responsibility"} direction={sort.direction} onClick={() => handleSort("responsibility")}>Responsabilità</SortableTableHead>
+                  <TableHead>Stato</TableHead>
                   <SortableTableHead active={sort.key === "severity"} direction={sort.direction} onClick={() => handleSort("severity")}>Priorità</SortableTableHead>
                   <SortableTableHead className="text-right" align="right" active={sort.key === "amount"} direction={sort.direction} onClick={() => handleSort("amount")}>Importo</SortableTableHead>
                   <SortableTableHead active={sort.key === "description"} direction={sort.direction} onClick={() => handleSort("description")}>Azione</SortableTableHead>
@@ -878,13 +1680,13 @@ export default function GlobalErrors() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                       Caricamento anomalie...
                     </TableCell>
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                       Nessuna anomalia trovata
                     </TableCell>
                   </TableRow>
@@ -892,6 +1694,8 @@ export default function GlobalErrors() {
                   filtered.map((e) => {
                     const typeMeta = TYPE_META[e.normalizedType];
                     const TypeIcon = typeMeta.icon;
+                    const statusMeta = REVIEW_STATUS_META[e.reviewStatus];
+                    const StatusIcon = statusMeta.icon;
                     const orderLabel = e.orders?.order_code || e.orders?.description?.slice(0, 30) || "Commessa non trovata";
                     return (
                       <TableRow key={e.id}>
@@ -917,6 +1721,12 @@ export default function GlobalErrors() {
                           </Badge>
                         </TableCell>
                         <TableCell>
+                          <Badge variant="outline" className={cn("gap-1 border", statusMeta.color)}>
+                            <StatusIcon className="h-3 w-3" />
+                            {statusMeta.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
                           <Badge variant="outline" className={cn("border", SEVERITY_META[e.severity].color)}>
                             {SEVERITY_META[e.severity].label}
                           </Badge>
@@ -926,8 +1736,94 @@ export default function GlobalErrors() {
                         </TableCell>
                         <TableCell className="min-w-[300px] max-w-[360px]">
                           <div className="space-y-1">
-                            <p className="line-clamp-2 text-sm">{e.description || "Nessuna descrizione"}</p>
-                            <p className="text-xs text-muted-foreground">{e.actionHint}</p>
+                            <p className="line-clamp-2 text-sm">{e.operationalDetail || "Nessuna descrizione"}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {e.detailedCause && (
+                                <Badge variant="outline" className="border-orange-200 bg-orange-50 text-[10px] text-orange-700">
+                                  Causa: {e.detailedCause}
+                                </Badge>
+                              )}
+                              {e.processOrigin && (
+                                <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700">
+                                  Origine: {e.processOrigin}
+                                </Badge>
+                              )}
+                            </div>
+                            {e.verifyRole && (
+                              <p className="text-[11px] text-slate-500">
+                                Da verificare: <span className="font-medium text-slate-700">{e.verifyRole}</span>
+                              </p>
+                            )}
+                            {e.reporter && (
+                              <p className="text-[11px] text-slate-500">
+                                Registrata da: <span className="font-medium text-slate-700">{e.reporter.name}</span>
+                              </p>
+                            )}
+                            <div className="flex flex-wrap gap-1">
+                              {e.attributions.slice(0, 2).map((item) => (
+                                <Badge
+                                  key={`${e.id}-${getActorKey(item.actor)}`}
+                                  variant="outline"
+                                  className={cn("border text-[10px]", ATTRIBUTION_META[item.actor.kind].color)}
+                                >
+                                  {ATTRIBUTION_META[item.actor.kind].shortLabel}: {item.actor.name} · {item.confidence}
+                                </Badge>
+                              ))}
+                              {e.attributions.length > 2 && (
+                                <Badge variant="outline" className="text-[10px]">
+                                  +{e.attributions.length - 2}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {e.correctiveAction || e.aiRecommendation || e.actionHint}
+                            </p>
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {e.reviewStatus !== "in_verifica" && e.reviewStatus !== "risolta" && e.reviewStatus !== "non_imputabile" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 text-[11px]"
+                                  disabled={updateStatusMutation.isPending}
+                                  onClick={() => updateStatusMutation.mutate({ id: e.id, status: "in_verifica" })}
+                                >
+                                  Verifica
+                                </Button>
+                              )}
+                              {e.reviewStatus !== "assegnata" && e.reviewStatus !== "risolta" && e.reviewStatus !== "non_imputabile" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 text-[11px]"
+                                  disabled={updateStatusMutation.isPending}
+                                  onClick={() => updateStatusMutation.mutate({ id: e.id, status: "assegnata" })}
+                                >
+                                  Assegna
+                                </Button>
+                              )}
+                              {e.reviewStatus !== "risolta" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
+                                  disabled={updateStatusMutation.isPending}
+                                  onClick={() => updateStatusMutation.mutate({ id: e.id, status: "risolta" })}
+                                >
+                                  Risolta
+                                </Button>
+                              )}
+                              {e.reviewStatus !== "non_imputabile" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-[11px] text-slate-500 hover:text-slate-700"
+                                  disabled={updateStatusMutation.isPending}
+                                  onClick={() => updateStatusMutation.mutate({ id: e.id, status: "non_imputabile" })}
+                                >
+                                  Non imputabile
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
                       </TableRow>

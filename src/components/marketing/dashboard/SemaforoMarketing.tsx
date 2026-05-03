@@ -48,23 +48,26 @@ function getConversioniColor(showRate: number, closeRate: number): SemaforoColor
 
 const colorMap = {
   green: {
-    bg: "bg-emerald-50 dark:bg-emerald-950/30",
+    bg: "bg-gradient-to-br from-white to-emerald-50/80 dark:from-slate-950 dark:to-emerald-950/30",
     border: "border-emerald-200 dark:border-emerald-800",
     dot: "bg-emerald-500",
+    iconBg: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300",
     text: "text-emerald-700 dark:text-emerald-400",
     label: "text-emerald-600 dark:text-emerald-500",
   },
   yellow: {
-    bg: "bg-amber-50 dark:bg-amber-950/30",
+    bg: "bg-gradient-to-br from-white to-amber-50/90 dark:from-slate-950 dark:to-amber-950/30",
     border: "border-amber-200 dark:border-amber-800",
     dot: "bg-amber-500",
+    iconBg: "bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300",
     text: "text-amber-700 dark:text-amber-400",
     label: "text-amber-600 dark:text-amber-500",
   },
   red: {
-    bg: "bg-red-50 dark:bg-red-950/30",
+    bg: "bg-gradient-to-br from-white to-red-50/90 dark:from-slate-950 dark:to-red-950/30",
     border: "border-red-200 dark:border-red-800",
     dot: "bg-red-500",
+    iconBg: "bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-300",
     text: "text-red-700 dark:text-red-400",
     label: "text-red-600 dark:text-red-500",
   },
@@ -102,30 +105,27 @@ export function SemaforoMarketing(props: Props) {
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
       {items.map((item) => {
         const c = colorMap[item.color];
         const Icon = item.icon;
         return (
           <div
             key={item.label}
-            className={`flex flex-col sm:flex-row items-center sm:items-center gap-1.5 sm:gap-3 rounded-xl border px-2 py-2 sm:px-4 sm:py-3 ${c.bg} ${c.border} transition-all`}
+            className={`group rounded-2xl border px-4 py-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${c.bg} ${c.border}`}
           >
-            <div className="flex items-center gap-1.5 sm:gap-3">
-              <div className="relative flex-shrink-0">
-                <div className={`h-3 w-3 sm:h-4 sm:w-4 rounded-full ${c.dot} ${item.color !== "green" ? "animate-pulse" : ""}`} />
-                {item.color !== "green" && (
-                  <div className={`absolute inset-0 h-3 w-3 sm:h-4 sm:w-4 rounded-full ${c.dot} opacity-30 animate-ping`} />
-                )}
+            <div className="flex items-start gap-3">
+              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${c.iconBg}`}>
+                <Icon className="h-5 w-5" />
               </div>
-              <div className={`hidden sm:flex h-8 w-8 items-center justify-center rounded-lg ${c.bg} flex-shrink-0`}>
-                <Icon className={`h-4 w-4 ${c.text}`} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className={`text-[11px] font-bold uppercase tracking-[0.16em] ${c.label}`}>{item.label}</p>
+                  <span className={`h-2.5 w-2.5 rounded-full ${c.dot} ${item.color === "red" ? "animate-pulse" : ""}`} />
+                </div>
+                <p className={`mt-2 truncate text-xl font-bold ${c.text}`}>{item.value}</p>
+                <p className="mt-1 truncate text-xs font-medium text-slate-500 dark:text-slate-400">{item.detail}</p>
               </div>
-            </div>
-            <div className="min-w-0 flex-1 text-center sm:text-left">
-              <p className={`text-[10px] sm:text-xs font-medium uppercase tracking-wide ${c.label}`}>{item.label}</p>
-              <p className={`text-xs sm:text-sm font-semibold ${c.text} truncate`}>{item.value}</p>
-              <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate hidden sm:block">{item.detail}</p>
             </div>
           </div>
         );

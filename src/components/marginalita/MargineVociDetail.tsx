@@ -44,9 +44,37 @@ interface Props {
   row: MarginalitaRow | null;
 }
 
+interface LinkedAnomaly {
+  id: string;
+  amount: number | null;
+  description: string | null;
+  error_type: string | null;
+  error_category: string | null;
+  detailed_cause?: string | null;
+  review_status?: string | null;
+}
+
 function safeNumber(value: number | null | undefined): number {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeReviewStatus(value: string | null | undefined) {
+  const normalized = String(value ?? "aperta").toLowerCase();
+  if (["risolta", "non_imputabile"].includes(normalized)) return normalized;
+  if (["in_verifica", "assegnata"].includes(normalized)) return normalized;
+  return "aperta";
+}
+
+function extractStructuredField(description: string | null | undefined, label: string) {
+  if (!description) return null;
+  const prefix = `${label}:`;
+  const line = description
+    .split(/\r?\n/)
+    .find((item) => item.toLowerCase().startsWith(prefix.toLowerCase()));
+  if (!line) return null;
+  const value = line.slice(prefix.length).trim();
+  return value || null;
 }
 
 function BreakdownBar({
@@ -102,6 +130,28 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
     staleTime: 2 * 60 * 1000,
   });
 
+  const { data: anomalies = [], isLoading: anomaliesLoading } = useQuery({
+    queryKey: ["margine-voci-anomalie", row?.id],
+    queryFn: async () => {
+      const rich = await (supabase.from("order_errors") as any)
+        .select("id, amount, description, error_type, error_category, detailed_cause, review_status")
+        .eq("order_id", row!.id)
+        .order("error_date", { ascending: false });
+      if (rich.error && /schema cache|column|detailed_cause|review_status/i.test(rich.error.message || "")) {
+        const fallback = await (supabase.from("order_errors") as any)
+          .select("id, amount, description, error_type, error_category")
+          .eq("order_id", row!.id)
+          .order("error_date", { ascending: false });
+        if (fallback.error) throw fallback.error;
+        return (fallback.data || []) as LinkedAnomaly[];
+      }
+      if (rich.error) throw rich.error;
+      return (rich.data || []) as LinkedAnomaly[];
+    },
+    enabled: !!row?.id && open,
+    staleTime: 2 * 60 * 1000,
+  });
+
   if (!row) return null;
 
   const preventivoTotale = safeNumber(row.preventivo_totale);
@@ -115,6 +165,11 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
     marginePerc >= 25 ? "bg-green-500" : marginePerc >= 10 ? "bg-amber-500" : "bg-red-500";
   const margineTextColor =
     marginePerc >= 25 ? "text-green-600" : marginePerc >= 10 ? "text-amber-600" : "text-red-600";
+  const openAnomalies = anomalies.filter((item) => {
+    const status = normalizeReviewStatus(item.review_status);
+    return status !== "risolta" && status !== "non_imputabile";
+  });
+  const openAnomalyTotal = openAnomalies.reduce((sum, item) => sum + safeNumber(item.amount), 0);
 
   // Per-voce computed values
   const vociWithMargin = items.map((item) => {
@@ -200,6 +255,55 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
               total={preventivoTotale}
               colorClass={margineColor}
             />
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-orange-100 bg-orange-50/50 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Anomalie e perdite collegate</p>
+                <p className="mt-1 text-sm text-orange-900">
+                  {anomaliesLoading
+                    ? "Caricamento anomalie..."
+                    : openAnomalies.length > 0
+                      ? `${openAnomalies.length} anomalie aperte impattano per ${formatCurrency(openAnomalyTotal)}.`
+                      : "Nessuna anomalia aperta su questa commessa."}
+                </p>
+              </div>
+              <Badge className="border border-orange-200 bg-white text-orange-700 hover:bg-white">
+                {formatCurrency(openAnomalyTotal)}
+              </Badge>
+            </div>
+            {!anomaliesLoading && anomalies.length > 0 && (
+              <div className="space-y-2">
+                {anomalies.slice(0, 4).map((item) => {
+                  const status = normalizeReviewStatus(item.review_status);
+                  const cause =
+                    item.detailed_cause ||
+                    extractStructuredField(item.description, "Causa precisa") ||
+                    item.error_category ||
+                    item.error_type ||
+                    "Anomalia";
+                  return (
+                    <div key={item.id} className="rounded-lg border border-orange-100 bg-white px-3 py-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-950">{cause}</p>
+                          {item.description && (
+                            <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{item.description}</p>
+                          )}
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-semibold text-red-600">{formatCurrency(safeNumber(item.amount))}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {status === "risolta" ? "risolta" : status === "non_imputabile" ? "non imputabile" : "aperta"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Per-voce table */}

@@ -19,10 +19,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  HardHat, Plus, Search, Euro, AlertTriangle, Phone, ExternalLink, Loader2, Mail, MapPin, Link2, Link2Off,
+  HardHat, Plus, Search, Euro, AlertTriangle, Phone, ExternalLink, Loader2, Mail, MapPin, Link2, Link2Off, ShieldCheck,
 } from 'lucide-react';
 import { differenceInDays, parseISO } from 'date-fns';
 import type { SubappaltatoreConDashboard, StatoContratto } from '@/types/subappaltatori';
+import { OperationalKpiCard } from '@/components/orders/OperationalKpiCard';
 
 function DurcBadge({ scadenza }: { scadenza: string | null }) {
   if (!scadenza) return <Badge variant="outline" className="text-xs">DURC mancante</Badge>;
@@ -238,7 +239,7 @@ export default function SubappaltatoriPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -249,7 +250,11 @@ export default function SubappaltatoriPage() {
               <p className="mt-0.5 text-sm text-slate-500">Gestione contratti, SAL, DURC e ritenute operative.</p>
             </div>
           </div>
-          <Button size="sm" onClick={() => setDialogOpen(true)} className="self-start gap-1.5 sm:self-auto">
+          <Button
+            size="sm"
+            onClick={() => setDialogOpen(true)}
+            className="self-start gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 sm:self-auto"
+          >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Nuovo Subappaltatore</span>
             <span className="sm:hidden">Nuovo</span>
@@ -258,40 +263,15 @@ export default function SubappaltatoriPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Attivi</p>
-            <p className="text-2xl font-bold">{stats.attivi}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Valore contratti</p>
-            <p className="text-lg font-bold">€{stats.importoContratti.toLocaleString('it-IT')}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Ritenute in corso</p>
-            <p className="text-lg font-bold text-amber-600">€{stats.ritenuteTotali.toLocaleString('it-IT')}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-2">
-            {stats.durcScaduti > 0 && <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />}
-            <div>
-              <p className="text-xs text-muted-foreground">DURC in scadenza</p>
-              <p className={`text-2xl font-bold ${stats.durcScaduti > 0 ? 'text-red-600' : ''}`}>
-                {stats.durcScaduti}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <OperationalKpiCard icon={HardHat} label="Attivi" value={stats.attivi} hint="contratti operativi" tone="green" />
+        <OperationalKpiCard icon={Euro} label="Valore contratti" value={`€${stats.importoContratti.toLocaleString('it-IT')}`} hint="importo complessivo" tone="blue" />
+        <OperationalKpiCard icon={ShieldCheck} label="Ritenute in corso" value={`€${stats.ritenuteTotali.toLocaleString('it-IT')}`} hint="da monitorare" tone="amber" />
+        <OperationalKpiCard icon={AlertTriangle} label="DURC in scadenza" value={stats.durcScaduti} hint={stats.durcScaduti > 0 ? "richiede controllo" : "documenti ok"} tone={stats.durcScaduti > 0 ? "red" : "green"} />
       </div>
 
       {/* Filtri */}
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

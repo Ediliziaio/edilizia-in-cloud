@@ -2,10 +2,11 @@ import { useMemo, useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { startOfYear, endOfDay } from "date-fns";
+import { addDays, addMonths, differenceInCalendarDays, endOfDay, format, startOfMonth, startOfYear } from "date-fns";
 import type { CompanyDashboardFiltersState } from "@/components/dashboard/CompanyDashboardFilters";
 import { queryKeys } from "@/lib/queryKeys";
 import { getDateRange } from "@/lib/dateRangeUtils";
+import { getAmountCollected, getAmountDue, getGrossOrderAmount, type OrderWithDetails } from "@/lib/orderUtils";
 
 export interface RecentOrder {
   id: string;
@@ -52,7 +53,20 @@ export interface CeoStrip {
 export interface WeeklyDeadlinesData {
   receivables: Array<{ orderDescription: string; customerName: string; amount: number; expectedDate: string; daysLeft: number }>;
   companyCosts: Array<{ name: string; amount: number; dueDate: string; daysLeft: number }>;
-  upcomingWorks: Array<{ orderCode: string; customerName: string; workDate: string; daysLeft: number }>;
+  upcomingWorks: Array<{
+    id?: string;
+    orderCode: string;
+    customerName: string;
+    workDate: string;
+    daysLeft: number;
+    source?: "order" | "appointment" | "warehouse";
+    kindLabel?: string;
+    supplierName?: string | null;
+    purchaseOrderNumber?: string | null;
+    materialSummary?: string | null;
+    detailTitle?: string | null;
+    detailSubtitle?: string | null;
+  }>;
 }
 
 export interface FinancialAlert {
@@ -64,8 +78,172 @@ export interface DashboardStats {
   totalOrders: number;
   totalCustomers: number;
   openTickets: number;
+  totalRevenue: number;
+  collectedRevenue: number;
   pendingRevenue: number;
   pendingOrdersCount: number;
+}
+
+type OperationalAgendaItem = WeeklyDeadlinesData["upcomingWorks"][number];
+
+type DashboardFinancialOrderRow = {
+  id: string;
+  customer_id: string | null;
+  created_at: string | null;
+  current_status_id: string | null;
+  total_amount: number | null;
+  vat_rate: number | null;
+  deposit_amount: number | null;
+  deposit_paid: boolean | null;
+  deposit_2_amount: number | null;
+  deposit_2_paid: boolean | null;
+  balance_amount: number | null;
+  balance_paid: boolean | null;
+  financing_amount: number | null;
+  financing_paid: boolean | null;
+};
+
+type DashboardPaymentOrder = Pick<OrderWithDetails,
+  | "total_amount"
+  | "vat_rate"
+  | "deposit_amount"
+  | "deposit_paid"
+  | "deposit_2_amount"
+  | "deposit_2_paid"
+  | "balance_amount"
+  | "balance_paid"
+  | "financing_amount"
+  | "financing_paid"
+>;
+
+type DashboardCostRow = {
+  amount: number | null;
+  due_date: string | null;
+};
+
+type DashboardOrderAgendaRow = {
+  id: string;
+  order_code: string | null;
+  description: string | null;
+  expected_date: string | null;
+  work_start_date: string | null;
+  work_end_date: string | null;
+  warehouse_arrival_date: string | null;
+  customer?: { first_name: string | null; last_name: string | null } | null;
+};
+
+type DashboardAppointmentAgendaRow = {
+  id: string;
+  title: string | null;
+  appointment_date: string | null;
+  appointment_type: string | null;
+  status: string | null;
+  is_completed: boolean | null;
+  order_id: string | null;
+  order?: {
+    order_code: string | null;
+    description: string | null;
+    customer?: { first_name: string | null; last_name: string | null } | null;
+  } | null;
+  contact?: { first_name: string | null; last_name: string | null } | null;
+};
+
+type DashboardPurchaseOrderAgendaRow = {
+  id: string;
+  oda_number: string | null;
+  expected_delivery_date: string | null;
+  order_id: string | null;
+  status: string | null;
+  total: number | null;
+  suppliers?: { name: string | null } | null;
+  orders?: {
+    order_code: string | null;
+    description: string | null;
+    customer?: { first_name: string | null; last_name: string | null } | null;
+  } | null;
+  purchase_order_items?: Array<{
+    description: string | null;
+    quantity: number | null;
+    quantity_received: number | null;
+    unit_of_measure: string | null;
+  }> | null;
+};
+
+const EMPTY_WEEKLY_DEADLINES: WeeklyDeadlinesData = {
+  receivables: [],
+  companyCosts: [],
+  upcomingWorks: [],
+};
+
+const WORK_APPOINTMENT_TYPES = new Set(["inizio_lavori", "fine_lavori", "posa_prova", "collaudo", "verifica_cantiere"]);
+
+function makePersonName(person?: { first_name: string | null; last_name: string | null } | null, fallback = "Cliente") {
+  return [person?.first_name, person?.last_name].filter(Boolean).join(" ").trim() || fallback;
+}
+
+function normalizeDashboardDate(value?: string | null) {
+  if (!value) return null;
+  return value.slice(0, 10);
+}
+
+function isDateInWindow(date: string | null, start: string, end: string) {
+  return !!date && date >= start && date <= end;
+}
+
+function daysLeftFromToday(date: string) {
+  return Math.max(0, differenceInCalendarDays(new Date(`${date}T00:00:00`), new Date()));
+}
+
+function getMonthKey(value: string | Date | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function buildMonthBuckets(from: Date, to: Date) {
+  const buckets: Array<{ key: string; month: string; entrate: number; uscite: number; realEntrate: number; realUscite: number }> = [];
+  let cursor = startOfMonth(from);
+  const end = startOfMonth(to);
+
+  while (cursor <= end && buckets.length < 18) {
+    const key = getMonthKey(cursor)!;
+    const month = cursor
+      .toLocaleDateString("it-IT", { month: "short", year: "2-digit" })
+      .replace(".", "");
+    buckets.push({ key, month, entrate: 0, uscite: 0, realEntrate: 0, realUscite: 0 });
+    cursor = addMonths(cursor, 1);
+  }
+
+  return buckets;
+}
+
+function getNormalizedOrderAmounts(order: DashboardFinancialOrderRow) {
+  const paymentOrder: DashboardPaymentOrder = {
+    total_amount: Number(order.total_amount || 0),
+    vat_rate: order.vat_rate,
+    deposit_amount: Number(order.deposit_amount || 0),
+    deposit_paid: order.deposit_paid,
+    deposit_2_amount: order.deposit_2_amount,
+    deposit_2_paid: order.deposit_2_paid,
+    balance_amount: Number(order.balance_amount || 0),
+    balance_paid: order.balance_paid,
+    financing_amount: order.financing_amount,
+    financing_paid: order.financing_paid,
+  };
+  const collectedRaw = getAmountCollected(paymentOrder);
+  const dueRaw = getAmountDue(paymentOrder);
+  const grossTotal = getGrossOrderAmount(paymentOrder);
+  const explicitTotal = Number(order.total_amount || 0);
+  const commercialTotal = Math.max(grossTotal, collectedRaw + dueRaw, explicitTotal);
+  const collected = Math.min(collectedRaw, commercialTotal);
+  const due = Math.min(dueRaw, Math.max(0, commercialTotal - collected));
+
+  return { commercialTotal, collected, due };
+}
+
+function orderLabel(order: Pick<DashboardOrderAgendaRow, "order_code" | "description">) {
+  return order.order_code || order.description || "Commessa";
 }
 
 export interface PrevStats {
@@ -101,7 +279,7 @@ export function useCompanyDashboardData() {
     [filters.datePreset, filters.dateFrom, filters.dateTo]
   );
 
-  const { data: dashboardData, isLoading, isError } = useQuery({
+  const { data: dashboardData, isLoading: isDashboardLoading, isError: isDashboardError } = useQuery({
     queryKey: queryKeys.dashboard.company(companyId, `${dateRange.from.toISOString()}-${dateRange.to.toISOString()}-${filters.statusId}`),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_dashboard_kpis", {
@@ -145,14 +323,390 @@ export function useCompanyDashboardData() {
     staleTime: 3 * 60 * 1000,
   });
 
+  const { data: managementFinancials } = useQuery({
+    queryKey: [
+      "company-dashboard-management-financials",
+      companyId,
+      dateRange.from.toISOString(),
+      dateRange.to.toISOString(),
+      filters.statusId,
+    ],
+    queryFn: async () => {
+      if (!companyId) {
+        return {
+          stats: { totalOrders: 0, totalCustomers: 0, totalRevenue: 0, collectedRevenue: 0, pendingRevenue: 0, pendingOrdersCount: 0 },
+          monthlyBalance: [],
+        };
+      }
+
+      let ordersQuery = supabase
+        .from("orders")
+        .select(`
+          id,
+          customer_id,
+          created_at,
+          current_status_id,
+          total_amount,
+          vat_rate,
+          deposit_amount,
+          deposit_paid,
+          deposit_2_amount,
+          deposit_2_paid,
+          balance_amount,
+          balance_paid,
+          financing_amount,
+          financing_paid
+        `)
+        .eq("company_id", companyId)
+        .gte("created_at", dateRange.from.toISOString())
+        .lte("created_at", dateRange.to.toISOString());
+
+      if (filters.statusId) ordersQuery = ordersQuery.eq("current_status_id", filters.statusId);
+
+      const costsQuery = supabase
+        .from("company_costs")
+        .select("amount, due_date")
+        .eq("company_id", companyId)
+        .gte("due_date", format(dateRange.from, "yyyy-MM-dd"))
+        .lte("due_date", format(dateRange.to, "yyyy-MM-dd"));
+
+      const [ordersResult, costsResult] = await Promise.all([ordersQuery, costsQuery]);
+
+      if (ordersResult.error) throw ordersResult.error;
+      if (costsResult.error) throw costsResult.error;
+
+      const orders = (ordersResult.data || []) as DashboardFinancialOrderRow[];
+      const costs = (costsResult.data || []) as DashboardCostRow[];
+      const monthBuckets = buildMonthBuckets(dateRange.from, dateRange.to);
+      const byMonth = new Map(monthBuckets.map((bucket) => [bucket.key, bucket]));
+      const customerIds = new Set<string>();
+
+      let totalRevenue = 0;
+      let collectedRevenue = 0;
+      let pendingRevenue = 0;
+      let pendingOrdersCount = 0;
+
+      for (const order of orders) {
+        if (order.customer_id) customerIds.add(order.customer_id);
+        const amounts = getNormalizedOrderAmounts(order);
+        totalRevenue += amounts.commercialTotal;
+        collectedRevenue += amounts.collected;
+        pendingRevenue += amounts.due;
+        if (amounts.due > 0.01) pendingOrdersCount += 1;
+
+        const month = byMonth.get(getMonthKey(order.created_at) || "");
+        if (month) {
+          month.entrate += amounts.commercialTotal;
+          month.realEntrate += amounts.collected;
+        }
+      }
+
+      for (const cost of costs) {
+        const month = byMonth.get(getMonthKey(cost.due_date) || "");
+        if (month) {
+          month.uscite += Number(cost.amount || 0);
+        }
+      }
+
+      return {
+        stats: {
+          totalOrders: orders.length,
+          totalCustomers: customerIds.size,
+          totalRevenue,
+          collectedRevenue,
+          pendingRevenue,
+          pendingOrdersCount,
+        },
+        monthlyBalance: monthBuckets.map(({ key: _key, ...bucket }) => bucket),
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 3 * 60 * 1000,
+  });
+
+  const agendaRange = useMemo(() => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    return {
+      from: today,
+      to: format(addDays(new Date(), 31), "yyyy-MM-dd"),
+    };
+  }, []);
+
+  const { data: operationalAgenda = [] } = useQuery({
+    queryKey: ["company-dashboard-operational-agenda", companyId, agendaRange.from, agendaRange.to],
+    queryFn: async () => {
+      if (!companyId) return [];
+
+      const [ordersResult, appointmentsResult, purchaseOrdersResult] = await Promise.all([
+        supabase
+          .from("orders")
+          .select(`
+            id,
+            order_code,
+            description,
+            expected_date,
+            work_start_date,
+            work_end_date,
+            warehouse_arrival_date,
+            customer:profiles!orders_customer_id_fkey(first_name, last_name)
+          `)
+          .eq("company_id", companyId)
+          .or(`work_start_date.lte.${agendaRange.to},expected_date.lte.${agendaRange.to},warehouse_arrival_date.lte.${agendaRange.to}`)
+          .or(`work_end_date.gte.${agendaRange.from},work_start_date.gte.${agendaRange.from},expected_date.gte.${agendaRange.from},warehouse_arrival_date.gte.${agendaRange.from}`)
+          .order("work_start_date", { ascending: true })
+          .limit(300),
+        supabase
+          .from("appointments")
+          .select(`
+            id,
+            title,
+            appointment_date,
+            appointment_type,
+            status,
+            is_completed,
+            order_id,
+            order:orders!appointments_order_id_fkey(order_code, description, customer:profiles!orders_customer_id_fkey(first_name, last_name)),
+            contact:marketing_contacts!appointments_contact_id_fkey(first_name, last_name)
+          `)
+          .eq("company_id", companyId)
+          .gte("appointment_date", agendaRange.from)
+          .lte("appointment_date", agendaRange.to)
+          .order("appointment_date", { ascending: true })
+          .limit(300),
+        supabase
+          .from("purchase_orders")
+          .select(`
+            id,
+            oda_number,
+            expected_delivery_date,
+            order_id,
+            status,
+            total,
+            suppliers(name),
+            orders(order_code, description, customer:profiles!orders_customer_id_fkey(first_name, last_name)),
+            purchase_order_items(description, quantity, quantity_received, unit_of_measure)
+          `)
+          .eq("company_id", companyId)
+          .gte("expected_delivery_date", agendaRange.from)
+          .lte("expected_delivery_date", agendaRange.to)
+          .not("expected_delivery_date", "is", null)
+          .order("expected_delivery_date", { ascending: true })
+          .limit(200),
+      ]);
+
+      if (ordersResult.error) throw ordersResult.error;
+      if (appointmentsResult.error) throw appointmentsResult.error;
+      if (purchaseOrdersResult.error) throw purchaseOrdersResult.error;
+
+      const items: OperationalAgendaItem[] = [];
+      const orders = (ordersResult.data || []) as DashboardOrderAgendaRow[];
+      const appointments = (appointmentsResult.data || []) as DashboardAppointmentAgendaRow[];
+      const purchaseOrders = (purchaseOrdersResult.data || []) as unknown as DashboardPurchaseOrderAgendaRow[];
+      const warehouseEventKeys = new Set<string>();
+
+      for (const purchaseOrder of purchaseOrders) {
+        const deliveryDate = normalizeDashboardDate(purchaseOrder.expected_delivery_date);
+        if (!deliveryDate) continue;
+
+        const order = purchaseOrder.orders;
+        const supplierName = purchaseOrder.suppliers?.name || null;
+        const customerName = makePersonName(order?.customer || null);
+        const orderLabelText = order
+          ? orderLabel({ order_code: order.order_code, description: order.description })
+          : purchaseOrder.oda_number || "Ordine fornitore";
+        const materialRows = purchaseOrder.purchase_order_items ?? [];
+        const materialSummary = materialRows.length > 0
+          ? materialRows
+              .slice(0, 3)
+              .map((row) => {
+                const remaining = Math.max(0, Number(row.quantity || 0) - Number(row.quantity_received || 0));
+                const quantity = remaining > 0 ? remaining : Number(row.quantity || 0);
+                const unit = row.unit_of_measure ? ` ${row.unit_of_measure}` : "";
+                return `${quantity || 1}${unit} ${row.description || "materiale"}`.trim();
+              })
+              .join(" · ")
+          : null;
+        const extraRows = Math.max(0, materialRows.length - 3);
+
+        if (purchaseOrder.order_id) {
+          warehouseEventKeys.add(`${purchaseOrder.order_id}-${deliveryDate}`);
+        }
+
+        items.push({
+          id: `purchase-order-warehouse-${purchaseOrder.id}`,
+          orderCode: purchaseOrder.oda_number || orderLabelText,
+          customerName: customerName || supplierName || "Fornitore",
+          workDate: deliveryDate,
+          daysLeft: daysLeftFromToday(deliveryDate),
+          source: "warehouse",
+          kindLabel: supplierName ? `Arrivo da ${supplierName}` : "Arrivo merce",
+          supplierName,
+          purchaseOrderNumber: purchaseOrder.oda_number,
+          materialSummary: materialSummary ? `${materialSummary}${extraRows > 0 ? ` · +${extraRows} righe` : ""}` : "Materiali non dettagliati nell'ODA",
+          detailTitle: materialRows[0]?.description || purchaseOrder.oda_number || "Merce in arrivo",
+          detailSubtitle: [supplierName, orderLabelText].filter(Boolean).join(" · "),
+        });
+      }
+
+      for (const order of orders) {
+        const customerName = makePersonName(order.customer);
+        const label = orderLabel(order);
+        const workStart = normalizeDashboardDate(order.work_start_date);
+        const workEnd = normalizeDashboardDate(order.work_end_date) || workStart;
+        const expectedDate = normalizeDashboardDate(order.expected_date);
+        const warehouseDate = normalizeDashboardDate(order.warehouse_arrival_date);
+
+        if (workStart && workEnd && workStart <= agendaRange.to && workEnd >= agendaRange.from) {
+          const activeOrNextWorkDate = workStart <= agendaRange.from && workEnd >= agendaRange.from ? agendaRange.from : workStart;
+          if (isDateInWindow(activeOrNextWorkDate, agendaRange.from, agendaRange.to)) {
+            items.push({
+              id: `order-work-${order.id}`,
+              orderCode: label,
+              customerName,
+              workDate: activeOrNextWorkDate,
+              daysLeft: daysLeftFromToday(activeOrNextWorkDate),
+              source: "order",
+              kindLabel: workEnd && workEnd !== activeOrNextWorkDate ? "Lavori in corso" : "Inizio lavori",
+            });
+          }
+        }
+
+        if (isDateInWindow(expectedDate, agendaRange.from, agendaRange.to) && expectedDate !== workStart) {
+          items.push({
+            id: `order-posa-${order.id}`,
+            orderCode: label,
+            customerName,
+            workDate: expectedDate!,
+            daysLeft: daysLeftFromToday(expectedDate!),
+            source: "order",
+            kindLabel: "Posa prevista",
+          });
+        }
+
+        if (
+          isDateInWindow(warehouseDate, agendaRange.from, agendaRange.to) &&
+          !warehouseEventKeys.has(`${order.id}-${warehouseDate}`)
+        ) {
+          items.push({
+            id: `order-warehouse-${order.id}`,
+            orderCode: label,
+            customerName,
+            workDate: warehouseDate!,
+            daysLeft: daysLeftFromToday(warehouseDate!),
+            source: "warehouse",
+            kindLabel: "Arrivo materiali",
+            materialSummary: "Data merce impostata sulla commessa, ma senza ODA o righe materiale collegate.",
+            detailTitle: "Merce in arrivo",
+            detailSubtitle: [label, customerName].filter(Boolean).join(" · "),
+          });
+        }
+      }
+
+      for (const appointment of appointments) {
+        const appointmentDate = normalizeDashboardDate(appointment.appointment_date);
+        if (!appointmentDate) continue;
+        const status = (appointment.status || "").toLowerCase();
+        if (["cancelled", "canceled", "annullato", "annullata"].includes(status)) continue;
+
+        const customerName = makePersonName(appointment.order?.customer || appointment.contact);
+        const linkedOrderLabel = appointment.order
+          ? orderLabel({ order_code: appointment.order.order_code, description: appointment.order.description })
+          : null;
+        const isWorkAppointment = WORK_APPOINTMENT_TYPES.has(appointment.appointment_type || "");
+
+        items.push({
+          id: `appointment-${appointment.id}`,
+          orderCode: linkedOrderLabel || appointment.title || "Appuntamento",
+          customerName,
+          workDate: appointmentDate,
+          daysLeft: daysLeftFromToday(appointmentDate),
+          source: "appointment",
+          kindLabel: isWorkAppointment ? "Appuntamento lavori" : "Appuntamento",
+        });
+      }
+
+      const byKey = new Map<string, OperationalAgendaItem>();
+      for (const item of items) {
+        const key = item.id || `${item.source}-${item.orderCode}-${item.workDate}-${item.kindLabel}`;
+        if (!byKey.has(key)) byKey.set(key, item);
+      }
+
+      return Array.from(byKey.values()).sort((a, b) => {
+        if (a.daysLeft !== b.daysLeft) return a.daysLeft - b.daysLeft;
+        return a.workDate.localeCompare(b.workDate);
+      });
+    },
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const weeklyDeadlines = useMemo<WeeklyDeadlinesData>(() => {
+    const current = dashboardData?.weeklyDeadlines ?? EMPTY_WEEKLY_DEADLINES;
+    const byKey = new Map<string, OperationalAgendaItem>();
+
+    for (const item of current.upcomingWorks ?? []) {
+      const date = normalizeDashboardDate(item.workDate);
+      if (!date) continue;
+      byKey.set(item.id || `rpc-${item.orderCode}-${date}-${item.kindLabel || "lavoro"}`, {
+        ...item,
+        workDate: date,
+        daysLeft: Number.isFinite(item.daysLeft) ? item.daysLeft : daysLeftFromToday(date),
+        source: item.source || "order",
+        kindLabel: item.kindLabel || "Lavoro",
+        supplierName: item.supplierName ?? null,
+        purchaseOrderNumber: item.purchaseOrderNumber ?? null,
+        materialSummary: item.materialSummary ?? null,
+        detailTitle: item.detailTitle ?? null,
+        detailSubtitle: item.detailSubtitle ?? null,
+      });
+    }
+
+    for (const item of operationalAgenda) {
+      byKey.set(item.id || `${item.source}-${item.orderCode}-${item.workDate}-${item.kindLabel}`, item);
+    }
+
+    return {
+      receivables: current.receivables ?? [],
+      companyCosts: current.companyCosts ?? [],
+      upcomingWorks: Array.from(byKey.values())
+        .sort((a, b) => {
+          if (a.daysLeft !== b.daysLeft) return a.daysLeft - b.daysLeft;
+          return a.workDate.localeCompare(b.workDate);
+        })
+        .slice(0, 80),
+    };
+  }, [dashboardData?.weeklyDeadlines, operationalAgenda]);
+
+  const rpcStats = dashboardData?.stats ?? {
+    totalOrders: 0,
+    totalCustomers: 0,
+    openTickets: 0,
+    totalRevenue: 0,
+    collectedRevenue: 0,
+    pendingRevenue: 0,
+    pendingOrdersCount: 0,
+  };
+
+  const stats: DashboardStats = managementFinancials
+    ? {
+        ...rpcStats,
+        totalOrders: managementFinancials.stats.totalOrders,
+        totalCustomers: managementFinancials.stats.totalCustomers,
+        totalRevenue: managementFinancials.stats.totalRevenue,
+        collectedRevenue: managementFinancials.stats.collectedRevenue,
+        pendingRevenue: managementFinancials.stats.pendingRevenue,
+        pendingOrdersCount: managementFinancials.stats.pendingOrdersCount,
+      }
+    : rpcStats;
+
   return {
     companyId,
     filters,
     updateFilters,
     dashboardData,
-    isLoading,
-    isError,
-    stats: dashboardData?.stats ?? { totalOrders: 0, totalCustomers: 0, openTickets: 0, pendingRevenue: 0, pendingOrdersCount: 0 },
+    isLoading: !companyId && isDashboardLoading,
+    isError: isDashboardError && !managementFinancials,
+    stats,
     prevStats: dashboardData?.prevStats ?? { totalOrders: 0, totalCustomers: 0 },
     recentOrders: dashboardData?.recentOrders ?? [],
     cashFlow: dashboardData?.cashFlow ?? {
@@ -163,8 +717,8 @@ export function useCompanyDashboardData() {
     ceoStrip: dashboardData?.ceoStrip ?? { revenueThisMonth: 0, revenuePrevMonth: 0, marginThisMonth: 0, marginPrevMonth: 0, ordersThisMonth: 0, ordersPrevMonth: 0 },
     urgentItems: dashboardData?.urgentItems ?? [],
     financialAlerts: dashboardData?.financialAlerts ?? [],
-    weeklyDeadlines: dashboardData?.weeklyDeadlines ?? { receivables: [], companyCosts: [], upcomingWorks: [] },
-    monthlyBalance: dashboardData?.monthlyBalance ?? [],
+    weeklyDeadlines,
+    monthlyBalance: managementFinancials?.monthlyBalance ?? dashboardData?.monthlyBalance ?? [],
     revenueYTD: dashboardData?.revenueYTD ?? [],
     agingReceivables: dashboardData?.agingReceivables ?? { overdue: 0, thisWeek: 0, thisMonth: 0, future: 0 },
   };

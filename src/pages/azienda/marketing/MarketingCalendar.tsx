@@ -34,7 +34,6 @@ import {
   CalendarPlus,
   List as ListIcon,
   Grid3x3,
-  Rows3,
   SlidersHorizontal,
   AlertCircle,
 } from "lucide-react";
@@ -106,10 +105,8 @@ export default function MarketingCalendar() {
   const busySlots = [...googleBusySlots, ...appleBusySlots];
 
   const [activeTab, setActiveTab] = useState<TabKey>("calendar");
-  // Su mobile default a "day", su desktop a "week"
-  const [calendarView, setCalendarView] = useState<CalendarView>(
-    typeof window !== "undefined" && window.innerWidth < 768 ? "day" : "week"
-  );
+  // Marketing e vendite: lettura unica mensile per lead, sopralluoghi e appuntamenti commerciali.
+  const [calendarView] = useState<CalendarView>("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -618,12 +615,6 @@ export default function MarketingCalendar() {
     { key: "list" as const, label: "Elenco", icon: ListIcon },
   ];
 
-  const viewIcons = {
-    day: Rows3,
-    week: CalendarIcon,
-    month: Grid3x3,
-  } as const;
-
   return (
     <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden pb-20 md:pb-0">
       <ApiHealthBanner filter={["googlemaps"]} />
@@ -808,30 +799,10 @@ export default function MarketingCalendar() {
                 </SheetContent>
               </Sheet>
 
-              {/* View picker segmented */}
-              <div className="inline-flex items-center rounded-md border h-9 bg-background">
-                {(["day", "week", "month"] as CalendarView[]).map((v) => {
-                  const Icon = viewIcons[v];
-                  const label = v === "day" ? "Giorno" : v === "week" ? "Settimana" : "Mese";
-                  const active = calendarView === v;
-                  return (
-                    <button
-                      key={v}
-                      onClick={() => setCalendarView(v)}
-                      className={cn(
-                        "h-full px-2.5 md:px-3 text-xs md:text-sm font-medium transition-colors inline-flex items-center gap-1.5 first:rounded-l-md last:rounded-r-md",
-                        active
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                      )}
-                      aria-label={`Vista ${label}`}
-                      aria-pressed={active}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">{label}</span>
-                    </button>
-                  );
-                })}
+              {/* Vista unica Marketing & Vendite */}
+              <div className="inline-flex h-9 items-center gap-1.5 rounded-md border bg-primary px-3 text-xs font-semibold text-primary-foreground md:text-sm">
+                <Grid3x3 className="h-3.5 w-3.5" />
+                Vista mese
               </div>
             </div>
 

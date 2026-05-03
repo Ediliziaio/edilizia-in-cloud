@@ -92,6 +92,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
+import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useNotifications } from "@/hooks/useNotifications";
 import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
@@ -418,6 +419,8 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
 
 function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem[]) => NavItem[] }) {
   const { data: taskCounts } = useMyTaskCount();
+  const permissions = usePermissions();
+  const { role } = useAuth();
   const items = filterNavItems(macroAreas.find(a => a.id === "area_cruscotto")?.items ?? []);
 
   return (
@@ -426,6 +429,10 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
         <SidebarMenu>
           {items.map((item) => {
             const isTaskItem = item.url === "/azienda/attivita";
+            const itemUrl =
+              item.url === "/azienda/cruscotto"
+                ? (permissions.isLoading ? item.url : getSmartCruscottoPath(permissions, role))
+                : item.url;
             const badgeCount = isTaskItem ? (taskCounts?.total ?? 0) : 0;
             const badgeVariant = isTaskItem && taskCounts?.overdue ? "destructive" : isTaskItem && taskCounts?.dueToday ? "warning" : "secondary";
 
@@ -433,8 +440,8 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
               <SidebarMenuItem key={item.url}>
                 <SidebarMenuButton asChild tooltip={item.title}>
                   <NavLink
-                    to={item.url}
-                    end={item.url === "/azienda"}
+                    to={itemUrl}
+                    end={itemUrl === "/azienda"}
                     className="flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent"
                     activeClassName="bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
                   >

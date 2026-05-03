@@ -70,16 +70,16 @@ export default function AutomazioniUnified() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-background p-5 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-semibold text-primary">
+            <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
               <Workflow className="h-3.5 w-3.5" />
               Automazioni operative
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Flussi di lavoro</h1>
-              <p className="max-w-2xl text-sm text-muted-foreground">
+              <h1 className="text-2xl font-bold text-slate-950">Flussi di lavoro</h1>
+              <p className="max-w-2xl text-sm text-slate-600">
                 Crea, organizza e controlla automazioni operative per CRM, cantieri, preventivi, notifiche e comunicazioni. Le sequenze pipeline restano nella sezione Marketing dedicata.
               </p>
             </div>
@@ -89,21 +89,21 @@ export default function AutomazioniUnified() {
                 Pubblicazione con controlli anti errore
               </span>
               <span className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 border">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <Sparkles className="h-3.5 w-3.5 text-orange-500" />
                 Template e assistente guidato
               </span>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={() => setFolderDialogOpen(true)} disabled={!effectiveCompany?.id}>
+            <Button variant="outline" className="border-slate-200 bg-white/80 hover:bg-white" onClick={() => setFolderDialogOpen(true)} disabled={!effectiveCompany?.id}>
               <FolderPlus className="w-4 h-4 mr-1.5" />
               Crea Cartella
             </Button>
-            <Button variant="outline" onClick={() => navigate(`${routePrefix}/automazioni/nuova?panel=ai`)}>
+            <Button variant="outline" className="border-orange-200 bg-white/80 text-orange-700 hover:bg-orange-50" onClick={() => navigate(`${routePrefix}/automazioni/nuova?panel=ai`)}>
               <Sparkles className="w-4 h-4 mr-1.5" />
               Crea tramite AI
             </Button>
-            <Button onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
+            <Button className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
               <Plus className="w-4 h-4 mr-1.5" />
               Crea Flusso
             </Button>
@@ -119,7 +119,7 @@ export default function AutomazioniUnified() {
       )}
 
       {/* Filters row */}
-      <div className="flex flex-col gap-3 rounded-xl border bg-card p-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center">
         {!vistaTemplates && (
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -158,7 +158,7 @@ export default function AutomazioniUnified() {
           className={`
             flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors flex-shrink-0
             ${vistaTemplates
-              ? "border-primary text-primary bg-primary/10"
+              ? "border-orange-200 bg-orange-50 text-orange-700"
               : "border-border text-muted-foreground hover:bg-muted"
             }
           `}

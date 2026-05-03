@@ -300,32 +300,36 @@ export default function GiornaleLavori() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <NotebookPen className="h-6 w-6 sm:h-7 sm:w-7 text-primary shrink-0" />
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold truncate">Giornale dei Lavori</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">Diario ufficiale del cantiere</p>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-4 shadow-sm sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+              <NotebookPen className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-bold text-slate-950 sm:text-2xl">Giornale dei Lavori</h1>
+              <p className="text-xs text-slate-600 sm:text-sm">Diario ufficiale del cantiere</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={isExporting}>
-            {isExporting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            <span className="hidden sm:inline ml-1">{isExporting ? "Generazione..." : "Esporta PDF"}</span>
-          </Button>
-          <Button size="sm" onClick={openNew}>
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline ml-1">Report</span>
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm" className="border-slate-200 bg-white/80 hover:bg-white" onClick={handleExportPdf} disabled={isExporting}>
+              {isExporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline ml-1">{isExporting ? "Generazione..." : "Esporta PDF"}</span>
+            </Button>
+            <Button size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={openNew}>
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1">Report</span>
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Order selector */}
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row">
         <Select
           value={selectedOrderId || "__all__"}
           onValueChange={(v) => setSelectedOrderId(v === "__all__" ? "" : v)}

@@ -366,22 +366,51 @@ export async function deleteOrderCascading(orderId: string, companyId?: string):
   if (error) throw error;
 }
 
+function positiveAmount(value?: number | null): number {
+  const amount = Number(value) || 0;
+  return amount > 0 ? amount : 0;
+}
+
+function getNormalizedPaymentParts(order: Pick<OrderWithDetails,
+  "total_amount" | "deposit_amount" | "deposit_2_amount" | "financing_amount" | "balance_amount"
+>) {
+  const total = positiveAmount(order.total_amount);
+  const deposit1 = positiveAmount(order.deposit_amount);
+  const deposit2 = positiveAmount(order.deposit_2_amount);
+  const financing = positiveAmount(order.financing_amount);
+  const rawBalance = positiveAmount(order.balance_amount);
+  const residualBalance = Math.max(0, total - deposit1 - deposit2 - financing);
+  const rawPlannedTotal = deposit1 + deposit2 + financing + rawBalance;
+
+  let balance = rawBalance;
+  if (total > 0 && (rawPlannedTotal > total * 1.01 || rawBalance > residualBalance * 1.01)) {
+    balance = residualBalance;
+  } else if (total > 0 && rawBalance === 0 && residualBalance > 0) {
+    balance = residualBalance;
+  }
+
+  return { total, deposit1, deposit2, financing, balance };
+}
+
 export function getAmountDue(order: OrderWithDetails): number {
+  const parts = getNormalizedPaymentParts(order);
+  const collected = getAmountCollected(order);
   let due = 0;
-  if (!order.deposit_paid) due += order.deposit_amount || 0;
-  if (!order.deposit_2_paid) due += (order.deposit_2_amount || 0);
-  if (order.financing_amount && order.financing_amount > 0 && !order.financing_paid) due += order.financing_amount;
-  if (!order.balance_paid) due += order.balance_amount || 0;
-  return due;
+  if (!order.deposit_paid) due += parts.deposit1;
+  if (!order.deposit_2_paid) due += parts.deposit2;
+  if (parts.financing > 0 && !order.financing_paid) due += parts.financing;
+  if (!order.balance_paid) due += parts.balance;
+  return parts.total > 0 ? Math.min(due, Math.max(0, parts.total - collected)) : due;
 }
 
 export function getAmountCollected(order: OrderWithDetails): number {
+  const parts = getNormalizedPaymentParts(order);
   let collected = 0;
-  if (order.deposit_paid) collected += order.deposit_amount || 0;
-  if (order.deposit_2_paid) collected += (order.deposit_2_amount || 0);
-  if (order.financing_amount && order.financing_amount > 0 && order.financing_paid) collected += order.financing_amount;
-  if (order.balance_paid) collected += order.balance_amount || 0;
-  return collected;
+  if (order.deposit_paid) collected += parts.deposit1;
+  if (order.deposit_2_paid) collected += parts.deposit2;
+  if (parts.financing > 0 && order.financing_paid) collected += parts.financing;
+  if (order.balance_paid) collected += parts.balance;
+  return parts.total > 0 ? Math.min(collected, parts.total) : collected;
 }
 
 export function getPendingPayments(order: OrderWithDetails): string[] {

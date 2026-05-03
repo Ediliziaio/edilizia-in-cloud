@@ -5,13 +5,23 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, Sparkles, ChevronDown, Users as UsersIcon } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShoppingBag, Euro, TrendingUp, AlertCircle, BarChart3 } from "lucide-react";
 import { OrdersFilterSidebar, INITIAL_FILTER_STATE, countActiveFilters, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
 import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
 import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
 import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";
 import { format } from "date-fns";
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -26,7 +36,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
-import { OrdersStatsCards } from "@/components/orders/OrdersStatsCards";
 import { OrdersFilters } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
@@ -75,10 +84,12 @@ function OrdersListInner() {
     paymentFilter: { key: "payment", defaultValue: "all" },
     viewMode: { key: "view", defaultValue: (() => { try { return localStorage.getItem("orders-view-mode") || "table"; } catch { return "table"; } })() },
     customerFilter: { key: "cliente", defaultValue: "all" },
+    yearFilter: { key: "anno", defaultValue: "all" },
     monthFilter: { key: "mese", defaultValue: "all" },
     salespersonFilter: { key: "venditore", defaultValue: "all" },
     laborFilter: { key: "manodopera", defaultValue: "all" },
     supplierFilter: { key: "fornitore", defaultValue: "all" },
+    controlFocus: { key: "focus", defaultValue: "all" },
     hideCompleted: { key: "nascondi_completati", defaultValue: true, serialize: (v) => v ? "1" : "0", deserialize: (v) => v === "1" },
   });
 
@@ -96,6 +107,8 @@ function OrdersListInner() {
   }, [setURLParam]);
   const customerFilter = urlFilters.customerFilter;
   const setCustomerFilter = useCallback((v: string) => setURLParam("customerFilter", v), [setURLParam]);
+  const yearFilter = urlFilters.yearFilter;
+  const setYearFilter = useCallback((v: string) => setURLParam("yearFilter", v), [setURLParam]);
   const monthFilter = urlFilters.monthFilter;
   const setMonthFilter = useCallback((v: string) => setURLParam("monthFilter", v), [setURLParam]);
   const salespersonFilter = urlFilters.salespersonFilter;
@@ -104,6 +117,8 @@ function OrdersListInner() {
   const setLaborFilter = useCallback((v: string) => setURLParam("laborFilter", v), [setURLParam]);
   const supplierFilter = urlFilters.supplierFilter;
   const setSupplierFilter = useCallback((v: string) => setURLParam("supplierFilter", v), [setURLParam]);
+  const controlFocus = urlFilters.controlFocus as "all" | "low_margin" | "missing_data";
+  const setControlFocus = useCallback((v: "all" | "low_margin" | "missing_data") => setURLParam("controlFocus", v), [setURLParam]);
   const hideCompleted = urlFilters.hideCompleted;
   const setHideCompleted = useCallback((v: boolean) => setURLParam("hideCompleted", v), [setURLParam]);
   const [contractDateRange, setContractDateRange] = useState<DateRange>({ from: undefined, to: undefined });
@@ -118,6 +133,8 @@ function OrdersListInner() {
 
   const [page, setPage] = useState(1);
   const pageSize = 20;
+  const selectedYear = yearFilter !== "all" ? Number(yearFilter) : null;
+  const hasSelectedYear = Number.isInteger(selectedYear);
 
   // Statuses must be fetched first so lastStatusId is available for the orders query
   const { data: statuses = [] } = useQuery({
@@ -147,7 +164,7 @@ function OrdersListInner() {
     : null;
 
   const { data: ordersResult, isLoading } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange],
+    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange],
     queryFn: async () => {
       if (!effectiveCompany?.id) return { orders: [] as OrderWithDetails[], totalCount: 0 };
 
@@ -235,11 +252,16 @@ function OrdersListInner() {
       } else if (statusFilter !== "all") {
         query = query.eq("current_status_id", statusFilter);
       }
-      if (hideCompleted && lastStatusId) {
+      if (hideCompleted && statusFilter === "all" && lastStatusId) {
         query = query.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
       }
       if (amountMin) query = query.gte("total_amount", parseFloat(amountMin));
       if (amountMax) query = query.lte("total_amount", parseFloat(amountMax));
+      if (hasSelectedYear && selectedYear && monthFilter === "all") {
+        query = query
+          .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
+          .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
+      }
       if (contractDateRange.from) query = query.gte("created_at", contractDateRange.from.toISOString());
       if (contractDateRange.to) query = query.lte("created_at", new Date(contractDateRange.to.getTime() + 86400000 - 1).toISOString());
       if (warehouseDateRange.from) query = query.gte("warehouse_arrival_date", warehouseDateRange.from.toISOString().split("T")[0]);
@@ -263,18 +285,24 @@ function OrdersListInner() {
   const rawOrders = ordersResult?.orders ?? [];
   const totalCount = ordersResult?.totalCount ?? 0;
 
-  // KPI stats "assoluti": sempre tutti gli ordini azienda, NON toccati da
-  // nessun filtro (In Corso, statusFilter, payment, date, etc.). Le card
-  // devono mostrare la realtà aziendale, non la vista correntemente filtrata.
+  // KPI stats principali: reagiscono solo all'annualità, non ai filtri operativi
+  // come stato, ricerca, pagamento o vista. Così restano numeri di controllo,
+  // ma possono essere letti per anno quando serve.
   const { data: globalStats } = useQuery({
-    queryKey: ["orders-global-stats", effectiveCompany?.id, lastStatusId, supportStatusId],
+    queryKey: ["orders-global-stats", effectiveCompany?.id, yearFilter, lastStatusId, supportStatusId],
     queryFn: async () => {
       const EMPTY = { totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0 };
       if (!effectiveCompany?.id) return EMPTY;
-      const { data, error } = await supabase
+      let query = supabase
         .from("orders")
         .select("id, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_paid, payment_type, current_status_id")
         .eq("company_id", effectiveCompany.id);
+      if (hasSelectedYear && selectedYear) {
+        query = query
+          .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
+          .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
+      }
+      const { data, error } = await query;
       if (error) throw error;
       const rows = data || [];
       const totalGross = rows.reduce((sum, o) => sum + (o.total_amount || 0) * (1 + ((o.vat_rate ?? 22) / 100)), 0);
@@ -293,13 +321,74 @@ function OrdersListInner() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: availableYears = [] } = useQuery({
+    queryKey: ["orders-available-years", effectiveCompany?.id],
+    queryFn: async () => {
+      const currentYear = new Date().getFullYear();
+      if (!effectiveCompany?.id) return [currentYear];
+      const { data, error } = await supabase
+        .from("orders")
+        .select("created_at")
+        .eq("company_id", effectiveCompany.id)
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      if (error) throw error;
+      const years = new Set<number>([currentYear - 1, currentYear, currentYear + 1]);
+      (data || []).forEach((row) => {
+        if (!row.created_at) return;
+        const year = new Date(row.created_at).getFullYear();
+        if (!Number.isNaN(year)) years.add(year);
+      });
+      return Array.from(years).sort((a, b) => b - a);
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: monthlyOrders = [] } = useQuery({
+    queryKey: ["orders-monthly-sales-chart", effectiveCompany?.id, yearFilter],
+    queryFn: async () => {
+      if (!effectiveCompany?.id) return [];
+      const from = new Date();
+      let to: Date | null = null;
+      if (hasSelectedYear && selectedYear) {
+        from.setFullYear(selectedYear, 0, 1);
+        from.setHours(0, 0, 0, 0);
+        to = new Date(selectedYear, 11, 31, 23, 59, 59, 999);
+      } else {
+        from.setMonth(from.getMonth() - 11);
+        from.setDate(1);
+        from.setHours(0, 0, 0, 0);
+      }
+
+      let query = supabase
+        .from("orders")
+        .select(`
+          id, created_at, total_amount, vat_rate,
+          deposit_amount, deposit_paid,
+          deposit_2_amount, deposit_2_paid,
+          balance_amount, balance_paid,
+          financing_amount, financing_paid
+        `)
+        .eq("company_id", effectiveCompany.id)
+        .gte("created_at", from.toISOString());
+      if (to) query = query.lte("created_at", to.toISOString());
+      const { data, error } = await query
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // (Rimossa la query "aggregates" filtrata: le KPI cards ora usano globalStats
   // che NON reagisce ai filtri. Se in futuro serviranno statistiche della vista
   // corrente, vanno derivate da `rawOrders` o da una nuova query dedicata.)
 
   // B3 — query indipendente per la vista Pipeline (tutti gli ordini, nessuna paginazione)
   const { data: allOrdersForPipeline = [] } = useQuery({
-    queryKey: ["orders-pipeline", effectiveCompany?.id, statusFilter, hideCompleted, lastStatusId, supportStatusId, debouncedSearch, customerFilter],
+    queryKey: ["orders-pipeline", effectiveCompany?.id, statusFilter, yearFilter, hideCompleted, lastStatusId, supportStatusId, debouncedSearch, customerFilter],
     queryFn: async () => {
       if (!effectiveCompany?.id || viewMode !== "pipeline") return [] as OrderWithDetails[];
       let q = supabase
@@ -328,8 +417,13 @@ function OrdersListInner() {
       } else if (statusFilter === "__completati__") {
         if (lastStatusId) q = q.eq("current_status_id", lastStatusId);
       } else if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
-      if (hideCompleted && lastStatusId) q = q.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
+      if (hideCompleted && statusFilter === "all" && lastStatusId) q = q.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
       if (customerFilter !== "all") q = q.eq("customer_id", customerFilter);
+      if (hasSelectedYear && selectedYear) {
+        q = q
+          .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
+          .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
+      }
       // Cap pipeline to 200 most recent orders to prevent performance issues with large datasets
       q = q.limit(200);
       const { data, error } = await q;
@@ -781,9 +875,9 @@ function OrdersListInner() {
     expectedDateRange.from || expectedDateRange.to;
 
   const hasAnyFilter = !!(hasDateFilters || searchQuery || statusFilter !== "all" ||
-    paymentFilter !== "all" || customerFilter !== "all" || amountMin || amountMax ||
+    paymentFilter !== "all" || customerFilter !== "all" || yearFilter !== "all" || amountMin || amountMax ||
     salespersonFilter !== "all" || laborFilter !== "all" || supplierFilter !== "all" ||
-    !hideCompleted);
+    controlFocus !== "all" || !hideCompleted);
 
   // B4 — usa customer_id (UUID reale) invece della chiave composita nome+cognome+email
   const uniqueCustomers = useMemo(() => {
@@ -804,12 +898,14 @@ function OrdersListInner() {
     setStatusFilter("all");
     setPaymentFilter("all");
     setCustomerFilter("all");
+    setYearFilter("all");
     setAmountMin("");
     setAmountMax("");
     setMonthFilter("all");
     setSalespersonFilter("all");
     setLaborFilter("all");
     setSupplierFilter("all");
+    setControlFocus("all");
     setHideCompleted(true);
     setContractDateRange({ from: undefined, to: undefined });
     setWarehouseDateRange({ from: undefined, to: undefined });
@@ -822,7 +918,7 @@ function OrdersListInner() {
     if (value === "all") {
       setContractDateRange({ from: undefined, to: undefined });
     } else {
-      const year = new Date().getFullYear();
+      const year = hasSelectedYear && selectedYear ? selectedYear : new Date().getFullYear();
       const month = parseInt(value);
       const from = new Date(year, month, 1);
       const to = new Date(year, month + 1, 0);
@@ -831,8 +927,24 @@ function OrdersListInner() {
     setPage(1);
   };
 
+  const handleYearChange = (value: string) => {
+    setYearFilter(value);
+    const parsedYear = value !== "all" ? Number(value) : null;
+    if (monthFilter !== "all" && Number.isInteger(parsedYear)) {
+      const month = parseInt(monthFilter);
+      const from = new Date(parsedYear as number, month, 1);
+      const to = new Date(parsedYear as number, month + 1, 0);
+      setContractDateRange({ from, to });
+    } else if (monthFilter !== "all") {
+      const month = parseInt(monthFilter);
+      const year = new Date().getFullYear();
+      setContractDateRange({ from: new Date(year, month, 1), to: new Date(year, month + 1, 0) });
+    }
+    setPage(1);
+  };
+
   // Reset page to 1 when any filter changes
-  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${hideCompleted}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}`;
+  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${yearFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${controlFocus}|${hideCompleted}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}`;
   useEffect(() => { setPage(1); }, [filterKey]);
 
   // Server-side pagination
@@ -841,8 +953,7 @@ function OrdersListInner() {
   const showingTo = Math.min(page * pageSize, totalCount);
 
   // KPI card usa globalStats (ignora filtri) per mostrare SEMPRE i totali reali.
-  // Le card cliccabili applicano il filtro alla TABELLA, ma i numeri restano
-  // costanti: agiscono come selettore, non come specchio del filtro attivo.
+  // Le card sono solo informative: i filtri restano nei controlli dedicati.
   const stats = useMemo(() => ({
     totalOrders: globalStats?.totalOrders ?? 0,
     totalGross: globalStats?.totalGross ?? 0,
@@ -862,6 +973,168 @@ function OrdersListInner() {
       return margin.level !== "good" ? count + 1 : count;
     }, 0),
   }), [globalStats, orders, orderCostsMap]);
+
+  const controlRoom = useMemo(() => {
+    const orderSignals = orders.map((order) => {
+      const amountDue = getAmountDue(order);
+      const costs = orderCostsMap.get(order.id);
+      const margin = getOrderMargin(order.total_amount || 0, costs?.variableCosts || 0);
+      const isSupport = Boolean(supportStatusId && order.current_status_id === supportStatusId);
+      const isCompleted = Boolean(lastStatusId && order.current_status_id === lastStatusId);
+      const isUnplanned = !order.expected_date && !order.work_start_date;
+      let score = 0;
+      let reason = "Da monitorare";
+      let tone: "red" | "orange" | "blue" | "emerald" = "blue";
+      let amount = amountDue;
+
+      if (costs && margin.level === "negative") {
+        score += 90;
+        reason = "Margine negativo";
+        tone = "red";
+        amount = Math.abs(margin.grossMargin);
+      } else if (costs && margin.level === "low") {
+        score += 62;
+        reason = "Margine basso";
+        tone = "orange";
+        amount = Math.max(0, (order.total_amount || 0) * 0.2 - margin.grossMargin);
+      }
+
+      if (amountDue > 0) {
+        score += Math.min(42, amountDue / 10000);
+        if (reason === "Da monitorare") {
+          reason = "Da incassare";
+          tone = "orange";
+          amount = amountDue;
+        }
+      }
+
+      if (isSupport) {
+        score += 24;
+        if (reason === "Da monitorare") {
+          reason = "In assistenza";
+          tone = "orange";
+        }
+      }
+
+      if (isUnplanned && !isCompleted) {
+        score += 14;
+        if (reason === "Da monitorare") {
+          reason = "Da pianificare";
+          tone = "blue";
+        }
+      }
+
+      return { order, amountDue, costs, margin, isSupport, isCompleted, isUnplanned, score, reason, tone, amount };
+    });
+
+    const lowMargin = orderSignals.filter((item) => item.costs && item.margin.level !== "good");
+    const support = orderSignals.filter((item) => item.isSupport);
+    const toComplete = orderSignals.filter((item) => !item.isCompleted && !item.isSupport);
+    const unplanned = orderSignals.filter((item) => item.isUnplanned && !item.isCompleted);
+    const missingCustomer = orderSignals.filter((item) => !item.order.customer);
+    const missingStatus = orderSignals.filter((item) => !item.order.current_status_id);
+    const missingDataCount = new Set([
+      ...unplanned.map((item) => item.order.id),
+      ...missingCustomer.map((item) => item.order.id),
+      ...missingStatus.map((item) => item.order.id),
+    ]).size;
+    const priorities = orderSignals
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+
+    const insight = priorities[0]
+      ? `${priorities[0].reason}: ${priorities[0].order.order_code || priorities[0].order.description || "commessa"} e altre ${Math.max(0, priorities.length - 1)} priorità.`
+      : "Nessuna priorità critica nella vista corrente.";
+
+    return {
+      lowMarginCount: stats.lowMarginCount || lowMargin.length,
+      supportCount: stats.countAssistenza || support.length,
+      toCompleteCount: stats.countDaCompletare || toComplete.length,
+      unplannedCount: unplanned.length,
+      missingCustomerCount: missingCustomer.length,
+      missingStatusCount: missingStatus.length,
+      missingDataCount,
+      priorities,
+      insight,
+    };
+  }, [orders, orderCostsMap, supportStatusId, lastStatusId, stats.lowMarginCount, stats.countAssistenza, stats.countDaCompletare]);
+
+  const visibleOrders = useMemo(() => {
+    if (controlFocus === "low_margin") {
+      return orders.filter((order) => {
+        const costs = orderCostsMap.get(order.id);
+        if (!costs) return false;
+        return getOrderMargin(order.total_amount || 0, costs.variableCosts).level !== "good";
+      });
+    }
+    if (controlFocus === "missing_data") {
+      return orders.filter((order) => !order.customer || !order.current_status_id || (!order.expected_date && !order.work_start_date));
+    }
+    return orders;
+  }, [orders, orderCostsMap, controlFocus]);
+
+  const visibleTotalCount = controlFocus === "all" ? totalCount : visibleOrders.length;
+  const visibleShowingFrom = controlFocus === "all" ? showingFrom : (visibleOrders.length > 0 ? 1 : 0);
+  const visibleShowingTo = controlFocus === "all" ? showingTo : visibleOrders.length;
+
+  const monthlySalesChart = useMemo(() => {
+    const months = Array.from({ length: 12 }, (_, index) => {
+      const date = hasSelectedYear && selectedYear
+        ? new Date(selectedYear, index, 1)
+        : new Date();
+      if (!(hasSelectedYear && selectedYear)) {
+        date.setMonth(date.getMonth() - (11 - index));
+      }
+      date.setDate(1);
+      date.setHours(0, 0, 0, 0);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const monthLabel = date.toLocaleDateString("it-IT", { month: "short" }).replace(".", "");
+      return {
+        key,
+        mese: hasSelectedYear ? monthLabel : `${monthLabel} '${String(date.getFullYear()).slice(-2)}`,
+        venduto: 0,
+        incassato: 0,
+        commesse: 0,
+      };
+    });
+    const byKey = new Map(months.map((month) => [month.key, month]));
+
+    monthlyOrders.forEach((order: any) => {
+      if (!order.created_at) return;
+      const date = new Date(order.created_at);
+      if (Number.isNaN(date.getTime())) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const month = byKey.get(key);
+      if (!month) return;
+      month.commesse += 1;
+      month.venduto += getGrossOrderAmount(order as any);
+      month.incassato += getAmountCollected(order as any);
+    });
+
+    return months;
+  }, [monthlyOrders, hasSelectedYear, selectedYear]);
+
+  const monthlySalesTotals = useMemo(() => {
+    return monthlySalesChart.reduce(
+      (acc, month) => ({
+        venduto: acc.venduto + month.venduto,
+        incassato: acc.incassato + month.incassato,
+        commesse: acc.commesse + month.commesse,
+      }),
+      { venduto: 0, incassato: 0, commesse: 0 }
+    );
+  }, [monthlySalesChart]);
+
+  const monthlySalesAverages = useMemo(() => {
+    const months = Math.max(1, monthlySalesChart.length);
+    return {
+      ordersPerMonth: monthlySalesTotals.commesse / months,
+      soldPerOrder: monthlySalesTotals.commesse > 0 ? monthlySalesTotals.venduto / monthlySalesTotals.commesse : 0,
+      collectedPerMonth: monthlySalesTotals.incassato / months,
+      pendingRatio: stats.totalGross > 0 ? (stats.pending / stats.totalGross) * 100 : 0,
+    };
+  }, [monthlySalesChart.length, monthlySalesTotals, stats.pending, stats.totalGross]);
 
   // Export CSV
   // M2 — Export CSV con tutti i filtri attivi (non solo i 20 della pagina corrente)
@@ -926,9 +1199,14 @@ function OrdersListInner() {
     } else if (statusFilter === "__completati__") {
       if (lastStatusId) query = query.eq("current_status_id", lastStatusId);
     } else if (statusFilter !== "all") query = query.eq("current_status_id", statusFilter);
-    if (hideCompleted && lastStatusId) query = query.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
+    if (hideCompleted && statusFilter === "all" && lastStatusId) query = query.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
     if (amountMin) query = query.gte("total_amount", parseFloat(amountMin));
     if (amountMax) query = query.lte("total_amount", parseFloat(amountMax));
+    if (hasSelectedYear && selectedYear && monthFilter === "all") {
+      query = query
+        .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
+        .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
+    }
     if (contractDateRange.from) query = query.gte("created_at", contractDateRange.from.toISOString());
     if (contractDateRange.to) query = query.lte("created_at", new Date(contractDateRange.to.getTime() + 86400000 - 1).toISOString());
     if (warehouseDateRange.from) query = query.gte("warehouse_arrival_date", warehouseDateRange.from.toISOString().split("T")[0]);
@@ -1041,7 +1319,7 @@ function OrdersListInner() {
     });
     return { rows, columns, count: allOrders?.length ?? 0 };
   }, [effectiveCompany?.id, salespersonFilter, laborFilter, supplierFilter, customerFilter,
-      paymentFilter, debouncedSearch, statusFilter, hideCompleted, lastStatusId,
+      paymentFilter, debouncedSearch, statusFilter, yearFilter, hasSelectedYear, selectedYear, monthFilter, hideCompleted, lastStatusId,
       supportStatusId, amountMin, amountMax, contractDateRange, warehouseDateRange, expectedDateRange, toast]);
 
   const exportOrdersCSV = useCallback(async () => {
@@ -1228,7 +1506,7 @@ function OrdersListInner() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 sm:px-6 pt-5 pb-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 sm:px-6 pt-5 pb-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <Package className="h-5 w-5" />
@@ -1337,12 +1615,6 @@ function OrdersListInner() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4 mr-1.5" />
-            <span className="hidden sm:inline">Importa</span>
-            <Sparkles className="h-3.5 w-3.5 ml-1 text-primary" />
-          </Button>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" aria-label="Altre azioni">
@@ -1350,19 +1622,29 @@ function OrdersListInner() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" /> Importa commesse
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={openCustomerSheetsDialog}>
                 <UsersIcon className="h-4 w-4 mr-2" /> Scarica schede clienti
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           {appaltatoreEnabled ? (
-            <Button onClick={() => setShowOrderTypeDialog(true)}>
+            <Button
+              onClick={() => setShowOrderTypeDialog(true)}
+              className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25"
+            >
               <Plus className="h-4 w-4 mr-1" />
               <span className="hidden sm:inline">Nuova Commessa</span>
               <span className="sm:hidden">Nuovo</span>
             </Button>
           ) : (
-            <Button asChild>
+            <Button
+              asChild
+              className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25"
+            >
               <Link to="/azienda/ordini/nuovo">
                 <Plus className="h-4 w-4 mr-1" />
                 <span className="hidden sm:inline">Nuova Commessa</span>
@@ -1382,29 +1664,245 @@ function OrdersListInner() {
         />
       )}
 
-      <OrdersStatsCards
-        stats={stats}
-        onPendingClick={() => setPaymentFilter(paymentFilter === "pending" ? "all" : "pending")}
-        activePendingFilter={paymentFilter === "pending"}
-        supportStatusId={supportStatusId}
-        completedStatusId={lastStatusId}
-        activeStatusFilter={statusFilter}
-        onStatusFilterClick={(id) => setStatusFilter(statusFilter === id ? "all" : id)}
-        onDaCompletareClick={() => {
-          // "Da completare" = escludi Assistenza e Completati.
-          // Gestito lato frontend togglando hideCompleted + un secondo filtro non-assistenza.
-          // Implementazione semplice: filtra per "all" e forza hideCompleted + hideAssistenza.
-          // Dato che non c'è un filtro combinato nativo, usiamo statusFilter="da_completare" sentinel
-          // mappato nella query principale.
-          setStatusFilter(statusFilter === "__da_completare__" ? "all" : "__da_completare__");
-        }}
-      />
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="grid gap-0 xl:grid-cols-[minmax(320px,0.58fr)_minmax(520px,1fr)]">
+          <div className="bg-[#173b67] p-5 sm:p-6 text-white">
+            <div className="flex items-start gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
+                  <Target className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-orange-100">Riepilogo commesse</p>
+                  <h2 className="mt-1 text-xl font-semibold text-white">Vista economica e operativa</h2>
+                  <p className="mt-1 max-w-xl text-sm leading-6 text-blue-50/85">
+                    Numeri principali sempre visibili, senza azioni automatiche sui filtri.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-white/12 bg-white/9 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
+                    <ShoppingBag className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Commesse totali</span>
+                    <span className="block truncate text-xl font-bold text-white">{stats.totalOrders}</span>
+                    <span className="mt-0.5 block text-xs text-blue-50/70">
+                      media mese {monthlySalesAverages.ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-white/12 bg-white/9 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
+                    <Euro className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Totale venduto</span>
+                    <span className="block truncate text-xl font-bold text-white">
+                      {stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-blue-50/70">
+                      media commessa {monthlySalesAverages.soldPerOrder.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-white/12 bg-white/9 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-emerald-100">
+                    <TrendingUp className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Incassato</span>
+                    <span className="block truncate text-xl font-bold text-white">
+                      {stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-blue-50/70">
+                      media mese {monthlySalesAverages.collectedPerMonth.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-white/12 bg-white/9 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
+                    <AlertCircle className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Da incassare</span>
+                    <span className="block truncate text-xl font-bold text-white">
+                      {stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-blue-50/70">
+                      {monthlySalesAverages.pendingRatio.toLocaleString("it-IT", { maximumFractionDigits: 1 })}% del venduto
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-5 xl:border-l xl:border-t-0">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">
+                  Andamento 12 mesi{yearFilter !== "all" ? ` · ${yearFilter}` : ""}
+                </p>
+                <h3 className="mt-1 text-base font-semibold text-slate-950">Venduto, incassato e commesse</h3>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-3 text-xs">
+                <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-blue-500" /> Venduto</span>
+                <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-orange-500" /> Incassato</span>
+                <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-slate-900" /> N. commesse</span>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-blue-100 bg-white px-3 py-2 shadow-sm">
+                <p className="text-[10px] font-semibold uppercase text-slate-500">Venduto periodo</p>
+                <p className="mt-0.5 text-base font-bold text-slate-950">
+                  {monthlySalesTotals.venduto.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                </p>
+              </div>
+              <div className="rounded-xl border border-orange-100 bg-white px-3 py-2 shadow-sm">
+                <p className="text-[10px] font-semibold uppercase text-slate-500">Incassato periodo</p>
+                <p className="mt-0.5 text-base font-bold text-orange-600">
+                  {monthlySalesTotals.incassato.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <p className="text-[10px] font-semibold uppercase text-slate-500">Commesse periodo</p>
+                <p className="mt-0.5 text-base font-bold text-slate-950">
+                  {monthlySalesTotals.commesse.toLocaleString("it-IT")}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 h-[240px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={monthlySalesChart} margin={{ top: 8, right: 2, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
+                  <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
+                  <YAxis
+                    yAxisId="money"
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={10}
+                    stroke="#94a3b8"
+                    tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
+                  />
+                  <YAxis
+                    yAxisId="count"
+                    orientation="right"
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={10}
+                    stroke="#94a3b8"
+                    allowDecimals={false}
+                  />
+                  <RechartsTooltip
+                    cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid #e2e8f0",
+                      boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
+                    }}
+                    formatter={(value, name) => {
+                      if (name === "commesse") {
+                        return [Number(value).toLocaleString("it-IT"), "N. commesse"];
+                      }
+                      return [
+                        Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }),
+                        name === "venduto" ? "Venduto" : "Incassato",
+                      ];
+                    }}
+                    labelFormatter={(label) => `Mese: ${label}`}
+                  />
+                  <Bar yAxisId="money" dataKey="venduto" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                  <Bar yAxisId="money" dataKey="incassato" fill="#f97316" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                  <Line
+                    yAxisId="count"
+                    type="monotone"
+                    dataKey="commesse"
+                    stroke="#0f172a"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "#0f172a", strokeWidth: 0 }}
+                    activeDot={{ r: 4 }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md hover:shadow-slate-950/10">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600 ring-1 ring-orange-100">
+              <Hammer className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Da completare</span>
+              <span className="block text-2xl font-bold text-slate-950">{stats.countDaCompletare ?? 0}</span>
+              <span className="text-sm text-slate-500">commesse operative</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md hover:shadow-slate-950/10">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+              <CheckCircle2 className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Completati</span>
+              <span className="block text-2xl font-bold text-slate-950">{stats.countCompletati ?? 0}</span>
+              <span className="text-sm text-slate-500">chiusi operativamente</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md hover:shadow-slate-950/10">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600 ring-1 ring-orange-100">
+              <LifeBuoy className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">In assistenza</span>
+              <span className="block text-2xl font-bold text-slate-950">{stats.countAssistenza ?? 0}</span>
+              <span className="text-sm text-slate-500">clienti da seguire</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md hover:shadow-slate-950/10">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600 ring-1 ring-orange-100">
+              <AlertTriangle className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Margine basso</span>
+              <span className="block text-2xl font-bold text-orange-700">{controlRoom.lowMarginCount}</span>
+              <span className="text-sm text-slate-500">da controllare</span>
+            </span>
+          </div>
+        </div>
+      </section>
 
       <OrdersFilterSidebar
         filters={sidebarFilters}
         onFiltersChange={setSidebarFilters}
         statuses={statuses}
-        ordersCount={orders.length}
+        ordersCount={visibleOrders.length}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         salespeople={uniqueSalespeople}
@@ -1430,15 +1928,37 @@ function OrdersListInner() {
             statusFilter={statusFilter}
             onStatusFilterChange={setStatusFilter}
             statuses={statuses}
+            yearFilter={yearFilter}
+            onYearFilterChange={handleYearChange}
+            availableYears={availableYears}
             paymentFilter={paymentFilter}
             onPaymentFilterChange={setPaymentFilter}
             monthFilter={monthFilter}
             onMonthFilterChange={handleMonthChange}
             hasAnyFilter={hasAnyFilter}
             onClearAllFilters={clearAllFilters}
-            hideCompleted={hideCompleted}
-            onHideCompletedChange={setHideCompleted}
+            hideCompleted={hideCompleted && statusFilter === "all"}
+            onHideCompletedChange={(value) => {
+              setHideCompleted(value);
+              if (value) setStatusFilter("all");
+            }}
           />
+
+          {controlFocus !== "all" && (
+            <div className="flex flex-col gap-2 rounded-xl border border-orange-200 bg-orange-50/70 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-orange-900">
+                <span className="font-semibold">
+                  {controlFocus === "low_margin" ? "Filtro Margine basso attivo" : "Filtro Campi mancanti attivo"}
+                </span>
+                <span className="ml-1 text-orange-800/80">
+                  Stai vedendo {visibleOrders.length} commess{visibleOrders.length === 1 ? "a" : "e"} nella pagina corrente.
+                </span>
+              </div>
+              <Button variant="outline" size="sm" className="border-orange-200 bg-white" onClick={() => setControlFocus("all")}>
+                Mostra tutte
+              </Button>
+            </div>
+          )}
 
           {/* Content */}
           {isLoading ? (
@@ -1455,17 +1975,23 @@ function OrdersListInner() {
                 ))}
               </CardContent>
             </Card>
-          ) : orders.length === 0 ? (
+          ) : visibleOrders.length === 0 ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">Nessuna commessa trovata</h3>
                 <p className="text-muted-foreground mb-4">
-                  {totalCount === 0
+                  {stats.totalOrders === 0
                     ? "Non hai ancora creato nessuna commessa."
-                    : "Nessuna commessa corrisponde ai filtri selezionati."}
+                    : controlFocus !== "all"
+                      ? "Nessuna commessa corrisponde al focus operativo selezionato in questa pagina."
+                      : "Nessuna commessa corrisponde ai filtri selezionati."}
                 </p>
-                {totalCount === 0 && (
+                {controlFocus !== "all" ? (
+                  <Button variant="outline" onClick={() => setControlFocus("all")}>
+                    Mostra tutte le commesse
+                  </Button>
+                ) : stats.totalOrders === 0 && (
                   appaltatoreEnabled ? (
                     <Button onClick={() => setShowOrderTypeDialog(true)}>
                       <Plus className="h-4 w-4 mr-2" />
@@ -1491,7 +2017,7 @@ function OrdersListInner() {
           ) : (
             <div className="space-y-4">
               <OrdersTable
-                orders={orders}
+                orders={visibleOrders}
                 onDelete={(id) => deleteOrderMutation.mutate(id)}
                 isDeleting={deleteOrderMutation.isPending}
                 orderCosts={orderCostsMap}
@@ -1504,13 +2030,13 @@ function OrdersListInner() {
                 laborMap={laborMap}
                 supplierMap={supplierMap}
               />
-              {totalPages > 1 && (
+              {controlFocus === "all" && totalPages > 1 && (
                 <div className="flex items-center justify-between px-2">
                   <p className="text-sm text-muted-foreground hidden sm:block">
-                    Mostrando {showingFrom}–{showingTo} di {totalCount} commesse
+                    Mostrando {visibleShowingFrom}–{visibleShowingTo} di {visibleTotalCount} commesse
                   </p>
                   <p className="text-xs text-muted-foreground sm:hidden">
-                    {showingFrom}–{showingTo} / {totalCount}
+                    {visibleShowingFrom}–{visibleShowingTo} / {visibleTotalCount}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}>
@@ -1579,8 +2105,8 @@ export default function OrdersList() {
   return (
     <div className="space-y-6">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
-      <div className="border-b border-slate-200 bg-white rounded-t-2xl">
-        <nav className="-mb-px flex gap-1 sm:gap-2 overflow-x-auto px-2 sm:px-3" role="tablist" aria-label="Sezioni commesse">
+      <div className="rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+        <nav className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Sezioni commesse">
           {tabs.map((t) => {
             const isActive = activeTab === t.id;
             return (
@@ -1590,10 +2116,10 @@ export default function OrdersList() {
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => handleTabChange(t.id)}
-                className={`relative flex items-center gap-1.5 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-[3px] -mb-px ${
+                className={`relative flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-all sm:px-4 ${
                   isActive
-                    ? "border-orange-500 text-slate-900 font-semibold"
-                    : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                    ? "bg-orange-50 text-slate-950 font-semibold shadow-sm ring-1 ring-orange-100"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
                 <t.icon

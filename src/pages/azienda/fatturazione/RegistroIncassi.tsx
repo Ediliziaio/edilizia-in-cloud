@@ -13,9 +13,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Plus, Trash2, Loader2, Link as LinkIcon } from "lucide-react";
+import { CalendarIcon, Plus, Trash2, Loader2, Link as LinkIcon, Wallet, TrendingUp, AlertTriangle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 
 const METODI = [
   { value: "bonifico", label: "Bonifico" },
@@ -145,11 +146,20 @@ export default function RegistroIncassi() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Registro Incassi</h1>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <Wallet className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Registro Incassi</h1>
+              <p className="mt-0.5 text-sm text-slate-500">Controlla incassi, scadenze e residui cliente in modo operativo.</p>
+            </div>
+          </div>
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetTrigger asChild>
-            <Button size="sm">
+            <Button size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Registra Incasso
             </Button>
           </SheetTrigger>
@@ -244,34 +254,15 @@ export default function RegistroIncassi() {
             </div>
           </SheetContent>
         </Sheet>
+        </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Incassato (mese)</p>
-            <p className="text-lg font-semibold text-emerald-600">€ {kpis.incassatoMese.toFixed(2)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Da incassare</p>
-            <p className="text-lg font-semibold">€ {kpis.daIncassare.toFixed(2)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Scaduto</p>
-            <p className="text-lg font-semibold text-destructive">€ {kpis.scaduto.toFixed(2)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Non scaduto</p>
-            <p className="text-lg font-semibold">€ {kpis.saldo.toFixed(2)}</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <OperationalKpiCard icon={TrendingUp} label="Incassato mese" value={`€ ${kpis.incassatoMese.toFixed(2)}`} hint="registrato nel mese" tone="green" />
+        <OperationalKpiCard icon={Wallet} label="Da incassare" value={`€ ${kpis.daIncassare.toFixed(2)}`} hint="fatture aperte" tone="blue" />
+        <OperationalKpiCard icon={AlertTriangle} label="Scaduto" value={`€ ${kpis.scaduto.toFixed(2)}`} hint="da sollecitare" tone={kpis.scaduto > 0 ? "red" : "green"} />
+        <OperationalKpiCard icon={Clock} label="Non scaduto" value={`€ ${kpis.saldo.toFixed(2)}`} hint="ancora nei termini" tone="amber" />
       </div>
 
       {/* Tabs */}
