@@ -378,3 +378,6 @@ verify_jwt = true
 [functions.cg-alerts-settimanali]
 verify_jwt = false
 # Schedule: lunedì 08:00 UTC — configurato lato Dashboard Supabase
+
+[functions.cg-export-pacchetto-banca]
+verify_jwt = true

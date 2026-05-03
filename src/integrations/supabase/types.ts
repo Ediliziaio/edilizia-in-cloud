@@ -7400,6 +7400,54 @@ export type Database = {
           },
         ]
       }
+      cg_exports_log: {
+        Row: {
+          anno: number
+          company_id: string
+          created_at: string
+          created_by: string | null
+          file_path: string
+          id: string
+          pdf_size_bytes: number | null
+          tipo: string
+        }
+        Insert: {
+          anno: number
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          file_path: string
+          id?: string
+          pdf_size_bytes?: number | null
+          tipo: string
+        }
+        Update: {
+          anno?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          file_path?: string
+          id?: string
+          pdf_size_bytes?: number | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cg_exports_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cg_exports_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cg_rating_snapshot: {
         Row: {
           classe_rating: string
@@ -39523,6 +39571,66 @@ export type Database = {
       can_access_render_storage_object: {
         Args: { p_name: string }
         Returns: boolean
+      }
+      cg_get_bep: {
+        Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_ce_mensile: {
+        Args: { p_anno?: number; p_company_id?: string }
+        Returns: {
+          bep_cum: number
+          costi_fissi: number
+          costi_fissi_cum: number
+          costi_totali_cum: number
+          costi_var: number
+          costi_var_cum: number
+          mese: number
+          raggiunto: boolean
+          ricavi: number
+          ricavi_cum: number
+        }[]
+      }
+      cg_get_conto_economico_riclassificato: {
+        Args: {
+          p_anno?: number
+          p_company_id?: string
+          p_mese_a?: number
+          p_mese_da?: number
+          p_modalita?: string
+        }
+        Returns: Json
+      }
+      cg_get_rating: {
+        Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_stato_patrimoniale_riclassificato: {
+        Args: {
+          p_anno?: number
+          p_company_id?: string
+          p_data_riferimento?: string
+        }
+        Returns: Json
+      }
+      cg_simula_piano_industriale: {
+        Args: {
+          p_anno_partenza?: number
+          p_assumption_id?: string
+          p_company_id?: string
+        }
+        Returns: Json
+      }
+      cg_simulazione_what_if: {
+        Args: {
+          p_assumption_id?: string
+          p_company_id?: string
+          p_orizzonte?: number
+          p_override_crescita_pct?: number
+          p_override_investimento?: number
+          p_override_margine_pct?: number
+        }
+        Returns: Json
       }
       change_order_status: {
         Args: {
