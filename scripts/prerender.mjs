@@ -323,15 +323,21 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error("Prerender errore fatale:", e);
-  // Su CI (Cloudflare Pages, GitHub Actions) il prerender e' best-effort:
-  // se fallisce non bloccare il deploy — il sito viene servito come SPA classica
-  // (perde il SEO crawler-static, ma resta funzionante).
-  if (process.env.CI || process.env.CF_PAGES) {
-    console.warn("⚠ CI detected — exit 0 per non bloccare il deploy. SEO prerender disabilitato per questa build.");
-    process.exitCode = 0;
-  } else {
-    process.exitCode = 1;
-  }
-});
+main()
+  .then(() => {
+    // Force-exit dopo successo: alcuni handle (browser child process,
+    // vite preview server) possono restare appesi e bloccare Node forever.
+    // Su CF Pages questo causava build "in_progress" infiniti.
+    process.exit(0);
+  })
+  .catch((e) => {
+    console.error("Prerender errore fatale:", e);
+    // Su CI (Cloudflare Pages, GitHub Actions) il prerender e' best-effort:
+    // se fallisce non bloccare il deploy.
+    if (process.env.CI || process.env.CF_PAGES) {
+      console.warn("⚠ CI detected — exit 0 per non bloccare il deploy. SEO prerender disabilitato per questa build.");
+      process.exit(0);
+    } else {
+      process.exit(1);
+    }
+  });
