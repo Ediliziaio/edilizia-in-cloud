@@ -13,7 +13,7 @@
  *  - feature flag: controllo_gestione_v1
  */
 import { useMemo, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -28,10 +28,43 @@ import { TabPacchettoBanca } from "@/components/controllo-gestione/tabs/TabPacch
 
 type CGTab = "ce" | "sp" | "piano" | "rating" | "pdf";
 
+// Mappa segmento URL → tab. Usata per il deep-link dalla sidebar
+// (es. /azienda/controllo-gestione/rating → tab "rating").
+const URL_TO_TAB: Record<string, CGTab> = {
+  ce: "ce",
+  sp: "sp",
+  piano: "piano",
+  rating: "rating",
+  "pacchetto-banca": "pdf",
+  "wizard-bilancio": "pdf",   // wizard non ancora implementato → fallback su pacchetto
+};
+const TAB_TO_URL: Record<CGTab, string> = {
+  ce: "ce", sp: "sp", piano: "piano", rating: "rating", pdf: "pacchetto-banca",
+};
+
 export default function ControlloGestione() {
   const permissions = usePermissions();
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
-  const [activeTab, setActiveTab] = useState<CGTab>("ce");
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Tab attiva derivata dall'URL (deep-link friendly)
+  const tabFromUrl: CGTab = useMemo(() => {
+    const seg = location.pathname.split("/").filter(Boolean).pop();
+    if (!seg || seg === "controllo-gestione") return "ce";
+    return URL_TO_TAB[seg] ?? "ce";
+  }, [location.pathname]);
+  const [activeTab, setActiveTab] = useState<CGTab>(tabFromUrl);
+  // Sincronizza se l'URL cambia (back/forward o link sidebar)
+  useMemo(() => {
+    if (tabFromUrl !== activeTab) setActiveTab(tabFromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabFromUrl]);
+  const handleTabChange = (v: string) => {
+    const tab = v as CGTab;
+    setActiveTab(tab);
+    navigate(`/azienda/controllo-gestione/${TAB_TO_URL[tab]}`);
+  };
 
   const [filters, setFilters] = useState<CGFilters>(() => {
     const oggi = new Date();
@@ -75,7 +108,7 @@ export default function ControlloGestione() {
 
       <Tabs
         value={activeTab}
-        onValueChange={(v) => setActiveTab(v as CGTab)}
+        onValueChange={handleTabChange}
         className="flex-1 overflow-y-auto"
       >
         <div className="px-3 sm:px-4 pt-3 sticky top-0 z-10 bg-background border-b">

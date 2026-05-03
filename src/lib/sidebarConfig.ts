@@ -46,6 +46,10 @@ import {
   Settings,
   Calculator,
   ShieldCheck,
+  Activity,
+  FileDown,
+  ClipboardCheck,
+  Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -84,7 +88,75 @@ export const macroAreas: MacroArea[] = [
     ],
   },
 
-  // 2. Cantieri & Lavori
+  // 2. Controllo di Gestione (modulo add-on, gating featureKey)
+  // Gerarchia: Cruscotto (cosa vedi ogni giorno) → Controllo di Gestione
+  // (direzione strategica) → Cantieri (operatività). Quando il flag è OFF,
+  // l'INTERA macroArea sparisce dalla sidebar (filterNavItems).
+  {
+    id: "area_controllo_gestione",
+    title: "Controllo di Gestione",
+    icon: PieChart,
+    items: [
+      {
+        title: "Panoramica",
+        url: "/azienda/controllo-gestione",
+        icon: PieChart,
+        permissionKey: "canViewControlloGestione",
+        featureKey: "controllo_gestione_v1",
+        isBeta: true,
+      },
+      {
+        title: "CE Riclassificato",
+        url: "/azienda/controllo-gestione/ce",
+        icon: FileText,
+        permissionKey: "canViewControlloGestione",
+        featureKey: "controllo_gestione_v1",
+        groupLabel: "Bilancio",
+      },
+      {
+        title: "Stato Patrimoniale",
+        url: "/azienda/controllo-gestione/sp",
+        icon: Layers,
+        permissionKey: "canViewControlloGestione",
+        featureKey: "controllo_gestione_v1",
+        groupLabel: "Bilancio",
+      },
+      {
+        title: "Piano Industriale",
+        url: "/azienda/controllo-gestione/piano",
+        icon: TrendingUp,
+        permissionKey: "canViewControlloGestione",
+        featureKey: "controllo_gestione_v1",
+        groupLabel: "Strategia",
+      },
+      {
+        title: "Rating Bancario",
+        url: "/azienda/controllo-gestione/rating",
+        icon: Activity,
+        permissionKey: "canViewControlloGestione",
+        featureKey: "controllo_gestione_v1",
+        groupLabel: "Strategia",
+      },
+      {
+        title: "Pacchetto Banca",
+        url: "/azienda/controllo-gestione/pacchetto-banca",
+        icon: FileDown,
+        permissionKey: "canViewControlloGestione",
+        featureKey: "controllo_gestione_v1",
+        groupLabel: "Export",
+      },
+      {
+        title: "Wizard Bilancio",
+        url: "/azienda/controllo-gestione/wizard-bilancio",
+        icon: ClipboardCheck,
+        permissionKey: "canViewControlloGestione",
+        featureKey: "controllo_gestione_v1",
+        groupLabel: "Configurazione",
+      },
+    ],
+  },
+
+  // 3. Cantieri & Lavori
   {
     id: "area_cantieri",
     title: "Cantieri & Lavori",

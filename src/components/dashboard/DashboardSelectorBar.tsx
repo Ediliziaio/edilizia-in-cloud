@@ -14,12 +14,14 @@ import {
   LayoutGrid,
   HardHat,
   TrendingUp,
+  PieChart,
   Plus,
   Search,
   Star,
   Trash2,
   Settings,
 } from "lucide-react";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -55,12 +57,19 @@ interface SystemDash {
   label: string;
   url: string;
   icon: React.ElementType;
-  permKey: "canViewCruscotto" | "canViewDashboard" | "canViewMarketingDashboard";
+  permKey:
+    | "canViewCruscotto"
+    | "canViewDashboard"
+    | "canViewMarketingDashboard"
+    | "canViewControlloGestione";
+  /** Se valorizzato, la dashboard è visibile solo se il flag è attivo per la company. */
+  featureKey?: string;
 }
 
 const SYSTEM_DASHBOARDS: SystemDash[] = [
   { id: "sys-aziendale", label: "Cruscotto Aziendale", url: "/azienda/cruscotto/aziendale", icon: LayoutGrid,  permKey: "canViewCruscotto"          },
   { id: "sys-gestione",  label: "Dashboard Gestione",  url: "/azienda",                     icon: HardHat,     permKey: "canViewDashboard"          },
+  { id: "sys-controllo", label: "Controllo di Gestione", url: "/azienda/controllo-gestione", icon: PieChart,   permKey: "canViewControlloGestione", featureKey: "controllo_gestione_v1" },
   { id: "sys-marketing", label: "Dashboard Marketing", url: "/azienda/marketing",            icon: TrendingUp,  permKey: "canViewMarketingDashboard" },
 ];
 
@@ -233,13 +242,19 @@ export function DashboardSelectorBar({
   const defaultPendingId = setDefault.isPending ? setDefault.variables ?? null : null;
   const deletePendingId = deleteDash.isPending ? deleteDash.variables ?? null : null;
 
-  // Dashboard di sistema filtrate per permessi
+  const featureFlags = useFeatureFlags();
+  // Dashboard di sistema filtrate per permessi + feature flag (add-on)
   const visibleSystem = useMemo(
     () =>
       permissions.isLoading
         ? []
-        : SYSTEM_DASHBOARDS.filter((s) => permissions.isAdmin || permissions[s.permKey]),
-    [permissions],
+        : SYSTEM_DASHBOARDS.filter((s) => {
+            const hasPerm = permissions.isAdmin || permissions[s.permKey];
+            if (!hasPerm) return false;
+            if (s.featureKey && !featureFlags.isFeatureEnabled(s.featureKey)) return false;
+            return true;
+          }),
+    [permissions, featureFlags],
   );
 
   // Filtro ricerca
