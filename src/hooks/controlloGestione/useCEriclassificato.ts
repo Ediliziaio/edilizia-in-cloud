@@ -77,7 +77,7 @@ export function useCEriclassificato(anno: number, meseDa = 1, meseA = 12) {
     queryFn: async (): Promise<CEriclassificato> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.rpc as any)(
-        "cg_get_conto_economico_riclassificato",
+        "cg_get_ce_safe",
         { p_anno: anno, p_mese_da: meseDa, p_mese_a: meseA },
       );
       if (error) throw error;
@@ -92,7 +92,7 @@ export function useBEP(anno: number) {
     queryKey: queryKeys.controlloGestione.bep(anno),
     queryFn: async (): Promise<BEPResult> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)("cg_get_bep", { p_anno: anno });
+      const { data, error } = await (supabase.rpc as any)("cg_get_bep_safe", { p_anno: anno });
       if (error) throw error;
       return data as unknown as BEPResult;
     },

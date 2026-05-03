@@ -46,9 +46,6 @@ import {
   Settings,
   Calculator,
   ShieldCheck,
-  Activity,
-  FileDown,
-  Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -87,66 +84,23 @@ export const macroAreas: MacroArea[] = [
     ],
   },
 
-  // 2. Controllo di Gestione (modulo add-on, gating featureKey)
-  // Gerarchia: Cruscotto (cosa vedi ogni giorno) → Controllo di Gestione
-  // (direzione strategica) → Cantieri (operatività). Quando il flag è OFF,
-  // l'INTERA macroArea sparisce dalla sidebar (filterNavItems).
+  // 2. Controllo di Gestione (modulo add-on)
+  // Una sola voce nella sidebar — la navigazione interna avviene tramite tab
+  // (CE/SP/Piano/Rating/Pacchetto + Configurazione) all'interno della pagina,
+  // così la sidebar resta pulita e gerarchica.
   {
     id: "area_controllo_gestione",
     title: "Controllo di Gestione",
     icon: PieChart,
     items: [
       {
-        title: "Panoramica",
+        title: "Controllo di Gestione",
         url: "/azienda/controllo-gestione",
         icon: PieChart,
         permissionKey: "canViewControlloGestione",
         featureKey: "controllo_gestione_v1",
         isBeta: true,
       },
-      {
-        title: "CE Riclassificato",
-        url: "/azienda/controllo-gestione/ce",
-        icon: FileText,
-        permissionKey: "canViewControlloGestione",
-        featureKey: "controllo_gestione_v1",
-        groupLabel: "Bilancio",
-      },
-      {
-        title: "Stato Patrimoniale",
-        url: "/azienda/controllo-gestione/sp",
-        icon: Layers,
-        permissionKey: "canViewControlloGestione",
-        featureKey: "controllo_gestione_v1",
-        groupLabel: "Bilancio",
-      },
-      {
-        title: "Piano Industriale",
-        url: "/azienda/controllo-gestione/piano",
-        icon: TrendingUp,
-        permissionKey: "canViewControlloGestione",
-        featureKey: "controllo_gestione_v1",
-        groupLabel: "Strategia",
-      },
-      {
-        title: "Rating Bancario",
-        url: "/azienda/controllo-gestione/rating",
-        icon: Activity,
-        permissionKey: "canViewControlloGestione",
-        featureKey: "controllo_gestione_v1",
-        groupLabel: "Strategia",
-      },
-      {
-        title: "Pacchetto Banca",
-        url: "/azienda/controllo-gestione/pacchetto-banca",
-        icon: FileDown,
-        permissionKey: "canViewControlloGestione",
-        featureKey: "controllo_gestione_v1",
-        groupLabel: "Export",
-      },
-      // Wizard Bilancio: voce rimossa fino all'implementazione della pagina
-      // dedicata. La route attuale fa fallback al tab Pacchetto Banca, comportamento
-      // confuso. Riattivare quando MP-CG-09+ (wizard) sarà implementato.
     ],
   },
 

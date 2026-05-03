@@ -25,8 +25,9 @@ import { TabStatoPatrimoniale } from "@/components/controllo-gestione/tabs/TabSt
 import { TabPianoIndustriale } from "@/components/controllo-gestione/tabs/TabPianoIndustriale";
 import { TabRatingBancario } from "@/components/controllo-gestione/tabs/TabRatingBancario";
 import { TabPacchettoBanca } from "@/components/controllo-gestione/tabs/TabPacchettoBanca";
+import { TabConfigurazione } from "@/components/controllo-gestione/tabs/TabConfigurazione";
 
-type CGTab = "ce" | "sp" | "piano" | "rating" | "pdf";
+type CGTab = "ce" | "sp" | "piano" | "rating" | "pdf" | "config";
 
 // Mappa segmento URL → tab. Usata per il deep-link dalla sidebar
 // (es. /azienda/controllo-gestione/rating → tab "rating").
@@ -36,10 +37,10 @@ const URL_TO_TAB: Record<string, CGTab> = {
   piano: "piano",
   rating: "rating",
   "pacchetto-banca": "pdf",
-  "wizard-bilancio": "pdf",   // wizard non ancora implementato → fallback su pacchetto
+  configurazione: "config",
 };
 const TAB_TO_URL: Record<CGTab, string> = {
-  ce: "ce", sp: "sp", piano: "piano", rating: "rating", pdf: "pacchetto-banca",
+  ce: "ce", sp: "sp", piano: "piano", rating: "rating", pdf: "pacchetto-banca", config: "configurazione",
 };
 
 export default function ControlloGestione() {
@@ -122,6 +123,7 @@ export default function ControlloGestione() {
             <TabsTrigger value="piano">Piano industriale</TabsTrigger>
             <TabsTrigger value="rating">Rating bancario</TabsTrigger>
             <TabsTrigger value="pdf">Pacchetto banca</TabsTrigger>
+            <TabsTrigger value="config">Configurazione</TabsTrigger>
           </TabsList>
         </div>
 
@@ -144,6 +146,9 @@ export default function ControlloGestione() {
           </TabsContent>
           <TabsContent value="pdf" className="mt-0">
             <TabPacchettoBanca anno={filters.anno} />
+          </TabsContent>
+          <TabsContent value="config" className="mt-0">
+            <TabConfigurazione />
           </TabsContent>
         </div>
       </Tabs>

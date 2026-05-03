@@ -63,7 +63,7 @@ export function useStatoPatrimoniale(anno: number) {
     queryFn: async (): Promise<SPResult> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.rpc as any)(
-        "cg_get_stato_patrimoniale_riclassificato",
+        "cg_get_sp_safe",
         { p_anno: anno },
       );
       if (error) throw error;
@@ -101,7 +101,7 @@ export function useRating(anno: number) {
     queryKey: queryKeys.controlloGestione.rating(anno),
     queryFn: async (): Promise<RatingResult> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)("cg_get_rating", { p_anno: anno });
+      const { data, error } = await (supabase.rpc as any)("cg_get_rating_safe", { p_anno: anno });
       if (error) throw error;
       return data as unknown as RatingResult;
     },

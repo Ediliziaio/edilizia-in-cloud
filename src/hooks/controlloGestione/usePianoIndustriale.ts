@@ -46,7 +46,7 @@ export function usePianoIndustriale(scenario: PianoScenario = "base", orizzonte 
     queryKey: queryKeys.controlloGestione.piano(scenario, orizzonte),
     queryFn: async (): Promise<PianoResult> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)("cg_simula_piano_industriale", {});
+      const { data, error } = await (supabase.rpc as any)("cg_simula_piano_safe", {});
       if (error) throw error;
       return data as unknown as PianoResult;
     },
