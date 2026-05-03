@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-export type DatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "year" | "custom";
+export type DatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "year" | "all" | "custom";
 
 export interface CompanyDashboardFiltersState {
   datePreset: DatePreset;
@@ -25,6 +25,7 @@ interface Props {
 }
 
 const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+  { value: "all", label: "Sempre" },
   { value: "year", label: "Anno" },
   { value: "month", label: "Mese" },
   { value: "last30", label: "30 giorni" },

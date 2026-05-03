@@ -118,16 +118,30 @@ export function CalendarMonthView({
     };
 
     orders.forEach((order) => {
-      if (!hiddenEventTypes.has("posa") && order.expected_date) {
-        addEvent(order.expected_date, { type: "posa", order, color: eventColors.posa });
+      const posaDate = !hiddenEventTypes.has("posa") ? order.expected_date : null;
+      const merceDate = !hiddenEventTypes.has("merce") ? order.warehouse_arrival_date : null;
+
+      if (posaDate) {
+        addEvent(posaDate, { type: "posa", order, color: eventColors.posa });
       }
-      if (!hiddenEventTypes.has("merce") && order.warehouse_arrival_date) {
-        addEvent(order.warehouse_arrival_date, { type: "merce", order, color: eventColors.merce });
+      if (merceDate) {
+        addEvent(merceDate, { type: "merce", order, color: eventColors.merce });
       }
+      // Range "lavoro": evita di duplicare lo stesso ordine nei giorni in cui
+      // è già visibile come posa o arrivo merce (la data principale prevale).
       if (!hiddenEventTypes.has("lavoro") && order.work_start_date) {
         const workStart = parseISO(order.work_start_date);
         const workEnd = order.work_end_date ? parseISO(order.work_end_date) : workStart;
-        addEventForRange(workStart, workEnd, { type: "lavoro", order, color: eventColors.lavoro });
+        const rangeStart = days.length > 0 && workStart < days[0] ? days[0] : workStart;
+        const rangeEnd = days.length > 0 && workEnd > days[days.length - 1] ? days[days.length - 1] : workEnd;
+        const cursor = new Date(rangeStart);
+        while (cursor <= rangeEnd) {
+          const dateStr = format(cursor, "yyyy-MM-dd");
+          if (dateStr !== posaDate && dateStr !== merceDate) {
+            addEvent(dateStr, { type: "lavoro", order, color: eventColors.lavoro });
+          }
+          cursor.setDate(cursor.getDate() + 1);
+        }
       }
     });
     if (!hiddenEventTypes.has("appuntamento")) {

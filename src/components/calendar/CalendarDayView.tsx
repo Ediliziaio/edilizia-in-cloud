@@ -69,19 +69,25 @@ export function CalendarDayView({
   const allDayEvents = useMemo(() => {
     const events: Array<{ type: string; order?: CalendarOrder; leave?: ApprovedLeave; busySlot?: GoogleBusySlot; intervento?: CalendarIntervento; manutenzione?: CalendarManutenzione }> = [];
 
-    if (!hiddenEventTypes.has("posa")) {
+    const posaEnabled = !hiddenEventTypes.has("posa");
+    const merceEnabled = !hiddenEventTypes.has("merce");
+    if (posaEnabled) {
       orders.filter(o => o.expected_date === dateStr).forEach(o => events.push({ type: "posa", order: o }));
+    }
+    if (merceEnabled) {
+      orders.filter(o => o.warehouse_arrival_date === dateStr).forEach(o => events.push({ type: "merce", order: o }));
     }
     if (!hiddenEventTypes.has("lavoro")) {
       orders.forEach(o => {
         if (!o.work_start_date) return;
         const start = new Date(o.work_start_date);
         const end = o.work_end_date ? new Date(o.work_end_date) : start;
-        if (currentDate >= start && currentDate <= end) events.push({ type: "lavoro", order: o });
+        if (currentDate < start || currentDate > end) return;
+        // Evita doppione "lavoro" sul giorno in cui l'ordine è già visibile come posa o merce.
+        if (posaEnabled && o.expected_date === dateStr) return;
+        if (merceEnabled && o.warehouse_arrival_date === dateStr) return;
+        events.push({ type: "lavoro", order: o });
       });
-    }
-    if (!hiddenEventTypes.has("merce")) {
-      orders.filter(o => o.warehouse_arrival_date === dateStr).forEach(o => events.push({ type: "merce", order: o }));
     }
     if (!hiddenEventTypes.has("google_busy")) {
       busySlots.filter(s => s.is_all_day && s.start_at.split("T")[0] === dateStr).forEach(s => events.push({ type: "google_busy", busySlot: s }));

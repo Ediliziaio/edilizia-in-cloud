@@ -12,6 +12,7 @@ export type DateRangePreset =
   | "month"
   | "quarter"
   | "year"
+  | "all"
   | "custom";
 
 /**
@@ -42,6 +43,12 @@ export function getDateRange(
       return { from: startOfDay(subDays(now, 90)), to: endOfDay(now) };
     case "year":
       return { from: startOfYear(now), to: endOfDay(now) };
+    case "all":
+      // "Sempre": copre l'intera storia. Usiamo un punto d'inizio molto basso
+      // (anno 2000) e l'ora corrente. Le query standard sono comunque limitate
+      // dal company_id e da indici sugli altri campi, quindi il costo è uguale
+      // a un anno qualunque.
+      return { from: new Date("2000-01-01T00:00:00Z"), to: endOfDay(now) };
     case "custom":
     default:
       return { from: customFrom || subDays(now, 30), to: customTo || now };

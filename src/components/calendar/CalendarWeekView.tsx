@@ -130,8 +130,13 @@ export function CalendarWeekView({
       map.get(dateStr)!.push(evt);
     };
 
-    if (!hiddenEventTypes.has("posa")) {
+    const posaEnabled = !hiddenEventTypes.has("posa");
+    const merceEnabled = !hiddenEventTypes.has("merce");
+    if (posaEnabled) {
       orders.forEach(o => o.expected_date && addEvent(o.expected_date, { type: "posa", order: o }));
+    }
+    if (merceEnabled) {
+      orders.forEach(o => o.warehouse_arrival_date && addEvent(o.warehouse_arrival_date, { type: "merce", order: o }));
     }
     if (!hiddenEventTypes.has("lavoro")) {
       orders.forEach(o => {
@@ -139,15 +144,18 @@ export function CalendarWeekView({
           const start = new Date(o.work_start_date);
           const end = o.work_end_date ? new Date(o.work_end_date) : start;
           const cur = new Date(start);
+          // Evita doppione "lavoro" sul giorno in cui l'ordine è già visibile come posa o merce.
+          const posaDate = posaEnabled ? o.expected_date : null;
+          const merceDate = merceEnabled ? o.warehouse_arrival_date : null;
           while (cur <= end) {
-            addEvent(cur.toISOString().split("T")[0], { type: "lavoro", order: o });
+            const dateStr = cur.toISOString().split("T")[0];
+            if (dateStr !== posaDate && dateStr !== merceDate) {
+              addEvent(dateStr, { type: "lavoro", order: o });
+            }
             cur.setDate(cur.getDate() + 1);
           }
         }
       });
-    }
-    if (!hiddenEventTypes.has("merce")) {
-      orders.forEach(o => o.warehouse_arrival_date && addEvent(o.warehouse_arrival_date, { type: "merce", order: o }));
     }
     if (!hiddenEventTypes.has("google_busy")) {
       busySlots.filter(s => s.is_all_day).forEach(s => {
