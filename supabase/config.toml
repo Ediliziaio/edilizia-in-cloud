@@ -363,3 +363,6 @@ verify_jwt = false
 
 [functions.cg-bootstrap-classificazione]
 verify_jwt = true
+
+[functions.cg-export-ce-pdf]
+verify_jwt = true
