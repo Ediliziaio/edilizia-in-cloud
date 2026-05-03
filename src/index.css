@@ -398,3 +398,71 @@ html.capacitor [role="button"] {
 .legal-prose .legal-section { scroll-margin-top: 100px; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { scrollbar-width: none; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * P3.5 — Stampa Cruscotto / Dashboard
+ *
+ * 1. Imposta margini di pagina coerenti.
+ * 2. Forza tutti i tab Radix (`[data-state]`) a essere visibili in stampa,
+ *    altrimenti viene stampato solo quello attivo (`hidden` sugli altri).
+ * 3. Rimuove gli sfondi scuri dai pannelli "hero" (panel direzionale blu
+ *    #173b67 ecc.), che altrimenti diventano grossi blocchi neri di toner.
+ * 4. Espande i Card a tutta larghezza e disabilita ombreggiature.
+ * ─────────────────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm;
+  }
+
+  body { background: #fff !important; }
+
+  /* Espande i tab nascosti: rendi visibile ogni TabsContent. */
+  [role="tabpanel"][hidden],
+  [role="tabpanel"][data-state="inactive"] {
+    display: block !important;
+    visibility: visible !important;
+  }
+  [role="tablist"] { display: none !important; }
+
+  /* Inverti i panel scuri usati dagli executive summary. */
+  .bg-\[\#173b67\],
+  .bg-slate-800,
+  .bg-slate-900 {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+  .bg-\[\#173b67\] *,
+  .bg-slate-800 *,
+  .bg-slate-900 * {
+    color: #0f172a !important;
+    text-shadow: none !important;
+  }
+  .text-white,
+  .text-blue-50\/85,
+  .text-blue-100,
+  .text-orange-100,
+  .text-blue-50\/70 {
+    color: #0f172a !important;
+  }
+  .border-white\/12,
+  .border-white\/14,
+  .border-white\/15 {
+    border-color: #cbd5e1 !important;
+  }
+  .bg-white\/9,
+  .bg-white\/\[0\.08\],
+  .bg-white\/10 {
+    background: #f8fafc !important;
+  }
+
+  .shadow-sm, .shadow, .shadow-md, .shadow-lg, .shadow-xl {
+    box-shadow: none !important;
+  }
+
+  /* Evita di spezzare card a metà pagina dove possibile. */
+  section, .card, [data-print-keep-together] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

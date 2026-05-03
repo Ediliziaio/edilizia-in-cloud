@@ -305,14 +305,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data: rawProfile, error: profileError } = profileResult;
       const { data: rolesData, error: roleError } = rolesResult;
 
-      if (profileError) {
+      // P2.4 fix — silenziare gli AbortError generati da navigazione veloce
+      // (controller.abort()): non sono errori reali, sporcavano la console
+      // con warning illeggibili "Error fetching profile: Object".
+      const isAbortError = (err: unknown): boolean => {
+        if (!err || typeof err !== "object") return false;
+        const e = err as { name?: string; code?: string; message?: string };
+        return e.name === "AbortError" || e.code === "20" || (e.message?.toLowerCase().includes("abort") ?? false);
+      };
+      if (profileError && !isAbortError(profileError)) {
         // Log but continue — roles are fetched independently so super_admin
         // role is not lost if the profile row is temporarily unreachable.
-        logger.warn("Error fetching profile:", profileError);
+        logger.warn("Error fetching profile:", JSON.stringify(profileError));
       }
 
-      if (roleError) {
-        logger.warn("Error fetching roles:", roleError);
+      if (roleError && !isAbortError(roleError)) {
+        logger.warn("Error fetching roles:", JSON.stringify(roleError));
       }
 
       // Separate company from the joined profile row so the Profile type stays clean

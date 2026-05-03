@@ -278,9 +278,19 @@ export function useCruscottoData() {
   });
 
   // Merge finance + payments via useMemo
+  // P2.5 fix — il calcolo precedente sommava TUTTE le rate scadute (senza
+  // limite inferiore) in `thisMonthIncome` e in `pendingRevenue`, quindi
+  // su dati storici inconsistenti (es. €1.4M legacy installments) la
+  // "Cassa netta mese" diventava assurda. Ora:
+  //  - `thisMonthIncome` = rate attese SOLO dentro il mese corrente
+  //    (start of month → end of month). È un valore *previsionale* e va
+  //    presentato come tale.
+  //  - `pendingRevenue` = totale residuo non incassato (rimane unfiltered
+  //    perché rappresenta il credito complessivo).
   const financeData = useMemo<FinanceData>(() => {
     const base = rawFinanceData || { revenueThisMonth: 0, revenuePrevMonth: 0, marginThisMonth: 0, marginPrevMonth: 0, unpaidCosts: 0, supplierDebt: 0 };
     const now = new Date();
+    const thisMonthStartStr = format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd");
     const thisMonthEndStr = format(new Date(now.getFullYear(), now.getMonth() + 1, 0), "yyyy-MM-dd");
 
     let pendingRevenue = 0;
@@ -289,7 +299,13 @@ export function useCruscottoData() {
       const amount = safeNumber(inst.amount);
       if (amount > 0) {
         pendingRevenue += amount;
-        if (inst.expected_date && inst.expected_date <= thisMonthEndStr) thisMonthIncome += amount;
+        if (
+          inst.expected_date &&
+          inst.expected_date >= thisMonthStartStr &&
+          inst.expected_date <= thisMonthEndStr
+        ) {
+          thisMonthIncome += amount;
+        }
       }
     });
 

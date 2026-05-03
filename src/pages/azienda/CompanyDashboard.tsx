@@ -1157,7 +1157,15 @@ export default function CompanyDashboard() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+    // P2.2 fix — invalidate ALL le query della dashboard, non solo
+    // queryKeys.dashboard.all. Le query principali stanno sotto namespaces
+    // diversi (`company-dashboard-management-financials`,
+    // `company-dashboard-operational-agenda`).
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all }),
+      queryClient.invalidateQueries({ queryKey: ["company-dashboard-management-financials"] }),
+      queryClient.invalidateQueries({ queryKey: ["company-dashboard-operational-agenda"] }),
+    ]);
     setLastRefresh(new Date());
     setTimeout(() => setIsRefreshing(false), 600);
   };

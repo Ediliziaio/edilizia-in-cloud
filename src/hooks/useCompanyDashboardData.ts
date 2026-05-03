@@ -6,7 +6,6 @@ import { addDays, addMonths, differenceInCalendarDays, endOfDay, format, startOf
 import type { CompanyDashboardFiltersState } from "@/components/dashboard/CompanyDashboardFilters";
 import { queryKeys } from "@/lib/queryKeys";
 import { getDateRange } from "@/lib/dateRangeUtils";
-import { getAmountCollected, getAmountDue, getGrossOrderAmount, type OrderWithDetails } from "@/lib/orderUtils";
 
 export interface RecentOrder {
   id: string;
@@ -102,19 +101,6 @@ type DashboardFinancialOrderRow = {
   financing_amount: number | null;
   financing_paid: boolean | null;
 };
-
-type DashboardPaymentOrder = Pick<OrderWithDetails,
-  | "total_amount"
-  | "vat_rate"
-  | "deposit_amount"
-  | "deposit_paid"
-  | "deposit_2_amount"
-  | "deposit_2_paid"
-  | "balance_amount"
-  | "balance_paid"
-  | "financing_amount"
-  | "financing_paid"
->;
 
 type DashboardCostRow = {
   amount: number | null;
@@ -218,26 +204,46 @@ function buildMonthBuckets(from: Date, to: Date) {
   return buckets;
 }
 
-function getNormalizedOrderAmounts(order: DashboardFinancialOrderRow) {
-  const paymentOrder: DashboardPaymentOrder = {
-    total_amount: Number(order.total_amount || 0),
-    vat_rate: order.vat_rate,
-    deposit_amount: Number(order.deposit_amount || 0),
-    deposit_paid: order.deposit_paid,
-    deposit_2_amount: order.deposit_2_amount,
-    deposit_2_paid: order.deposit_2_paid,
-    balance_amount: Number(order.balance_amount || 0),
-    balance_paid: order.balance_paid,
-    financing_amount: order.financing_amount,
-    financing_paid: order.financing_paid,
-  };
-  const collectedRaw = getAmountCollected(paymentOrder);
-  const dueRaw = getAmountDue(paymentOrder);
-  const grossTotal = getGrossOrderAmount(paymentOrder);
-  const explicitTotal = Number(order.total_amount || 0);
-  const commercialTotal = Math.max(grossTotal, collectedRaw + dueRaw, explicitTotal);
-  const collected = Math.min(collectedRaw, commercialTotal);
-  const due = Math.min(dueRaw, Math.max(0, commercialTotal - collected));
+/**
+ * Calcola gli importi normalizzati di un ordine usando UNA singola fonte
+ * di verità. Strategia (P1.1 fix):
+ *
+ *  - `commercialTotal` = `orders.total_amount` (campo commerciale).
+ *  - `collected` = somma `order_installments.amount` con `is_paid = true`,
+ *    fornita dal chiamante via `paidInstallmentsByOrder`. Se per quell'ordine
+ *    non ci sono righe in `order_installments`, fallback ai flag legacy
+ *    (`deposit_paid` / `deposit_2_paid` / `balance_paid` / `financing_paid`)
+ *    moltiplicati per il rispettivo importo legacy, **clampato** a
+ *    `commercialTotal` per non eccedere mai il totale.
+ *  - `due` = `max(0, commercialTotal - collected)`.
+ *
+ *  Le vecchie colonne `deposit_amount/balance_amount/financing_amount` non
+ *  vengono più sommate al totale: erano fonte di gonfiature 3-4× quando
+ *  contenevano valori storici inconsistenti col `total_amount`.
+ */
+function getNormalizedOrderAmounts(
+  order: DashboardFinancialOrderRow,
+  paidInstallmentsByOrder?: Map<string, number>,
+  hasInstallmentsByOrder?: Set<string>,
+) {
+  const commercialTotal = Number(order.total_amount || 0);
+
+  let collected = 0;
+  if (hasInstallmentsByOrder?.has(order.id)) {
+    collected = paidInstallmentsByOrder?.get(order.id) ?? 0;
+  } else {
+    // Fallback legacy: usa i flag *_paid solo se un ordine non ha installments.
+    const legacyPaid =
+      (order.deposit_paid ? Number(order.deposit_amount || 0) : 0) +
+      (order.deposit_2_paid ? Number(order.deposit_2_amount || 0) : 0) +
+      (order.balance_paid ? Number(order.balance_amount || 0) : 0) +
+      (order.financing_paid ? Number(order.financing_amount || 0) : 0);
+    collected = legacyPaid;
+  }
+
+  // Clamp per evitare collected > commercialTotal su dati legacy inconsistenti.
+  collected = Math.min(collected, commercialTotal);
+  const due = Math.max(0, commercialTotal - collected);
 
   return { commercialTotal, collected, due };
 }
@@ -377,6 +383,27 @@ export function useCompanyDashboardData() {
 
       const orders = (ordersResult.data || []) as DashboardFinancialOrderRow[];
       const costs = (costsResult.data || []) as DashboardCostRow[];
+
+      // Carica le rate dagli order_installments solo per gli ordini in finestra.
+      const orderIds = orders.map((o) => o.id);
+      const paidInstallmentsByOrder = new Map<string, number>();
+      const hasInstallmentsByOrder = new Set<string>();
+      if (orderIds.length > 0) {
+        const { data: installments, error: instErr } = await supabase
+          .from("order_installments")
+          .select("order_id, amount, is_paid")
+          .in("order_id", orderIds);
+        if (instErr) throw instErr;
+        for (const inst of installments ?? []) {
+          if (!inst.order_id) continue;
+          hasInstallmentsByOrder.add(inst.order_id);
+          if (inst.is_paid) {
+            const prev = paidInstallmentsByOrder.get(inst.order_id) ?? 0;
+            paidInstallmentsByOrder.set(inst.order_id, prev + Number(inst.amount || 0));
+          }
+        }
+      }
+
       const monthBuckets = buildMonthBuckets(dateRange.from, dateRange.to);
       const byMonth = new Map(monthBuckets.map((bucket) => [bucket.key, bucket]));
       const customerIds = new Set<string>();
@@ -388,7 +415,7 @@ export function useCompanyDashboardData() {
 
       for (const order of orders) {
         if (order.customer_id) customerIds.add(order.customer_id);
-        const amounts = getNormalizedOrderAmounts(order);
+        const amounts = getNormalizedOrderAmounts(order, paidInstallmentsByOrder, hasInstallmentsByOrder);
         totalRevenue += amounts.commercialTotal;
         collectedRevenue += amounts.collected;
         pendingRevenue += amounts.due;
@@ -424,13 +451,26 @@ export function useCompanyDashboardData() {
     staleTime: 3 * 60 * 1000,
   });
 
+  // P3.1 fix — l'agenda ora rispetta il filtro periodo della dashboard.
+  // Per i preset rivolti al passato (Oggi/Ieri/7g/30g/Mese/Anno/Sempre)
+  // usiamo `[from, to]` del filtro stesso. Per "Personalizzato" idem.
+  // Quando il preset è "Sempre" (range enorme), limitiamo a 90 giorni
+  // futuri per evitare di caricare migliaia di righe inutili.
   const agendaRange = useMemo(() => {
     const today = format(new Date(), "yyyy-MM-dd");
-    return {
-      from: today,
-      to: format(addDays(new Date(), 31), "yyyy-MM-dd"),
-    };
-  }, []);
+    const fromStr = format(dateRange.from, "yyyy-MM-dd");
+    const toStr = format(dateRange.to, "yyyy-MM-dd");
+    // Preset "all" → mostra prossimi 90 giorni (solo agenda futura).
+    if (filters.datePreset === "all") {
+      return { from: today, to: format(addDays(new Date(), 90), "yyyy-MM-dd") };
+    }
+    // Preset "passato" puro (oggi/ieri/7g/30g) → estendi anche ai prossimi
+    // 31 giorni perché l'agenda operativa è inerentemente forward-looking.
+    if (toStr <= today) {
+      return { from: today, to: format(addDays(new Date(), 31), "yyyy-MM-dd") };
+    }
+    return { from: fromStr < today ? today : fromStr, to: toStr };
+  }, [dateRange.from, dateRange.to, filters.datePreset]);
 
   const { data: operationalAgenda = [] } = useQuery({
     queryKey: ["company-dashboard-operational-agenda", companyId, agendaRange.from, agendaRange.to],
@@ -704,7 +744,9 @@ export function useCompanyDashboardData() {
     filters,
     updateFilters,
     dashboardData,
-    isLoading: !companyId && isDashboardLoading,
+    // P2.3 fix — la condizione precedente `!companyId && isDashboardLoading`
+    // era sempre false quando companyId era valorizzato → skeleton dead.
+    isLoading: !!companyId && isDashboardLoading,
     isError: isDashboardError && !managementFinancials,
     stats,
     prevStats: dashboardData?.prevStats ?? { totalOrders: 0, totalCustomers: 0 },

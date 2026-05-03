@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle, AlertTriangle, ArrowUpRight, BarChart3, Download, LayoutDashboard,
-  Phone, Radio, RefreshCw, ShieldCheck, Target, TrendingUp, Users,
+  Loader2, Phone, Radio, RefreshCw, ShieldCheck, Target, TrendingUp, Users,
   CalendarCheck, Trophy, UserPlus,
 } from "lucide-react";
 import {
@@ -100,7 +100,7 @@ export default function MarketingDashboard() {
       const fromIso = from.toISOString();
       const fromDateOnly = fromIso.slice(0, 10);
 
-      const [leadsRes, apptsRes, ordersRes] = await Promise.all([
+      const [leadsRes, apptsRes, contractsRes] = await Promise.all([
         supabase
           .from("marketing_contacts")
           .select("created_at")
@@ -111,11 +111,16 @@ export default function MarketingDashboard() {
           .select("appointment_date")
           .eq("company_id", companyId)
           .gte("appointment_date", fromDateOnly),
+        // P1.4 — "Contratti vinti" = opportunità con status='won', bucket
+        // per `updated_at` (coerente con la KPI strip che legge la stessa
+        // tabella). Prima leggevamo `orders.created_at` che misurava
+        // qualcosa di completamente diverso.
         supabase
-          .from("orders")
-          .select("created_at")
+          .from("marketing_opportunities")
+          .select("updated_at")
           .eq("company_id", companyId)
-          .gte("created_at", fromIso),
+          .eq("status", "won")
+          .gte("updated_at", fromIso),
       ]);
 
       const months = Array.from({ length: 12 }, (_, index) => {
@@ -135,9 +140,12 @@ export default function MarketingDashboard() {
       });
       const byKey = new Map(months.map((m) => [m.key, m]));
 
-      const accumulate = (rows: Array<{ created_at?: string | null; appointment_date?: string | null }> | null, field: "lead" | "appuntamenti" | "contratti") => {
+      const accumulate = (
+        rows: Array<{ created_at?: string | null; appointment_date?: string | null; updated_at?: string | null }> | null,
+        field: "lead" | "appuntamenti" | "contratti",
+      ) => {
         (rows || []).forEach((row) => {
-          const raw = row.created_at ?? row.appointment_date;
+          const raw = row.created_at ?? row.appointment_date ?? row.updated_at;
           if (!raw) return;
           const date = new Date(raw);
           if (Number.isNaN(date.getTime())) return;
@@ -150,7 +158,7 @@ export default function MarketingDashboard() {
 
       accumulate(leadsRes.data ?? null, "lead");
       accumulate(apptsRes.data ?? null, "appuntamenti");
-      accumulate(ordersRes.data ?? null, "contratti");
+      accumulate(contractsRes.data ?? null, "contratti");
       return months;
     },
     enabled: !!companyId,
@@ -192,7 +200,7 @@ export default function MarketingDashboard() {
         tone: "orange" as ExecutiveTone,
         title: "Pipeline in calo",
         detail: "Il valore della pipeline attiva sta scendendo. Verifica opportunità ferme e nuovi ingressi.",
-        route: "/azienda/marketing/pipeline",
+        route: "/azienda/marketing/opportunita",
         cta: "Apri pipeline",
       };
     }
@@ -201,7 +209,7 @@ export default function MarketingDashboard() {
         tone: "orange" as ExecutiveTone,
         title: "Show rate sotto target",
         detail: `Solo il ${pct(showRate)} dei prospect si presenta in appuntamento. Rivedi reminder e qualifica.`,
-        route: "/azienda/marketing/appuntamenti",
+        route: "/azienda/marketing/calendario",
         cta: "Vedi appuntamenti",
       };
     }
@@ -210,7 +218,7 @@ export default function MarketingDashboard() {
         tone: "blue" as ExecutiveTone,
         title: "Appuntamenti da chiudere",
         detail: `${pendingAppointments} appuntamenti da esitare. Aggiorna l'esito appena fatti.`,
-        route: "/azienda/marketing/appuntamenti",
+        route: "/azienda/marketing/calendario",
         cta: "Aggiorna esiti",
       };
     }
@@ -219,7 +227,7 @@ export default function MarketingDashboard() {
         tone: "orange" as ExecutiveTone,
         title: "Conversione bassa",
         detail: `Tasso di chiusura ${pct(closeRate)}. Rivedi script vendita e qualifica del lead in ingresso.`,
-        route: "/azienda/marketing/pipeline",
+        route: "/azienda/marketing/opportunita",
         cta: "Vedi pipeline",
       };
     }
@@ -227,7 +235,7 @@ export default function MarketingDashboard() {
       tone: "green" as ExecutiveTone,
       title: "Vendite sotto controllo",
       detail: "Nessuna urgenza commerciale: monitora la velocità di risposta e il volume in ingresso.",
-      route: "/azienda/marketing/pipeline",
+      route: "/azienda/marketing/opportunita",
       cta: "Vedi pipeline",
     };
   }, [data]);
@@ -351,6 +359,47 @@ export default function MarketingDashboard() {
       {/* Alert banner generico */}
       <AlertBanner alerts={data?.alerts} isLoading={isLoading} />
 
+      {/* P3.4 — skeleton placeholder durante il primo caricamento */}
+      {isLoading && !data?.kpi && (
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="grid gap-0 xl:grid-cols-[minmax(340px,0.58fr)_minmax(540px,1fr)]">
+            <div className="bg-[#173b67] p-5 text-white sm:p-6">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 animate-spin text-orange-200" />
+                <p className="text-sm text-blue-50/85">Caricamento KPI commerciali…</p>
+              </div>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="h-[88px] animate-pulse rounded-xl border border-white/12 bg-white/9" />
+                ))}
+              </div>
+            </div>
+            <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-5 xl:border-l xl:border-t-0">
+              <div className="h-[260px] animate-pulse rounded-xl border border-slate-100 bg-slate-100" />
+            </aside>
+          </div>
+        </section>
+      )}
+
+      {/* Empty state quando non c'è errore, non sta caricando, ma non c'è alcun dato */}
+      {!isLoading && !error && !data?.kpi && (
+        <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
+          <LayoutDashboard className="mx-auto h-10 w-10 text-slate-300" />
+          <h3 className="mt-3 text-base font-semibold text-slate-700">Nessun dato commerciale ancora</h3>
+          <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+            Inizia caricando contatti o creando opportunità: i KPI compariranno automaticamente.
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link to="/azienda/marketing/contatti">Vai ai contatti</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link to="/azienda/marketing/opportunita">Crea opportunità</Link>
+            </Button>
+          </div>
+        </section>
+      )}
+
       {/* Executive Summary commerciale (stessa struttura del Cruscotto) */}
       {data?.kpi && (
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -413,6 +462,7 @@ export default function MarketingDashboard() {
                 <div>
                   <p className="text-xs font-semibold uppercase text-slate-500">Andamento 12 mesi</p>
                   <h3 className="mt-1 text-base font-semibold text-slate-950">Lead, appuntamenti e contratti</h3>
+                  <p className="mt-0.5 text-[11px] text-slate-400">Storico fisso · indipendente dai filtri periodo</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs">
                   <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-blue-500" /> Lead</span>

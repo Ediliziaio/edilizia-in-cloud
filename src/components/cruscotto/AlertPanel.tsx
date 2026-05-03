@@ -64,11 +64,11 @@ function buildAlerts(ma: AlertsData | undefined, ops: OperationsData, fin: Finan
   // Billing native alerts
   if (billing) {
     if ((billing.fatture_scadute_count ?? 0) > 0)
-      alerts.push({ id: "billing-scadute", level: "critical", title: `${billing.fatture_scadute_count} fatture scadute — ${fmtEur(billing.scaduto)}`, body: "Fatture con scadenza superata. Sollecita il pagamento o verifica lo stato.", cta: "Gestisci scadute", link: "/azienda/fatturazione/movimenti" });
+      alerts.push({ id: "billing-scadute", level: "critical", title: `${billing.fatture_scadute_count} fatture scadute — ${fmtEur(billing.scaduto)}`, body: "Fatture con scadenza superata. Sollecita il pagamento o verifica lo stato.", cta: "Gestisci scadute", link: "/azienda/documenti?tipo=fattura" });
     if ((billing.fatture_in_bozza ?? 0) > 0)
-      alerts.push({ id: "billing-bozze", level: "warning", title: `${billing.fatture_in_bozza} fatture in bozza da emettere`, body: "Completa e invia le fatture in bozza per non ritardare la fatturazione.", cta: "Emetti fatture", link: "/azienda/fatturazione/documenti?stato=bozza" });
+      alerts.push({ id: "billing-bozze", level: "warning", title: `${billing.fatture_in_bozza} fatture in bozza da emettere`, body: "Completa e invia le fatture in bozza per non ritardare la fatturazione.", cta: "Emetti fatture", link: "/azienda/documenti?tipo=fattura" });
     if ((billing.proforma_aperti ?? 0) > 0)
-      alerts.push({ id: "billing-proforma", level: "info", title: `${billing.proforma_aperti} proforma da convertire in fattura`, body: "Converti i proforma aperti per completare il ciclo di fatturazione.", cta: "Vedi proforma", link: "/azienda/fatturazione/documenti?tipo=proforma" });
+      alerts.push({ id: "billing-proforma", level: "info", title: `${billing.proforma_aperti} proforma da convertire in fattura`, body: "Converti i proforma aperti per completare il ciclo di fatturazione.", cta: "Vedi proforma", link: "/azienda/documenti?tipo=proforma" });
   }
 
   return alerts.sort((a, b) =>

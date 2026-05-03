@@ -124,6 +124,8 @@ export default function MarketingContacts() {
     pageSize: { key: "per_pagina", defaultValue: 25, serialize: String, deserialize: Number },
     sortField: { key: "ordina", defaultValue: "created_at" },
     sortDirection: { key: "dir", defaultValue: "desc" },
+    // Deep-link preset usato da dashboard / executive summary marketing.
+    filter: { key: "filter", defaultValue: "" },
   });
 
   const activeTab = urlFilters.activeTab as "all" | "lists" | "meta";
@@ -149,6 +151,12 @@ export default function MarketingContacts() {
   const [exporting, setExporting] = useState(false);
 
   const activeFilterCount = countActiveContactFilters(filters);
+  // Preset filter via query param: ?filter=stale|stale_2h
+  // Permette ai banner della dashboard / executive summary di "deep-linkare"
+  // direttamente sui lead da contattare. Si rimuove con il bottone in banner.
+  const stalePreset = urlFilters.filter as "stale" | "stale_2h" | "" | undefined;
+  const stalePresetActive = stalePreset === "stale" || stalePreset === "stale_2h";
+  const clearStalePreset = useCallback(() => setURLParam("filter", ""), [setURLParam]);
 
   const doExport = useCallback(async (format: "csv" | "xlsx") => {
     if (!companyId || exporting) return;
@@ -429,7 +437,7 @@ export default function MarketingContacts() {
 
   // Fetch contacts with grouped filter rules
   const { data, isLoading } = useQuery({
-    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab],
+    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab, stalePreset],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
 
@@ -476,6 +484,23 @@ export default function MarketingContacts() {
 
       if (activeTab === "meta") {
         query = query.eq("source", "Meta Lead Ads");
+      }
+
+      // Preset "lead da contattare" — applicato server-side se ?filter=stale|stale_2h.
+      // - stale_2h: lead nuovi (creati ≤ 2h fa) ma non ancora contattati
+      // - stale: lead con last_activity_at oltre 48h fa o nullo
+      if (stalePresetActive) {
+        const now = Date.now();
+        if (stalePreset === "stale_2h") {
+          const twoHoursAgo = new Date(now - 2 * 60 * 60 * 1000).toISOString();
+          query = query
+            .gte("created_at", new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString())
+            .lte("created_at", twoHoursAgo)
+            .or("last_activity_at.is.null");
+        } else {
+          const fortyEightHoursAgo = new Date(now - 48 * 60 * 60 * 1000).toISOString();
+          query = query.or(`last_activity_at.is.null,last_activity_at.lte.${fortyEightHoursAgo}`);
+        }
       }
 
       const safeSearch = sanitizeSearchTerm(search);
@@ -953,6 +978,29 @@ export default function MarketingContacts() {
 
   return (
     <div className="space-y-4">
+      {/* Banner preset (?filter=stale|stale_2h) — deep-link da dashboard */}
+      {stalePresetActive && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-200 text-amber-800 text-xs font-bold">!</span>
+            <span>
+              <strong>Filtro attivo:</strong>{" "}
+              {stalePreset === "stale_2h"
+                ? "lead nuovi (≤ 7 giorni) non contattati da oltre 2 ore"
+                : "lead non contattati da oltre 48 ore"}
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 self-start border-amber-300 bg-white text-amber-900 hover:bg-amber-100 sm:self-auto"
+            onClick={clearStalePreset}
+          >
+            Mostra tutti i contatti
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

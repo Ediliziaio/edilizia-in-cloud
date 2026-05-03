@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
@@ -75,6 +75,15 @@ export default function CruscottoAziendale() {
     isLoading, error, filters, updateFilters,
   } = useCruscottoData();
   const [drilldown, setDrilldown] = useState<DrilldownType>(null);
+  // P3.3 — persistenza tab attiva tra navigazioni (sessione corrente).
+  const [cruscottoTab, setCruscottoTab] = useState<string>(() => {
+    if (typeof window === "undefined") return "sintesi";
+    return window.sessionStorage.getItem("cruscotto-aziendale-tab") || "sintesi";
+  });
+  const handleTabChange = useCallback((value: string) => {
+    setCruscottoTab(value);
+    if (typeof window !== "undefined") window.sessionStorage.setItem("cruscotto-aziendale-tab", value);
+  }, []);
   const { isNative } = useBillingMode();
   const effectiveCompanyId = useEffectiveCompanyId();
   const { data: billingKPI } = useDashboardBillingKPI(effectiveCompanyId, isNative);
@@ -229,6 +238,8 @@ export default function CruscottoAziendale() {
     };
   }, [billingKPI, finance.cashFlowNet, finance.marginThisMonth, finance.revenueThisMonth, operations.lateOrders, operations.overdueAmount, operations.overduePayments, todayData]);
 
+  // P4 — i KPI sono ora cliccabili e aprono il `DrilldownDrawer` quando
+  // hanno un `drilldown` definito (prima il drawer era montato ma mai aperto).
   const executiveKpis = useMemo(() => [
     {
       label: "Venduto periodo",
@@ -236,13 +247,18 @@ export default function CruscottoAziendale() {
       hint: `vs precedente ${eur(finance.revenuePrevMonth)}`,
       icon: Euro,
       tone: "blue" as ExecutiveTone,
+      drilldown: "revenue" as DrilldownType,
     },
     {
-      label: "Cassa netta mese",
+      // P2.5 — il valore è previsionale (entrate attese del mese - costi
+      // pianificati). Il vecchio nome "Cassa netta mese" suggeriva un dato
+      // consuntivo a rendiconto.
+      label: "Saldo previsto mese",
       value: `${finance.cashFlowNet >= 0 ? "+" : ""}${eur(finance.cashFlowNet)}`,
-      hint: `${eur(finance.thisMonthIncome)} in / ${eur(finance.thisMonthOutflow)} out`,
+      hint: `attesi ${eur(finance.thisMonthIncome)} · pianificati ${eur(finance.thisMonthOutflow)}`,
       icon: Wallet,
       tone: finance.cashFlowNet >= 0 ? "green" as ExecutiveTone : "red" as ExecutiveTone,
+      drilldown: null as DrilldownType,
     },
     {
       label: "Da incassare",
@@ -250,6 +266,7 @@ export default function CruscottoAziendale() {
       hint: operations.overdueAmount > 0 ? `${eur(operations.overdueAmount)} scaduti` : "nessuno scaduto operativo",
       icon: AlertTriangle,
       tone: operations.overdueAmount > 0 ? "red" as ExecutiveTone : "orange" as ExecutiveTone,
+      drilldown: "late-orders" as DrilldownType,
     },
     {
       label: "Margine medio",
@@ -257,6 +274,7 @@ export default function CruscottoAziendale() {
       hint: `mese precedente ${pct(finance.marginPrevMonth)}`,
       icon: TrendingUp,
       tone: finance.marginThisMonth >= 15 ? "green" as ExecutiveTone : finance.marginThisMonth >= 0 ? "orange" as ExecutiveTone : "red" as ExecutiveTone,
+      drilldown: "margin" as DrilldownType,
     },
   ], [finance, operations.overdueAmount]);
 
@@ -365,27 +383,42 @@ export default function CruscottoAziendale() {
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
                   {executiveKpis.map((item) => {
                     const Icon = item.icon;
-                    return (
-                      <div key={item.label} className="rounded-xl border border-white/12 bg-white/9 p-4">
-                        <div className="flex items-center gap-3">
-                          <span
-                            className={cn(
-                              "flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10",
-                              item.tone === "green" && "text-emerald-100",
-                              item.tone === "red" && "text-red-100",
-                              item.tone === "orange" && "text-orange-100",
-                              item.tone === "blue" && "text-blue-100",
-                            )}
-                          >
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{item.label}</span>
-                            <span className="block truncate text-xl font-bold text-white">{item.value}</span>
-                            <span className="mt-0.5 block truncate text-xs text-blue-50/70">{item.hint}</span>
-                          </span>
-                        </div>
+                    const clickable = !!item.drilldown;
+                    const cardClass = cn(
+                      "rounded-xl border border-white/12 bg-white/9 p-4 text-left transition-colors",
+                      clickable && "cursor-pointer hover:border-orange-300/40 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-orange-300/40",
+                    );
+                    const inner = (
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            "flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10",
+                            item.tone === "green" && "text-emerald-100",
+                            item.tone === "red" && "text-red-100",
+                            item.tone === "orange" && "text-orange-100",
+                            item.tone === "blue" && "text-blue-100",
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{item.label}</span>
+                          <span className="block truncate text-xl font-bold text-white">{item.value}</span>
+                          <span className="mt-0.5 block truncate text-xs text-blue-50/70">{item.hint}</span>
+                        </span>
                       </div>
+                    );
+                    return clickable ? (
+                      <button
+                        key={item.label}
+                        type="button"
+                        className={cardClass}
+                        onClick={() => setDrilldown(item.drilldown)}
+                      >
+                        {inner}
+                      </button>
+                    ) : (
+                      <div key={item.label} className={cardClass}>{inner}</div>
                     );
                   })}
                 </div>
@@ -396,6 +429,7 @@ export default function CruscottoAziendale() {
                   <div>
                     <p className="text-xs font-semibold uppercase text-slate-500">Andamento 12 mesi</p>
                     <h3 className="mt-1 text-base font-semibold text-slate-950">Venduto, incassato e cassa</h3>
+                    <p className="mt-0.5 text-[11px] text-slate-400">Storico fisso · indipendente dai filtri periodo</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs">
                     <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-blue-500" /> Venduto</span>
@@ -458,7 +492,7 @@ export default function CruscottoAziendale() {
             <p className="text-sm text-slate-500">La sintesi resta sopra. Qui sotto trovi i dettagli separati per area.</p>
           </div>
 
-          <Tabs defaultValue="sintesi" className="w-full">
+          <Tabs value={cruscottoTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:grid-cols-5">
               <TabsTrigger value="sintesi" className="rounded-lg">Sintesi</TabsTrigger>
               <TabsTrigger value="finanza" className="rounded-lg" disabled={!showFinanza}>Finanza</TabsTrigger>

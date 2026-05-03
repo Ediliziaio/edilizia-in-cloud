@@ -51,7 +51,7 @@ function buildActions(p: AzioniUrgentiProps): UrgentAction[] {
       label: `${p.fattureScadute} fattur${p.fattureScadute === 1 ? "a" : "e"} scadut${p.fattureScadute === 1 ? "a" : "e"}`,
       detail: `${fmt(p.fattureScaduteAmount ?? 0)} da incassare — sollecita i clienti`,
       severity: "critical",
-      route: "/azienda/fatture?filter=scadute",
+      route: "/azienda/documenti?tipo=fattura",
     });
   }
 
@@ -123,7 +123,7 @@ function buildActions(p: AzioniUrgentiProps): UrgentAction[] {
       label: `${p.fattureBozza} fattur${p.fattureBozza === 1 ? "a" : "e"} in bozza`,
       detail: "Da completare e inviare al SDI",
       severity: "info",
-      route: "/azienda/fatture?filter=bozza",
+      route: "/azienda/documenti?tipo=fattura",
     });
   }
 
@@ -135,7 +135,7 @@ function buildActions(p: AzioniUrgentiProps): UrgentAction[] {
       label: `${p.proformaAperti} proforma da convertire`,
       detail: "Converti in fattura quando il cliente paga",
       severity: "info",
-      route: "/azienda/fatture?filter=proforma",
+      route: "/azienda/documenti?tipo=proforma",
     });
   }
 

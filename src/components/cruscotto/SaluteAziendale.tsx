@@ -38,9 +38,9 @@ function calcScore(p: SaluteAziendaleProps): number {
     } else {
       score += 10; // Ha fatturato ma non c'è confronto
     }
-    // Margine positivo
-    if (p.marginThisMonth > 0.15) score += 10;
-    else if (p.marginThisMonth > 0.05) score += 6;
+    // Margine positivo (scala 0-100 — coerente con executiveState e useCruscottoData)
+    if (p.marginThisMonth > 15) score += 10;
+    else if (p.marginThisMonth > 5) score += 6;
     else if (p.marginThisMonth > 0) score += 3;
   }
 
@@ -191,7 +191,7 @@ export function SaluteAziendale(props: SaluteAziendaleProps) {
 
           {/* Breakdown mini pills */}
           <div className="flex flex-wrap gap-1.5 pt-1">
-            <ScorePill label="Margine" value={props.marginThisMonth > 0.1 ? "ok" : props.marginThisMonth > 0 ? "basso" : "—"} />
+            <ScorePill label="Margine" value={props.marginThisMonth > 10 ? "ok" : props.marginThisMonth > 0 ? "basso" : "—"} />
             <ScorePill label="Cash" value={props.cashFlowNet >= 0 ? "ok" : "negativo"} />
             <ScorePill label="Ritardi" value={props.lateOrders === 0 ? "ok" : `${props.lateOrders}`} />
             <ScorePill label="Scaduti" value={props.overduePayments === 0 ? "ok" : `${props.overduePayments}`} />
