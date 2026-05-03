@@ -84,13 +84,13 @@ export const macroAreas: MacroArea[] = [
     ],
   },
 
-  // 2. Controllo di Gestione (modulo add-on)
-  // Una sola voce nella sidebar — la navigazione interna avviene tramite tab
-  // (CE/SP/Piano/Rating/Pacchetto + Configurazione) all'interno della pagina,
-  // così la sidebar resta pulita e gerarchica.
+  // 2. Direzione & Bilancio (modulo add-on Controllo di Gestione)
+  // MacroArea con un'unica voce → label distinta per evitare duplicato visivo.
+  // Categoria gerarchica "Direzione" (strategico) tra Cruscotto (operativo)
+  // e Cantieri & Lavori (cantierabile).
   {
     id: "area_controllo_gestione",
-    title: "Controllo di Gestione",
+    title: "Direzione & Bilancio",
     icon: PieChart,
     items: [
       {

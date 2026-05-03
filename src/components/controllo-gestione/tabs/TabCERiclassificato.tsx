@@ -46,8 +46,12 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
     );
   }
 
-  const pil = findVoce(ce.data.voci, "01");
-  const ebitda = findVoce(ce.data.voci, "G");
+  // Audit fix: prima si leggeva "01" (Ricavi) e "G" (Risultato operativo).
+  // Codici corretti: A = PIL (Prodotto Interno Lordo), E = MOL/EBITDA, L = Utile.
+  const pil = findVoce(ce.data.voci, "A");
+  const ricavi = findVoce(ce.data.voci, "01");
+  const ebitda = findVoce(ce.data.voci, "E");
+  const ebit = findVoce(ce.data.voci, "F");
   const utile = findVoce(ce.data.voci, "L");
   const ebitdaPctPil = pil !== 0 ? (ebitda / pil) * 100 : 0;
 
@@ -66,19 +70,27 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
 
       <div className="space-y-3 lg:col-span-1">
         <KPIBox
-          label="PIL (Produzione)"
-          value={formatCurrency(pil)}
+          label="Ricavi delle vendite"
+          value={formatCurrency(ricavi)}
+          sub={ricavi !== pil ? `PIL ${formatCurrency(pil)}` : undefined}
           tone="blue"
         />
         <KPIBox
-          label="EBITDA"
+          label="MOL / EBITDA"
           value={formatCurrency(ebitda)}
           sub={`${ebitdaPctPil.toFixed(1)}% del PIL`}
           tone={ebitda >= 0 ? "green" : "red"}
         />
         <KPIBox
+          label="EBIT (operativo)"
+          value={formatCurrency(ebit)}
+          sub={pil !== 0 ? `${((ebit / pil) * 100).toFixed(1)}% del PIL` : undefined}
+          tone={ebit >= 0 ? "green" : "red"}
+        />
+        <KPIBox
           label="Utile di bilancio"
           value={formatCurrency(utile)}
+          sub={pil !== 0 ? `${((utile / pil) * 100).toFixed(1)}% del PIL` : undefined}
           tone={utile >= 0 ? "green" : "red"}
         />
         <KPIBox
