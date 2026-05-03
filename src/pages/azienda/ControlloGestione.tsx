@@ -12,7 +12,7 @@
  *  - permessi: canViewControlloGestione
  *  - feature flag: controllo_gestione_v1
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
@@ -55,8 +55,10 @@ export default function ControlloGestione() {
     return URL_TO_TAB[seg] ?? "ce";
   }, [location.pathname]);
   const [activeTab, setActiveTab] = useState<CGTab>(tabFromUrl);
-  // Sincronizza se l'URL cambia (back/forward o link sidebar)
-  useMemo(() => {
+  // Sincronizza tab attivo con URL (back/forward o deep-link da sidebar).
+  // P1.2 — era useMemo, anti-pattern: setState dentro useMemo causa loop e
+  // tab attivo "saltellante" nel DOM. useEffect è il posto giusto.
+  useEffect(() => {
     if (tabFromUrl !== activeTab) setActiveTab(tabFromUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabFromUrl]);
@@ -112,7 +114,9 @@ export default function ControlloGestione() {
         className="flex-1 overflow-y-auto"
       >
         <div className="px-3 sm:px-4 pt-3 sticky top-0 z-10 bg-background border-b">
-          <TabsList className="w-full overflow-x-auto sm:w-auto">
+          {/* Mobile: scroll orizzontale con min-w sui trigger per evitare
+              overlap del testo. Desktop: layout flex naturale. */}
+          <TabsList className="w-full sm:w-auto overflow-x-auto flex-nowrap justify-start gap-1 [&>button]:min-w-[8rem] sm:[&>button]:min-w-0 [&>button]:shrink-0">
             <TabsTrigger value="ce">CE riclassificato</TabsTrigger>
             <TabsTrigger value="sp">Stato patrimoniale</TabsTrigger>
             <TabsTrigger value="piano">Piano industriale</TabsTrigger>

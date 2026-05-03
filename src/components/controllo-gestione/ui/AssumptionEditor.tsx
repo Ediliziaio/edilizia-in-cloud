@@ -10,6 +10,8 @@ import { toast } from "sonner";
 interface AssumptionEditorProps {
   scenarioId: string | null;
   onResult: (result: PianoResult) => void;
+  /** Disabilita gli sliders (es. quando non c'è uno scenario di base configurato). */
+  disabled?: boolean;
 }
 
 interface Assunzioni {
@@ -26,12 +28,14 @@ const DEFAULTS: Assunzioni = {
   orizzonte: 5,
 };
 
-export function AssumptionEditor({ scenarioId, onResult }: AssumptionEditorProps) {
+export function AssumptionEditor({ scenarioId, onResult, disabled = false }: AssumptionEditorProps) {
   const [val, setVal] = useState<Assunzioni>(DEFAULTS);
   const mutation = useWhatIfMutation();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    // Skip what-if quando lo scenario base manca: la RPC fallirebbe.
+    if (disabled) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       mutation.mutate(
@@ -55,9 +59,14 @@ export function AssumptionEditor({ scenarioId, onResult }: AssumptionEditorProps
   }, [val.crescita, val.margine, val.investimento, val.orizzonte, scenarioId]);
 
   return (
-    <Card className="rounded-2xl">
+    <Card className={`rounded-2xl ${disabled ? "opacity-50 pointer-events-none select-none" : ""}`}>
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Assunzioni piano</CardTitle>
+        {disabled && (
+          <p className="text-xs text-muted-foreground">
+            Disponibile dopo aver creato uno scenario di base.
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="space-y-2">
@@ -69,6 +78,7 @@ export function AssumptionEditor({ scenarioId, onResult }: AssumptionEditorProps
             min={0} max={30} step={1}
             value={[val.crescita]}
             onValueChange={([v]) => setVal((s) => ({ ...s, crescita: v }))}
+            disabled={disabled}
           />
         </div>
 
@@ -81,6 +91,7 @@ export function AssumptionEditor({ scenarioId, onResult }: AssumptionEditorProps
             min={5} max={30} step={1}
             value={[val.margine]}
             onValueChange={([v]) => setVal((s) => ({ ...s, margine: v }))}
+            disabled={disabled}
           />
         </div>
 
@@ -95,6 +106,7 @@ export function AssumptionEditor({ scenarioId, onResult }: AssumptionEditorProps
             min={0} max={1_000_000} step={25_000}
             value={[val.investimento]}
             onValueChange={([v]) => setVal((s) => ({ ...s, investimento: v }))}
+            disabled={disabled}
           />
         </div>
 
@@ -105,6 +117,7 @@ export function AssumptionEditor({ scenarioId, onResult }: AssumptionEditorProps
             value={String(val.orizzonte)}
             onValueChange={(v) => v && setVal((s) => ({ ...s, orizzonte: Number(v) }))}
             className="justify-start"
+            disabled={disabled}
           >
             <ToggleGroupItem value="3" variant="outline" size="sm">3 anni</ToggleGroupItem>
             <ToggleGroupItem value="5" variant="outline" size="sm">5 anni</ToggleGroupItem>
@@ -112,7 +125,7 @@ export function AssumptionEditor({ scenarioId, onResult }: AssumptionEditorProps
           </ToggleGroup>
         </div>
 
-        {mutation.isPending && (
+        {!disabled && mutation.isPending && (
           <p className="text-xs text-muted-foreground">Ricalcolo in corso…</p>
         )}
       </CardContent>

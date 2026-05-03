@@ -1,5 +1,4 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle } from "lucide-react";
 import { useStatoPatrimoniale } from "@/hooks/controlloGestione/useStatoPatrimoniale";
@@ -7,7 +6,6 @@ import { SPColumns } from "@/components/controllo-gestione/ui/SPColumns";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
 import { formatCurrency } from "@/lib/formatters";
-import { useNavigate } from "react-router-dom";
 
 interface TabStatoPatrimonialeProps {
   anno: number;
@@ -15,7 +13,6 @@ interface TabStatoPatrimonialeProps {
 
 export function TabStatoPatrimoniale({ anno }: TabStatoPatrimonialeProps) {
   const sp = useStatoPatrimoniale(anno);
-  const navigate = useNavigate();
 
   if (sp.isLoading) {
     return (
@@ -34,9 +31,7 @@ export function TabStatoPatrimoniale({ anno }: TabStatoPatrimonialeProps) {
     return (
       <EmptyState
         title="Stato patrimoniale vuoto"
-        description={`Non ho dati patrimoniali per il ${anno}. Compila il bilancio iniziale tramite il wizard.`}
-        ctaLabel="Apri wizard bilancio"
-        onCta={() => navigate("/azienda/controllo-gestione/wizard-bilancio")}
+        description={`Non ho dati patrimoniali per il ${anno}. Carica i cespiti e il patrimonio netto per popolare l'attivo fisso e i mezzi propri.`}
       />
     );
   }
@@ -47,19 +42,12 @@ export function TabStatoPatrimoniale({ anno }: TabStatoPatrimonialeProps) {
         <Alert className="rounded-2xl border-amber-300 bg-amber-50">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
           <AlertTitle className="text-amber-900">Bilancio non quadrato</AlertTitle>
-          <AlertDescription className="space-y-3 text-amber-800">
+          <AlertDescription className="space-y-1 text-amber-800">
             <p>
-              Differenza Attivo − Passivo: {formatCurrency(quadratura.differenza)}.
-              Apri il wizard per riconciliare le voci.
+              Differenza Attivo − Passivo: <strong>{formatCurrency(quadratura.differenza)}</strong>.
+              Verifica le voci di patrimonio netto, cespiti e mutui MLT — sono i campi
+              che vanno alimentati a mano.
             </p>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-amber-400 bg-white"
-              onClick={() => navigate("/azienda/controllo-gestione/wizard-bilancio")}
-            >
-              Apri wizard bilancio
-            </Button>
           </AlertDescription>
         </Alert>
       )}

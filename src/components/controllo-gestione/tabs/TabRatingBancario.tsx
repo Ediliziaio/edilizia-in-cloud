@@ -9,17 +9,33 @@ interface TabRatingBancarioProps {
   anno: number;
 }
 
+/**
+ * P2.7 — formattazione coerente: percent per indicatori in % (oneri_finanziari,
+ * indipendenza, cashflow), ratio decimale per liquidità. Quando la RPC ha
+ * usato il fallback `ELSE 1` perché ricavi=0 (caso oneri_finanziari) o
+ * mancano dati (valore=0 con punteggio=0), mostriamo "—" invece di un
+ * numero fuorviante.
+ */
+function isPercentIndicatore(codice: RatingIndicatore["codice"]): boolean {
+  return codice === "oneri_finanziari" || codice === "indipendenza" || codice === "cashflow";
+}
+
+function isFallbackOrZero(ind: RatingIndicatore): boolean {
+  // Caso 1: oneri_finanziari = 1 con punteggio 0 → fallback "ricavi=0"
+  if (ind.codice === "oneri_finanziari" && ind.valore === 1 && ind.punteggio === 0) return true;
+  // Caso 2: tutti altri indicatori a 0 con punteggio 0 = denominatore mancante
+  if (ind.valore === 0 && ind.punteggio === 0) return true;
+  return false;
+}
+
 function formatValore(ind: RatingIndicatore): string {
-  if (ind.codice === "oneri_finanziari" || ind.codice === "indipendenza") {
-    return `${(ind.valore * 100).toFixed(1)}%`;
-  }
+  if (isFallbackOrZero(ind)) return "—";
+  if (isPercentIndicatore(ind.codice)) return `${(ind.valore * 100).toFixed(1)}%`;
   return ind.valore.toFixed(2);
 }
 
 function formatSoglia(ind: RatingIndicatore): string {
-  if (ind.codice === "oneri_finanziari" || ind.codice === "indipendenza") {
-    return `${(ind.soglia_top * 100).toFixed(1)}%`;
-  }
+  if (isPercentIndicatore(ind.codice)) return `${(ind.soglia_top * 100).toFixed(1)}%`;
   return ind.soglia_top.toFixed(2);
 }
 

@@ -48,7 +48,6 @@ import {
   ShieldCheck,
   Activity,
   FileDown,
-  ClipboardCheck,
   Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -145,14 +144,9 @@ export const macroAreas: MacroArea[] = [
         featureKey: "controllo_gestione_v1",
         groupLabel: "Export",
       },
-      {
-        title: "Wizard Bilancio",
-        url: "/azienda/controllo-gestione/wizard-bilancio",
-        icon: ClipboardCheck,
-        permissionKey: "canViewControlloGestione",
-        featureKey: "controllo_gestione_v1",
-        groupLabel: "Configurazione",
-      },
+      // Wizard Bilancio: voce rimossa fino all'implementazione della pagina
+      // dedicata. La route attuale fa fallback al tab Pacchetto Banca, comportamento
+      // confuso. Riattivare quando MP-CG-09+ (wizard) sarà implementato.
     ],
   },
 
