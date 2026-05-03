@@ -112,3 +112,59 @@ export function useCEMensile(anno: number) {
     staleTime: 5 * 60_000,
   });
 }
+
+/**
+ * Vista CE Riclassificato mese per mese: 12 cascate complete (Gen..Dic).
+ * Usata per la vista "Mensile" del tab CE.
+ */
+export interface CEMeseDettaglio {
+  mese: number;
+  voci: VoceCE[];
+}
+export interface CEMensileDettaglioResult {
+  meta: { company_id: string; anno: number; generato_il: string };
+  mesi: CEMeseDettaglio[];
+}
+
+export function useCEMensileDettaglio(anno: number) {
+  return useQuery({
+    queryKey: ["cg", "ce-mensile-dettaglio", anno] as const,
+    queryFn: async (): Promise<CEMensileDettaglioResult> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)("cg_get_ce_mensile_dettaglio", { p_anno: anno });
+      if (error) throw error;
+      return data as unknown as CEMensileDettaglioResult;
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Confronto multi-anno: ritorna le voci del CE per N anni consecutivi.
+ * Usata per la vista "Confronto" del tab CE/SP.
+ */
+export interface CEMultiAnnoRow {
+  anno: number;
+  voci: VoceCE[];
+}
+
+export function useCEMultiAnno(anniDaConfrontare: number[]) {
+  return useQuery({
+    queryKey: ["cg", "ce-multi-anno", anniDaConfrontare] as const,
+    queryFn: async (): Promise<CEMultiAnnoRow[]> => {
+      const results = await Promise.all(
+        anniDaConfrontare.map(async (anno) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data, error } = await (supabase.rpc as any)("cg_get_ce_safe", {
+            p_anno: anno, p_mese_da: 1, p_mese_a: 12,
+          });
+          if (error) return { anno, voci: [] as VoceCE[] };
+          const ce = data as unknown as CEriclassificato;
+          return { anno, voci: ce.voci };
+        })
+      );
+      return results;
+    },
+    staleTime: 5 * 60_000,
+  });
+}

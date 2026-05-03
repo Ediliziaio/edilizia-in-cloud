@@ -108,3 +108,29 @@ export function useRating(anno: number) {
     staleTime: 5 * 60_000,
   });
 }
+
+/**
+ * Confronto multi-anno SP: usato dalla vista "Confronto" del tab Stato Patrimoniale.
+ */
+export interface SPMultiAnnoRow {
+  anno: number;
+  data: SPResult | null;
+}
+
+export function useSPMultiAnno(anniDaConfrontare: number[]) {
+  return useQuery({
+    queryKey: ["cg", "sp-multi-anno", anniDaConfrontare] as const,
+    queryFn: async (): Promise<SPMultiAnnoRow[]> => {
+      const results = await Promise.all(
+        anniDaConfrontare.map(async (anno) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data, error } = await (supabase.rpc as any)("cg_get_sp_safe", { p_anno: anno });
+          if (error) return { anno, data: null };
+          return { anno, data: data as unknown as SPResult };
+        })
+      );
+      return results;
+    },
+    staleTime: 5 * 60_000,
+  });
+}

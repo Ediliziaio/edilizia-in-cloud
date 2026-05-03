@@ -38,11 +38,18 @@ import {
   type ClassTipo,
 } from "@/hooks/controlloGestione/useClassificazioneVoci";
 import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
+import { NotePanel } from "@/components/controllo-gestione/ui/NotePanel";
+import { AliquoteEditor } from "@/components/controllo-gestione/ui/AliquoteEditor";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { cn } from "@/lib/utils";
 
-export function TabConfigurazione() {
+interface TabConfigurazioneProps {
+  anno?: number;
+}
+
+export function TabConfigurazione({ anno }: TabConfigurazioneProps = {}) {
   const list = useClassificazioneVoci();
+  const annoCurrent = anno ?? new Date().getFullYear();
   const update = useUpdateClassificazione();
   const bootstrap = useBootstrapClassificazione();
   const [search, setSearch] = useState("");
@@ -176,6 +183,9 @@ export function TabConfigurazione() {
           </div>
         </CardContent>
       </Card>
+
+      <NotePanel anno={annoCurrent} />
+      <AliquoteEditor />
     </div>
   );
 }
