@@ -360,3 +360,6 @@ verify_jwt = false
 
 [functions.generate-technical-render]
 verify_jwt = false
+
+[functions.cg-bootstrap-classificazione]
+verify_jwt = true
