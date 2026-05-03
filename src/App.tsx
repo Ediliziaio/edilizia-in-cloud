@@ -5,6 +5,7 @@ import { lazy, Suspense, useEffect } from "react";
 declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void;
+    __EIC_GA_ENABLED?: boolean;
   }
 }
 
@@ -248,16 +249,28 @@ function CityOrNotFound() {
   return <NotFound />;
 }
 
-/** Tracks SPA route changes in Google Analytics 4 */
+const MARKETING_ANALYTICS_HOSTS = new Set(["ediliziaincloud.com", "www.ediliziaincloud.com"]);
+const PRIVATE_ANALYTICS_PREFIXES =
+  /^\/(app|admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref)(\/|$)/;
+
+function canTrackMarketingPage(pathname: string) {
+  if (typeof window === "undefined") return false;
+  return (
+    window.__EIC_GA_ENABLED === true &&
+    MARKETING_ANALYTICS_HOSTS.has(window.location.hostname) &&
+    !PRIVATE_ANALYTICS_PREFIXES.test(pathname || "/")
+  );
+}
+
+/** Tracks public marketing SPA route changes in Google Analytics 4 */
 function GARouteTracker() {
   const location = useLocation();
   useEffect(() => {
-    if (typeof window.gtag === "function") {
-      window.gtag("event", "page_view", {
-        page_path: location.pathname + location.search,
-        page_location: window.location.href,
-      });
-    }
+    if (typeof window.gtag !== "function" || !canTrackMarketingPage(location.pathname)) return;
+    window.gtag("event", "page_view", {
+      page_path: location.pathname + location.search,
+      page_location: window.location.href,
+    });
   }, [location]);
   return null;
 }

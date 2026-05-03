@@ -382,17 +382,34 @@
     <!-- FAQPage rimossa dall'HTML statico (caricato su tutte le route) e spostata nel componente -->
     <!-- Home.tsx tramite JsonLd — visibile solo sulla home page, risolve il "Campo duplicato FAQPage" in GSC -->
 
-    <!-- Google Analytics 4 (GA4) — ID: G-0JZP5N2VW5 -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-0JZP5N2VW5"></script>
+    <!-- Google Analytics 4 (GA4) — solo dominio marketing pubblico -->
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-0JZP5N2VW5', {
-        page_path: window.location.pathname,
-        anonymize_ip: true,
-        cookie_flags: 'SameSite=None;Secure'
-      });
+      (function () {
+        var GA_ID = 'G-0JZP5N2VW5';
+        var MARKETING_HOSTS = {
+          'ediliziaincloud.com': true,
+          'www.ediliziaincloud.com': true
+        };
+        var PRIVATE_PREFIXES = /^\/(app|admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref)(\/|$)/;
+        var isPublicMarketingPage = !!MARKETING_HOSTS[window.location.hostname] && !PRIVATE_PREFIXES.test(window.location.pathname || '/');
+
+        window.__EIC_GA_ENABLED = isPublicMarketingPage;
+        if (!isPublicMarketingPage) return;
+
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function(){window.dataLayer.push(arguments);};
+        window.gtag('js', new Date());
+        window.gtag('config', GA_ID, {
+          send_page_view: false,
+          anonymize_ip: true,
+          cookie_flags: 'SameSite=None;Secure'
+        });
+
+        var script = document.createElement('script');
+        script.async = true;
+        script.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+        document.head.appendChild(script);
+      })();
     </script>
   </head>
 
