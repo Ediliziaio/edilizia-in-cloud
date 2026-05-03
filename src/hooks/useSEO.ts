@@ -66,9 +66,15 @@ export function useSEO(options: SEOOptions) {
   } = options;
 
   useEffect(() => {
-    const fullTitle = title.includes("Edilizia in Cloud")
-      ? title
-      : `${title} | Edilizia in Cloud`;
+    // Aggiunge il suffix "| Edilizia in Cloud" SOLO se:
+    //   - title non lo contiene già
+    //   - title è abbastanza corto da rimanere sotto 60 char dopo il suffix
+    //     (Google tronca a ~60 char nei risultati di ricerca)
+    const SUFFIX = " | Edilizia in Cloud";
+    const fullTitle =
+      title.includes("Edilizia in Cloud") || title.length + SUFFIX.length > 60
+        ? title
+        : `${title}${SUFFIX}`;
     document.title = fullTitle;
 
     const canonicalUrl = canonical
@@ -129,6 +135,12 @@ export function useSEO(options: SEOOptions) {
 
     // Hreflang alternates (it-IT + x-default)
     setHreflangs(canonicalUrl);
+
+    // Marker per scripts/prerender.mjs: indica che useSEO ha applicato i metadati
+    // della pagina corrente. Lo script Playwright lo controlla prima di catturare
+    // l'HTML — senza questo, il prerender potrebbe salvare il guscio iniziale
+    // della homepage prima che React monti la rotta giusta.
+    document.documentElement.setAttribute("data-seo-applied", "true");
 
     return () => {
       // Restore or remove each meta we touched

@@ -27,9 +27,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "1",
     slug: "ridurre-costi-cantieri-edili",
-    title: "Come Ridurre i Costi Nei Cantieri Edili del 20% con il Digitale",
+    title: "Come Ridurre i Costi Nei Cantieri Edili del 20% con il…",
     excerpt:
-      "Scopri le 7 strategie pratiche che permettono alle imprese edili italiane di ridurre i costi operativi del 20-35% attraverso la digitalizzazione dei processi. Analisi reale con dati di settore.",
+      "Scopri le 7 strategie pratiche che permettono alle imprese edili italiane di ridurre i costi operativi del 20-35% attraverso la digitalizzazione dei…",
     category: "Gestione Cantieri",
     tags: ["costi cantiere", "digitalizzazione edilizia", "risparmio", "gestione cantieri"],
     publishedAt: "2025-07-31",
@@ -92,9 +92,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "2",
     slug: "gestione-cantieri-digitale",
-    title: "Gestione Cantieri 2026: Dalla Carta al Cloud — Guida Completa",
+    title: "Gestione Cantieri 2026: Dalla Carta al Cloud",
     excerpt:
-      "La guida definitiva per trasformare la gestione dei cantieri edili dalla carta al cloud. Dall'avanzamento lavori alle commesse, tutto ciò che devi sapere per il 2026.",
+      "La guida definitiva per trasformare la gestione dei cantieri edili dalla carta al cloud. Dall'avanzamento lavori alle commesse, tutto ciò che devi sapere…",
     category: "Gestione Cantieri",
     tags: ["gestione cantieri", "cloud edilizia", "software cantiere", "avanzamento lavori"],
     publishedAt: "2025-08-10",
@@ -161,9 +161,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "3",
     slug: "preventivi-edilizia-guida",
-    title: "Preventivi Vincenti in Edilizia: Come Strutturare un'Offerta che Converte",
+    title: "Preventivi Vincenti in Edilizia",
     excerpt:
-      "I preventivi perduti costano alle imprese edili italiane milioni di euro ogni anno. Scopri come strutturare preventivi professionali che convincono il cliente e proteggono i tuoi margini.",
+      "I preventivi perduti costano alle imprese edili italiane milioni di euro ogni anno. Scopri come strutturare preventivi professionali che convincono il…",
     category: "Commerciale",
     tags: ["preventivi edilizia", "offerte commerciali", "conversione clienti", "margini"],
     publishedAt: "2025-08-20",
@@ -225,9 +225,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "4",
     slug: "hr-edilizia-presenze-buste-paga",
-    title: "HR in Edilizia: Gestione Presenze, Buste Paga e Conformità CCNL",
+    title: "HR in Edilizia: Gestione Presenze, Buste Paga e…",
     excerpt:
-      "La gestione del personale nelle imprese edili è tra le più complesse d'Italia. Scopri come semplificare presenze, buste paga e rispettare il CCNL Edilizia con strumenti digitali.",
+      "La gestione del personale nelle imprese edili è tra le più complesse d'Italia. Scopri come semplificare presenze, buste paga e rispettare il CCNL Edilizia…",
     category: "HR & Personale",
     tags: ["HR edilizia", "CCNL edilizia", "presenze cantiere", "buste paga"],
     publishedAt: "2025-08-30",
@@ -288,9 +288,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "5",
     slug: "analisi-margini-imprese-edili",
-    title: "Analisi dei Margini per Imprese Edili: La Guida Definitiva 2026",
+    title: "Analisi dei Margini per Imprese Edili",
     excerpt:
-      "Il 68% delle imprese edili lavora senza conoscere i propri margini reali per commessa. Scopri come calcolare, monitorare e migliorare la redditività di ogni cantiere.",
+      "Il 68% delle imprese edili lavora senza conoscere i propri margini reali per commessa. Scopri come calcolare, monitorare e migliorare la redditività di…",
     category: "Finanza",
     tags: ["margini edilizia", "redditività cantieri", "analisi costi", "contabilità edilizia"],
     publishedAt: "2025-09-09",
@@ -356,9 +356,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "6",
     slug: "marketing-digitale-imprese-edili",
-    title: "Marketing Digitale per Imprese Edili: Trovare Nuovi Clienti Online nel 2026",
+    title: "Marketing Digitale per Imprese Edili",
     excerpt:
-      "Il passaparola non basta più. Scopri le strategie di marketing digitale specifiche per le imprese edili italiane: dal Google My Business alle campagne social, fino ai preventivi automatici.",
+      "Il passaparola non basta più. Scopri le strategie di marketing digitale specifiche per le imprese edili italiane: dal Google My Business alle campagne…",
     category: "Marketing",
     tags: [
       "marketing edilizia",
@@ -424,9 +424,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "7",
     slug: "software-gestionale-vs-excel",
-    title: "Software Gestionale vs Excel: Il Vero Costo Nascosto per la Tua Impresa Edile",
+    title: "Software Gestionale vs Excel",
     excerpt:
-      "Molte imprese edili usano Excel convinte di risparmiare. Calcoliamo il vero costo nascosto di Excel: tempo perso, errori, opportunità mancate e rischio di conformità fiscale.",
+      "Molte imprese edili usano Excel convinte di risparmiare. Calcoliamo il vero costo nascosto di Excel: tempo perso, errori, opportunità mancate e rischio di…",
     category: "Digitalizzazione",
     tags: ["excel edilizia", "software gestionale", "costi nascosti", "digitalizzazione"],
     publishedAt: "2025-09-29",
@@ -481,7 +481,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "8",
     slug: "digitalizzare-impresa-edile",
-    title: "Come Digitalizzare la Tua Impresa Edile in 30 Giorni: Piano d'Azione Pratico",
+    title: "Come Digitalizzare la Tua Impresa Edile in 30 Giorni",
     excerpt:
       "Una roadmap concreta e testata per trasformare la tua impresa edile dal cartaceo al digitale in soli 30 giorni. Settimana per settimana, cosa fare e come farlo.",
     category: "Digitalizzazione",
@@ -573,9 +573,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "9",
     slug: "come-organizzare-cantiere-edile",
-    title: "Come Organizzare un Cantiere Edile: la Guida Pratica per Titolari d'Impresa",
+    title: "Come Organizzare un Cantiere Edile",
     excerpt:
-      "Hai cantieri aperti ma non sai dove sono i materiali, chi ha fatto cosa ieri, e quanto hai speso. Scopri il metodo in 5 fasi per organizzare ogni cantiere senza fogli Excel e senza perdere il controllo dei margini.",
+      "Hai cantieri aperti ma non sai dove sono i materiali, chi ha fatto cosa ieri, e quanto hai speso. Scopri il metodo in 5 fasi per organizzare ogni cantiere…",
     category: "Gestione Cantieri",
     tags: ["organizzare cantiere edile", "gestione cantieri", "impresa edile", "margini cantiere"],
     publishedAt: "2025-10-19",
@@ -671,9 +671,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "10",
     slug: "documentazione-obbligatoria-cantiere-2025",
-    title: "Documentazione Obbligatoria Cantiere 2026: Lista Completa per Imprese Edili",
+    title: "Documentazione Obbligatoria Cantiere 2026",
     excerpt:
-      "Lista aggiornata di tutti i documenti obbligatori per il cantiere nel 2026. POS, DURC, notifica preliminare, DDT e certificazioni finali: cosa serve davvero prima di iniziare i lavori.",
+      "Lista aggiornata di tutti i documenti obbligatori per il cantiere nel 2026. POS, DURC, notifica preliminare, DDT e certificazioni finali: cosa serve…",
     category: "Normativa",
     tags: ["documentazione cantiere 2026", "POS cantiere", "DURC", "normativa edilizia"],
     publishedAt: "2025-10-29",
@@ -779,9 +779,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "11",
     slug: "come-fare-preventivo-edilizia",
-    title: "Come Fare un Preventivo Edilizia Professionale (Senza Perdere Margine)",
+    title: "Come Fare un Preventivo Edilizia Professionale (Senza…",
     excerpt:
-      "Come fare un preventivo edilizia che vince i lavori e protegge i tuoi margini. Metodo pratico in 5 passi per imprese edili che vogliono smettere di lavorare gratis.",
+      "Come fare un preventivo edilizia che vince i lavori e protegge i tuoi margini. Metodo pratico in 5 passi per imprese edili che vogliono smettere di…",
     category: "Preventivi",
     tags: ["preventivo edilizia", "computo metrico", "margini edilizia", "come fare preventivo"],
     publishedAt: "2025-11-08",
@@ -871,7 +871,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "12",
     slug: "alternativa-excel-cantieri",
-    title: "Alternativa a Excel per Cantieri: Perché le Imprese Edili Lo Stanno Abbandonando",
+    title: "Alternativa a Excel per Cantieri",
     excerpt:
       "Stai usando Excel per gestire i cantieri? Ti costa molto più di quanto pensi. Confronto diretto: Excel vs gestionale di cantiere nel 2026, con i numeri reali.",
     category: "Gestione Cantieri",
@@ -965,9 +965,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "13",
     slug: "sal-cantiere-come-funziona",
-    title: "SAL Cantiere: Cos'è, Come Si Fa e Come Automatizzarlo nel 2026",
+    title: "SAL Cantiere: Cos'è, Come Si Fa e Come Automatizzarlo…",
     excerpt:
-      "Guida completa allo Stato Avanzamento Lavori: come si calcola, cosa deve contenere, come si certifica e come automatizzarlo con un software gestionale per imprese edili.",
+      "Guida completa allo Stato Avanzamento Lavori: come si calcola, cosa deve contenere, come si certifica e come automatizzarlo con un software gestionale per…",
     category: "Gestione Cantieri",
     tags: ["SAL cantiere", "stato avanzamento lavori", "gestione cantieri", "software edilizia"],
     publishedAt: "2025-11-28",
@@ -1038,7 +1038,7 @@ export const blogPosts: BlogPost[] = [
     slug: "durc-edilizia-guida-completa",
     title: "DURC Edilizia 2026: Guida Completa per Imprese Edili",
     excerpt:
-      "Tutto quello che devi sapere sul DURC per le imprese edili: cos'è, come richiederlo, quando scade, cosa fare se è irregolare e come gestirlo con un software gestionale.",
+      "Tutto quello che devi sapere sul DURC per le imprese edili: cos'è, come richiederlo, quando scade, cosa fare se è irregolare e come gestirlo con un…",
     category: "Gestione Cantieri",
     tags: ["DURC edilizia", "regolarità contributiva", "appalti edilizia", "gestione documenti"],
     publishedAt: "2025-12-08",
@@ -1101,9 +1101,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "15",
     slug: "giornale-dei-lavori-cantiere",
-    title: "Giornale dei Lavori: Cos'è, Chi Lo Compila e Come Digitale nel 2026",
+    title: "Giornale dei Lavori: Cos'è, Chi Lo Compila e Come…",
     excerpt:
-      "Il giornale dei lavori è obbligatorio negli appalti pubblici e utile in quelli privati. Guida completa su chi lo compila, cosa deve contenere e come passare al digitale.",
+      "Il giornale dei lavori è obbligatorio negli appalti pubblici e utile in quelli privati. Guida completa su chi lo compila, cosa deve contenere e come…",
     category: "Gestione Cantieri",
     tags: ["giornale dei lavori", "documentazione cantiere", "appalti edilizia", "direttore lavori"],
     publishedAt: "2025-12-18",
@@ -1157,9 +1157,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "16",
     slug: "subappalto-edilizia-guida",
-    title: "Subappalto in Edilizia: Regole, Limiti e Come Gestirlo nel 2026",
+    title: "Subappalto in Edilizia",
     excerpt:
-      "Guida completa al subappalto in edilizia: limiti normativi dopo il nuovo Codice Appalti, obblighi documentali, come si gestisce il pagamento diretto e come tenere traccia di tutto con un software.",
+      "Guida completa al subappalto in edilizia: limiti normativi dopo il nuovo Codice Appalti, obblighi documentali, come si gestisce il pagamento diretto e…",
     category: "Finanza",
     tags: ["subappalto edilizia", "codice appalti", "gestione subappaltatori", "appalti pubblici"],
     publishedAt: "2025-12-28",
@@ -1211,9 +1211,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "17",
     slug: "acquisire-clienti-impresa-edile",
-    title: "Come Acquisire Clienti per Impresa Edile: 7 Strategie Concrete per il 2026",
+    title: "Come Acquisire Clienti per Impresa Edile",
     excerpt:
-      "Guida pratica per trovare nuovi clienti nel settore edile: dal passaparola digitale ai preventivi irresistibili, dalle recensioni Google alle partnership con agenzie immobiliari.",
+      "Guida pratica per trovare nuovi clienti nel settore edile: dal passaparola digitale ai preventivi irresistibili, dalle recensioni Google alle partnership…",
     category: "Commerciale",
     tags: ["acquisire clienti edilizia", "commerciale impresa edile", "preventivi edilizia", "marketing cantieri"],
     publishedAt: "2026-01-06",
@@ -1267,7 +1267,7 @@ export const blogPosts: BlogPost[] = [
     slug: "gestione-operai-cantiere-presenze-ore",
     title: "Gestione Operai in Cantiere: Presenze, Ore e Paghe nel 2026",
     excerpt:
-      "Come gestire le presenze degli operai edili, tracciare le ore per cantiere, collegare le ore alle buste paga e rispettare il CCNL edilizia. Guida completa per titolari di imprese edili.",
+      "Come gestire le presenze degli operai edili, tracciare le ore per cantiere, collegare le ore alle buste paga e rispettare il CCNL edilizia.",
     category: "HR & Personale",
     tags: ["gestione operai edilizia", "presenze cantiere", "CCNL edilizia", "ore lavoro cantiere"],
     publishedAt: "2026-01-09",
@@ -1318,9 +1318,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "19",
     slug: "sito-web-impresa-edile-guida",
-    title: "Sito Web per Impresa Edile: Come Farlo Bene e Trovare Clienti Online",
+    title: "Sito Web per Impresa Edile",
     excerpt:
-      "Guida pratica per creare un sito web efficace per la tua impresa edile: cosa deve contenere, come ottimizzarlo per Google e come trasformarlo in una macchina di acquisizione clienti.",
+      "Guida pratica per creare un sito web efficace per la tua impresa edile: cosa deve contenere, come ottimizzarlo per Google e come trasformarlo in una…",
     category: "Marketing",
     tags: ["sito web impresa edile", "marketing edilizia", "SEO impresa edile", "acquisire clienti online"],
     publishedAt: "2026-01-12",
@@ -1367,9 +1367,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "20",
     slug: "digitalizzazione-impresa-edile-passo-passo",
-    title: "Digitalizzare l'Impresa Edile nel 2026: Guida Passo Passo Senza Sprechi",
+    title: "Digitalizzare l'Impresa Edile nel 2026",
     excerpt:
-      "Come digitalizzare un'impresa edile in modo ordinato e senza buttare soldi: da dove iniziare, quali strumenti scegliere e come formare il team. Guida pratica per titolari edili.",
+      "Come digitalizzare un'impresa edile in modo ordinato e senza buttare soldi: da dove iniziare, quali strumenti scegliere e come formare il team.",
     category: "Digitalizzazione",
     tags: ["digitalizzazione edilizia", "trasformazione digitale impresa edile", "software edilizia", "innovazione cantieri"],
     publishedAt: "2026-01-15",
@@ -1419,7 +1419,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "21",
     slug: "computo-metrico-estimativo-guida",
-    title: "Computo Metrico Estimativo: Cos'è, Come Si Fa e Template Gratis",
+    title: "Computo Metrico Estimativo",
     excerpt: "Guida completa al computo metrico estimativo per imprese edili: struttura, prezzari regionali, software per compilarlo in modo professionale e veloce.",
     category: "Gestione Cantieri",
     tags: ["computo metrico", "preventivo edile", "prezzario", "cmc", "software edilizia"],
@@ -1487,7 +1487,7 @@ export const blogPosts: BlogPost[] = [
     id: "22",
     slug: "bim-edilizia-guida-pratica",
     title: "BIM in Edilizia: Cos'è, Obblighi e Come Iniziare nel 2026",
-    excerpt: "Guida pratica al Building Information Modeling per imprese edili italiane: obblighi normativi, vantaggi concreti e come iniziare senza stravolgere la propria organizzazione.",
+    excerpt: "Guida pratica al Building Information Modeling per imprese edili italiane: obblighi normativi, vantaggi concreti e come iniziare senza stravolgere la…",
     category: "Digitalizzazione",
     tags: ["BIM", "building information modeling", "digitalizzazione edilizia", "DM 560", "software BIM"],
     publishedAt: "2026-01-21",
@@ -1547,8 +1547,8 @@ export const blogPosts: BlogPost[] = [
   {
     id: "23",
     slug: "cassa-edile-come-funziona",
-    title: "Cassa Edile: Come Funziona, Contributi e Obblighi per le Imprese",
-    excerpt: "Guida completa alla Cassa Edile per titolari di imprese edili: iscrizione obbligatoria, contributi mensili, prestazioni ai lavoratori e come gestirla senza errori.",
+    title: "Cassa Edile: Come Funziona, Contributi e Obblighi per…",
+    excerpt: "Guida completa alla Cassa Edile per titolari di imprese edili: iscrizione obbligatoria, contributi mensili, prestazioni ai lavoratori e come gestirla…",
     category: "HR & Personale",
     tags: ["cassa edile", "CCNL edilizia", "contributi edili", "CNCE", "busta paga operai"],
     publishedAt: "2026-01-24",
@@ -1609,7 +1609,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "24",
     slug: "appalti-pubblici-edilizia-guida",
-    title: "Come Partecipare agli Appalti Pubblici in Edilizia: Guida 2026",
+    title: "Come Partecipare agli Appalti Pubblici in Edilizia",
     excerpt: "Guida pratica per imprese edili che vogliono partecipare a gare d'appalto pubbliche: requisiti SOA, DURC, gare telematiche, ribasso d'asta e come organizzarsi.",
     category: "Commerciale",
     tags: ["appalti pubblici edilizia", "gare d'appalto", "SOA", "DURC", "codice appalti", "portale ANAC"],
@@ -1677,9 +1677,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "25",
     slug: "sicurezza-cantieri-dlgs-81",
-    title: "Sicurezza Cantieri: D.Lgs 81/2008 Spiegato alle Imprese Edili",
+    title: "Sicurezza Cantieri: D.Lgs 81/2008 Spiegato alle…",
     excerpt:
-      "Guida pratica al Decreto Legislativo 81/2008 per le imprese edili: obblighi del datore di lavoro, figure di sicurezza obbligatorie, DVR, PSC, POS e sanzioni. Come gestirla senza perdere ore.",
+      "Guida pratica al Decreto Legislativo 81/2008 per le imprese edili: obblighi del datore di lavoro, figure di sicurezza obbligatorie, DVR, PSC, POS e…",
     category: "Normativa",
     tags: ["sicurezza cantieri", "D.Lgs 81/2008", "DVR", "POS cantiere", "PSC", "sicurezza lavoro edilizia"],
     publishedAt: "2026-01-30",
@@ -1741,9 +1741,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "26",
     slug: "ccnl-edilizia-guida",
-    title: "CCNL Edilizia Industria 2024-2026: Guida Pratica per le Imprese",
+    title: "CCNL Edilizia Industria 2024-2026",
     excerpt:
-      "Tutto quello che devi sapere sul Contratto Collettivo Nazionale di Lavoro per l'edilizia industria: livelli, scatti, aumenti, orari, ferie, permessi e come calcolare il costo reale di un operaio.",
+      "Tutto quello che devi sapere sul Contratto Collettivo Nazionale di Lavoro per l'edilizia industria: livelli, scatti, aumenti, orari, ferie, permessi e…",
     category: "HR & Personale",
     tags: ["CCNL edilizia", "contratto collettivo edilizia", "costo operaio edile", "livelli CCNL", "retribuzione edilizia"],
     publishedAt: "2026-02-02",
@@ -1800,9 +1800,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "27",
     slug: "attestazione-soa-imprese-edili",
-    title: "Attestazione SOA per Imprese Edili: Come Ottenerla e Mantenerla",
+    title: "Attestazione SOA per Imprese Edili",
     excerpt:
-      "Guida completa all'attestazione SOA per partecipare agli appalti pubblici oltre 150.000€: categorie OG/OS, requisiti di fatturato e personale, costi, rinnovi e cosa fare se scade.",
+      "Guida completa all'attestazione SOA per partecipare agli appalti pubblici oltre 150.000€: categorie OG/OS, requisiti di fatturato e personale, costi,…",
     category: "Normativa",
     tags: ["attestazione SOA", "SOA imprese edili", "appalti pubblici qualificazione", "categorie OG OS", "qualificazione SOA"],
     publishedAt: "2026-02-05",
@@ -1864,9 +1864,9 @@ export const blogPosts: BlogPost[] = [
   {
     id: "28",
     slug: "superbonus-imprese-edili-2026",
-    title: "Superbonus 2025-2026: Cosa Resta per le Imprese Edili e Come Gestirlo",
+    title: "Superbonus 2025-2026: Cosa Resta per le Imprese Edili…",
     excerpt:
-      "Guida aggiornata al Superbonus 2025-2026 per le imprese edili: aliquote residue, cessione del credito, SAL e documentazione obbligatoria. Come non perdere lavori per mancanza di gestione.",
+      "Guida aggiornata al Superbonus 2025-2026 per le imprese edili: aliquote residue, cessione del credito, SAL e documentazione obbligatoria.",
     category: "Normativa",
     tags: ["superbonus 2026", "superbonus imprese edili", "bonus edilizi", "cessione credito", "ecobonus", "bonus ristrutturazione"],
     publishedAt: "2026-02-08",
@@ -1923,8 +1923,8 @@ export const blogPosts: BlogPost[] = [
   {
     id: "29",
     slug: "gestione-liquidita-impresa-edile",
-    title: "Gestione della Liquidità per Imprese Edili: Come Evitare la Crisi di Cassa nel 2026",
-    excerpt: "Guida completa alla gestione della liquidità per le imprese edili italiane: ciclo finanziario del cantiere, previsione dei flussi di cassa, strumenti pratici e come usare un gestionale per non ritrovarsi mai senza liquidità.",
+    title: "Gestione della Liquidità per Imprese Edili",
+    excerpt: "Guida completa alla gestione della liquidità per le imprese edili italiane: ciclo finanziario del cantiere, previsione dei flussi di cassa, strumenti…",
     category: "Finanza Edilizia",
     tags: ["liquidità impresa edile", "gestione cassa cantiere", "flusso di cassa edilizia", "previsione finanziaria cantiere", "crisi liquidità impresa edile"],
     publishedAt: "2026-02-11",
@@ -2023,8 +2023,8 @@ export const blogPosts: BlogPost[] = [
   {
     id: "30",
     slug: "pnrr-edilizia-imprese-2026",
-    title: "PNRR per Imprese Edili 2025-2026: Bandi, Requisiti e Come Partecipare",
-    excerpt: "Guida completa al PNRR per le imprese edili italiane: quali bandi sono ancora aperti, i requisiti di qualificazione SOA, come gestire la rendicontazione digitale e i SAL puntualmente per non perdere i pagamenti pubblici.",
+    title: "PNRR per Imprese Edili 2025-2026",
+    excerpt: "Guida completa al PNRR per le imprese edili italiane: quali bandi sono ancora aperti, i requisiti di qualificazione SOA, come gestire la rendicontazione…",
     category: "Normativa",
     tags: ["PNRR edilizia", "bandi PNRR imprese edili", "appalti PNRR 2026", "rendicontazione PNRR", "PNRR costruzioni", "fondi europei edilizia"],
     publishedAt: "2026-02-14",
@@ -2118,8 +2118,8 @@ export const blogPosts: BlogPost[] = [
   {
     id: "31",
     slug: "come-scegliere-software-gestionale-edilizia",
-    title: "Come Scegliere il Software Gestionale per la Tua Impresa Edile: Guida Completa 2026",
-    excerpt: "Guida pratica per scegliere il software gestionale più adatto alla tua impresa edile: le funzionalità indispensabili, i criteri di valutazione, i costi reali, le domande da fare ai vendor e gli errori da evitare nella scelta.",
+    title: "Come Scegliere il Software Gestionale per la Tua…",
+    excerpt: "Guida pratica per scegliere il software gestionale più adatto alla tua impresa edile: le funzionalità indispensabili, i criteri di valutazione, i costi…",
     category: "Digitalizzazione",
     tags: ["come scegliere software gestionale edilizia", "software edilizia confronto", "gestionale impresa edile criteri", "ERP edilizia valutazione", "migliore software cantieri"],
     publishedAt: "2026-02-17",
@@ -2216,8 +2216,8 @@ export const blogPosts: BlogPost[] = [
   {
     id: "32",
     slug: "gestione-subappaltatori-impresa-edile",
-    title: "Gestione Subappaltatori: Contratti, DURC, Pagamenti e Come Mantenere il Controllo",
-    excerpt: "Guida completa alla gestione dei subappaltatori per imprese edili: contratti obbligatori, DURC, ritenute fiscali, limiti al subappalto negli appalti pubblici, responsabilità solidale e come usare un software per non perdere mai il controllo.",
+    title: "Gestione Subappaltatori",
+    excerpt: "Guida completa alla gestione dei subappaltatori per imprese edili: contratti obbligatori, DURC, ritenute fiscali, limiti al subappalto negli appalti…",
     category: "Gestione Cantieri",
     tags: ["gestione subappaltatori", "subappalto edilizia", "contratto subappalto", "DURC subappaltatori", "responsabilità solidale subappalto", "limiti subappalto appalti pubblici"],
     publishedAt: "2026-02-20",
@@ -2312,8 +2312,8 @@ export const blogPosts: BlogPost[] = [
   {
     id: "33",
     slug: "cassa-impresa-edile-non-torna",
-    title: "Ho Fatturato ma Non Ho Soldi: Perché la Cassa dell'Impresa Edile Non Torna",
-    excerpt: "Hai cantieri aperti e fatture emesse, ma il conto corrente resta sotto pressione? Ecco perché ricavi e liquidità non sono la stessa cosa e come riprendere il controllo.",
+    title: "Ho Fatturato ma Non Ho Soldi",
+    excerpt: "Hai cantieri aperti e fatture emesse, ma il conto corrente resta sotto pressione? Ecco perché ricavi e liquidità non sono la stessa cosa e come riprendere…",
     category: "Finanza Edilizia",
     tags: ["cassa impresa edile", "liquidità edilizia", "cash flow cantiere", "SAL cantiere", "margini cantiere"],
     publishedAt: "2026-02-23",
@@ -2399,7 +2399,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "34",
     slug: "trovare-operai-edili-qualificati",
-    title: "Come Trovare Operai Edili Qualificati e Capire Chi Rende Davvero in Cantiere",
+    title: "Come Trovare Operai Edili Qualificati e Capire Chi…",
     excerpt: "La manodopera manca, ma il problema non è solo assumere: è misurare produttività, presenze, formazione, costi reali e affidabilità di ogni operaio.",
     category: "HR & Personale",
     tags: ["trovare operai edili", "gestione operai", "presenze cantiere", "produttività operai", "costo operaio edile"],
@@ -2486,8 +2486,8 @@ export const blogPosts: BlogPost[] = [
   {
     id: "35",
     slug: "passaparola-impresa-edile-non-basta",
-    title: "Il Passaparola Non Basta Più: Come Creare un Flusso Clienti per l'Impresa Edile",
-    excerpt: "Se aspetti che i clienti arrivino solo da conoscenze e raccomandazioni, non hai un sistema commerciale. Ecco come rendere prevedibili contatti, preventivi e follow-up.",
+    title: "Il Passaparola Non Basta Più",
+    excerpt: "Se aspetti che i clienti arrivino solo da conoscenze e raccomandazioni, non hai un sistema commerciale. Ecco come rendere prevedibili contatti, preventivi…",
     category: "Marketing",
     tags: ["clienti impresa edile", "marketing edilizia", "passaparola impresa edile", "lead edilizia", "preventivi edilizia"],
     publishedAt: "2026-03-01",
@@ -2573,7 +2573,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "36",
     slug: "gestire-piu-cantieri-contemporaneamente",
-    title: "Come Gestire Più Cantieri Contemporaneamente Senza Perdere il Controllo",
+    title: "Come Gestire Più Cantieri Contemporaneamente Senza…",
     excerpt: "Tre cantieri aperti, materiali in ritardo, squadre da coordinare e clienti che chiamano: il caos nasce quando tutto vive nella testa del titolare.",
     category: "Gestione Cantieri",
     tags: ["gestire più cantieri", "organizzazione cantieri", "avanzamento lavori", "diario cantiere", "pianificazione cantiere"],
@@ -2660,7 +2660,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "37",
     slug: "burocrazia-impresa-edile-scadenze-documenti",
-    title: "Burocrazia Edile: Come Non Dimenticare DURC, POS, Polizze e Documenti di Cantiere",
+    title: "Burocrazia Edile: Come Non Dimenticare DURC, POS,…",
     excerpt: "La burocrazia non fa rumore finché blocca un cantiere. Scopri quali scadenze controllare e come trasformarle in un processo automatico.",
     category: "Normativa",
     tags: ["burocrazia edilizia", "documenti cantiere", "DURC scadenza", "POS cantiere", "scadenze impresa edile"],
@@ -2747,7 +2747,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "38",
     slug: "delegare-impresa-edile-senza-perdere-controllo",
-    title: "Come Delegare in un'Impresa Edile Senza Perdere il Controllo dei Cantieri",
+    title: "Come Delegare in un'Impresa Edile Senza Perdere il…",
     excerpt: "Se ogni decisione passa da te, non hai un'azienda: hai un lavoro molto pesante. La delega funziona solo con procedure, ruoli e numeri visibili.",
     category: "Digitalizzazione",
     tags: ["delegare impresa edile", "organizzare azienda edile", "procedure cantiere", "titolare impresa edile", "gestione team edile"],
@@ -2834,7 +2834,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "39",
     slug: "preventivi-edili-non-si-chiudono",
-    title: "Perché i Preventivi Edili Non Si Chiudono: 7 Errori che Fanno Perdere Lavori",
+    title: "Perché i Preventivi Edili Non Si Chiudono",
     excerpt: "Fai sopralluoghi, calcoli, invii preventivi e poi il cliente sparisce? Il problema spesso non è il prezzo, ma processo, valore e follow-up.",
     category: "Commerciale",
     tags: ["preventivi edili", "chiudere preventivi", "preventivo impresa edile", "follow up preventivo", "vendita edilizia"],
@@ -2923,7 +2923,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "40",
     slug: "segnali-crisi-impresa-edile",
-    title: "Segnali di Crisi in un'Impresa Edile: Come Accorgertene 90 Giorni Prima",
+    title: "Segnali di Crisi in un'Impresa Edile",
     excerpt: "La crisi non arriva all'improvviso: lascia segnali su margini, cassa, clienti, costi fissi e crediti scaduti. Il punto è vederli in tempo.",
     category: "Finanza Edilizia",
     tags: ["crisi impresa edile", "segnali crisi aziendale", "margini edilizia", "crediti scaduti edilizia", "salute aziendale"],
@@ -3012,7 +3012,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "41",
     slug: "come-trovare-clienti-impresa-edile-marketing",
-    title: "Come Trovare Clienti per un'Impresa Edile con il Marketing: Metodo Pratico",
+    title: "Come Trovare Clienti per un'Impresa Edile con il…",
     excerpt: "Vuoi più clienti per lavori edili, ristrutturazioni o manutenzioni? Ecco un sistema concreto per generare richieste, gestire contatti e chiudere preventivi.",
     category: "Marketing",
     tags: ["come trovare clienti impresa edile", "marketing impresa edile", "clienti edilizia", "lead edilizia", "acquisire clienti edilizia"],
@@ -3131,7 +3131,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "42",
     slug: "aumentare-vendite-impresa-edile",
-    title: "Come Aumentare le Vendite di un'Impresa Edile Senza Abbassare i Prezzi",
+    title: "Come Aumentare le Vendite di un'Impresa Edile Senza…",
     excerpt: "Più vendite non significa fare più sconti. Scopri come aumentare il tasso di chiusura con preventivi migliori, follow-up e controllo del margine.",
     category: "Commerciale",
     tags: ["aumentare vendite impresa edile", "vendere lavori edili", "chiudere preventivi edilizia", "commerciale edilizia", "margine preventivi"],
@@ -3250,8 +3250,8 @@ export const blogPosts: BlogPost[] = [
   {
     id: "43",
     slug: "lead-serramenti-come-generare-richieste-qualificate",
-    title: "Lead Serramenti: Come Generare Richieste Qualificate per Infissi, Porte e Finestre",
-    excerpt: "Chi vende serramenti ha bisogno di lead con misure, zona, budget e urgenza. Ecco come evitare contatti inutili e trasformare richieste online in preventivi seri.",
+    title: "Lead Serramenti: Come Generare Richieste Qualificate…",
+    excerpt: "Chi vende serramenti ha bisogno di lead con misure, zona, budget e urgenza. Ecco come evitare contatti inutili e trasformare richieste online in…",
     category: "Marketing",
     tags: ["lead serramenti", "clienti serramenti", "marketing serramenti", "preventivi infissi", "vendere serramenti"],
     publishedAt: "2026-03-25",
@@ -3370,7 +3370,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "44",
     slug: "richieste-preventivo-ristrutturazione-online",
-    title: "Richieste di Preventivo Ristrutturazione: Come Trasformare i Contatti Online in Cantieri",
+    title: "Richieste di Preventivo Ristrutturazione",
     excerpt: "Le richieste online per ristrutturazioni sono preziose solo se vengono qualificate, seguite e trasformate in sopralluoghi con un processo chiaro.",
     category: "Marketing",
     tags: ["richieste preventivo ristrutturazione", "lead ristrutturazioni", "clienti ristrutturazione", "preventivo ristrutturazione", "marketing ristrutturazioni"],
@@ -3490,7 +3490,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "45",
     slug: "google-ads-impresa-edile-errori-budget",
-    title: "Google Ads per Imprese Edili: Errori da Evitare e Budget da Controllare",
+    title: "Google Ads per Imprese Edili",
     excerpt: "Google Ads può portare clienti edili, ma solo se campagne, landing page e CRM lavorano insieme. Ecco cosa controllare prima di bruciare budget.",
     category: "Marketing",
     tags: ["Google Ads impresa edile", "pubblicità edilizia", "campagne Google edilizia", "lead edilizia Google Ads", "budget marketing edilizia"],
@@ -3610,7 +3610,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "46",
     slug: "crm-edilizia-gestire-lead-preventivi-follow-up",
-    title: "CRM per Edilizia: Come Gestire Lead, Preventivi e Follow-up Senza Perdere Clienti",
+    title: "CRM per Edilizia: Come Gestire Lead, Preventivi e…",
     excerpt: "Un CRM per edilizia serve a non perdere contatti, sopralluoghi e preventivi. Ecco il flusso che ogni impresa edile dovrebbe avere.",
     category: "Commerciale",
     tags: ["CRM edilizia", "gestione lead edilizia", "follow up preventivi", "pipeline commerciale edilizia", "clienti impresa edile"],
@@ -3730,7 +3730,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "47",
     slug: "come-trovare-clienti-serramentisti",
-    title: "Come Trovare Clienti per Serramentisti: SEO, Lead e Preventivi che Si Chiudono",
+    title: "Come Trovare Clienti per Serramentisti",
     excerpt: "Una guida pratica per aziende di serramenti che vogliono più richieste qualificate, meno preventivi persi e una pipeline commerciale misurabile.",
     category: "Marketing",
     tags: ["come trovare clienti serramentisti", "marketing serramentisti", "clienti serramenti", "lead infissi", "vendere serramenti"],
@@ -3824,7 +3824,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "48",
     slug: "come-trovare-clienti-rifacimento-tetti",
-    title: "Come Trovare Clienti per Aziende di Rifacimento Tetti e Coperture",
+    title: "Come Trovare Clienti per Aziende di Rifacimento Tetti…",
     excerpt: "Strategia SEO e commerciale per imprese che fanno tetti, coperture, lattoneria, isolamento e impermeabilizzazioni.",
     category: "Marketing",
     tags: ["clienti rifacimento tetti", "marketing coperture", "lead tetti", "preventivo rifacimento tetto", "impresa tetti"],
@@ -3913,7 +3913,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "49",
     slug: "come-trovare-clienti-fotovoltaico",
-    title: "Come Trovare Clienti per Aziende Fotovoltaiche: Lead, SEO e Vendita Consultiva",
+    title: "Come Trovare Clienti per Aziende Fotovoltaiche",
     excerpt: "Per installatori fotovoltaici: come generare richieste qualificate, spiegare il ritorno economico e trasformare lead in contratti firmati.",
     category: "Marketing",
     tags: ["clienti fotovoltaico", "lead fotovoltaico", "marketing fotovoltaico", "vendere impianti fotovoltaici", "installatori fotovoltaico"],
@@ -4002,7 +4002,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "50",
     slug: "sistema-fatturazione-aziende-edili",
-    title: "Sistema di Fatturazione per Aziende Edili: SAL, Acconti, Varianti e Margini",
+    title: "Sistema di Fatturazione per Aziende Edili",
     excerpt: "Come scegliere e organizzare un sistema di fatturazione per imprese edili, serramentisti, installatori e aziende di ristrutturazione.",
     category: "Finanza Edilizia",
     tags: ["sistema fatturazione aziende edili", "fatturazione edilizia", "SAL fatture", "fattura elettronica edilizia", "gestionale fatture edilizia"],
@@ -4091,7 +4091,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "51",
     slug: "fattura-corretta-serramentisti",
-    title: "Fattura Corretta per Serramentisti: Posa, Materiali, Acconti e IVA",
+    title: "Fattura Corretta per Serramentisti",
     excerpt: "Guida pratica per serramentisti: come organizzare fatture, acconti, saldo, posa in opera, varianti e documentazione senza perdere margine.",
     category: "Finanza Edilizia",
     tags: ["fattura corretta serramentisti", "fatturazione serramenti", "fattura infissi", "IVA serramenti", "acconto serramenti"],
@@ -4180,7 +4180,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "52",
     slug: "preventivo-rifacimento-tetto-come-farlo",
-    title: "Preventivo Rifacimento Tetto: Come Farlo Bene e Non Perdere Margine",
+    title: "Preventivo Rifacimento Tetto",
     excerpt: "Cosa deve contenere un preventivo per rifacimento tetto: sopralluogo, materiali, sicurezza, ponteggi, varianti e SAL.",
     category: "Commerciale",
     tags: ["preventivo rifacimento tetto", "costo rifacimento tetto", "preventivo tetto", "azienda coperture", "margine tetti"],
@@ -4269,7 +4269,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "53",
     slug: "seo-locale-impresa-edile",
-    title: "SEO Locale per Imprese Edili: Come Farsi Trovare nella Propria Zona",
+    title: "SEO Locale per Imprese Edili",
     excerpt: "Guida SEO locale per imprese edili, serramentisti, tetti, impiantisti e ristrutturatori che lavorano su province e città specifiche.",
     category: "Marketing",
     tags: ["SEO locale impresa edile", "farsi trovare su Google edilizia", "marketing locale edilizia", "Google Business edilizia", "clienti edili zona"],
@@ -4358,7 +4358,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "54",
     slug: "recupero-crediti-impresa-edile-fatture-scadute",
-    title: "Recupero Crediti per Imprese Edili: Come Gestire Fatture Scadute e Clienti Lenti",
+    title: "Recupero Crediti per Imprese Edili",
     excerpt: "Come prevenire e gestire fatture scadute in edilizia: scadenziario, solleciti, SAL, condizioni di pagamento e controllo cassa.",
     category: "Finanza Edilizia",
     tags: ["recupero crediti impresa edile", "fatture scadute edilizia", "solleciti pagamento edilizia", "crediti clienti edilizia", "cassa impresa edile"],

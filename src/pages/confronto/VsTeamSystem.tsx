@@ -90,7 +90,7 @@ const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).
 
 export default function VsTeamSystem() {
   useSEO({
-    title: "Edilizia in Cloud vs TeamSystem: Confronto 2026 | Alternativa",
+    title: "Edilizia in Cloud vs TeamSystem: Confronto 2026",
     description:
       "Confronto completo Edilizia in Cloud vs TeamSystem per imprese edili. Prezzo, funzionalità, semplicità d'uso e assistenza a confronto.",
     canonical: "/confronto/vs-teamsystem",

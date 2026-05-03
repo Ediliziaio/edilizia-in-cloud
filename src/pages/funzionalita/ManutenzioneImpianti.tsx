@@ -42,9 +42,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Software Manutenzione Impianti — Programmata, Correttiva, Libretti DPR 74/2013 | Edilizia in Cloud",
+      "Software Manutenzione Impianti",
     description:
-      "Gestisci manutenzione programmata e correttiva impianti idraulici, elettrici, climatizzazione, fotovoltaici. Libretti di impianto digitali, scadenze DPR 74/2013, tecnici in mobilità con app dedicata. Setup in 48 ore.",
+      "Gestisci manutenzione programmata e correttiva impianti idraulici, elettrici, climatizzazione, fotovoltaici. Libretti di impianto digitali, scadenze DPR…",
     keywords:
       "software manutenzione impianti, gestionale manutenzione termoidraulica, app tecnici manutenzione, software DPR 74/2013, libretto impianto digitale, manutenzione programmata software, gestione climatizzazione, manutenzione caldaie software, facility management software, gestionale impiantisti",
     ogImage: "https://www.ediliziaincloud.com/og/manutenzione-impianti-og.jpg",

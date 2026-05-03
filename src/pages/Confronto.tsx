@@ -200,8 +200,8 @@ export default function Confronto() {
   const [filter, setFilter] = useState<RowCategory | "all">("all");
 
   useSEO({
-    title: "Confronto Software Gestionale Edilizia — Edilizia in Cloud vs Primus, TeamSystem, Edilnet, Excel",
-    description: "Confronta Edilizia in Cloud con Primus ACCA, TeamSystem Construction, Edilnet, Buildertrend ed Excel. Funzionalità, prezzi, fiscale italiano: scopri quale gestionale fa per la tua impresa edile nel 2026.",
+    title: "Confronto Software Gestionale Edilizia",
+    description: "Confronta Edilizia in Cloud con Primus ACCA, TeamSystem Construction, Edilnet, Buildertrend ed Excel. Funzionalità, prezzi, fiscale italiano: scopri quale…",
     canonical: "/confronto",
     keywords: "confronto software gestionale edilizia, edilizia in cloud vs primus, edilizia in cloud vs teamsystem, alternativa ERP edilizia, miglior gestionale imprese edili 2026",
   });

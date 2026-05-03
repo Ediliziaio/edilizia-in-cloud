@@ -125,7 +125,7 @@ const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).
 
 export default function VsExcel() {
   useSEO({
-    title: "Gestionale Edilizia vs Excel: Perché Smettere nel 2026 | Edilizia in Cloud",
+    title: "Gestionale Edilizia vs Excel: Perché Smettere nel 2026",
     description:
       "Excel per gestire i cantieri? Scopri quanto ti costa davvero e perché le imprese edili stanno passando a Edilizia in Cloud. Confronto completo 2026.",
     canonical: "/confronto/vs-excel",

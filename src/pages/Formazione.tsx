@@ -29,7 +29,7 @@ const guides = [
   },
   {
     category: "Finanza",
-    title: "Previsione di cassa a 90 giorni: non farti mai trovare senza liquidità",
+    title: "Previsione di cassa a 90 giorni",
     desc: "Come configurare il forecast automatico, leggere le previsioni e intervenire prima che la cassa si esaurisca. La funzionalità che i nostri clienti usano di più — e quasi nessuno conosce.",
     readTime: "10 min",
     level: "Intermedio",
@@ -37,7 +37,7 @@ const guides = [
   },
   {
     category: "HR & Presenze",
-    title: "Gestione presenze cantiere: timbrature reali, costo orario esatto",
+    title: "Gestione presenze cantiere",
     desc: "Come configurare le timbrature dal telefono, impostare il costo orario per ruolo e imputare le ore alle commesse giuste. Scopri quanto costa davvero ogni squadra per ogni cantiere.",
     readTime: "9 min",
     level: "Intermedio",
@@ -45,7 +45,7 @@ const guides = [
   },
   {
     category: "Fatturazione",
-    title: "Fattura elettronica SDI senza errori: dalla bozza alla ricevuta",
+    title: "Fattura elettronica SDI senza errori",
     desc: "Come emettere, ricevere e riconciliare fatture elettroniche SDI direttamente dalla piattaforma. Integrazione Aruba, gestione note di credito, archivio automatico.",
     readTime: "11 min",
     level: "Principiante",
@@ -53,7 +53,7 @@ const guides = [
   },
   {
     category: "App Mobile",
-    title: "App cantiere per operai e capocantiere: guida per il tuo team",
+    title: "App cantiere per operai e capocantiere",
     desc: "Come configurare l'app per i tuoi operai, impostare i cantieri visibili, gestire le timbrature offline e raccogliere foto e rapportini giornalieri dal telefono.",
     readTime: "7 min",
     level: "Principiante",
@@ -64,10 +64,10 @@ const guides = [
 const videos = [
   { title: "Tour completo — dalla home al cantiere in 15 minuti", duration: "15:32", category: "Overview", result: "Panoramica completa" },
   { title: "Aprire il primo cantiere e impostare il budget", duration: "8:14", category: "Cantieri", result: "Primo cantiere live" },
-  { title: "Preventivo professionale in 10 minuti — dal cliente alla firma", duration: "9:45", category: "Preventivi", result: "Preventivo firmato digitalmente" },
+  { title: "Preventivo professionale in 10 minuti", duration: "9:45", category: "Preventivi", result: "Preventivo firmato digitalmente" },
   { title: "App mobile per il capocantiere — timbrature e rapportini", duration: "6:22", category: "Mobile", result: "Team operativo" },
   { title: "Dashboard margini: come leggere i dati in tempo reale", duration: "7:18", category: "Margini", result: "Controllo margini live" },
-  { title: "Fattura elettronica SDI — dalla bozza alla ricevuta in 3 minuti", duration: "5:40", category: "Fatturazione", result: "Prima fattura SDI inviata" },
+  { title: "Fattura elettronica SDI", duration: "5:40", category: "Fatturazione", result: "Prima fattura SDI inviata" },
 ];
 
 const learningPaths = [
@@ -181,8 +181,8 @@ export default function Formazione() {
   const faqAnim = useScrollAnimation();
 
   useSEO({
-    title: "EiC Academy — Formazione e Guide per Imprese Edili | Edilizia in Cloud",
-    description: "Guide pratiche, video tutorial, masterclass dal vivo e supporto 1:1 per imparare a usare il gestionale edilizia. Chi padroneggia EiC guadagna il 23% in più per cantiere.",
+    title: "EiC Academy — Formazione e Guide per Imprese Edili",
+    description: "Guide pratiche, video tutorial, masterclass dal vivo e supporto 1:1 per imparare a usare il gestionale edilizia. Chi padroneggia EiC guadagna il 23% in…",
     canonical: "/formazione",
     keywords: "formazione software edilizia, guide gestionale edilizia, tutorial edilizia in cloud, come usare software edilizia, onboarding gestionale cantieri, video tutorial software impresa edile, masterclass edilizia, academy gestionale cantieri",
   });

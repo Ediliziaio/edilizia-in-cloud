@@ -100,7 +100,7 @@ const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).
 
 export default function VsPrimus() {
   useSEO({
-    title: "Edilizia in Cloud vs Primus ACCA — Confronto Gestionale Edilizia 2026",
+    title: "Edilizia in Cloud vs Primus ACCA",
     description:
       "Confronto dettagliato tra Edilizia in Cloud e Primus ACCA Software: funzionalità, prezzi, facilità d'uso e supporto. Scopri quale gestionale edilizia fa per te.",
     canonical: "/confronto/vs-primus",

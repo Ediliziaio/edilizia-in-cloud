@@ -40,9 +40,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Agenti AI per Imprese Edili — Assistente Intelligente CRM, Cantiere, Clienti | Edilizia in Cloud",
+      "Agenti AI per Imprese Edili",
     description:
-      "Agenti AI custom addestrati sui dati della tua impresa edile: rispondono a clienti su WhatsApp, qualificano lead, fanno follow-up preventivi, riassumono cantieri, generano report. Privacy totale, dati mai condivisi con OpenAI o terzi.",
+      "Agenti AI custom addestrati sui dati della tua impresa edile: rispondono a clienti su WhatsApp, qualificano lead, fanno follow-up preventivi, riassumono…",
     keywords:
       "agente AI edilizia, intelligenza artificiale impresa edile, AI per cantieri, chatbot AI edilizia, AI assistente CRM edilizia, automazione AI edile, AI generativa imprese edili, AI follow-up preventivi, AI WhatsApp edilizia",
     ogImage: "https://www.ediliziaincloud.com/og/agenti-ai-og.jpg",

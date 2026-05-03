@@ -40,9 +40,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Pipeline Vendite Edilizia — Kanban Preventivi, Forecast Cassa, Conversion Rate | Edilizia in Cloud",
+      "Pipeline Vendite Edilizia",
     description:
-      "Pipeline preventivi visuale per imprese edili: drag&drop fasi (lead, sopralluogo, preventivo, trattativa, firmato), forecast cassa, conversion rate per fonte, attività commerciale tracciata. Recupera 6% di conversione extra.",
+      "Pipeline preventivi visuale per imprese edili: drag&drop fasi (lead, sopralluogo, preventivo, trattativa, firmato), forecast cassa, conversion rate per…",
     keywords:
       "pipeline vendite edilizia, kanban preventivi edili, conversion rate edilizia, forecast cassa preventivi, gestione lead edilizia, pipeline preventivi cantiere, software vendite edili, sales pipeline edilizia",
     ogImage: "https://www.ediliziaincloud.com/og/pipeline-vendite-og.jpg",

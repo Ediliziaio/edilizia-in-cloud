@@ -35,9 +35,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Scadenzario Edilizia — Solleciti Automatici WhatsApp/Email e Aging Report | Edilizia in Cloud",
+      "Scadenzario Edilizia — Solleciti Automatici…",
     description:
-      "Scadenzario clienti e fornitori con solleciti automatici multi-step via email e WhatsApp, aging report aggiornato, alert pre-scadenza, export commercialista. Riduci del 30% i giorni medi di incasso e recuperi crediti senza chiamare.",
+      "Scadenzario clienti e fornitori con solleciti automatici multi-step via email e WhatsApp, aging report aggiornato, alert pre-scadenza, export…",
     keywords:
       "scadenzario edilizia, solleciti automatici clienti edili, recupero crediti impresa costruzione, aging report edilizia, gestione scadenze fornitori edilizia, sollecito WhatsApp edilizia, scadenzario fatture impresa edile, incassi edilizia",
     ogImage: "https://www.ediliziaincloud.com/og/scadenzario-og.jpg",

@@ -42,9 +42,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Contabilità Fiscale Edilizia — Piano dei Conti Settoriale, Bilancio CEE, XBRL | Edilizia in Cloud",
+      "Contabilità Fiscale Edilizia",
     description:
-      "Contabilità ordinaria e semplificata per imprese edili: piano dei conti edilizia preconfigurato, ammortamenti automatici, bilancio CEE, esportazione XBRL per commercialista, integrazione SDI e cantieri.",
+      "Contabilità ordinaria e semplificata per imprese edili: piano dei conti edilizia preconfigurato, ammortamenti automatici, bilancio CEE, esportazione XBRL…",
     keywords:
       "contabilità edilizia, software contabilità imprese edili, piano dei conti edilizia, bilancio CEE edilizia, XBRL edilizia, ammortamenti cantieri, contabilità ordinaria edilizia, contabilità semplificata edilizia",
     ogImage: "https://www.ediliziaincloud.com/og/contabilita-fiscale-og.jpg",

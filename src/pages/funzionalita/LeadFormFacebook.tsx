@@ -40,9 +40,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Lead Form Facebook Edilizia — Sync CRM Automatica, Qualificazione AI, Distribuzione Commerciali | Edilizia in Cloud",
+      "Lead Form Facebook Edilizia",
     description:
-      "Integrazione Lead Ads Facebook e Instagram per imprese edili: sync automatica al CRM, qualificazione AI dei lead, distribuzione ai commerciali, tracking conversione lead-cliente. Risposta entro 5 minuti, conversione +60%.",
+      "Integrazione Lead Ads Facebook e Instagram per imprese edili: sync automatica al CRM, qualificazione AI dei lead, distribuzione ai commerciali, tracking…",
     keywords:
       "lead form facebook edilizia, lead ads facebook imprese edili, sync CRM lead facebook, qualificazione AI lead edilizia, lead facebook ristrutturazione, lead instagram fotovoltaico, distribuzione lead commerciali, conversione lead edilizia, lead generation imprese costruzione, lead facebook automazione",
     ogImage: "https://www.ediliziaincloud.com/og/lead-form-facebook-og.jpg",

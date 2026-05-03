@@ -38,9 +38,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Previsionale di Cassa Edilizia — Cash Flow Forecast 30/60/90 Giorni | Edilizia in Cloud",
+      "Previsionale di Cassa Edilizia",
     description:
-      "Previsionale di cassa per impresa edile a 30/60/90 giorni: incassi previsti, pagamenti programmati, fatturato in arrivo, scadenze fornitori. Mai più scoperto bancario a sorpresa, mai più fattura saltata per mancanza di liquidità.",
+      "Previsionale di cassa per impresa edile a 30/60/90 giorni: incassi previsti, pagamenti programmati, fatturato in arrivo, scadenze fornitori.",
     keywords:
       "previsionale di cassa edilizia, cash flow forecast impresa edile, software tesoreria edilizia, gestione liquidità cantiere, cash flow cantieri, software finanziario imprese edili, riconciliazione bancaria edilizia, scadenzario impresa edile",
     ogImage: "https://www.ediliziaincloud.com/og/cassa-cantiere-og.jpg",

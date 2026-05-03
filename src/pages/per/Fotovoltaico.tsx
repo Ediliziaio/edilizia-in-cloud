@@ -2,8 +2,8 @@ import { Zap, FileText, BarChart3, Users, TrendingUp, Smartphone } from "lucide-
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Software Gestionale per Installatori Fotovoltaico — Pratiche GSE, SAL, Incentivi | Edilizia in Cloud",
-  seoDescription: "Il gestionale per installatori fotovoltaico che automatizza le pratiche GSE, gestisce SAL impianti FV, coordina i tecnici su più cantieri e calcola i margini per kWp in tempo reale. Zero incentivi persi per errori burocratici. Prova gratis 31 giorni.",
+  seoTitle: "Software Gestionale per Installatori Fotovoltaico",
+  seoDescription: "Il gestionale per installatori fotovoltaico che automatizza le pratiche GSE, gestisce SAL impianti FV, coordina i tecnici su più cantieri e calcola i…",
   seoKeywords: "software gestionale fotovoltaico, gestionale installatori pannelli solari, software pratiche GSE, gestionale energie rinnovabili, software impianti fotovoltaici, gestionale SAL fotovoltaico, software incentivi fotovoltaico, CACER software, pratiche ARERA fotovoltaico, allaccio rete gestore",
   seoCanonical: "/per/fotovoltaico",
 
@@ -32,22 +32,22 @@ const config: PerTipoConfig = {
   problems: [
     {
       emoji: "📋",
-      title: "Pratiche GSE interminabili: ogni impianto è un labirinto a sé",
+      title: "Pratiche GSE interminabili",
       desc: "Accesso agli incentivi, Scambio sul Posto, Ritiro Dedicato, CACER: ogni pratica GSE ha documenti diversi, portali diversi, tempistiche diverse. Un errore di compilazione significa ricominciare da capo — e il cliente aspetta, innervosito, mentre tu perdi giorni.",
     },
     {
       emoji: "🌤️",
-      title: "Tecnici su 4 cantieri contemporanei: chi fa cosa, nessuno lo sa con certezza",
+      title: "Tecnici su 4 cantieri contemporanei",
       desc: "Hai 3 squadre in campo, 2 impianti in fase di collaudo, un allaccio rete in attesa del gestore e un progetto esecutivo da consegnare entro venerdì. Il coordinamento avviene su WhatsApp — e ogni mattina la prima ora se ne va a capire chi è dove.",
     },
     {
       emoji: "💸",
-      title: "Margini erosi dalle variazioni prezzo dei pannelli, scoperte a lavoro finito",
+      title: "Margini erosi dalle variazioni prezzo dei pannelli,…",
       desc: "Il preventivo lo hai fatto 6 settimane fa. Nel frattempo il prezzo dei moduli da 400Wp è cambiato due volte e l'inverter che avevi quotato non è più disponibile. Scopri di aver lavorato sotto costo solo quando chiudi la commessa.",
     },
     {
       emoji: "🔌",
-      title: "SAL documentati male: rischi di perdere gli incentivi per un verbale di collaudo incompleto",
+      title: "SAL documentati male: rischi di perdere gli incentivi…",
       desc: "Il GSE è rigido: un SAL non conforme, una scheda tecnica mancante, una foto di installazione non georeferenziata possono bloccare l'erogazione dell'incentivo. Il tuo cliente resta senza pagamento — e la responsabilità tecnica è tua.",
     },
   ],

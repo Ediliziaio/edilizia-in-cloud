@@ -98,13 +98,13 @@ const benefits = [
     icon: Repeat,
     title: "Pagamento solo su risultato",
     description:
-      "La commissione matura il giorno in cui il cliente paga la fattura. Liquidazione mensile via bonifico entro il 15 del mese successivo. Soglia minima 50€ — sotto soglia si accumula.",
+      "La commissione matura il giorno in cui il cliente paga la fattura. Liquidazione mensile via bonifico entro il 15 del mese successivo.",
   },
   {
     icon: GraduationCap,
     title: "Formazione 60 minuti all'attivazione",
     description:
-      "Cosa è EiC, come pitcharlo in 3 minuti, obiezioni standard, gestione del follow-up. Più kit marketing completo (brochure, video 3min, presentazione 10 slide, copy email).",
+      "Cosa è EiC, come pitcharlo in 3 minuti, obiezioni standard, gestione del follow-up. Più kit marketing completo (brochure, video 3min, presentazione 10…",
   },
   {
     icon: Headphones,
@@ -388,9 +388,9 @@ function CommissionCalculator() {
 export default function DiventaPartner() {
   useSEO({
     title:
-      "Diventa Partner — Fino al 30% di retrocessione ricorrente | Edilizia in Cloud",
+      "Diventa Partner — Fino al 30% di retrocessione ricorrente",
     description:
-      "Programma partner Edilizia in Cloud: 4 tier dal 15% al 30% di commissione ricorrente per commercialisti, agenzie marketing, commerciali e aziende del settore edile. Pagamento solo su risultato, niente fee di ingresso, niente esclusiva.",
+      "Programma partner Edilizia in Cloud: 4 tier dal 15% al 30% di commissione ricorrente per commercialisti, agenzie marketing, commerciali e aziende del…",
     canonical: "/diventa-partner",
     keywords:
       "programma partner edilizia, partner software gestionale, affiliazione edilizia in cloud, commissioni ricorrenti software edile, partner commercialista, partner agenzia marketing, rivenditore software edile",
@@ -575,7 +575,7 @@ export default function DiventaPartner() {
           serviceType: "Partner Affiliate Program",
           areaServed: { "@type": "Country", name: "Italy" },
           description:
-            "Programma di affiliazione a 4 tier con commissioni ricorrenti dal 15% al 30% per commercialisti, agenzie marketing, commerciali e aziende del settore edile. Pagamento solo su risultato verificato.",
+            "Programma di affiliazione a 4 tier con commissioni ricorrenti dal 15% al 30% per commercialisti, agenzie marketing, commerciali e aziende del settore edile.",
           offers: {
             "@type": "Offer",
             description:

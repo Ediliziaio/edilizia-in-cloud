@@ -360,3 +360,24 @@ verify_jwt = false
 
 [functions.generate-technical-render]
 verify_jwt = false
+
+[functions.cg-bootstrap-classificazione]
+verify_jwt = true
+
+[functions.cg-export-ce-pdf]
+verify_jwt = true
+
+[functions.cg-rating-snapshot-monthly]
+verify_jwt = false
+# Schedule mensile (1° del mese 03:00 UTC) configurato lato Dashboard Supabase
+# perché la CLI 2.90 non supporta `schedule` nel config.toml.
+
+[functions.cg-bootstrap-scenari]
+verify_jwt = true
+
+[functions.cg-alerts-settimanali]
+verify_jwt = false
+# Schedule: lunedì 08:00 UTC — configurato lato Dashboard Supabase
+
+[functions.cg-export-pacchetto-banca]
+verify_jwt = true

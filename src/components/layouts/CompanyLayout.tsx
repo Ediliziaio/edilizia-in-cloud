@@ -243,6 +243,67 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   const hasActiveChild = visibleItems.some(item => isActive(item.url));
   const AreaIcon = area.icon;
 
+  // ── Single-link mode: macroArea con 1 solo item senza groupLabel ────────
+  // Renderizza come voce diretta (no collapse, no doppione visivo).
+  // Fix per "Controllo di Gestione" che era nascosto dentro "Direzione & Bilancio"
+  // → ora cliccando una volta apri direttamente la pagina.
+  if (visibleItems.length === 1 && !visibleItems[0].groupLabel) {
+    const item = visibleItems[0];
+    const ItemIcon = item.icon;
+    const active = isActive(item.url);
+
+    if (collapsed) {
+      return (
+        <SidebarGroup className="py-0">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <NavLink
+                  to={item.url}
+                  className={cn(
+                    "flex items-center justify-center transition-colors",
+                    active ? "bg-sidebar-primary/10 text-sidebar-primary" : "text-sidebar-foreground/60 hover:text-sidebar-foreground/90",
+                  )}
+                  title={item.title}
+                >
+                  <ItemIcon className="h-4 w-4" />
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+      );
+    }
+
+    return (
+      <SidebarGroup className="py-0">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <NavLink
+                to={item.url}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-lg mx-1.5 px-3 py-2 text-sm transition-colors",
+                  active
+                    ? "bg-sidebar-primary/10 text-sidebar-primary font-semibold"
+                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-accent-foreground",
+                )}
+              >
+                <ItemIcon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{item.title}</span>
+                {item.isBeta && (
+                  <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">
+                    BETA
+                  </Badge>
+                )}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarGroup>
+    );
+  }
+
   // Collapsed mode: show icon with hover flyout
   if (collapsed) {
     return (

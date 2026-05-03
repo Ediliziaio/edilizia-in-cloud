@@ -40,9 +40,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Giornale Lavori Digitale — Conforme Art. 15 D.M. 49/2018 e Codice Appalti | Edilizia in Cloud",
+      "Giornale Lavori Digitale",
     description:
-      "Giornale lavori digitale conforme art. 15 D.M. 49/2018 e D.Lgs 50/2016: registrazione giornaliera maestranze, mezzi, forniture, eventi. Firma DL e RUP, esportazione PDF/A. Pronto per ispezioni.",
+      "Giornale lavori digitale conforme art. 15 D.M. 49/2018 e D.Lgs 50/2016: registrazione giornaliera maestranze, mezzi, forniture, eventi.",
     keywords:
       "giornale lavori digitale, art 15 dm 49 2018, dlgs 50 2016 giornale lavori, libro giornale cantiere, giornale cantiere appalto pubblico, registrazione giornaliera cantiere, firma dl rup giornale, pdf/a giornale lavori",
     ogImage: "https://www.ediliziaincloud.com/og/giornale-lavori-og.jpg",

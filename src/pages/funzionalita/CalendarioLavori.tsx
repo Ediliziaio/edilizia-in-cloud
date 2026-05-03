@@ -39,9 +39,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Calendario Lavori Edilizia — Gantt Multi-Cantiere, Squadre e Meteo | Edilizia in Cloud",
+      "Calendario Lavori Edilizia",
     description:
-      "Calendario condiviso per imprese edili: gantt visuale multi-cantiere, allocazione squadre, conflict detection automatica, integrazione meteo, sincronizzazione Google Calendar e Outlook.",
+      "Calendario condiviso per imprese edili: gantt visuale multi-cantiere, allocazione squadre, conflict detection automatica, integrazione meteo,…",
     keywords:
       "calendario lavori edilizia, gantt cantieri, pianificazione cantieri, software pianificazione edile, calendario squadre cantieri, gestione cantieri multipli, conflict detection edilizia, calendario condiviso impresa edile",
     ogImage: "https://www.ediliziaincloud.com/og/calendario-lavori-og.jpg",

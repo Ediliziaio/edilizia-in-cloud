@@ -38,9 +38,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Preventivi Edilizia Software — Computo Metrico, Prezzari Regionali, Firma Online | Edilizia in Cloud",
+      "Preventivi Edilizia Software",
     description:
-      "Software per preventivi edili con computo metrico estimativo, prezzari regionali aggiornati (DEI, Lombardia, Lazio, Sicilia), firma elettronica online del cliente e conversione 1-click in commessa. Chiudi più trattative in meno tempo.",
+      "Software per preventivi edili con computo metrico estimativo, prezzari regionali aggiornati (DEI, Lombardia, Lazio, Sicilia), firma elettronica online del…",
     keywords:
       "software preventivi edilizia, computo metrico estimativo, prezzari regionali edilizia, preventivo impresa edile, firma elettronica preventivo, programma preventivi ristrutturazione, conversione preventivo commessa, CRM preventivi edili, follow-up preventivi automatico",
     ogImage: "https://www.ediliziaincloud.com/og/preventivi-edilizia-og.jpg",

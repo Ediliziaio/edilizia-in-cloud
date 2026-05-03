@@ -84,7 +84,27 @@ export const macroAreas: MacroArea[] = [
     ],
   },
 
-  // 2. Cantieri & Lavori
+  // 2. Direzione & Bilancio (modulo add-on Controllo di Gestione)
+  // MacroArea con un'unica voce → label distinta per evitare duplicato visivo.
+  // Categoria gerarchica "Direzione" (strategico) tra Cruscotto (operativo)
+  // e Cantieri & Lavori (cantierabile).
+  {
+    id: "area_controllo_gestione",
+    title: "Direzione & Bilancio",
+    icon: PieChart,
+    items: [
+      {
+        title: "Controllo di Gestione",
+        url: "/azienda/controllo-gestione",
+        icon: PieChart,
+        permissionKey: "canViewControlloGestione",
+        featureKey: "controllo_gestione_v1",
+        isBeta: true,
+      },
+    ],
+  },
+
+  // 3. Cantieri & Lavori
   {
     id: "area_cantieri",
     title: "Cantieri & Lavori",

@@ -38,9 +38,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Fatturazione Elettronica Edilizia — SDI, SAL e Conservazione 10 anni | Edilizia in Cloud",
+      "Fatturazione Elettronica Edilizia",
     description:
-      "Emetti fatture elettroniche direttamente dai SAL di cantiere: invio SDI automatico, conservazione sostitutiva 10 anni inclusa, fattura PA con CIG/CUP, scadenzario incassi e export per commercialista. Zero copia-incolla, zero rifiuti SDI.",
+      "Emetti fatture elettroniche direttamente dai SAL di cantiere: invio SDI automatico, conservazione sostitutiva 10 anni inclusa, fattura PA con CIG/CUP,…",
     keywords:
       "fatturazione elettronica edilizia, fattura elettronica SDI costruzioni, SAL fattura elettronica, conservazione sostitutiva edilizia, fattura elettronica impresa edile, software fatturazione cantiere, fattura PA edilizia, split payment edilizia, CIG CUP fattura",
     ogImage: "https://www.ediliziaincloud.com/og/fatturazione-elettronica-og.jpg",

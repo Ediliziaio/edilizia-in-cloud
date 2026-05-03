@@ -61,6 +61,8 @@ export interface Permissions {
   canViewRenderAi: boolean;
   canViewSalesOs: boolean;
   canViewSmsMarketing: boolean;
+  /** Modulo Controllo di Gestione (MP-CG): admin o canViewCruscotto/Billing. */
+  canViewControlloGestione: boolean;
   isAdmin: boolean;
   isLoading: boolean;
   onlyAssigned: boolean;
@@ -96,6 +98,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewGiornaleLavori: true,
   canViewAutomazioni: true, canViewRenderAi: true,
   canViewSalesOs: true, canViewSmsMarketing: true,
+  canViewControlloGestione: true,
   isAdmin: true, isLoading: false, onlyAssigned: false, visibleAreas: [],
 };
 
@@ -127,6 +130,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewGiornaleLavori: false,
   canViewAutomazioni: false, canViewRenderAi: false,
   canViewSalesOs: false, canViewSmsMarketing: false,
+  canViewControlloGestione: false,
   isAdmin: false, isLoading: false, onlyAssigned: false, visibleAreas: [],
 };
 
@@ -201,6 +205,9 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewRenderAi:          g("can_view_render_ai"),
     canViewSalesOs:           g("can_view_sales_os"),
     canViewSmsMarketing:      g("can_view_sms_marketing"),
+    // Modulo CG: deriva da permessi finanziari esistenti (cruscotto / billing)
+    // più feature flag controllo_gestione_v1 lato UI (utility separata).
+    canViewControlloGestione: g("can_view_cruscotto") || g("can_view_billing") || g("can_view_costs"),
     isAdmin: false,
     isLoading: false,
     onlyAssigned:  r["only_assigned"] === true,

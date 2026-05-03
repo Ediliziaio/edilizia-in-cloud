@@ -241,6 +241,7 @@ const QuoteMargini = lazy(() => import("@/pages/azienda/marketing/QuoteMargini")
 // AnalisiPreventivi now rendered as tab inside Preventivi — lazy import removed
 // QuoteApprovals now rendered as tab inside Preventivi — deep-link /approvazioni redirect sotto
 const RitenuteGaranzia = lazy(() => import("@/pages/azienda/RitenuteGaranzia"));
+const ControlloGestione = lazy(() => import("@/pages/azienda/ControlloGestione"));
 const ContabilitaFiscale = lazy(() => import("@/pages/azienda/ContabilitaFiscale"));
 const ArchivioSostitutivo = lazy(() => import("@/pages/azienda/ArchivioSostitutivo"));
 
@@ -292,6 +293,21 @@ export function companyRoutes() {
         <Route path="cruscotto" element={withCompanyPermission("canViewCruscotto", <CruscottoDashboardPage />)} />
         <Route path="cruscotto/gestisci" element={withCompanyPermission("canViewCruscotto", <CruscottoHub />)} />
         <Route path="cruscotto/aziendale" element={withCompanyPermission("canViewCruscotto", <CruscottoAziendale />)} />
+
+        {/* Modulo Controllo di Gestione (MP-CG, add-on opzionale).
+            Una sola route che accetta sub-path facoltativo: la pagina legge
+            il pathname e seleziona la tab. Permission + featureKey gating. */}
+        <Route
+          path="controllo-gestione/*"
+          element={
+            withCompanyPermission(
+              "canViewControlloGestione",
+              <FeatureRoute featureKey="controllo_gestione_v1">
+                <ControlloGestione />
+              </FeatureRoute>
+            )
+          }
+        />
         {/* Upgrade fallback — mostrata da FeatureRoute quando una feature è negata */}
         <Route path="upgrade" element={<UpgradePage />} />
         {/* Dashboard Builder v1 — custom dashboards (gated: dashboard_builder_v1) */}

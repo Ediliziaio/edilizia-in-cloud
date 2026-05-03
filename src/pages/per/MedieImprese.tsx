@@ -3,9 +3,9 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 
 const config: PerTipoConfig = {
   // SEO
-  seoTitle: "Software Gestionale Medie Imprese Edili (10-50 Dipendenti) | Multi-Cantiere | Edilizia in Cloud",
+  seoTitle: "Software Gestionale Medie Imprese Edili (10-50…",
   seoDescription:
-    "Gestionale per medie imprese edili 10-50 dipendenti: consolidamento multi-cantiere, margini real-time, dashboard CFO, ruoli e deleghe. Sostituisci Excel ed ERP costosi.",
+    "Gestionale per medie imprese edili 10-50 dipendenti: consolidamento multi-cantiere, margini real-time, dashboard CFO, ruoli e deleghe.",
   seoKeywords:
     "software medie imprese edili, gestionale 10-50 dipendenti edili, software multi-cantiere, controllo margini cantiere, ERP edilizia media impresa, software cantieri 5 milioni fatturato, gestionale impresa costruzioni media, dashboard CFO edilizia",
   seoCanonical: "/per/medie-imprese",
@@ -42,12 +42,12 @@ const config: PerTipoConfig = {
     },
     {
       emoji: "📉",
-      title: "I margini li vedi a fine mese — quando non puoi più correggere",
+      title: "I margini li vedi a fine mese",
       desc: "I report sui margini di cantiere arrivano con 30-45 giorni di ritardo, perché vanno raccolti, conciliati e consolidati a mano. Quando ti accorgi che il cantiere X sta perdendo il 4%, hai già firmato due SAL e ordinato altri 80.000 euro di materiale. La marginalità si difende in tempo reale, non in retrospettiva.",
     },
     {
       emoji: "📞",
-      title: "CFO e HR sono inondati di richieste a cui non possono rispondere",
+      title: "CFO e HR sono inondati di richieste a cui non possono…",
       desc: "Il CFO passa metà giornata a rispondere a 'quanto abbiamo speso sul cantiere Y?'. L'HR passa l'altra metà a gestire ferie, presenze e cassa edile via WhatsApp. Sono ruoli pagati per fare strategia e gestione persone, ma li stiamo usando come centralinisti dei dati.",
     },
     {

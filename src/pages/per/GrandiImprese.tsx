@@ -3,9 +3,9 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 
 const config: PerTipoConfig = {
   // SEO
-  seoTitle: "Software Grandi Imprese Edili (50+ Dipendenti) — General Contractor Multi-Cantiere | Edilizia in Cloud",
+  seoTitle: "Software Grandi Imprese Edili (50+ Dipendenti)",
   seoDescription:
-    "Gestionale enterprise per grandi imprese edili e general contractor 50+ dipendenti, 10-50 cantieri attivi. Multi-società, dashboard direzionale CFO real-time, integrazione SAP/Dynamics, Codice Appalti.",
+    "Gestionale enterprise per grandi imprese edili e general contractor 50+ dipendenti, 10-50 cantieri attivi. Multi-società, dashboard direzionale CFO…",
   seoKeywords:
     "software grandi imprese edili, gestionale general contractor, software 50 dipendenti edilizia, ERP edilizia enterprise, multi-società edile, holding edile gestionale, dashboard direzionale costruzioni, software cantieri SAP alternativa, gestionale group edile",
   seoCanonical: "/per/grandi-imprese",

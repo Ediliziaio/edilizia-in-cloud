@@ -88,7 +88,7 @@ const CORE_MODULES = [
 
 export default function CityHub() {
   useSEO({
-    title: "Software Gestionale Edilizia — Cantieri, Preventivi e Margini | Edilizia in Cloud",
+    title: "Software Gestionale Edilizia",
     description: "Software gestionale per imprese edili italiane: cantieri, preventivi, fatturazione, magazzino, personale, CRM e margini in un'unica piattaforma cloud.",
     canonical: "/software-gestionale-edilizia",
     keywords: "software gestionale edilizia, gestionale edilizia, software imprese edili, software gestione cantieri, gestionale cantieri, software edilizia cloud, gestionale edilizia Italia",
