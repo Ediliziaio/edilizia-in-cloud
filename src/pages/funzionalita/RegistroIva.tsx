@@ -40,9 +40,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Registro IVA Edilizia — Acquisti, Vendite, LIPE Automatici da SDI | Edilizia in Cloud",
+      "Registro IVA Edilizia",
     description:
-      "Software registri IVA per imprese edili: acquisti, vendite e corrispettivi alimentati automaticamente dal cassetto SDI, liquidazione periodica IVA (LIPE), conservazione decennale CAD, esibizione GdF in 5 minuti.",
+      "Software registri IVA per imprese edili: acquisti, vendite e corrispettivi alimentati automaticamente dal cassetto SDI, liquidazione periodica IVA (LIPE),…",
     keywords:
       "registro IVA edilizia, registro acquisti vendite SDI, LIPE edilizia, liquidazione periodica IVA, conservazione decennale registro IVA, software IVA imprese edili, registro corrispettivi edilizia",
     ogImage: "https://www.ediliziaincloud.com/og/registro-iva-og.jpg",

@@ -859,7 +859,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     localProblems: [
       {
         emoji: "🏭",
-        title: "Cooperazione e distretto industriale: standard qualitativi elevati",
+        title: "Cooperazione e distretto industriale",
         desc: "Reggio Emilia è nota per il modello cooperativistico. Le imprese edili reggiane lavorano con cooperative di produzione che richiedono rendicontazione precisa e sistemi di controllo avanzati.",
       },
       {
@@ -964,7 +964,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       },
       {
         emoji: "🏗️",
-        title: "PNRR e fondi europei: grande opportunità, burocrazia complessa",
+        title: "PNRR e fondi europei: grande opportunità, burocrazia…",
         desc: "Salerno è tra le province con più investimenti PNRR in Campania. Le imprese edili accedono a cantieri importanti ma devono gestire rendicontazione digitale rigorosa e SAL certificati.",
       },
       {
@@ -1009,7 +1009,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     localProblems: [
       {
         emoji: "⚓",
-        title: "Porto franco e infrastrutture: cantieri complessi ad alto valore",
+        title: "Porto franco e infrastrutture",
         desc: "Trieste è il principale porto dell'Italia nord-orientale. Le imprese edili lavorano su infrastrutture portuali, magazzini e strutture logistiche con requisiti tecnici elevati e normative specifiche.",
       },
       {
@@ -1069,7 +1069,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       },
       {
         emoji: "🏗️",
-        title: "Fondi PNRR e investimenti pubblici: opportunità senza precedenti",
+        title: "Fondi PNRR e investimenti pubblici",
         desc: "La Sardegna riceve importanti investimenti PNRR per infrastrutture, scuole e ospedali. Le imprese edili sarde che vogliono accedere a questi appalti devono dotarsi di strumenti di rendicontazione digitali.",
       },
     ],
@@ -1109,7 +1109,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     localProblems: [
       {
         emoji: "🏔️",
-        title: "Ricostruzione post-sisma: cantieri complessi con fondi pubblici",
+        title: "Ricostruzione post-sisma",
         desc: "L'Umbria è ancora in fase di ricostruzione dopo i terremoti del 2016-2017. Le imprese edili gestiscono cantieri con fondi statali che richiedono rendicontazione rigida, SAL certificati e DURC sempre aggiornato.",
       },
       {

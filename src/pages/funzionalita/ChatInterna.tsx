@@ -39,9 +39,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Chat Aziendale Edilizia — Canali Cantiere, GDPR e Archivio Aziendale | Edilizia in Cloud",
+      "Chat Aziendale Edilizia",
     description:
-      "Chat aziendale per imprese edili: canali per cantiere, condivisione foto/file/audio, conformità GDPR, archivio decennale, notifiche urgenti. Sostituisce WhatsApp privato del titolare.",
+      "Chat aziendale per imprese edili: canali per cantiere, condivisione foto/file/audio, conformità GDPR, archivio decennale, notifiche urgenti.",
     keywords:
       "chat aziendale edilizia, chat impresa edile, alternativa WhatsApp lavoro, chat cantiere, comunicazione operai capocantiere, GDPR chat aziendale, software comunicazione edilizia",
     ogImage: "https://www.ediliziaincloud.com/og/chat-interna-og.jpg",

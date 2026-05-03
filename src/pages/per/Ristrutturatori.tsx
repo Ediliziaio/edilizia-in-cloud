@@ -2,8 +2,8 @@ import { FileText, Calculator, FolderOpen, Users, Clock, TrendingUp, ClipboardLi
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Gestionale per Imprese di Ristrutturazione — Varianti, Margini e Cantieri Sotto Controllo | Edilizia in Cloud",
-  seoDescription: "Il gestionale per ristrutturatori: tieni sotto controllo varianti in corso d'opera, SAL, costi reali e margini per cantiere. Rapportini digitali, firma cliente, GPS squadre. Prova gratis 31 giorni.",
+  seoTitle: "Gestionale per Imprese di Ristrutturazione",
+  seoDescription: "Il gestionale per ristrutturatori: tieni sotto controllo varianti in corso d'opera, SAL, costi reali e margini per cantiere. Rapportini digitali, firma…",
   seoKeywords: "software gestionale ristrutturazione, gestionale impresa ristrutturazioni, software preventivi ristrutturazione, gestionale bonus edilizi, software superbonus 110, gestionale ecobonus, software sismabonus, gestionale varianti cantiere, cessione credito software, documentazione SAL ristrutturazione",
   seoCanonical: "/per/ristrutturatori",
 
@@ -37,17 +37,17 @@ const config: PerTipoConfig = {
     },
     {
       emoji: "💸",
-      title: "I costi reali superano il preventivo — e te ne accorgi troppo tardi",
+      title: "I costi reali superano il preventivo",
       desc: "Il parquet costa il 20% in più rispetto a tre mesi fa. Il muratore ha fatto 6 ore di straordinario. Il fabbro è tornato due volte perché le misure erano cambiate. Questi costi non tracciati diventano perdita netta. E tu lo scopri solo quando emetti l'ultima fattura.",
     },
     {
       emoji: "📋",
-      title: "Rapportini giornalieri: nessuno li compila, non li ha mai compilati",
+      title: "Rapportini giornalieri",
       desc: "La legge li richiede. Il cliente li vuole per capire l'avanzamento. Tu li vorresti per sapere quante ore ci sono volute davvero. Ma i tuoi operai finiscono il turno e tornano a casa. Il rapportino si fa il venerdì pomeriggio a memoria — e non vale niente.",
     },
     {
       emoji: "😤",
-      title: "Clienti che chiamano ogni giorno: 'A che punto siamo? Quando finite?'",
+      title: "Clienti che chiamano ogni giorno",
       desc: "Ogni telefonata ti toglie 20 minuti di lavoro. Se non rispondi, il cliente pensa che stai nascondendo qualcosa. Se non hai i dati aggiornati, improvvisi una risposta che poi smentisce la realtà. È una rincorsa infinita — e logora il rapporto.",
     },
   ],

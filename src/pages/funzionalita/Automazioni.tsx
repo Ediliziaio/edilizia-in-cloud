@@ -40,9 +40,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Automazioni Edilizia — Workflow No-Code per Imprese Edili Italiane | Edilizia in Cloud",
+      "Automazioni Edilizia — Workflow No-Code per Imprese…",
     description:
-      "Automazioni no-code per imprese edili: trigger su eventi cantiere/SAL/fatture/scadenze, azioni email/WhatsApp/task/notifiche, libreria template settoriali. Risparmia 1,5h/sett per ogni automazione attiva.",
+      "Automazioni no-code per imprese edili: trigger su eventi cantiere/SAL/fatture/scadenze, azioni email/WhatsApp/task/notifiche, libreria template settoriali.",
     keywords:
       "automazioni edilizia, workflow automation impresa edile, no-code edilizia, trigger cantiere automatico, automazioni sal scadenze, zapier edilizia, ifttt impresa costruzioni, automation builder edile",
     ogImage: "https://www.ediliziaincloud.com/og/automazioni-og.jpg",

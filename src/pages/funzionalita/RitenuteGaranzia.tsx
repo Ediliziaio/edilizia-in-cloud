@@ -38,9 +38,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Software Ritenute di Garanzia Edilizia — 0,5% L. 296/2006, 4% INPS Subappalto | Edilizia in Cloud",
+      "Software Ritenute di Garanzia Edilizia",
     description:
-      "Gestisci ritenute di garanzia 0,5% Legge 296/2006 e 4% INPS subappalto art. 17 ter D.P.R. 633/72. Scadenze svincolo automatiche, controllo DURC, archivio documentale conforme. Setup in 48 ore.",
+      "Gestisci ritenute di garanzia 0,5% Legge 296/2006 e 4% INPS subappalto art. 17 ter D.P.R. 633/72. Scadenze svincolo automatiche, controllo DURC, archivio…",
     keywords:
       "ritenute garanzia edilizia, software ritenute 0,5% L 296/2006, ritenuta 4% INPS subappalto, art 17 ter DPR 633/72, software appalti pubblici edilizia, gestione ritenute SAL, svincolo ritenute software, DURC software, gestione subappalti pubblici, archivio ritenute conforme",
     ogImage: "https://www.ediliziaincloud.com/og/ritenute-garanzia-og.jpg",

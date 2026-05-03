@@ -33,9 +33,9 @@ const config: RenderPageConfig = {
 
   seo: {
     title:
-      "Render Ristrutturazioni AI per Imprese Edili | Prima/Dopo dalla Foto Reale",
+      "Render Ristrutturazioni AI per Imprese Edili",
     description:
-      "Render Ristrutturazioni AI: trasforma la foto reale dell'appartamento del cliente in un prima/dopo credibile per ristrutturazioni complete. Cucina, soggiorno, bagni, camere, infissi, pavimenti e tinteggiatura applicati alla stessa casa. PDF pronto per WhatsApp e CRM integrato.",
+      "Render Ristrutturazioni AI: trasforma la foto reale dell'appartamento del cliente in un prima/dopo credibile per ristrutturazioni complete.",
     keywords:
       "render ristrutturazione, render ristrutturazioni AI, software imprese ristrutturazione, configuratore ristrutturazione, render appartamento, render casa AI, prima dopo ristrutturazione, software interior designer, gestionale ristrutturatori, AI casa",
     ogImage: "https://www.ediliziaincloud.com/og/render-ristrutturazioni-og.jpg",

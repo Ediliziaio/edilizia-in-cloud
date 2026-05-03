@@ -35,9 +35,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Ferie e Permessi Edilizia — App Self-Service Operai con CCNL Edilizia | Edilizia in Cloud",
+      "Ferie e Permessi Edilizia",
     description:
-      "Gestione ferie, ROL, permessi e banca ore per imprese edili: app self-service operaio, approvazione capocantiere, conteggio automatico residui CCNL Edilizia, calendario condiviso multi-cantiere.",
+      "Gestione ferie, ROL, permessi e banca ore per imprese edili: app self-service operaio, approvazione capocantiere, conteggio automatico residui CCNL…",
     keywords:
       "ferie permessi edilizia, gestione ferie operai cantiere, app ferie operai, ROL CCNL edilizia, banca ore edilizia, calendario ferie cantiere, permessi capocantiere, software ferie imprese edili",
     ogImage: "https://www.ediliziaincloud.com/og/ferie-permessi-og.jpg",

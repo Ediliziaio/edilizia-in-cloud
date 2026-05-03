@@ -246,8 +246,8 @@ export default function CasiStudio() {
   const ctaAnim = useScrollAnimation();
 
   useSEO({
-    title: "Casi Studio Edilizia — Esempi Reali per Cantieri, Serramenti, Tetti e Fotovoltaico",
-    description: "Scopri casi studio reali di imprese edili, serramentisti, aziende tetti, fotovoltaico, impiantisti e ristrutturatori che hanno migliorato margini, preventivi, cassa e cantieri con Edilizia in Cloud.",
+    title: "Casi Studio Edilizia — Esempi Reali per Cantieri,…",
+    description: "Scopri casi studio reali di imprese edili, serramentisti, aziende tetti, fotovoltaico, impiantisti e ristrutturatori che hanno migliorato margini,…",
     canonical: "/casi-studio",
     keywords: "casi studio software edilizia, risultati gestionale edilizia, imprese edili testimonials, margini cantieri aumentati, gestionale edilizia risultati, case study impresa edile, before after gestionale costruzioni",
   });

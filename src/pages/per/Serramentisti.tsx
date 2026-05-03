@@ -3,8 +3,8 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 
 const config: PerTipoConfig = {
   // SEO
-  seoTitle: "Software per Serramentisti | Preventivi Infissi in 20 Minuti | Edilizia in Cloud",
-  seoDescription: "Il gestionale pensato per produttori e installatori di infissi, porte, finestre e serramenti. Preventivi su misura in 20 minuti, ordini fornitori integrati, calendario installazioni. Prova gratis 31 giorni.",
+  seoTitle: "Software per Serramentisti | Preventivi Infissi in 20 Minuti",
+  seoDescription: "Il gestionale pensato per produttori e installatori di infissi, porte, finestre e serramenti. Preventivi su misura in 20 minuti, ordini fornitori…",
   seoKeywords: "software serramentisti, gestionale infissi, preventivo finestre, software installatori infissi, gestione ordini serramenti, listino fornitori serramenti, configuratore preventivi infissi, posa in opera, software porte finestre",
   seoCanonical: "/per/serramentisti",
 
@@ -35,7 +35,7 @@ const config: PerTipoConfig = {
   problems: [
     {
       emoji: "📐",
-      title: "Preventivi su misura che richiedono ore — e spesso vengono sbagliati",
+      title: "Preventivi su misura che richiedono ore",
       desc: "Ogni finestra ha il suo profilo, il suo colore RAL, la sua finitura, il suo vetrocamera. Calcolare il prezzo a mano sul listino cartaceo del fornitore significa 2-3 ore a preventivo, rischio di errori nelle misurazioni e ordini di produzione sbagliati.",
     },
     {

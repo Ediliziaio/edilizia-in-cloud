@@ -39,9 +39,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Portale Clienti Edilizia — Area Cliente con Avanzamento Lavori, Foto e Documenti | Edilizia in Cloud",
+      "Portale Clienti Edilizia",
     description:
-      "Area cliente brandizzata dove ogni cliente vede in tempo reale: avanzamento del cantiere, foto, documenti, fatture, SAL firmabili online. Riduce del 60% le telefonate di update e migliora la percezione della tua impresa.",
+      "Area cliente brandizzata dove ogni cliente vede in tempo reale: avanzamento del cantiere, foto, documenti, fatture, SAL firmabili online.",
     keywords:
       "portale clienti edilizia, area cliente impresa edile, portale cantiere cliente, app cliente edilizia, software trasparenza cantiere, portale ristrutturazione cliente, dashboard cliente edilizia, area riservata clienti edili",
     ogImage: "https://www.ediliziaincloud.com/og/portale-clienti-og.jpg",

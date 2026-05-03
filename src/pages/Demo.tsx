@@ -74,8 +74,8 @@ export default function Demo() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useSEO({
-    title: "Demo Gratuita Gestionale Edilizia — Prova Edilizia in Cloud con AI",
-    description: "Prenota una demo personalizzata di 30 minuti. Vedi come il gestionale edilizia con AI trasforma la tua impresa. Nessun impegno. Setup in 48h. Assistenza italiana dedicata.",
+    title: "Demo Gratuita Gestionale Edilizia",
+    description: "Prenota una demo personalizzata di 30 minuti. Vedi come il gestionale edilizia con AI trasforma la tua impresa. Nessun impegno. Setup in 48h.",
     canonical: "/demo",
     keywords: "demo gestionale edilizia, prova gratuita software edilizia, demo edilizia in cloud, software gestionale edilizia gratis, trial gestionale cantieri, richiedi demo software impresa edile",
   });
@@ -214,7 +214,7 @@ export default function Demo() {
           areaServed: { "@type": "Country", name: "Italia" },
           serviceType: "Consulenza pre-vendita software",
           description:
-            "Demo live 1-on-1 di 30 minuti con consulente specializzato in edilizia. Vediamo insieme cantieri, fatturazione SDI, app mobile e cruscotto AI sulla tua tipologia di impresa.",
+            "Demo live 1-on-1 di 30 minuti con consulente specializzato in edilizia. Vediamo insieme cantieri, fatturazione SDI, app mobile e cruscotto AI sulla tua…",
           offers: {
             "@type": "Offer",
             price: "0",

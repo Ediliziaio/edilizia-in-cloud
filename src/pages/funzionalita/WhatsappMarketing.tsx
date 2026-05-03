@@ -38,9 +38,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "WhatsApp Marketing Edilizia — Broadcast, Notifiche Cantiere e API Business | Edilizia in Cloud",
+      "WhatsApp Marketing Edilizia",
     description:
-      "WhatsApp Business API integrato per imprese edili: broadcast a clienti, notifiche cantiere automatiche, template approvati Meta, consensi GDPR. Conversione fino a 8x rispetto all'email, aperture sopra il 90%.",
+      "WhatsApp Business API integrato per imprese edili: broadcast a clienti, notifiche cantiere automatiche, template approvati Meta, consensi GDPR.",
     keywords:
       "whatsapp marketing edilizia, whatsapp business impresa edile, broadcast clienti edili, notifiche cantiere whatsapp, template whatsapp meta, whatsapp api edilizia, marketing imprese costruzioni, gdpr whatsapp impresa",
     ogImage: "https://www.ediliziaincloud.com/og/whatsapp-marketing-og.jpg",

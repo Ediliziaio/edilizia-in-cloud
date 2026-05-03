@@ -39,9 +39,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Prima Nota Cassa e Banca per Edilizia — Riconciliazione PSD2 e AI | Edilizia in Cloud",
+      "Prima Nota Cassa e Banca per Edilizia",
     description:
-      "Prima nota cassa e banca digitale con riconciliazione automatica estratti conto via PSD2, categorizzazione AI dei movimenti, dashboard cassa giornaliera, export commercialista in formato XBRL. Risparmia 3 minuti per movimento.",
+      "Prima nota cassa e banca digitale con riconciliazione automatica estratti conto via PSD2, categorizzazione AI dei movimenti, dashboard cassa giornaliera,…",
     keywords:
       "prima nota edilizia, prima nota cassa banca impresa edile, riconciliazione PSD2 edilizia, contabilità impresa costruzione, prima nota digitale, software contabilità edilizia, prima nota XBRL commercialista, dashboard cassa edilizia",
     ogImage: "https://www.ediliziaincloud.com/og/prima-nota-og.jpg",

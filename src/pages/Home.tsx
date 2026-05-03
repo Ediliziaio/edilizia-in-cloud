@@ -41,8 +41,8 @@ const SectionFallback = () => <div className="h-32" aria-hidden="true" />;
 
 export default function Home() {
   useSEO({
-    title: "Gestionale Edilizia con AI — Software n°1 per Imprese Edili | Edilizia in Cloud",
-    description: "Il gestionale edilizia con AI più usato in Italia. Cantieri, margini reali, fatturazione elettronica, CRM, HR e intelligenza artificiale in un'unica piattaforma. Prova gratis 31 giorni.",
+    title: "Gestionale Edilizia con AI — Software n°1 per Imprese Edili",
+    description: "Il gestionale edilizia con AI più usato in Italia. Cantieri, margini reali, fatturazione elettronica, CRM, HR e intelligenza artificiale in un'unica…",
     canonical: "/",
     keywords: "gestionale edilizia, software gestionale edilizia, software impresa edile, gestione cantieri software, gestionale edilizia con AI, software edilizia intelligenza artificiale, AI impresa edile, ERP edilizia cloud, software costruzioni, gestionale cantieri online, software preventivi edilizia, fatturazione elettronica edilizia, gestionale margini cantieri, software HR edilizia, CRM impresa edile, gestionale edilizia 2026, miglior software impresa edile italiana, software edilizia PMI, gestionale edilizia prezzi, software cantieri digitale",
   });

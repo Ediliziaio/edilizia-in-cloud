@@ -2,8 +2,8 @@ import { Wrench, Package, Clock, FileText, BarChart3, Smartphone } from "lucide-
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Software Gestionale per Impiantisti — Idraulici, Elettricisti, HVAC | Edilizia in Cloud",
-  seoDescription: "Il gestionale per impiantisti con AI: gestisci ordini di lavoro, magazzino ricambi, tecnici in campo e fatturazione da smartphone. Meno burocrazia, più interventi al giorno. Prova gratis.",
+  seoTitle: "Software Gestionale per Impiantisti",
+  seoDescription: "Il gestionale per impiantisti con AI: gestisci ordini di lavoro, magazzino ricambi, tecnici in campo e fatturazione da smartphone. Meno burocrazia, più…",
   seoKeywords: "software gestionale impiantisti, gestionale idraulici, software elettricisti, gestionale termoidraulico, software interventi impianti, gestione tecnici campo, magazzino ricambi impiantisti, ordine di lavoro digitale, software manutenzione impianti",
   seoCanonical: "/per/impiantisti",
 

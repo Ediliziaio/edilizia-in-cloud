@@ -28,9 +28,9 @@ const config: RenderPageConfig = {
   audienceShort: "posatori e rivenditori pavimenti",
 
   seo: {
-    title: "Render Pavimenti AI per Posatori e Showroom | Prima/Dopo dalla Foto Reale",
+    title: "Render Pavimenti AI per Posatori e Showroom",
     description:
-      "Render Pavimenti AI: trasforma la foto reale della stanza del cliente in un prima/dopo credibile con nuovi pavimenti in gres, parquet, microcemento, resina, ceramica o LVT. PDF pronto per WhatsApp, CRM integrato, beta dedicata ai primi posatori italiani.",
+      "Render Pavimenti AI: trasforma la foto reale della stanza del cliente in un prima/dopo credibile con nuovi pavimenti in gres, parquet, microcemento,…",
     keywords:
       "render pavimento, render pavimenti AI, software posatori pavimenti, configuratore pavimento online, render gres, render parquet, render ceramica, render microcemento, render resina, prima dopo pavimento, software showroom pavimenti, gestionale posatori",
     ogImage: "https://www.ediliziaincloud.com/og/render-pavimenti-og.jpg",

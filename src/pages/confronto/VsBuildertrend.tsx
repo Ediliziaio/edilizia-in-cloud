@@ -94,9 +94,9 @@ const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).
 
 export default function VsBuildertrend() {
   useSEO({
-    title: "Edilizia in Cloud vs Buildertrend: Confronto 2026 | Alternativa Italiana",
+    title: "Edilizia in Cloud vs Buildertrend: Confronto 2026",
     description:
-      "Confronto Edilizia in Cloud vs Buildertrend per imprese edili italiane. Buildertrend è americano, senza SDI, senza Cassa Edile, senza italiano. Ecco perché le imprese italiane scelgono Edilizia in Cloud.",
+      "Confronto Edilizia in Cloud vs Buildertrend per imprese edili italiane. Buildertrend è americano, senza SDI, senza Cassa Edile, senza italiano.",
     canonical: "/confronto/vs-buildertrend",
   });
 
@@ -109,7 +109,7 @@ export default function VsBuildertrend() {
           "@type": "Article",
           headline: "Edilizia in Cloud vs Buildertrend: confronto per imprese edili italiane 2026",
           description:
-            "Buildertrend è il software americano per il settore costruzioni. Non ha fatturazione SDI, non gestisce la Cassa Edile italiana e non è disponibile in italiano. Ecco il confronto completo con Edilizia in Cloud.",
+            "Buildertrend è il software americano per il settore costruzioni. Non ha fatturazione SDI, non gestisce la Cassa Edile italiana e non è disponibile in…",
           url: "https://www.ediliziaincloud.com/confronto/vs-buildertrend",
           datePublished: "2026-04-08",
           dateModified: "2026-04-08",

@@ -792,9 +792,9 @@ function DashboardMock() {
 export default function RenderInfissi() {
   useSEO({
     title:
-      "Render Infissi AI per Serramentisti | Prima/Dopo dalla Foto del Cliente",
+      "Render Infissi AI per Serramentisti",
     description:
-      "Render Infissi AI per serramentisti: trasforma la foto reale del cliente in un prima/dopo credibile con nuovi serramenti, colori, vetri, cassonetti, persiane, tapparelle e porte blindate. PDF pronto per WhatsApp, CRM integrato, accesso beta riservato ai primi 100 serramentisti.",
+      "Render Infissi AI per serramentisti: trasforma la foto reale del cliente in un prima/dopo credibile con nuovi serramenti, colori, vetri, cassonetti,…",
     canonical: "/funzionalita/render-infissi",
     keywords:
       "render infissi, render serramenti, render finestre AI, software serramentisti, prima dopo infissi, configuratore infissi AI, vendita serramenti, render tapparelle, render persiane, render porte blindate, render pergole, AI infissi, software preventivi serramenti, gestionale serramentisti",
@@ -837,7 +837,7 @@ export default function RenderInfissi() {
           image: `${SITE_URL}/og/render-infissi-og.jpg`,
           inLanguage: "it-IT",
           description:
-            "Modulo AI per serramentisti che genera render prima/dopo di nuovi infissi, persiane, tapparelle, porte blindate e pergole sulla foto reale del cliente, integrato con CRM, preventivi e fatturazione elettronica.",
+            "Modulo AI per serramentisti che genera render prima/dopo di nuovi infissi, persiane, tapparelle, porte blindate e pergole sulla foto reale del cliente,…",
           provider: {
             "@type": "Organization",
             name: "Edilizia in Cloud",
@@ -889,7 +889,7 @@ export default function RenderInfissi() {
           "@type": "VideoObject",
           name: "Demo Render Infissi AI · Trasforma una foto in una vendita",
           description:
-            "Video demo di Render Infissi AI: in 60 secondi carichi la foto del cliente, scegli profilo, colore, vetro e oscurante, generi il prima/dopo e lo invii direttamente su WhatsApp.",
+            "Video demo di Render Infissi AI: in 60 secondi carichi la foto del cliente, scegli profilo, colore, vetro e oscurante, generi il prima/dopo e lo invii…",
           thumbnailUrl: [`${SITE_URL}/videos/render-infissi-poster.jpg`],
           uploadDate: videoUploadDate,
           contentUrl: `${SITE_URL}/videos/render-infissi-demo.mp4`,

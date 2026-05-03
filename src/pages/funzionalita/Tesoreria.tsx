@@ -39,9 +39,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Tesoreria Multi-Banca per Edilizia — PSD2, Previsionale 90 gg, Alert Sconfinamento | Edilizia in Cloud",
+      "Tesoreria Multi-Banca per Edilizia",
     description:
-      "Gestione tesoreria multi-banca PSD2 con posizione cassa consolidata, previsionale 30/60/90 giorni, alert sconfinamento automatici, conciliazione automatica. Risparmia 60% di interessi passivi e pianifica i pagamenti senza affanno.",
+      "Gestione tesoreria multi-banca PSD2 con posizione cassa consolidata, previsionale 30/60/90 giorni, alert sconfinamento automatici, conciliazione automatica.",
     keywords:
       "tesoreria edilizia, multi-banca PSD2 edilizia, previsionale cassa impresa edile, alert sconfinamento conto edilizia, gestione cassa cantieri, software tesoreria edile, posizione consolidata banche edilizia, conciliazione bancaria edilizia",
     ogImage: "https://www.ediliziaincloud.com/og/tesoreria-og.jpg",

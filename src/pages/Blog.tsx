@@ -156,8 +156,8 @@ export default function Blog() {
 
   // Pagine di ricerca (?q=...) non devono essere indicizzate (thin/duplicate content)
   useSEO({
-    title: "Blog Edilizia — Guide, Strategie e AI per Imprese Edili | Edilizia in Cloud",
-    description: "Articoli pratici per imprenditori edili: come aumentare i margini, gestire cantieri con l'AI, digitalizzare l'impresa edile e far crescere il business costruzioni.",
+    title: "Blog Edilizia — Guide, Strategie e AI per Imprese Edili",
+    description: "Articoli pratici per imprenditori edili: come aumentare i margini, gestire cantieri con l'AI, digitalizzare l'impresa edile e far crescere il business…",
     canonical: "/blog",
     keywords: "blog edilizia, guide impresa edile, strategia impresa costruzioni, digitalizzazione edilizia, AI edilizia articoli, gestione cantieri guide, margini edilizia, marketing impresa edile blog",
     noindex: searchQuery.trim().length > 0,

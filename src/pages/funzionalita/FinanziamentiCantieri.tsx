@@ -38,9 +38,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Finanziamenti Cantieri Edili — Cessione Credito Superbonus, Anticipo SAL, Factoring | Edilizia in Cloud",
+      "Finanziamenti Cantieri Edili",
     description:
-      "Gestisci cessione del credito Superbonus/Sismabonus/Ecobonus, factoring fatture cantiere, anticipo SAL bancario. Dossier di finanziabilità pronti per banche e factor in 1 giorno. Setup in 48 ore.",
+      "Gestisci cessione del credito Superbonus/Sismabonus/Ecobonus, factoring fatture cantiere, anticipo SAL bancario. Dossier di finanziabilità pronti per…",
     keywords:
       "cessione credito Superbonus software, factoring cantieri edilizia, anticipo SAL banca, software finanziamenti edilizia, dossier cessione credito, Sismabonus cessione, Ecobonus cessione credito, factoring fatture edilizia, anticipo cantiere banca, finanziamenti imprese edili",
     ogImage: "https://www.ediliziaincloud.com/og/finanziamenti-cantieri-og.jpg",

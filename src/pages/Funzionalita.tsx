@@ -128,8 +128,8 @@ export default function Funzionalita() {
   const [query, setQuery] = useState("");
 
   useSEO({
-    title: `${TOTAL_COUNT}+ Funzionalità — Software Gestionale Edilizia All-in-One | Edilizia in Cloud`,
-    description: `Tutte le ${TOTAL_COUNT} funzionalità di Edilizia in Cloud: gestione cantieri real-time, fatturazione SDI, cassa edile, CRM, WhatsApp marketing, render AI per infissi, bagni, tetti. Una piattaforma, zero integrazioni.`,
+    title: `${TOTAL_COUNT}+ Funzionalità — Software Edilizia All-in-One`,
+    description: `Le ${TOTAL_COUNT} funzionalità di Edilizia in Cloud: cantieri real-time, fatturazione SDI, cassa edile, CRM, render AI. Una piattaforma, zero integrazioni.`,
     canonical: "/funzionalita",
     keywords:
       "funzionalità gestionale edilizia, moduli software edilizia, gestione cantieri real-time, fatturazione elettronica SDI edilizia, render AI edilizia, CRM imprese edili, cassa edile software, software all-in-one edilizia, app cantiere mobile, preventivi edilizia computo metrico",

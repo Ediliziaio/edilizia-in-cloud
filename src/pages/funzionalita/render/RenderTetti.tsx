@@ -29,9 +29,9 @@ const config: RenderPageConfig = {
   audienceShort: "imprese di copertura e lattonieri",
 
   seo: {
-    title: "Render Tetti AI per Imprese di Copertura | Prima/Dopo dalla Foto Reale",
+    title: "Render Tetti AI per Imprese di Copertura",
     description:
-      "Render Tetti AI: trasforma la foto reale dell'immobile del cliente in un prima/dopo credibile con nuove tegole, manto di copertura, gronde, lattoneria, lucernari e fotovoltaico integrato. PDF pronto per WhatsApp, CRM integrato, beta dedicata alle prime imprese italiane.",
+      "Render Tetti AI: trasforma la foto reale dell'immobile del cliente in un prima/dopo credibile con nuove tegole, manto di copertura, gronde, lattoneria,…",
     keywords:
       "render tetto, render tetti AI, software imprese copertura, configuratore tetto online, render tegole, render lattoneria, render manto copertura, render fotovoltaico tetto, prima dopo tetto, software lattonieri, gestionale coperture",
     ogImage: "https://www.ediliziaincloud.com/og/render-tetti-og.jpg",

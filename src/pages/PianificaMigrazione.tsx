@@ -201,8 +201,8 @@ const ANNI_DATI_OPTIONS = ["< 1 anno", "1–3 anni", "3–5 anni", "5–10 anni"
 
 export default function PianificaMigrazione() {
   useSEO({
-    title: "Pianifica la migrazione — Setup in 48 ore | Edilizia in Cloud",
-    description: "Migra dal tuo gestionale attuale a Edilizia in Cloud in 48 ore. Migrazione gratuita assistita: cantieri, fatture, anagrafiche, archivio storico. Da Primus, Edilnet, TeamSystem, Excel.",
+    title: "Pianifica la migrazione — Setup in 48 ore",
+    description: "Migra dal tuo gestionale attuale a Edilizia in Cloud in 48 ore. Migrazione gratuita assistita: cantieri, fatture, anagrafiche, archivio storico.",
     canonical: "/pianifica-migrazione",
     keywords: "migrazione gestionale edilizia, passare da primus, migrare da edilnet, importare dati gestionale, setup gestionale edilizia 48 ore, migrazione gratuita software edilizia",
   });
@@ -336,7 +336,7 @@ export default function PianificaMigrazione() {
           provider: { "@id": `${SITE_URL}/#organization` },
           areaServed: { "@type": "Country", name: "Italia" },
           description:
-            "Migrazione gratuita assistita dal tuo gestionale edilizia attuale (Primus, Edilnet, TeamSystem, STR, Excel) a Edilizia in Cloud. Setup in 48 ore garantite. Cantieri, fatture, anagrafiche, archivio storico. GDPR compliant.",
+            "Migrazione gratuita assistita dal tuo gestionale edilizia attuale (Primus, Edilnet, TeamSystem, STR, Excel) a Edilizia in Cloud. Setup in 48 ore garantite.",
           serviceType: "Software migration & onboarding",
           offers: {
             "@type": "Offer",

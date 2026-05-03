@@ -37,9 +37,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Gestione Cantieri Edili — Software Avanzamento Lavori in Tempo Reale | Edilizia in Cloud",
+      "Gestione Cantieri Edili",
     description:
-      "Controlla l'avanzamento di ogni cantiere in tempo reale dal telefono. Margini per commessa aggiornati, timbrature GPS, giornale lavori digitale, chat squadra e alert automatici sugli scostamenti. Setup in 48h.",
+      "Controlla l'avanzamento di ogni cantiere in tempo reale dal telefono. Margini per commessa aggiornati, timbrature GPS, giornale lavori digitale, chat…",
     keywords:
       "gestione cantieri software, avanzamento lavori real time, software cantieri edili, controllo cantiere smartphone, timbrature cantiere digitale, giornale lavori digitale, app cantiere offline, gestione commesse edili, dashboard cantieri",
     ogImage: "https://www.ediliziaincloud.com/og/gestione-cantieri-og.jpg",
@@ -142,7 +142,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       icon: FileText,
-      title: "Excel diversi per ogni cantiere, dati sempre vecchi di tre giorni",
+      title: "Excel diversi per ogni cantiere, dati sempre vecchi di…",
       text: "5 cantieri = 5 file Excel diversi aggiornati da 5 persone diverse. Una visione consolidata in tempo reale? Mai. E quando confronti i numeri, scopri che le formule non tornano e le date non sono allineate.",
     },
     {

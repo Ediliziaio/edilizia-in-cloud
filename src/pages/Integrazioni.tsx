@@ -17,7 +17,7 @@ interface Integration {
 
 const INTEGRATIONS: Integration[] = [
   // Fatturazione
-  { name: "Sistema di Interscambio (SDI)", category: "Fatturazione Elettronica", description: "Trasmissione diretta delle fatture elettroniche al SDI dell'Agenzia delle Entrate. Firma digitale, ricevute di consegna e conservazione sostitutiva a norma di legge.", logo: "🏛️", status: "nativa" },
+  { name: "Sistema di Interscambio (SDI)", category: "Fatturazione Elettronica", description: "Trasmissione diretta delle fatture elettroniche al SDI dell'Agenzia delle Entrate. Firma digitale, ricevute di consegna e conservazione sostitutiva a…", logo: "🏛️", status: "nativa" },
   { name: "Fattura PA", category: "Fatturazione Elettronica", description: "Emissione e invio di fatture verso la Pubblica Amministrazione tramite NSO. Gestione codice destinatario, CIG/CUP e firma digitale.", logo: "📄", status: "nativa" },
   // Bancario
   { name: "Bonifici SEPA", category: "Banca & Pagamenti", description: "Generazione file SEPA XML per pagamenti fornitori e subappaltatori. Esportazione distinta bonifici per la banca in formato standard CBI.", logo: "🏦", status: "nativa" },
@@ -63,8 +63,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export default function Integrazioni() {
   useSEO({
-    title: "Integrazioni Gestionale Edilizia — SDI, Zucchetti, TeamSystem, WhatsApp | Edilizia in Cloud",
-    description: "Edilizia in Cloud si integra con i principali software italiani: fatturazione elettronica SDI, Zucchetti, TeamSystem, prezzari regionali, Cassa Edile, WhatsApp e API REST. Scopri tutte le integrazioni native.",
+    title: "Integrazioni Gestionale Edilizia",
+    description: "Edilizia in Cloud si integra con i principali software italiani: fatturazione elettronica SDI, Zucchetti, TeamSystem, prezzari regionali, Cassa Edile,…",
     canonical: "/integrazioni",
     keywords: "integrazioni gestionale edilizia, software edilizia fatturazione elettronica, edilizia zucchetti, teamSystem edilizia, API gestionale edilizia, whatsapp impresa edile, cassa edile software, prezzari edilizia software",
   });

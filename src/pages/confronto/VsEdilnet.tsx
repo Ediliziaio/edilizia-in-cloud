@@ -92,9 +92,9 @@ const vsRelatedPosts = blogPosts.filter((p) => vsRelatedSlugs.includes(p.slug)).
 
 export default function VsEdilnet() {
   useSEO({
-    title: "Edilizia in Cloud vs Edilnet — Confronto Gestionale Edilizia 2026",
+    title: "Edilizia in Cloud vs Edilnet",
     description:
-      "Confronto tra Edilizia in Cloud e Edilnet: funzionalità, prezzi, supporto e facilità di migrazione. Scopri le differenze e scegli il gestionale edilizia migliore per la tua impresa.",
+      "Confronto tra Edilizia in Cloud e Edilnet: funzionalità, prezzi, supporto e facilità di migrazione. Scopri le differenze e scegli il gestionale edilizia…",
     canonical: "/confronto/vs-edilnet",
     keywords:
       "edilizia in cloud vs edilnet, alternativa edilnet, edilnet confronto, gestionale edilizia alternativa edilnet, software cantieri edilnet",

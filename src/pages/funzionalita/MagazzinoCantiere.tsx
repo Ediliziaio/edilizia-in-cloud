@@ -43,9 +43,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Magazzino Cantiere Multi-Sito — Stock per Cantiere, Codici a Barre, Valorizzazione FIFO | Edilizia in Cloud",
+      "Magazzino Cantiere Multi-Sito",
     description:
-      "Gestione magazzino multi-cantiere con stock per cantiere, prelievi tracciati con codici a barre, scorte minime e ordini automatici, valorizzazione FIFO. Recupera 8% di stock sprecato in materiali persi o doppi acquisti.",
+      "Gestione magazzino multi-cantiere con stock per cantiere, prelievi tracciati con codici a barre, scorte minime e ordini automatici, valorizzazione FIFO.",
     keywords:
       "magazzino cantiere edilizia, gestione magazzino multi-cantiere, stock cantiere, prelievi tracciati edilizia, codici a barre magazzino edilizia, scorte minime cantiere, valorizzazione FIFO edilizia, software magazzino edile",
     ogImage: "https://www.ediliziaincloud.com/og/magazzino-cantiere-og.jpg",
