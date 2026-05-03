@@ -369,4 +369,8 @@ verify_jwt = true
 
 [functions.cg-rating-snapshot-monthly]
 verify_jwt = false
-schedule = "0 3 1 * *"
+# Schedule mensile (1° del mese 03:00 UTC) configurato lato Dashboard Supabase
+# perché la CLI 2.90 non supporta `schedule` nel config.toml.
+
+[functions.cg-bootstrap-scenari]
+verify_jwt = true
