@@ -366,3 +366,7 @@ verify_jwt = true
 
 [functions.cg-export-ce-pdf]
 verify_jwt = true
+
+[functions.cg-rating-snapshot-monthly]
+verify_jwt = false
+schedule = "0 3 1 * *"
