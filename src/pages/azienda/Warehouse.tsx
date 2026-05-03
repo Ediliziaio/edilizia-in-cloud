@@ -88,6 +88,10 @@ import WarehouseStockTab from "@/components/warehouse/WarehouseStockTab";
 import WarehouseLottiTab from "@/components/warehouse/WarehouseLottiTab";
 import { WarehouseDDTTab } from "@/components/warehouse/WarehouseDDTTab";
 import WarehousePurchaseListTab from "@/components/warehouse/WarehousePurchaseListTab";
+import { WarehouseValorizzazionePanel } from "@/components/warehouse/WarehouseValorizzazionePanel";
+import { LottiScadenzaAlert } from "@/components/warehouse/LottiScadenzaAlert";
+import { ArticoliCSVImportDialog } from "@/components/warehouse/ArticoliCSVImportDialog";
+import { Calculator } from "lucide-react";
 
 import { STATUS_CONFIG } from "@/types/warehouse";
 import type { WarehouseItem } from "@/types/warehouse";
@@ -950,6 +954,9 @@ export default function Warehouse() {
         </DialogContent>
       </Dialog>
 
+      {/* Banner alert lotti scadenza (compatto, dismissible) */}
+      <LottiScadenzaAlert compact />
+
       <Card className="print:hidden">
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4">
@@ -983,6 +990,14 @@ export default function Warehouse() {
                   <TabsTrigger value="ddt" className="gap-1.5" aria-label="Vista DDT">
                     <FileText className="h-4 w-4" />
                     <span className="hidden sm:inline">DDT</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="valuation" className="gap-1.5" aria-label="Vista valorizzazione magazzino">
+                    <Calculator className="h-4 w-4" />
+                    <span className="hidden sm:inline">Valore</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="scadenze" className="gap-1.5" aria-label="Vista scadenze lotti">
+                    <Clock className="h-4 w-4" />
+                    <span className="hidden sm:inline">Scadenze</span>
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -1245,8 +1260,17 @@ export default function Warehouse() {
         <WarehouseDDTTab warehouseFilter={warehouseFilter} onRegisterArrival={() => openStockAction("receive")} />
       ) : viewMode === "lotti" ? (
         <WarehouseLottiTab />
+      ) : viewMode === "valuation" ? (
+        <WarehouseValorizzazionePanel warehouseId={warehouseFilter ?? null} />
+      ) : viewMode === "scadenze" ? (
+        <LottiScadenzaAlert />
       ) : viewMode === "stock" ? (
-        <WarehouseStockTab warehouseFilter={warehouseFilter} actionRequest={stockActionRequest} />
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <ArticoliCSVImportDialog warehouseId={warehouseFilter ?? null} />
+          </div>
+          <WarehouseStockTab warehouseFilter={warehouseFilter} actionRequest={stockActionRequest} />
+        </div>
       ) : isLoading ? (
         <div
           className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground"
