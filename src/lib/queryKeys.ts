@@ -1128,4 +1128,15 @@ export const queryKeys = {
     detail: (lineId: string | undefined) =>
       ["supplier-product-lines", "detail", lineId] as const,
   },
+
+  // ── Controllo di Gestione (MP-CG) ─────────────────────────────────────
+  controlloGestione: {
+    ce:    (a: number, md: number, ma: number) => ["cg", "ce", a, md, ma] as const,
+    bep:   (a: number) => ["cg", "bep", a] as const,
+    mens:  (a: number) => ["cg", "mensile", a] as const,
+    sp:    (a: number) => ["cg", "sp", a] as const,
+    rating:(a: number) => ["cg", "rating", a] as const,
+    piano: (s: string, o: number) => ["cg", "piano", s, o] as const,
+    classificazione: (companyId: string | undefined) => ["cg", "classificazione", companyId] as const,
+  },
 } as const;
