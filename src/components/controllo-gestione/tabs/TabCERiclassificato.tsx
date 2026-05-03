@@ -8,6 +8,8 @@ import { CESkeleton } from "@/components/controllo-gestione/skeletons/CESkeleton
 import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { formatCurrency, formatDate } from "@/lib/formatters";
+import { InsightsPanel } from "@/components/controllo-gestione/ui/InsightsPanel";
+import { useControlloGestioneInsights } from "@/hooks/controlloGestione/useControlloGestioneInsights";
 
 interface TabCERiclassificatoProps {
   anno: number;
@@ -22,6 +24,7 @@ function findVoce(voci: { codice: string; valore: number }[], codice: string) {
 export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificatoProps) {
   const ce = useCEriclassificato(anno, meseDa, meseA);
   const bep = useBEP(anno);
+  const { insights } = useControlloGestioneInsights(anno);
 
   const allZero = useMemo(() => {
     if (!ce.data) return false;
@@ -49,7 +52,9 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
   const ebitdaPctPil = pil !== 0 ? (ebitda / pil) * 100 : 0;
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <div className="space-y-4">
+      <InsightsPanel insights={insights} title="Cosa devi guardare per primo" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <Card className="rounded-2xl lg:col-span-2">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Conto Economico Riclassificato</CardTitle>
@@ -104,6 +109,7 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
           <BEPChart anno={anno} />
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
