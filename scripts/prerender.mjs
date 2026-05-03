@@ -215,8 +215,30 @@ async function main() {
     await waitForPort(PORT);
     console.log("✓ Preview pronto");
 
-    // 3. Avvia browser headless
-    const browser = await chromium.launch({ headless: true });
+    // 3. Avvia browser headless (con auto-install fallback se manca)
+    let browser;
+    try {
+      browser = await chromium.launch({ headless: true });
+    } catch (e) {
+      const msg = String(e?.message ?? e);
+      // Se Playwright e' installato ma manca il browser binario, prova install
+      if (msg.includes("Executable doesn't exist") || msg.includes("playwright install")) {
+        console.warn("⚠ Chromium binario non trovato, installo al volo…");
+        const { execSync } = await import("node:child_process");
+        try {
+          execSync("npx --yes playwright install chromium-headless-shell", {
+            stdio: "inherit", cwd: ROOT,
+          });
+        } catch {
+          execSync("npx --yes playwright install chromium", {
+            stdio: "inherit", cwd: ROOT,
+          });
+        }
+        browser = await chromium.launch({ headless: true });
+      } else {
+        throw e;
+      }
+    }
     const context = await browser.newContext({
       // Simula bot-like UA — alcuni componenti potrebbero saltare
       // animazioni o tracking; va bene per il prerender.
@@ -303,5 +325,13 @@ async function main() {
 
 main().catch((e) => {
   console.error("Prerender errore fatale:", e);
-  process.exitCode = 1;
+  // Su CI (Cloudflare Pages, GitHub Actions) il prerender e' best-effort:
+  // se fallisce non bloccare il deploy — il sito viene servito come SPA classica
+  // (perde il SEO crawler-static, ma resta funzionante).
+  if (process.env.CI || process.env.CF_PAGES) {
+    console.warn("⚠ CI detected — exit 0 per non bloccare il deploy. SEO prerender disabilitato per questa build.");
+    process.exitCode = 0;
+  } else {
+    process.exitCode = 1;
+  }
 });
