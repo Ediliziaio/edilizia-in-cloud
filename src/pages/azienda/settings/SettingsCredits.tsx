@@ -226,11 +226,20 @@ export default function SettingsCredits() {
 
         {/* ─── Auto Top-up ─── */}
         <TabsContent value="topup" className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Ricarica automatica quando il saldo scende sotto la soglia. Configura per ogni
-            wallet separatamente. La carta usata deve essere salvata su Stripe (effettua una
-            ricarica manuale almeno una volta).
-          </p>
+          <Alert className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+            <Zap className="h-4 w-4 text-emerald-600" />
+            <AlertDescription className="text-emerald-900 dark:text-emerald-200">
+              <strong>Auto-ricarica attiva di default su tutti i nuovi account</strong> con
+              soglia €5 e ricarica €25. Garantisce che i servizi (email, AI, WhatsApp) non
+              vengano mai sospesi per saldo zero. Puoi modificare gli importi o disattivarla
+              sotto, ma è raccomandato lasciarla attiva.
+              <br />
+              <span className="text-xs opacity-80">
+                ⚠️ La ricarica scatta solo se hai una carta salvata su Stripe — effettua una
+                ricarica manuale almeno una volta per associarla.
+              </span>
+            </AlertDescription>
+          </Alert>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             <AutoTopupConfig walletType="email" />
             <AutoTopupConfig walletType="ai" />
