@@ -14,6 +14,7 @@ interface Props {
   afterLabel?: string;
   className?: string;
   compact?: boolean;
+  beforeOnLeft?: boolean;
 }
 
 export function BeforeAfterSlider({
@@ -25,9 +26,14 @@ export function BeforeAfterSlider({
   afterLabel = "Render AI",
   className = "",
   compact = false,
+  beforeOnLeft = false,
 }: Props) {
   const before = beforeUrl ?? beforeSrc ?? "";
   const after = afterUrl ?? afterSrc ?? "";
+  const baseImage = beforeOnLeft ? after : before;
+  const overlayImage = beforeOnLeft ? before : after;
+  const baseAlt = beforeOnLeft ? afterLabel : beforeLabel;
+  const overlayAlt = beforeOnLeft ? beforeLabel : afterLabel;
 
   const [position, setPosition] = useState(50);
   const [aspectRatio, setAspectRatio] = useState<number | undefined>();
@@ -205,23 +211,23 @@ export function BeforeAfterSlider({
           </div>
         )}
 
-        {before && (
+        {baseImage && (
           <img
-            src={before}
-            alt="Foto originale"
+            src={baseImage}
+            alt={baseAlt}
             className="absolute inset-0 h-full w-full object-contain block"
             draggable={false}
           />
         )}
 
-        {after && (
+        {overlayImage && (
           <div
             className="absolute inset-0 overflow-hidden"
             style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
           >
             <img
-              src={after}
-              alt="Render AI"
+              src={overlayImage}
+              alt={overlayAlt}
               className={`absolute inset-0 h-full w-full object-contain block transition-opacity duration-300 ${afterReady ? "opacity-100" : "opacity-0"}`}
               draggable={false}
             />

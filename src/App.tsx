@@ -106,6 +106,7 @@ const CommercialistaEdilizia = lazy(() => import("@/pages/per/CommercialistaEdil
 const ReferralLanding  = lazy(() => import("@/pages/ReferralLanding"));
 const DiventaPartner   = lazy(() => import("@/pages/DiventaPartner"));
 const PianificaMigrazione = lazy(() => import("@/pages/PianificaMigrazione"));
+const LandingAIImprenditoreEdile = lazy(() => import("@/app/landing/ai-imprenditore-edile/page"));
 
 // Funzionalità sub-pages
 const GestioneCantieri       = lazy(() => import("@/pages/funzionalita/GestioneCantieri"));
@@ -407,6 +408,7 @@ const App = () => (
               <Route path="/ref/:code" element={<ReferralLanding />} />
               <Route path="/diventa-partner" element={<DiventaPartner />} />
               <Route path="/pianifica-migrazione" element={<PianificaMigrazione />} />
+              <Route path="/landing/ai-imprenditore-edile" element={<LandingAIImprenditoreEdile />} />
 
               {/* Root — subdomain-aware redirect */}
               <Route path="/" element={<SubdomainRedirect />} />

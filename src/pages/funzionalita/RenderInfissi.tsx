@@ -970,6 +970,43 @@ export default function RenderInfissi() {
             >
               Render Infissi AI per Serramentisti: fai scegliere prima del prezzo, mostra al cliente come cambierà la sua casa.
             </h1>
+
+            {/* HERO IMAGE — caso reale Demo Azienda */}
+            <div className="mx-auto mt-8 w-full max-w-md sm:mt-10 sm:max-w-xl lg:max-w-[620px] xl:max-w-[680px]">
+              <div className="overflow-hidden rounded-[28px] border border-white/12 bg-white/6 p-3 shadow-[0_30px_80px_rgba(15,23,42,0.38)] backdrop-blur-sm sm:p-4">
+                <div className="mb-2 flex items-center justify-between px-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/55 sm:mb-3 sm:text-xs">
+                  <span>Prima</span>
+                  <span>Dopo</span>
+                </div>
+                <RenderBeforeAfterSlider
+                  beforeUrl={HERO_BEFORE_IMAGE}
+                  afterUrl={HERO_AFTER_IMAGE}
+                  beforeLabel="Prima"
+                  afterLabel="Dopo"
+                  beforeOnLeft
+                  compact
+                  className="rounded-[22px] bg-slate-950/70"
+                />
+                <p className="mt-3 text-center text-xs font-semibold text-white/65 sm:text-sm">
+                  Trascina la linea per passare dalla foto reale al render finale.
+                </p>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55 sm:text-xs">
+                <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1.5">
+                  Caso reale Demo Azienda
+                </span>
+                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-emerald-100/90">
+                  Foto originale del cliente
+                </span>
+                <span className="rounded-full border border-orange-400/20 bg-orange-400/10 px-3 py-1.5 text-orange-100/90">
+                  Render finale usato nel prima/dopo
+                </span>
+              </div>
+              <p className="mt-3 text-center text-[11px] font-medium leading-5 text-white/50 sm:text-xs">
+                Qui non stai vedendo una mockup generica: è un prima/dopo reale preso dall&apos;area render della Demo Azienda S.r.l.
+              </p>
+            </div>
+
             <p className="mx-auto mt-6 max-w-3xl text-lg font-medium leading-8 text-slate-200 sm:text-xl">
               Render Infissi AI trasforma la foto reale del cliente in un prima/dopo credibile:
               nuovi serramenti, colori, vetri, cassonetti e oscuranti applicati alla stessa facciata.
@@ -1002,33 +1039,6 @@ export default function RenderInfissi() {
                   {item}
                 </span>
               ))}
-            </div>
-
-            {/* HERO IMAGE — caso reale Demo Azienda */}
-            <div className="mx-auto mt-12 w-full max-w-md sm:max-w-xl lg:max-w-[520px] xl:max-w-[560px]">
-              <div className="overflow-hidden rounded-[28px] border border-white/12 bg-white/6 p-3 shadow-[0_30px_80px_rgba(15,23,42,0.38)] backdrop-blur-sm sm:p-4">
-                <RenderBeforeAfterSlider
-                  beforeUrl={HERO_BEFORE_IMAGE}
-                  afterUrl={HERO_AFTER_IMAGE}
-                  beforeLabel="Foto cliente"
-                  afterLabel="Render AI infissi"
-                  className="rounded-[22px] bg-slate-950/70"
-                />
-              </div>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55 sm:text-xs">
-                <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1.5">
-                  Caso reale Demo Azienda
-                </span>
-                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-emerald-100/90">
-                  Foto originale del cliente
-                </span>
-                <span className="rounded-full border border-orange-400/20 bg-orange-400/10 px-3 py-1.5 text-orange-100/90">
-                  Render finale usato nel prima/dopo
-                </span>
-              </div>
-              <p className="mt-3 text-center text-[11px] font-medium leading-5 text-white/50 sm:text-xs">
-                Qui non stai vedendo una mockup generica: è un prima/dopo reale preso dall&apos;area render della Demo Azienda S.r.l.
-              </p>
             </div>
 
             {/* Trust badges row */}

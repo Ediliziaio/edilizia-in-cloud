@@ -14,6 +14,15 @@ export default {
     },
     extend: {
       colors: {
+        eic: {
+          navy: "#1E3A5F",
+          "navy-90": "#0F1E33",
+          "navy-50": "#3B5A85",
+          orange: "#F97316",
+          "orange-soft": "#FDA76B",
+          cream: "#FAF7F2",
+          ink: "#0A0A0A",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -70,6 +79,15 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      fontFamily: {
+        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        display: ["var(--font-inter)", "system-ui", "sans-serif"],
+      },
+      fontSize: {
+        "display-xl": ["clamp(2.25rem, 4.8vw, 4.6rem)", { lineHeight: "1", letterSpacing: "-0.035em" }],
+        "display-lg": ["clamp(1.9rem, 3.2vw, 3.15rem)", { lineHeight: "1.06", letterSpacing: "-0.03em" }],
+        "mega-num": ["clamp(3.25rem, 6.5vw, 5.8rem)", { lineHeight: "0.94", letterSpacing: "-0.05em" }],
       },
       keyframes: {
         "accordion-down": {
