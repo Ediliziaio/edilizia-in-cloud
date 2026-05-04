@@ -145,6 +145,136 @@ async function handleCheckoutCompleted(
     return;
   }
 
+  // ── WhatsApp Credits Purchase ──
+  if (metadataType === "whatsapp_credits") {
+    const amountEur = parseFloat(session.metadata?.amount_eur || "0");
+    if (amountEur > 0) {
+      await supabase.rpc("add_whatsapp_credits_with_log", {
+        p_company_id: companyId,
+        p_amount: amountEur,
+        p_type: "topup",
+        p_description: `Acquisto Stripe - €${amountEur}`,
+        p_metadata: { stripe_session_id: session.id, payment_intent: session.payment_intent },
+      });
+
+      // Salva payment method per auto top-up futuri
+      if (session.payment_intent) {
+        try {
+          const piRes = await fetch(
+            `https://api.stripe.com/v1/payment_intents/${session.payment_intent}`,
+            { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+          );
+          const pi = await piRes.json();
+          if (pi.payment_method) {
+            await supabase
+              .from("company_auto_topup")
+              .upsert(
+                { company_id: companyId, wallet_type: "whatsapp", stripe_payment_method_id: pi.payment_method, payment_method: "stripe" },
+                { onConflict: "company_id,wallet_type" }
+              );
+          }
+        } catch (e) {
+          console.error("Failed to save WhatsApp payment method:", e);
+        }
+      }
+    }
+    return;
+  }
+
+  // ── AI Credits Purchase (one-time top-up) ──
+  // Diverso da ai_subscription: e' un acquisto crediti spot, non abbonamento.
+  // Accredito atomico via update + insert log.
+  if (metadataType === "ai_credits") {
+    const amountEur = parseFloat(session.metadata?.amount_eur || "0");
+    if (amountEur > 0) {
+      // Update saldo (insert se prima volta)
+      const { data: existing } = await supabase
+        .from("ai_credits")
+        .select("balance_eur, total_recharged_eur")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      const newBalance = Number(((existing?.balance_eur ?? 0) + amountEur).toFixed(4));
+      const newRecharged = Number(((existing?.total_recharged_eur ?? 0) + amountEur).toFixed(4));
+      if (existing) {
+        await supabase
+          .from("ai_credits")
+          .update({ balance_eur: newBalance, total_recharged_eur: newRecharged, calls_blocked: false })
+          .eq("company_id", companyId);
+      } else {
+        await supabase.from("ai_credits").insert({
+          company_id: companyId,
+          balance_eur: amountEur,
+          total_recharged_eur: amountEur,
+        });
+      }
+
+      // Log topup
+      await supabase.from("ai_credit_topups").insert({
+        company_id: companyId,
+        amount_eur: amountEur,
+        type: "topup",
+        status: "completed",
+        notes: `Acquisto Stripe - €${amountEur}`,
+        payment_ref: session.id,
+        payment_method: "stripe",
+        processed_at: new Date().toISOString(),
+      });
+
+      // Salva payment method per auto top-up
+      if (session.payment_intent) {
+        try {
+          const piRes = await fetch(
+            `https://api.stripe.com/v1/payment_intents/${session.payment_intent}`,
+            { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+          );
+          const pi = await piRes.json();
+          if (pi.payment_method) {
+            await supabase
+              .from("company_auto_topup")
+              .upsert(
+                { company_id: companyId, wallet_type: "ai", stripe_payment_method_id: pi.payment_method, payment_method: "stripe" },
+                { onConflict: "company_id,wallet_type" }
+              );
+          }
+        } catch (e) {
+          console.error("Failed to save AI payment method:", e);
+        }
+      }
+    }
+    return;
+  }
+
+  // ── Render Credits Purchase (one-time, count-based) ──
+  // Diverso dagli altri: render_credits e' "count" non "eur".
+  // metadata.qty = numero di render acquistati (10/50/100).
+  if (metadataType === "render_credits") {
+    const qty = parseInt(session.metadata?.qty || "0");
+    if (qty > 0) {
+      const { data: existing } = await supabase
+        .from("render_credits")
+        .select("balance, total_purchased")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (existing) {
+        await supabase
+          .from("render_credits")
+          .update({
+            balance: (existing.balance ?? 0) + qty,
+            total_purchased: (existing.total_purchased ?? 0) + qty,
+          })
+          .eq("company_id", companyId);
+      } else {
+        await supabase.from("render_credits").insert({
+          company_id: companyId,
+          balance: qty,
+          total_purchased: qty,
+          total_used: 0,
+        });
+      }
+    }
+    return;
+  }
+
   // ── AI Subscription ──
   if (metadataType === "ai_subscription") {
     const stripeSubscriptionId = session.subscription;
