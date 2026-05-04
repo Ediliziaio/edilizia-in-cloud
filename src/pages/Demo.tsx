@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useSEO, SITE_URL } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
+import { submitPublicLeadToCrm } from "@/lib/publicLeadSubmit";
+import { getRenderLeadContext } from "@/lib/renderLeadContext";
 
 const DEMO_FAQS = [
   {
@@ -57,6 +59,8 @@ interface FormErrors {
 }
 
 export default function Demo() {
+  const [searchParams] = useSearchParams();
+  const renderContext = getRenderLeadContext(searchParams.get("render"));
   const [formData, setFormData] = useState<FormData>({
     nome: "",
     cognome: "",
@@ -120,7 +124,6 @@ export default function Demo() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const mod = await import("@/integrations/supabase/client");
       const fatturatoLabel =
         {
           "fino-300k": "Fino a 300K",
@@ -129,18 +132,20 @@ export default function Demo() {
           "oltre-3m": "Oltre 3M",
         }[formData.fatturato] ?? formData.fatturato;
       const noteUtente = formData.messaggio.trim();
-      const messaggio = `[DEMO] Fatturato annuo: ${fatturatoLabel}${noteUtente ? ` | Note: ${noteUtente}` : ""}`;
-      const { error } = await mod.supabase.from("demo_requests").insert({
+      const messaggio = `[DEMO] Fatturato annuo: ${fatturatoLabel}${renderContext ? ` | Modulo: ${renderContext.label}` : ""}${noteUtente ? ` | Note: ${noteUtente}` : ""}`;
+      await submitPublicLeadToCrm({
         nome: `${formData.nome.trim()} ${formData.cognome.trim()}`.trim(),
-        email: formData.email.trim().toLowerCase(),
-        telefono: formData.telefono.trim(),
-        azienda: formData.azienda.trim(),
+        email: formData.email,
+        telefono: formData.telefono,
+        azienda: formData.azienda,
         messaggio,
+        source: renderContext ? "render_landing" : "demo",
         marketing_consent: formData.marketingConsent,
-        source: "demo",
-        status: "pending",
+        render_slug: renderContext?.slug ?? null,
+        page_path: renderContext?.pagePath ?? null,
+        context_label: renderContext?.label ?? null,
+        tags: renderContext ? ["richiesta-render", `richiesta-${renderContext.slug}`] : [],
       });
-      if (error) throw error;
       setSubmitted(true);
     } catch (err) {
       console.error("[demo] submit error", err);
@@ -335,10 +340,24 @@ export default function Demo() {
               </div>
             ) : (
               <>
-                <h2 className="text-xl font-bold text-[#111111] mb-1">Compila il modulo</h2>
+                <h2 className="text-xl font-bold text-[#111111] mb-1">
+                  {renderContext ? `Compila il modulo per ${renderContext.label}` : "Compila il modulo"}
+                </h2>
                 <p className="text-[#111111]/50 text-sm mb-7">
-                  Ci vuole meno di 2 minuti. Ti ricontattiamo noi.
+                  {renderContext ? renderContext.formIntro : "Ci vuole meno di 2 minuti. Ti ricontattiamo noi."}
                 </p>
+
+                {renderContext && (
+                  <div className="mb-7 rounded-2xl border border-[#F97415]/20 bg-[#F97415]/5 px-4 py-4">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+                      Richiesta contestualizzata
+                    </p>
+                    <p className="mt-1 text-base font-bold text-[#111111]">{renderContext.label}</p>
+                    <p className="mt-1 text-sm text-[#111111]/60">
+                      Questa richiesta finirà nel CRM superadmin con tag dedicati al modulo render corretto.
+                    </p>
+                  </div>
+                )}
 
                 <form onSubmit={handleSubmit} noValidate className="space-y-5">
                   {/* Nome + Cognome */}
@@ -465,7 +484,7 @@ export default function Demo() {
                       onChange={handleChange}
                       rows={3}
                       className="w-full px-4 py-3 rounded-lg border border-gray-200 text-[#111111] text-sm focus:outline-none focus:ring-2 focus:ring-[#F97415]/30 focus:border-[#F97415] transition-all resize-none"
-                      placeholder="Cosa vorresti vedere nella demo?"
+                      placeholder={renderContext?.messagePlaceholder || "Cosa vorresti vedere nella demo?"}
                     />
                   </div>
 
@@ -536,7 +555,7 @@ export default function Demo() {
                     className="w-full py-4 rounded-xl text-white font-bold text-base tracking-wide transition-all hover:opacity-90 hover:scale-[1.01] shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
                     style={{ background: "#F97415", boxShadow: "0 8px 30px rgba(249,116,21,0.3)" }}
                   >
-                    {submitting ? "Invio in corso..." : "Richiedi la Demo Gratuita →"}
+                    {submitting ? "Invio in corso..." : (renderContext?.submitLabel || "Richiedi la Demo Gratuita →")}
                   </button>
 
                   <p className="text-center text-[#111111]/45 text-xs pt-1 leading-relaxed">

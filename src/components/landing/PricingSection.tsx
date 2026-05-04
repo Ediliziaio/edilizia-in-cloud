@@ -23,14 +23,14 @@ export default function PricingSection() {
         <div className={`transition-all duration-700 delay-100 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
           <p className="text-white/50 text-lg mb-2">A partire da</p>
           <div className="flex items-end justify-center gap-2 mb-2">
-            <span className="text-7xl md:text-8xl font-extrabold text-white leading-none">€99</span>
+            <span className="text-7xl md:text-8xl font-extrabold text-white leading-none">€0</span>
             <span className="text-white/40 text-xl mb-3">/mese</span>
           </div>
           <p className="text-white/40 text-base mb-2">
-            Piano Gestionale · fatturazione annuale · disdici quando vuoi
+            Piano Scopri gratuito per sempre · nessuna carta richiesta
           </p>
           <p className="text-white/30 text-sm mb-8">
-            <span className="text-white/60">Mensile da €127</span> · Professionista da €197/mese (annuale, €247 mensile) · Impresa AI da €437/mese (annuale, €547 mensile)
+            Per lavorare senza limiti: <span className="text-white/60">Gestionale da €99/mese</span> con fatturazione annuale · Professionista da €197/mese · Impresa AI da €437/mese
           </p>
         </div>
 

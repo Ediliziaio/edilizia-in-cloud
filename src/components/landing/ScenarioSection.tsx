@@ -1,5 +1,5 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { XCircle, CheckCircle, TrendingDown, TrendingUp, AlertTriangle, BarChart3 } from "lucide-react";
+import { XCircle, CheckCircle } from "lucide-react";
 
 const scenarioA = [
   "Stessa fatica, stessi problemi, stessa ansia a fine mese",
@@ -17,48 +17,29 @@ const scenarioB = [
 
 function ScenarioIllustrationA() {
   return (
-    <div className="w-full h-40 rounded-xl bg-red-100 border border-red-200 flex items-center justify-center gap-6 mb-5 overflow-hidden relative">
-      <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 10px, currentColor 10px, currentColor 11px)" }} />
-      <div className="flex flex-col items-center gap-1 z-10">
-        <AlertTriangle className="w-8 h-8 text-red-400" />
-        <span className="text-[10px] text-red-400 font-semibold">Rischi</span>
-      </div>
-      <div className="flex flex-col items-end gap-1 z-10">
-        <div className="flex items-end gap-1 h-16">
-          {[40, 32, 28, 18, 10].map((h, i) => (
-            <div key={i} className="w-3 rounded-t bg-red-300/70" style={{ height: `${h}px` }} />
-          ))}
-        </div>
-        <TrendingDown className="w-5 h-5 text-red-400" />
-      </div>
-      <div className="flex flex-col items-center gap-1 z-10">
-        <XCircle className="w-8 h-8 text-red-400" />
-        <span className="text-[10px] text-red-400 font-semibold">Perdite</span>
-      </div>
-    </div>
+    <img
+      src="/landing/scenario-without-control.png"
+      alt="Scenario senza controllo: confusione, fatture e margini in perdita"
+      width={1792}
+      height={768}
+      loading="lazy"
+      decoding="async"
+      className="mb-5 h-40 w-full rounded-xl border border-red-200 object-cover object-center shadow-sm"
+    />
   );
 }
 
 function ScenarioIllustrationB() {
   return (
-    <div className="w-full h-40 rounded-xl bg-[#F97415]/10 border border-[#F97415]/25 flex items-center justify-center gap-6 mb-5 overflow-hidden relative">
-      <div className="flex flex-col items-center gap-1 z-10">
-        <CheckCircle className="w-8 h-8 text-[#F97415]" />
-        <span className="text-[10px] text-[#F97415] font-semibold">Controllo</span>
-      </div>
-      <div className="flex flex-col items-end gap-1 z-10">
-        <div className="flex items-end gap-1 h-16">
-          {[10, 18, 28, 36, 48].map((h, i) => (
-            <div key={i} className="w-3 rounded-t bg-[#F97415]/60" style={{ height: `${h}px` }} />
-          ))}
-        </div>
-        <TrendingUp className="w-5 h-5 text-[#F97415]" />
-      </div>
-      <div className="flex flex-col items-center gap-1 z-10">
-        <BarChart3 className="w-8 h-8 text-[#F97415]" />
-        <span className="text-[10px] text-[#F97415] font-semibold">Margini</span>
-      </div>
-    </div>
+    <img
+      src="/landing/scenario-with-control.png"
+      alt="Scenario con Edilizia in Cloud: controllo dei cantieri e numeri aggiornati"
+      width={1792}
+      height={768}
+      loading="lazy"
+      decoding="async"
+      className="mb-5 h-40 w-full rounded-xl border border-[#F97415]/25 object-cover object-center shadow-sm"
+    />
   );
 }
 

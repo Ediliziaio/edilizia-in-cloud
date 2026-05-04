@@ -24,11 +24,11 @@ const stats: Stat[] = [
   },
   {
     icon: TrendingUp,
-    prefix: "€ ",
-    value: 12,
-    suffix: "M+",
-    label: "Fatturato Gestito",
-    sublabel: "monitorato in tempo reale sulla piattaforma",
+    prefix: "",
+    value: 10,
+    suffix: "x",
+    label: "ROI Medio",
+    sublabel: "ritorno stimato nel primo anno di utilizzo",
   },
   {
     icon: Star,

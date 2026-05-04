@@ -28,6 +28,7 @@ import {
   Copy,
   Check as CheckBadge,
 } from "lucide-react";
+import { getTimeLeft, MESI } from "@/lib/urgencyUtils";
 
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -153,6 +154,12 @@ export default function Prezzi() {
   const [oreSettimana, setOreSettimana] = useState(parseNum("ore_settimana", 10));
   const [compensoOrario, setCompensoOrario] = useState(parseNum("compenso_orario", 50));
   const [copied, setCopied] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(getTimeLeft);
+
+  useEffect(() => {
+    const id = setInterval(() => setTimeLeft(getTimeLeft()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   // Sincronizza inputs ROI + billing nella URL (senza reload)
   useEffect(() => {
@@ -168,13 +175,24 @@ export default function Prezzi() {
 
   // Derived ROI calculations
   const costoExcel = oreSettimana * compensoOrario * 52;
+  const costoPreventivazioneManuale = 3 * 3 * compensoOrario * 12;
   const marginiRecuperabili = fatturato * 0.015;
-  const valoreAnnuo = costoExcel + marginiRecuperabili;
+  const valoreAnnuo = costoExcel + costoPreventivazioneManuale + marginiRecuperabili;
   // Rispetta il toggle: annuale 197*12, mensile 247*12
   const costoProfessionalAnno = (billing === "annual" ? 197 : 247) * 12;
   const roi = Math.round((valoreAnnuo / costoProfessionalAnno) * 100);
   const paybackMesi = costoProfessionalAnno / (valoreAnnuo / 12);
   const paybackLabel = paybackMesi < 1 ? "< 1 mese" : `${paybackMesi.toFixed(1)} mesi`;
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const meseCorrente = MESI[now.getMonth()];
+  const annoCorrente = now.getFullYear();
+  const countdownUnits = [
+    { value: timeLeft.days, label: "giorni", short: "g" },
+    { value: timeLeft.hours, label: "ore", short: "h" },
+    { value: timeLeft.minutes, label: "min", short: "m" },
+    { value: timeLeft.seconds, label: "sec", short: "s" },
+  ];
 
   const copyShareLink = async () => {
     if (typeof window === "undefined") return;
@@ -365,7 +383,7 @@ export default function Prezzi() {
 
       {/* ── 1. HERO ─────────────────────────────────────────────────────────── */}
       <section
-        className="pt-28 pb-20 px-4 text-center"
+        className="pt-28 pb-10 px-4 text-center"
         style={{ background: "linear-gradient(160deg, #111111 0%, #111111 100%)" }}
       >
         {/* Badge */}
@@ -385,31 +403,27 @@ export default function Prezzi() {
           Ogni piano include il Consulente del Controllo dedicato. Setup e migrazione dati gratis. Disdici quando vuoi.
         </p>
 
-        {/* Toggle */}
-        <div className="inline-flex items-center bg-white/10 rounded-full p-1 gap-1 border border-white/20">
-          <button
-            onClick={() => setBilling("monthly")}
-            className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
-              billing === "monthly"
-                ? "bg-white text-[#111111] shadow"
-                : "text-white/70 hover:text-white"
-            }`}
-          >
-            Mensile
-          </button>
-          <button
-            onClick={() => setBilling("annual")}
-            className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
-              billing === "annual"
-                ? "bg-white text-[#111111] shadow"
-                : "text-white/70 hover:text-white"
-            }`}
-          >
-            Annuale
-            <span className="bg-[#F97415] text-white text-xs px-2 py-0.5 rounded-full font-bold">
-              -20%
-            </span>
-          </button>
+        <div className="mx-auto flex max-w-xl flex-col items-center rounded-2xl border border-[#F97415]/30 bg-white/[0.03] px-5 py-5 shadow-[0_0_24px_rgba(249,116,21,0.08)] backdrop-blur-sm">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#F97415]/30 bg-[#F97415]/12 px-4 py-1 text-[11px] font-extrabold uppercase tracking-[0.24em] text-[#F9A15F]">
+            🎉 Prova gratuita 31 giorni
+          </span>
+
+          <div className="mt-4 flex items-center justify-center gap-2">
+            {countdownUnits.map((unit) => (
+              <div key={unit.short} className="flex flex-col items-center">
+                <span className="inline-block min-w-[46px] rounded-lg border border-white/10 bg-white/[0.08] px-2 py-2 text-center font-mono text-lg font-bold leading-tight text-white md:min-w-[54px] md:text-xl">
+                  {String(unit.value).padStart(2, "0")}
+                </span>
+                <span className="mt-1 hidden text-[10px] text-white/45 md:block">{unit.label}</span>
+                <span className="mt-1 text-[10px] text-white/45 md:hidden">{unit.short}</span>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-4 max-w-lg text-sm leading-relaxed text-white/65">
+            La prova gratuita di 31 giorni e l’offerta attiva sono disponibili per chi richiede entro il{" "}
+            <strong className="text-white">{lastDay} {meseCorrente} {annoCorrente}</strong>.
+          </p>
         </div>
       </section>
 
@@ -452,18 +466,92 @@ export default function Prezzi() {
 
       {/* ── GEO CITABLE PARAGRAPH ─────────────────────────────────────────── */}
       <section className="py-10 px-4 bg-white">
-        <div className="max-w-4xl mx-auto">
-          <div className="rounded-2xl border-l-4 border-[#F97415] bg-[#F97415]/5 p-6 md:p-8 shadow-sm">
-            <p className="text-[#111111] text-base md:text-lg leading-relaxed">
-              <strong className="block text-lg md:text-xl mb-2 text-[#111111]">
-                Quanto costa un gestionale per imprese edili in Italia?
-              </strong>
-              Edilizia in Cloud parte da <strong>127€/mese</strong> (piano Starter, fatturazione mensile)
-              e arriva a <strong>547€/mese</strong> (piano Enterprise). Con fatturazione annuale i prezzi scendono a{" "}
-              <strong>99€/mese</strong> (Starter), <strong>197€/mese</strong> (Professional) e{" "}
-              <strong>437€/mese</strong> (Enterprise). Tutti i piani includono setup in 48 ore, supporto italiano
-              dedicato e prova gratuita di 31 giorni — senza vincoli e senza impegno.
-            </p>
+        <div className="max-w-6xl mx-auto">
+          <div className="rounded-3xl border border-[#F97415]/20 bg-gradient-to-br from-[#fff7ed] via-white to-white p-6 md:p-8 shadow-sm">
+            <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
+              <div>
+                <span className="inline-flex items-center rounded-full bg-[#F97415]/10 px-3 py-1 text-xs font-extrabold uppercase tracking-widest text-[#F97415]">
+                  Confronto reale dei costi
+                </span>
+                <h2 className="mt-4 text-2xl md:text-3xl font-extrabold tracking-tight text-[#111111]">
+                  Quanto costa davvero un gestionale per imprese edili in Italia?
+                </h2>
+                <p className="mt-4 text-base md:text-lg leading-relaxed text-gray-700">
+                  Una impresa edile strutturata non paga solo “un software”: spesso somma diversi strumenti
+                  per fatturazione, magazzino, preventivazione, HR, contabilità, documenti, foto di cantiere,
+                  Excel, CRM, calendario, firma e DDT.
+                </p>
+                <p className="mt-3 text-base leading-relaxed text-gray-700">
+                  Il conto vero nasce quando questi sistemi non si parlano: carichi foto due volte, copi dati
+                  su Excel, aggiorni cliente, preventivo, magazzino e commessa in punti diversi.
+                </p>
+                <div className="mt-5 rounded-2xl border border-[#F97415]/20 bg-white/80 p-4">
+                  <p className="text-sm font-bold text-[#111111]">Esempio prudente sulla preventivazione</p>
+                  <p className="mt-1 text-sm leading-relaxed text-gray-600">
+                    3 preventivi/mese × 3 ore cad. × 50€/ora ={" "}
+                    <strong className="text-[#111111]">5.400€/anno</strong> di tempo commerciale.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:p-5">
+                <div className="overflow-hidden rounded-2xl border border-gray-100">
+                  {[
+                    {
+                      label: "Software separati",
+                      value: "~5.000€/anno",
+                      note: "Licenze e strumenti scollegati",
+                      tone: "red",
+                    },
+                    {
+                      label: "Preventivi manuali",
+                      value: "5.400€/anno",
+                      note: "3 offerte/mese, 3 ore cad.",
+                      tone: "amber",
+                    },
+                    {
+                      label: "Edilizia in Cloud",
+                      value: "da 0€/mese",
+                      note: "Un unico flusso operativo",
+                      tone: "emerald",
+                    },
+                  ].map((row) => (
+                    <div
+                      key={row.label}
+                      className="grid grid-cols-[1fr_auto] gap-4 border-b border-gray-100 px-4 py-4 last:border-b-0"
+                    >
+                      <div>
+                        <p
+                          className={[
+                            "text-xs font-extrabold uppercase tracking-widest",
+                            row.tone === "red" ? "text-red-500" : row.tone === "amber" ? "text-amber-600" : "text-emerald-600",
+                          ].join(" ")}
+                        >
+                          {row.label}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-600">{row.note}</p>
+                      </div>
+                      <p className="whitespace-nowrap text-right text-2xl font-extrabold tracking-tight text-[#111111]">
+                        {row.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 grid gap-2 text-sm text-gray-700 sm:grid-cols-2">
+                  {[
+                    "Foto, DDT e documenti sulla commessa",
+                    "Preventivo, ordine e incassi collegati",
+                    "Meno copia-incolla tra app ed Excel",
+                    "Marginalità visibile nello stesso flusso",
+                  ].map((item) => (
+                    <div key={item} className="flex items-start gap-2 rounded-xl bg-gray-50 px-3 py-2">
+                      <span className="mt-0.5 text-[#F97415]">✓</span>
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -497,7 +585,41 @@ export default function Prezzi() {
 
       {/* ── 2. PIANI ────────────────────────────────────────────────────────── */}
       <section className="py-16 px-4 bg-[#f7f9fc]">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#F97415] mb-2">Scegli il piano</p>
+              <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111]">Piani chiari, senza costi nascosti</h2>
+              <p className="mt-2 text-gray-500">Cambia fatturazione e confronta subito il canone sulle card.</p>
+            </div>
+            <div className="inline-flex w-fit items-center gap-1 rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+              <button
+                onClick={() => setBilling("monthly")}
+                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                  billing === "monthly"
+                    ? "bg-[#111111] text-white shadow"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-[#111111]"
+                }`}
+              >
+                Mensile
+              </button>
+              <button
+                onClick={() => setBilling("annual")}
+                className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition-all ${
+                  billing === "annual"
+                    ? "bg-[#111111] text-white shadow"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-[#111111]"
+                }`}
+              >
+                Annuale
+                <span className="rounded-full bg-[#F97415] px-2 py-0.5 text-xs font-bold text-white">
+                  -20%
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
 
           {/* ── SCOPRI (FREE) ── */}
           <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-8 flex flex-col relative">
@@ -515,12 +637,12 @@ export default function Prezzi() {
               </div>
               <p className="text-xs text-gray-400">Nessuna carta richiesta</p>
             </div>
-            <a
-              href="/register?plan=scopri"
+            <Link
+              to="/demo?plan=scopri"
               className="block text-center w-full border border-gray-300 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-colors mb-6"
             >
               Inizia gratis
-            </a>
+            </Link>
             <ul className="space-y-2 flex-1">
               {[
                 "3 cantieri attivi con marginalit\u00e0 reale",
@@ -722,6 +844,7 @@ export default function Prezzi() {
             </div>
           </div>
         </div>
+        </div>
       </section>
 
       {/* ── 3. INCLUSO IN TUTTI I PIANI ─────────────────────────────────────── */}
@@ -821,6 +944,7 @@ export default function Prezzi() {
                   <p className="text-sm font-bold text-[#111111] mb-2 uppercase tracking-wide">Il tuo calcolo</p>
                   <div className="space-y-2 text-sm">
                     <RoiLine label="Costo ore non ottimizzate" value={`${fmt(costoExcel)}/anno`} />
+                    <RoiLine label="Preventivazione manuale" value={`${fmt(costoPreventivazioneManuale)}/anno`} />
                     <RoiLine label="Margini recuperabili (1.5%)" value={`${fmt(marginiRecuperabili)}/anno`} />
                     <div className="border-t border-[#F97415]/30 my-2" />
                     <RoiLine label="Valore totale annuo" value={`${fmt(valoreAnnuo)}/anno`} bold />
@@ -921,9 +1045,9 @@ export default function Prezzi() {
                 <tr className="border-t-2 border-gray-200 bg-gray-50">
                   <td className="px-5 py-4" />
                   <td className="px-3 py-4 text-center">
-                    <a href="/register?plan=scopri" className="text-xs border border-gray-300 text-gray-600 font-bold px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                    <Link to="/demo?plan=scopri" className="text-xs border border-gray-300 text-gray-600 font-bold px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
                       Gratis
-                    </a>
+                    </Link>
                   </td>
                   <td className="px-3 py-4 text-center">
                     <Link to="/demo" className="text-xs border border-[#111111] text-[#111111] font-bold px-3 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">

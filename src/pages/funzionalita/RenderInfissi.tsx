@@ -13,7 +13,6 @@ import {
   LineChart,
   Lock,
   MessageCircle,
-  MousePointerClick,
   Play,
   Send,
   ShieldCheck,
@@ -30,8 +29,13 @@ import {
 } from "lucide-react";
 import LandingFooter from "@/components/landing/LandingFooter";
 import LandingNavbar from "@/components/landing/LandingNavbar";
+import { BeforeAfterSlider as RenderBeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
+import { RenderLeadModal } from "@/components/render/RenderLeadModal";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SITE_URL, useSEO } from "@/hooks/useSEO";
+
+const HERO_BEFORE_IMAGE = "/images/render-infissi/demo-prima.jpg";
+const HERO_AFTER_IMAGE = "/images/render-infissi/demo-dopo.png";
 
 const proofPoints = [
   "Creato per serramentisti, showroom e reti vendita",
@@ -295,154 +299,6 @@ function CountUp({
 }
 
 /* ================================================================== */
-/* HERO — Before/After slider interattivo                              */
-/* ================================================================== */
-
-function HouseSvg({ variant }: { variant: "before" | "after" }) {
-  const isAfter = variant === "after";
-  const skyTop = isAfter ? "#fef3e6" : "#cdd6df";
-  const skyBottom = isAfter ? "#fcd9b4" : "#9aa6b2";
-  const ground = isAfter ? "#ead0a8" : "#7d8893";
-  const wall = isAfter ? "#d8b87c" : "#6b7682";
-  const frame = isAfter ? "#1f2937" : "#5a6470";
-  const glass = isAfter ? "#bfe1ff" : "#a6b1bd";
-  const stroke = isAfter ? "#0f172a" : "#3f4854";
-
-  return (
-    <svg
-      viewBox="0 0 600 380"
-      className="block h-full w-full"
-      preserveAspectRatio="xMidYMid slice"
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id={`sky-${variant}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={skyTop} />
-          <stop offset="100%" stopColor={skyBottom} />
-        </linearGradient>
-      </defs>
-      <rect width="600" height="380" fill={`url(#sky-${variant})`} />
-      {/* Sole (only after) */}
-      {isAfter && <circle cx="500" cy="60" r="28" fill="#fbbf24" opacity="0.7" />}
-      {/* Ground */}
-      <rect x="0" y="240" width="600" height="140" fill={ground} />
-      {/* House body */}
-      <polygon points="60,240 300,90 540,240" fill={wall} stroke={stroke} strokeWidth="2" />
-      <rect x="60" y="240" width="480" height="140" fill={wall} stroke={stroke} strokeWidth="2" />
-      {/* Door */}
-      <rect x="270" y="290" width="60" height="90" fill={frame} stroke={stroke} strokeWidth="2" />
-      <circle cx="320" cy="338" r="2.5" fill={isAfter ? "#fbbf24" : "#9aa6b2"} />
-      {/* Window left */}
-      <rect x="110" y="270" width="100" height="80" fill={frame} stroke={stroke} strokeWidth="2" />
-      <rect x="115" y="275" width="90" height="70" fill={glass} />
-      <line x1="160" y1="275" x2="160" y2="345" stroke={stroke} strokeWidth="2" />
-      <line x1="115" y1="310" x2="205" y2="310" stroke={stroke} strokeWidth="2" />
-      {/* Window right */}
-      <rect x="390" y="270" width="100" height="80" fill={frame} stroke={stroke} strokeWidth="2" />
-      <rect x="395" y="275" width="90" height="70" fill={glass} />
-      <line x1="440" y1="275" x2="440" y2="345" stroke={stroke} strokeWidth="2" />
-      <line x1="395" y1="310" x2="485" y2="310" stroke={stroke} strokeWidth="2" />
-      {/* Top window */}
-      <rect x="260" y="160" width="80" height="60" fill={frame} stroke={stroke} strokeWidth="2" />
-      <rect x="265" y="165" width="70" height="50" fill={glass} />
-      <line x1="300" y1="165" x2="300" y2="215" stroke={stroke} strokeWidth="2" />
-      {/* Shutters (only after) */}
-      {isAfter && (
-        <>
-          <rect x="95" y="270" width="14" height="80" fill="#1f2937" stroke="#0f172a" strokeWidth="1" />
-          <rect x="211" y="270" width="14" height="80" fill="#1f2937" stroke="#0f172a" strokeWidth="1" />
-          <rect x="375" y="270" width="14" height="80" fill="#1f2937" stroke="#0f172a" strokeWidth="1" />
-          <rect x="491" y="270" width="14" height="80" fill="#1f2937" stroke="#0f172a" strokeWidth="1" />
-        </>
-      )}
-    </svg>
-  );
-}
-
-function BeforeAfterSlider() {
-  const [pos, setPos] = useState(50);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-
-  const handleMove = (clientX: number) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = ((clientX - rect.left) / rect.width) * 100;
-    setPos(Math.max(2, Math.min(98, x)));
-  };
-
-  return (
-    <div
-      ref={containerRef}
-      className="group relative aspect-[16/10] w-full select-none overflow-hidden rounded-2xl border border-white/15 bg-slate-900 shadow-2xl"
-      onMouseDown={(e) => {
-        dragging.current = true;
-        handleMove(e.clientX);
-      }}
-      onMouseMove={(e) => {
-        if (dragging.current) handleMove(e.clientX);
-      }}
-      onMouseUp={() => {
-        dragging.current = false;
-      }}
-      onMouseLeave={() => {
-        dragging.current = false;
-      }}
-      onTouchStart={(e) => {
-        dragging.current = true;
-        handleMove(e.touches[0].clientX);
-      }}
-      onTouchMove={(e) => handleMove(e.touches[0].clientX)}
-      onTouchEnd={() => {
-        dragging.current = false;
-      }}
-    >
-      {/* AFTER (full) */}
-      <div className="absolute inset-0">
-        <HouseSvg variant="after" />
-      </div>
-      {/* BEFORE clipped */}
-      <div
-        className="absolute inset-0 overflow-hidden"
-        style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}
-      >
-        <HouseSvg variant="before" />
-      </div>
-      {/* Labels */}
-      <div className="absolute left-4 top-4 rounded-md bg-slate-900/80 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white backdrop-blur">
-        Prima
-      </div>
-      <div className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-md bg-[#F97415] px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white shadow-md">
-        <Sparkles className="h-3 w-3" />
-        Dopo · AI
-      </div>
-      {/* Divider */}
-      <div
-        className="absolute inset-y-0 w-1 bg-white shadow-[0_0_20px_rgba(255,255,255,0.6)]"
-        style={{ left: `calc(${pos}% - 2px)` }}
-      />
-      <button
-        type="button"
-        aria-label="Trascina per confrontare prima e dopo"
-        className="absolute top-1/2 z-10 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full bg-white text-[#0f172a] shadow-lg ring-4 ring-white/40 transition active:cursor-grabbing group-hover:scale-105"
-        style={{ left: `${pos}%` }}
-        onMouseDown={(e) => {
-          dragging.current = true;
-          handleMove(e.clientX);
-          e.stopPropagation();
-        }}
-      >
-        <MousePointerClick className="h-5 w-5" />
-      </button>
-      {/* Hint */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-slate-900/75 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white backdrop-blur">
-        Trascina per confrontare
-      </div>
-    </div>
-  );
-}
-
-/* ================================================================== */
 /* VIDEO DEMO — placeholder, swap il src con il video reale            */
 /* ================================================================== */
 
@@ -559,7 +415,7 @@ const renderFamily = [
 /* ROI Calculator                                                      */
 /* ================================================================== */
 
-function RoiCalculator() {
+function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
   const [preventiviMese, setPreventiviMese] = useState(20);
   const [ticketMedio, setTicketMedio] = useState(8000);
   const [closeRateAttuale, setCloseRateAttuale] = useState(25);
@@ -682,13 +538,14 @@ function RoiCalculator() {
             </div>
           </div>
 
-          <Link
-            to="/demo"
+          <button
+            type="button"
+            onClick={onRequestInfo}
             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
           >
             Sblocca il render gratis
             <ArrowRight className="h-4 w-4" />
-          </Link>
+          </button>
         </div>
       </div>
     </div>
@@ -790,6 +647,8 @@ function DashboardMock() {
 /* ================================================================== */
 
 export default function RenderInfissi() {
+  const [leadModalOpen, setLeadModalOpen] = useState(false);
+  const openLeadModal = () => setLeadModalOpen(true);
   useSEO({
     title:
       "Render Infissi AI per Serramentisti",
@@ -1011,7 +870,7 @@ export default function RenderInfissi() {
           </p>
           <p>
             <strong>Provala con onboarding 1-a-1 incluso.</strong>
-            <a href="/demo">Prova la demo</a> ·
+            <a href="#render-request">Richiedi informazioni</a> ·
             <a href="/per/serramentisti">Software per Serramentisti</a> ·
             <a href="/funzionalita">Tutte le funzionalità</a> ·
             <a href="/prezzi">Prezzi</a>
@@ -1119,13 +978,14 @@ export default function RenderInfissi() {
             </p>
 
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link
-                to="/demo"
+              <button
+                type="button"
+                onClick={openLeadModal}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-950/30 transition hover:bg-[#D95E0B] sm:w-auto"
               >
                 Prova GRATIS il Render AI
                 <ArrowRight className="h-5 w-5" />
-              </Link>
+              </button>
               <a
                 href="#video-demo"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/25 bg-white/10 px-7 py-4 text-base font-bold text-white transition hover:bg-white/15 sm:w-auto"
@@ -1144,11 +1004,30 @@ export default function RenderInfissi() {
               ))}
             </div>
 
-            {/* HERO IMAGE — sotto i bottoni, full-width centered */}
-            <div className="mx-auto mt-12 max-w-5xl">
-              <BeforeAfterSlider />
-              <p className="mt-3 text-center text-[11px] font-medium uppercase tracking-wider text-white/50">
-                Esempio dimostrativo · Il render reale parte dalla foto del cliente
+            {/* HERO IMAGE — caso reale Demo Azienda */}
+            <div className="mx-auto mt-12 w-full max-w-md sm:max-w-xl lg:max-w-[520px] xl:max-w-[560px]">
+              <div className="overflow-hidden rounded-[28px] border border-white/12 bg-white/6 p-3 shadow-[0_30px_80px_rgba(15,23,42,0.38)] backdrop-blur-sm sm:p-4">
+                <RenderBeforeAfterSlider
+                  beforeUrl={HERO_BEFORE_IMAGE}
+                  afterUrl={HERO_AFTER_IMAGE}
+                  beforeLabel="Foto cliente"
+                  afterLabel="Render AI infissi"
+                  className="rounded-[22px] bg-slate-950/70"
+                />
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55 sm:text-xs">
+                <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1.5">
+                  Caso reale Demo Azienda
+                </span>
+                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-emerald-100/90">
+                  Foto originale del cliente
+                </span>
+                <span className="rounded-full border border-orange-400/20 bg-orange-400/10 px-3 py-1.5 text-orange-100/90">
+                  Render finale usato nel prima/dopo
+                </span>
+              </div>
+              <p className="mt-3 text-center text-[11px] font-medium leading-5 text-white/50 sm:text-xs">
+                Qui non stai vedendo una mockup generica: è un prima/dopo reale preso dall&apos;area render della Demo Azienda S.r.l.
               </p>
             </div>
 
@@ -1220,13 +1099,14 @@ export default function RenderInfissi() {
                 Quando i 100 posti saranno chiusi, il prezzo sale.
               </p>
             </div>
-            <Link
-              to="/demo"
+            <button
+              type="button"
+              onClick={openLeadModal}
               className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-6 py-4 text-base font-extrabold text-[#D95E0B] shadow-lg transition hover:bg-orange-50"
             >
               Riserva il tuo posto
               <ArrowRight className="h-5 w-5" />
-            </Link>
+            </button>
           </div>
         </section>
 
@@ -1352,13 +1232,14 @@ export default function RenderInfissi() {
                     Accedi a tutti i moduli con un unico abbonamento. Nuove categorie aggiunte
                     senza costi extra.
                   </p>
-                  <Link
-                    to="/demo"
+                  <button
+                    type="button"
+                    onClick={openLeadModal}
                     className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-4 py-2.5 text-xs font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
                   >
                     Sblocca tutta la suite
                     <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1477,13 +1358,14 @@ export default function RenderInfissi() {
             </div>
 
             <div className="mt-10 text-center">
-              <Link
-                to="/demo"
+              <button
+                type="button"
+                onClick={openLeadModal}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#0f172a] px-7 py-4 text-sm font-extrabold text-white transition hover:bg-[#1e293b]"
               >
                 Provalo gratis sulla foto del tuo cliente
                 <ArrowRight className="h-4 w-4" />
-              </Link>
+              </button>
             </div>
           </div>
         </section>
@@ -1581,13 +1463,14 @@ export default function RenderInfissi() {
             </div>
 
             <div className="mt-10 text-center">
-              <Link
-                to="/demo"
+              <button
+                type="button"
+                onClick={openLeadModal}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-[#D95E0B]"
               >
                 Apri la tua dashboard di prova
                 <ArrowRight className="h-5 w-5" />
-              </Link>
+              </button>
             </div>
           </div>
         </section>
@@ -1609,7 +1492,7 @@ export default function RenderInfissi() {
               </p>
             </div>
             <div className="mt-10">
-              <RoiCalculator />
+              <RoiCalculator onRequestInfo={openLeadModal} />
             </div>
             <p className="mt-4 text-center text-xs leading-6 text-slate-500">
               Stima indicativa basata su benchmark di settore. Il risultato reale dipende da prodotto,
@@ -1796,25 +1679,44 @@ export default function RenderInfissi() {
                   title: "Chi Siamo",
                   text: "Edilizia in Cloud: il team italiano che costruisce il gestionale per le imprese edili.",
                 },
-              ].map((link) => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md"
-                >
-                  <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-[#D95E0B]">
-                    {link.title}
-                    <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                  </span>
-                  <span className="mt-2 text-sm leading-6 text-slate-600">{link.text}</span>
-                </Link>
-              ))}
+              ].map((link) => {
+                if (link.to === "/demo") {
+                  return (
+                    <button
+                      key={`${link.title}-render-lead`}
+                      type="button"
+                      onClick={openLeadModal}
+                      className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md"
+                    >
+                      <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-[#D95E0B]">
+                        {link.title}
+                        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                      </span>
+                      <span className="mt-2 text-sm leading-6 text-slate-600">{link.text}</span>
+                    </button>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md"
+                  >
+                    <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-[#D95E0B]">
+                      {link.title}
+                      <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                    </span>
+                    <span className="mt-2 text-sm leading-6 text-slate-600">{link.text}</span>
+                  </Link>
+                );
+              })}
             </nav>
           </div>
         </section>
 
         {/* Final CTA */}
-        <section aria-labelledby="final-cta-title" className="bg-[#0b1220] px-6 py-20 text-center text-white">
+        <section id="render-request" aria-labelledby="final-cta-title" className="bg-[#0b1220] px-6 py-20 text-center text-white">
           <div className="mx-auto max-w-3xl">
             <Wand2 className="mx-auto h-10 w-10 text-orange-300" />
             <h2 id="final-cta-title" className="mt-5 text-3xl font-black tracking-tight sm:text-4xl">
@@ -1826,13 +1728,14 @@ export default function RenderInfissi() {
               soltanto sul prezzo.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3">
-              <Link
-                to="/demo"
+              <button
+                type="button"
+                onClick={openLeadModal}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-8 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/30 transition hover:bg-[#D95E0B]"
               >
                 Prova GRATIS il Render AI
                 <ArrowRight className="h-5 w-5" />
-              </Link>
+              </button>
               <p className="text-xs font-medium text-slate-400">
                 Setup in 60 secondi · Onboarding 1-a-1 · Cancelli quando vuoi
               </p>
@@ -1843,18 +1746,20 @@ export default function RenderInfissi() {
 
       {/* STICKY MOBILE CTA */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
-        <Link
-          to="/demo"
+        <button
+          type="button"
+          onClick={openLeadModal}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
         >
           Prova GRATIS il Render AI
           <ArrowRight className="h-4 w-4" />
-        </Link>
+        </button>
         <p className="mt-1 text-center text-[10px] font-semibold text-slate-500">
           Onboarding incluso · Cancelli quando vuoi
         </p>
       </div>
 
+      <RenderLeadModal slug="render-infissi" open={leadModalOpen} onOpenChange={setLeadModalOpen} />
       <LandingFooter />
     </div>
   );

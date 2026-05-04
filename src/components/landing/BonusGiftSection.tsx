@@ -80,7 +80,8 @@ export default function BonusGiftSection() {
 
           {/* Scarcity text */}
           <p className="text-[#111111]/60 text-sm mt-4">
-            Dopo il <strong className="text-[#111111]">{lastDay} {meseCorrente} {anno}</strong>, il corso tornerà in vendita a{" "}
+            Prova gratuita di 31 giorni e corso bonus disponibili per chi fa richiesta entro il{" "}
+            <strong className="text-[#111111]">{lastDay} {meseCorrente} {anno}</strong>. Dopo, il corso tornerà in vendita a{" "}
             <span className="line-through text-red-500 font-bold">497€</span>
           </p>
         </div>

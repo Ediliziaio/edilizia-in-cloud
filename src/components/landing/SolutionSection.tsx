@@ -1,7 +1,6 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Target, TrendingUp, Shield, PieChart, BarChart3, ArrowUpRight } from "lucide-react";
 import FloatingEdiliziaIcons from "./FloatingEdiliziaIcons";
-import AIImage from "./AIImage";
 
 // Pre-calculated bar heights to avoid Math.random() in render
 const BAR_HEIGHTS = [32, 48, 25, 55, 38, 42, 28, 52, 35, 45, 30, 58, 40, 22, 50, 36, 46, 33];
@@ -45,7 +44,7 @@ export default function SolutionSection() {
           Edilizia in Cloud risponde alle 3 domande che ogni imprenditore edile dovrebbe poter vedere in tempo reale — da qualsiasi dispositivo, in qualsiasi momento.
         </p>
 
-        <div className="grid md:grid-cols-[1fr_280px] gap-8 mb-16">
+        <div className="grid md:grid-cols-[1fr_320px] gap-8 mb-16">
           <div className="grid md:grid-cols-3 gap-6">
             {questions.map((q, i) => (
               <div
@@ -65,10 +64,14 @@ export default function SolutionSection() {
           </div>
 
           <div className="hidden md:flex items-center">
-            <AIImage
-              prompt="Dashboard digitale moderna su tablet con grafici a barre e linee colorati, cantiere edile sullo sfondo sfocato con gru, stile illustrazione flat professionale, palette teal e navy, aspetto pulito e moderno"
-              alt="Dashboard su tablet in cantiere"
-              className="w-full"
+            <img
+              src="/landing/solution-dashboard-control.png"
+              alt="Imprenditore edile che controlla margini, cassa e perdite su dashboard"
+              width={1024}
+              height={1536}
+              loading="lazy"
+              decoding="async"
+              className="w-full rounded-3xl border border-white/10 object-cover shadow-2xl shadow-black/30"
             />
           </div>
         </div>

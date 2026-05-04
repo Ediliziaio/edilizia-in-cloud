@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import LandingFooter from "@/components/landing/LandingFooter";
 import LandingNavbar from "@/components/landing/LandingNavbar";
+import { RenderLeadModal } from "@/components/render/RenderLeadModal";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SITE_URL, useSEO } from "@/hooks/useSEO";
 import type { RenderPageConfig } from "./types";
@@ -299,6 +300,7 @@ function RoiCalculator({
   ticketMin,
   ticketMax,
   ticketStep,
+  onRequestInfo,
 }: {
   preventiviLabel: string;
   ticketLabel: string;
@@ -306,6 +308,7 @@ function RoiCalculator({
   ticketMin: number;
   ticketMax: number;
   ticketStep: number;
+  onRequestInfo: () => void;
 }) {
   const [preventiviMese, setPreventiviMese] = useState(20);
   const [ticketMedio, setTicketMedio] = useState(ticketDefault);
@@ -433,13 +436,14 @@ function RoiCalculator({
             </div>
           </div>
 
-          <Link
-            to="/demo"
+          <button
+            type="button"
+            onClick={onRequestInfo}
             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
           >
             Sblocca il render in demo
             <ArrowRight className="h-4 w-4" />
-          </Link>
+          </button>
         </div>
       </div>
     </div>
@@ -536,6 +540,8 @@ function DashboardMock() {
 /* MAIN PAGE TEMPLATE                                                  */
 /* ================================================================== */
 export default function RenderPageTemplate({ config }: { config: RenderPageConfig }) {
+  const [leadModalOpen, setLeadModalOpen] = useState(false);
+  const openLeadModal = () => setLeadModalOpen(true);
   useSEO({
     title: config.seo.title,
     description: config.seo.description,
@@ -710,7 +716,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
           <p>{config.heroSubheadline}</p>
           <p>
             <strong>Provala con onboarding 1-a-1 incluso.</strong>
-            <a href="/demo">Prova la demo</a> ·
+            <a href="#render-request">Richiedi informazioni</a> ·
             <a href="/funzionalita">Tutte le funzionalità</a> ·
             <a href="/prezzi">Prezzi</a>
           </p>
@@ -765,13 +771,14 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
             </p>
 
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link
-                to="/demo"
+              <button
+                type="button"
+                onClick={openLeadModal}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-950/30 transition hover:bg-[#D95E0B] sm:w-auto"
               >
                 {config.heroPrimaryCta || "Prova GRATIS la Demo"}
                 <ArrowRight className="h-5 w-5" />
-              </Link>
+              </button>
               <a
                 href="#video-demo"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/25 bg-white/10 px-7 py-4 text-base font-bold text-white transition hover:bg-white/15 sm:w-auto"
@@ -853,13 +860,14 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
               </h2>
               <p className="mt-3 text-base leading-7 text-orange-50">{config.betaBody}</p>
             </div>
-            <Link
-              to="/demo"
+            <button
+              type="button"
+              onClick={openLeadModal}
               className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-6 py-4 text-base font-extrabold text-[#D95E0B] shadow-lg transition hover:bg-orange-50"
             >
               Riserva il tuo posto
               <ArrowRight className="h-5 w-5" />
-            </Link>
+            </button>
           </div>
         </section>
 
@@ -980,13 +988,14 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                   </div>
                   <h3 className="mt-5 text-xl font-black">{config.familyBonusTitle}</h3>
                   <p className="mt-2 text-sm leading-7 text-slate-300">{config.familyBonusText}</p>
-                  <Link
-                    to="/demo"
+                  <button
+                    type="button"
+                    onClick={openLeadModal}
                     className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-4 py-2.5 text-xs font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
                   >
                     Sblocca tutta la suite
                     <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1100,13 +1109,14 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
             </div>
 
             <div className="mt-10 text-center">
-              <Link
-                to="/demo"
+              <button
+                type="button"
+                onClick={openLeadModal}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#0f172a] px-7 py-4 text-sm font-extrabold text-white transition hover:bg-[#1e293b]"
               >
                 {config.mechanismCta}
                 <ArrowRight className="h-4 w-4" />
-              </Link>
+              </button>
             </div>
           </div>
         </section>
@@ -1191,13 +1201,14 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
             </div>
 
             <div className="mt-10 text-center">
-              <Link
-                to="/demo"
+              <button
+                type="button"
+                onClick={openLeadModal}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-[#D95E0B]"
               >
                 {config.resultsCta}
                 <ArrowRight className="h-5 w-5" />
-              </Link>
+              </button>
             </div>
           </div>
         </section>
@@ -1223,6 +1234,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                 ticketMin={roiDefaults.min}
                 ticketMax={roiDefaults.max}
                 ticketStep={roiDefaults.step}
+                onRequestInfo={openLeadModal}
               />
             </div>
             <p className="mt-4 text-center text-xs leading-6 text-slate-500">
@@ -1366,25 +1378,45 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
               aria-label="Pagine correlate"
               className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3"
             >
-              {config.internalLinks.map((link) => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md"
-                >
-                  <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-[#D95E0B]">
-                    {link.title}
-                    <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                  </span>
-                  <span className="mt-2 text-sm leading-6 text-slate-600">{link.text}</span>
-                </Link>
-              ))}
+              {config.internalLinks.map((link) => {
+                if (link.to === "/demo") {
+                  return (
+                    <button
+                      key={`${link.title}-render-lead`}
+                      type="button"
+                      onClick={openLeadModal}
+                      className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md"
+                    >
+                      <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-[#D95E0B]">
+                        {link.title}
+                        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                      </span>
+                      <span className="mt-2 text-sm leading-6 text-slate-600">{link.text}</span>
+                    </button>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={`${link.title}-${link.to}`}
+                    to={link.to}
+                    className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md"
+                  >
+                    <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-[#D95E0B]">
+                      {link.title}
+                      <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                    </span>
+                    <span className="mt-2 text-sm leading-6 text-slate-600">{link.text}</span>
+                  </Link>
+                );
+              })}
             </nav>
           </div>
         </section>
 
         {/* FINAL CTA */}
         <section
+          id="render-request"
           aria-labelledby="final-cta-title"
           className="bg-[#0b1220] px-6 py-20 text-center text-white"
         >
@@ -1398,13 +1430,14 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
             </h2>
             <p className="mt-5 text-lg leading-8 text-slate-300">{config.finalCtaBody}</p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3">
-              <Link
-                to="/demo"
+              <button
+                type="button"
+                onClick={openLeadModal}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-8 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/30 transition hover:bg-[#D95E0B]"
               >
                 {config.finalCtaButton}
                 <ArrowRight className="h-5 w-5" />
-              </Link>
+              </button>
               <p className="text-xs font-medium text-slate-400">{config.finalCtaMicrocopy}</p>
             </div>
           </div>
@@ -1413,18 +1446,20 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
 
       {/* STICKY MOBILE CTA */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
-        <Link
-          to="/demo"
+        <button
+          type="button"
+          onClick={openLeadModal}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
         >
           {config.stickyCtaLabel}
           <ArrowRight className="h-4 w-4" />
-        </Link>
+        </button>
         <p className="mt-1 text-center text-[10px] font-semibold text-slate-500">
           {config.stickyCtaMicrocopy}
         </p>
       </div>
 
+      <RenderLeadModal slug={config.slug} open={leadModalOpen} onOpenChange={setLeadModalOpen} />
       <LandingFooter />
     </div>
   );

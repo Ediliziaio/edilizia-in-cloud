@@ -291,6 +291,7 @@ const App = () => (
             <Routes>
               {/* Public Routes */}
               <Route path="/home" element={<Navigate to="/" replace />} />
+              <Route path="/register" element={<Navigate to="/demo" replace />} />
               <Route path="/demo" element={<Demo />} />
               <Route path="/funzionalita" element={<Funzionalita />} />
               <Route path="/chi-siamo" element={<ChiSiamo />} />

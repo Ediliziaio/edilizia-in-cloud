@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
+import { submitPublicLeadToCrm } from "@/lib/publicLeadSubmit";
 import { useSEO, SITE_URL } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
@@ -266,18 +267,15 @@ export default function PianificaMigrazione() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const mod = await import("@/integrations/supabase/client");
-      const { error } = await mod.supabase.from("demo_requests").insert({
+      await submitPublicLeadToCrm({
         nome: form.nome.trim(),
-        email: form.email.trim().toLowerCase(),
-        telefono: form.telefono.trim(),
-        azienda: form.azienda.trim(),
+        email: form.email,
+        telefono: form.telefono,
+        azienda: form.azienda,
         messaggio: `[MIGRAZIONE] Software attuale: ${form.software_attuale} | Cantieri: ${form.num_cantieri} | Anni dati: ${form.anni_dati || "—"} | Note: ${form.note.trim() || "—"}`,
-        marketing_consent: form.marketing,
         source: "pianifica_migrazione",
-        status: "pending",
+        marketing_consent: form.marketing,
       });
-      if (error) throw error;
       setSubmitted(true);
     } catch (err) {
       console.error("[pianifica-migrazione] submit error", err);

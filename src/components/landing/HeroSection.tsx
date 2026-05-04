@@ -371,7 +371,7 @@ export default function HeroSection() {
         >
           <div className="flex items-center gap-2 text-white/70 text-xs md:text-sm">
             <Users size={16} className="text-[#F97415]" />
-            <span>200+ Imprese Attive</span>
+            <span>150+ Imprese Attive</span>
           </div>
           <div className="hidden sm:block w-px h-4 bg-white/20" />
           <div className="flex items-center gap-1.5 text-white/70 text-xs md:text-sm">

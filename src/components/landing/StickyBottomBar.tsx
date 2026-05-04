@@ -71,7 +71,7 @@ export default function StickyBottomBar() {
         <p className="flex items-center gap-2 text-center text-xs font-medium leading-snug md:text-sm">
           <ShieldCheck size={18} className="shrink-0 text-[#F97415]" />
           <span>
-            🚀 <strong>Inizia gratis 31 giorni</strong>
+            🚀 <strong>31 giorni gratis</strong> disponibili solo se richiedi entro la scadenza
           </span>
         </p>
 

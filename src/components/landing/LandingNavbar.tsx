@@ -634,7 +634,7 @@ export default function LandingNavbar() {
               {/* Bottom CTA strip */}
               <div className="mt-7 pt-5 border-t border-gray-100 flex items-center justify-between">
                 <p className="text-sm font-semibold text-[#111111]">
-                  Scelto da 1.000+ imprese edili italiane.
+                  Scelto da 150+ imprese edili italiane.
                 </p>
                 <Link
                   to="/casi-studio"

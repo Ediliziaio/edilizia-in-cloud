@@ -329,7 +329,7 @@ export default function CasiStudio() {
             <div className="flex flex-col sm:flex-row sm:flex-wrap justify-center items-center gap-3 sm:gap-6">
               {[
                 { Icon: Users, label: "150+ imprese attive" },
-                { Icon: BarChart3, label: "€12M+ fatturato gestito" },
+                { Icon: BarChart3, label: "ROI medio 10x" },
                 { Icon: TrendingUp, label: "4.9/5 soddisfazione" },
               ].map(({ Icon, label }, i) => (
                 <span key={i} className="flex items-center gap-2 text-white/60 text-sm"><Icon size={14} className="text-[#F97415]" />{label}</span>

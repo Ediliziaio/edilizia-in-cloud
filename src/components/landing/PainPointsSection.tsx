@@ -1,6 +1,5 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { AlertTriangle, TrendingDown, Clock, FileQuestion, Users, Wallet, BarChart3 } from "lucide-react";
-import AIImage from "./AIImage";
 
 const painPoints = [
   { icon: TrendingDown, text: "Fatturi 500.000€, anche 1 milione — ma a fine anno sul conto non c'è quasi nulla. Dove sono finiti i soldi?" },
@@ -33,7 +32,7 @@ export default function PainPointsSection() {
           Se sì, stai lasciando soldi sul tavolo ogni settimana. Non è colpa tua — nessuno ti ha mai dato gli strumenti giusti per gestire un'impresa edile.
         </p>
 
-        <div className="grid md:grid-cols-[1fr_320px] gap-10 items-start">
+        <div className="grid md:grid-cols-[1fr_360px] lg:grid-cols-[1fr_400px] gap-10 items-stretch">
           <div className="space-y-4">
             {painPoints.map((p, i) => (
               <div
@@ -51,11 +50,19 @@ export default function PainPointsSection() {
             ))}
           </div>
 
-          <div className="hidden md:block sticky top-24">
-            <AIImage
-              prompt="Imprenditore edile italiano stressato seduto alla scrivania piena di fogli, fatture e calcolatrice, stile illustrazione moderna minimalista flat, palette navy blue e teal, sfondo bianco pulito, aspetto professionale"
-              alt="Imprenditore stressato dai conti"
-              className="w-full rounded-2xl"
+          <div
+            className={`hidden md:block h-full min-h-[720px] transition-all duration-700 delay-300 ${
+              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+            }`}
+          >
+            <img
+              src="/landing/pain-points-edilizia.png"
+              alt="Imprenditore edile che controlla margini, cassa e costi di cantiere"
+              width={1024}
+              height={1024}
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full rounded-3xl border border-gray-100 object-cover object-[72%_center] shadow-sm"
             />
           </div>
         </div>

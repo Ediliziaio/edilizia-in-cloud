@@ -4,12 +4,13 @@
  * openContactModal() (evento custom "open-contact-modal").
  *
  * Form essenziale (nome, email, telefono, azienda) + 2 consensi GDPR.
- * Persistenza: tenta insert su Supabase (`demo_requests`); se fallisce, fallback
- * a redirect su /demo con i dati prefilled via querystring.
+ * Persistenza: invia alla funzione pubblica che salva la richiesta e crea/aggiorna
+ * il contatto nel CRM.
  */
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { X, Send, CheckCircle2, Loader2 } from "lucide-react";
+import { submitPublicLeadToCrm } from "@/lib/publicLeadSubmit";
 
 export function openContactModal() {
   if (typeof window !== "undefined") {
@@ -103,21 +104,14 @@ export default function QuickContactModal() {
     if (!validate()) return;
     setSubmitting(true);
     try {
-      // Tentativo invio diretto a Supabase (best-effort, fallback a redirect)
-      try {
-        const mod = await import("@/integrations/supabase/client");
-        await mod.supabase.from("demo_requests").insert({
-          nome: form.nome,
-          email: form.email.toLowerCase(),
-          telefono: form.telefono,
-          azienda: form.azienda,
-          marketing_consent: form.marketing,
-          source: "home_quick_modal",
-          status: "pending",
-        });
-      } catch {
-        /* fallback silenzioso: il redirect su /demo cattura comunque */
-      }
+      await submitPublicLeadToCrm({
+        nome: form.nome,
+        email: form.email,
+        telefono: form.telefono,
+        azienda: form.azienda,
+        source: "home_quick_modal",
+        marketing_consent: form.marketing,
+      });
       setSubmitted(true);
     } catch {
       setSubmitted(true);

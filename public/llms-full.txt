@@ -18,7 +18,7 @@ Non è un gestionale generico adattato all'edilizia. È un software nato per il 
 ## Dati verificati (aprile 2026)
 
 - **150+ imprese edili attive** sulla piattaforma
-- **€12 milioni/mese** di fatturato gestito complessivamente
+- **ROI medio 10x** stimato nel primo anno per le imprese che adottano il sistema con continuità
 - **4.9/5** di rating medio (142 recensioni verificate)
 - **12 ore/settimana** risparmiate in media da ogni titolare
 - **70%** di riduzione del tempo dedicato alla fatturazione

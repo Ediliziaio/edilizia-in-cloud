@@ -1,30 +1,17 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import { blogPosts } from "@/data/blogPosts";
 import { Clock, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
-const articles = [
-  {
-    slug: "calcolare-margine-reale-cantiere-edile",
-    title: "Come calcolare il margine reale di un cantiere edile",
-    excerpt:
-      "La formula che usano le imprese edili italiane più redditizie per non confondere mai più il fatturato con il guadagno reale.",
-    minutes: 5,
-  },
-  {
-    slug: "durc-cassa-edile-guida-2026",
-    title: "DURC e Cassa Edile: guida pratica 2026",
-    excerpt:
-      "Scadenze, controlli automatici e come evitare il blocco dei pagamenti negli appalti pubblici e privati.",
-    minutes: 7,
-  },
-  {
-    slug: "pnrr-bonus-110-rendicontazione-digitale",
-    title: "PNRR e bonus 110: digitalizzare la rendicontazione",
-    excerpt:
-      "Cosa serve oggi per gestire pratiche complesse senza perdere documenti, scadenze e crediti d'imposta.",
-    minutes: 6,
-  },
+const featuredSlugs = [
+  "cassa-impresa-edile-non-torna",
+  "analisi-margini-imprese-edili",
+  "gestire-piu-cantieri-contemporaneamente",
 ];
+
+const articles = featuredSlugs
+  .map((slug) => blogPosts.find((post) => post.slug === slug))
+  .filter(Boolean);
 
 export default function BlogTeaserSection() {
   const { ref, isVisible } = useScrollAnimation();
@@ -59,7 +46,7 @@ export default function BlogTeaserSection() {
             >
               <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
                 <Clock className="w-3.5 h-3.5" />
-                <span>{a.minutes} min di lettura</span>
+                <span>{a.readTime} min di lettura</span>
               </div>
               <h3 className="text-lg font-bold text-[#111111] mb-3 leading-snug group-hover:text-[#F97415] transition-colors">
                 {a.title}

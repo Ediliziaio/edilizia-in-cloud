@@ -4,7 +4,6 @@ import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import HeroSection from "@/components/landing/HeroSection";
-import TrustBar from "@/components/landing/TrustBar";
 import StatsSection from "@/components/landing/StatsSection";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import { Link } from "react-router-dom";
@@ -21,7 +20,6 @@ const IntegrationsTeaserSection = lazy(() => import("@/components/landing/Integr
 const FeatureShowcaseSection = lazy(() => import("@/components/landing/FeatureShowcaseSection"));
 const VideoSection = lazy(() => import("@/components/landing/VideoSection"));
 const ComparisonSection = lazy(() => import("@/components/landing/ComparisonSection"));
-const CaseStudyTeaserSection = lazy(() => import("@/components/landing/CaseStudyTeaserSection"));
 const ScenarioSection = lazy(() => import("@/components/landing/ScenarioSection"));
 const TestimonialsSection = lazy(() => import("@/components/landing/TestimonialsSection"));
 const TargetSection = lazy(() => import("@/components/landing/TargetSection"));
@@ -317,7 +315,6 @@ export default function Home() {
 
       <LandingNavbar />
       <HeroSection />
-      <TrustBar />
       <StatsSection />
       <HowItWorksSection />
 
@@ -333,7 +330,6 @@ export default function Home() {
         <BonusGiftSection />
         <VideoSection />
         <ComparisonSection />
-        <CaseStudyTeaserSection />
         <ScenarioSection />
         <TestimonialsSection />
         <TargetSection />
@@ -351,7 +347,7 @@ export default function Home() {
         <div className="max-w-5xl mx-auto px-6">
           <h2 className="text-lg font-bold text-[#111111] mb-4 text-center">Software Gestionale Edilizia per Città</h2>
           <p className="max-w-3xl mx-auto text-center text-sm md:text-base text-gray-600 mb-4 leading-relaxed">
-            Edilizia in Cloud è il software gestionale per imprese edili usato in tutta Italia: da Milano a Roma, da Napoli a Torino, abbiamo configurato il sistema per oltre 200 imprese edili nei principali capoluoghi italiani.
+            Edilizia in Cloud è il software gestionale per imprese edili usato in tutta Italia: da Milano a Roma, da Napoli a Torino, abbiamo configurato il sistema per oltre 150 imprese edili nei principali capoluoghi italiani.
           </p>
           <p className="text-center text-sm text-gray-500 mb-6">Scelto dalle imprese edili di tutta Italia</p>
           <div className="flex justify-center mb-4">

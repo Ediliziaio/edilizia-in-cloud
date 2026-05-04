@@ -1,24 +1,7 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import { getTimeLeft } from "@/lib/urgencyUtils";
 import { Building2, Shield, Clock, Star, ArrowRight } from "lucide-react";
 import { useState, useEffect } from "react";
-
-const OFFER_DURATION_SECONDS = 23 * 3600 + 47 * 60 + 12; // 23h 47m 12s
-
-function useCountdown(seconds: number) {
-  const [remaining, setRemaining] = useState(seconds);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setRemaining((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const hh = String(Math.floor(remaining / 3600)).padStart(2, "0");
-  const mm = String(Math.floor((remaining % 3600) / 60)).padStart(2, "0");
-  const ss = String(remaining % 60).padStart(2, "0");
-  return { hh, mm, ss };
-}
 
 // Icone edilizia floating
 const ctaIcons = [
@@ -34,7 +17,19 @@ const ctaIcons = [
 
 export default function FinalCtaSection() {
   const { ref, isVisible } = useScrollAnimation();
-  const { hh, mm, ss } = useCountdown(OFFER_DURATION_SECONDS);
+  const [timeLeft, setTimeLeft] = useState(getTimeLeft);
+
+  useEffect(() => {
+    const id = setInterval(() => setTimeLeft(getTimeLeft()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const countdownUnits = [
+    String(timeLeft.days).padStart(2, "0"),
+    String(timeLeft.hours).padStart(2, "0"),
+    String(timeLeft.minutes).padStart(2, "0"),
+    String(timeLeft.seconds).padStart(2, "0"),
+  ];
 
   return (
     <section
@@ -101,14 +96,16 @@ export default function FinalCtaSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >
-          <span className="text-white/70 text-sm font-medium">Offerta valida ancora per:</span>
+          <span className="text-white/70 text-sm font-medium">
+            Prova gratuita di 31 giorni disponibile se richiedi entro:
+          </span>
           <div className="flex items-center gap-1.5">
-            {[hh, mm, ss].map((unit, i) => (
+            {countdownUnits.map((unit, i) => (
               <div key={i} className="flex items-center gap-1.5">
                 <span className="inline-flex items-center justify-center w-12 h-10 rounded-lg bg-[#F97415]/10 border border-[#F97415]/20 text-[#F97415] font-mono font-bold text-lg">
                   {unit}
                 </span>
-                {i < 2 && <span className="text-[#F97415]/60 font-bold text-lg">:</span>}
+                {i < countdownUnits.length - 1 && <span className="text-[#F97415]/60 font-bold text-lg">:</span>}
               </div>
             ))}
           </div>
@@ -128,7 +125,7 @@ export default function FinalCtaSection() {
           </div>
 
           <p className="text-white/60 text-base mb-8 font-medium">
-            Demo gratuita. Setup in 48h. Nessun impegno.
+            Demo gratuita. Prova 31 giorni riservata alle richieste entro la scadenza. Nessun impegno.
           </p>
 
           {/* Buttons */}
