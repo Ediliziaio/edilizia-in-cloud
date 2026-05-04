@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Zap, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import type { WalletType } from "@/hooks/credits/useWallets";
 
 interface Props {
@@ -67,7 +68,11 @@ export function AutoTopupConfig({ walletType }: Props) {
     enabled: !!companyId,
   });
 
-  const [enabled, setEnabled] = useState(false);
+  // Default ON: ogni nuova company nasce con auto-topup attivo (trigger DB).
+  // Se per qualche motivo manca la riga, lo stato locale parte enabled=true
+  // cosi l'utente vede subito che e' un servizio attivo da disabilitare,
+  // non una feature opzionale da scoprire.
+  const [enabled, setEnabled] = useState(true);
   const [threshold, setThreshold] = useState("5");
   const [amount, setAmount] = useState("25");
 
@@ -141,17 +146,37 @@ export function AutoTopupConfig({ walletType }: Props) {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Quando il saldo scende sotto la soglia, ricarica automaticamente l'importo specificato
-          dalla carta salvata su Stripe.
+          <strong>Servizio attivo per default.</strong> Quando il saldo scende sotto
+          la soglia, ricarica automaticamente l'importo specificato dalla carta
+          salvata su Stripe. Disabilitalo solo se preferisci ricariche manuali.
         </p>
 
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={enabled}
-            onCheckedChange={setEnabled}
-            disabled={isLoading}
-          />
-          <Label className="text-sm">{enabled ? "Abilitato" : "Disabilitato"}</Label>
+        <div
+          className={cn(
+            "flex items-center justify-between gap-2 rounded-lg border p-2.5",
+            enabled
+              ? "border-emerald-200 bg-emerald-50/50"
+              : "border-amber-200 bg-amber-50/50",
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={enabled}
+              onCheckedChange={setEnabled}
+              disabled={isLoading}
+            />
+            <Label className={cn(
+              "text-sm font-medium",
+              enabled ? "text-emerald-900" : "text-amber-900",
+            )}>
+              {enabled ? "Auto-ricarica attiva" : "Auto-ricarica disattivata"}
+            </Label>
+          </div>
+          {!enabled && (
+            <span className="text-[11px] text-amber-700">
+              ⚠️ Rischio servizio sospeso
+            </span>
+          )}
         </div>
 
         {enabled && (
