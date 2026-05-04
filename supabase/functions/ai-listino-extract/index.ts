@@ -86,7 +86,15 @@ REGOLE:
 - Limita a max 500 righe per chiamata.
 - Rispondi SOLO con JSON valido. Nessun testo aggiuntivo.`;
 
-async function callOpenAI(apiKey: string, pdfBase64: string, objectType: string): Promise<{
+async function callOpenAI(
+  apiKey: string,
+  pdfBase64: string,
+  objectType: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  companyId: string | null,
+  userId: string | null,
+): Promise<{
   rows: any[];
   confidence: number;
   detected_supplier: string | null;
@@ -95,46 +103,76 @@ async function callOpenAI(apiKey: string, pdfBase64: string, objectType: string)
 }> {
   const userPrompt = `Estrai gli articoli da questo PDF (tipo: ${objectType}). Ritorna solo JSON.`;
 
-  // GPT-4o supporta PDF input tramite content.file (beta) o via immagini convertite.
-  // Qui usiamo l'endpoint chat.completions con documenti inline (formato OpenAI).
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o",
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+  // PDF input: passato come immagine multimodale (formato OpenAI vision-style).
+  // OpenRouter mappa automaticamente al formato del modello scelto.
+  const messages = [
+    { role: "system" as const, content: SYSTEM_PROMPT },
+    {
+      role: "user" as const,
+      content: [
+        { type: "text", text: userPrompt },
         {
-          role: "user",
-          content: [
-            { type: "text", text: userPrompt },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:application/pdf;base64,${pdfBase64}`,
-                detail: "high",
-              },
-            },
-          ],
+          type: "image_url",
+          image_url: {
+            url: `data:application/pdf;base64,${pdfBase64}`,
+            detail: "high",
+          },
         },
       ],
-      max_tokens: 8000,
-      temperature: 0.1,
-    }),
-  });
+    },
+  ];
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`OpenAI error ${response.status}: ${text}`);
+  // Tenta prima via AI Router (OpenRouter) — modello cost-optimized configurato
+  // dal SuperAdmin per task "listino_extract". Se OPENROUTER_API_KEY manca o
+  // tutti i modelli falliscono, fallback a OpenAI GPT-4o direttamente.
+  let content = "{}";
+  let tokensIn = 0;
+  let tokensOut = 0;
+
+  try {
+    const { aiRouterComplete } = await import("../_shared/aiRouter.ts");
+    const result = await aiRouterComplete({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: supabaseAdmin as any,
+      taskKey: "listino_extract",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      messages: messages as any,
+      params: { temperature: 0.1, max_tokens: 8000 },
+      responseFormat: { type: "json_object" },
+      companyId,
+      userId,
+    });
+    content = result.content;
+    tokensIn = result.promptTokens;
+    tokensOut = result.completionTokens;
+    console.log(`[ai-listino-extract] via aiRouter: model=${result.modelUsed} cost=$${result.costUsd.toFixed(6)}`);
+  } catch (routerErr) {
+    console.warn(`[ai-listino-extract] aiRouter failed, fallback to direct OpenAI:`, (routerErr as Error).message);
+    // Fallback: chiamata diretta a OpenAI (comportamento legacy)
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        response_format: { type: "json_object" },
+        messages,
+        max_tokens: 8000,
+        temperature: 0.1,
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`OpenAI error ${response.status}: ${text}`);
+    }
+    const json = await response.json();
+    content = json.choices?.[0]?.message?.content ?? "{}";
+    tokensIn = json.usage?.prompt_tokens ?? 0;
+    tokensOut = json.usage?.completion_tokens ?? 0;
   }
-  const json = await response.json();
-  const content = json.choices?.[0]?.message?.content ?? "{}";
-  const tokensIn = json.usage?.prompt_tokens ?? 0;
-  const tokensOut = json.usage?.completion_tokens ?? 0;
 
   let parsed: any = {};
   try {
@@ -236,7 +274,7 @@ serve(async (req: Request) => {
 
     const pdfBase64 = await downloadPdfBase64(supabaseAdmin, storagePath);
 
-    const extracted = await callOpenAI(openaiKey, pdfBase64, objectType);
+    const extracted = await callOpenAI(openaiKey, pdfBase64, objectType, supabaseAdmin, companyId, userId);
     const costCents = estimateCostCents(extracted.tokensIn, extracted.tokensOut);
 
     await logAiUsage(
