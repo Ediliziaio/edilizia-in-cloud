@@ -577,6 +577,59 @@ Deno.serve(async (req) => {
 
       drawTotal("TOTALE", `€ ${Number(quote.total || 0).toFixed(2)}`, true);
 
+      // ── Box Finanziamento (se presente nel preventivo) ─────────────
+      // I 6 campi quotes.financing_* vengono popolati dal QuoteBuilder
+      // quando l'utente attiva la proposta di finanziamento. Mostriamo
+      // un box evidenziato sotto il totale: "Oppure paga in NN rate da €X".
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fin = quote as any;
+      if (fin.financing_monthly_rate != null && fin.financing_num_installments) {
+        y -= 10;
+        const finBoxX = totX - 10;
+        const finBoxW = (totValX + 50) - finBoxX + 10;
+        const finBoxH = 56;
+        const finBoxY = y - finBoxH + 20;
+        const blueLight = rgb(0.94, 0.97, 1);
+        const blueAccent = rgb(0.15, 0.39, 0.92);
+        // Box con bordo blu evidenziato
+        page.drawRectangle({
+          x: finBoxX, y: finBoxY, width: finBoxW, height: finBoxH,
+          color: blueLight,
+          borderColor: blueAccent,
+          borderWidth: 1.5,
+        });
+        // Label
+        page.drawText("Oppure paga in comode rate mensili", {
+          x: finBoxX + 8, y: y + 8,
+          size: 8, font: fontBold, color: blueAccent,
+        });
+        // Rata grande
+        const rataStr = `€ ${Number(fin.financing_monthly_rate).toFixed(2)}`;
+        page.drawText(rataStr, {
+          x: finBoxX + 8, y: y - 8,
+          size: 18, font: fontBold, color: blueAccent,
+        });
+        // " × N rate"
+        page.drawText(`× ${fin.financing_num_installments} rate`, {
+          x: finBoxX + 8 + (rataStr.length * 9), y: y - 6,
+          size: 9, font: font, color: textC,
+        });
+        // Riga TAN/totale dovuto
+        const tan = fin.financing_calculation_json?.tan;
+        const totDue = Number(fin.financing_total_due ?? 0).toFixed(2);
+        const detailLine = `Tot. dovuto € ${totDue}${tan ? ` · TAN ${Number(tan).toFixed(2)}%` : ""}`;
+        page.drawText(detailLine, {
+          x: finBoxX + 8, y: y - 22,
+          size: 7.5, font: font, color: lightGrayC,
+        });
+        // Disclaimer
+        page.drawText("Proposta indicativa salvo approvazione della finanziaria.", {
+          x: finBoxX + 8, y: y - 32,
+          size: 6.5, font: font, color: lightGrayC,
+        });
+        y -= finBoxH + 5;
+      }
+
       // ── QR firma digitale ──────────────────────────────────────────
       if (!isPreview && (quote as any).firma_digitale_abilitata && (quote as any).signature_token) {
         try {
