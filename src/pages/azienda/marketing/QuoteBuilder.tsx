@@ -133,6 +133,10 @@ import {
   QuoteStepper,
   type QuoteStep,
 } from "@/components/marketing/preventivi/ui/builderUI";
+import {
+  QuoteFinancingPanel,
+  type FinancingProposal,
+} from "@/components/marketing/preventivi/QuoteFinancingPanel";
 
 // ─── Helper components ────────────────────────────────────────────────────────
 
@@ -647,6 +651,10 @@ export default function QuoteBuilder() {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
 
+  // Step 3 (Riepilogo): Finanziamento opzionale
+  // Persistito su quotes.financing_* (5 campi nullable, snapshot calcolo in JSON).
+  const [financingProposal, setFinancingProposal] = useState<FinancingProposal | null>(null);
+
   // Step 0: Client
   const [contactId, setContactId] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
@@ -958,6 +966,25 @@ export default function QuoteBuilder() {
     if (q.pdf_mostra_condizioni != null) setPdfCondizioni(q.pdf_mostra_condizioni as boolean);
     if (typeof q.pdf_watermark_text === "string") setPdfWatermarkText(q.pdf_watermark_text);
     if (typeof q.pdf_copia_destinatario === "string") setPdfCopiaDestinatario(q.pdf_copia_destinatario);
+
+    // Hydrate finanziamento se presente
+    if (q.financing_table_id && q.financing_num_installments && q.financing_monthly_rate != null) {
+      setFinancingProposal({
+        table_id: q.financing_table_id as string,
+        amount: Number(q.financing_amount ?? 0),
+        num_installments: Number(q.financing_num_installments),
+        monthly_rate: Number(q.financing_monthly_rate),
+        total_due: Number(q.financing_total_due ?? 0),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        calculation: (q.financing_calculation_json as any) ?? {
+          importo_richiesto: Number(q.financing_amount ?? 0),
+          numero_rate: Number(q.financing_num_installments),
+          modalita: "esatto",
+          importo_rata: Number(q.financing_monthly_rate),
+          importo_totale_dovuto: Number(q.financing_total_due ?? 0),
+        },
+      });
+    }
   }, [existingQuote, isEdit]);
 
   // Fetch lista commerciali attivi (per picker)
@@ -1720,6 +1747,16 @@ export default function QuoteBuilder() {
         discount_amount: discountAmt,
         vat_amount: vatAmount,
         total,
+        // ── Finanziamento (opzionale) ──
+        // Se l'utente disattiva il toggle, financingProposal e' null e tutti
+        // i campi vanno a null (rimuove il finanziamento da un preventivo
+        // esistente in edit).
+        financing_table_id: financingProposal?.table_id ?? null,
+        financing_amount: financingProposal?.amount ?? null,
+        financing_num_installments: financingProposal?.num_installments ?? null,
+        financing_monthly_rate: financingProposal?.monthly_rate ?? null,
+        financing_total_due: financingProposal?.total_due ?? null,
+        financing_calculation_json: financingProposal?.calculation ?? null,
       };
 
       let quoteId = id;
@@ -3434,6 +3471,20 @@ export default function QuoteBuilder() {
             )}
           </div>
         </QuoteCard>
+      )}
+
+      {/* ── Pannello Finanziamento (Step 3 — Riepilogo) ──────────────────
+          Mostrato dopo i totali del preventivo. Toggle off di default per
+          backward-compat. Quando attivo, calcola la rata reale dalle
+          tabelle finanziarie configurate (eic_tabelle_finanziamento). */}
+      {step === 3 && (
+        <div className="mt-4">
+          <QuoteFinancingPanel
+            quoteTotal={total}
+            value={financingProposal}
+            onChange={setFinancingProposal}
+          />
+        </div>
       )}
 
       {/* Sticky action bar (replica FvFooter) */}
