@@ -69,7 +69,8 @@ interface SystemDash {
 const SYSTEM_DASHBOARDS: SystemDash[] = [
   { id: "sys-aziendale", label: "Cruscotto Aziendale", url: "/azienda/cruscotto/aziendale", icon: LayoutGrid,  permKey: "canViewCruscotto"          },
   { id: "sys-gestione",  label: "Dashboard Gestione",  url: "/azienda",                     icon: HardHat,     permKey: "canViewDashboard"          },
-  { id: "sys-controllo", label: "Controllo di Gestione", url: "/azienda/controllo-gestione", icon: PieChart,   permKey: "canViewControlloGestione", featureKey: "controllo_gestione_v1" },
+  // Controllo di Gestione rimosso dal selector Cruscotto: non e' una dashboard
+  // ma un modulo dedicato con sidebar voce propria → l'utente lo trova li.
   { id: "sys-marketing", label: "Dashboard Marketing", url: "/azienda/marketing",            icon: TrendingUp,  permKey: "canViewMarketingDashboard" },
 ];
 
