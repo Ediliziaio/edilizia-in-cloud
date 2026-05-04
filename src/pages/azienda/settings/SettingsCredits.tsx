@@ -24,6 +24,7 @@ import { computeCreditForecast, formatDaysRemaining } from "@/lib/creditForecast
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
+import { EmailQuotaWidget } from "@/components/email-marketing/EmailQuotaWidget";
 
 interface WalletData {
   type: "email" | "ai" | "whatsapp" | "render";
@@ -471,6 +472,16 @@ export default function SettingsCredits() {
               </Card>
               );
             })}
+          </div>
+
+          {/* Quota email mensile (limite incluso nel piano subscription).
+              Diversa dal saldo crediti: e' il limite di invio mensile incluso. */}
+          <div>
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              <Mail className="h-3.5 w-3.5" />
+              Quota inclusa nel piano
+            </h2>
+            <EmailQuotaWidget />
           </div>
         </TabsContent>
 

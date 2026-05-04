@@ -7,8 +7,7 @@ import { BarChart3, Send, FileText, Mail } from "lucide-react";
 import { EmailStatsTab } from "@/components/email-marketing/EmailStatsTab";
 import { EmailCampaignsTab } from "@/components/email-marketing/EmailCampaignsTab";
 import { EmailTemplatesTab } from "@/components/email-marketing/EmailTemplatesTab";
-import { EmailCreditsWidget } from "@/components/email-marketing/EmailCreditsWidget";
-import { EmailQuotaWidget } from "@/components/email-marketing/EmailQuotaWidget";
+import { EmailCreditsBanner } from "@/components/email-marketing/EmailCreditsBanner";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 
 const EmailMarketing = () => {
@@ -50,10 +49,10 @@ const EmailMarketing = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <EmailCreditsWidget />
-        <EmailQuotaWidget />
-      </div>
+      {/* Banner riepilogo crediti — minimal, mostra alert solo se saldo basso o
+          quota superata. Saldo/Speso/Ricaricato + Quota mese sono nella pagina
+          dedicata Impostazioni → Crediti & Saldo (link in basso al banner). */}
+      <EmailCreditsBanner />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
