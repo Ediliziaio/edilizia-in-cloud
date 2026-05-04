@@ -183,12 +183,44 @@ function waitForPort(port, host = "127.0.0.1", timeoutMs = 30_000) {
 
 function startPreview() {
   const proc = spawn(
-    "npx", ["vite", "preview", "--port", String(PORT), "--strictPort", "--host", "127.0.0.1"],
-    { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"], env: process.env },
+    "npx",
+    [
+      "vite", "preview",
+      "--port", String(PORT),
+      "--strictPort",
+      "--host", "127.0.0.1",
+      "--logLevel", "error",
+    ],
+    {
+      cwd: ROOT,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: process.env,
+      // detached:true crea un process group nuovo, cosi possiamo killare
+      // l'INTERA progenie con process.kill(-pid). Senza questo, i child di npx
+      // (esbuild, vite worker) restano zombie anche dopo SIGTERM al parent.
+      detached: true,
+    },
   );
   proc.stdout.on("data", (d) => process.stdout.write(`[preview] ${d}`));
   proc.stderr.on("data", (d) => process.stderr.write(`[preview-err] ${d}`));
   return proc;
+}
+
+/**
+ * Killa il process group del vite preview con SIGKILL (force, non
+ * cancellabile). Su Linux: process.kill(-pid) targeta tutto il PG.
+ * Fallback a kill(pid) se -pid non funziona (Windows).
+ */
+function killPreviewHard(proc) {
+  if (!proc || proc.killed) return;
+  try {
+    if (typeof proc.pid === "number") {
+      // Process group kill (negative pid)
+      try { process.kill(-proc.pid, "SIGKILL"); } catch { /* ignore */ }
+    }
+    // Backup: direct kill
+    proc.kill("SIGKILL");
+  } catch { /* ignore */ }
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
@@ -308,7 +340,11 @@ async function main() {
     }
     await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
 
-    await browser.close();
+    // browser.close() puo' hangare su Linux/CI: timeout esplicito 10s.
+    await Promise.race([
+      browser.close(),
+      new Promise((r) => setTimeout(r, 10_000)),
+    ]);
 
     // Report finale
     console.log("\n────────────────────────────────────────");
@@ -319,21 +355,51 @@ async function main() {
     }
     if (fail > 0) process.exitCode = 1;
   } finally {
-    preview.kill("SIGTERM");
+    // SIGKILL del process group (vite preview + esbuild + tutti i child)
+    killPreviewHard(preview);
+    // Piccolo delay per dare tempo al kernel di propagare SIGKILL prima
+    // che Node esca e CF Pages chiuda lo step.
+    await new Promise((r) => setTimeout(r, 500));
   }
 }
 
+// ── Safety nets globali ──────────────────────────────────────────────────────
+
+// 1. Hard timeout: se per QUALSIASI ragione il main() impiega > 15 minuti,
+//    il processo si killa da solo. Su CF Pages (timeout build di 20 min) cosi
+//    almeno lo step "Building application" non resta MAI bloccato.
+const HARD_TIMEOUT_MS = 15 * 60 * 1000;
+const hardTimer = setTimeout(() => {
+  console.error(`✗ Hard timeout ${HARD_TIMEOUT_MS / 60000}min raggiunto — force exit`);
+  process.exit(process.env.CI || process.env.CF_PAGES ? 0 : 1);
+}, HARD_TIMEOUT_MS);
+hardTimer.unref(); // non tiene vivo l'event loop di per se
+
+// 2. Cleanup su qualsiasi forma di exit (Ctrl+C, kill, errore)
+function cleanupAndExit(code) {
+  clearTimeout(hardTimer);
+  // Dato il pattern detached:true del preview, su `process.exit()` Node non
+  // killa i child automaticamente. Qui non abbiamo riferimento al preview
+  // ma il kill diretto e' gia in main()'s finally{}. Uscita immediata.
+  process.exit(code);
+}
+process.on("SIGINT",  () => cleanupAndExit(130));
+process.on("SIGTERM", () => cleanupAndExit(143));
+
 main()
   .then(() => {
-    // Force-exit dopo successo: alcuni handle (browser child process,
-    // vite preview server) possono restare appesi e bloccare Node forever.
-    // Su CF Pages questo causava build "in_progress" infiniti.
+    clearTimeout(hardTimer);
+    // Force-exit: anche dopo finally{}, alcuni handle (browser, esbuild
+    // worker) possono restare aperti e bloccare l'event loop forever.
+    // process.exit() chiude TUTTO senza aspettare.
     process.exit(0);
   })
   .catch((e) => {
+    clearTimeout(hardTimer);
     console.error("Prerender errore fatale:", e);
     // Su CI (Cloudflare Pages, GitHub Actions) il prerender e' best-effort:
-    // se fallisce non bloccare il deploy.
+    // se fallisce non bloccare il deploy. Il sito viene servito come SPA
+    // classica (perde solo il prerender SEO per questa build).
     if (process.env.CI || process.env.CF_PAGES) {
       console.warn("⚠ CI detected — exit 0 per non bloccare il deploy. SEO prerender disabilitato per questa build.");
       process.exit(0);
