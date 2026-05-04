@@ -303,7 +303,7 @@ export default function QuoteDetail() {
                 </Table>
               )}
 
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex flex-col items-end gap-3">
                 <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 space-y-1.5 text-sm shadow-sm">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Subtotale</span>
@@ -325,6 +325,45 @@ export default function QuoteDetail() {
                     <span className="text-2xl tabular-nums text-orange-600">{formatCurrency(quote.total || 0)}</span>
                   </div>
                 </div>
+
+                {/* Proposta finanziamento (se presente) */}
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {(quote as any).financing_monthly_rate != null && (quote as any).financing_num_installments && (
+                  <div className="w-full max-w-sm rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-sm">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-blue-700">
+                      Oppure paga in comode rate mensili
+                    </p>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-extrabold tabular-nums text-blue-700">
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                        {formatCurrency((quote as any).financing_monthly_rate)}
+                      </span>
+                      <span className="text-sm text-slate-600">
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                        × {(quote as any).financing_num_installments} rate
+                      </span>
+                    </div>
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {(quote as any).financing_total_due != null && (
+                      <p className="mt-2 text-[11px] text-slate-500">
+                        Importo totale dovuto:{" "}
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                        <strong className="tabular-nums">{formatCurrency((quote as any).financing_total_due)}</strong>
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                        {(quote as any).financing_calculation_json?.tan && (
+                          <>
+                            {" · TAN "}
+                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                            {((quote as any).financing_calculation_json.tan).toFixed(2)}%
+                          </>
+                        )}
+                      </p>
+                    )}
+                    <p className="mt-2 text-[10px] italic text-slate-400">
+                      Proposta indicativa salvo approvazione della finanziaria.
+                    </p>
+                  </div>
+                )}
               </div>
           </QuoteCard>
 
