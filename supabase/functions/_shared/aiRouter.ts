@@ -1,0 +1,353 @@
+/**
+ * aiRouter — Shared lib per chiamare AI tramite OpenRouter con routing
+ * intelligente per task + logging + fallback automatico.
+ *
+ * Uso tipico:
+ *   import { aiRouterComplete } from "../_shared/aiRouter.ts";
+ *
+ *   const result = await aiRouterComplete({
+ *     supabase,                      // client Supabase admin
+ *     taskKey: "listino_extract",    // chiave task pre-configurata
+ *     messages: [                    // OpenAI-compatible
+ *       { role: "system", content: "..." },
+ *       { role: "user", content: "..." }
+ *     ],
+ *     companyId,                     // opzionale, per attribuzione
+ *     userId,                        // opzionale
+ *     // override opzionali:
+ *     params: { temperature: 0.0 },
+ *     responseFormat: { type: "json_object" },
+ *   });
+ *
+ *   // result.content       — testo risposta
+ *   // result.modelUsed     — modello che ha risposto (puo' essere fallback)
+ *   // result.tokensTotal   — token totali
+ *   // result.costUsd       — costo stimato
+ *   // result.usedPrimary   — boolean: true se primary, false se fallback
+ *
+ * Architettura:
+ *   1. Carica config da ai_router_config WHERE task_key = taskKey
+ *   2. Tenta primary_model
+ *   3. Se errore (rate limit, timeout, modello giu'), prova fallback_models in ordine
+ *   4. Logga su ai_router_usage_log SEMPRE (success o error)
+ *   5. Ritorna risultato + metadati
+ *
+ * Configurazione richiesta (Supabase secrets):
+ *   - OPENROUTER_API_KEY: chiave API OpenRouter (sk-or-v1-...)
+ */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseClient = any;
+
+export interface AiRouterMessage {
+  role: "system" | "user" | "assistant" | "tool";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  content: string | Array<any>; // string OR multimodal content (vision)
+  name?: string;
+  tool_call_id?: string;
+}
+
+export interface AiRouterParams {
+  temperature?: number;
+  max_tokens?: number;
+  top_p?: number;
+  frequency_penalty?: number;
+  presence_penalty?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tools?: Array<any>;
+  tool_choice?: "auto" | "none" | { type: "function"; function: { name: string } };
+}
+
+export interface AiRouterCompleteOptions {
+  supabase: SupabaseClient;
+  taskKey: string;
+  messages: AiRouterMessage[];
+  /** Override params della config (es. temperature ad-hoc) */
+  params?: AiRouterParams;
+  /** OpenAI-style response format: {type: "json_object"} o {type: "json_schema", schema: ...} */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  responseFormat?: any;
+  companyId?: string | null;
+  userId?: string | null;
+  /** Se vuoi forzare un modello specifico (override config) */
+  forceModel?: string;
+}
+
+export interface AiRouterCompleteResult {
+  content: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rawResponse: any;
+  modelUsed: string;
+  usedPrimary: boolean;
+  fallbackIndex: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  durationMs: number;
+}
+
+/** Errore custom con metadati per debug. */
+export class AiRouterError extends Error {
+  constructor(
+    message: string,
+    public taskKey: string,
+    public attempts: Array<{ model: string; error: string }>,
+  ) {
+    super(message);
+    this.name = "AiRouterError";
+  }
+}
+
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+interface RouterConfig {
+  task_key: string;
+  primary_model: string;
+  fallback_models: string[];
+  default_params: AiRouterParams;
+  is_default?: boolean;
+}
+
+/** Carica config router per un task — sempre safe (default fallback). */
+async function loadConfig(supabase: SupabaseClient, taskKey: string): Promise<RouterConfig> {
+  const { data, error } = await supabase.rpc("get_ai_router_config", { p_task_key: taskKey });
+  if (error || !data) {
+    return {
+      task_key: taskKey,
+      primary_model: "openai/gpt-4o-mini",
+      fallback_models: ["openrouter/auto"],
+      default_params: { temperature: 0.3, max_tokens: 2000 },
+      is_default: true,
+    };
+  }
+  return {
+    task_key: data.task_key,
+    primary_model: data.primary_model,
+    fallback_models: Array.isArray(data.fallback_models) ? data.fallback_models : [],
+    default_params: data.default_params ?? {},
+    is_default: data.is_default,
+  };
+}
+
+/** Chiama OpenRouter una volta con un modello specifico. */
+async function callOpenRouter(
+  apiKey: string,
+  model: string,
+  messages: AiRouterMessage[],
+  params: AiRouterParams,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  responseFormat?: any,
+): Promise<{
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any;
+  durationMs: number;
+}> {
+  const start = Date.now();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const body: Record<string, any> = {
+    model,
+    messages,
+    temperature: params.temperature ?? 0.3,
+    max_tokens: params.max_tokens ?? 2000,
+  };
+  if (params.top_p != null) body.top_p = params.top_p;
+  if (params.tools) body.tools = params.tools;
+  if (params.tool_choice) body.tool_choice = params.tool_choice;
+  if (responseFormat) body.response_format = responseFormat;
+
+  const res = await fetch(OPENROUTER_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      // OpenRouter rankings (best practice — qualifica il traffico)
+      "HTTP-Referer": "https://www.ediliziaincloud.com",
+      "X-Title": "Edilizia in Cloud",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const durationMs = Date.now() - start;
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`OpenRouter ${res.status}: ${errText.slice(0, 500)}`);
+  }
+
+  const data = await res.json();
+  if (data.error) {
+    throw new Error(`OpenRouter error: ${data.error.message ?? JSON.stringify(data.error)}`);
+  }
+  return { data, durationMs };
+}
+
+/** Logga su ai_router_usage_log (best-effort, non blocca su errore). */
+async function logUsage(
+  supabase: SupabaseClient,
+  entry: {
+    taskKey: string;
+    modelUsed: string;
+    usedPrimary: boolean;
+    fallbackIndex: number;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    costUsd: number;
+    durationMs: number;
+    companyId?: string | null;
+    userId?: string | null;
+    status: "success" | "error" | "timeout";
+    errorMessage?: string;
+  },
+) {
+  try {
+    await supabase.from("ai_router_usage_log").insert({
+      task_key: entry.taskKey,
+      model_used: entry.modelUsed,
+      used_primary: entry.usedPrimary,
+      fallback_index: entry.fallbackIndex,
+      prompt_tokens: entry.promptTokens,
+      completion_tokens: entry.completionTokens,
+      total_tokens: entry.totalTokens,
+      cost_usd: entry.costUsd,
+      duration_ms: entry.durationMs,
+      company_id: entry.companyId ?? null,
+      user_id: entry.userId ?? null,
+      status: entry.status,
+      error_message: entry.errorMessage ?? null,
+    });
+  } catch (e) {
+    console.warn("[aiRouter] logUsage failed:", e);
+  }
+}
+
+/**
+ * Entry point principale: completa un task usando il router OpenRouter.
+ * Tenta primary_model, poi fallback_models in ordine. Logga sempre.
+ */
+export async function aiRouterComplete(
+  opts: AiRouterCompleteOptions,
+): Promise<AiRouterCompleteResult> {
+  const apiKey = Deno.env.get("OPENROUTER_API_KEY");
+  if (!apiKey) {
+    throw new AiRouterError(
+      "OPENROUTER_API_KEY non configurata su Supabase secrets",
+      opts.taskKey,
+      [],
+    );
+  }
+
+  const config = opts.forceModel
+    ? {
+        task_key: opts.taskKey,
+        primary_model: opts.forceModel,
+        fallback_models: [],
+        default_params: {},
+        is_default: false,
+      }
+    : await loadConfig(opts.supabase, opts.taskKey);
+
+  // Merge params: config default + override esplicito
+  const params: AiRouterParams = { ...config.default_params, ...(opts.params ?? {}) };
+
+  const modelsToTry = [config.primary_model, ...config.fallback_models];
+  const attempts: Array<{ model: string; error: string }> = [];
+
+  for (let i = 0; i < modelsToTry.length; i++) {
+    const model = modelsToTry[i];
+    try {
+      const { data, durationMs } = await callOpenRouter(
+        apiKey,
+        model,
+        opts.messages,
+        params,
+        opts.responseFormat,
+      );
+
+      const choice = data.choices?.[0];
+      if (!choice) throw new Error("No choices in response");
+      const content = choice.message?.content ?? "";
+      const usage = data.usage ?? {};
+      const promptTokens = usage.prompt_tokens ?? 0;
+      const completionTokens = usage.completion_tokens ?? 0;
+      const totalTokens = usage.total_tokens ?? promptTokens + completionTokens;
+      // OpenRouter ritorna `usage.cost` in USD se disponibile, altrimenti stimiamo a 0
+      const costUsd = Number(usage.cost ?? 0);
+
+      // Log success
+      await logUsage(opts.supabase, {
+        taskKey: opts.taskKey,
+        modelUsed: model,
+        usedPrimary: i === 0,
+        fallbackIndex: i,
+        promptTokens, completionTokens, totalTokens, costUsd,
+        durationMs,
+        companyId: opts.companyId,
+        userId: opts.userId,
+        status: "success",
+      });
+
+      return {
+        content,
+        rawResponse: data,
+        modelUsed: model,
+        usedPrimary: i === 0,
+        fallbackIndex: i,
+        promptTokens, completionTokens, totalTokens, costUsd,
+        durationMs,
+      };
+    } catch (e) {
+      const errMsg = (e as Error).message ?? String(e);
+      attempts.push({ model, error: errMsg });
+      console.warn(`[aiRouter] task=${opts.taskKey} model=${model} attempt ${i+1}/${modelsToTry.length} failed:`, errMsg);
+      // Continua con il prossimo fallback
+    }
+  }
+
+  // Tutti i tentativi falliti → log error e throw
+  await logUsage(opts.supabase, {
+    taskKey: opts.taskKey,
+    modelUsed: modelsToTry[modelsToTry.length - 1] ?? "unknown",
+    usedPrimary: false,
+    fallbackIndex: modelsToTry.length - 1,
+    promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0,
+    durationMs: 0,
+    companyId: opts.companyId,
+    userId: opts.userId,
+    status: "error",
+    errorMessage: attempts.map(a => `${a.model}: ${a.error}`).join(" | ").slice(0, 1000),
+  });
+
+  throw new AiRouterError(
+    `Tutti i modelli falliti per task '${opts.taskKey}' (${modelsToTry.length} tentativi)`,
+    opts.taskKey,
+    attempts,
+  );
+}
+
+/** Helper di convenienza per task semplici (system + user prompt). */
+export async function aiRouterPrompt(opts: {
+  supabase: SupabaseClient;
+  taskKey: string;
+  systemPrompt: string;
+  userPrompt: string;
+  params?: AiRouterParams;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  responseFormat?: any;
+  companyId?: string | null;
+  userId?: string | null;
+}): Promise<AiRouterCompleteResult> {
+  return aiRouterComplete({
+    supabase: opts.supabase,
+    taskKey: opts.taskKey,
+    messages: [
+      { role: "system", content: opts.systemPrompt },
+      { role: "user", content: opts.userPrompt },
+    ],
+    params: opts.params,
+    responseFormat: opts.responseFormat,
+    companyId: opts.companyId,
+    userId: opts.userId,
+  });
+}
