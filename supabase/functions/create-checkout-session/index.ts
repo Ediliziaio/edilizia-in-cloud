@@ -358,6 +358,188 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ─── AI CREDITS (one-time payment) ─────────────────────────
+    // Stessa struttura di email_credits/whatsapp_credits.
+    if (type === "ai_credits") {
+      const amountEur = body.amount_eur;
+      if (!amountEur || amountEur < 5) {
+        return new Response(JSON.stringify({ error: "Importo minimo: €5" }), {
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("company_id")
+        .eq("id", userId)
+        .single();
+
+      if (!profile || profile.company_id !== company_id) {
+        const { data: roleData } = await supabaseAdmin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .eq("role", "super_admin")
+          .maybeSingle();
+        if (!roleData) {
+          return new Response(JSON.stringify({ error: "Non autorizzato" }), {
+            status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      const { data: company } = await supabaseAdmin
+        .from("companies")
+        .select("id, name, email, stripe_customer_id")
+        .eq("id", company_id)
+        .single();
+
+      if (!company) {
+        return new Response(JSON.stringify({ error: "Azienda non trovata" }), {
+          status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      let stripeCustomerId: string;
+      try {
+        stripeCustomerId = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
+      } catch (err) {
+        return new Response(JSON.stringify({ error: (err as Error).message }), {
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      const appUrl = Deno.env.get("SITE_URL") ?? "https://app.ediliziaincloud.com";
+
+      const sessionRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          customer: stripeCustomerId,
+          mode: "payment",
+          "payment_method_types[0]": "card",
+          "line_items[0][price_data][currency]": "eur",
+          "line_items[0][price_data][unit_amount]": String(Math.round(amountEur * 100)),
+          "line_items[0][price_data][product_data][name]": `Crediti Agenti AI - €${amountEur}`,
+          "line_items[0][quantity]": "1",
+          "payment_intent_data[setup_future_usage]": "off_session",
+          success_url: `${appUrl}/azienda/impostazioni/crediti?payment=success`,
+          cancel_url: `${appUrl}/azienda/impostazioni/crediti?payment=cancelled`,
+          "metadata[company_id]": company_id,
+          "metadata[type]": "ai_credits",
+          "metadata[amount_eur]": String(amountEur),
+        }),
+      });
+      const session = await sessionRes.json();
+
+      if (session.error) {
+        return new Response(JSON.stringify({ error: session.error.message }), {
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ url: session.url, session_id: session.id }),
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
+
+    // ─── RENDER CREDITS (one-time payment, prezzi fissi per pacchetto) ───
+    // A differenza degli altri wallet, i render sono "count" non "eur":
+    // l'utente sceglie un pacchetto (10/50/100 render) a prezzo fisso scontato.
+    if (type === "render_credits") {
+      const qty = body.qty;
+      const PACKAGES: Record<number, { price: number; name: string }> = {
+        10:  { price: 9,  name: "Render Starter — 10 render" },
+        50:  { price: 39, name: "Render Professional — 50 render" },
+        100: { price: 69, name: "Render Business — 100 render" },
+      };
+      const pkg = PACKAGES[qty];
+      if (!pkg) {
+        return new Response(JSON.stringify({ error: "Pacchetto non valido. Usa 10, 50 o 100." }), {
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("company_id")
+        .eq("id", userId)
+        .single();
+
+      if (!profile || profile.company_id !== company_id) {
+        const { data: roleData } = await supabaseAdmin
+          .from("user_roles").select("role")
+          .eq("user_id", userId).eq("role", "super_admin").maybeSingle();
+        if (!roleData) {
+          return new Response(JSON.stringify({ error: "Non autorizzato" }), {
+            status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      const { data: company } = await supabaseAdmin
+        .from("companies")
+        .select("id, name, email, stripe_customer_id")
+        .eq("id", company_id).single();
+
+      if (!company) {
+        return new Response(JSON.stringify({ error: "Azienda non trovata" }), {
+          status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      let stripeCustomerId: string;
+      try {
+        stripeCustomerId = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
+      } catch (err) {
+        return new Response(JSON.stringify({ error: (err as Error).message }), {
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      const appUrl = Deno.env.get("SITE_URL") ?? "https://app.ediliziaincloud.com";
+
+      const sessionRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          customer: stripeCustomerId,
+          mode: "payment",
+          "payment_method_types[0]": "card",
+          "line_items[0][price_data][currency]": "eur",
+          "line_items[0][price_data][unit_amount]": String(Math.round(pkg.price * 100)),
+          "line_items[0][price_data][product_data][name]": pkg.name,
+          "line_items[0][quantity]": "1",
+          "payment_intent_data[setup_future_usage]": "off_session",
+          success_url: `${appUrl}/azienda/impostazioni/crediti?payment=success`,
+          cancel_url: `${appUrl}/azienda/impostazioni/crediti?payment=cancelled`,
+          "metadata[company_id]": company_id,
+          "metadata[type]": "render_credits",
+          "metadata[qty]": String(qty),
+          "metadata[price_eur]": String(pkg.price),
+        }),
+      });
+      const session = await sessionRes.json();
+
+      if (session.error) {
+        return new Response(JSON.stringify({ error: session.error.message }), {
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ url: session.url, session_id: session.id }),
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
+
     // ─── SUBSCRIPTION CHECKOUT (existing flow) ───
     const { plan_id, billing_period, promo_code } = body;
 
