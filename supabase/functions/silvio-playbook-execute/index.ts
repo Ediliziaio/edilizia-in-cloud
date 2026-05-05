@@ -251,6 +251,13 @@ Deno.serve(async (req) => {
         p_ai_model: aiResult.modelUsed,
         p_ai_tokens: aiResult.totalTokens,
         p_ai_cost_eur: aiResult.costRealEur,
+        p_playbook_id: playbook.id,  // FIX bug audit: link diretto al playbook (text)
+        p_trigger_metadata: {
+          playbook_id: playbook.id,
+          playbook_version: playbook.version,
+          playbook_category: playbook.category,
+          gathered_steps_count: Object.keys(gathered).length,
+        },
       });
       if (dlErr) console.error("[playbook-execute] decision_log save:", dlErr.message);
       else decisionId = dlData as string;
