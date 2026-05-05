@@ -25,6 +25,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentImportModal";
+import { SilvioChatSheet } from "@/components/silvio/SilvioChatSheet";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Tip rotanti — "Cose da sapere" che gli utenti trovano utili
@@ -74,6 +75,7 @@ export function SilvioFAB({ hidden = false }: Props) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [smartImportOpen, setSmartImportOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [tipIdx, setTipIdx] = useState(0);
 
   // Rotate tip ogni 7s quando il popover è aperto
@@ -89,7 +91,8 @@ export function SilvioFAB({ hidden = false }: Props) {
     setOpen(false);
     switch (action) {
       case "open_chat":
-        navigate("/azienda/chat");
+        // Apri Sheet inline (richiesta utente: NON navigare alla pagina chat)
+        setChatOpen(true);
         break;
       case "smart_doc":
         setSmartImportOpen(true);
@@ -117,7 +120,7 @@ export function SilvioFAB({ hidden = false }: Props) {
           <motion.button
             type="button"
             aria-label="Apri assistente Silvio"
-            className="fixed bottom-4 left-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 hover:shadow-2xl hover:scale-105 transition-all md:bottom-6 md:left-6"
+            className="fixed bottom-4 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 hover:shadow-2xl hover:scale-105 transition-all md:bottom-6 md:right-6"
             whileHover={{ rotate: [0, -5, 5, 0] }}
             transition={{ duration: 0.5 }}
           >
@@ -157,12 +160,12 @@ export function SilvioFAB({ hidden = false }: Props) {
 
         <PopoverContent
           side="top"
-          align="start"
+          align="end"
           sideOffset={12}
-          className="w-[340px] sm:w-[380px] p-0 border-orange-100 shadow-2xl rounded-2xl overflow-hidden"
+          className="w-[340px] sm:w-[380px] max-h-[calc(100vh-120px)] p-0 border-orange-100 shadow-2xl rounded-2xl overflow-hidden flex flex-col"
         >
-          {/* Header */}
-          <div className="bg-gradient-to-br from-orange-500 to-amber-400 px-4 py-3 text-white">
+          {/* Header (sticky) */}
+          <div className="bg-gradient-to-br from-orange-500 to-amber-400 px-4 py-3 text-white shrink-0">
             <div className="flex items-center gap-2">
               <Brain className="h-5 w-5" />
               <div className="flex-1">
@@ -172,8 +175,8 @@ export function SilvioFAB({ hidden = false }: Props) {
             </div>
           </div>
 
-          {/* Azioni rapide grid 2x2 */}
-          <div className="p-3 space-y-2">
+          {/* Body scrollable */}
+          <div className="p-3 space-y-2 overflow-y-auto flex-1">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1">
               Azioni rapide
             </p>
@@ -263,6 +266,9 @@ export function SilvioFAB({ hidden = false }: Props) {
         open={smartImportOpen}
         onOpenChange={setSmartImportOpen}
       />
+
+      {/* Chat con Silvio inline (sheet laterale) */}
+      <SilvioChatSheet open={chatOpen} onOpenChange={setChatOpen} />
     </>
   );
 }
