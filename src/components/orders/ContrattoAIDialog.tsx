@@ -29,7 +29,7 @@ import {
 import { toast } from "sonner";
 import {
   FileText, Sparkles, Download, Save, RefreshCw, AlertTriangle,
-  CheckCircle2, Loader2, Wand2,
+  CheckCircle2, Loader2, Wand2, ShieldCheck,
 } from "lucide-react";
 
 interface Props {
@@ -121,6 +121,36 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
     onError: (err) => {
       toast.error(`Errore: ${err instanceof Error ? err.message : String(err)}`);
     },
+  });
+
+  // AI compliance review
+  const [reviewResult, setReviewResult] = useState<{
+    compliance_score?: number;
+    livello_rischio?: string;
+    issues_critici?: Array<{ area: string; issue: string; raccomandazione: string }>;
+    issues_warning?: Array<{ area: string; issue: string; raccomandazione: string }>;
+    punti_forza?: string[];
+    incongruenze_dati?: Array<{ campo: string; in_contratto: string; in_ordine_o_computo: string; delta: string }>;
+    valutazione_finale?: string;
+  } | null>(null);
+
+  const reviewMutation = useMutation({
+    mutationFn: async () => {
+      if (!contrattoId) throw new Error("Genera prima il contratto");
+      const { data, error } = await supabase.functions.invoke("ai-contratto-review", {
+        body: { contratto_id: contrattoId, company_id: companyId },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error ?? "Review fallita");
+      return data;
+    },
+    onSuccess: (data) => {
+      setReviewResult(data.review ?? null);
+      const score = data.review?.compliance_score ?? 0;
+      const rischio = data.review?.livello_rischio ?? "—";
+      toast.success(`Review completata: score ${score}/100 — rischio ${rischio}`);
+    },
+    onError: (err) => toast.error(`Review: ${err instanceof Error ? err.message : String(err)}`),
   });
 
   // Salva edit manuale
@@ -367,6 +397,75 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
                     </AlertDescription>
                   </Alert>
                 )}
+
+                {/* AI Compliance Review */}
+                {reviewResult && (
+                  <div className="space-y-2 rounded border-2 border-violet-200 bg-violet-50/30 p-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-semibold flex items-center gap-1">
+                        <ShieldCheck className="h-4 w-4 text-violet-600" /> Compliance Review AI
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={
+                          (reviewResult.compliance_score ?? 0) >= 80
+                            ? "bg-emerald-100 text-emerald-700 border-emerald-300"
+                            : (reviewResult.compliance_score ?? 0) >= 60
+                              ? "bg-amber-100 text-amber-700 border-amber-300"
+                              : "bg-rose-100 text-rose-700 border-rose-300"
+                        }>
+                          {reviewResult.compliance_score ?? "?"}/100
+                        </Badge>
+                        <Badge variant="outline">{reviewResult.livello_rischio}</Badge>
+                      </div>
+                    </div>
+                    {reviewResult.valutazione_finale && (
+                      <p className="text-xs italic">"{reviewResult.valutazione_finale}"</p>
+                    )}
+                    {(reviewResult.issues_critici?.length ?? 0) > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-[11px] uppercase font-semibold text-rose-700">Critici</span>
+                        {reviewResult.issues_critici!.map((iss, i) => (
+                          <div key={i} className="text-[11px] p-1.5 rounded bg-rose-50 border border-rose-200">
+                            <strong>{iss.area}:</strong> {iss.issue}
+                            {iss.raccomandazione && (
+                              <div className="text-rose-700 mt-0.5">→ {iss.raccomandazione}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {(reviewResult.issues_warning?.length ?? 0) > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-[11px] uppercase font-semibold text-amber-700">Avvisi</span>
+                        {reviewResult.issues_warning!.map((iss, i) => (
+                          <div key={i} className="text-[11px] p-1.5 rounded bg-amber-50 border border-amber-200">
+                            <strong>{iss.area}:</strong> {iss.issue}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {(reviewResult.incongruenze_dati?.length ?? 0) > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-[11px] uppercase font-semibold text-rose-700">Incongruenze dati</span>
+                        {reviewResult.incongruenze_dati!.map((inc, i) => (
+                          <div key={i} className="text-[11px] p-1.5 rounded bg-rose-50 border border-rose-200">
+                            <strong>{inc.campo}:</strong> contratto = "{inc.in_contratto}" vs ordine/computo = "{inc.in_ordine_o_computo}" ({inc.delta})
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {(reviewResult.punti_forza?.length ?? 0) > 0 && (
+                      <details className="text-[11px]">
+                        <summary className="cursor-pointer text-emerald-700 font-semibold uppercase">
+                          ✓ Punti forza ({reviewResult.punti_forza!.length})
+                        </summary>
+                        <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                          {reviewResult.punti_forza!.map((p, i) => <li key={i}>{p}</li>)}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -378,6 +477,22 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
           </Button>
           {previewMd && (
             <>
+              {contrattoId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => reviewMutation.mutate()}
+                  disabled={reviewMutation.isPending}
+                  className="gap-1 border-violet-300 text-violet-700 hover:bg-violet-50"
+                >
+                  {reviewMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="h-4 w-4" />
+                  )}
+                  Verifica AI
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
