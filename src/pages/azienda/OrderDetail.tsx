@@ -27,6 +27,7 @@ import { OrderItem } from "@/components/orders/OrderItemsList";
 import { PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderErrors } from "@/components/orders/OrderErrors";
 import { ContrattoAIDialog } from "@/components/orders/ContrattoAIDialog";
+import { AllocazioneOperaiAIDialog } from "@/components/orders/AllocazioneOperaiAIDialog";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
@@ -1314,6 +1315,7 @@ function OrderDetailInner() {
                   </CardHeader>
                   <CardContent className="flex flex-wrap gap-2">
                     <ContrattoAIDialog orderId={id} companyId={effectiveCompany.id} />
+                    <AllocazioneOperaiAIDialog orderId={id} companyId={effectiveCompany.id} />
                   </CardContent>
                 </Card>
               )}

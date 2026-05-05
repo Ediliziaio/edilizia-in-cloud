@@ -230,6 +230,43 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     }),
   },
 
+  get_employees_workload: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_employees_workload",
+        description: "Ritorna carico di lavoro per ogni operaio attivo: ore lavorate ultimi 30gg, ordini attivi, % utilizzo, stato (libero/leggero/medio/pieno/overload). Usa per 'chi è libero', 'carico operai', 'chi posso assegnare', 'team in overload'.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_employees_workload", {
+      p_company_id: ctx.companyId,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+  },
+
+  get_pricing_history: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_pricing_history",
+        description: "Storico vendite di una voce/articolo: numero volte venduta, prezzo medio/min/max, costo medio, margine, markup % medio. Usa per 'a quanto ho venduto X', 'prezzo storico Y', 'margine articolo Z'.",
+        parameters: {
+          type: "object",
+          properties: {
+            item_name: { type: "string", description: "Nome articolo (anche parziale, min 2 char)" },
+          },
+          required: ["item_name"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_pricing_history", {
+      p_company_id: ctx.companyId,
+      p_item_name: args?.item_name ?? "",
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+  },
+
   get_customers_ltv_top: {
     schema: {
       type: "function",
