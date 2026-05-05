@@ -1,0 +1,2592 @@
+{
+  "version": "2.3",
+  "release_date": "2026-05-05",
+  "name": "Cervello Supremo EiC — Knowledge Base",
+  "description": "KB universale del Cervello Supremo di Edilizia in Cloud. V2.3 estesa con 6 docs aggiuntivi su principi contabili, controllo direzionale, negoziazione avanzata, self-leadership, processi decisionali, supply chain.",
+  "owner": "Florin Andriciuc — AEDIX / Edilizia in Cloud",
+  "language": "it",
+  "encoding": "utf-8",
+  "areas": [
+    {
+      "id": "00-meta",
+      "title": "00 Meta",
+      "description": "Meta-istruzioni e prompt di sistema",
+      "documents": [
+        {
+          "filename": "decision-framework.md",
+          "path": "00-meta/decision-framework.md",
+          "title": "Decision Framework",
+          "tags": [],
+          "livello": "",
+          "word_count": 1020,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "ingestion-guide.md",
+          "path": "00-meta/ingestion-guide.md",
+          "title": "Ingestion Guide",
+          "tags": [],
+          "livello": "",
+          "word_count": 1045,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "system-prompt-cervello.md",
+          "path": "00-meta/system-prompt-cervello.md",
+          "title": "System Prompt Cervello",
+          "tags": [],
+          "livello": "",
+          "word_count": 1417,
+          "version": "2.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "voice-and-tone.md",
+          "path": "00-meta/voice-and-tone.md",
+          "title": "Voice And Tone",
+          "tags": [],
+          "livello": "",
+          "word_count": 1191,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        }
+      ],
+      "doc_count": 4
+    },
+    {
+      "id": "01-normativa-edilizia",
+      "title": "01 Normativa Edilizia",
+      "description": "Normativa edilizia, sicurezza, contratti, prezziari",
+      "documents": [
+        {
+          "filename": "antimafia-white-list.md",
+          "path": "01-normativa-edilizia/antimafia-white-list.md",
+          "title": "Antimafia White List",
+          "tags": [],
+          "livello": "",
+          "word_count": 1096,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "cassa-edile-anomalia-contributiva.md",
+          "path": "01-normativa-edilizia/cassa-edile-anomalia-contributiva.md",
+          "title": "Cassa Edile Anomalia Contributiva",
+          "tags": [],
+          "livello": "",
+          "word_count": 1527,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "ccnl-edilizia-industria-artigianato.md",
+          "path": "01-normativa-edilizia/ccnl-edilizia-industria-artigianato.md",
+          "title": "Ccnl Edilizia Industria Artigianato",
+          "tags": [],
+          "livello": "",
+          "word_count": 1478,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "contratti-appalto-subappalto.md",
+          "path": "01-normativa-edilizia/contratti-appalto-subappalto.md",
+          "title": "Contratti Appalto Subappalto",
+          "tags": [],
+          "livello": "",
+          "word_count": 1338,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "direzione-lavori-collaudo.md",
+          "path": "01-normativa-edilizia/direzione-lavori-collaudo.md",
+          "title": "Direzione Lavori Collaudo",
+          "tags": [],
+          "livello": "",
+          "word_count": 1444,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "dlgs-81-08-sicurezza-cantiere.md",
+          "path": "01-normativa-edilizia/dlgs-81-08-sicurezza-cantiere.md",
+          "title": "Dlgs 81 08 Sicurezza Cantiere",
+          "tags": [],
+          "livello": "",
+          "word_count": 1364,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "durc-online-regolarita-contributiva.md",
+          "path": "01-normativa-edilizia/durc-online-regolarita-contributiva.md",
+          "title": "Durc Online Regolarita Contributiva",
+          "tags": [],
+          "livello": "",
+          "word_count": 1131,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "garanzie-fideiussioni-cauzioni.md",
+          "path": "01-normativa-edilizia/garanzie-fideiussioni-cauzioni.md",
+          "title": "Garanzie Fideiussioni Cauzioni",
+          "tags": [],
+          "livello": "",
+          "word_count": 1255,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "ntc-2018-norme-tecniche-costruzioni.md",
+          "path": "01-normativa-edilizia/ntc-2018-norme-tecniche-costruzioni.md",
+          "title": "Ntc 2018 Norme Tecniche Costruzioni",
+          "tags": [],
+          "livello": "",
+          "word_count": 1232,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "pimus-ponteggi.md",
+          "path": "01-normativa-edilizia/pimus-ponteggi.md",
+          "title": "Pimus Ponteggi",
+          "tags": [],
+          "livello": "",
+          "word_count": 848,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "pos-piano-operativo-sicurezza.md",
+          "path": "01-normativa-edilizia/pos-piano-operativo-sicurezza.md",
+          "title": "Pos Piano Operativo Sicurezza",
+          "tags": [],
+          "livello": "",
+          "word_count": 889,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "prezziari-dei-regionali.md",
+          "path": "01-normativa-edilizia/prezziari-dei-regionali.md",
+          "title": "Prezziari Dei Regionali",
+          "tags": [],
+          "livello": "",
+          "word_count": 1102,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "psc-coordinatore-sicurezza.md",
+          "path": "01-normativa-edilizia/psc-coordinatore-sicurezza.md",
+          "title": "Psc Coordinatore Sicurezza",
+          "tags": [],
+          "livello": "",
+          "word_count": 1234,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "sospensione-cantiere-ordinanza.md",
+          "path": "01-normativa-edilizia/sospensione-cantiere-ordinanza.md",
+          "title": "Sospensione Cantiere Ordinanza",
+          "tags": [],
+          "livello": "",
+          "word_count": 1359,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "titoli-abilitativi-cila-scia-pdc.md",
+          "path": "01-normativa-edilizia/titoli-abilitativi-cila-scia-pdc.md",
+          "title": "Titoli Abilitativi Cila Scia Pdc",
+          "tags": [],
+          "livello": "",
+          "word_count": 1710,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        }
+      ],
+      "doc_count": 15
+    },
+    {
+      "id": "02-finanza-cashflow",
+      "title": "02 Finanza Cashflow",
+      "description": "Finanza, bilancio, KPI, liquidità, banche, principi contabili",
+      "documents": [
+        {
+          "filename": "ammortamenti-investimenti-mezzi.md",
+          "path": "02-finanza-cashflow/ammortamenti-investimenti-mezzi.md",
+          "title": "Ammortamenti e investimenti in mezzi e attrezzature",
+          "tags": [
+            "ammortamento",
+            "capex",
+            "investimenti",
+            "leasing",
+            "mezzi-cantiere",
+            "attrezzature"
+          ],
+          "livello": "intermedio",
+          "word_count": 850,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "analisi-margine-commessa-finanziario.md",
+          "path": "02-finanza-cashflow/analisi-margine-commessa-finanziario.md",
+          "title": "Margine commessa — analisi finanziaria di cantiere",
+          "tags": [
+            "margine-commessa",
+            "ricavi-commessa",
+            "costi-diretti",
+            "mark-up",
+            "marginalita"
+          ],
+          "livello": "intermedio",
+          "word_count": 1098,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "anticipo-fatture-factoring.md",
+          "path": "02-finanza-cashflow/anticipo-fatture-factoring.md",
+          "title": "Anticipo fatture e factoring",
+          "tags": [
+            "anticipo-fatture",
+            "factoring",
+            "sbf",
+            "cessione-credito",
+            "smobilizzo",
+            "liquidita"
+          ],
+          "livello": "intermedio",
+          "word_count": 879,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "capitale-circolante-netto.md",
+          "path": "02-finanza-cashflow/capitale-circolante-netto.md",
+          "title": "Capitale circolante netto — il fabbisogno operativo",
+          "tags": [
+            "capitale-circolante",
+            "working-capital",
+            "ccn",
+            "fabbisogno-operativo"
+          ],
+          "livello": "intermedio",
+          "word_count": 749,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "costo-orario-operaio-impatto-finanziario.md",
+          "path": "02-finanza-cashflow/costo-orario-operaio-impatto-finanziario.md",
+          "title": "Costo orario operaio — costo aziendale completo",
+          "tags": [
+            "costo-orario",
+            "costo-aziendale",
+            "manodopera",
+            "busta-paga",
+            "oneri"
+          ],
+          "livello": "base",
+          "word_count": 679,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "dso-dpo-ciclo-monetario.md",
+          "path": "02-finanza-cashflow/dso-dpo-ciclo-monetario.md",
+          "title": "DSO, DPO e ciclo monetario",
+          "tags": [
+            "dso",
+            "dpo",
+            "ciclo-monetario",
+            "capitale-circolante",
+            "incassi",
+            "pagamenti",
+            "liquidita"
+          ],
+          "livello": "intermedio",
+          "word_count": 1193,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "fido-bancario-affidamenti.md",
+          "path": "02-finanza-cashflow/fido-bancario-affidamenti.md",
+          "title": "Fido bancario e linee di credito",
+          "tags": [
+            "fido",
+            "banche",
+            "affidamento",
+            "scoperto-conto",
+            "presentazione-impresa"
+          ],
+          "livello": "intermedio",
+          "word_count": 1059,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "forecasting-finanziario-90-giorni.md",
+          "path": "02-finanza-cashflow/forecasting-finanziario-90-giorni.md",
+          "title": "Forecasting finanziario a 90 giorni",
+          "tags": [
+            "forecast",
+            "previsione",
+            "rolling-forecast",
+            "cassa",
+            "scenario"
+          ],
+          "livello": "intermedio",
+          "word_count": 801,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "gestione-liquidita-cashflow.md",
+          "path": "02-finanza-cashflow/gestione-liquidita-cashflow.md",
+          "title": "Gestione della liquidità e cashflow operativo",
+          "tags": [
+            "cashflow",
+            "liquidita",
+            "tesoreria",
+            "previsione-cassa",
+            "rolling-forecast"
+          ],
+          "livello": "intermedio",
+          "word_count": 1163,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "indici-bilancio-rotazione-redditività.md",
+          "path": "02-finanza-cashflow/indici-bilancio-rotazione-redditività.md",
+          "title": "Indici di bilancio — rotazione e redditività",
+          "tags": [
+            "indici",
+            "redditivita",
+            "rotazione",
+            "roe",
+            "roi",
+            "leverage",
+            "dupont"
+          ],
+          "livello": "avanzato",
+          "word_count": 823,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "kpi-finanziari-edilizia.md",
+          "path": "02-finanza-cashflow/kpi-finanziari-edilizia.md",
+          "title": "KPI finanziari per impresa edile",
+          "tags": [
+            "kpi",
+            "indicatori",
+            "ebitda",
+            "margine",
+            "redditività",
+            "liquidità",
+            "indebitamento"
+          ],
+          "livello": "intermedio",
+          "word_count": 956,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "lettura-bilancio-impresa-edile.md",
+          "path": "02-finanza-cashflow/lettura-bilancio-impresa-edile.md",
+          "title": "Leggere il bilancio di un'impresa edile in 15 minuti",
+          "tags": [
+            "bilancio",
+            "stato-patrimoniale",
+            "conto-economico",
+            "ebitda",
+            "lavori-in-corso",
+            "edilizia"
+          ],
+          "livello": "base",
+          "word_count": 1175,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "polizze-credito-tutela-incassi.md",
+          "path": "02-finanza-cashflow/polizze-credito-tutela-incassi.md",
+          "title": "Polizze credito e tutela degli incassi",
+          "tags": [
+            "polizza-credito",
+            "assicurazione-credito",
+            "insolvenza",
+            "tutela-incassi"
+          ],
+          "livello": "intermedio",
+          "word_count": 520,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "principi-contabili-bilancio-civilistico.md",
+          "path": "02-finanza-cashflow/principi-contabili-bilancio-civilistico.md",
+          "title": "Principi contabili e bilancio civilistico",
+          "tags": [
+            "oic",
+            "principi-contabili",
+            "bilancio-civilistico",
+            "postulati",
+            "codice-civile"
+          ],
+          "livello": "intermedio",
+          "word_count": 1306,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "rapporto-banca-presentazione-impresa.md",
+          "path": "02-finanza-cashflow/rapporto-banca-presentazione-impresa.md",
+          "title": "Presentare l'impresa in banca — preparazione e strategia",
+          "tags": [
+            "banca",
+            "presentazione-impresa",
+            "fido",
+            "pratica-credito",
+            "advisor"
+          ],
+          "livello": "intermedio",
+          "word_count": 737,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "tesoreria-aziendale-conti-correnti.md",
+          "path": "02-finanza-cashflow/tesoreria-aziendale-conti-correnti.md",
+          "title": "Tesoreria aziendale — gestione dei conti correnti",
+          "tags": [
+            "tesoreria",
+            "conti-correnti",
+            "cash-pooling",
+            "riconciliazione"
+          ],
+          "livello": "intermedio",
+          "word_count": 758,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        }
+      ],
+      "doc_count": 16
+    },
+    {
+      "id": "03-controllo-gestione",
+      "title": "03 Controllo Gestione",
+      "description": "SAL, commesse, scostamenti, budget, sistemi controllo, supply chain",
+      "documents": [
+        {
+          "filename": "acquisti-supply-chain-edilizia.md",
+          "path": "03-controllo-gestione/acquisti-supply-chain-edilizia.md",
+          "title": "Acquisti e supply chain in edilizia",
+          "tags": [
+            "acquisti",
+            "supply-chain",
+            "fornitori",
+            "abc-analysis",
+            "vendor-management"
+          ],
+          "livello": "intermedio",
+          "word_count": 1627,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "analisi-prezzi-unitari.md",
+          "path": "03-controllo-gestione/analisi-prezzi-unitari.md",
+          "title": "Analisi dei prezzi unitari",
+          "tags": [
+            "analisi-prezzi",
+            "voci-non-codificate",
+            "prezzo-unitario",
+            "scomposizione"
+          ],
+          "livello": "intermedio",
+          "word_count": 690,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "analisi-scostamenti-budget-consuntivo.md",
+          "path": "03-controllo-gestione/analisi-scostamenti-budget-consuntivo.md",
+          "title": "Analisi degli scostamenti — budget vs consuntivo",
+          "tags": [
+            "scostamenti",
+            "varianza",
+            "budget",
+            "consuntivo",
+            "controllo-cantiere"
+          ],
+          "livello": "intermedio",
+          "word_count": 788,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "budget-annuale-impresa-edile.md",
+          "path": "03-controllo-gestione/budget-annuale-impresa-edile.md",
+          "title": "Budget annuale di un'impresa edile",
+          "tags": [
+            "budget",
+            "pianificazione-annuale",
+            "target",
+            "conto-economico-previsionale"
+          ],
+          "livello": "intermedio",
+          "word_count": 813,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "chiusura-cantiere-saldo.md",
+          "path": "03-controllo-gestione/chiusura-cantiere-saldo.md",
+          "title": "Chiusura cantiere — collaudo, saldo, garanzie",
+          "tags": [
+            "chiusura-cantiere",
+            "saldo",
+            "collaudo",
+            "cre",
+            "ritenuta-garanzia"
+          ],
+          "livello": "intermedio",
+          "word_count": 725,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "computi-metrici-estimativi.md",
+          "path": "03-controllo-gestione/computi-metrici-estimativi.md",
+          "title": "Computo metrico estimativo",
+          "tags": [
+            "computo-metrico",
+            "preventivo",
+            "voci",
+            "prezzo-unitario",
+            "capitolato"
+          ],
+          "livello": "base",
+          "word_count": 861,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "contabilita-analitica-commessa.md",
+          "path": "03-controllo-gestione/contabilita-analitica-commessa.md",
+          "title": "Contabilità analitica per commessa",
+          "tags": [
+            "contabilita-analitica",
+            "co-an",
+            "centri-costo",
+            "commessa",
+            "allocazione"
+          ],
+          "livello": "intermedio",
+          "word_count": 760,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "controllo-margini-cantiere.md",
+          "path": "03-controllo-gestione/controllo-margini-cantiere.md",
+          "title": "Controllo margini di cantiere — la pratica settimanale",
+          "tags": [
+            "margine",
+            "cantiere",
+            "controllo",
+            "kpi-cantiere",
+            "alert"
+          ],
+          "livello": "intermedio",
+          "word_count": 599,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "forecast-economico-mensile.md",
+          "path": "03-controllo-gestione/forecast-economico-mensile.md",
+          "title": "Forecast economico mensile a 12 mesi",
+          "tags": [
+            "forecast",
+            "rolling-forecast",
+            "conto-economico",
+            "previsione"
+          ],
+          "livello": "intermedio",
+          "word_count": 380,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "kpi-operativi-cantiere.md",
+          "path": "03-controllo-gestione/kpi-operativi-cantiere.md",
+          "title": "KPI operativi di cantiere",
+          "tags": [
+            "kpi-cantiere",
+            "produttività",
+            "efficienza",
+            "scarti",
+            "tempi"
+          ],
+          "livello": "intermedio",
+          "word_count": 664,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "lessons-learned-post-mortem.md",
+          "path": "03-controllo-gestione/lessons-learned-post-mortem.md",
+          "title": "Lessons learned — analisi post-cantiere",
+          "tags": [
+            "lessons-learned",
+            "post-mortem",
+            "analisi-consuntivo",
+            "miglioramento-continuo"
+          ],
+          "livello": "intermedio",
+          "word_count": 654,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "pianificazione-cantiere-cronoprogramma.md",
+          "path": "03-controllo-gestione/pianificazione-cantiere-cronoprogramma.md",
+          "title": "Pianificazione cantiere e cronoprogramma",
+          "tags": [
+            "cronoprogramma",
+            "gantt",
+            "pianificazione",
+            "durata-cantiere",
+            "fasi-lavoro"
+          ],
+          "livello": "intermedio",
+          "word_count": 556,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "ribasso-asta-strategia.md",
+          "path": "03-controllo-gestione/ribasso-asta-strategia.md",
+          "title": "Strategia di ribasso d'asta",
+          "tags": [
+            "ribasso",
+            "gara-pubblica",
+            "strategia-offerta",
+            "anomalia-offerta"
+          ],
+          "livello": "intermedio",
+          "word_count": 783,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "riserve-contestazioni.md",
+          "path": "03-controllo-gestione/riserve-contestazioni.md",
+          "title": "Riserve e contestazioni — formalismo che salva il margine",
+          "tags": [
+            "riserve",
+            "contestazioni",
+            "registro-contabilita",
+            "art-1454-cc",
+            "contenzioso"
+          ],
+          "livello": "intermedio",
+          "word_count": 686,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "sal-stato-avanzamento-lavori.md",
+          "path": "03-controllo-gestione/sal-stato-avanzamento-lavori.md",
+          "title": "SAL — Stato Avanzamento Lavori",
+          "tags": [
+            "sal",
+            "contabilita-lavori",
+            "libretto-misure",
+            "certificato-pagamento",
+            "fatturazione"
+          ],
+          "livello": "base",
+          "word_count": 751,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "sistemi-controllo-direzionale.md",
+          "path": "03-controllo-gestione/sistemi-controllo-direzionale.md",
+          "title": "Sistemi di controllo direzionale e balanced scorecard",
+          "tags": [
+            "controllo-direzionale",
+            "balanced-scorecard",
+            "mbo",
+            "feedback-loop",
+            "cruscotto"
+          ],
+          "livello": "avanzato",
+          "word_count": 1288,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "varianti-corso-opera.md",
+          "path": "03-controllo-gestione/varianti-corso-opera.md",
+          "title": "Varianti in corso d'opera",
+          "tags": [
+            "varianti",
+            "modifiche-progetto",
+            "ordine-servizio",
+            "integrazione-contratto"
+          ],
+          "livello": "intermedio",
+          "word_count": 667,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        }
+      ],
+      "doc_count": 17
+    },
+    {
+      "id": "04-vendita-consulenziale",
+      "title": "04 Vendita Consulenziale",
+      "description": "Vendita B2B/B2C edile, processo, CRM, gare, negoziazione",
+      "documents": [
+        {
+          "filename": "crm-pipeline-commerciale.md",
+          "path": "04-vendita-consulenziale/crm-pipeline-commerciale.md",
+          "title": "CRM e pipeline commerciale",
+          "tags": [
+            "crm",
+            "pipeline",
+            "opportunity",
+            "sales-management",
+            "kpi-commerciale"
+          ],
+          "livello": "intermedio",
+          "word_count": 753,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "follow-up-post-vendita.md",
+          "path": "04-vendita-consulenziale/follow-up-post-vendita.md",
+          "title": "Follow-up post vendita — fidelizzazione",
+          "tags": [
+            "follow-up",
+            "fidelizzazione",
+            "post-vendita",
+            "customer-success",
+            "referenze"
+          ],
+          "livello": "intermedio",
+          "word_count": 709,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "gestione-clienti-difficili.md",
+          "path": "04-vendita-consulenziale/gestione-clienti-difficili.md",
+          "title": "Gestione clienti difficili",
+          "tags": [
+            "clienti-difficili",
+            "contestazione",
+            "conflitto",
+            "risoluzione"
+          ],
+          "livello": "intermedio",
+          "word_count": 761,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "gestione-obiezioni-edilizia.md",
+          "path": "04-vendita-consulenziale/gestione-obiezioni-edilizia.md",
+          "title": "Le 10 obiezioni più frequenti in edilizia",
+          "tags": [
+            "obiezioni",
+            "gestione-obiezioni",
+            "prezzo",
+            "tempi",
+            "sfiducia"
+          ],
+          "livello": "base",
+          "word_count": 957,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "negoziazione-avanzata-edilizia.md",
+          "path": "04-vendita-consulenziale/negoziazione-avanzata-edilizia.md",
+          "title": "Negoziazione avanzata — BATNA, ZOPA e tecniche per imprese edili",
+          "tags": [
+            "negoziazione",
+            "batna",
+            "zopa",
+            "ancoraggio",
+            "harvard-method",
+            "contratti"
+          ],
+          "livello": "avanzato",
+          "word_count": 1651,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "preventivo-che-vende.md",
+          "path": "04-vendita-consulenziale/preventivo-che-vende.md",
+          "title": "Preventivo che vende — struttura e principi",
+          "tags": [
+            "preventivo",
+            "offerta",
+            "struttura-offerta",
+            "conversione"
+          ],
+          "livello": "intermedio",
+          "word_count": 856,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "pricing-strategy-edilizia.md",
+          "path": "04-vendita-consulenziale/pricing-strategy-edilizia.md",
+          "title": "Pricing strategy in edilizia",
+          "tags": [
+            "pricing",
+            "listino",
+            "valore-percepito",
+            "posizionamento-prezzo"
+          ],
+          "livello": "avanzato",
+          "word_count": 830,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "processo-vendita-edilizia.md",
+          "path": "04-vendita-consulenziale/processo-vendita-edilizia.md",
+          "title": "Processo di vendita end-to-end in edilizia",
+          "tags": [
+            "processo-vendita",
+            "pipeline",
+            "conversione",
+            "ciclo-vendita"
+          ],
+          "livello": "base",
+          "word_count": 684,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "qualifica-bant.md",
+          "path": "04-vendita-consulenziale/qualifica-bant.md",
+          "title": "Qualifica con BANT — selezionare le opportunità",
+          "tags": [
+            "bant",
+            "qualifica",
+            "lead",
+            "pipeline",
+            "budget",
+            "decisore",
+            "timing"
+          ],
+          "livello": "base",
+          "word_count": 749,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "referenze-passaparola.md",
+          "path": "04-vendita-consulenziale/referenze-passaparola.md",
+          "title": "Referenze e passaparola — il canale più redditizio",
+          "tags": [
+            "referenze",
+            "passaparola",
+            "lead-generation",
+            "referral"
+          ],
+          "livello": "base",
+          "word_count": 718,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "script-cold-outreach.md",
+          "path": "04-vendita-consulenziale/script-cold-outreach.md",
+          "title": "Cold outreach — script e tecniche per l'outbound",
+          "tags": [
+            "cold-call",
+            "cold-email",
+            "outreach",
+            "lead-generation-attiva"
+          ],
+          "livello": "intermedio",
+          "word_count": 839,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "sopralluogo-commerciale.md",
+          "path": "04-vendita-consulenziale/sopralluogo-commerciale.md",
+          "title": "Sopralluogo come momento di vendita",
+          "tags": [
+            "sopralluogo",
+            "discovery",
+            "rilievo",
+            "prima-impressione"
+          ],
+          "livello": "base",
+          "word_count": 761,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "spin-selling-applicato-edilizia.md",
+          "path": "04-vendita-consulenziale/spin-selling-applicato-edilizia.md",
+          "title": "SPIN selling applicato in cantiere",
+          "tags": [
+            "spin",
+            "vendita-consulenziale",
+            "domande",
+            "sopralluogo",
+            "problema-soluzione"
+          ],
+          "livello": "intermedio",
+          "word_count": 829,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "tecniche-closing-cantiere.md",
+          "path": "04-vendita-consulenziale/tecniche-closing-cantiere.md",
+          "title": "Closing — chiudere il contratto",
+          "tags": [
+            "closing",
+            "firma-contratto",
+            "conclusione",
+            "anticipo"
+          ],
+          "livello": "intermedio",
+          "word_count": 752,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "vendere-bonus-fiscali.md",
+          "path": "04-vendita-consulenziale/vendere-bonus-fiscali.md",
+          "title": "Vendere ristrutturazioni con bonus fiscali",
+          "tags": [
+            "bonus-fiscali",
+            "sismabonus",
+            "sconto-fattura",
+            "cessione-credito",
+            "vendita-residenziale"
+          ],
+          "livello": "intermedio",
+          "word_count": 849,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "vendere-pa-gare-pubbliche.md",
+          "path": "04-vendita-consulenziale/vendere-pa-gare-pubbliche.md",
+          "title": "Vendere alla PA e gestire gare pubbliche",
+          "tags": [
+            "gare-pubbliche",
+            "pa",
+            "dlgs-36-2023",
+            "soa",
+            "qualificazione"
+          ],
+          "livello": "avanzato",
+          "word_count": 862,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        }
+      ],
+      "doc_count": 16
+    },
+    {
+      "id": "05-fiscale-compliance",
+      "title": "05 Fiscale Compliance",
+      "description": "IVA, bonus fiscali, fatturazione, dichiarazioni",
+      "documents": [
+        {
+          "filename": "autofattura-fatture-estere.md",
+          "path": "05-fiscale-compliance/autofattura-fatture-estere.md",
+          "title": "Autofatture e fatture estere",
+          "tags": [
+            "autofattura",
+            "esterometro",
+            "td17",
+            "td18",
+            "td19",
+            "ue",
+            "intrastat"
+          ],
+          "livello": "avanzato",
+          "word_count": 552,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "bonus-50-ristrutturazioni.md",
+          "path": "05-fiscale-compliance/bonus-50-ristrutturazioni.md",
+          "title": "Bonus 50% — detrazioni per ristrutturazioni",
+          "tags": [
+            "bonus-50",
+            "detrazione",
+            "ristrutturazione",
+            "art-16-bis-tuir"
+          ],
+          "livello": "base",
+          "word_count": 726,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "congruita-spese-bonus.md",
+          "path": "05-fiscale-compliance/congruita-spese-bonus.md",
+          "title": "Congruità delle spese per i bonus fiscali",
+          "tags": [
+            "congruita",
+            "prezziari",
+            "bonus-fiscali",
+            "asseverazione",
+            "dm-prezzi"
+          ],
+          "livello": "intermedio",
+          "word_count": 624,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "dichiarazioni-fiscali-impresa-edile.md",
+          "path": "05-fiscale-compliance/dichiarazioni-fiscali-impresa-edile.md",
+          "title": "Dichiarazioni fiscali — IRES, IRAP, IVA, 770",
+          "tags": [
+            "ires",
+            "irap",
+            "iva-annuale",
+            "770",
+            "dichiarazione-redditi"
+          ],
+          "livello": "intermedio",
+          "word_count": 648,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "documentazione-fiscale-conservazione.md",
+          "path": "05-fiscale-compliance/documentazione-fiscale-conservazione.md",
+          "title": "Documentazione fiscale e conservazione",
+          "tags": [
+            "conservazione",
+            "dpr-322-1998",
+            "conservazione-sostitutiva",
+            "archivio-fiscale"
+          ],
+          "livello": "base",
+          "word_count": 692,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "ecobonus-efficienza-energetica.md",
+          "path": "05-fiscale-compliance/ecobonus-efficienza-energetica.md",
+          "title": "Ecobonus — efficienza energetica",
+          "tags": [
+            "ecobonus",
+            "efficienza-energetica",
+            "ape",
+            "asseverazione-enea"
+          ],
+          "livello": "intermedio",
+          "word_count": 540,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "f24-scadenze-fiscali.md",
+          "path": "05-fiscale-compliance/f24-scadenze-fiscali.md",
+          "title": "F24 e calendario scadenze fiscali",
+          "tags": [
+            "f24",
+            "scadenze-fiscali",
+            "versamenti",
+            "durc",
+            "calendario"
+          ],
+          "livello": "base",
+          "word_count": 642,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "fatturazione-elettronica-sdi.md",
+          "path": "05-fiscale-compliance/fatturazione-elettronica-sdi.md",
+          "title": "Fatturazione elettronica e SDI",
+          "tags": [
+            "fattura-elettronica",
+            "sdi",
+            "xml-fatturapa",
+            "dlgs-127-2015"
+          ],
+          "livello": "base",
+          "word_count": 724,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "iva-reverse-charge-edilizia.md",
+          "path": "05-fiscale-compliance/iva-reverse-charge-edilizia.md",
+          "title": "IVA reverse charge in edilizia",
+          "tags": [
+            "reverse-charge",
+            "iva",
+            "fatturazione",
+            "subappalto",
+            "dpr-633-72"
+          ],
+          "livello": "intermedio",
+          "word_count": 736,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "iva-split-payment.md",
+          "path": "05-fiscale-compliance/iva-split-payment.md",
+          "title": "Split payment per fatture verso PA",
+          "tags": [
+            "split-payment",
+            "iva",
+            "pa",
+            "art-17-ter-dpr-633-72"
+          ],
+          "livello": "intermedio",
+          "word_count": 509,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "regimi-iva-imprese-edili.md",
+          "path": "05-fiscale-compliance/regimi-iva-imprese-edili.md",
+          "title": "Regimi IVA per imprese edili",
+          "tags": [
+            "iva",
+            "regimi-fiscali",
+            "ordinario",
+            "forfettario",
+            "semplificato"
+          ],
+          "livello": "intermedio",
+          "word_count": 648,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "ritenuta-8-percento.md",
+          "path": "05-fiscale-compliance/ritenuta-8-percento.md",
+          "title": "Ritenuta 8% sui bonifici parlanti",
+          "tags": [
+            "ritenuta-8",
+            "bonifico-parlante",
+            "ritenuta-acconto",
+            "bonus-fiscali"
+          ],
+          "livello": "intermedio",
+          "word_count": 542,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "sconto-fattura-cessione-credito.md",
+          "path": "05-fiscale-compliance/sconto-fattura-cessione-credito.md",
+          "title": "Sconto in fattura e cessione del credito",
+          "tags": [
+            "sconto-fattura",
+            "cessione-credito",
+            "bonus-fiscali",
+            "dl-34-2020"
+          ],
+          "livello": "intermedio",
+          "word_count": 799,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "sismabonus.md",
+          "path": "05-fiscale-compliance/sismabonus.md",
+          "title": "Sismabonus — riduzione del rischio sismico",
+          "tags": [
+            "sismabonus",
+            "classi-rischio",
+            "asseverazione",
+            "dm-58-2017"
+          ],
+          "livello": "intermedio",
+          "word_count": 774,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "tipi-documento-td-edilizia.md",
+          "path": "05-fiscale-compliance/tipi-documento-td-edilizia.md",
+          "title": "TipoDocumento — i codici TD da conoscere",
+          "tags": [
+            "tipo-documento",
+            "td",
+            "td17",
+            "td18",
+            "td19",
+            "td20",
+            "autofattura",
+            "fattura-elettronica"
+          ],
+          "livello": "intermedio",
+          "word_count": 740,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        }
+      ],
+      "doc_count": 15
+    },
+    {
+      "id": "06-hr-edile",
+      "title": "06 Hr Edile",
+      "description": "Personale, busta paga, sicurezza, subappalti, leadership, self-leadership",
+      "documents": [
+        {
+          "filename": "apprendistato-edile.md",
+          "path": "06-hr-edile/apprendistato-edile.md",
+          "title": "Apprendistato professionalizzante in edilizia",
+          "tags": [
+            "apprendistato",
+            "formazione",
+            "sgravi-contributivi",
+            "giovani"
+          ],
+          "livello": "intermedio",
+          "word_count": 583,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "assunzioni-tipologie-contrattuali.md",
+          "path": "06-hr-edile/assunzioni-tipologie-contrattuali.md",
+          "title": "Tipologie contrattuali per assunzioni in edilizia",
+          "tags": [
+            "assunzione",
+            "contratto",
+            "tempo-determinato",
+            "indeterminato",
+            "somministrazione"
+          ],
+          "livello": "intermedio",
+          "word_count": 676,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "busta-paga-operaio-edile.md",
+          "path": "06-hr-edile/busta-paga-operaio-edile.md",
+          "title": "Busta paga operaio edile — leggerla e capirla",
+          "tags": [
+            "busta-paga",
+            "retribuzione",
+            "contributi",
+            "netto-lordo",
+            "cedolino"
+          ],
+          "livello": "base",
+          "word_count": 725,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "contenzioso-lavoro.md",
+          "path": "06-hr-edile/contenzioso-lavoro.md",
+          "title": "Contenzioso del lavoro — prevenire e gestire",
+          "tags": [
+            "contenzioso",
+            "causa-lavoro",
+            "conciliazione",
+            "transazione",
+            "prescrizione"
+          ],
+          "livello": "avanzato",
+          "word_count": 777,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "cultura-leadership-cantiere.md",
+          "path": "06-hr-edile/cultura-leadership-cantiere.md",
+          "title": "Cultura e leadership in cantiere",
+          "tags": [
+            "leadership",
+            "cultura-aziendale",
+            "capocantiere",
+            "gestione-team"
+          ],
+          "livello": "intermedio",
+          "word_count": 859,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "formazione-obbligatoria-edile.md",
+          "path": "06-hr-edile/formazione-obbligatoria-edile.md",
+          "title": "Formazione obbligatoria per lavoratori edili",
+          "tags": [
+            "formazione",
+            "sicurezza",
+            "accordo-stato-regioni",
+            "attestati",
+            "scuola-edile"
+          ],
+          "livello": "base",
+          "word_count": 778,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "gestione-infortuni.md",
+          "path": "06-hr-edile/gestione-infortuni.md",
+          "title": "Gestione degli infortuni in cantiere",
+          "tags": [
+            "infortunio",
+            "primo-soccorso",
+            "denuncia-inail",
+            "indagine",
+            "prevenzione"
+          ],
+          "livello": "intermedio",
+          "word_count": 776,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "gestione-malattie-permessi.md",
+          "path": "06-hr-edile/gestione-malattie-permessi.md",
+          "title": "Gestione malattie, permessi, ferie",
+          "tags": [
+            "malattia",
+            "permessi",
+            "ferie",
+            "rol",
+            "certificati"
+          ],
+          "livello": "base",
+          "word_count": 642,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "gestione-subappaltatori.md",
+          "path": "06-hr-edile/gestione-subappaltatori.md",
+          "title": "Gestione subappaltatori — selezione e responsabilità",
+          "tags": [
+            "subappalto",
+            "responsabilita-solidale",
+            "durc",
+            "verifica-fornitori"
+          ],
+          "livello": "intermedio",
+          "word_count": 696,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "licenziamenti-procedure.md",
+          "path": "06-hr-edile/licenziamenti-procedure.md",
+          "title": "Licenziamenti — procedure e cause",
+          "tags": [
+            "licenziamento",
+            "giusta-causa",
+            "giustificato-motivo",
+            "contestazione"
+          ],
+          "livello": "intermedio",
+          "word_count": 722,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "livelli-ccnl-edilizia.md",
+          "path": "06-hr-edile/livelli-ccnl-edilizia.md",
+          "title": "Livelli CCNL Edilizia — operai e impiegati",
+          "tags": [
+            "livelli",
+            "inquadramento",
+            "ccnl",
+            "mansione",
+            "operaio",
+            "impiegato"
+          ],
+          "livello": "base",
+          "word_count": 666,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "onboarding-cantiere.md",
+          "path": "06-hr-edile/onboarding-cantiere.md",
+          "title": "Onboarding del nuovo dipendente in cantiere",
+          "tags": [
+            "onboarding",
+            "integrazione",
+            "primo-giorno",
+            "prima-settimana"
+          ],
+          "livello": "base",
+          "word_count": 647,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "reclutamento-impresa-edile.md",
+          "path": "06-hr-edile/reclutamento-impresa-edile.md",
+          "title": "Reclutamento — trovare operai e tecnici in edilizia",
+          "tags": [
+            "reclutamento",
+            "recruiting",
+            "scarsita-manodopera",
+            "employer-branding"
+          ],
+          "livello": "intermedio",
+          "word_count": 758,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "self-leadership-livelli-sviluppo.md",
+          "path": "06-hr-edile/self-leadership-livelli-sviluppo.md",
+          "title": "Self-leadership e livelli di sviluppo del collaboratore",
+          "tags": [
+            "self-leadership",
+            "situational-leadership",
+            "sviluppo-collaboratori",
+            "capocantiere"
+          ],
+          "livello": "intermedio",
+          "word_count": 1434,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "sicurezza-lavoratori-dpi.md",
+          "path": "06-hr-edile/sicurezza-lavoratori-dpi.md",
+          "title": "Sicurezza lavoratori e DPI",
+          "tags": [
+            "dpi",
+            "sicurezza",
+            "prevenzione",
+            "scarpe-antinfortunistiche",
+            "casco",
+            "imbracatura"
+          ],
+          "livello": "base",
+          "word_count": 759,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "welfare-bonus-aziendali.md",
+          "path": "06-hr-edile/welfare-bonus-aziendali.md",
+          "title": "Welfare aziendale e bonus",
+          "tags": [
+            "welfare",
+            "fringe-benefit",
+            "premi",
+            "mensa",
+            "polizza-sanitaria"
+          ],
+          "livello": "intermedio",
+          "word_count": 697,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        }
+      ],
+      "doc_count": 16
+    },
+    {
+      "id": "07-strategia-imprenditoriale",
+      "title": "07 Strategia Imprenditoriale",
+      "description": "Scaling, organizzazione, M&A, successione, processi decisionali",
+      "documents": [
+        {
+          "filename": "costruire-team-direttivo.md",
+          "path": "07-strategia-imprenditoriale/costruire-team-direttivo.md",
+          "title": "Costruire il team direttivo",
+          "tags": [
+            "team-direttivo",
+            "c-level",
+            "manager",
+            "governance"
+          ],
+          "livello": "avanzato",
+          "word_count": 678,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "crescita-acquisizioni-fusioni.md",
+          "path": "07-strategia-imprenditoriale/crescita-acquisizioni-fusioni.md",
+          "title": "Crescita per acquisizioni e fusioni",
+          "tags": [
+            "m-and-a",
+            "acquisizioni",
+            "fusioni",
+            "due-diligence",
+            "crescita-esterna"
+          ],
+          "livello": "avanzato",
+          "word_count": 891,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "crisi-impresa-ristrutturazione.md",
+          "path": "07-strategia-imprenditoriale/crisi-impresa-ristrutturazione.md",
+          "title": "Crisi d'impresa e ristrutturazione",
+          "tags": [
+            "crisi-impresa",
+            "dlgs-14-2019",
+            "composizione-negoziata",
+            "ristrutturazione"
+          ],
+          "livello": "avanzato",
+          "word_count": 617,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "decisioni-make-or-buy.md",
+          "path": "07-strategia-imprenditoriale/decisioni-make-or-buy.md",
+          "title": "Decisioni make or buy",
+          "tags": [
+            "make-or-buy",
+            "internalizzazione",
+            "esternalizzazione",
+            "costi",
+            "controllo"
+          ],
+          "livello": "intermedio",
+          "word_count": 737,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "delega-efficace.md",
+          "path": "07-strategia-imprenditoriale/delega-efficace.md",
+          "title": "Delega efficace — trasferire senza perdere",
+          "tags": [
+            "delega",
+            "autonomia",
+            "responsabilita",
+            "controllo",
+            "leadership"
+          ],
+          "livello": "intermedio",
+          "word_count": 889,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "digitalizzazione-impresa-edile.md",
+          "path": "07-strategia-imprenditoriale/digitalizzazione-impresa-edile.md",
+          "title": "Digitalizzazione dell'impresa edile",
+          "tags": [
+            "digitalizzazione",
+            "software",
+            "gestionale",
+            "app-cantiere",
+            "bim"
+          ],
+          "livello": "intermedio",
+          "word_count": 503,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "gestione-rischio-imprenditoriale.md",
+          "path": "07-strategia-imprenditoriale/gestione-rischio-imprenditoriale.md",
+          "title": "Gestione del rischio imprenditoriale",
+          "tags": [
+            "risk-management",
+            "rischio",
+            "mitigazione",
+            "polizze",
+            "contingency"
+          ],
+          "livello": "intermedio",
+          "word_count": 810,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "internazionalizzazione-edilizia.md",
+          "path": "07-strategia-imprenditoriale/internazionalizzazione-edilizia.md",
+          "title": "Internazionalizzazione — lavorare all'estero",
+          "tags": [
+            "estero",
+            "export",
+            "internazionalizzazione",
+            "mercati-esteri"
+          ],
+          "livello": "avanzato",
+          "word_count": 600,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "kpi-strategici-direzionali.md",
+          "path": "07-strategia-imprenditoriale/kpi-strategici-direzionali.md",
+          "title": "KPI strategici direzionali",
+          "tags": [
+            "kpi-strategici",
+            "dashboard-direzione",
+            "balanced-scorecard"
+          ],
+          "livello": "intermedio",
+          "word_count": 418,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "leadership-imprenditore.md",
+          "path": "07-strategia-imprenditoriale/leadership-imprenditore.md",
+          "title": "Leadership dell'imprenditore edile",
+          "tags": [
+            "leadership",
+            "comunicazione",
+            "decision-making",
+            "gestione-stress"
+          ],
+          "livello": "intermedio",
+          "word_count": 892,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "organizzazione-aziendale.md",
+          "path": "07-strategia-imprenditoriale/organizzazione-aziendale.md",
+          "title": "Organizzazione aziendale e organigramma",
+          "tags": [
+            "organigramma",
+            "ruoli",
+            "responsabilita",
+            "struttura-aziendale"
+          ],
+          "livello": "intermedio",
+          "word_count": 723,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "partnership-rete-imprese.md",
+          "path": "07-strategia-imprenditoriale/partnership-rete-imprese.md",
+          "title": "Partnership, ATI e reti d'impresa",
+          "tags": [
+            "ati",
+            "consorzio",
+            "rete-imprese",
+            "partnership"
+          ],
+          "livello": "intermedio",
+          "word_count": 559,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "pianificazione-strategica-3-anni.md",
+          "path": "07-strategia-imprenditoriale/pianificazione-strategica-3-anni.md",
+          "title": "Pianificazione strategica triennale",
+          "tags": [
+            "piano-3-anni",
+            "visione",
+            "strategia",
+            "swot",
+            "target"
+          ],
+          "livello": "avanzato",
+          "word_count": 819,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "processi-decisionali-strutturati.md",
+          "path": "07-strategia-imprenditoriale/processi-decisionali-strutturati.md",
+          "title": "Processi decisionali strutturati per impresa edile",
+          "tags": [
+            "decision-making",
+            "bias",
+            "framework-decisionali",
+            "escalation"
+          ],
+          "livello": "intermedio",
+          "word_count": 1550,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "scaling-impresa-edile.md",
+          "path": "07-strategia-imprenditoriale/scaling-impresa-edile.md",
+          "title": "Scaling — passare da artigiano a impresa strutturata",
+          "tags": [
+            "scaling",
+            "crescita",
+            "organizzazione",
+            "transizioni",
+            "fasi-aziendali"
+          ],
+          "livello": "intermedio",
+          "word_count": 850,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        },
+        {
+          "filename": "successione-passaggio-generazionale.md",
+          "path": "07-strategia-imprenditoriale/successione-passaggio-generazionale.md",
+          "title": "Successione e passaggio generazionale",
+          "tags": [
+            "successione",
+            "passaggio-generazionale",
+            "family-business",
+            "exit"
+          ],
+          "livello": "avanzato",
+          "word_count": 910,
+          "version": "1.0",
+          "updated": "2026-05-04"
+        }
+      ],
+      "doc_count": 16
+    },
+    {
+      "id": "08-marketing-edile",
+      "title": "08 Marketing Edile",
+      "description": "Marketing, brand, sito, SEO, ads, social, lead generation",
+      "documents": [
+        {
+          "filename": "budget-marketing-rolling-roi.md",
+          "path": "08-marketing-edile/budget-marketing-rolling-roi.md",
+          "title": "Budget marketing e misurazione ROI",
+          "tags": [
+            "budget-marketing",
+            "roi",
+            "attribuzione",
+            "kpi-marketing"
+          ],
+          "livello": "avanzato",
+          "word_count": 1025,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "content-marketing-blog.md",
+          "path": "08-marketing-edile/content-marketing-blog.md",
+          "title": "Content marketing e blog per imprese edili",
+          "tags": [
+            "content-marketing",
+            "blog",
+            "articoli",
+            "autorevolezza",
+            "seo"
+          ],
+          "livello": "intermedio",
+          "word_count": 835,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "email-marketing-newsletter.md",
+          "path": "08-marketing-edile/email-marketing-newsletter.md",
+          "title": "Email marketing e newsletter per imprese edili",
+          "tags": [
+            "email",
+            "newsletter",
+            "automation",
+            "retention"
+          ],
+          "livello": "intermedio",
+          "word_count": 883,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "eventi-fiere-networking.md",
+          "path": "08-marketing-edile/eventi-fiere-networking.md",
+          "title": "Eventi, fiere, networking per imprese edili",
+          "tags": [
+            "eventi",
+            "fiere",
+            "networking",
+            "brand-awareness"
+          ],
+          "livello": "intermedio",
+          "word_count": 883,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "funnel-marketing-vendita.md",
+          "path": "08-marketing-edile/funnel-marketing-vendita.md",
+          "title": "Funnel marketing-vendita per imprese edili",
+          "tags": [
+            "funnel",
+            "conversione",
+            "awareness-consideration-decision",
+            "lifecycle"
+          ],
+          "livello": "intermedio",
+          "word_count": 887,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "google-ads-meta-ads-edilizia.md",
+          "path": "08-marketing-edile/google-ads-meta-ads-edilizia.md",
+          "title": "Google Ads e Meta Ads per imprese edili",
+          "tags": [
+            "google-ads",
+            "meta-ads",
+            "paid-advertising",
+            "lead-generation"
+          ],
+          "livello": "intermedio",
+          "word_count": 1017,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "lead-magnet-form-acquisizione.md",
+          "path": "08-marketing-edile/lead-magnet-form-acquisizione.md",
+          "title": "Lead magnet e form di acquisizione",
+          "tags": [
+            "lead-magnet",
+            "conversione",
+            "form",
+            "opt-in"
+          ],
+          "livello": "intermedio",
+          "word_count": 835,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "partnership-tecnici-architetti.md",
+          "path": "08-marketing-edile/partnership-tecnici-architetti.md",
+          "title": "Partnership con tecnici e architetti",
+          "tags": [
+            "partnership",
+            "tecnici",
+            "architetti",
+            "geometri",
+            "network"
+          ],
+          "livello": "intermedio",
+          "word_count": 888,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "positioning-brand-edile.md",
+          "path": "08-marketing-edile/positioning-brand-edile.md",
+          "title": "Positioning e brand di un'impresa edile",
+          "tags": [
+            "positioning",
+            "brand",
+            "identita",
+            "differenziazione"
+          ],
+          "livello": "intermedio",
+          "word_count": 712,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "recensioni-reputazione-online.md",
+          "path": "08-marketing-edile/recensioni-reputazione-online.md",
+          "title": "Recensioni online e gestione della reputazione",
+          "tags": [
+            "recensioni",
+            "reputazione",
+            "google",
+            "trustpilot"
+          ],
+          "livello": "base",
+          "word_count": 837,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "seo-edilizia-locale.md",
+          "path": "08-marketing-edile/seo-edilizia-locale.md",
+          "title": "SEO locale per imprese edili",
+          "tags": [
+            "seo",
+            "google",
+            "local-seo",
+            "gmb",
+            "posizionamento"
+          ],
+          "livello": "intermedio",
+          "word_count": 820,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "sito-web-impresa-edile.md",
+          "path": "08-marketing-edile/sito-web-impresa-edile.md",
+          "title": "Sito web di un'impresa edile",
+          "tags": [
+            "sito-web",
+            "hub-commerciale",
+            "conversione",
+            "ux"
+          ],
+          "livello": "base",
+          "word_count": 818,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "social-media-edilizia.md",
+          "path": "08-marketing-edile/social-media-edilizia.md",
+          "title": "Social media per imprese edili",
+          "tags": [
+            "social-media",
+            "instagram",
+            "facebook",
+            "linkedin",
+            "tiktok"
+          ],
+          "livello": "base",
+          "word_count": 795,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "strategia-marketing-impresa-edile.md",
+          "path": "08-marketing-edile/strategia-marketing-impresa-edile.md",
+          "title": "Strategia marketing per un'impresa edile",
+          "tags": [
+            "strategia-marketing",
+            "target",
+            "posizionamento",
+            "mix-canali"
+          ],
+          "livello": "intermedio",
+          "word_count": 868,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "video-marketing-cantieri.md",
+          "path": "08-marketing-edile/video-marketing-cantieri.md",
+          "title": "Video marketing — cantieri, prima/dopo, vlog",
+          "tags": [
+            "video",
+            "youtube",
+            "reel",
+            "time-lapse",
+            "prima-dopo"
+          ],
+          "livello": "intermedio",
+          "word_count": 855,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        }
+      ],
+      "doc_count": 15
+    },
+    {
+      "id": "09-tecnologie-digitalizzazione",
+      "title": "09 Tecnologie Digitalizzazione",
+      "description": "ERP (EiC), BIM, AI, IoT, BI, droni, AR/VR, cybersec",
+      "documents": [
+        {
+          "filename": "ai-agentica-edilizia.md",
+          "path": "09-tecnologie-digitalizzazione/ai-agentica-edilizia.md",
+          "title": "Intelligenza artificiale agentica in edilizia",
+          "tags": [
+            "ai",
+            "intelligenza-artificiale",
+            "llm",
+            "agente-ai",
+            "automation"
+          ],
+          "livello": "avanzato",
+          "word_count": 900,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "app-cantiere-rilevazione.md",
+          "path": "09-tecnologie-digitalizzazione/app-cantiere-rilevazione.md",
+          "title": "App di cantiere — rilevazione e comunicazione",
+          "tags": [
+            "app-cantiere",
+            "mobile",
+            "rilevazione",
+            "timbratura"
+          ],
+          "livello": "base",
+          "word_count": 818,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "bim-building-information-modeling.md",
+          "path": "09-tecnologie-digitalizzazione/bim-building-information-modeling.md",
+          "title": "BIM — Building Information Modeling",
+          "tags": [
+            "bim",
+            "modello-3d",
+            "ifc",
+            "gare",
+            "opere-pubbliche"
+          ],
+          "livello": "avanzato",
+          "word_count": 738,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "business-intelligence-dashboard.md",
+          "path": "09-tecnologie-digitalizzazione/business-intelligence-dashboard.md",
+          "title": "Business Intelligence e dashboard direzionali",
+          "tags": [
+            "bi",
+            "dashboard",
+            "kpi",
+            "looker-studio",
+            "power-bi"
+          ],
+          "livello": "avanzato",
+          "word_count": 873,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "cloud-storage-collaborazione.md",
+          "path": "09-tecnologie-digitalizzazione/cloud-storage-collaborazione.md",
+          "title": "Cloud storage e collaborazione",
+          "tags": [
+            "cloud",
+            "storage",
+            "collaborazione",
+            "drive",
+            "dropbox"
+          ],
+          "livello": "base",
+          "word_count": 796,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "crm-vendita-edilizia-tech.md",
+          "path": "09-tecnologie-digitalizzazione/crm-vendita-edilizia-tech.md",
+          "title": "CRM e tecnologie commerciali in edilizia",
+          "tags": [
+            "crm",
+            "vendita-tech",
+            "automation",
+            "pipeline"
+          ],
+          "livello": "intermedio",
+          "word_count": 815,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "cybersecurity-impresa-edile.md",
+          "path": "09-tecnologie-digitalizzazione/cybersecurity-impresa-edile.md",
+          "title": "Cybersecurity per imprese edili",
+          "tags": [
+            "cybersecurity",
+            "sicurezza-informatica",
+            "ransomware",
+            "phishing",
+            "gdpr"
+          ],
+          "livello": "intermedio",
+          "word_count": 954,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "drone-rilievi-fotogrammetria.md",
+          "path": "09-tecnologie-digitalizzazione/drone-rilievi-fotogrammetria.md",
+          "title": "Droni, rilievi e fotogrammetria",
+          "tags": [
+            "drone",
+            "sapr",
+            "fotogrammetria",
+            "rilievi",
+            "enac"
+          ],
+          "livello": "intermedio",
+          "word_count": 683,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "firma-digitale-pec-spid.md",
+          "path": "09-tecnologie-digitalizzazione/firma-digitale-pec-spid.md",
+          "title": "Firma digitale, PEC, SPID",
+          "tags": [
+            "firma-digitale",
+            "pec",
+            "spid",
+            "identita-digitale"
+          ],
+          "livello": "base",
+          "word_count": 802,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "gestionale-erp-edile.md",
+          "path": "09-tecnologie-digitalizzazione/gestionale-erp-edile.md",
+          "title": "Gestionale ERP per impresa edile",
+          "tags": [
+            "erp",
+            "gestionale",
+            "software",
+            "integrazione",
+            "processi"
+          ],
+          "livello": "intermedio",
+          "word_count": 1108,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "industria-4-0-transizione-5-0.md",
+          "path": "09-tecnologie-digitalizzazione/industria-4-0-transizione-5-0.md",
+          "title": "Industria 4.0, Transizione 5.0 e agevolazioni digitali",
+          "tags": [
+            "industria-4-0",
+            "transizione-5-0",
+            "agevolazioni",
+            "credito-imposta",
+            "pnrr"
+          ],
+          "livello": "intermedio",
+          "word_count": 784,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "iot-cantiere-sensori.md",
+          "path": "09-tecnologie-digitalizzazione/iot-cantiere-sensori.md",
+          "title": "IoT e sensori in cantiere",
+          "tags": [
+            "iot",
+            "sensori",
+            "monitoraggio",
+            "telematica",
+            "mezzi"
+          ],
+          "livello": "avanzato",
+          "word_count": 702,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "metriche-roi-digitalizzazione.md",
+          "path": "09-tecnologie-digitalizzazione/metriche-roi-digitalizzazione.md",
+          "title": "Metriche e ROI della digitalizzazione",
+          "tags": [
+            "roi",
+            "metriche",
+            "kpi-digitali",
+            "valore-tecnologia"
+          ],
+          "livello": "avanzato",
+          "word_count": 899,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "realta-aumentata-vr-edilizia.md",
+          "path": "09-tecnologie-digitalizzazione/realta-aumentata-vr-edilizia.md",
+          "title": "Realtà aumentata e VR in edilizia",
+          "tags": [
+            "ar",
+            "vr",
+            "realta-aumentata",
+            "virtual-reality",
+            "mixed-reality"
+          ],
+          "livello": "avanzato",
+          "word_count": 722,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "roadmap-digitale-3-anni.md",
+          "path": "09-tecnologie-digitalizzazione/roadmap-digitale-3-anni.md",
+          "title": "Roadmap digitale a 3 anni per impresa edile",
+          "tags": [
+            "roadmap-digitale",
+            "pianificazione-tecnologica",
+            "transizione"
+          ],
+          "livello": "avanzato",
+          "word_count": 845,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        }
+      ],
+      "doc_count": 15
+    },
+    {
+      "id": "10-ai-act-governance",
+      "title": "10 Ai Act Governance",
+      "description": "AI Act EU + Legge 132/2025 IT, governance, sicurezza, RBAC, HIL",
+      "documents": [
+        {
+          "filename": "ai-act-quadro-normativo.md",
+          "path": "10-ai-act-governance/ai-act-quadro-normativo.md",
+          "title": "AI Act — quadro normativo UE e italiano",
+          "tags": [
+            "ai-act",
+            "regolamento-ue-2024-1689",
+            "legge-132-2025",
+            "compliance"
+          ],
+          "livello": "base",
+          "word_count": 1124,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "ai-literacy-formazione-team.md",
+          "path": "10-ai-act-governance/ai-literacy-formazione-team.md",
+          "title": "AI Literacy — formazione obbligatoria del team",
+          "tags": [
+            "ai-literacy",
+            "formazione",
+            "ai-act-art-4",
+            "alfabetizzazione"
+          ],
+          "livello": "base",
+          "word_count": 1332,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "anti-hallucination-grounding.md",
+          "path": "10-ai-act-governance/anti-hallucination-grounding.md",
+          "title": "Anti-hallucination — l'AI risponde su dati reali",
+          "tags": [
+            "hallucination",
+            "grounding",
+            "accuratezza",
+            "rag",
+            "citazioni"
+          ],
+          "livello": "intermedio",
+          "word_count": 1263,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "audit-trail-logging-ai.md",
+          "path": "10-ai-act-governance/audit-trail-logging-ai.md",
+          "title": "Audit trail e logging dell'AI",
+          "tags": [
+            "audit",
+            "log",
+            "tracciabilita",
+            "compliance",
+            "ai-act-art-12"
+          ],
+          "livello": "intermedio",
+          "word_count": 1056,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "azioni-irreversibili-bloccate.md",
+          "path": "10-ai-act-governance/azioni-irreversibili-bloccate.md",
+          "title": "Azioni irreversibili — sempre bloccate per l'AI",
+          "tags": [
+            "azioni-distruttive",
+            "eliminazioni",
+            "reversibilita",
+            "sandbox"
+          ],
+          "livello": "intermedio",
+          "word_count": 1246,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "classificazione-rischio-sistemi-ai.md",
+          "path": "10-ai-act-governance/classificazione-rischio-sistemi-ai.md",
+          "title": "Classificazione del rischio dei sistemi AI",
+          "tags": [
+            "classificazione-rischio",
+            "allegato-iii",
+            "alto-rischio",
+            "rischio-limitato"
+          ],
+          "livello": "intermedio",
+          "word_count": 1223,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "comunicazioni-esterne-regole.md",
+          "path": "10-ai-act-governance/comunicazioni-esterne-regole.md",
+          "title": "Comunicazioni esterne dell'AI — regole verso clienti finali",
+          "tags": [
+            "comunicazioni-esterne",
+            "clienti-finali",
+            "email-automatiche",
+            "social"
+          ],
+          "livello": "intermedio",
+          "word_count": 1177,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "gdpr-privacy-ai.md",
+          "path": "10-ai-act-governance/gdpr-privacy-ai.md",
+          "title": "GDPR e privacy nell'uso dell'AI",
+          "tags": [
+            "gdpr",
+            "privacy",
+            "dpo",
+            "dpia",
+            "dati-personali"
+          ],
+          "livello": "avanzato",
+          "word_count": 1228,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "human-in-the-loop-decisioni-critiche.md",
+          "path": "10-ai-act-governance/human-in-the-loop-decisioni-critiche.md",
+          "title": "Human-in-the-Loop per decisioni critiche",
+          "tags": [
+            "hil",
+            "supervisione-umana",
+            "ai-act-art-14",
+            "decisioni-critiche"
+          ],
+          "livello": "intermedio",
+          "word_count": 1178,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "multi-tenancy-isolamento-dati.md",
+          "path": "10-ai-act-governance/multi-tenancy-isolamento-dati.md",
+          "title": "Multi-tenancy e isolamento dei dati",
+          "tags": [
+            "multi-tenancy",
+            "isolamento",
+            "separazione-dati",
+            "sicurezza",
+            "gdpr"
+          ],
+          "livello": "avanzato",
+          "word_count": 1075,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "policy-aziendale-uso-ai.md",
+          "path": "10-ai-act-governance/policy-aziendale-uso-ai.md",
+          "title": "Policy aziendale per l'uso dell'AI",
+          "tags": [
+            "policy",
+            "regolamento-interno",
+            "governance",
+            "ai-acceptable-use"
+          ],
+          "livello": "intermedio",
+          "word_count": 1254,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "prompt-injection-security.md",
+          "path": "10-ai-act-governance/prompt-injection-security.md",
+          "title": "Prompt injection — sicurezza dei sistemi AI",
+          "tags": [
+            "prompt-injection",
+            "sicurezza-ai",
+            "jailbreak",
+            "attacchi"
+          ],
+          "livello": "avanzato",
+          "word_count": 1219,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "rbac-controllo-accessi-ruoli.md",
+          "path": "10-ai-act-governance/rbac-controllo-accessi-ruoli.md",
+          "title": "RBAC — controllo degli accessi per ruolo",
+          "tags": [
+            "rbac",
+            "ruoli",
+            "permessi",
+            "autorizzazione",
+            "least-privilege"
+          ],
+          "livello": "intermedio",
+          "word_count": 1218,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "responsabilita-legale-ai.md",
+          "path": "10-ai-act-governance/responsabilita-legale-ai.md",
+          "title": "Responsabilità legale dell'AI — chi paga se sbaglia",
+          "tags": [
+            "responsabilita",
+            "civile",
+            "penale",
+            "contrattuale",
+            "ai-liability"
+          ],
+          "livello": "avanzato",
+          "word_count": 1276,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "trasparenza-explainability.md",
+          "path": "10-ai-act-governance/trasparenza-explainability.md",
+          "title": "Trasparenza ed explainability dell'AI",
+          "tags": [
+            "trasparenza",
+            "explainability",
+            "ai-act-art-50",
+            "disclosure"
+          ],
+          "livello": "base",
+          "word_count": 1240,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        }
+      ],
+      "doc_count": 15
+    },
+    {
+      "id": "11-advisor-strategico",
+      "title": "11 Advisor Strategico",
+      "description": "Advisor strategico proattivo (stub V0.1) — trigger, playbook, data network",
+      "documents": [
+        {
+          "filename": "framework-advisor-proattivo.md",
+          "path": "11-advisor-strategico/framework-advisor-proattivo.md",
+          "title": "Framework dell'advisor proattivo — architettura del sistema",
+          "tags": [
+            "advisor",
+            "proattivo",
+            "trigger",
+            "playbook",
+            "architettura"
+          ],
+          "livello": "avanzato",
+          "word_count": 1496,
+          "version": "0.1",
+          "updated": "2026-05-05"
+        },
+        {
+          "filename": "playbook-template.md",
+          "path": "11-advisor-strategico/playbook-template.md",
+          "title": "Template di un playbook tattico",
+          "tags": [
+            "playbook",
+            "template",
+            "advisor",
+            "schema"
+          ],
+          "livello": "intermedio",
+          "word_count": 1231,
+          "version": "0.1",
+          "updated": "2026-05-05"
+        }
+      ],
+      "doc_count": 2
+    },
+    {
+      "id": "casi-studio",
+      "title": "Casi Studio",
+      "description": "Casi studio anonimizzati da Company Brain (placeholder V2.x)",
+      "documents": [
+        {
+          "filename": "template-caso-studio.md",
+          "path": "casi-studio/template-caso-studio.md",
+          "title": [
+            "TITOLO ANONIMIZZATO DEL CASO"
+          ],
+          "tags": [
+            "tag1",
+            "tag2",
+            "tag3"
+          ],
+          "livello": [
+            "base | intermedio | avanzato"
+          ],
+          "word_count": 420,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        }
+      ],
+      "doc_count": 1
+    },
+    {
+      "id": "integrazioni-prezziari",
+      "title": "Integrazioni Prezziari",
+      "description": "Integrazione programmatica con prezziari ufficiali (specifica V2.x)",
+      "documents": [
+        {
+          "filename": "fonti-prezziari.md",
+          "path": "integrazioni-prezziari/fonti-prezziari.md",
+          "title": "Fonti dei prezziari italiani",
+          "tags": [
+            "prezziari",
+            "fonti",
+            "regioni",
+            "dei",
+            "camerali"
+          ],
+          "livello": "",
+          "word_count": 802,
+          "version": "1.0",
+          "updated": "2026-05-05"
+        }
+      ],
+      "doc_count": 1
+    }
+  ],
+  "totals": {
+    "areas": 14,
+    "documents": 164,
+    "words": 147270,
+    "avg_words_per_doc": 897
+  }
+}
