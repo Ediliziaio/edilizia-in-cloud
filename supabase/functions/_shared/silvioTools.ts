@@ -230,6 +230,29 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     }),
   },
 
+  universal_search: {
+    schema: {
+      type: "function",
+      function: {
+        name: "universal_search",
+        description: "Cerca in TUTTO il sistema (orders, contatti, fatture ricevute, contratti) con keyword. Ritorna risultati raggruppati per tipo. Usa per 'trova X', 'cerca cliente Y', 'dove ho parlato di Z'.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "Termine ricerca (min 2 char)" },
+            limit: { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          },
+          required: ["query"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_universal_search", {
+      p_company_id: ctx.companyId,
+      p_query: args?.query ?? "",
+      p_limit: args?.limit ?? 20,
+    }),
+  },
+
   get_foto_cantiere_summary: {
     schema: {
       type: "function",
