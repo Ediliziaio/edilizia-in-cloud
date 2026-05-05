@@ -103,7 +103,7 @@ async function classifyOne(
       codice: o.order_code,
       cliente: o.client_name ?? o.client_company,
       descrizione: (o.description ?? "").slice(0, 200),
-      indirizzo: o.address,
+      indirizzo: o.work_address ?? o.client_address ?? null,
     })),
   };
 
@@ -229,9 +229,9 @@ Deno.serve(async (req: Request) => {
     // Fetch open orders for matching
     const { data: openOrders } = await supabaseAdmin
       .from("orders")
-      .select("id, order_code, client_name, client_company, description, address")
+      .select("id, order_code, client_name, client_company, description, work_address, client_address")
       .eq("company_id", company_id)
-      .in("status", ["nuovo", "in_corso", "in_lavorazione"])
+      .in("status", ["active", "confermato", "in_corso", "in_lavorazione", "nuovo"])
       .limit(50);
 
     const results: ClassifiedFattura[] = [];

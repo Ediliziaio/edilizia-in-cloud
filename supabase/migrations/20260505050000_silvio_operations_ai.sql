@@ -134,21 +134,21 @@ BEGIN
   FROM (
     SELECT
       COUNT(*) AS volte_venduta,
-      ROUND(AVG(unit_price)::numeric, 2) AS prezzo_medio_eur,
-      ROUND(MAX(unit_price)::numeric, 2) AS prezzo_max_eur,
-      ROUND(MIN(unit_price)::numeric, 2) AS prezzo_min_eur,
-      ROUND(AVG(purchase_price)::numeric, 2) AS costo_medio_eur,
-      ROUND(AVG(unit_price - COALESCE(purchase_price, 0))::numeric, 2) AS margine_medio_eur,
+      ROUND(AVG(oi.unit_price)::numeric, 2) AS prezzo_medio_eur,
+      ROUND(MAX(oi.unit_price)::numeric, 2) AS prezzo_max_eur,
+      ROUND(MIN(oi.unit_price)::numeric, 2) AS prezzo_min_eur,
+      ROUND(AVG(oi.purchase_price)::numeric, 2) AS costo_medio_eur,
+      ROUND(AVG(oi.unit_price - COALESCE(oi.purchase_price, 0))::numeric, 2) AS margine_medio_eur,
       ROUND(
         AVG(
-          CASE WHEN COALESCE(purchase_price, 0) > 0
-            THEN (unit_price - purchase_price) / purchase_price * 100
+          CASE WHEN COALESCE(oi.purchase_price, 0) > 0
+            THEN (oi.unit_price - oi.purchase_price) / oi.purchase_price * 100
             ELSE NULL
           END
         )::numeric, 1
       ) AS markup_medio_pct,
-      MAX(created_at::date) AS ultima_vendita,
-      MIN(created_at::date) AS prima_vendita
+      MAX(oi.created_at::date) AS ultima_vendita,
+      MIN(oi.created_at::date) AS prima_vendita
     FROM public.order_items oi
     JOIN public.orders o ON o.id = oi.order_id
     WHERE o.company_id = p_company_id
