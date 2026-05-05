@@ -29,8 +29,9 @@ import { AutoTopupConfig } from "@/components/credits/AutoTopupConfig";
 import { CreditsHistory } from "@/components/credits/CreditsHistory";
 import { ConsumoForecastChart } from "@/components/credits/ConsumoForecastChart";
 import { EmailQuotaWidget } from "@/components/email-marketing/EmailQuotaWidget";
+import TeamAIUsage from "@/components/credits/TeamAIUsage";
 import {
-  Wallet, AlertTriangle, TrendingDown, BarChart3, Zap, Clock, Mail,
+  Wallet, AlertTriangle, TrendingDown, BarChart3, Zap, Clock, Mail, Bot,
 } from "lucide-react";
 import { computeCreditForecast } from "@/lib/creditForecasting";
 import { useQuery } from "@tanstack/react-query";
@@ -45,7 +46,7 @@ export default function SettingsCredits() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<"riepilogo" | "topup" | "storico">("riepilogo");
+  const [activeTab, setActiveTab] = useState<"riepilogo" | "team_ai" | "topup" | "storico">("riepilogo");
   const { wallets, totalBalanceEur, hasBlocked, isLoading } = useWallets();
 
   // Dialog state per ricarica
@@ -159,6 +160,9 @@ export default function SettingsCredits() {
           <TabsTrigger value="riepilogo" className="gap-1.5">
             <BarChart3 className="h-4 w-4" /> Riepilogo
           </TabsTrigger>
+          <TabsTrigger value="team_ai" className="gap-1.5">
+            <Bot className="h-4 w-4" /> Consumo AI Team
+          </TabsTrigger>
           <TabsTrigger value="topup" className="gap-1.5">
             <Zap className="h-4 w-4" /> Auto Top-up
           </TabsTrigger>
@@ -245,6 +249,11 @@ export default function SettingsCredits() {
             <AutoTopupConfig walletType="ai" />
             <AutoTopupConfig walletType="whatsapp" />
           </div>
+        </TabsContent>
+
+        {/* ─── Team AI Usage ─── */}
+        <TabsContent value="team_ai" className="space-y-4">
+          <TeamAIUsage />
         </TabsContent>
 
         {/* ─── Storico ─── */}

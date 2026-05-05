@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, FileBarChart2, Loader2, Download, Trash2 } from "lucide-react";
+import { Plus, FileBarChart2, Loader2, Download, Trash2, Sparkles, Wand2 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 
@@ -96,6 +96,44 @@ export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
       return (data || []) as SalRecord[];
     },
     enabled: !!orderId && !!companyId,
+  });
+
+  // AI: suggerisce % avanzamento dalle voci ordine + storico SAL + rapportini
+  const aiSuggestMutation = useMutation({
+    mutationFn: async () => {
+      const nextNumero = (salList.length > 0 ? salList[0].numero_sal : 0) + 1;
+      const { data, error } = await supabase.functions.invoke("suggerisci-sal-ai", {
+        body: { order_id: orderId, company_id: companyId, numero_sal: nextNumero },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error ?? "Suggerimento fallito");
+      return data;
+    },
+    onSuccess: (data) => {
+      const voci_suggerite: Array<{
+        descrizione: string;
+        importo_contrattuale: number;
+        perc_suggerita: number;
+      }> = data?.suggerimenti?.voci_suggerite ?? [];
+      if (voci_suggerite.length === 0) {
+        toast.info("L'AI non ha trovato voci da suggerire");
+        return;
+      }
+      setVoci(voci_suggerite.map((v) => ({
+        descrizione: v.descrizione ?? "",
+        importo_contrattuale: String(v.importo_contrattuale ?? 0),
+        percentuale_avanzamento: String(v.perc_suggerita ?? 0),
+        note: "",
+      })));
+      const noteDraft = data?.suggerimenti?.note_sal_draft;
+      if (noteDraft && !note) setNote(noteDraft);
+      toast.success(
+        `Compilate ${voci_suggerite.length} voci · % globale ${data?.suggerimenti?.percentuale_globale_suggerita ?? "—"}`,
+      );
+      const warnings: string[] = data?.suggerimenti?.warnings ?? [];
+      warnings.forEach((w) => toast.warning(w, { duration: 6000 }));
+    },
+    onError: (err) => toast.error(`AI: ${err instanceof Error ? err.message : String(err)}`),
   });
 
   const createSalMutation = useMutation({
@@ -353,11 +391,30 @@ export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
 
             {/* Voci */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <Label>Voci di avanzamento</Label>
-                <Button type="button" variant="ghost" size="sm" onClick={addVoce}>
-                  <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Aggiungi voce
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => aiSuggestMutation.mutate()}
+                    disabled={aiSuggestMutation.isPending}
+                    className="gap-1 border-violet-300 text-violet-700 hover:bg-violet-50"
+                    title="Suggerisci voci e % avanzamento dall'AI"
+                  >
+                    {aiSuggestMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Wand2 className="h-3.5 w-3.5" />
+                    )}
+                    <Sparkles className="h-3 w-3" />
+                    Suggerisci AI
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={addVoce}>
+                    <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Aggiungi voce
+                  </Button>
+                </div>
               </div>
 
               {voci.map((v, i) => (

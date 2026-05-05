@@ -53,7 +53,7 @@ import { ContactSmsLog } from "@/components/marketing/ContactSmsLog";
 import { ContactAttributionTab } from "@/components/contacts/ContactAttributionTab";
 import { ContactInvoicesPanel } from "@/components/marketing/ContactInvoicesPanel";
 import { UnifiedContactTimeline } from "@/components/marketing/UnifiedContactTimeline";
-import { RefreshCw, CalendarDays } from "lucide-react";
+import { RefreshCw, CalendarDays, Sparkles } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 // ── Extracted sub-components ──
@@ -711,6 +711,58 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     >
                       <RefreshCw className="h-3 w-3" /> Ricalcola
                     </Button>
+
+                    {/* AI Score Silvio (FASE D) */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-xs gap-1 mt-1 border-violet-300 text-violet-700 hover:bg-violet-50"
+                      onClick={async () => {
+                        if (!id || !companyId) return;
+                        try {
+                          toast.info("AI sta analizzando il contatto...");
+                          const { data, error } = await supabase.functions.invoke("ai-lead-score", {
+                            body: { contact_id: id, company_id: companyId },
+                          });
+                          if (error) throw error;
+                          if (!data?.success) throw new Error(data?.error ?? "Scoring fallito");
+                          const sc = data.scored?.[0];
+                          if (sc?.error) throw new Error(sc.error);
+                          queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+                          toast.success(
+                            `AI Score: ${sc?.score}/100 (${sc?.tier}) · ${sc?.next_action ?? ""}`,
+                          );
+                        } catch (err) {
+                          toast.error(`AI: ${err instanceof Error ? err.message : String(err)}`);
+                        }
+                      }}
+                    >
+                      <Sparkles className="h-3 w-3 text-violet-600" /> AI Score Silvio
+                    </Button>
+
+                    {/* AI Score result display */}
+                    {contact.ai_score !== null && contact.ai_score !== undefined && (
+                      <div className="mt-2 rounded border border-violet-200 bg-violet-50/50 p-2 space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-violet-700 font-medium flex items-center gap-1">
+                            <Sparkles className="h-3 w-3" /> AI Score
+                          </span>
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-white">
+                            {contact.ai_score}/100 · {contact.ai_score_tier ?? "—"}
+                          </Badge>
+                        </div>
+                        {contact.ai_score_reasoning && (
+                          <p className="text-[11px] text-violet-900 italic">
+                            "{contact.ai_score_reasoning}"
+                          </p>
+                        )}
+                        {contact.ai_next_action && (
+                          <p className="text-[11px] text-violet-900">
+                            <strong>Azione:</strong> {contact.ai_next_action}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </CollapsibleContent>
                 </Collapsible>
 

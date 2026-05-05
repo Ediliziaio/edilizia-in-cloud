@@ -40,22 +40,49 @@ interface DatiEstratti {
   ore_lavorate?: number;
   lavorazione?: string;
   materiali?: Array<{ nome: string; quantita: number; unita: string }>;
+  team_presenti?: string[];
   note?: string;
+  sicurezza_alert?: {
+    rilevato: boolean;
+    tipo?: "near_miss" | "infortunio" | "dpi_mancante" | "ponteggio_non_a_norma" | "altro";
+    descrizione?: string;
+    gravita?: "bassa" | "media" | "alta";
+  };
+  incidenti_segnalati?: string[];
+  qualita_auto_valutazione?: "ottima" | "buona" | "da_rivedere";
+  lingua_originale?: string;
 }
 
 const EXTRACTION_PROMPT = `Sei un assistente che estrae dati strutturati da trascrizioni vocali
 di operai edili italiani che descrivono il loro lavoro giornaliero.
 
+ATTENZIONE: l'operaio potrebbe parlare in italiano, rumeno, albanese, arabo o altre lingue.
+Se non in italiano: TRADUCI mentalmente e estrai i dati in italiano.
+
 Dalla trascrizione, estrai ESCLUSIVAMENTE un JSON con questi campi:
 {
   "ore_lavorate": numero (ore decimali, es 8 o 7.5),
-  "lavorazione": stringa breve che descrive il tipo di lavoro,
+  "lavorazione": stringa breve descrive tipo lavoro,
   "materiali": array di {nome: string, quantita: number, unita: string},
-  "note": stringa con osservazioni, anomalie, problemi
+  "team_presenti": array di nomi/ruoli operai presenti in cantiere,
+  "note": stringa con osservazioni generali,
+  "sicurezza_alert": {
+    "rilevato": boolean,
+    "tipo": "near_miss" | "infortunio" | "dpi_mancante" | "ponteggio_non_a_norma" | "altro" | null,
+    "descrizione": "string descrittiva | null",
+    "gravita": "bassa" | "media" | "alta" | null
+  },
+  "incidenti_segnalati": array di stringhe (eventi imprevisti, danni, ritardi),
+  "qualita_auto_valutazione": "ottima" | "buona" | "da_rivedere" | null,
+  "lingua_originale": "it" | "ro" | "sq" | "ar" | "en" | "altro"
 }
 
-Rispondi SOLO con il JSON, senza markdown, senza testo extra.
-Se un campo non è presente nella trascrizione, ometti la chiave.`;
+REGOLE CRITICHE:
+- Se l'operaio dice cose tipo "quasi mi cadeva", "mi sono fatto male", "ponteggio traballa", "senza casco" → sicurezza_alert.rilevato=true
+- Se dice "abbiamo finito ma c'è un problema" → incidenti_segnalati
+- Materiali: solo quelli ESPLICITAMENTE menzionati con quantità (es. "ho usato 20 sacchi cemento")
+- Rispondi SOLO con il JSON, senza markdown, senza testo extra
+- Se un campo non è chiaro nella trascrizione, usa null (non ometter la chiave)`;
 
 async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promise<string> {
   if (!OPENAI_API_KEY) {
@@ -89,46 +116,43 @@ async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promis
   return text.trim();
 }
 
-async function extractStructuredData(trascrizione: string): Promise<DatiEstratti> {
-  if (!OPENAI_API_KEY) {
-    return {};
-  }
+async function extractStructuredData(
+  trascrizione: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  companyId: string,
+  userId: string,
+  orderContext?: string,
+): Promise<DatiEstratti> {
+  if (!trascrizione || trascrizione.length < 5) return {};
 
+  // Migrato ad aiRouter (task rapportino_parse → deepseek-v3.1) — charged + ledger
   try {
-    // P2-5: GPT-4o-mini con timeout 45s.
-    const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: EXTRACTION_PROMPT },
-          { role: "user", content: trascrizione },
-        ],
-        temperature: 0.1,
-        response_format: { type: "json_object" },
-      }),
-      timeoutMs: 45_000,
+    const { aiRouterComplete } = await import("../_shared/aiRouter.ts");
+    const userMessage = orderContext
+      ? `CONTESTO COMMESSA: ${orderContext}\n\nTRASCRIZIONE OPERAIO:\n${trascrizione}`
+      : trascrizione;
+
+    const result = await aiRouterComplete({
+      supabase: supabaseAdmin,
+      taskKey: "rapportino_parse",
+      messages: [
+        { role: "system", content: EXTRACTION_PROMPT },
+        { role: "user", content: userMessage },
+      ],
+      params: { temperature: 0.1, max_tokens: 1500 },
+      responseFormat: { type: "json_object" },
+      companyId,
+      userId,
     });
-
-    if (!response.ok) {
-      console.error("GPT extraction failed", await response.text());
-      return {};
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content ?? "{}";
     try {
-      const parsed = JSON.parse(content) as DatiEstratti;
-      return parsed;
+      return JSON.parse(result.content) as DatiEstratti;
     } catch {
+      console.warn("[parse-rapportino] JSON parse failed, content:", result.content?.slice(0, 200));
       return {};
     }
   } catch (err) {
-    console.error("GPT extraction error", err);
+    console.error("[parse-rapportino] aiRouter error", err);
     return {};
   }
 }
@@ -228,10 +252,52 @@ Deno.serve(async (req: Request): Promise<Response> => {
     trascrizione = "";
   }
 
+  // ─── Carica context commessa per arricchire estrazione ──
+  let orderContext = "";
+  if (payload.order_id) {
+    try {
+      const { data: order } = await supabaseAdmin
+        .from("orders")
+        .select("order_code, client_name, client_company, tipo_lavoro, indirizzo_lavori, work_description")
+        .eq("id", payload.order_id).maybeSingle();
+      if (order) {
+        orderContext = `Commessa ${order.order_code} per ${order.client_name ?? order.client_company} — Tipo: ${order.tipo_lavoro ?? "n/d"} — Indirizzo: ${order.indirizzo_lavori ?? "n/d"} — Descrizione: ${(order.work_description ?? "").slice(0, 200)}`;
+      }
+    } catch { /* best-effort */ }
+  }
+
   // ─── Estrazione dati strutturati ──
   const datiEstratti = trascrizione
-    ? await extractStructuredData(trascrizione)
+    ? await extractStructuredData(trascrizione, supabaseAdmin, companyId, user.id, orderContext)
     : {};
+
+  // ─── Trigger sicurezza alert se rilevato ──
+  if (datiEstratti.sicurezza_alert?.rilevato) {
+    try {
+      const sa = datiEstratti.sicurezza_alert;
+      const sevMap: Record<string, "critical" | "warning" | "info"> = {
+        alta: "critical", media: "warning", bassa: "info",
+      };
+      await supabaseAdmin.rpc("silvio_create_alert", {
+        p_company_id: companyId,
+        p_alert_type: "safety_incident",
+        p_severity: sevMap[sa.gravita ?? "media"] ?? "warning",
+        p_title: `Sicurezza ${sa.tipo ?? "evento"}: ${profile.first_name ?? "operaio"} ${profile.last_name ?? ""}`.trim(),
+        p_message: `${sa.descrizione ?? "Evento sicurezza segnalato in rapportino vocale"}.${orderContext ? " Commessa: " + orderContext.slice(0, 100) : ""}`,
+        p_dedup_key: `safety:${user.id}:${new Date().toISOString().slice(0, 10)}:${sa.tipo ?? "altro"}`,
+        p_target_user_id: null,
+        p_cta_label: "Apri rapportino",
+        p_cta_action: null,
+        p_cta_payload: { rapportino_user_id: user.id, order_id: payload.order_id },
+        p_source_type: "rapportino_vocale",
+        p_source_id: payload.order_id ?? null,
+        p_source_meta: { tipo: sa.tipo, gravita: sa.gravita },
+        p_expires_at: null,
+      });
+    } catch (e) {
+      console.warn("[parse-rapportino] safety alert insert failed:", e);
+    }
+  }
 
   // ─── Salva bozza su DB ──
   const { data: urlData } = supabaseAdmin.storage
@@ -266,5 +332,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     trascrizione,
     dati_estratti: datiEstratti,
     rapportino_id: inserted.id,
+    safety_alert_triggered: !!datiEstratti.sicurezza_alert?.rilevato,
   });
 });

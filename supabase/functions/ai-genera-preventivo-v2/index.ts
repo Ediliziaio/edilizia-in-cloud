@@ -3,6 +3,7 @@ import { requireAuth } from "../_shared/auth.ts";
 import { getSystemPromptForVertical } from "../_shared/ai-prompts/index.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
 import { fetchWithTimeout, isTimeoutError } from "../_shared/fetchWithTimeout.ts";
+import { aiRouterComplete } from "../_shared/aiRouter.ts";
 
 // ── Shape dei record DB usati dall'edge function ───────────────────────────
 // Tipi minimali per sostituire `any` senza legarsi alle generated types (che
@@ -542,45 +543,38 @@ REGOLE OUTPUT:
         ]
       : userMessage;
 
-    // P2-5: Call Claude API con timeout 90s. Prima l'edge function
-    // poteva hangare fino a 150s (limit Supabase) in caso di outage
-    // Anthropic, bruciando CPU e producendo UX pessima lato utente.
-    let claudeRes: Response;
+    // Migrato ad aiRouter — task `preventivo_genera` (claude-haiku-4.5 primary, ~93% saving vs opus)
+    // Per modalità foto: serve vision capability → uso `vision_cantiere` task (gpt-4o-mini)
+    let rawText = "";
     try {
-      claudeRes = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") ?? "",
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-opus-4-5",
-          max_tokens: isFotoMode ? 4000 : 2000,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userContent }],
-        }),
-        timeoutMs: isFotoMode ? 120_000 : 90_000,
+      const result = await aiRouterComplete({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase: supabaseAdmin as any,
+        taskKey: isFotoMode ? "vision_cantiere" : "preventivo_genera",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent as any },
+        ],
+        params: { temperature: 0.3, max_tokens: isFotoMode ? 4000 : 2000 },
+        responseFormat: { type: "json_object" },
+        companyId: company_id,
+        userId,
       });
+      rawText = result.content;
     } catch (err) {
-      if (isTimeoutError(err)) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes("timeout") || msg.toLowerCase().includes("aborted")) {
         return errorResponse(
           "Timeout: il servizio AI non ha risposto in tempo, riprova tra poco",
           504,
         );
       }
-      throw err;
+      throw new Error(`AI Router error: ${msg}`);
     }
 
-    if (!claudeRes.ok) {
-      const errText = await claudeRes.text();
-      throw new Error(`Claude API error: ${claudeRes.status} ${errText}`);
-    }
-
-    const claudeData = await claudeRes.json();
-    const rawText: string | undefined = claudeData?.content?.[0]?.text;
     if (!rawText) {
-      throw new Error("Claude ha restituito una risposta vuota o malformata");
+      throw new Error("AI ha restituito una risposta vuota");
     }
 
     // P2-4: parser robusto via helper condiviso extractJsonFromLLM.

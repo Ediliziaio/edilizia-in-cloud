@@ -16,6 +16,7 @@ import { HRPerformance } from "@/components/cruscotto/HRPerformance";
 import { CruscottoTrend } from "@/components/cruscotto/CruscottoTrend";
 import { EmptyStateGuide } from "@/components/cruscotto/EmptyStateGuide";
 import { SectionErrorBoundary } from "@/components/cruscotto/SectionErrorBoundary";
+import { SilvioCustomerLTVPanel } from "@/components/silvio/SilvioCustomerLTVPanel";
 import { DrilldownDrawer, type DrilldownType } from "@/components/cruscotto/DrilldownDrawer";
 import { PuntoDiPareggio } from "@/components/cruscotto/PuntoDiPareggio";
 import { TargetProgressBar } from "@/components/cruscotto/TargetProgressBar";
@@ -626,6 +627,9 @@ export default function CruscottoAziendale() {
                       <SalesControl sales={marketing?.sales_performance} kpi={marketing?.kpi} isLoading={isLoading} />
                       <PipelineForecast kpi={marketing?.kpi} funnel={marketing?.funnel} isLoading={isLoading} />
                     </div>
+                  </SectionErrorBoundary>
+                  <SectionErrorBoundary sectionName="Customer LTV AI">
+                    <SilvioCustomerLTVPanel />
                   </SectionErrorBoundary>
                   <SectionErrorBoundary sectionName="Marketing">
                     <MarketingControl sources={marketing?.sources} funnel={marketing?.funnel} isLoading={isLoading} />

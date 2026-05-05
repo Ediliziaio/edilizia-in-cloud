@@ -42,8 +42,8 @@ Deno.serve(async (req) => {
     if (!companyId) return errorResponse("No company", 400);
 
     // Recupera API key Claude
-    const claudeApiKey = await getPlatformSetting("claude_api_key");
-    if (!claudeApiKey) return errorResponse("Claude API key non configurata", 400);
+    // claude_api_key non più richiesta — aiRouter usa OPENROUTER_API_KEY
+    // (mantenuto check soft per backward-compat)
 
     // Transazioni da categorizzare
     const { data: transactions } = await supabase
@@ -86,37 +86,28 @@ ${txList}
 Rispondi SOLO con un JSON array, dove ogni elemento ha: { "index": numero, "category": "NomeCategoria", "confidence": 0-100, "pattern": "pattern suggerito per regola futura" }
 Esempio: [{"index": 1, "category": "Utenze", "confidence": 95, "pattern": "ENEL ENERGIA"}]`;
 
-    // P2-5: Claude API con timeout 45s.
-    let claudeRes: Response;
+    // Migrato ad aiRouter: routing OpenRouter + charge_ai_call + ledger SuperAdmin
+    let responseText = "";
     try {
-      claudeRes = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": claudeApiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 2000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-        timeoutMs: 45_000,
+      const { aiRouterComplete } = await import("../_shared/aiRouter.ts");
+      const result = await aiRouterComplete({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase: supabase as any,
+        taskKey: "bank_categorize",
+        messages: [{ role: "user", content: prompt }],
+        params: { temperature: 0.1, max_tokens: 2000 },
+        responseFormat: { type: "json_object" },
+        companyId,
+        userId: null, // bank-categorize is system-level, no user attribution
       });
+      responseText = result.content;
     } catch (err) {
-      if (isTimeoutError(err)) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes("timeout") || msg.toLowerCase().includes("aborted")) {
         return jsonResponse({ success: false, error: "Timeout servizio AI" }, 504);
       }
-      throw err;
+      throw new Error(`AI Router error: ${msg}`);
     }
-
-    if (!claudeRes.ok) {
-      const err = await claudeRes.text();
-      throw new Error(`Claude API error: ${claudeRes.status} - ${err}`);
-    }
-
-    const claudeData = await claudeRes.json();
-    const responseText = claudeData.content?.[0]?.text || "";
 
     // P2-4: extractJsonFromLLM gestisce fence markdown + prosa + array.
     let results: Array<{ index: number; category: string; confidence: number; pattern?: string }>;

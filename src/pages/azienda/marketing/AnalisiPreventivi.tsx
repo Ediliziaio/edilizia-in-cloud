@@ -557,6 +557,22 @@ export default function AnalisiPreventivi() {
               >
                 Generale
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-7 gap-1 border-violet-200 hover:bg-violet-50"
+                onClick={() => {
+                  // Apri chat Silvio con prompt pre-popolato
+                  const prompt = domanda?.trim()
+                    ? `Analisi preventivi (ultimi ${periodoMesi} mesi): ${domanda.trim()}`
+                    : `Analizza i miei preventivi degli ultimi ${periodoMesi} mesi: tipi di lavoro più redditizi, win-rate, suggerimenti operativi.`;
+                  // Salva nel localStorage per pre-fill chat
+                  try { sessionStorage.setItem("silvio_prefill_message", prompt); } catch { /* ignore */ }
+                  window.location.href = "/azienda/chat";
+                }}
+              >
+                ✨ Chiedi a Silvio
+              </Button>
             </div>
           </div>
 

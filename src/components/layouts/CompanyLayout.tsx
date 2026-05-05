@@ -87,6 +87,7 @@ import { SuperAdminCompanySwitcher } from "@/components/admin/SuperAdminCompanyS
 import { AnnouncementBanner } from "@/components/company/AnnouncementBanner";
 
 import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNotificationsBanner";
+import { SilvioBellPopover } from "@/components/silvio/SilvioBellPopover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -1174,6 +1175,8 @@ export function CompanyLayout() {
             <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)" aria-label="Cerca (⌘K)">
               <Search className="h-4 w-4" aria-hidden="true" />
             </Button>
+            {/* Silvio: cose da sapere proattive */}
+            <SilvioBellPopover />
             <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setNotificationsPanelOpen(true)} title="Notifiche" aria-label={notifUnreadCount > 0 ? `Notifiche (${notifUnreadCount} non lette)` : "Notifiche"}>
               <Bell className="h-4 w-4" aria-hidden="true" />
               {notifUnreadCount > 0 && (

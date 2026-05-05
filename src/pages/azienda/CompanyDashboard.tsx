@@ -1278,6 +1278,7 @@ export default function CompanyDashboard() {
       {/* Filtri */}
       <CompanyDashboardFilters filters={filters} onUpdate={updateFilters} />
 
+
       <ManagementOverview
         stats={stats}
         weeklyDeadlines={weeklyDeadlines}

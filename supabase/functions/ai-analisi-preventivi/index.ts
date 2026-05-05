@@ -1,5 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { aiRouterComplete } from "../_shared/aiRouter.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -142,35 +143,43 @@ Deno.serve(async (req) => {
       ? `${domanda}\n\nDATA PREVENTIVI (ultimi ${periodo_mesi} mesi):\n${preventiviFormatted}\n\nSTATISTICHE:\nPreventivi analizzati: ${totalPreventivi}\nRicavo totale: €${ricavoTotale.toFixed(0)}\nMargine medio: ${margineMediano.toFixed(1)}%\nValore medio preventivo: €${valoreMediano.toFixed(0)}`
       : `Analizza questi dati preventivi degli ultimi ${periodo_mesi} mesi e rispondi a: 1) Quali prodotti mi fanno guadagnare di più? 2) Dove sto perdendo margine? 3) Cosa dovrei smettere di vendere? 4) Cosa dovrei spingere di più? 5) C'è qualcosa di anomalo?\n\nDATA PREVENTIVI:\n${preventiviFormatted}\n\nSTATISTICHE:\nPreventivi analizzati: ${totalPreventivi}\nRicavo totale: €${ricavoTotale.toFixed(0)}\nMargine medio: ${margineMediano.toFixed(1)}%\nValore medio: €${valoreMediano.toFixed(0)}`;
 
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") ?? "",
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5",
-        max_tokens: 1500,
-        system:
-          "Sei un CFO esperto di imprese edili italiane. Analizza i dati forniti e dai insights actionable concreti. Rispondi in italiano, sii diretto e specifico. Evita generalità. Usa paragrafi brevi con titoli in grassetto.",
-        messages: [{ role: "user", content: userMessage }],
-      }),
-    });
-
-    if (!claudeRes.ok) {
-      const errText = await claudeRes.text();
-      throw new Error(`Claude API error: ${claudeRes.status} ${errText}`);
+    // Migrato ad aiRouter: passa via OpenRouter, charged + ledger SuperAdmin
+    let aiResult;
+    try {
+      aiResult = await aiRouterComplete({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase: supabaseAdmin as any,
+        taskKey: "preventivo_analisi",
+        messages: [
+          {
+            role: "system",
+            content: "Sei un CFO esperto di imprese edili italiane. Analizza i dati forniti e dai insights actionable concreti. Rispondi in italiano, sii diretto e specifico. Evita generalità. Usa paragrafi brevi con titoli in grassetto. Numeri formato italiano: € 1.234,56.",
+          },
+          { role: "user", content: userMessage },
+        ],
+        params: { temperature: 0.3, max_tokens: 1500 },
+        companyId: company_id,
+        userId,
+        idempotencyKey: `analisi_preventivi_${company_id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      });
+    } catch (err) {
+      throw new Error(`AI Router error: ${err instanceof Error ? err.message : String(err)}`);
     }
 
-    const claudeData = await claudeRes.json();
-    const claudeText: string | undefined = claudeData?.content?.[0]?.text;
+    const claudeText = aiResult.content;
     if (!claudeText) {
-      throw new Error("Claude ha restituito una risposta vuota o malformata");
+      throw new Error("AI ha restituito una risposta vuota");
     }
 
     return jsonResponse({
       analisi: claudeText as string,
+      ai_meta: {
+        model_used: aiResult.modelUsed,
+        tokens_in: aiResult.promptTokens,
+        tokens_out: aiResult.completionTokens,
+        cost_billed_eur: aiResult.costBilledEur,
+        ledger_id: aiResult.ledgerId,
+      },
       dati: {
         totalPreventivi,
         ricavoTotale,
