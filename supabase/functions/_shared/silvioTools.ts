@@ -230,6 +230,36 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     }),
   },
 
+  get_executive_snapshot: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_executive_snapshot",
+        description: "Snapshot completo C-level: orders attivi, revenue YTD/mese, cashflow forecast, team cost, alerts open, LTV totale, top cliente. Usa per 'come va l'azienda', 'situazione generale', 'briefing'.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_executive_report", {
+      p_company_id: ctx.companyId,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+  },
+
+  detect_frodi_anomalie: {
+    schema: {
+      type: "function",
+      function: {
+        name: "detect_frodi_anomalie",
+        description: "Rileva anomalie sospette: fatture duplicate, importi anomali, sconti eccessivi, pagamenti molto in ritardo. Usa per 'controlla anomalie', 'frodi', 'audit'.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_detect_frodi_anomalie", {
+      p_company_id: ctx.companyId,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+  },
+
   universal_search: {
     schema: {
       type: "function",
