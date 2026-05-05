@@ -230,6 +230,22 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     }),
   },
 
+  get_foto_cantiere_summary: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_foto_cantiere_summary",
+        description: "Statistiche foto cantiere analizzate da AI: totali / da analizzare / qualita (eccellente/buona/sufficiente/problematica/grave) / con problemi / score medio. Usa per 'qualita lavori', 'foto cantiere', 'come va il cantiere X'.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_foto_cantiere_summary", {
+      p_company_id: ctx.companyId,
+      p_order_id: null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+  },
+
   get_employees_workload: {
     schema: {
       type: "function",
