@@ -237,6 +237,31 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     }),
   },
 
+  get_industry_benchmark: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_industry_benchmark",
+        description: "Confronta una metrica della tua azienda (es. DSO, margine, costo orario) con il benchmark di settore aggregato e anonimo costruito dai dati di tutti i clienti EiC opt-in. Cluster automatico per sector + area + dimensione. Privacy: solo dati aggregati con k-anonymity >= 5. Usa per 'come va la mia X rispetto al settore', 'sono nella media di mercato'.",
+        parameters: {
+          type: "object",
+          properties: {
+            metric_key: {
+              type: "string",
+              description: "Chiave metrica (es. 'dso_medio_giorni'). V1 supporta: dso_medio_giorni. Roadmap V2: margine_commessa_pct, costo_orario_operaio_eur, ecc.",
+            },
+          },
+          required: ["metric_key"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "get_industry_benchmark", {
+      p_metric_key: args?.metric_key ?? "",
+      p_company_id: ctx.companyId,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+  },
+
   get_executive_snapshot: {
     schema: {
       type: "function",
