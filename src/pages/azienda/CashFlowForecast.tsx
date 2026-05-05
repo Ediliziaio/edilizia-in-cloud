@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCashFlowRealData } from "@/hooks/useCashFlowRealData";
 import { CashFlowProjectionChart } from "@/components/forecast/CashFlowProjectionChart";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { SilvioCashflowForecast } from "@/components/silvio/SilvioCashflowForecast";
 
 
 export default function CashFlowForecast() {
@@ -241,6 +242,9 @@ export default function CashFlowForecast() {
           <TabsTrigger value="marginalita">Marginalità</TabsTrigger>
           <TabsTrigger value="costi">Previsionale Costi</TabsTrigger>
           <TabsTrigger value="cassa">Previsione di Cassa</TabsTrigger>
+          <TabsTrigger value="ai-forecast" className="gap-1">
+            <span className="hidden md:inline">✨</span>AI Forecast 90gg
+          </TabsTrigger>
           <TabsTrigger value="tesoreria">Tesoreria</TabsTrigger>
         </TabsList>
 
@@ -274,6 +278,10 @@ export default function CashFlowForecast() {
             scadenzeForForecast={scadenzeForForecast}
             primaNotaSaldo={primaNotaSaldo}
           />
+        </TabsContent>
+
+        <TabsContent value="ai-forecast" className="mt-6">
+          <SilvioCashflowForecast weeks={13} applyDelay={true} />
         </TabsContent>
 
         <TabsContent value="tesoreria" className="mt-6">

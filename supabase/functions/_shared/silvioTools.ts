@@ -154,6 +154,36 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedRoles: ["super_admin", "company_admin"],
   },
 
+  get_cashflow_forecast_90d: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_cashflow_forecast_90d",
+        description: "Previsione cashflow predittiva settimanale per i prossimi 90 giorni (13 settimane). Combina saldo banche attuale + rate future attese (con ritardi pagamento storici per cliente) + stipendi settimanali + fatture fornitori (60gg). Ritorna per ogni settimana: incassi attesi, uscite, saldo cumulativo, status (ok/warning/critical), totali periodo, settimane critiche, settimana di saldo minimo. Usa per: 'come sarà la cassa nei prossimi 3 mesi', 'avrò problemi di liquidità', 'previsione cashflow', 'cassa futura', 'rischio cassa negativa'.",
+        parameters: {
+          type: "object",
+          properties: {
+            weeks: {
+              type: "integer", minimum: 4, maximum: 26, default: 13,
+              description: "Numero settimane da prevedere (default 13 = ~90 giorni)",
+            },
+            apply_delay: {
+              type: "boolean", default: true,
+              description: "Se true, applica ritardo storico medio pagamenti per cliente (più realistico)",
+            },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_cashflow_forecast_90d", {
+      p_company_id: ctx.companyId,
+      p_weeks: args?.weeks ?? 13,
+      p_apply_delay: args?.apply_delay ?? true,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+  },
+
   get_quotes_summary: {
     schema: {
       type: "function",
