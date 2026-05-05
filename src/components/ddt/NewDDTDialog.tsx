@@ -30,10 +30,13 @@ import {
   FileCheck, Truck, ClipboardCheck, Loader2, ChevronLeft, ChevronRight,
   Check, ShoppingCart, Package, Calendar, Clock, User, Phone, Hash,
   AlertTriangle, FileText, Warehouse as WarehouseIcon, Paperclip,
-  Info, MapPin,
+  Info, MapPin, Sparkles, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   useDDTRicezioneMutations,
   useDDTAttachments,
@@ -87,8 +90,35 @@ export function NewDDTDialog({
 }: NewDDTDialogProps) {
   const navigate = useNavigate();
   const { orders } = usePurchaseOrders();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id ?? null;
   const [stepIdx, setStepIdx] = useState(0);
   const currentStep = STEPS[stepIdx];
+
+  // Callback applicato quando l'AI ha estratto i dati DDT
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const applyAIExtracted = (ext: Record<string, any>) => {
+    if (!ext) return;
+    if (ext.numero_ddt && !numero) setNumero(String(ext.numero_ddt));
+    if (ext.data_ddt) {
+      try {
+        const d = new Date(String(ext.data_ddt));
+        if (!isNaN(d.getTime())) setData(d.toISOString().slice(0, 10));
+      } catch { /* ignore */ }
+    }
+    if (ext.corriere && !corriere) setCorriere(String(ext.corriere));
+    if (ext.targa_mezzo && !targaMezzo) setTargaMezzo(String(ext.targa_mezzo));
+    if (ext.autista_nome && !autistaNome) setAutistaNome(String(ext.autista_nome));
+    if (ext.ora_inizio_trasporto && !oraArrivo) setOraArrivo(String(ext.ora_inizio_trasporto).slice(0, 5));
+    // Quantità totale = somma articoli
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (Array.isArray(ext.articoli) && !qty) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const totQty = ext.articoli.reduce((s: number, a: any) => s + Number(a.quantita ?? 0), 0);
+      if (totQty > 0) setQty(String(totQty));
+    }
+    if (ext.note_documento && !note) setNote(String(ext.note_documento));
+  };
 
   // ── Step 1: documento ─────────────────────────────
   const [poId, setPoId] = useState("");
@@ -313,6 +343,8 @@ export function NewDDTDialog({
               selectedPO={selectedPO}
               availablePOs={availablePOs}
               disabledPOSelect={!!prefillPurchaseOrderId}
+              onAIExtractedData={applyAIExtracted}
+              companyId={companyId}
             />
           )}
 
@@ -413,13 +445,49 @@ interface DocumentoStepProps {
   selectedPO: { id: string; oda_number: string; suppliers?: { name: string } | null; orders?: { order_code: string } | null; status: string; expected_delivery_date?: string | null } | null;
   availablePOs: Array<{ id: string; oda_number: string; suppliers?: { name: string } | null; orders?: { order_code: string } | null; status: string; expected_delivery_date?: string | null }>;
   disabledPOSelect?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onAIExtractedData?: (extracted: Record<string, any>) => void;
+  companyId?: string | null;
 }
 
 function DocumentoStep({
   poId, onPoIdChange, numero, onNumeroChange, data, onDataChange,
   ddtFile, onDdtFileChange, extraFiles, onExtraFilesChange,
   selectedPO, availablePOs, disabledPOSelect,
+  onAIExtractedData, companyId,
 }: DocumentoStepProps) {
+  const [isAIExtracting, setIsAIExtracting] = useState(false);
+
+  const runAIExtract = async () => {
+    if (!ddtFile || !companyId || !onAIExtractedData) return;
+    setIsAIExtracting(true);
+    try {
+      const file = ddtFile.file;
+      const arrayBuf = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuf);
+      let bin = "";
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      const base64 = btoa(bin);
+
+      const { data: aiData, error } = await supabase.functions.invoke("ddt-ocr-extract", {
+        body: {
+          image_base64: base64,
+          mime: file.type || "image/jpeg",
+          company_id: companyId,
+        },
+      });
+      if (error) throw error;
+      if (!aiData?.success) throw new Error(aiData?.error ?? "Estrazione fallita");
+      onAIExtractedData(aiData.extracted ?? {});
+      toast.success(
+        `Dati estratti dall'AI · €${aiData.ai_meta?.cost_billed_eur?.toFixed(4) ?? "0"}`,
+      );
+    } catch (err) {
+      toast.error(`AI: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsAIExtracting(false);
+    }
+  };
   return (
     <div className="space-y-5">
       {/* ODA select */}
@@ -540,6 +608,24 @@ function DocumentoStep({
                 Rimuovi
               </Button>
             </div>
+            {onAIExtractedData && companyId && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={runAIExtract}
+                disabled={isAIExtracting}
+                className="w-full gap-2 border-violet-300 text-violet-700 hover:bg-violet-50"
+              >
+                {isAIExtracting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Wand2 className="h-4 w-4" />
+                )}
+                <Sparkles className="h-3.5 w-3.5" />
+                Estrai dati dal DDT con AI
+              </Button>
+            )}
           </div>
         )}
       </div>
