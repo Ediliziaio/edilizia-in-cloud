@@ -153,15 +153,19 @@ Deno.serve(async (req: Request) => {
 
     // Appuntamenti oggi (per tutti)
     const today = new Date().toISOString().slice(0, 10);
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const { data: apts } = await supabaseAdmin
       .from("appointments")
-      .select("title, start_at, customer_name, location")
+      .select("title, appointment_date, appointment_time, address_line, address_city, status")
       .eq("company_id", companyId)
-      .gte("start_at", today)
-      .lt("start_at", tomorrow)
+      .eq("appointment_date", today)
       .limit(8);
-    payload.appuntamenti_oggi = apts ?? [];
+    payload.appuntamenti_oggi = (apts ?? []).map((a: AnyObj) => ({
+      title: a.title,
+      data: a.appointment_date,
+      ora: a.appointment_time,
+      luogo: [a.address_line, a.address_city].filter(Boolean).join(", "),
+      status: a.status,
+    }));
 
     // ── AI call ──────────────────────────────────────────────
     let aiResult;

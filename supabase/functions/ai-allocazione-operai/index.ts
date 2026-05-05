@@ -70,7 +70,7 @@ Deno.serve(async (req: Request) => {
     // Fetch order
     const { data: order, error: orderErr } = await supabaseAdmin
       .from("orders")
-      .select("id, description, address, work_start_date, expected_date, total_amount")
+      .select("id, description, work_address, client_address, indirizzo_lavori, work_start_date, expected_date, total_amount")
       .eq("id", order_id)
       .eq("company_id", company_id)
       .single();
@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
     const payload = {
       cantiere: {
         descrizione: order.description,
-        indirizzo: order.address,
+        indirizzo: order.work_address ?? order.client_address ?? order.indirizzo_lavori ?? null,
         data_inizio: order.work_start_date,
         data_fine_prevista: order.expected_date,
         importo_totale_eur: order.total_amount,
