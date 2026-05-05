@@ -8,6 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Buffer } from "node:buffer";
 import { requireAuth } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { aiRouterComplete } from "../_shared/aiRouter.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -183,32 +184,36 @@ async function updateStatus(
 
 async function callOpenAI(
   messages: Array<{ role: string; content: unknown }>,
-  maxTokens = 4000
+  maxTokens = 4000,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin?: any,
+  companyId?: string | null,
+  userId?: string | null,
+  hasVision = false,
 ): Promise<unknown> {
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o",
-      messages,
-      response_format: { type: "json_object" },
-      max_tokens: maxTokens,
-      temperature: 0.1,
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`OpenAI error: ${JSON.stringify(data)}`);
-
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("OpenAI returned empty response");
-
+  // Migrato ad aiRouter — task `computo_extract` (gpt-4o-mini, ~85% saving vs gpt-4o)
+  // Per pagine vision: usa task `vision_cantiere` (necessita modello vision-capable)
   try {
-    return JSON.parse(content);
-  } catch {
-    throw new Error(`OpenAI returned invalid JSON: ${content.substring(0, 200)}`);
+    const result = await aiRouterComplete({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: supabaseAdmin as any,
+      taskKey: hasVision ? "vision_cantiere" : "computo_extract",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      messages: messages as any,
+      params: { temperature: 0.1, max_tokens: maxTokens },
+      responseFormat: { type: "json_object" },
+      companyId: companyId ?? null,
+      userId: userId ?? null,
+    });
+    const content = result.content;
+    if (!content) throw new Error("AI returned empty response");
+    try {
+      return JSON.parse(content);
+    } catch {
+      throw new Error(`AI returned invalid JSON: ${content.substring(0, 200)}`);
+    }
+  } catch (err) {
+    throw new Error(`AI Router error: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -264,7 +269,11 @@ function splitByChapters(text: string): Array<{ number: number; name: string; te
 
 async function analyzeWithAI(
   fullText: string,
-  computoId: string
+  computoId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin?: any,
+  companyId?: string | null,
+  userId?: string | null,
 ): Promise<ExtractionResult> {
   const chapters = splitByChapters(fullText);
 
@@ -272,7 +281,7 @@ async function analyzeWithAI(
     const result = (await callOpenAI([
       { role: "system", content: COMPUTO_TEXT_EXTRACTION_PROMPT },
       { role: "user", content: fullText },
-    ], 8000)) as ExtractionResult;
+    ], 8000, supabaseAdmin, companyId, userId)) as ExtractionResult;
     return result;
   }
 
@@ -280,7 +289,7 @@ async function analyzeWithAI(
   const metadata = (await callOpenAI([
     { role: "system", content: COMPUTO_METADATA_PROMPT },
     { role: "user", content: fullText.substring(0, 5000) },
-  ])) as ExtractionResult["metadata"];
+  ], 4000, supabaseAdmin, companyId, userId)) as ExtractionResult["metadata"];
 
   const capitoli: ExtractionResult["capitoli"] = [];
   for (let i = 0; i < chapters.length; i++) {
@@ -298,7 +307,7 @@ async function analyzeWithAI(
         const subResult = (await callOpenAI([
           { role: "system", content: COMPUTO_CHAPTER_PROMPT },
           { role: "user", content: `Capitolo ${chapter.number}: ${chapter.name}\n\n${sub}` },
-        ], 8000)) as { voci?: VoceEstratta[] };
+        ], 8000, supabaseAdmin, companyId, userId)) as { voci?: VoceEstratta[] };
         if (subResult.voci) allVoci.push(...subResult.voci);
       }
       capitoli.push({
@@ -311,7 +320,7 @@ async function analyzeWithAI(
       const result = (await callOpenAI([
         { role: "system", content: COMPUTO_CHAPTER_PROMPT },
         { role: "user", content: `Capitolo ${chapter.number}: ${chapter.name}\n\n${chapterText}` },
-      ], 8000)) as { voci?: VoceEstratta[] };
+      ], 8000, supabaseAdmin, companyId, userId)) as { voci?: VoceEstratta[] };
       const voci = result.voci || [];
       capitoli.push({
         numero: chapter.number,
@@ -329,7 +338,11 @@ async function analyzeWithAI(
 
 async function extractFromPDFVision(
   buffer: ArrayBuffer,
-  computoId: string
+  computoId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin?: any,
+  companyId?: string | null,
+  userId?: string | null,
 ): Promise<ExtractionResult> {
   // Try to extract text per page using pdfjs-dist
   let numPages = 0;
@@ -359,7 +372,7 @@ async function extractFromPDFVision(
   const allText = pageTexts.join("\n\n");
   if (allText.trim().length > 200) {
     // There IS text - use text-based extraction
-    return await analyzeWithAI(allText, computoId);
+    return await analyzeWithAI(allText, computoId, supabaseAdmin, companyId, userId);
   }
 
   // Truly scanned PDF with no text - return empty with error
@@ -768,11 +781,11 @@ serve(async (req) => {
         const text = await extractTextFromPDF(buffer);
         if (text.trim().length > 200) {
           await updateStatus(computoUploadId, "analyzing_ai");
-          result = await analyzeWithAI(text, computoUploadId);
+          result = await analyzeWithAI(text, computoUploadId, sb, upload.company_id, userId);
           method = "pdf_text";
         } else {
           // Low text content - try Vision-based approach
-          result = await extractFromPDFVision(buffer, computoUploadId);
+          result = await extractFromPDFVision(buffer, computoUploadId, sb, upload.company_id, userId);
           method = "pdf_vision";
         }
       }

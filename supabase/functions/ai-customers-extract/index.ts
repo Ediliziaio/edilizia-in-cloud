@@ -104,7 +104,15 @@ ALTRE REGOLE:
 - Se una riga ha un nome che è CHIARAMENTE un numero di telefono, ricomponi: mettilo in phone e ricostruisci il nome dai dati vicini (righe adiacenti, colonne precedenti). Se non è possibile, lascia first_name="" e metti comunque il numero in phone.`;
 
 // deno-lint-ignore no-explicit-any
-async function callOpenAI(apiKey: string, fileBase64: string, contentType: string): Promise<{
+async function callOpenAI(
+  apiKey: string,
+  fileBase64: string,
+  contentType: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  companyId: string | null,
+  userId: string | null,
+): Promise<{
   rows: any[];
   detected_context: string | null;
   warnings: string[];
@@ -121,42 +129,37 @@ async function callOpenAI(apiKey: string, fileBase64: string, contentType: strin
     throw new Error(`Tipo file non supportato per estrazione AI: ${contentType}. Carica PDF o immagini.`);
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o",
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: userText },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${contentType};base64,${fileBase64}`,
-                detail: "high",
-              },
+  // Migrato ad aiRouter — routing OpenRouter + ledger SuperAdmin
+  const { aiRouterComplete } = await import("../_shared/aiRouter.ts");
+  const result = await aiRouterComplete({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase: supabaseAdmin as any,
+    taskKey: "customers_extract",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        content: [
+          { type: "text", text: userText },
+          {
+            type: "image_url",
+            image_url: {
+              url: `data:${contentType};base64,${fileBase64}`,
+              detail: "high",
             },
-          ],
-        },
-      ],
-      max_tokens: 8000,
-      temperature: 0.1,
-    }),
+          },
+        ] as any,
+      },
+    ],
+    params: { temperature: 0.1, max_tokens: 8000 },
+    responseFormat: { type: "json_object" },
+    companyId,
+    userId,
   });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`OpenAI error ${response.status}: ${text}`);
-  }
-  const json = await response.json();
-  const content = json.choices?.[0]?.message?.content ?? "{}";
+  const content = result.content || "{}";
+  const json = { usage: { prompt_tokens: result.promptTokens, completion_tokens: result.completionTokens } };
   const tokensIn = json.usage?.prompt_tokens ?? 0;
   const tokensOut = json.usage?.completion_tokens ?? 0;
 
@@ -256,7 +259,7 @@ serve(async (req: Request) => {
       return errorResponse("File troppo grande (>20MB)", 413, corsHeaders);
     }
 
-    const extracted = await callOpenAI(openaiKey, base64, body.mime_type || contentType);
+    const extracted = await callOpenAI(openaiKey, base64, body.mime_type || contentType, supabaseAdmin, companyId, userId);
     const costCents = estimateCostCents(extracted.tokensIn, extracted.tokensOut);
 
     await logAiUsage(

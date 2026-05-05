@@ -120,6 +120,7 @@ function AttivitaRouter() {
 // MP-CLEANUP: MessagingBeta rimosso — dominio "Messaggi Esterni" eliminato.
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
 const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
+const AssistenteAIPage = lazy(() => import("@/pages/azienda/AssistenteAIPage"));
 const AgentDetailPage = lazy(() => import("@/pages/azienda/AgentDetailPage"));
 const RenderCategoryHub = lazy(() => import("@/pages/azienda/RenderCategoryHub"));
 const RenderHub = lazy(() => import("@/pages/azienda/RenderHub"));
@@ -398,6 +399,9 @@ export function companyRoutes() {
 
         {/* Backward-compatible redirects */}
         <Route path="automazioni-task" element={<Navigate to="/azienda/automazioni" replace />} />
+
+        {/* Assistente AI con 18 personas (Fase 2 orchestrator) */}
+        <Route path="assistente-ai" element={<AssistenteAIPage />} />
 
         {/* Unified Agenti AI page (2 tabs: custom, platform) — gated: ai_agents */}
         <Route path="agenti-ai" element={withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><AgentiAIPage /></FeatureRoute>)} />

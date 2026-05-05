@@ -117,6 +117,10 @@ async function callOpenAIChunk(
   filename: string,
   range: ChunkRange | null,
   hint?: Hint,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin?: any,
+  companyId?: string | null,
+  userId?: string | null,
 ): Promise<{
   rows: unknown[];
   detected: { finanziaria: string | null; prodotto: string | null; condizione: string | null; tan_base: number | null } | null;
@@ -134,42 +138,37 @@ async function callOpenAIChunk(
   if (hint?.nome_prodotto) userTextParts.push(`Prodotto atteso: ${hint.nome_prodotto}`);
   if (hint?.subtariffa_default) userTextParts.push(`Subtariffa default: ${hint.subtariffa_default}`);
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o",
-      instructions: SYSTEM_PROMPT,
-      input: [
+  // Migrato ad aiRouter — task tabella_finanziamento_extract (gpt-4o-mini, ~85% saving vs gpt-4o)
+  let content = "{}";
+  let tokensIn = 0, tokensOut = 0;
+  try {
+    const { aiRouterComplete } = await import("../_shared/aiRouter.ts");
+    const result = await aiRouterComplete({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: supabaseAdmin as any,
+      taskKey: "tabella_finanziamento_extract",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
           content: [
-            { type: "input_file", filename, file_data: `data:application/pdf;base64,${pdfBase64}` },
-            { type: "input_text", text: userTextParts.join("\n") },
-          ],
+            { type: "text", text: userTextParts.join("\n") },
+            { type: "image_url", image_url: { url: `data:application/pdf;base64,${pdfBase64}`, detail: "high" } },
+          ] as any,
         },
       ],
-      text: { format: { type: "json_object" } },
-      max_output_tokens: 16000,
-      temperature: 0.1,
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`OpenAI error ${response.status}: ${text.slice(0, 500)}`);
+      params: { temperature: 0.1, max_tokens: 16000 },
+      responseFormat: { type: "json_object" },
+      companyId: companyId ?? null,
+      userId: userId ?? null,
+    });
+    content = result.content || "{}";
+    tokensIn = result.promptTokens;
+    tokensOut = result.completionTokens;
+  } catch (err) {
+    throw new Error(`AI Router error: ${err instanceof Error ? err.message : String(err)}`);
   }
-  const json = await response.json();
-  const content =
-    (typeof json.output_text === "string" && json.output_text) ||
-    json.output?.[0]?.content?.[0]?.text ||
-    json.output?.[0]?.content?.find((c: Record<string, unknown>) => c.type === "output_text")?.text ||
-    "{}";
-  const tokensIn = json.usage?.input_tokens ?? json.usage?.prompt_tokens ?? 0;
-  const tokensOut = json.usage?.output_tokens ?? json.usage?.completion_tokens ?? 0;
   let parsed: Record<string, unknown> = {};
   try {
     parsed = JSON.parse(content);
@@ -185,7 +184,16 @@ async function callOpenAIChunk(
   };
 }
 
-async function callOpenAI(apiKey: string, pdfBase64: string, filename: string, hint?: Hint): Promise<{
+async function callOpenAI(
+  apiKey: string,
+  pdfBase64: string,
+  filename: string,
+  hint?: Hint,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin?: any,
+  companyId?: string | null,
+  userId?: string | null,
+): Promise<{
   rows: Array<Record<string, unknown>>;
   detected: { finanziaria: string | null; prodotto: string | null; condizione: string | null; tan_base: number | null } | null;
   confidence: number;
@@ -196,7 +204,7 @@ async function callOpenAI(apiKey: string, pdfBase64: string, filename: string, h
   // di 16k token output di gpt-4o. Ogni range estrae solo le sue righe.
   const results = await Promise.all(
     CHUNK_RANGES.map((range) =>
-      callOpenAIChunk(apiKey, pdfBase64, filename, range, hint).catch((err) => {
+      callOpenAIChunk(apiKey, pdfBase64, filename, range, hint, supabaseAdmin, companyId, userId).catch((err) => {
         console.error(`[chunk ${range.label}] ${err}`);
         return { rows: [], detected: null, confidence: 0, tokensIn: 0, tokensOut: 0 };
       }),
@@ -346,7 +354,7 @@ Deno.serve(async (req: Request) => {
 
     // Call OpenAI
     const filename = storagePath.split("/").pop() ?? "tabella.pdf";
-    const { rows, detected, confidence, tokensIn, tokensOut } = await callOpenAI(openaiKey, pdfBase64, filename, payload.hint);
+    const { rows, detected, confidence, tokensIn, tokensOut } = await callOpenAI(openaiKey, pdfBase64, filename, payload.hint, supabaseAdmin, companyId, userId);
     const costCents = estimateCostCents(tokensIn, tokensOut);
 
     await logAiUsage(supabaseAdmin, companyId, userId, tokensIn, tokensOut, costCents, storagePath, "success", undefined, {

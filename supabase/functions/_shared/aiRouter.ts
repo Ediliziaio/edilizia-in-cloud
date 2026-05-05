@@ -71,6 +71,20 @@ export interface AiRouterCompleteOptions {
   userId?: string | null;
   /** Se vuoi forzare un modello specifico (override config) */
   forceModel?: string;
+  /**
+   * Idempotency key UNICA per questa chiamata (es. hash di session_id+message_id).
+   * Se presente, charge_ai_call NON addebita doppio in caso di retry.
+   * Se assente, viene generata automaticamente da timestamp+random (idempotency garantita SOLO entro singola chiamata).
+   */
+  idempotencyKey?: string;
+  /** Persona AI che ha originato la chiamata (Fase 2). Default null. */
+  personaKey?: string | null;
+  /** Se true, salta charge_ai_call (es. per task system internal). Default false. */
+  skipCharge?: boolean;
+  /** Stima costo EUR per precheck. Default 0.10€ (sufficiente per ~95% chiamate). */
+  estimatedCostEur?: number;
+  /** Cambio USD→EUR. Default 0.92 (configurabile via env). */
+  fxUsdToEur?: number;
 }
 
 export interface AiRouterCompleteResult {
@@ -84,7 +98,16 @@ export interface AiRouterCompleteResult {
   completionTokens: number;
   totalTokens: number;
   costUsd: number;
+  costRealEur: number;
+  costBilledEur: number;
+  marginEur: number;
   durationMs: number;
+  /** ID del record nel ai_call_ledger (audit trail) */
+  ledgerId?: string;
+  /** True se il charge è stato saltato (skipCharge=true o errore precheck) */
+  chargeSkipped?: boolean;
+  /** Reason del precheck failure se chargeSkipped */
+  prechargeReason?: string;
 }
 
 /** Errore custom con metadati per debug. */
@@ -106,6 +129,7 @@ interface RouterConfig {
   primary_model: string;
   fallback_models: string[];
   default_params: AiRouterParams;
+  tier_key: string;
   is_default?: boolean;
 }
 
@@ -118,6 +142,7 @@ async function loadConfig(supabase: SupabaseClient, taskKey: string): Promise<Ro
       primary_model: "openai/gpt-4o-mini",
       fallback_models: ["openrouter/auto"],
       default_params: { temperature: 0.3, max_tokens: 2000 },
+      tier_key: "t2_vision",
       is_default: true,
     };
   }
@@ -126,8 +151,115 @@ async function loadConfig(supabase: SupabaseClient, taskKey: string): Promise<Ro
     primary_model: data.primary_model,
     fallback_models: Array.isArray(data.fallback_models) ? data.fallback_models : [],
     default_params: data.default_params ?? {},
+    tier_key: data.tier_key ?? "t1_economic",
     is_default: data.is_default,
   };
+}
+
+/** Genera una idempotency key safe se non fornita. */
+function generateIdempotencyKey(taskKey: string): string {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 12);
+  return `${taskKey}_${ts}_${rand}`;
+}
+
+/**
+ * Charge atomico al wallet azienda. Best-effort: se fallisce non blocca la risposta
+ * (la chiamata AI è già avvenuta), ma logga error per audit.
+ */
+async function chargeAiCall(
+  supabase: SupabaseClient,
+  args: {
+    idempotencyKey: string;
+    companyId: string | null;
+    userId: string | null;
+    taskKey: string;
+    tierKey: string;
+    modelUsed: string;
+    usedPrimary: boolean;
+    fallbackIndex: number;
+    personaKey: string | null;
+    tokensIn: number;
+    tokensOut: number;
+    costRealUsd: number;
+    fxUsdToEur: number;
+    status: "success" | "error" | "timeout";
+    errorMessage?: string;
+    durationMs?: number;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<{
+  ledgerId?: string;
+  costRealEur: number;
+  costBilledEur: number;
+  marginEur: number;
+} | null> {
+  if (!args.companyId) return null; // task senza tenant: nessun charge
+
+  try {
+    const { data, error } = await supabase.rpc("charge_ai_call", {
+      p_idempotency_key: args.idempotencyKey,
+      p_company_id: args.companyId,
+      p_user_id: args.userId,
+      p_task_key: args.taskKey,
+      p_tier_key: args.tierKey,
+      p_model_used: args.modelUsed,
+      p_used_primary: args.usedPrimary,
+      p_fallback_index: args.fallbackIndex,
+      p_persona_key: args.personaKey,
+      p_tokens_in: args.tokensIn,
+      p_tokens_out: args.tokensOut,
+      p_cost_real_usd: args.costRealUsd,
+      p_fx_usd_to_eur: args.fxUsdToEur,
+      p_status: args.status,
+      p_error_message: args.errorMessage ?? null,
+      p_duration_ms: args.durationMs ?? null,
+      p_metadata: args.metadata ?? {},
+    });
+    if (error) {
+      console.error("[aiRouter] charge_ai_call RPC error:", error);
+      return null;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = data as any;
+    return {
+      ledgerId: r?.ledger_id,
+      costRealEur: Number(r?.cost_real_eur ?? 0),
+      costBilledEur: Number(r?.cost_billed_eur ?? 0),
+      marginEur: Number(r?.margin_eur ?? 0),
+    };
+  } catch (e) {
+    console.error("[aiRouter] charge_ai_call threw:", e);
+    return null;
+  }
+}
+
+/** Precheck saldo azienda PRIMA di chiamare OpenRouter. */
+async function precheckCredit(
+  supabase: SupabaseClient,
+  companyId: string,
+  estimatedCostEur: number,
+): Promise<{ ok: boolean; reason?: string; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc("precheck_ai_credit", {
+      p_company_id: companyId,
+      p_estimated_cost_eur: estimatedCostEur,
+    });
+    if (error) {
+      console.warn("[aiRouter] precheck error, allowing call:", error.message);
+      return { ok: true }; // fail-open per non bloccare in caso di bug RPC
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = data as any;
+    return {
+      ok: !!r?.ok,
+      reason: r?.reason,
+      message: r?.message,
+    };
+  } catch (e) {
+    console.warn("[aiRouter] precheck threw, allowing call:", e);
+    return { ok: true };
+  }
 }
 
 /** Chiama OpenRouter una volta con un modello specifico. */
@@ -244,6 +376,7 @@ export async function aiRouterComplete(
         primary_model: opts.forceModel,
         fallback_models: [],
         default_params: {},
+        tier_key: "t2_vision",
         is_default: false,
       }
     : await loadConfig(opts.supabase, opts.taskKey);
@@ -253,6 +386,45 @@ export async function aiRouterComplete(
 
   const modelsToTry = [config.primary_model, ...config.fallback_models];
   const attempts: Array<{ model: string; error: string }> = [];
+
+  // ───────────────────────────────────────────────────────────────────────
+  // PRECHECK CREDIT (se company_id presente e non skipCharge)
+  // ───────────────────────────────────────────────────────────────────────
+  const skipCharge = opts.skipCharge === true;
+  const fxUsdToEur = opts.fxUsdToEur ?? Number(Deno.env.get("AI_FX_USD_EUR") ?? "0.92");
+  const idempotencyKey = opts.idempotencyKey ?? generateIdempotencyKey(opts.taskKey);
+
+  if (!skipCharge && opts.companyId) {
+    const estCost = opts.estimatedCostEur ?? 0.10;
+    const precheck = await precheckCredit(opts.supabase, opts.companyId, estCost);
+    if (!precheck.ok) {
+      // Logga il rifiuto come error nel ledger (no addebito) e propaga errore
+      await chargeAiCall(opts.supabase, {
+        idempotencyKey,
+        companyId: opts.companyId,
+        userId: opts.userId ?? null,
+        taskKey: opts.taskKey,
+        tierKey: config.tier_key,
+        modelUsed: config.primary_model,
+        usedPrimary: true,
+        fallbackIndex: 0,
+        personaKey: opts.personaKey ?? null,
+        tokensIn: 0,
+        tokensOut: 0,
+        costRealUsd: 0,
+        fxUsdToEur,
+        status: "error",
+        errorMessage: `precheck_failed: ${precheck.reason} — ${precheck.message}`,
+        durationMs: 0,
+        metadata: { precheck: precheck },
+      });
+      throw new AiRouterError(
+        `Credito insufficiente o bloccato: ${precheck.message ?? precheck.reason ?? "unknown"}`,
+        opts.taskKey,
+        [],
+      );
+    }
+  }
 
   for (let i = 0; i < modelsToTry.length; i++) {
     const model = modelsToTry[i];
@@ -275,7 +447,7 @@ export async function aiRouterComplete(
       // OpenRouter ritorna `usage.cost` in USD se disponibile, altrimenti stimiamo a 0
       const costUsd = Number(usage.cost ?? 0);
 
-      // Log success
+      // Log analytical (legacy)
       await logUsage(opts.supabase, {
         taskKey: opts.taskKey,
         modelUsed: model,
@@ -288,6 +460,42 @@ export async function aiRouterComplete(
         status: "success",
       });
 
+      // Charge atomico al wallet (immutable ledger + scala saldo)
+      let ledgerId: string | undefined;
+      let costRealEur = 0;
+      let costBilledEur = 0;
+      let marginEur = 0;
+      let chargeSkipped = skipCharge || !opts.companyId;
+
+      if (!skipCharge && opts.companyId) {
+        const charge = await chargeAiCall(opts.supabase, {
+          idempotencyKey,
+          companyId: opts.companyId,
+          userId: opts.userId ?? null,
+          taskKey: opts.taskKey,
+          tierKey: config.tier_key,
+          modelUsed: model,
+          usedPrimary: i === 0,
+          fallbackIndex: i,
+          personaKey: opts.personaKey ?? null,
+          tokensIn: promptTokens,
+          tokensOut: completionTokens,
+          costRealUsd: costUsd,
+          fxUsdToEur,
+          status: "success",
+          durationMs,
+          metadata: { task: opts.taskKey },
+        });
+        if (charge) {
+          ledgerId = charge.ledgerId;
+          costRealEur = charge.costRealEur;
+          costBilledEur = charge.costBilledEur;
+          marginEur = charge.marginEur;
+        } else {
+          chargeSkipped = true;
+        }
+      }
+
       return {
         content,
         rawResponse: data,
@@ -295,7 +503,10 @@ export async function aiRouterComplete(
         usedPrimary: i === 0,
         fallbackIndex: i,
         promptTokens, completionTokens, totalTokens, costUsd,
+        costRealEur, costBilledEur, marginEur,
         durationMs,
+        ledgerId,
+        chargeSkipped,
       };
     } catch (e) {
       const errMsg = (e as Error).message ?? String(e);
@@ -306,6 +517,7 @@ export async function aiRouterComplete(
   }
 
   // Tutti i tentativi falliti → log error e throw
+  const errorMessage = attempts.map(a => `${a.model}: ${a.error}`).join(" | ").slice(0, 1000);
   await logUsage(opts.supabase, {
     taskKey: opts.taskKey,
     modelUsed: modelsToTry[modelsToTry.length - 1] ?? "unknown",
@@ -316,8 +528,31 @@ export async function aiRouterComplete(
     companyId: opts.companyId,
     userId: opts.userId,
     status: "error",
-    errorMessage: attempts.map(a => `${a.model}: ${a.error}`).join(" | ").slice(0, 1000),
+    errorMessage,
   });
+
+  // Insert ledger entry (status=error, billed=0). Tracciabilità ma nessun addebito.
+  if (!skipCharge && opts.companyId) {
+    await chargeAiCall(opts.supabase, {
+      idempotencyKey,
+      companyId: opts.companyId,
+      userId: opts.userId ?? null,
+      taskKey: opts.taskKey,
+      tierKey: config.tier_key,
+      modelUsed: modelsToTry[modelsToTry.length - 1] ?? "unknown",
+      usedPrimary: false,
+      fallbackIndex: modelsToTry.length - 1,
+      personaKey: opts.personaKey ?? null,
+      tokensIn: 0,
+      tokensOut: 0,
+      costRealUsd: 0,
+      fxUsdToEur,
+      status: "error",
+      errorMessage,
+      durationMs: 0,
+      metadata: { all_attempts_failed: true, attempts },
+    });
+  }
 
   throw new AiRouterError(
     `Tutti i modelli falliti per task '${opts.taskKey}' (${modelsToTry.length} tentativi)`,

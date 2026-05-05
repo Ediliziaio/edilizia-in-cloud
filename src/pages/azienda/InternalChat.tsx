@@ -45,6 +45,7 @@ import { cn } from "@/lib/utils";
 // ─── Constants ───────────────────────────────────────────────────────────────
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🙏", "👏", "🔥", "✅", "😮"];
 const LUCIA_SENDER_ID = "00000000-0000-0000-0000-000000000001";
+const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 
 // Avatar color palette for consistent user colors
 const AVATAR_COLORS = [
@@ -520,7 +521,10 @@ function ChatListItem({
   lastMsg?: Message; profileMap: Map<string, Profile>;
   userId?: string; members: ChannelMember[]; onClick: () => void;
 }) {
-  const isLucia = !!channel.is_system || channel.name.toLowerCase().includes("lucia");
+  const channelNameLower = channel.name.toLowerCase();
+  const isLucia = channelNameLower === "lucia-ai";
+  const isSilvio = channelNameLower === "silvio-ai";
+  const isAI = isLucia || isSilvio;
   const isDm = !!channel.is_dm;
 
   // For DM, show the other person's name and avatar
@@ -536,7 +540,12 @@ function ChatListItem({
   // Last message preview
   const lastMsgSender = lastMsg ? profileMap.get(lastMsg.sender_id) : undefined;
   const lastMsgPreview = lastMsg
-    ? (lastMsg.sender_id === userId ? "Tu: " : lastMsg.sender_id === LUCIA_SENDER_ID ? "Lucia: " : `${lastMsgSender?.first_name ?? ""}: `)
+    ? (
+        lastMsg.sender_id === userId ? "Tu: "
+        : lastMsg.sender_id === LUCIA_SENDER_ID ? "Lucia: "
+        : lastMsg.sender_id === SILVIO_SENDER_ID ? "Silvio: "
+        : `${lastMsgSender?.first_name ?? ""}: `
+      )
       + lastMsg.content.slice(0, 50) + (lastMsg.content.length > 50 ? "…" : "")
     : isDm ? "Inizia a chattare" : "Nessun messaggio";
 
@@ -552,7 +561,11 @@ function ChatListItem({
     >
       {/* Avatar */}
       <div className="relative shrink-0">
-        {isLucia ? (
+        {isSilvio ? (
+          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-violet-600 via-fuchsia-500 to-pink-500 flex items-center justify-center ring-2 ring-violet-300/40">
+            <Sparkles className="h-6 w-6 text-white" />
+          </div>
+        ) : isLucia ? (
           <div className="h-12 w-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
             <Bot className="h-6 w-6 text-white" />
           </div>
@@ -592,7 +605,7 @@ function ChatListItem({
             {lastMsgPreview}
           </p>
           <div className="flex items-center gap-1.5 shrink-0">
-            {!isDm && !isLucia && (
+            {!isDm && !isAI && (
               <span className="text-[10px] text-muted-foreground">
                 <Users className="inline h-3 w-3 mr-0.5 -mt-0.5" />{memberCount}
               </span>
@@ -620,6 +633,11 @@ function MessageBubble({
   onReply: () => void; onPin: () => void; onDelete?: () => void;
   onReaction: (emoji: string) => void; userId?: string;
 }) {
+  // Detect AI bot type from sender_id (Silvio o Lucia hanno UUID sentinel)
+  const isSilvioMsg = msg.sender_id === SILVIO_SENDER_ID;
+  const isLuciaMsg = msg.sender_id === LUCIA_SENDER_ID;
+  const isAIMsg = isLuciaMsg || isSilvioMsg || isLucia;
+  const aiBotName = isSilvioMsg ? "Silvio ✨" : "Lucia AI ✨";
   const replySender = replyMsg ? profileMap.get(replyMsg.sender_id) : undefined;
 
   return (
@@ -628,7 +646,11 @@ function MessageBubble({
       {!isMe && (
         <div className="w-8 shrink-0 self-end mr-1">
           {showAvatar && (
-            isLucia ? (
+            isSilvioMsg ? (
+              <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-600 via-fuchsia-500 to-pink-500 flex items-center justify-center ring-1 ring-violet-300/40">
+                <Sparkles className="h-3.5 w-3.5 text-white" />
+              </div>
+            ) : isAIMsg ? (
               <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                 <Bot className="h-3.5 w-3.5 text-white" />
               </div>
@@ -651,7 +673,7 @@ function MessageBubble({
             "rounded-lg px-3 py-1.5 shadow-sm relative",
             isMe
               ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-foreground rounded-tr-none"
-              : isLucia
+              : isAIMsg
                 ? "bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 border border-violet-200/50 dark:border-violet-800/30 rounded-tl-none"
                 : "bg-white dark:bg-[#202c33] text-foreground rounded-tl-none shadow",
           )}
@@ -660,9 +682,9 @@ function MessageBubble({
           {showAvatar && !isMe && (
             <p className={cn(
               "text-[12px] font-semibold mb-0.5",
-              isLucia ? "text-violet-600 dark:text-violet-400" : `text-[${userColor(msg.sender_id).replace('bg-', '')}]`,
-            )} style={{ color: isLucia ? undefined : getColorHex(msg.sender_id) }}>
-              {isLucia ? "Lucia AI ✨" : profileName(sender)}
+              isAIMsg ? "text-violet-600 dark:text-violet-400" : `text-[${userColor(msg.sender_id).replace('bg-', '')}]`,
+            )} style={{ color: isAIMsg ? undefined : getColorHex(msg.sender_id) }}>
+              {isAIMsg ? aiBotName : profileName(sender)}
             </p>
           )}
 
@@ -855,14 +877,15 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   const selectedChannel = channels.find((c) => c.id === selectedChannelId);
-  const isLuciaChannel = !!selectedChannel && (
-    selectedChannel.is_system === true || selectedChannel.name.toLowerCase().includes("lucia")
-  );
+  const isLuciaChannel = !!selectedChannel && selectedChannel.name.toLowerCase() === "lucia-ai";
+  const isSilvioChannel = !!selectedChannel && selectedChannel.name.toLowerCase() === "silvio-ai";
+  const isAIChannel = isLuciaChannel || isSilvioChannel;
   const { messages, isError: messagesError, refetch: retryMessages } = useChannelMessages(selectedChannelId, refetchUnread);
 
   const profileMap = useMemo(() => {
     const m = new Map(profiles.map((p) => [p.id, p]));
     m.set(LUCIA_SENDER_ID, { id: LUCIA_SENDER_ID, first_name: "Lucia", last_name: "AI", email: "lucia@ediliziacloud.internal" });
+    m.set(SILVIO_SENDER_ID, { id: SILVIO_SENDER_ID, first_name: "Silvio", last_name: "AI", email: "silvio@ediliziacloud.internal" });
     return m;
   }, [profiles]);
 
@@ -963,13 +986,16 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Send to Lucia
-  const sendToLucia = useCallback(async (messageText: string) => {
+  // Lucia AI deprecata — Silvio la sostituisce. Mantenuta solo per compat su messaggi storici.
+
+  // Send to Silvio (meta-persona orchestrator)
+  const sendToSilvio = useCallback(async (messageText: string) => {
     if (!selectedChannelId || !companyId || !userId || !messageText.trim()) return;
     if (!channels.some((channel) => channel.id === selectedChannelId)) {
       toast.error("Non hai accesso a questa conversazione.");
       return;
     }
+    // 1) Inserisci subito il messaggio dell'utente nel canale (UX feedback istantaneo)
     const { error: insertErr } = await supabase.from("internal_chat_messages").insert({
       channel_id: selectedChannelId, sender_id: userId, company_id: companyId,
       content: messageText.trim(), message_type: "text",
@@ -980,20 +1006,10 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     }
     queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
     await supabase.from("internal_chat_members").update({ last_read_at: new Date().toISOString() }).eq("channel_id", selectedChannelId).eq("user_id", userId);
-    setLuciaTyping(true);
+    setLuciaTyping(true); // riusiamo lo stesso typing indicator
     try {
-      const res = await supabase.functions.invoke("lucia-chat", {
-        body: {
-          message: messageText.trim(), user_id: userId, company_id: companyId,
-          channel_id: selectedChannelId,
-          user_permissions: {
-            canViewOrders: permissions.canViewOrders, canViewCustomers: permissions.canViewCustomers,
-            canViewBilling: permissions.canViewBilling, canViewPersone: permissions.canViewPersone,
-            canViewWarehouse: permissions.canViewWarehouse, canViewCalendar: permissions.canViewCalendar,
-            canViewDashboard: permissions.canViewDashboard, canViewCruscotto: permissions.canViewCruscotto,
-            canViewCosts: permissions.canViewCosts, isAdmin: permissions.isAdmin,
-          },
-        },
+      const res = await supabase.functions.invoke("silvio-chat", {
+        body: { channel_id: selectedChannelId, message: messageText.trim() },
       });
       if (res.error) {
         let errBody: FunctionErrorBody | null = null;
@@ -1003,17 +1019,17 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
         } catch {
           errBody = null;
         }
-        throw new Error(errBody?.error ?? errBody?.message ?? res.error.message ?? "Errore Lucia");
+        throw new Error(errBody?.error ?? errBody?.message ?? res.error.message ?? "Errore Silvio");
       }
       queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
       queryClient.invalidateQueries({ queryKey: ["internal-chat-last-messages"] });
       refetchUnread();
     } catch (err: unknown) {
-      toast.error(`Lucia: ${err instanceof Error ? err.message : "Errore comunicazione"}`);
+      toast.error(`Silvio: ${err instanceof Error ? err.message : "Errore comunicazione"}`);
     } finally {
       setLuciaTyping(false);
     }
-  }, [selectedChannelId, companyId, userId, channels, permissions, queryClient, refetchUnread]);
+  }, [selectedChannelId, companyId, userId, channels, queryClient, refetchUnread]);
 
   // Create group channel
   const [channelName, setChannelName] = useState("");
@@ -1100,17 +1116,190 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const attachInputRef = useRef<HTMLInputElement>(null);
   const [isAttaching, setIsAttaching] = useState(false);
 
+  // ─── Silvio prefill from sessionStorage (cross-page redirect with prompt) ───
+  useEffect(() => {
+    if (!isSilvioChannel || !selectedChannelId) return;
+    let prefill = "";
+    try { prefill = sessionStorage.getItem("silvio_prefill_message") ?? ""; } catch { /* ignore */ }
+    if (prefill && prefill.length > 5) {
+      try { sessionStorage.removeItem("silvio_prefill_message"); } catch { /* ignore */ }
+      // Auto-send dopo il selectedChannelId è attivo
+      setTimeout(() => sendToSilvio(prefill), 500);
+    }
+  }, [isSilvioChannel, selectedChannelId, sendToSilvio]);
+
+  // ─── Auto-select Silvio channel su navigazione con prefill ───
+  useEffect(() => {
+    if (selectedChannelId) return;
+    let prefill = "";
+    try { prefill = sessionStorage.getItem("silvio_prefill_message") ?? ""; } catch { /* ignore */ }
+    if (!prefill) return;
+    const silvioCh = channels.find((c) => c.name === "silvio-ai" && c.is_dm);
+    if (silvioCh) handleSelectChannel(silvioCh.id);
+  }, [selectedChannelId, channels, handleSelectChannel]);
+
+  // ─── Silvio image upload (vision) ──────────────────────────────────────
+  const silvioImageInputRef = useRef<HTMLInputElement>(null);
+  const [silvioUploading, setSilvioUploading] = useState(false);
+
+  const uploadAndAskSilvio = useCallback(async (file: File) => {
+    if (!isSilvioChannel || !companyId || !userId) {
+      toast.error("Disponibile solo nella chat Silvio");
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("File troppo grande (max 20 MB)");
+      return;
+    }
+    setSilvioUploading(true);
+    try {
+      // 1) Upload to silvio-uploads bucket
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
+      const path = `${userId}/silvio_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("silvio-uploads").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type,
+      });
+      if (upErr) throw upErr;
+
+      // 2) Detect if it's a fattura (PDF or specific filename hint)
+      const isPdf = file.type === "application/pdf" || ext === "pdf";
+      const looksFattura = /fattur|invoice|ricevuta/i.test(file.name);
+
+      if (isPdf || looksFattura) {
+        // Branch: OCR fattura with confirmation
+        const { data, error } = await supabase.functions.invoke("ai-fattura-ricevuta-ocr", {
+          body: { storage_path: path, bucket: "silvio-uploads", auto_create: false },
+        });
+        if (error) throw new Error(error.message);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ext = (data as any)?.extracted ?? {};
+        const summary = `📄 **Fattura OCR completato**
+
+- **Numero**: ${ext.numero_fattura ?? "—"}
+- **Data**: ${ext.data_fattura ?? "—"}
+- **Cedente**: ${ext.cedente?.ragione_sociale ?? "—"} (P.IVA ${ext.cedente?.piva ?? "—"})
+- **Imponibile**: € ${Number(ext.imponibile_totale ?? 0).toLocaleString("it-IT", {minimumFractionDigits: 2})}
+- **IVA**: € ${Number(ext.iva_totale ?? 0).toLocaleString("it-IT", {minimumFractionDigits: 2})}
+- **Totale**: € ${Number(ext.totale_documento ?? 0).toLocaleString("it-IT", {minimumFractionDigits: 2})}
+- Confidence: ${ext.confidence ?? "—"}
+
+Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
+        // Post user message + OCR result
+        await supabase.from("internal_chat_messages").insert({
+          channel_id: selectedChannelId, sender_id: userId, company_id: companyId,
+          content: `📎 Caricata fattura: ${file.name}`,
+          message_type: "text",
+        });
+        await supabase.from("internal_chat_messages").insert({
+          channel_id: selectedChannelId, sender_id: SILVIO_SENDER_ID, company_id: companyId,
+          content: summary, message_type: "text",
+        });
+        queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
+      } else {
+        // Branch: ask Silvio with the image
+        const { data: urlData } = await supabase.storage.from("silvio-uploads").createSignedUrl(path, 600);
+        const signedUrl = urlData?.signedUrl;
+        const userPrompt = `Ho caricato un'immagine. Analizzala con il tool analyze_image (storage_path: ${path}). Dimmi cosa vedi: per cantieri analizza sicurezza+avanzamento, per documenti estrai dati.`;
+        await supabase.from("internal_chat_messages").insert({
+          channel_id: selectedChannelId, sender_id: userId, company_id: companyId,
+          content: `📎 Allegato: ${file.name}\n${signedUrl ? `[Anteprima](${signedUrl})` : ""}`,
+          message_type: "text",
+        });
+        sendToSilvio(userPrompt);
+      }
+    } catch (e) {
+      toast.error(`Upload fallito: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSilvioUploading(false);
+    }
+  }, [isSilvioChannel, companyId, userId, selectedChannelId, queryClient, sendToSilvio]);
+
+  // ─── Audio Recording (Silvio AI) ──────────────────────────────────────
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      audioChunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      mr.onstop = async () => {
+        // Stop tracks
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        if (blob.size < 1000) {
+          toast.error("Registrazione troppo breve");
+          return;
+        }
+        setIsTranscribing(true);
+        try {
+          const fd = new FormData();
+          fd.append("audio", blob, "voice.webm");
+          const { data, error } = await supabase.functions.invoke("silvio-transcribe-audio", {
+            body: fd,
+          });
+          if (error) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const ctx = (error as any).context;
+            let body: { error?: string; text?: string } = {};
+            try { if (ctx instanceof Response) body = await ctx.json(); } catch { /* ignore */ }
+            throw new Error(body.error ?? error.message);
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const text = ((data as any)?.text ?? "").trim();
+          if (!text) {
+            toast.error("Nessun testo trascritto");
+            return;
+          }
+          // Auto-fill input + auto-send (Silvio only)
+          setNewMsg(text);
+          setTimeout(() => {
+            if (isSilvioChannel) {
+              setNewMsg("");
+              sendToSilvio(text);
+            } else {
+              toast.info("Trascritto, premi invio per inviare");
+            }
+          }, 100);
+        } catch (e) {
+          toast.error(`Trascrizione fallita: ${e instanceof Error ? e.message : String(e)}`);
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setIsRecording(true);
+    } catch (e) {
+      toast.error(`Impossibile accedere al microfono: ${e instanceof Error ? e.message : "permesso negato"}`);
+    }
+  }, [isSilvioChannel, sendToSilvio]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  }, []);
+
   const handleSend = useCallback(() => {
     if (!newMsg.trim()) return;
     if (sendMutation.isPending || luciaTyping || isAttaching) return;
-    if (isLuciaChannel) {
+    if (isSilvioChannel) {
       const msg = newMsg.trim();
       setNewMsg(""); setReplyTo(null);
-      sendToLucia(msg);
+      sendToSilvio(msg);
     } else {
       sendMutation.mutate();
     }
-  }, [newMsg, isLuciaChannel, sendToLucia, sendMutation, luciaTyping, isAttaching]);
+  }, [newMsg, isSilvioChannel, sendToSilvio, sendMutation, luciaTyping, isAttaching]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -1575,7 +1764,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
                 <div>
                   {filteredMessages.map((msg, idx) => {
                     const isMe = msg.sender_id === userId;
-                    const isLucia = msg.sender_id === LUCIA_SENDER_ID;
+                    const isLucia = msg.sender_id === LUCIA_SENDER_ID || msg.sender_id === SILVIO_SENDER_ID;
                     const sender = profileMap.get(msg.sender_id);
                     const prevMsg = filteredMessages[idx - 1];
                     const showAvatar = !prevMsg || prevMsg.sender_id !== msg.sender_id;
@@ -1606,8 +1795,8 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
                       </React.Fragment>
                     );
                   })}
-                  {/* Lucia typing */}
-                  {luciaTyping && isLuciaChannel && (
+                  {/* AI bot typing (Lucia o Silvio) */}
+                  {luciaTyping && isAIChannel && (
                     <div className="flex justify-start mb-1 mt-3">
                       <div className="ml-9 bg-white dark:bg-[#202c33] rounded-lg rounded-tl-none px-4 py-3 shadow-sm">
                         <div className="flex items-center gap-2">
@@ -1616,7 +1805,9 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
                             <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "150ms" }} />
                             <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "300ms" }} />
                           </div>
-                          <span className="text-xs text-violet-500">Lucia sta pensando...</span>
+                          <span className="text-xs text-violet-500">
+                            {isSilvioChannel ? "Silvio sta pensando..." : "Lucia sta pensando..."}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -1669,12 +1860,15 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
                 <Smile className="h-6 w-6" />
               </Button>
               <Button variant="ghost" size="icon"
-                className="h-9 w-9 rounded-full text-[#54656f] shrink-0"
-                onClick={() => attachInputRef.current?.click()}
-                disabled={isAttaching}
-                title="Invia allegato"
+                className={cn(
+                  "h-9 w-9 rounded-full shrink-0",
+                  isSilvioChannel ? "text-violet-600" : "text-[#54656f]"
+                )}
+                onClick={() => isSilvioChannel ? silvioImageInputRef.current?.click() : attachInputRef.current?.click()}
+                disabled={isAttaching || silvioUploading}
+                title={isSilvioChannel ? "Carica foto cantiere o fattura" : "Invia allegato"}
               >
-                {isAttaching ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-6 w-6" />}
+                {(isAttaching || silvioUploading) ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-6 w-6" />}
               </Button>
               <input
                 ref={attachInputRef}
@@ -1682,6 +1876,17 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
                 className="hidden"
                 accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
                 onChange={handleAttachment}
+              />
+              <input
+                ref={silvioImageInputRef}
+                type="file"
+                className="hidden"
+                accept="image/*,.pdf"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadAndAskSilvio(file);
+                  e.target.value = "";
+                }}
               />
               <div className="flex-1">
                 <Input
@@ -1713,8 +1918,34 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
                   {luciaTyping ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                 </Button>
               ) : (
-                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-[#54656f] shrink-0">
-                  <Mic className="h-6 w-6" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={isTranscribing || luciaTyping}
+                  className={cn(
+                    "h-10 w-10 rounded-full shrink-0",
+                    isRecording
+                      ? "bg-rose-100 text-rose-600 hover:bg-rose-200 animate-pulse"
+                      : isTranscribing
+                        ? "text-violet-600"
+                        : "text-[#54656f]"
+                  )}
+                  title={
+                    isRecording ? "Stop registrazione" :
+                    isTranscribing ? "Trascrivendo…" : "Registra messaggio vocale"
+                  }
+                >
+                  {isTranscribing ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : isRecording ? (
+                    <span className="relative flex">
+                      <span className="absolute h-3 w-3 rounded-full bg-rose-600 -top-1 -right-1 animate-ping" />
+                      <Mic className="h-6 w-6" />
+                    </span>
+                  ) : (
+                    <Mic className="h-6 w-6" />
+                  )}
                 </Button>
               )}
             </div>
