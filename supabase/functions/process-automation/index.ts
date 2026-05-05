@@ -6,6 +6,8 @@ import { logEmailDelivery } from "../_shared/email-log.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
 
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
+import { isInternalRequest, requireAuth, requireCompanyAccess, requireInternalSecret } from "../_shared/auth.ts";
+import { aiRouterComplete } from "../_shared/aiRouter.ts";
 
 interface AutomationNode {
   id: string;
@@ -40,11 +42,22 @@ Deno.serve(async (req) => {
 
     // ── 1. Trigger: fire a new automation ──
     if (action === "trigger") {
+      if (!isInternalRequest(req)) {
+        const { userId, supabaseAdmin } = await requireAuth(req, corsH);
+        if (!body.company_id || typeof body.company_id !== "string") {
+          return new Response(JSON.stringify({ error: "company_id required" }), {
+            status: 400,
+            headers: { ...corsH, "Content-Type": "application/json" },
+          });
+        }
+        await requireCompanyAccess(supabaseAdmin, userId, body.company_id, corsH);
+      }
       return await handleTrigger(supabase, body);
     }
 
     // ── 2. Process queue: poll pending trigger events, then execute queue items ──
     if (action === "process_queue") {
+      requireInternalSecret(req, corsH);
       // First process any pending trigger events from DB triggers
       await processTriggerEvents(supabase);
       return await processQueue(supabase);
@@ -55,6 +68,7 @@ Deno.serve(async (req) => {
       headers: { ...corsH, "Content-Type": "application/json" },
     });
   } catch (err: any) {
+    if (err instanceof Response) return err;
     console.error("process-automation error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
@@ -119,6 +133,7 @@ async function handleTrigger(supabase: any, body: any) {
       .from("marketing_contacts")
       .select("*")
       .eq("id", entity_id)
+      .eq("company_id", company_id)
       .maybeSingle();
     if (contactData) {
       enrichedPayload = { ...contactData, ...enrichedPayload };
@@ -277,7 +292,7 @@ async function processQueue(supabase: any) {
       }
 
       // Execute the node
-      const result = await executeNode(supabase, node, item);
+      const result: any = await executeNode(supabase, node, item);
 
       // Log execution
       await supabase.from("automation_execution_log").insert({
@@ -388,7 +403,7 @@ async function executeNode(supabase: any, node: AutomationNode, queueItem: any) 
       return executeSplit(cfg);
 
     case "action":
-      return await executeActionSafe(supabase, cfg, entityId, companyId);
+      return await executeActionSafe(supabase, cfg, entityId, companyId, queueItem);
 
     case "goal":
       return { success: true, output: { reached: true } };
@@ -459,9 +474,9 @@ function executeSplit(cfg: Record<string, any>) {
 }
 
 // ── Action (safe wrapper with error boundary) ──
-async function executeActionSafe(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
+async function executeActionSafe(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string, queueItem?: any) {
   try {
-    return await executeAction(supabase, cfg, entityId, companyId);
+    return await executeAction(supabase, cfg, entityId, companyId, queueItem);
   } catch (err: any) {
     const msg = err?.message || String(err);
     console.error(`[executeActionSafe] unhandled error for action_type=${cfg.action_type}:`, msg);
@@ -469,8 +484,13 @@ async function executeActionSafe(supabase: any, cfg: Record<string, any>, entity
   }
 }
 
+function queueSafeId(cfg: Record<string, any>, queueItem?: any): string {
+  const raw = queueItem?.id ?? cfg.queue_item_id ?? cfg.id ?? cfg.node_id ?? crypto.randomUUID();
+  return String(raw).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
+}
+
 // ── Action ──
-async function executeAction(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
+async function executeAction(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string, queueItem?: any) {
   // ── Normalize Italian action IDs to internal handler IDs ──
   const ACTION_ALIASES: Record<string, string> = {
     crea_task: "create_task",
@@ -534,13 +554,15 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         .from("marketing_contacts")
         .select("tags")
         .eq("id", entityId)
+        .eq("company_id", companyId)
         .single();
       const currentTags: string[] = contact?.tags || [];
       if (!currentTags.includes(tag)) {
         await supabase
           .from("marketing_contacts")
           .update({ tags: [...currentTags, tag] })
-          .eq("id", entityId);
+          .eq("id", entityId)
+          .eq("company_id", companyId);
       }
       return { success: true, output: { action: "add_tag", tag } };
     }
@@ -552,12 +574,14 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         .from("marketing_contacts")
         .select("tags")
         .eq("id", entityId)
+        .eq("company_id", companyId)
         .single();
       const currentTags: string[] = contact?.tags || [];
       await supabase
         .from("marketing_contacts")
         .update({ tags: currentTags.filter((t: string) => t !== tag) })
-        .eq("id", entityId);
+        .eq("id", entityId)
+        .eq("company_id", companyId);
       return { success: true, output: { action: "remove_tag", tag } };
     }
 
@@ -568,7 +592,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       await supabase
         .from("marketing_contacts")
         .update({ [field]: value })
-        .eq("id", entityId);
+        .eq("id", entityId)
+        .eq("company_id", companyId);
       return { success: true, output: { action: "update_field", field, value } };
     }
 
@@ -578,7 +603,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       await supabase
         .from("marketing_contacts")
         .update({ assigned_to: userId })
-        .eq("id", entityId);
+        .eq("id", entityId)
+        .eq("company_id", companyId);
       return { success: true, output: { action: "assign_user", userId } };
     }
 
@@ -675,6 +701,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
           .from("marketing_contacts")
           .select("assigned_to")
           .eq("id", entityId)
+          .eq("company_id", companyId)
           .maybeSingle();
         if (contact?.assigned_to) targetUserIds = [contact.assigned_to];
       } else if (recipient === "all_admins") {
@@ -711,16 +738,16 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       const mode = ncfg.score_mode || "add";
       const value = parseInt(ncfg.score_value) || 0;
       if (mode === "set") {
-        await supabase.from("marketing_contacts").update({ score: value }).eq("id", entityId);
+        await supabase.from("marketing_contacts").update({ score: value }).eq("id", entityId).eq("company_id", companyId);
       } else if (mode === "subtract") {
-        const { data: c } = await supabase.from("marketing_contacts").select("score").eq("id", entityId).single();
+        const { data: c } = await supabase.from("marketing_contacts").select("score").eq("id", entityId).eq("company_id", companyId).single();
         const newScore = Math.max(0, (c?.score || 0) - value);
-        await supabase.from("marketing_contacts").update({ score: newScore }).eq("id", entityId);
+        await supabase.from("marketing_contacts").update({ score: newScore }).eq("id", entityId).eq("company_id", companyId);
       } else {
         // add
-        const { data: c } = await supabase.from("marketing_contacts").select("score").eq("id", entityId).single();
+        const { data: c } = await supabase.from("marketing_contacts").select("score").eq("id", entityId).eq("company_id", companyId).single();
         const newScore = (c?.score || 0) + value;
-        await supabase.from("marketing_contacts").update({ score: newScore }).eq("id", entityId);
+        await supabase.from("marketing_contacts").update({ score: newScore }).eq("id", entityId).eq("company_id", companyId);
       }
       return { success: true, output: { action: "update_contact_score", mode, value } };
     }
@@ -778,7 +805,6 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "send_ai_message": {
-      console.log(`[send_ai_message] entity=${entityId}`);
       try {
         // 1. Load contact data for context
         const { data: aiContact } = await supabase
@@ -816,38 +842,24 @@ Tags: ${(aiContact.tags || []).join(", ") || "nessuno"}
 
 Istruzione: ${aiPrompt}`;
 
-        // 2. Call Lovable AI Gateway
-        const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-        if (!openaiApiKey) return { success: false, error: "OPENAI_API_KEY non configurata" };
-
-        const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${openaiApiKey}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            max_tokens: 1024,
-          }),
+        const aiResult = await aiRouterComplete({
+          supabase,
+          taskKey: "automation_message_generate",
+          companyId,
+          userId: null,
+          idempotencyKey: `automation_message_generate_${companyId}_${entityId}_${queueSafeId(ncfg, queueItem)}`,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          params: { max_tokens: 1024, temperature: 0.35 },
         });
 
-        if (!aiRes.ok) {
-          const errText = await aiRes.text();
-          return { success: false, error: `AI Gateway error: ${aiRes.status} ${errText.slice(0, 200)}` };
-        }
-
-        const aiData = await aiRes.json();
-        const generatedText = aiData.choices?.[0]?.message?.content || "";
+        const generatedText = aiResult.content || "";
         if (!generatedText) return { success: false, error: "AI non ha generato testo" };
 
         // 3. Dispatch to channel
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
         if (aiChannel === "email") {
           let subject = "Messaggio automatico";
@@ -1459,7 +1471,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       provider_message_id: result.providerMessageId || null,
       stream,
       event_timestamp: new Date().toISOString(),
-      error_message: result.ok ? null : JSON.stringify(result.body),
+      error_message: result.ok ? undefined : JSON.stringify(result.body),
     });
 
     // Mirror to unified email_delivery_log for SuperAdmin P&L/audit
@@ -1472,7 +1484,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       provider: settings.provider,
       stream,
       provider_id: result.providerMessageId ?? null,
-      error_message: result.ok ? null : JSON.stringify(result.body),
+      error_message: result.ok ? undefined : JSON.stringify(result.body),
       cost_eur: 0,
       charged_eur: 0,
       metadata: { contact_id: contact.id, automation: true },

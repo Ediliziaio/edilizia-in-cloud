@@ -29,9 +29,10 @@
  *
  * Pipeline tipica: 4-8 secondi (1 sola chiamata Gemini con PDF nativo).
  */
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -245,6 +246,7 @@ Deno.serve(async (req) => {
         400, cors,
       );
     }
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     if (file_size && file_size > 18 * 1024 * 1024) {
       return errorResponse("File troppo grande per classifier (max 18MB)", 413, cors);
@@ -280,6 +282,15 @@ Deno.serve(async (req) => {
     const t0 = Date.now();
     let aiResult;
     try {
+      const idempotencyKey = await buildStableAiIdempotencyKey("document_ai_router", [
+        company_id,
+        userId,
+        storage_bucket,
+        storage_path,
+        file_name,
+        mime_type ?? null,
+        file_size ?? buffer.byteLength,
+      ]);
       aiResult = await aiRouterComplete({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabase: supabaseAdmin as any,
@@ -292,6 +303,7 @@ Deno.serve(async (req) => {
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
+        idempotencyKey,
       });
     } catch (e) {
       return errorResponse(

@@ -29,12 +29,17 @@ ON CONFLICT (key) DO UPDATE
 -- L'azienda demo ha così visibilità sul modulo per QA / dimostrazione.
 INSERT INTO public.company_feature_overrides (
   company_id, feature_key, is_enabled, override_reason, set_by_email
-) VALUES (
+)
+SELECT
   '778a2c76-1253-49f2-a5e8-283363ac3e29',
   'controllo_gestione_v1',
   true,
   'Sblocco demo per anteprima modulo Controllo di Gestione (MP-CG-01..08)',
   'system@ediliziaincloud.it'
+WHERE EXISTS (
+  SELECT 1
+  FROM public.companies
+  WHERE id = '778a2c76-1253-49f2-a5e8-283363ac3e29'
 )
 ON CONFLICT (company_id, feature_key) DO UPDATE
   SET is_enabled = EXCLUDED.is_enabled,

@@ -8,6 +8,18 @@ INSERT INTO public.cg_classificazione_voci (
   company_id, voce_chiave, voce_descrizione, macro_voce, tipo,
   source_table, source_field, source_value, ordering, is_active
 )
+SELECT
+  company_id::uuid,
+  voce_chiave::text,
+  voce_descrizione::text,
+  macro_voce::text,
+  tipo::text,
+  source_table::text,
+  source_field::text,
+  source_value::text,
+  ordering::int,
+  is_active::boolean
+FROM (
 VALUES
   -- Costo personale
   ('778a2c76-1253-49f2-a5e8-283363ac3e29','salari_stipendi',     'Salari e stipendi (banca)',  'costo_personale',     'F','bank_transactions','category','Stipendi',        100,true),
@@ -64,6 +76,15 @@ VALUES
   ('778a2c76-1253-49f2-a5e8-283363ac3e29','plusvalenze',         'Plusvalenze',                 'ricavi_extra',        'Z','prima_nota',       'category','plusvalenze',     910,true),
   ('778a2c76-1253-49f2-a5e8-283363ac3e29','minusvalenze',        'Minusvalenze',                'costi_extra',         'Z','prima_nota',       'category','minusvalenze',    911,true),
   ('778a2c76-1253-49f2-a5e8-283363ac3e29','donazioni',           'Donazioni',                   'costi_extra',         'Z','company_costs',    'category','donazioni',       920,true)
+) AS seed(
+  company_id, voce_chiave, voce_descrizione, macro_voce, tipo,
+  source_table, source_field, source_value, ordering, is_active
+)
+WHERE EXISTS (
+  SELECT 1
+  FROM public.companies
+  WHERE id = '778a2c76-1253-49f2-a5e8-283363ac3e29'
+)
 ON CONFLICT (company_id, voce_chiave, source_table, source_value) DO NOTHING;
 
 REFRESH MATERIALIZED VIEW public.mv_cg_storico_24m;

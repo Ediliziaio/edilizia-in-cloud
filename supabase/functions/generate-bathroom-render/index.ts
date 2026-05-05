@@ -22,10 +22,14 @@ const JSON_HEADERS = { ...CORS, "Content-Type": "application/json" };
 type BathroomSessionRow = {
   id: string;
   company_id: string;
+  stato: string | null;
   foto_originale_path: string | null;
   configurazione: Record<string, unknown> | null;
   analisi_bagno: Record<string, unknown> | null;
   tipo_intervento: string | null;
+  render_result_url: string | null;
+  provider_key: string | null;
+  prompt_version: string | null;
 };
 
 type RenderProviderConfig = {
@@ -139,7 +143,7 @@ function dataUrlToBytes(dataUrl: string): {
 }
 
 async function getProviderApiKey(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   providerKey: string,
 ): Promise<string> {
   const { data: keyRow } = await supabase
@@ -161,13 +165,13 @@ async function getProviderApiKey(
 }
 
 async function getGeminiApiKey(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
 ): Promise<string> {
   return await getProviderApiKey(supabase, "gemini");
 }
 
 async function loadDefaultRenderProvider(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
 ): Promise<RenderProviderConfig | null> {
   const { data: providerConfig } = await supabase
     .from("render_provider_config")
@@ -180,7 +184,7 @@ async function loadDefaultRenderProvider(
 }
 
 async function loadRenderProviderWithKey(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
 ): Promise<{ providerConfig: RenderProviderConfig; apiKey: string }> {
   const providerConfig = await loadDefaultRenderProvider(supabase);
   if (!providerConfig) {
@@ -450,12 +454,12 @@ function extractGeneratedImageData(aiData: Record<string, unknown>): string | nu
 }
 
 async function loadBathroomSession(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   sessionId: string,
 ): Promise<BathroomSessionRow | null> {
   const { data: session } = await supabase
     .from("render_bagno_sessions")
-    .select("id, company_id, foto_originale_path, configurazione, analisi_bagno, tipo_intervento")
+    .select("id, company_id, stato, foto_originale_path, configurazione, analisi_bagno, tipo_intervento, render_result_url, provider_key, prompt_version")
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -482,7 +486,7 @@ async function requestBathroomRender(params: {
       params.targetHeight ?? null,
       "openai",
     ) ?? "1024x1024";
-    const imageBlob = new Blob([params.originalImage.bytes], {
+    const imageBlob = new Blob([params.originalImage.bytes.buffer.slice(params.originalImage.bytes.byteOffset, params.originalImage.bytes.byteOffset + params.originalImage.bytes.byteLength) as ArrayBuffer], {
       type: params.originalImage.mimeType || "image/jpeg",
     });
     const modelChain = [params.providerConfig.model || "gpt-image-1"];
@@ -619,7 +623,7 @@ async function requestBathroomRender(params: {
 }
 
 async function runBathroomAnalysis(params: {
-  supabase: ReturnType<typeof createClient>;
+  supabase: any;
   userId: string;
   imageUrl: string;
   sessionId?: string;

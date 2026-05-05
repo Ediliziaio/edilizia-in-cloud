@@ -7,6 +7,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { requireCompanyAccess } from "../_shared/auth.ts";
+import {
+  buildStableAiIdempotencyKey,
+  chargeDirectAiCall,
+  estimateWhisperCostUsd,
+} from "../_shared/directAiLedger.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -90,7 +96,11 @@ async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promis
   }
 
   const form = new FormData();
-  const blob = new Blob([audioBytes], { type: mimeType });
+  const audioBuffer = audioBytes.buffer.slice(
+    audioBytes.byteOffset,
+    audioBytes.byteOffset + audioBytes.byteLength,
+  ) as ArrayBuffer;
+  const blob = new Blob([audioBuffer], { type: mimeType });
   const ext = mimeType.includes("mp4") || mimeType.includes("m4a") ? "m4a" : "webm";
   form.append("file", blob, `audio.${ext}`);
   form.append("model", "whisper-1");
@@ -123,6 +133,7 @@ async function extractStructuredData(
   companyId: string,
   userId: string,
   orderContext?: string,
+  sourceKey?: string | null,
 ): Promise<DatiEstratti> {
   if (!trascrizione || trascrizione.length < 5) return {};
 
@@ -132,6 +143,13 @@ async function extractStructuredData(
     const userMessage = orderContext
       ? `CONTESTO COMMESSA: ${orderContext}\n\nTRASCRIZIONE OPERAIO:\n${trascrizione}`
       : trascrizione;
+    const idempotencyKey = await buildStableAiIdempotencyKey("rapportino_parse", [
+      companyId,
+      userId,
+      sourceKey ?? null,
+      orderContext ?? null,
+      trascrizione,
+    ]);
 
     const result = await aiRouterComplete({
       supabase: supabaseAdmin,
@@ -144,6 +162,7 @@ async function extractStructuredData(
       responseFormat: { type: "json_object" },
       companyId,
       userId,
+      idempotencyKey,
     });
     try {
       return JSON.parse(result.content) as DatiEstratti;
@@ -195,6 +214,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const companyId = profile.company_id as string;
+  if (!companyId) {
+    return jsonResponse({ error: "Nessuna azienda associata" }, 400);
+  }
+  await requireCompanyAccess(supabaseAdmin, user.id, companyId, corsHeaders);
 
   // Rate limiting: conta rapportini oggi
   const todayStart = new Date();
@@ -223,8 +246,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!payload.audio_path) {
     return jsonResponse({ error: "audio_path mancante" }, 400);
   }
+  if (!payload.audio_path.startsWith(`${user.id}/`)) {
+    return jsonResponse({ error: "audio_path fuori scope utente" }, 403);
+  }
   if (!payload.duration_sec || payload.duration_sec < 3) {
     return jsonResponse({ error: "Registrazione troppo breve" }, 400);
+  }
+
+  let verifiedOrderId: string | null = null;
+  if (payload.order_id) {
+    const { data: orderCheck, error: orderCheckError } = await supabaseAdmin
+      .from("orders")
+      .select("id")
+      .eq("id", payload.order_id)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (orderCheckError || !orderCheck) {
+      return jsonResponse({ error: "Commessa non accessibile per questa azienda" }, 403);
+    }
+    verifiedOrderId = orderCheck.id as string;
   }
 
   // ─── Download audio dallo storage ──
@@ -251,15 +291,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Non bloccante: salva comunque il rapportino in bozza
     trascrizione = "";
   }
+  if (trascrizione) {
+    await chargeDirectAiCall({
+      supabase: supabaseAdmin,
+      idempotencyKey: `rapportino_whisper_${user.id}_${payload.audio_path}`,
+      companyId,
+      userId: user.id,
+      taskKey: "rapportino_audio_transcription",
+      tierKey: "t2_vision",
+      modelUsed: "openai/whisper-1",
+      personaKey: "capocantiere",
+      costRealUsd: estimateWhisperCostUsd(payload.duration_sec),
+      metadata: {
+        audio_path: payload.audio_path,
+        audio_seconds: payload.duration_sec,
+        file_size_bytes: audioBytes.byteLength,
+      },
+    });
+  }
 
   // ─── Carica context commessa per arricchire estrazione ──
   let orderContext = "";
-  if (payload.order_id) {
+  if (verifiedOrderId) {
     try {
       const { data: order } = await supabaseAdmin
         .from("orders")
         .select("order_code, client_name, client_company, tipo_lavoro, indirizzo_lavori, work_description")
-        .eq("id", payload.order_id).maybeSingle();
+        .eq("id", verifiedOrderId)
+        .eq("company_id", companyId)
+        .maybeSingle();
       if (order) {
         orderContext = `Commessa ${order.order_code} per ${order.client_name ?? order.client_company} — Tipo: ${order.tipo_lavoro ?? "n/d"} — Indirizzo: ${order.indirizzo_lavori ?? "n/d"} — Descrizione: ${(order.work_description ?? "").slice(0, 200)}`;
       }
@@ -268,7 +328,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // ─── Estrazione dati strutturati ──
   const datiEstratti = trascrizione
-    ? await extractStructuredData(trascrizione, supabaseAdmin, companyId, user.id, orderContext)
+    ? await extractStructuredData(
+      trascrizione,
+      supabaseAdmin,
+      companyId,
+      user.id,
+      orderContext,
+      payload.audio_path,
+    )
     : {};
 
   // ─── Trigger sicurezza alert se rilevato ──
@@ -290,7 +357,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         p_cta_action: null,
         p_cta_payload: { rapportino_user_id: user.id, order_id: payload.order_id },
         p_source_type: "rapportino_vocale",
-        p_source_id: payload.order_id ?? null,
+        p_source_id: verifiedOrderId,
         p_source_meta: { tipo: sa.tipo, gravita: sa.gravita },
         p_expires_at: null,
       });
@@ -308,7 +375,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .from("rapportini_vocali")
     .insert({
       company_id: companyId,
-      order_id: payload.order_id ?? null,
+      order_id: verifiedOrderId,
       operaio_id: user.id,
       audio_url: urlData.publicUrl,
       audio_duration_sec: payload.duration_sec,

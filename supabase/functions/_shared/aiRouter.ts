@@ -122,6 +122,13 @@ export class AiRouterError extends Error {
   }
 }
 
+class AiRouterBillingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AiRouterBillingError";
+  }
+}
+
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 interface RouterConfig {
@@ -246,8 +253,11 @@ async function precheckCredit(
       p_estimated_cost_eur: estimatedCostEur,
     });
     if (error) {
-      console.warn("[aiRouter] precheck error, allowing call:", error.message);
-      return { ok: true }; // fail-open per non bloccare in caso di bug RPC
+      const failOpen = Deno.env.get("AI_ROUTER_ALLOW_PRECHECK_FAIL_OPEN") === "true";
+      console.warn("[aiRouter] precheck error:", error.message);
+      return failOpen
+        ? { ok: true }
+        : { ok: false, reason: "precheck_error", message: "Verifica credito AI non disponibile" };
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r = data as any;
@@ -257,8 +267,11 @@ async function precheckCredit(
       message: r?.message,
     };
   } catch (e) {
-    console.warn("[aiRouter] precheck threw, allowing call:", e);
-    return { ok: true };
+    const failOpen = Deno.env.get("AI_ROUTER_ALLOW_PRECHECK_FAIL_OPEN") === "true";
+    console.warn("[aiRouter] precheck threw:", e);
+    return failOpen
+      ? { ok: true }
+      : { ok: false, reason: "precheck_exception", message: "Verifica credito AI non disponibile" };
   }
 }
 
@@ -354,6 +367,31 @@ async function logUsage(
   }
 }
 
+async function estimateWholesaleCostUsd(
+  supabase: SupabaseClient,
+  tierKey: string,
+  promptTokens: number,
+  completionTokens: number,
+  fxUsdToEur: number,
+): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from("ai_pricing_tiers")
+      .select("cost_per_1m_input_eur, cost_per_1m_output_eur")
+      .eq("tier_key", tierKey)
+      .eq("enabled", true)
+      .maybeSingle();
+    if (error || !data) return 0;
+    const costEur =
+      (promptTokens / 1_000_000) * Number(data.cost_per_1m_input_eur ?? 0) +
+      (completionTokens / 1_000_000) * Number(data.cost_per_1m_output_eur ?? 0);
+    return fxUsdToEur > 0 ? costEur / fxUsdToEur : costEur / 0.92;
+  } catch (e) {
+    console.warn("[aiRouter] estimateWholesaleCostUsd failed:", e);
+    return 0;
+  }
+}
+
 /**
  * Entry point principale: completa un task usando il router OpenRouter.
  * Tenta primary_model, poi fallback_models in ordine. Logga sempre.
@@ -370,16 +408,16 @@ export async function aiRouterComplete(
     );
   }
 
+  const baseConfig = await loadConfig(opts.supabase, opts.taskKey);
   const config = opts.forceModel
     ? {
-        task_key: opts.taskKey,
+        ...baseConfig,
         primary_model: opts.forceModel,
-        fallback_models: [],
-        default_params: {},
-        tier_key: "t2_vision",
-        is_default: false,
+        fallback_models: [baseConfig.primary_model, ...baseConfig.fallback_models]
+          .filter((model, index, arr) => model && model !== opts.forceModel && arr.indexOf(model) === index),
+        is_default: baseConfig.is_default,
       }
-    : await loadConfig(opts.supabase, opts.taskKey);
+    : baseConfig;
 
   // Merge params: config default + override esplicito
   const params: AiRouterParams = { ...config.default_params, ...(opts.params ?? {}) };
@@ -444,8 +482,11 @@ export async function aiRouterComplete(
       const promptTokens = usage.prompt_tokens ?? 0;
       const completionTokens = usage.completion_tokens ?? 0;
       const totalTokens = usage.total_tokens ?? promptTokens + completionTokens;
-      // OpenRouter ritorna `usage.cost` in USD se disponibile, altrimenti stimiamo a 0
-      const costUsd = Number(usage.cost ?? 0);
+      // OpenRouter ritorna `usage.cost` in USD se disponibile; se manca, stimiamo dal tier wholesale.
+      const reportedCostUsd = Number(usage.cost ?? 0);
+      const costUsd = reportedCostUsd > 0
+        ? reportedCostUsd
+        : await estimateWholesaleCostUsd(opts.supabase, config.tier_key, promptTokens, completionTokens, fxUsdToEur);
 
       // Log analytical (legacy)
       await logUsage(opts.supabase, {
@@ -492,6 +533,12 @@ export async function aiRouterComplete(
           costBilledEur = charge.costBilledEur;
           marginEur = charge.marginEur;
         } else {
+          const chargeFailOpen = Deno.env.get("AI_ROUTER_ALLOW_CHARGE_FAIL_OPEN") === "true";
+          if (!chargeFailOpen) {
+            throw new AiRouterBillingError(
+              "AI billing ledger unavailable after provider success; response blocked to avoid unbilled AI usage",
+            );
+          }
           chargeSkipped = true;
         }
       }
@@ -509,6 +556,9 @@ export async function aiRouterComplete(
         chargeSkipped,
       };
     } catch (e) {
+      if (e instanceof AiRouterBillingError) {
+        throw e;
+      }
       const errMsg = (e as Error).message ?? String(e);
       attempts.push({ model, error: errMsg });
       console.warn(`[aiRouter] task=${opts.taskKey} model=${model} attempt ${i+1}/${modelsToTry.length} failed:`, errMsg);

@@ -2,6 +2,11 @@
 DO $$
 DECLARE v_company_id uuid := '778a2c76-1253-49f2-a5e8-283363ac3e29';
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.companies WHERE id = v_company_id) THEN
+    RAISE NOTICE 'Demo Azienda % non presente: seed budget CG saltato', v_company_id;
+    RETURN;
+  END IF;
+
   IF NOT EXISTS (SELECT 1 FROM public.cg_budget WHERE company_id = v_company_id AND anno = 2026) THEN
     INSERT INTO public.cg_budget (company_id, anno, codice, importo, note) VALUES
       (v_company_id, 2026, '01', 850000, 'Budget ricavi vendite 2026 (+12% vs 2025)'),

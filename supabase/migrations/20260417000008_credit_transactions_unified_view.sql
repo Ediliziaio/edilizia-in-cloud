@@ -20,6 +20,37 @@
 -- vengono chiamate in produzione).
 -- ============================================================================
 
+-- ── COMPAT: render_sessions può nascere in una migration successiva ────────
+-- Questa view legge il consumo render da public.render_sessions. Nella catena
+-- storica la tabella veniva creata più avanti, quindi un database pulito locale
+-- falliva prima di arrivarci. Creiamo qui lo stesso shape base, lasciando le
+-- migration render successive libere di aggiungere policy/indici/colonne.
+CREATE TABLE IF NOT EXISTS public.render_sessions (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  created_by uuid REFERENCES auth.users(id),
+  status text NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending','processing','completed','failed')),
+  original_photo_url text,
+  result_urls text[],
+  config jsonb,
+  config_snapshot jsonb,
+  foto_analisi jsonb,
+  prompt_used text,
+  prompt_blocks jsonb,
+  prompt_version text,
+  prompt_char_count integer,
+  provider_key text,
+  cost_real numeric(10,4),
+  cost_billed numeric(10,4),
+  error_message text,
+  processing_started_at timestamptz,
+  processing_completed_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.render_sessions ENABLE ROW LEVEL SECURITY;
+
 -- ── FIX SCHEMA: metadata column on whatsapp_credits_log ─────────────────────
 ALTER TABLE public.whatsapp_credits_log
   ADD COLUMN IF NOT EXISTS metadata jsonb;

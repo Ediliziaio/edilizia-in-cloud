@@ -18,7 +18,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { aiRouterComplete } from "../_shared/aiRouter.ts";
 
 const SYSTEM_PROMPT = `Estrai da fattura passiva italiana i seguenti campi in JSON.
 
@@ -75,6 +76,7 @@ serve(async (req: Request) => {
       .from("profiles").select("company_id").eq("id", userId).maybeSingle();
     const companyId: string | null = profile?.company_id ?? null;
     if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
     const body = (await req.json()) as OcrPayload;
     const storagePath = body?.storage_path?.trim();
@@ -93,63 +95,32 @@ serve(async (req: Request) => {
       return errorResponse(`Storage URL fallita: ${sErr?.message ?? "no url"}`, 500, corsHeaders);
     }
 
-    const apiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!apiKey) return errorResponse("OPENAI_API_KEY non configurata", 500, corsHeaders);
-
-    // Vision call
-    const start = Date.now();
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        max_tokens: 3500,
-        temperature: 0.0,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Estrai dati fattura nel formato JSON specificato." },
-              { type: "image_url", image_url: { url: signed.signedUrl, detail: "high" } },
-            ],
-          },
-        ],
-      }),
+    const aiResult = await aiRouterComplete({
+      supabase: supabaseAdmin,
+      taskKey: "fattura_ricevuta_ocr",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Estrai dati fattura nel formato JSON specificato." },
+            { type: "image_url", image_url: { url: signed.signedUrl, detail: "high" } },
+          ],
+        },
+      ],
+      params: { max_tokens: 3500, temperature: 0.0 },
+      responseFormat: { type: "json_object" },
+      companyId,
+      userId,
+      idempotencyKey: `ocr_fattura_${userId}_${storagePath}`,
+      estimatedCostEur: 0.12,
     });
-    const durationMs = Date.now() - start;
-
-    if (!res.ok) {
-      const errText = await res.text();
-      return errorResponse(`Vision OCR ${res.status}: ${errText.slice(0, 300)}`, 500, corsHeaders);
-    }
-    const data = await res.json();
     let parsed: Record<string, unknown> = {};
     try {
-      parsed = JSON.parse(data?.choices?.[0]?.message?.content ?? "{}");
+      parsed = JSON.parse(aiResult.content || "{}");
     } catch {
       return errorResponse("OCR ha restituito JSON invalido", 500, corsHeaders);
     }
-
-    const usage = data?.usage ?? {};
-    const costUsd = ((usage.prompt_tokens ?? 0) / 1_000_000) * 2.5
-                  + ((usage.completion_tokens ?? 0) / 1_000_000) * 10;
-
-    // Charge ledger
-    try {
-      await supabaseAdmin.rpc("charge_ai_call", {
-        p_idempotency_key: `ocr_fattura_${userId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        p_company_id: companyId, p_user_id: userId,
-        p_task_key: "fattura_ricevuta_ocr", p_tier_key: "t4_premium",
-        p_model_used: "openai/gpt-4o", p_used_primary: true, p_fallback_index: 0,
-        p_persona_key: null,
-        p_tokens_in: usage.prompt_tokens ?? 0, p_tokens_out: usage.completion_tokens ?? 0,
-        p_cost_real_usd: costUsd, p_fx_usd_to_eur: Number(Deno.env.get("AI_FX_USD_EUR") ?? "0.92"),
-        p_status: "success", p_duration_ms: durationMs,
-        p_metadata: { storage_path: storagePath },
-      });
-    } catch { /* best-effort */ }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cedente = (parsed.cedente ?? {}) as any;
@@ -191,8 +162,10 @@ serve(async (req: Request) => {
     return jsonResponse({
       ok: true,
       extracted: parsed,
-      cost_real_eur: Math.round(costUsd * 0.92 * 10000) / 10000,
-      duration_ms: durationMs,
+      cost_real_eur: aiResult.costRealEur,
+      duration_ms: aiResult.durationMs,
+      model_used: aiResult.modelUsed,
+      ledger_id: aiResult.ledgerId ?? null,
       created_invoice_id: createdId,
       preview_url: signed.signedUrl,
     }, 200, corsHeaders);

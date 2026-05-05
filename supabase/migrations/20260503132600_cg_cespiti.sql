@@ -1,6 +1,24 @@
 -- MP-CG-01 / 1.1 — Cespiti (immobilizzazioni con piano di ammortamento)
 -- Alimenta lo Stato Patrimoniale (Attivo Fisso) e il CE (riga Ammortamenti).
 
+-- Compatibilità catena migrazioni locale: i cespiti possono essere collegati a una
+-- sede, ma la migrazione completa del sistema sedi arriva più avanti.
+CREATE TABLE IF NOT EXISTS public.sedi (
+  id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  company_id  uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  nome        text NOT NULL,
+  tipo        text NOT NULL CHECK (tipo IN ('showroom','magazzino','cantiere','ufficio','altro')),
+  indirizzo   text,
+  citta       text,
+  cap         text,
+  provincia   text,
+  colore      text DEFAULT '#1E3A5F',
+  attiva      boolean DEFAULT true,
+  principale  boolean DEFAULT false,
+  created_at  timestamptz DEFAULT now(),
+  updated_at  timestamptz DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS public.cespiti (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id      uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

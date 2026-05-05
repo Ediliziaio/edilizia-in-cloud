@@ -18,8 +18,9 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { generateEmbeddingsBatch, contentHash, chunkText } from "../_shared/brainEmbed.ts";
+import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
 
 interface IngestItem {
   source_type: string;
@@ -120,6 +121,7 @@ serve(async (req: Request) => {
       .from("profiles").select("company_id").eq("id", userId).maybeSingle();
     const companyId: string | null = profile?.company_id ?? null;
     if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
     const body = await req.json();
     const mode = body?.mode ?? "items";
@@ -210,11 +212,33 @@ serve(async (req: Request) => {
 
     let embeddings: number[][] = [];
     try {
-      embeddings = await generateEmbeddingsBatch(chunks.map(c => c.chunk));
+      const embeddingInputs = chunks.map(c => c.chunk);
+      embeddings = await generateEmbeddingsBatch(embeddingInputs);
+      const embeddingUsage = estimateEmbeddingUsage(embeddingInputs);
+      await chargeDirectAiCall({
+        supabase: supabaseAdmin,
+        idempotencyKey: await buildStableAiIdempotencyKey("brain_ingest_embedding", [
+          companyId,
+          userId,
+          mode,
+          chunks.map((chunk) => chunk.hash),
+        ]),
+        companyId,
+        userId,
+        taskKey: "brain_ingest_embedding",
+        tierKey: "t1_economic",
+        modelUsed: "text-embedding-3-small",
+        tokensIn: embeddingUsage.tokens,
+        costRealUsd: embeddingUsage.costUsd,
+        metadata: {
+          mode,
+          chunks: chunks.length,
+          source_types: Array.from(new Set(chunks.map((c) => c.source_type))),
+        },
+      });
     } catch (embErr) {
       console.error("[brain-ingest] embedding error:", embErr);
-      // Continue without embeddings (will be NULL in DB)
-      embeddings = [];
+      return errorResponse(`Errore embedding/ledger: ${embErr instanceof Error ? embErr.message : String(embErr)}`, 502, corsHeaders);
     }
 
     // ── Upsert via RPC ──────────────────────────────────────────────────

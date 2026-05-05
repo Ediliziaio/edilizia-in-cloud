@@ -22,9 +22,10 @@
  *   }
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 const OCR_PROMPT = `Sei un esperto nell'estrazione dati da Documenti di Trasporto (DDT) italiani conformi al D.P.R. 472/96.
 Analizza il DDT in immagine e ESTRAI i dati in JSON strutturato.
@@ -95,6 +96,7 @@ Deno.serve(async (req: Request) => {
     if (!company_id) {
       return errorResponse("company_id obbligatorio", 400, cors);
     }
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
     if (!image_base64 && !image_url) {
       return errorResponse("Fornire image_base64 o image_url", 400, cors);
     }
@@ -103,6 +105,15 @@ Deno.serve(async (req: Request) => {
     const imageContent = image_base64
       ? `data:${mime || "image/jpeg"};base64,${image_base64}`
       : image_url!;
+    const imageFingerprint = image_base64
+      ? await buildStableAiIdempotencyKey("image_base64", [image_base64])
+      : image_url!;
+    const idempotencyKey = await buildStableAiIdempotencyKey("ddt_ocr_extract", [
+      company_id,
+      userId,
+      mime ?? null,
+      imageFingerprint,
+    ]);
 
     let aiResult;
     try {
@@ -131,6 +142,7 @@ Deno.serve(async (req: Request) => {
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
+        idempotencyKey,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

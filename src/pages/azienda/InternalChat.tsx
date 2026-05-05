@@ -871,6 +871,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const [chatFilter, setChatFilter] = useState<"all" | "groups" | "dm">("all");
   const [showMobile, setShowMobile] = useState(false); // mobile: show chat panel
   const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
+  const [slowChatLoad, setSlowChatLoad] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const presenceRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -893,6 +894,15 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     () => members.filter((m) => m.channel_id === selectedChannelId),
     [members, selectedChannelId],
   );
+
+  useEffect(() => {
+    if (!chatLoading) {
+      setSlowChatLoad(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setSlowChatLoad(true), 3500);
+    return () => window.clearTimeout(timeout);
+  }, [chatLoading]);
 
   // Channel selection
   const handleSelectChannel = useCallback((channelId: string) => {
@@ -1537,6 +1547,17 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
         <ScrollArea className="flex-1">
           {chatLoading ? (
             <div className="flex flex-col gap-2 p-3">
+              {slowChatLoad && (
+                <div className="mb-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[13px] text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
+                  <div className="flex items-center gap-2 font-medium">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Preparazione chat in corso
+                  </div>
+                  <p className="mt-1 text-blue-800/80 dark:text-blue-100/75">
+                    Sto recuperando canali, membri e il canale Silvio. Se Supabase è appena ripartito può richiedere qualche secondo.
+                  </p>
+                </div>
+              )}
               {Array.from({ length: 6 }).map((_, index) => (
                 <div key={index} className="flex items-center gap-3 px-1 py-2">
                   <div className="h-12 w-12 rounded-full bg-[#f0f2f5] dark:bg-white/10 animate-pulse" />

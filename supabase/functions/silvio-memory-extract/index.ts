@@ -18,8 +18,10 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { isInternalRequest, requireAuth, requireCompanyAccess, requireInternalSecret } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { generateEmbedding, contentHash } from "../_shared/brainEmbed.ts";
+import { chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 interface ExtractPayload {
@@ -33,6 +35,13 @@ interface ChatRow {
   role: "user" | "assistant";
   content: string;
   created_at: string;
+}
+
+interface MemoryQueueRow {
+  user_id: string;
+  company_id: string;
+  channel_id: string;
+  messages_count: number | string | null;
 }
 
 interface FactsResponse {
@@ -88,6 +97,7 @@ serve(async (req: Request) => {
     const body = (await req.json().catch(() => ({}))) as ExtractPayload;
     const mode = body.mode ?? "all";
     const lookbackHours = body.lookback_hours ?? 24;
+    let restrictedCompanyId: string | null = null;
 
     let targets: Array<{ user_id: string; company_id: string; channel_id: string; messages_count: number }> = [];
 
@@ -95,6 +105,10 @@ serve(async (req: Request) => {
       const { data: profile } = await supabase
         .from("profiles").select("company_id").eq("id", body.user_id).maybeSingle();
       if (profile?.company_id) {
+        const auth = await requireAuth(req, corsHeaders);
+        await requireCompanyAccess(supabase, auth.userId, profile.company_id, corsHeaders, {
+          allowedRoles: ["super_admin", "company_admin"],
+        });
         targets.push({
           user_id: body.user_id,
           company_id: profile.company_id,
@@ -103,17 +117,36 @@ serve(async (req: Request) => {
         });
       }
     } else {
+      if (isInternalRequest(req)) {
+        requireInternalSecret(req, corsHeaders);
+      } else {
+        const auth = await requireAuth(req, corsHeaders);
+        const { data: callerProfile } = await supabase
+          .from("profiles")
+          .select("company_id")
+          .eq("id", auth.userId)
+          .maybeSingle();
+        if (!callerProfile?.company_id) {
+          return errorResponse("Utente senza azienda", 403, corsHeaders);
+        }
+        const access = await requireCompanyAccess(supabase, auth.userId, callerProfile.company_id, corsHeaders, {
+          allowedRoles: ["super_admin", "company_admin"],
+        });
+        if (!access.isSuperAdmin) restrictedCompanyId = access.companyId;
+      }
+
       const { data: queue } = await supabase.rpc("silvio_users_needing_memory_extract", {
         p_lookback_hours: lookbackHours,
         p_min_messages: body.mode === "user" ? 1 : 4,
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      targets = (queue ?? []).map((q: any) => ({
-        user_id: q.user_id,
-        company_id: q.company_id,
-        channel_id: q.channel_id,
-        messages_count: Number(q.messages_count),
-      }));
+      targets = ((queue ?? []) as MemoryQueueRow[])
+        .filter((q) => !restrictedCompanyId || q.company_id === restrictedCompanyId)
+        .map((q) => ({
+          user_id: q.user_id,
+          company_id: q.company_id,
+          channel_id: q.channel_id,
+          messages_count: Number(q.messages_count),
+        }));
     }
 
     if (targets.length === 0) {
@@ -232,14 +265,36 @@ async function processUser(
   // 5) Genera embedding del summary + salva chat_summary
   const summaryText = extracted.summary || "Conversazione recente con Silvio";
   let summaryEmbedding: number[] | null = null;
-  try {
-    summaryEmbedding = await generateEmbedding(summaryText);
-  } catch (e) {
-    console.warn("[silvio-memory] embed summary failed:", e);
-  }
-
   const periodEnd = new Date().toISOString().slice(0, 10);
   const periodStart = new Date(Date.now() - lookbackHours * 3600 * 1000).toISOString().slice(0, 10);
+  try {
+    summaryEmbedding = await generateEmbedding(summaryText);
+    const embeddingUsage = estimateEmbeddingUsage(summaryText);
+    const summaryHash = await contentHash(summaryText);
+    await chargeDirectAiCall({
+      supabase,
+      idempotencyKey: `memory_summary_embedding_${target.company_id}_${target.user_id}_${target.channel_id}_${periodEnd}_${summaryHash.slice(0, 16)}`,
+      companyId: target.company_id,
+      userId: target.user_id,
+      taskKey: "memory_summary_embedding",
+      tierKey: "t1_economic",
+      modelUsed: "text-embedding-3-small",
+      personaKey: "silvio",
+      tokensIn: embeddingUsage.tokens,
+      tokensOut: 0,
+      costRealUsd: embeddingUsage.costUsd,
+      metadata: {
+        source: "silvio_memory_extract",
+        channel_id: target.channel_id,
+        period_start: periodStart,
+        period_end: periodEnd,
+        facts_added: factsAdded,
+      },
+    });
+  } catch (e) {
+    console.warn("[silvio-memory] embed/ledger summary failed:", e);
+    summaryEmbedding = null;
+  }
 
   let summaryId: string | undefined;
   try {

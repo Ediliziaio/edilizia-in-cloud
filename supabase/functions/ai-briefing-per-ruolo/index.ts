@@ -12,9 +12,10 @@
  * Output: { success, briefing: {...}, ai_meta }
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -81,6 +82,7 @@ Deno.serve(async (req: Request) => {
 
     const companyId = bodyCompanyId ?? profile.company_id;
     if (!companyId) return errorResponse("company_id non determinabile", 400, cors);
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
 
     const { data: rolesData } = await supabaseAdmin
       .from("user_roles")
@@ -166,6 +168,13 @@ Deno.serve(async (req: Request) => {
       luogo: [a.address_line, a.address_city].filter(Boolean).join(", "),
       status: a.status,
     }));
+    const idempotencyKey = await buildStableAiIdempotencyKey("briefing_per_ruolo", [
+      companyId,
+      userId,
+      primaryRole,
+      today,
+      payload,
+    ]);
 
     // ── AI call ──────────────────────────────────────────────
     let aiResult;
@@ -182,6 +191,7 @@ Deno.serve(async (req: Request) => {
         responseFormat: { type: "json_object" },
         companyId,
         userId,
+        idempotencyKey,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

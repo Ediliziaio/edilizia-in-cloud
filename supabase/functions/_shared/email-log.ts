@@ -1,5 +1,3 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
 /**
  * Shared helper to log email delivery attempts to `email_delivery_log`.
  * Call after sending (or attempting to send) an email.
@@ -10,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
  *   stream, campaign_id, provider_id, cost_eur, charged_eur, metadata.
  */
 export async function logEmailDelivery(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
   params: {
     company_id?: string | null;
     /** Recipient email address. Preferred name. */

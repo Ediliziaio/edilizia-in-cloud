@@ -23,10 +23,12 @@
  *   { success, decision_id, playbook_id, proposal: {...}, ai_meta: {...} }
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildSystemPrompt } from "../_shared/preambolo.ts";
+import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -53,14 +55,19 @@ interface PlaybookRow {
   tags: string[];
 }
 
-async function generateQueryEmbedding(apiKey: string, text: string): Promise<number[]> {
-  const r = await fetch("https://api.openai.com/v1/embeddings", {
+async function generateQueryEmbedding(apiKey: string, text: string): Promise<{ embedding: number[]; tokens: number }> {
+  const r = await fetchWithTimeout("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model: EMBEDDING_MODEL, input: text }),
+    timeoutMs: 60_000,
   });
   if (!r.ok) throw new Error(`embed ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  return (await r.json()).data[0].embedding;
+  const data = await r.json();
+  return {
+    embedding: data.data[0].embedding,
+    tokens: Number(data.usage?.total_tokens ?? 0),
+  };
 }
 
 Deno.serve(async (req) => {
@@ -98,6 +105,8 @@ Deno.serve(async (req) => {
       return errorResponse("trigger_type o override_playbook_id required", 400, cors);
     }
 
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
+
     // ── 1. Match / load playbook ──────────────────────────────────────────
     let playbook: PlaybookRow | null = null;
     if (override_playbook_id) {
@@ -125,6 +134,17 @@ Deno.serve(async (req) => {
     }
 
     // ── 2. Load persona ──────────────────────────────────────────────────
+    const { data: personaPermission, error: personaPermissionError } = await supabaseAdmin.rpc("can_user_use_persona", {
+      p_user_id: userId,
+      p_persona_key: persona_key,
+    });
+    if (personaPermissionError) {
+      return errorResponse(`persona permission: ${personaPermissionError.message}`, 500, cors);
+    }
+    if (!personaPermission?.allowed) {
+      return errorResponse(`persona ${persona_key} non autorizzata: ${personaPermission?.reason ?? "rbac_denied"}`, 403, cors);
+    }
+
     const { data: persona } = await supabaseAdmin
       .from("ai_personas")
       .select("system_prompt, kb_areas_filter")
@@ -153,15 +173,41 @@ Deno.serve(async (req) => {
     let kbContext = "";
     if (playbook.kb_context_areas && playbook.kb_context_areas.length > 0) {
       try {
-        const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY");
+          const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY");
         if (OPENAI_KEY) {
           const queryText = user_request_text ?? `${playbook.title} ${playbook.description ?? ""}`;
-          const embedding = await generateQueryEmbedding(OPENAI_KEY, queryText);
+          const { embedding, tokens: providerTokens } = await generateQueryEmbedding(OPENAI_KEY, queryText);
+          const embeddingUsage = estimateEmbeddingUsage(queryText);
+          const tokensIn = providerTokens || embeddingUsage.tokens;
+          await chargeDirectAiCall({
+            supabase: supabaseAdmin,
+            idempotencyKey: await buildStableAiIdempotencyKey("playbook_rag_embedding", [
+              company_id,
+              userId,
+              playbook.id,
+              queryText,
+              playbook.kb_context_areas,
+            ]),
+            companyId: company_id,
+            userId,
+            taskKey: "playbook_rag_embedding",
+            tierKey: "t1_economic",
+            modelUsed: EMBEDDING_MODEL,
+            tokensIn,
+            costRealUsd: providerTokens
+              ? Math.max(0.000001, (tokensIn / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
+              : embeddingUsage.costUsd,
+            metadata: {
+              playbook_id: playbook.id,
+              trigger_type: trigger_type ?? null,
+              persona_key,
+            },
+          });
           const { data: chunks } = await supabaseAdmin.rpc("match_brain", {
             p_company_id: company_id,
             p_query_embedding: `[${embedding.join(",")}]`,
             p_match_count: 5,
-            p_min_similarity: 0.30,
+            p_min_similarity: 0.72,
             p_source_types: ["kb_universal"],
             p_include_universal: true,
             p_universal_categories: playbook.kb_context_areas,
@@ -170,7 +216,11 @@ Deno.serve(async (req) => {
           kbContext = ((chunks ?? []) as any[]).map((c) => `### ${c.title}\n${c.content}`).join("\n\n");
         }
       } catch (e) {
-        console.warn(`[playbook-execute] KB RAG skipped: ${e instanceof Error ? e.message : String(e)}`);
+        const message = e instanceof Error ? e.message : String(e);
+        if (message.includes("AI ledger charge failed")) {
+          return errorResponse(`KB RAG ledger: ${message}`, 502, cors);
+        }
+        console.warn(`[playbook-execute] KB RAG skipped: ${message}`);
       }
     }
 
@@ -188,6 +238,19 @@ Deno.serve(async (req) => {
     // ── 6. AI call via aiRouter ───────────────────────────────────────────
     let aiResult;
     try {
+      const idempotencyKey = await buildStableAiIdempotencyKey("playbook_execute", [
+        company_id,
+        userId,
+        persona_key,
+        playbook.id,
+        playbook.version,
+        trigger_type ?? null,
+        trigger_source_type ?? null,
+        trigger_source_id ?? null,
+        alert_type ?? null,
+        user_request_text ?? null,
+        gathered,
+      ]);
       aiResult = await aiRouterComplete({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabase: supabaseAdmin as any,
@@ -200,6 +263,7 @@ Deno.serve(async (req) => {
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
+        idempotencyKey,
       });
     } catch (e) {
       return errorResponse(`AI router: ${e instanceof Error ? e.message : String(e)}`, 502, cors);

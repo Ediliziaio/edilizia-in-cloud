@@ -1,5 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { requireAuth, requireRole } from "../_shared/auth.ts";
 
 interface IntegrationResult {
   name: string;
@@ -178,40 +178,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-    // Auth check — allow both super_admin (full check) and company users (basic)
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
-    }
-
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: userError } = await userClient.auth.getUser();
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
-    }
-
-    const admin = createClient(supabaseUrl, serviceRoleKey);
-
-    // Check if super_admin
-    const { data: roleRow } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "super_admin")
-      .maybeSingle();
-    const isSuperAdmin = !!roleRow;
+    const { userId, supabaseAdmin: admin } = await requireAuth(req, getCorsHeaders(req));
+    await requireRole(admin, userId, ["super_admin"], getCorsHeaders(req));
+    const isSuperAdmin = true;
 
     // Read platform_settings keys
     const settingsKeys = [
@@ -563,6 +532,7 @@ Deno.serve(async (req) => {
       { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("check-api-health error:", error);
     return new Response(
       JSON.stringify({ error: (error as Error).message }),

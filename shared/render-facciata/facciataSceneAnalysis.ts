@@ -347,7 +347,7 @@ export function createFacciataZoneTargeting(
   }
 
   const activeSystems = Array.from(new Set(affectedZones.map((item) => item.system)));
-  const inactiveSystems = [
+  const allSystems: FacciataZoneDirective["system"][] = [
     "intonaco",
     "rivestimento",
     "cappotto",
@@ -357,7 +357,8 @@ export function createFacciataZoneTargeting(
     "zoccolatura",
     "gronde",
     "balconi_ringhiere",
-  ].filter((system) => !activeSystems.includes(system));
+  ];
+  const inactiveSystems = allSystems.filter((system) => !activeSystems.includes(system));
 
   const affectedZoneIds = new Set(affectedZones.map((item) => item.zoneId));
   const untouchedZones = ALL_FACADE_ZONES

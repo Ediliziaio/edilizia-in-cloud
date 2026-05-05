@@ -5,6 +5,7 @@ import {
 import type {
   ExistingShutterType,
   PersianaRemovalRule,
+  PersianaReplacementManifestTarget,
   PersianaReplacementManifest,
   PersianeRenderConfig,
   PersianeSceneOpening,
@@ -103,7 +104,7 @@ export function buildPersianeReplacementManifest(config: Pick<
 >): PersianaReplacementManifest {
   const removals: PersianaRemovalRule[] = [];
 
-  const targetOpenings = config.technical_specification.map((spec) => {
+  const targetOpenings: PersianaReplacementManifestTarget[] = config.technical_specification.map((spec) => {
     const opening = config.scene_analysis.openings.find((item) => item.id === spec.openingId);
     const currentType = opening?.existingShutterType ?? "unknown";
     const action =

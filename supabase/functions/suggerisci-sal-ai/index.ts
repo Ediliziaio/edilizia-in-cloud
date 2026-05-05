@@ -14,9 +14,10 @@
  * Non modifica nulla — solo suggerisce. L'utente resta in controllo del SAL.
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -76,6 +77,7 @@ Deno.serve(async (req: Request) => {
     if (!order_id || !company_id) {
       return errorResponse("order_id e company_id obbligatori", 400, cors);
     }
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     // Fetch order
     const { data: order, error: orderErr } = await supabaseAdmin
@@ -168,6 +170,13 @@ Deno.serve(async (req: Request) => {
     // AI call
     let aiResult;
     try {
+      const idempotencyKey = await buildStableAiIdempotencyKey("suggerisci_sal", [
+        company_id,
+        userId,
+        order_id,
+        numero_sal ?? null,
+        payload,
+      ]);
       aiResult = await aiRouterComplete({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabase: supabaseAdmin as any,
@@ -183,6 +192,7 @@ Deno.serve(async (req: Request) => {
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
+        idempotencyKey,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

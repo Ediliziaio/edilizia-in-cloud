@@ -3,6 +3,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
+import { requireInternalSecret } from "../_shared/auth.ts";
 
 const OR_MODELS_URL = "https://openrouter.ai/api/v1/models";
 
@@ -20,20 +21,6 @@ const WHITELIST = new Set([
   "google/gemini-pro-2.5",
   "openrouter/auto",
 ]);
-
-function extractJwtRole(authHeader: string): string | null {
-  if (!authHeader.startsWith("Bearer ")) return null;
-  const parts = authHeader.substring(7).split(".");
-  if (parts.length !== 3) return null;
-  try {
-    const payload = JSON.parse(
-      atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")),
-    );
-    return typeof payload.role === "string" ? payload.role : null;
-  } catch {
-    return null;
-  }
-}
 
 interface OpenRouterModel {
   id: string;
@@ -54,14 +41,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const auth = req.headers.get("Authorization") ?? "";
-  const cronSecret = req.headers.get("x-cron-secret") ?? "";
-  const internalSecret = Deno.env.get("INTERNAL_CRON_SECRET") ?? "";
-  const role = extractJwtRole(auth);
-  const authorized =
-    role === "service_role" ||
-    (internalSecret.length > 0 && cronSecret === internalSecret);
-  if (!authorized) {
+  try {
+    requireInternalSecret(req, corsHeaders);
+  } catch (err) {
+    if (err instanceof Response) return err;
     return new Response(JSON.stringify({ error: "unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

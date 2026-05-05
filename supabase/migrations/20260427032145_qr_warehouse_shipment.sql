@@ -23,8 +23,13 @@
 -- warehouse_scan_events, warehouse_stock con tracking_mode esistono.
 -- ============================================================
 
-BEGIN;
-
+-- Nota Supabase CLI locale:
+-- alcune versioni eseguono il file come prepared statement unico. Racchiudiamo
+-- funzione, grant e commento in un solo DO per evitare il classico errore
+-- "cannot insert multiple commands into a prepared statement".
+DO $migration$
+BEGIN
+  EXECUTE $function$
 CREATE OR REPLACE FUNCTION public.create_shipment_atomic(
   p_order_id UUID,
   p_warehouse_id UUID,
@@ -244,11 +249,15 @@ BEGIN
   RETURN QUERY SELECT v_documento_id, v_numero_ddt, v_movements, v_units, v_errors;
 END;
 $$;
+$function$;
 
-REVOKE ALL ON FUNCTION public.create_shipment_atomic(UUID, UUID, JSONB, JSONB) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.create_shipment_atomic(UUID, UUID, JSONB, JSONB) TO authenticated;
+  EXECUTE 'REVOKE ALL ON FUNCTION public.create_shipment_atomic(UUID, UUID, JSONB, JSONB) FROM PUBLIC';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.create_shipment_atomic(UUID, UUID, JSONB, JSONB) TO authenticated';
 
+  EXECUTE $comment$
 COMMENT ON FUNCTION public.create_shipment_atomic IS
   'MP3 — Scarico cantiere atomico: per ogni scansione crea movimento scarico + decrementa giacenza + (se serializzato) aggiorna stock_units a status=shipped + scan_events. Genera contestualmente un DDT (documento_fiscale tipo=ddt) in stato bozza con ordine_id e righe estratte. L''utente completa cliente/dati trasporto dalla UI fatturazione esistente. Il flusso più semplice e intuitivo: una sola conferma per scarico + DDT.';
+$comment$;
 
-COMMIT;
+END;
+$migration$;

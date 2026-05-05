@@ -11,9 +11,10 @@
  * Output: { success, suggestion: {...}, ai_meta }
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -64,6 +65,7 @@ Deno.serve(async (req: Request) => {
     if (!item_name || !company_id) {
       return errorResponse("item_name e company_id obbligatori", 400, cors);
     }
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     // Fetch storico
     const { data: history } = await supabaseAdmin.rpc("silvio_pricing_history", {
@@ -80,6 +82,14 @@ Deno.serve(async (req: Request) => {
 
     let aiResult;
     try {
+      const idempotencyKey = await buildStableAiIdempotencyKey("pricing_suggest", [
+        company_id,
+        userId,
+        item_name,
+        Number(costo_corrente ?? 0),
+        Number(margine_target_pct ?? 30),
+        history ?? null,
+      ]);
       aiResult = await aiRouterComplete({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabase: supabaseAdmin as any,
@@ -92,6 +102,7 @@ Deno.serve(async (req: Request) => {
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
+        idempotencyKey,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

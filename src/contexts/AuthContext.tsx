@@ -86,6 +86,41 @@ function clearProfileCache() {
   try { sessionStorage.removeItem(AUTH_PROFILE_CACHE_KEY); } catch { /* storage non disponibile — silenzioso */ }
 }
 
+function errorText(error: unknown): string {
+  if (!error) return "";
+  if (error instanceof Error) return `${error.name} ${error.message}`;
+  if (typeof error === "string") return error;
+  try { return JSON.stringify(error); } catch { return String(error); }
+}
+
+function isInvalidRefreshTokenError(error: unknown): boolean {
+  const text = errorText(error).toLowerCase();
+  return (
+    text.includes("invalid refresh token") ||
+    text.includes("refresh token not found") ||
+    text.includes("refresh_token_not_found")
+  );
+}
+
+function clearStaleSupabaseAuthStorage() {
+  _cachedAccessToken = null;
+  _cachedRefreshToken = null;
+  clearProfileCache();
+
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("sb-") && key.includes("auth-token")) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // localStorage non disponibile o bloccato: lo stato React viene comunque pulito.
+  }
+}
+
 // Module-level cache for the latest Supabase access/refresh tokens.
 // Updated by onAuthStateChange — lets other code read the current token WITHOUT
 // calling supabase.auth.getSession() (which acquires the storage lock and can hang).
@@ -195,6 +230,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const multiCompanyAccesses = multiCompanyState.accesses;
   const selectedMultiCompanyId = multiCompanyState.selectedId;
   const multiCompanyObj = multiCompanyState.selectedCompany;
+
+  const recoverInvalidAuthSession = useCallback((source: string, error?: unknown) => {
+    logger.warn(`[auth] ${source}: sessione locale Supabase non valida, pulizia token stale`, error);
+    captureVelocityError("auth.invalid_refresh_token_recovered", error ?? new Error(source), { source });
+
+    clearStaleSupabaseAuthStorage();
+    sessionStorage.removeItem(SESSION_ID_KEY);
+    sessionStorage.removeItem(IMP_COMPANY_KEY);
+    sessionStorage.removeItem(IMP_TOKEN_KEY);
+    sessionStorage.removeItem(IMP_TOKEN_TS_KEY);
+    sessionStorage.removeItem("admin_session_token");
+
+    authGenRef.current++;
+    resolvedRoleRef.current = null;
+    setImpersonatedCompanyId(null);
+    setImpersonationToken(null);
+    setImpersonatedCompany(null);
+    setIsImpersonationReady(false);
+    setState({
+      user: null,
+      profile: null,
+      role: null,
+      company: null,
+      isLoading: false,
+    });
+
+    // Best-effort: forza Supabase JS a dimenticare anche l'eventuale sessione in memoria.
+    void supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+  }, []);
 
   // Sync impersonation state to sessionStorage
   useEffect(() => {
@@ -429,6 +493,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch (err) {
+      if (isInvalidRefreshTokenError(err)) {
+        recoverInvalidAuthSession("refreshAuth", err);
+        return;
+      }
+
       // getSession timed out or threw — show login form.
       // IMPORTANT: do NOT clear localStorage here. Doing so would destroy the
       // refresh token that Supabase needs to auto-renew the session in the background.
@@ -446,7 +515,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading: false,
       });
     }
-  }, [fetchUserData]);
+  }, [fetchUserData, recoverInvalidAuthSession]);
 
   // Fetch impersonated company data when impersonatedCompanyId or the authenticated user changes.
   // We wait for state.user to be non-null so that the Supabase client has a valid session
@@ -492,6 +561,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [impersonatedCompanyId, impersonationToken, state.user]);
 
   useEffect(() => {
+    const handleUnhandledAuthError = (event: PromiseRejectionEvent) => {
+      if (!isInvalidRefreshTokenError(event.reason)) return;
+      event.preventDefault();
+      recoverInvalidAuthSession("unhandledrejection", event.reason);
+    };
+
+    window.addEventListener("unhandledrejection", handleUnhandledAuthError);
+
     // Hoist cross-subdomain flag BEFORE registering the listener so the
     // callback closure never observes it in TDZ. Supabase currently emits
     // INITIAL_SESSION asynchronously, but if that scheduling ever changes
@@ -766,7 +843,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           })
           .catch(() => refreshAuth());
 
-        return () => subscription.unsubscribe();
+        return () => {
+          window.removeEventListener("unhandledrejection", handleUnhandledAuthError);
+          subscription.unsubscribe();
+        };
       }
     }
 
@@ -779,10 +859,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       // Invalidate any in-flight fetch so setState is never called after unmount.
+      window.removeEventListener("unhandledrejection", handleUnhandledAuthError);
       authGenRef.current++;
       subscription.unsubscribe();
     };
-  }, [fetchUserData, refreshAuth]);
+  }, [fetchUserData, refreshAuth, recoverInvalidAuthSession]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     // Velocity — race su 15s. signInWithPassword fa un POST a /auth/v1/token,

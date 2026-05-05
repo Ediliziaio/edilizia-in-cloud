@@ -1,6 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -22,23 +23,8 @@ Deno.serve(async (req) => {
       domanda?: string;
     } = body;
 
-    if (!company_id) return errorResponse("company_id obbligatorio", 400);
-
-    // Validate the caller has access to this company
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-    const { data: roleRow } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
-    const isSuperAdmin = roleRow?.role === "super_admin";
-    if (!isSuperAdmin && profile?.company_id !== company_id) {
-      return errorResponse("Accesso negato a questa azienda", 403);
-    }
+    if (!company_id) return errorResponse("company_id obbligatorio", 400, corsH);
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, corsH);
 
     // Calculate date cutoff using proper month arithmetic
     const cutoff = new Date();
@@ -146,6 +132,13 @@ Deno.serve(async (req) => {
     // Migrato ad aiRouter: passa via OpenRouter, charged + ledger SuperAdmin
     let aiResult;
     try {
+      const idempotencyKey = await buildStableAiIdempotencyKey("analisi_preventivi", [
+        company_id,
+        userId,
+        periodo_mesi,
+        domanda ?? null,
+        userMessage,
+      ]);
       aiResult = await aiRouterComplete({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabase: supabaseAdmin as any,
@@ -160,7 +153,7 @@ Deno.serve(async (req) => {
         params: { temperature: 0.3, max_tokens: 1500 },
         companyId: company_id,
         userId,
-        idempotencyKey: `analisi_preventivi_${company_id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        idempotencyKey,
       });
     } catch (err) {
       throw new Error(`AI Router error: ${err instanceof Error ? err.message : String(err)}`);

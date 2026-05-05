@@ -19,9 +19,10 @@
  *   { success, classified: [{fattura_id, categoria_ai, sottocategoria_ai, ...}], ai_meta }
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -107,6 +108,16 @@ async function classifyOne(
     })),
   };
 
+  const idempotencyKey = await buildStableAiIdempotencyKey("fattura_classify", [
+    companyId,
+    userId,
+    fattura.id,
+    fattura.numero_fattura ?? null,
+    fattura.data_fattura ?? null,
+    fattura.totale_documento ?? null,
+    fattura.righe ?? null,
+    openOrders.map((o) => o.id),
+  ]);
   const aiResult = await aiRouterComplete({
     supabase,
     taskKey: "fattura_classify",
@@ -118,6 +129,7 @@ async function classifyOne(
     responseFormat: { type: "json_object" },
     companyId,
     userId,
+    idempotencyKey,
   });
 
   let parsed: AnyObj;
@@ -196,6 +208,7 @@ Deno.serve(async (req: Request) => {
     };
 
     if (!company_id) return errorResponse("company_id obbligatorio", 400, cors);
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     // Build target list
     let ids: string[] = [];

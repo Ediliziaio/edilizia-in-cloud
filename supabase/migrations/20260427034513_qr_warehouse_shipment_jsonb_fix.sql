@@ -20,8 +20,12 @@
 -- struttura JSONB di ciascuno.
 -- ============================================================
 
-BEGIN;
-
+-- Nota Supabase CLI locale:
+-- manteniamo il fix identico, ma dentro un DO per evitare statement multipli
+-- nel runner delle migration locali.
+DO $migration$
+BEGIN
+  EXECUTE $function$
 CREATE OR REPLACE FUNCTION public.create_shipment_atomic(
   p_order_id UUID,
   p_warehouse_id UUID,
@@ -214,5 +218,7 @@ BEGIN
   RETURN QUERY SELECT v_documento_id, v_numero_ddt, v_movements, v_units, v_errors;
 END;
 $$;
+$function$;
 
-COMMIT;
+END;
+$migration$;

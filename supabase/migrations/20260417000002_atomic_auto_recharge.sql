@@ -106,6 +106,56 @@ COMMENT ON FUNCTION public.increment_order_total IS
 -- Idempotency: whatsapp webhook duplicates + internal_call_logs unique
 -- ────────────────────────────────────────────────────────────────────────────
 
+-- Alcune migration successive di aprile aggiungono indici/colonne a
+-- whatsapp_messages, mentre la creazione originaria era stata datata molto più
+-- avanti. Definiamo qui lo schema base così un DB pulito può migrare da zero.
+CREATE TABLE IF NOT EXISTS public.whatsapp_sessions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  operaio_id UUID NOT NULL REFERENCES public.employees(id) ON DELETE CASCADE,
+  phone_number TEXT NOT NULL,
+  current_cantiere_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+  state TEXT DEFAULT 'idle' CHECK (state IN (
+    'idle', 'awaiting_cantiere', 'awaiting_confirmation',
+    'collecting_rapportino', 'collecting_presenze'
+  )),
+  state_data JSONB DEFAULT '{}',
+  last_activity_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.whatsapp_messages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  cantiere_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+  operaio_id UUID REFERENCES public.employees(id) ON DELETE SET NULL,
+  wa_message_id TEXT NOT NULL UNIQUE,
+  direction TEXT NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+  from_phone TEXT NOT NULL,
+  to_phone TEXT NOT NULL,
+  message_type TEXT NOT NULL CHECK (message_type IN (
+    'text', 'image', 'document', 'audio', 'video', 'location', 'sticker'
+  )),
+  content_text TEXT,
+  media_url TEXT,
+  media_storage_path TEXT,
+  ai_intent TEXT CHECK (ai_intent IN (
+    'rapportino', 'ddt', 'foto_cantiere', 'presenze',
+    'segnalazione', 'domanda', 'conferma', 'annulla', 'unknown'
+  )),
+  ai_confidence NUMERIC(3,2),
+  ai_extracted_data JSONB DEFAULT '{}',
+  processing_status TEXT DEFAULT 'received' CHECK (processing_status IN (
+    'received', 'processing', 'processed', 'failed', 'requires_confirmation'
+  )),
+  processing_error TEXT,
+  linked_record_type TEXT,
+  linked_record_id UUID,
+  session_id UUID REFERENCES public.whatsapp_sessions(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  processed_at TIMESTAMPTZ
+);
+
 -- wa_message_id deve essere unico per azienda. Guard nel webhook + index.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_messages_wa_message_id
   ON public.whatsapp_messages(wa_message_id)

@@ -22,6 +22,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { requireAuth, requireCompanyAccess, requireInternalSecret } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -33,6 +34,12 @@ interface BriefingPayload {
   user_id?: string;
   company_id?: string;
   force?: boolean;
+}
+
+interface BriefingPreferenceRow {
+  user_id: string;
+  company_id: string | null;
+  last_briefing_at: string | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,8 +63,17 @@ serve(async (req: Request) => {
     if (mode === "user" && body.user_id) {
       const { data: profile } = await supabaseAdmin
         .from("profiles").select("id, company_id").eq("id", body.user_id).maybeSingle();
+      if (!profile?.company_id) return errorResponse("Utente target senza azienda", 404, corsHeaders);
+      const auth = await requireAuth(req, corsHeaders);
+      await requireCompanyAccess(supabaseAdmin, auth.userId, profile.company_id, corsHeaders, {
+        allowedRoles: ["super_admin", "company_admin"],
+      });
       if (profile?.company_id) targets.push({ user_id: profile.id, company_id: profile.company_id });
     } else if (mode === "company" && body.company_id) {
+      const auth = await requireAuth(req, corsHeaders);
+      await requireCompanyAccess(supabaseAdmin, auth.userId, body.company_id, corsHeaders, {
+        allowedRoles: ["super_admin", "company_admin"],
+      });
       // Tutti gli admin della company
       const { data: roles } = await supabaseAdmin
         .from("user_roles").select("user_id, role")
@@ -69,14 +85,14 @@ serve(async (req: Request) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       targets = (profiles ?? []).map((p: any) => ({ user_id: p.id, company_id: p.company_id }));
     } else if (mode === "all_companies") {
+      requireInternalSecret(req, corsHeaders);
       // Cron mode: tutti gli utenti con preferences enabled = true
       const { data: prefs } = await supabaseAdmin
         .from("silvio_user_preferences")
         .select("user_id, company_id, last_briefing_at, daily_briefing_time, daily_briefing_enabled, min_severity")
         .eq("daily_briefing_enabled", true);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      targets = (prefs ?? [])
-        .filter((p: any) => {
+      targets = ((prefs ?? []) as BriefingPreferenceRow[])
+        .filter((p) => {
           if (!p.company_id) return false;
           // Only run if not already sent today
           if (p.last_briefing_at) {
@@ -86,8 +102,7 @@ serve(async (req: Request) => {
           }
           return true;
         })
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((p: any) => ({ user_id: p.user_id, company_id: p.company_id }));
+        .map((p) => ({ user_id: p.user_id, company_id: p.company_id as string }));
     }
 
     if (targets.length === 0) {

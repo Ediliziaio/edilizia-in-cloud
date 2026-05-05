@@ -10,7 +10,8 @@ CREATE EXTENSION IF NOT EXISTS vector;
 -- 2. Colonna embedding su article_templates
 ALTER TABLE public.article_templates
   ADD COLUMN IF NOT EXISTS embedding vector(1536),
-  ADD COLUMN IF NOT EXISTS embedding_updated_at TIMESTAMPTZ;
+  ADD COLUMN IF NOT EXISTS embedding_updated_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS categoria_id UUID;
 
 COMMENT ON COLUMN public.article_templates.embedding IS
   'FASE 8: embedding OpenAI text-embedding-3-small (1536 dim) per retrieval semantico AI';

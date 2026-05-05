@@ -11,9 +11,10 @@
  * Output:
  *   { success, ddt: {...}, ai_meta: {...} }
  */
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 const DDT_EXTRACTION_PROMPT = `Sei un esperto di logistica e amministrazione edilizia italiana ed europea.
 Analizza il PDF/immagine allegato (Documento di Trasporto / DDT o CMR internazionale) ed estrai TUTTI i dati strutturati.
@@ -142,6 +143,7 @@ Deno.serve(async (req) => {
     if (!storage_bucket || !storage_path || !file_name || !company_id) {
       return errorResponse("storage_bucket, storage_path, file_name, company_id required", 400, cors);
     }
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     const { data: file, error: dlErr } = await supabaseAdmin.storage
       .from(storage_bucket)
@@ -166,6 +168,14 @@ Deno.serve(async (req) => {
     }
 
     const t0 = Date.now();
+    const idempotencyKey = await buildStableAiIdempotencyKey("ddt_ai_extract", [
+      company_id,
+      userId,
+      storage_bucket,
+      storage_path,
+      file_name,
+      mime_type ?? null,
+    ]);
     const aiResult = await aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: supabaseAdmin as any,
@@ -178,6 +188,7 @@ Deno.serve(async (req) => {
       responseFormat: { type: "json_object" },
       companyId: company_id,
       userId,
+      idempotencyKey,
     });
     const elapsedMs = Date.now() - t0;
 

@@ -5,6 +5,11 @@ DO $$
 DECLARE
   v_company_id uuid := '778a2c76-1253-49f2-a5e8-283363ac3e29';
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.companies WHERE id = v_company_id) THEN
+    RAISE NOTICE 'Demo Azienda % non presente: seed cash flow CG saltato', v_company_id;
+    RETURN;
+  END IF;
+
   -- Mutuo MLT esempio
   IF NOT EXISTS (SELECT 1 FROM public.cg_loans WHERE company_id = v_company_id) THEN
     INSERT INTO public.cg_loans (

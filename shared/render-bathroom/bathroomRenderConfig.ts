@@ -513,7 +513,7 @@ export function ensureBathroomRenderConfig(
 
     const normalizedLegacy = (rawConfig.legacy_config as ConfigurazioneBagno | undefined) ?? (rawConfig as unknown as ConfigurazioneBagno);
     const provisional: BathroomRenderConfig = {
-      ...(rawConfig as BathroomRenderConfig),
+      ...(rawConfig as unknown as BathroomRenderConfig),
       photo_meta: (rawConfig.photo_meta as BathroomPhotoMeta | null | undefined) ?? photoMeta ?? null,
       scene_analysis: normalizedSceneAnalysis,
       legacy_config: normalizedLegacy,

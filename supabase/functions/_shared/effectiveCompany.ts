@@ -17,9 +17,7 @@
 //   if (!companyId) return 403;
 //   // ...lavora con companyId come "azienda corrente".
 // ============================================================================
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-type AdminClient = ReturnType<typeof createClient>;
+type AdminClient = any;
 
 /**
  * Risolve la company_id "effettiva" di userId considerando impersonation attiva.

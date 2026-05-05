@@ -10,6 +10,8 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
 
+import { chargeDirectAiCall, estimateEmbeddingUsage } from "./directAiLedger.ts";
+
 export interface ToolContext {
   supabase: SupabaseClient;
   companyId: string;
@@ -36,6 +38,14 @@ async function tryGenerateEmbedding(text: string): Promise<number[] | null> {
     console.warn("[silvioTools] embedding skip:", e instanceof Error ? e.message : String(e));
     return null;
   }
+}
+
+async function shortHash(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(digest))
+    .slice(0, 12)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 export interface SilvioTool {
@@ -572,6 +582,27 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         return { error: "embedding non disponibile (OPENAI_API_KEY mancante o servizio down)" };
       }
 
+      const embeddingUsage = estimateEmbeddingUsage(queryText);
+      await chargeDirectAiCall({
+        supabase: ctx.supabase,
+        idempotencyKey: `search_brain_embedding_${ctx.companyId}_${ctx.userId}_${await shortHash(queryText)}_${crypto.randomUUID()}`,
+        companyId: ctx.companyId,
+        userId: ctx.userId,
+        taskKey: "search_brain_embedding",
+        tierKey: "t1_economic",
+        modelUsed: "text-embedding-3-small",
+        personaKey: ctx.primaryRole ?? null,
+        tokensIn: embeddingUsage.tokens,
+        tokensOut: 0,
+        costRealUsd: embeddingUsage.costUsd,
+        metadata: {
+          source: "silvio_tool_search_brain",
+          limit: Math.min(args?.limit ?? 6, 15),
+          source_types: args?.source_types ?? null,
+          kb_areas_filter: ctx.kbAreasFilter ?? null,
+        },
+      });
+
       // Track 1 Cervello Supremo: applica filtro KB areas universali della persona corrente.
       // Se kbAreasFilter è null → ricerca su TUTTE le aree universali (es. Silvio, Brain, Imprenditore).
       // Se kbAreasFilter è array → restringe RAG alle sole aree pertinenti per qualità migliore.
@@ -583,7 +614,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         p_company_id: ctx.companyId,
         p_query_embedding: `[${embedding.join(",")}]`,
         p_match_count: Math.min(args?.limit ?? 6, 15),
-        p_min_similarity: 0.20,
+        p_min_similarity: 0.72,
         p_source_types: args?.source_types ?? null,
         p_include_universal: true,
         p_universal_categories: universalCategories,
@@ -757,68 +788,37 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         generic: "Analizza dettagliatamente l'immagine in italiano professionale.",
       };
 
-      const apiKey = Deno.env.get("OPENAI_API_KEY");
-      if (!apiKey) return { error: "OPENAI_API_KEY non configurata" };
-
       try {
+        const { aiRouterComplete } = await import("./aiRouter.ts");
         const start = Date.now();
-        const res = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "gpt-4o",
-            max_tokens: 1500,
-            temperature: 0.2,
-            messages: [
-              { role: "system", content: contextPrompt[context] },
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: question },
-                  { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
-                ],
-              },
-            ],
-          }),
+        const result = await aiRouterComplete({
+          supabase: ctx.supabase,
+          taskKey: "vision_analysis",
+          messages: [
+            { role: "system", content: contextPrompt[context] },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: question },
+                { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+              ],
+            },
+          ],
+          params: { temperature: 0.2, max_tokens: 1500 },
+          companyId: ctx.companyId,
+          userId: ctx.userId,
+          personaKey: "silvio",
         });
         const durationMs = Date.now() - start;
-
-        if (!res.ok) {
-          const errText = await res.text();
-          return { error: `Vision API ${res.status}: ${errText.slice(0, 300)}` };
-        }
-        const data = await res.json();
-        const content = data?.choices?.[0]?.message?.content ?? "";
-        const usage = data?.usage ?? {};
-
-        // Charge il vision call (gpt-4o ~$2.50/M in, $10/M out)
-        try {
-          const costUsd = ((usage.prompt_tokens ?? 0) / 1_000_000) * 2.5 +
-                         ((usage.completion_tokens ?? 0) / 1_000_000) * 10;
-          await ctx.supabase.rpc("charge_ai_call", {
-            p_idempotency_key: `vision_${ctx.userId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            p_company_id: ctx.companyId,
-            p_user_id: ctx.userId,
-            p_task_key: "vision_analysis",
-            p_tier_key: "t4_premium",
-            p_model_used: "openai/gpt-4o",
-            p_used_primary: true, p_fallback_index: 0,
-            p_persona_key: "silvio",
-            p_tokens_in: usage.prompt_tokens ?? 0,
-            p_tokens_out: usage.completion_tokens ?? 0,
-            p_cost_real_usd: costUsd,
-            p_fx_usd_to_eur: Number(Deno.env.get("AI_FX_USD_EUR") ?? "0.92"),
-            p_status: "success",
-            p_duration_ms: durationMs,
-            p_metadata: { context, image_url_hash: url.slice(-20) },
-          });
-        } catch { /* best-effort */ }
 
         return {
           ok: true,
           context,
-          analysis: content,
-          tokens: { in: usage.prompt_tokens, out: usage.completion_tokens },
+          analysis: result.content,
+          model_used: result.modelUsed,
+          ledger_id: result.ledgerId,
+          duration_ms: durationMs,
+          tokens: { in: result.promptTokens, out: result.completionTokens },
         };
       } catch (e) {
         return { error: e instanceof Error ? e.message : String(e) };

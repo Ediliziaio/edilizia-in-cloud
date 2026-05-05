@@ -54,114 +54,114 @@ Usare nelle RLS policy al posto del pattern inline
 che ignora l''impersonation attiva.';
 
 -- ============================================================================
--- Refactor policy render_sessions (FASE infissi)
--- ============================================================================
-DROP POLICY IF EXISTS "co_render_sessions" ON public.render_sessions;
-
-CREATE POLICY "co_render_sessions" ON public.render_sessions
-  FOR ALL TO authenticated
-  USING (company_id = public.get_effective_company_id())
-  WITH CHECK (company_id = public.get_effective_company_id());
-
--- ============================================================================
--- Refactor policy render_gallery
--- ============================================================================
-DROP POLICY IF EXISTS "co_render_gallery" ON public.render_gallery;
-
-CREATE POLICY "co_render_gallery" ON public.render_gallery
-  FOR ALL TO authenticated
-  USING (company_id = public.get_effective_company_id())
-  WITH CHECK (company_id = public.get_effective_company_id());
-
--- ============================================================================
--- Refactor policy render_credits (select only, insert/update via RPC)
--- ============================================================================
-DROP POLICY IF EXISTS "co_render_credits_select" ON public.render_credits;
-
-CREATE POLICY "co_render_credits_select" ON public.render_credits
-  FOR SELECT TO authenticated
-  USING (company_id = public.get_effective_company_id());
-
--- ============================================================================
--- Refactor policy render_bagno_sessions
--- ============================================================================
-DROP POLICY IF EXISTS "render_bagno_select" ON public.render_bagno_sessions;
-DROP POLICY IF EXISTS "render_bagno_insert" ON public.render_bagno_sessions;
-DROP POLICY IF EXISTS "render_bagno_update" ON public.render_bagno_sessions;
-
-CREATE POLICY "render_bagno_select" ON public.render_bagno_sessions
-  FOR SELECT TO authenticated
-  USING (company_id = public.get_effective_company_id());
-
-CREATE POLICY "render_bagno_insert" ON public.render_bagno_sessions
-  FOR INSERT TO authenticated
-  WITH CHECK (
-    company_id = public.get_effective_company_id()
-    AND user_id = auth.uid()
-  );
-
-CREATE POLICY "render_bagno_update" ON public.render_bagno_sessions
-  FOR UPDATE TO authenticated
-  USING (company_id = public.get_effective_company_id())
-  WITH CHECK (company_id = public.get_effective_company_id());
-
--- ============================================================================
--- Refactor policy render_facciata_sessions
--- ============================================================================
-DROP POLICY IF EXISTS "co_render_facciata_sessions" ON public.render_facciata_sessions;
-
-CREATE POLICY "co_render_facciata_sessions" ON public.render_facciata_sessions
-  FOR ALL TO authenticated
-  USING (company_id = public.get_effective_company_id())
-  WITH CHECK (company_id = public.get_effective_company_id());
-
--- ============================================================================
--- Refactor policy render_pavimento_sessions
--- ============================================================================
-DROP POLICY IF EXISTS "co_render_pavimento_sessions" ON public.render_pavimento_sessions;
-
-CREATE POLICY "co_render_pavimento_sessions" ON public.render_pavimento_sessions
-  FOR ALL TO authenticated
-  USING (company_id = public.get_effective_company_id())
-  WITH CHECK (company_id = public.get_effective_company_id());
-
--- ============================================================================
--- Refactor policy render_persiane_sessions
+-- Refactor policy render: alcune tabelle nascono in migration successive.
+-- Su database pulito le DDL non devono fallire se un modulo render non esiste
+-- ancora; quando la tabella arriverà, le migration successive applicheranno
+-- le policy definitive.
 -- ============================================================================
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_policies
-             WHERE schemaname = 'public'
-               AND tablename = 'render_persiane_sessions'
-               AND policyname = 'co_render_persiane_sessions') THEN
-    DROP POLICY "co_render_persiane_sessions" ON public.render_persiane_sessions;
+  IF to_regclass('public.render_sessions') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "co_render_sessions" ON public.render_sessions';
+    EXECUTE $policy$
+      CREATE POLICY "co_render_sessions" ON public.render_sessions
+        FOR ALL TO authenticated
+        USING (company_id = public.get_effective_company_id())
+        WITH CHECK (company_id = public.get_effective_company_id())
+    $policy$;
+  END IF;
+
+  IF to_regclass('public.render_gallery') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "co_render_gallery" ON public.render_gallery';
+    EXECUTE $policy$
+      CREATE POLICY "co_render_gallery" ON public.render_gallery
+        FOR ALL TO authenticated
+        USING (company_id = public.get_effective_company_id())
+        WITH CHECK (company_id = public.get_effective_company_id())
+    $policy$;
+  END IF;
+
+  IF to_regclass('public.render_credits') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "co_render_credits_select" ON public.render_credits';
+    EXECUTE $policy$
+      CREATE POLICY "co_render_credits_select" ON public.render_credits
+        FOR SELECT TO authenticated
+        USING (company_id = public.get_effective_company_id())
+    $policy$;
+  END IF;
+
+  IF to_regclass('public.render_bagno_sessions') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "render_bagno_select" ON public.render_bagno_sessions';
+    EXECUTE 'DROP POLICY IF EXISTS "render_bagno_insert" ON public.render_bagno_sessions';
+    EXECUTE 'DROP POLICY IF EXISTS "render_bagno_update" ON public.render_bagno_sessions';
+    EXECUTE $policy$
+      CREATE POLICY "render_bagno_select" ON public.render_bagno_sessions
+        FOR SELECT TO authenticated
+        USING (company_id = public.get_effective_company_id())
+    $policy$;
+    EXECUTE $policy$
+      CREATE POLICY "render_bagno_insert" ON public.render_bagno_sessions
+        FOR INSERT TO authenticated
+        WITH CHECK (company_id = public.get_effective_company_id() AND user_id = auth.uid())
+    $policy$;
+    EXECUTE $policy$
+      CREATE POLICY "render_bagno_update" ON public.render_bagno_sessions
+        FOR UPDATE TO authenticated
+        USING (company_id = public.get_effective_company_id())
+        WITH CHECK (company_id = public.get_effective_company_id())
+    $policy$;
+  END IF;
+
+  IF to_regclass('public.render_facciata_sessions') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "co_render_facciata_sessions" ON public.render_facciata_sessions';
+    EXECUTE $policy$
+      CREATE POLICY "co_render_facciata_sessions" ON public.render_facciata_sessions
+        FOR ALL TO authenticated
+        USING (company_id = public.get_effective_company_id())
+        WITH CHECK (company_id = public.get_effective_company_id())
+    $policy$;
+  END IF;
+
+  IF to_regclass('public.render_pavimento_sessions') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "co_render_pavimento_sessions" ON public.render_pavimento_sessions';
+    EXECUTE $policy$
+      CREATE POLICY "co_render_pavimento_sessions" ON public.render_pavimento_sessions
+        FOR ALL TO authenticated
+        USING (company_id = public.get_effective_company_id())
+        WITH CHECK (company_id = public.get_effective_company_id())
+    $policy$;
+  END IF;
+
+  IF to_regclass('public.render_persiane_sessions') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "co_render_persiane_sessions" ON public.render_persiane_sessions';
+    EXECUTE $policy$
+      CREATE POLICY "co_render_persiane_sessions" ON public.render_persiane_sessions
+        FOR ALL TO authenticated
+        USING (company_id = public.get_effective_company_id())
+        WITH CHECK (company_id = public.get_effective_company_id())
+    $policy$;
+  END IF;
+
+  IF to_regclass('public.render_tetto_sessions') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "co_render_tetto_sessions" ON public.render_tetto_sessions';
+    EXECUTE $policy$
+      CREATE POLICY "co_render_tetto_sessions" ON public.render_tetto_sessions
+        FOR ALL TO authenticated
+        USING (company_id = public.get_effective_company_id())
+        WITH CHECK (company_id = public.get_effective_company_id())
+    $policy$;
+  END IF;
+
+  IF to_regclass('public.render_stanza_sessions') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "co_render_stanza_sessions" ON public.render_stanza_sessions';
+    EXECUTE $policy$
+      CREATE POLICY "co_render_stanza_sessions" ON public.render_stanza_sessions
+        FOR ALL TO authenticated
+        USING (company_id = public.get_effective_company_id())
+        WITH CHECK (company_id = public.get_effective_company_id())
+    $policy$;
   END IF;
 END $$;
-
-CREATE POLICY "co_render_persiane_sessions" ON public.render_persiane_sessions
-  FOR ALL TO authenticated
-  USING (company_id = public.get_effective_company_id())
-  WITH CHECK (company_id = public.get_effective_company_id());
-
--- ============================================================================
--- Refactor policy render_tetto_sessions
--- ============================================================================
-DROP POLICY IF EXISTS "co_render_tetto_sessions" ON public.render_tetto_sessions;
-
-CREATE POLICY "co_render_tetto_sessions" ON public.render_tetto_sessions
-  FOR ALL TO authenticated
-  USING (company_id = public.get_effective_company_id())
-  WITH CHECK (company_id = public.get_effective_company_id());
-
--- ============================================================================
--- Refactor policy render_stanza_sessions
--- ============================================================================
-DROP POLICY IF EXISTS "co_render_stanza_sessions" ON public.render_stanza_sessions;
-
-CREATE POLICY "co_render_stanza_sessions" ON public.render_stanza_sessions
-  FOR ALL TO authenticated
-  USING (company_id = public.get_effective_company_id())
-  WITH CHECK (company_id = public.get_effective_company_id());
 
 -- ============================================================================
 -- NOTIFY PostgREST per ricaricare lo schema (funzione pubblica)

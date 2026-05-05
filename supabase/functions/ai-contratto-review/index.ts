@@ -9,9 +9,10 @@
  * Output: { success, review: {...}, ai_meta }
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -72,6 +73,7 @@ Deno.serve(async (req: Request) => {
     if (!contratto_id || !company_id) {
       return errorResponse("contratto_id e company_id obbligatori", 400, cors);
     }
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     // Fetch contratto
     const { data: contratto, error: contrErr } = await supabaseAdmin
@@ -144,6 +146,13 @@ Deno.serve(async (req: Request) => {
       computo_metrico_voci_disponibili: (computoVoci ?? []).length,
       totale_voci_computo_eur: totale_voci_computo,
     };
+    const idempotencyKey = await buildStableAiIdempotencyKey("contratto_review", [
+      company_id,
+      userId,
+      contratto_id,
+      contratto.numero_contratto,
+      payload,
+    ]);
 
     let aiResult;
     try {
@@ -159,6 +168,7 @@ Deno.serve(async (req: Request) => {
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
+        idempotencyKey,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

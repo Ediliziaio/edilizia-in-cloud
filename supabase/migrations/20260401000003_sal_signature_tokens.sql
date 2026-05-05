@@ -1,4 +1,20 @@
--- SAL digital signature tokens for committente sign-off
+-- SAL digital signature tokens for committente sign-off.
+-- This migration is dated before 20260403000000_sal_records.sql but already
+-- references sal_records. Keep the prerequisite table here as the same schema
+-- so a clean local/CI migration chain can start from zero.
+CREATE TABLE IF NOT EXISTS public.sal_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  numero_sal INTEGER NOT NULL DEFAULT 1,
+  data_emissione DATE NOT NULL DEFAULT CURRENT_DATE,
+  stato TEXT NOT NULL DEFAULT 'bozza' CHECK (stato IN ('bozza', 'emesso', 'approvato')),
+  importo_totale NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_by UUID REFERENCES auth.users(id)
+);
+
 CREATE TABLE IF NOT EXISTS public.sal_signature_tokens (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sal_id UUID NOT NULL REFERENCES public.sal_records(id) ON DELETE CASCADE,

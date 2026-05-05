@@ -134,7 +134,7 @@ export default function AssistenteAIPage() {
     queryKey: ["azienda_ai_personas_allowed"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("ai_personas" as never)
+        .from("ai_personas_public" as never)
         .select("persona_key, display_name, short_label, mission, category, recommended_tier_key, icon, color, enabled, is_system, allowed_roles")
         .eq("enabled", true)
         .eq("is_system", false)

@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS public.render_provider_config (
 
 ALTER TABLE public.render_provider_config ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "sa_render_provider" ON public.render_provider_config;
 CREATE POLICY "sa_render_provider" ON public.render_provider_config
   FOR ALL TO authenticated
   USING (public.has_role(auth.uid(), 'super_admin'::app_role))
@@ -54,10 +55,12 @@ CREATE TABLE IF NOT EXISTS public.render_sessions (
 
 ALTER TABLE public.render_sessions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "co_render_sessions" ON public.render_sessions;
 CREATE POLICY "co_render_sessions" ON public.render_sessions
   FOR ALL TO authenticated
   USING (company_id = (SELECT company_id FROM public.profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "sa_render_sessions" ON public.render_sessions;
 CREATE POLICY "sa_render_sessions" ON public.render_sessions
   FOR ALL TO authenticated
   USING (public.has_role(auth.uid(), 'super_admin'::app_role))
@@ -78,6 +81,7 @@ CREATE TABLE IF NOT EXISTS public.render_gallery (
 
 ALTER TABLE public.render_gallery ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "co_render_gallery" ON public.render_gallery;
 CREATE POLICY "co_render_gallery" ON public.render_gallery
   FOR ALL TO authenticated
   USING (company_id = (SELECT company_id FROM public.profiles WHERE id = auth.uid()));
@@ -94,10 +98,12 @@ CREATE TABLE IF NOT EXISTS public.render_credits (
 
 ALTER TABLE public.render_credits ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "co_render_credits_select" ON public.render_credits;
 CREATE POLICY "co_render_credits_select" ON public.render_credits
   FOR SELECT TO authenticated
   USING (company_id = (SELECT company_id FROM public.profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "sa_render_credits" ON public.render_credits;
 CREATE POLICY "sa_render_credits" ON public.render_credits
   FOR ALL TO authenticated
   USING (public.has_role(auth.uid(), 'super_admin'::app_role))

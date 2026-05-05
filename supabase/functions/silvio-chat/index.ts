@@ -22,10 +22,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
-import { aiRouterComplete, type AiRouterMessage } from "../_shared/aiRouter.ts";
-import { SILVIO_TOOLS, getToolsForRole, executeTool, type ToolContext } from "../_shared/silvioTools.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { getToolsForRole, executeTool, type ToolContext } from "../_shared/silvioTools.ts";
 import { buildSystemPrompt } from "../_shared/preambolo.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const PERSONA_KEY = "silvio";
@@ -69,6 +70,7 @@ serve(async (req: Request) => {
     if (channel.name !== "silvio-ai") return errorResponse("Canale non è Silvio", 400, corsHeaders);
 
     const companyId: string = channel.company_id;
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
     const { data: membership } = await supabaseAdmin
       .from("internal_chat_members")
@@ -252,7 +254,16 @@ serve(async (req: Request) => {
     }
 
     // ── 9) Tool-calling loop ────────────────────────────────────────────
-    const idempotencyBase = `silvio_${channelId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const idempotencyBase = await buildStableAiIdempotencyKey("silvio_chat", [
+      companyId,
+      channelId,
+      userId,
+      persona.system_prompt_version ?? null,
+      messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+    ]);
     let finalContent = "";
     let lastResult: Awaited<ReturnType<typeof aiRouterComplete>> | null = null;
     let iteration = 0;
@@ -344,6 +355,7 @@ serve(async (req: Request) => {
     if (!finalContent && iteration >= MAX_TOOL_ITERATIONS) {
       finalContent = "⚠️ Non sono riuscito a completare l'analisi. Riformula la domanda in modo più specifico.";
     }
+    finalContent = appendEvidenceFooter(finalContent, toolCallsLog, lastResult);
 
     // ── 10) Salva risposta nella chat ───────────────────────────────────
     const { data: insertedMsg } = await supabaseAdmin
@@ -378,3 +390,28 @@ serve(async (req: Request) => {
     return errorResponse(msg, 500, corsHeaders);
   }
 });
+
+function appendEvidenceFooter(
+  content: string,
+  toolCallsLog: Array<{ name: string; args: unknown; result_preview: string }>,
+  lastResult: Awaited<ReturnType<typeof aiRouterComplete>> | null,
+): string {
+  const cleanContent = (content ?? "").trim();
+  if (!cleanContent) return cleanContent;
+  if (cleanContent.includes("Fonti dati usate:")) return cleanContent;
+
+  const uniqueTools = Array.from(new Set(toolCallsLog.map((tool) => tool.name).filter(Boolean)));
+  const hasToolErrors = toolCallsLog.some((tool) => tool.result_preview.toLowerCase().includes("\"error\""));
+  const confidence = uniqueTools.length === 0
+    ? "media (nessun tool dati necessario o disponibile)"
+    : hasToolErrors
+      ? "bassa/media (uno o più tool hanno restituito errori)"
+      : "alta (dati letti dai tool aziendali)";
+
+  const sources = uniqueTools.length > 0
+    ? uniqueTools.join(", ")
+    : "risposta generale, senza consultazione diretta dei dati aziendali";
+  const modelLine = lastResult?.modelUsed ? ` · modello: ${lastResult.modelUsed}` : "";
+
+  return `${cleanContent}\n\n---\n_Fonti dati usate: ${sources}. Confidenza: ${confidence}${modelLine}._`;
+}

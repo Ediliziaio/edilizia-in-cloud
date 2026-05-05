@@ -12,6 +12,11 @@ DECLARE
   v_demo uuid := '778a2c76-1253-49f2-a5e8-283363ac3e29';
   v_anno int := extract(year FROM current_date)::int;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.companies WHERE id = v_demo) THEN
+    RAISE NOTICE 'Demo Azienda % non presente: seed CG demo saltato', v_demo;
+    RETURN;
+  END IF;
+
   -- ── CESPITI ─────────────────────────────────────────────────────────────
   IF NOT EXISTS (SELECT 1 FROM public.cespiti WHERE company_id = v_demo) THEN
     INSERT INTO public.cespiti (company_id, descrizione, categoria, sottocategoria,

@@ -139,7 +139,7 @@ function extractTextParts(payload: Record<string, unknown>): string {
 }
 
 async function getProviderApiKey(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   providerKey: string,
 ): Promise<string> {
   const { data: keyRow } = await supabase
@@ -161,7 +161,7 @@ async function getProviderApiKey(
 }
 
 async function loadDefaultRenderProvider(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
 ): Promise<RenderProviderConfig | null> {
   const { data: providerConfig } = await supabase
     .from("render_provider_config")
@@ -174,7 +174,7 @@ async function loadDefaultRenderProvider(
 }
 
 async function loadRenderProviderWithKey(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
 ): Promise<{ providerConfig: RenderProviderConfig; apiKey: string }> {
   const providerConfig = await loadDefaultRenderProvider(supabase);
   if (!providerConfig) {
@@ -447,12 +447,14 @@ Use short values. Do not describe a renovation.`;
     // ── Build prompt ────────────────────────────────────────────────────
     const activeConfig = (config || session.config) as Record<string, unknown>;
     const activeAnalysis = analysis || (session.analisi_pavimento as Record<string, unknown> | null) || null;
+    const effectiveWidth = prepared.effective_width ?? undefined;
+    const effectiveHeight = prepared.effective_height ?? undefined;
     const activePhotoMeta: FloorPhotoMeta = photo_meta ?? {
-      width: prepared.effective_width,
-      height: prepared.effective_height,
-      orientation: prepared.effective_width > prepared.effective_height
+      width: effectiveWidth,
+      height: effectiveHeight,
+      orientation: (effectiveWidth ?? 0) > (effectiveHeight ?? 0)
         ? "landscape"
-        : prepared.effective_width < prepared.effective_height
+        : (effectiveWidth ?? 0) < (effectiveHeight ?? 0)
           ? "portrait"
           : "square",
     };
@@ -477,7 +479,7 @@ Use short values. Do not describe a renovation.`;
         prepared.effective_height,
         "openai",
       ) ?? "1024x1024";
-      const imageBlob = new Blob([originalImage.bytes], {
+      const imageBlob = new Blob([originalImage.bytes.buffer.slice(originalImage.bytes.byteOffset, originalImage.bytes.byteOffset + originalImage.bytes.byteLength) as ArrayBuffer], {
         type: originalImage.mimeType || "image/jpeg",
       });
       const modelChain = [providerConfig.model || "gpt-image-1"];

@@ -23,7 +23,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 
@@ -31,6 +31,8 @@ interface Payload {
   proposal_id: string;
   /** Override payload (es. utente ha modificato il testo email) */
   override_payload?: Record<string, unknown>;
+  /** Conferma forte richiesta per azioni ad alto rischio. */
+  confirmation_text?: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,6 +43,41 @@ interface ExecutionResult {
   message: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   details?: any;
+}
+
+const ACTION_POLICIES: Record<string, {
+  allowedRoles: string[];
+  requiresStrongConfirmation?: boolean;
+}> = {
+  send_overdue_reminder: {
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+  },
+  send_quote_followup: {
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+  },
+  mark_payment_received: {
+    allowedRoles: ["super_admin", "company_admin"],
+    requiresStrongConfirmation: true,
+  },
+  create_purchase_order: {
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+  },
+  generic_email: {
+    allowedRoles: ["super_admin", "company_admin"],
+    requiresStrongConfirmation: true,
+  },
+};
+
+interface ActionPermission {
+  source: "default" | "company_override" | "fallback";
+  riskLevel: "green" | "yellow" | "red";
+  mode: "disabled" | "propose" | "require_confirmation" | "require_strong_confirmation" | "auto_execute";
+  allowedRoles: string[];
+  requiresCompanyAdmin: boolean;
+  requiresStrongConfirmation: boolean;
+  maxDailyExecutions: number | null;
+  dailyExecutions: number;
+  dailyLimitReached: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,14 +96,60 @@ serve(async (req: Request) => {
     if (!body.proposal_id) return errorResponse("proposal_id mancante", 400, corsHeaders);
 
     // Carica proposal
-    const { data: proposal, error: pErr } = await supabaseAdmin
+    const { data: proposalRow, error: pErr } = await supabaseAdmin
       .from("ai_action_proposals")
       .select("*")
       .eq("id", body.proposal_id)
       .maybeSingle();
 
-    if (pErr || !proposal) return errorResponse("Proposta non trovata", 404, corsHeaders);
+    if (pErr || !proposalRow) return errorResponse("Proposta non trovata", 404, corsHeaders);
+    const proposal = proposalRow;
     if (proposal.user_id !== userId) return errorResponse("Proposta non autorizzata", 403, corsHeaders);
+    if (!proposal.company_id) return errorResponse("Proposta senza scope azienda", 400, corsHeaders);
+
+    const policy = ACTION_POLICIES[proposal.action_type];
+    if (!policy) return errorResponse(`Action type non consentito: ${proposal.action_type}`, 400, corsHeaders);
+
+    const permission = await loadActionPermission(supabaseAdmin, proposal.company_id, proposal.action_type, policy);
+    if (permission.mode === "disabled") {
+      return errorResponse("Azione AI disabilitata per questa azienda dal pannello permessi.", 403, corsHeaders);
+    }
+    if (permission.mode === "propose") {
+      return errorResponse("Questa azienda consente all'AI solo di proporre questa azione, non di eseguirla.", 403, corsHeaders);
+    }
+    if (permission.dailyLimitReached) {
+      return errorResponse(
+        `Limite giornaliero raggiunto per ${proposal.action_type} (${permission.dailyExecutions}/${permission.maxDailyExecutions}).`,
+        429,
+        corsHeaders,
+      );
+    }
+
+    const effectiveAllowedRoles = permission.requiresCompanyAdmin
+      ? Array.from(new Set([
+        ...permission.allowedRoles.filter((role) => ["super_admin", "company_admin"].includes(role)),
+        "super_admin",
+        "company_admin",
+      ]))
+      : permission.allowedRoles;
+
+    await requireCompanyAccess(supabaseAdmin, userId, proposal.company_id, corsHeaders, {
+      allowedRoles: effectiveAllowedRoles,
+    });
+
+    const requiresStrongConfirmation =
+      proposal.risk_level === "red" ||
+      permission.riskLevel === "red" ||
+      policy.requiresStrongConfirmation ||
+      permission.requiresStrongConfirmation;
+
+    if (requiresStrongConfirmation) {
+      const expected = `CONFERMO ${proposal.action_type}`;
+      if ((body.confirmation_text ?? "").trim() !== expected) {
+        return errorResponse(`Conferma forte richiesta. Scrivi esattamente: ${expected}`, 400, corsHeaders);
+      }
+    }
+
     if (proposal.status !== "pending") {
       return errorResponse(`Proposta già ${proposal.status}`, 400, corsHeaders);
     }
@@ -76,7 +159,34 @@ serve(async (req: Request) => {
       return errorResponse("Proposta scaduta", 400, corsHeaders);
     }
 
-    const finalPayload = body.override_payload ?? proposal.payload ?? {};
+    let finalPayload: Record<string, unknown>;
+    try {
+      finalPayload = buildFinalPayload(proposal.action_type, proposal.payload ?? {}, body.override_payload ?? null);
+    } catch (e) {
+      return errorResponse(e instanceof Error ? e.message : String(e), 400, corsHeaders);
+    }
+
+    const { data: claimedProposal, error: claimErr } = await supabaseAdmin
+      .from("ai_action_proposals")
+      .update({
+        status: "confirmed",
+        resolved_by: userId,
+        resolved_at: new Date().toISOString(),
+      })
+      .eq("id", proposal.id)
+      .eq("company_id", proposal.company_id)
+      .eq("user_id", userId)
+      .eq("status", "pending")
+      .select("*")
+      .maybeSingle();
+    if (claimErr) {
+      return errorResponse(`Errore lock proposta: ${claimErr.message}`, 500, corsHeaders);
+    }
+    if (!claimedProposal) {
+      return errorResponse("Proposta già presa in carico o non più eseguibile. Aggiorna la chat.", 409, corsHeaders);
+    }
+    Object.assign(proposal, claimedProposal);
+
     const ctx = {
       supabase: supabaseAdmin,
       userId,
@@ -98,7 +208,18 @@ serve(async (req: Request) => {
       applied_result: result.details ?? { message: result.message },
       applied_at: new Date().toISOString(),
       resolved_by: userId,
-    }).eq("id", proposal.id);
+    }).eq("id", proposal.id).eq("company_id", proposal.company_id);
+
+    await recordDecisionLogForAction(supabaseAdmin, proposal.id, result.ok, {
+      ok: result.ok,
+      message: result.message,
+      details: result.details ?? null,
+      permission: {
+        source: permission.source,
+        mode: permission.mode,
+        risk_level: permission.riskLevel,
+      },
+    }, body.override_payload ?? {});
 
     // Resolve alert correlato SOLO se l'azione è andata a buon fine
     if (result.ok) {
@@ -108,7 +229,7 @@ serve(async (req: Request) => {
           status: "resolved",
           resolved_at: new Date().toISOString(),
           resolved_by: userId,
-        }).eq("id", alertId);
+        }).eq("id", alertId).eq("company_id", proposal.company_id);
       }
     }
 
@@ -124,6 +245,11 @@ serve(async (req: Request) => {
       message: result.message,
       details: result.details,
       proposal_id: proposal.id,
+      permission: {
+        source: permission.source,
+        mode: permission.mode,
+        risk_level: permission.riskLevel,
+      },
     }, 200, corsHeaders);
   } catch (err) {
     if (err instanceof Response) return err;
@@ -132,6 +258,114 @@ serve(async (req: Request) => {
     return errorResponse(msg, 500, corsHeaders);
   }
 });
+
+async function loadActionPermission(
+  supabase: SupabaseAdmin,
+  companyId: string,
+  actionType: string,
+  fallbackPolicy: { allowedRoles: string[]; requiresStrongConfirmation?: boolean },
+): Promise<ActionPermission> {
+  const fallback: ActionPermission = {
+    source: "fallback",
+    riskLevel: fallbackPolicy.requiresStrongConfirmation ? "red" : "yellow",
+    mode: fallbackPolicy.requiresStrongConfirmation ? "require_strong_confirmation" : "require_confirmation",
+    allowedRoles: fallbackPolicy.allowedRoles,
+    requiresCompanyAdmin: fallbackPolicy.requiresStrongConfirmation ?? false,
+    requiresStrongConfirmation: fallbackPolicy.requiresStrongConfirmation ?? false,
+    maxDailyExecutions: null,
+    dailyExecutions: 0,
+    dailyLimitReached: false,
+  };
+
+  const { data, error } = await supabase.rpc("get_ai_action_permission", {
+    p_company_id: companyId,
+    p_action_type: actionType,
+  });
+
+  if (error || !data || typeof data !== "object") {
+    console.warn("[silvio-execute-action] get_ai_action_permission fallback:", error?.message ?? "no data");
+    return fallback;
+  }
+
+  const raw = data as Record<string, unknown>;
+  const allowedRoles = Array.isArray(raw.allowed_roles)
+    ? raw.allowed_roles.filter((role): role is string => typeof role === "string")
+    : fallbackPolicy.allowedRoles;
+
+  return {
+    source: raw.source === "company_override" ? "company_override" : "default",
+    riskLevel: raw.risk_level === "green" || raw.risk_level === "red" ? raw.risk_level : "yellow",
+    mode: isActionPermissionMode(raw.mode) ? raw.mode : fallback.mode,
+    allowedRoles: allowedRoles.length ? allowedRoles : fallbackPolicy.allowedRoles,
+    requiresCompanyAdmin: Boolean(raw.requires_company_admin),
+    requiresStrongConfirmation: Boolean(raw.requires_strong_confirmation),
+    maxDailyExecutions: typeof raw.max_daily_executions === "number" ? raw.max_daily_executions : null,
+    dailyExecutions: typeof raw.daily_executions === "number" ? raw.daily_executions : 0,
+    dailyLimitReached: Boolean(raw.daily_limit_reached),
+  };
+}
+
+function isActionPermissionMode(value: unknown): value is ActionPermission["mode"] {
+  return value === "disabled" ||
+    value === "propose" ||
+    value === "require_confirmation" ||
+    value === "require_strong_confirmation" ||
+    value === "auto_execute";
+}
+
+async function recordDecisionLogForAction(
+  supabase: SupabaseAdmin,
+  proposalId: string,
+  succeeded: boolean,
+  executionResult: Record<string, unknown>,
+  userModifications: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await supabase.rpc("silvio_decision_log_decide_by_action", {
+    p_action_proposal_id: proposalId,
+    p_chosen_option_id: succeeded ? "approved_and_executed" : "approved_execution_failed",
+    p_user_modifications: userModifications,
+    p_user_rationale: typeof executionResult.message === "string" ? executionResult.message : null,
+    p_execution_result: executionResult,
+    // In questa Edge Function l'utente ha già autorizzato un tentativo reale:
+    // se il provider/API fallisce, il decision log deve comunque chiudere
+    // l'azione come tentata, non lasciarla in "decided_pending_exec".
+    p_executed: true,
+  });
+
+  if (error) {
+    // Best-effort audit bridge: execution remains source-of-truth in ai_action_proposals.
+    console.warn("[silvio-execute-action] decision log bridge failed:", error.message);
+  }
+}
+
+function buildFinalPayload(
+  actionType: string,
+  basePayload: Record<string, unknown>,
+  overridePayload: Record<string, unknown> | null,
+): Record<string, unknown> {
+  if (!overridePayload) return basePayload;
+
+  const lockedFieldsByAction: Record<string, string[]> = {
+    send_overdue_reminder: ["order_id", "client_email", "client_name"],
+    send_quote_followup: ["quote_id", "client_email", "client_name"],
+    mark_payment_received: ["order_id", "rata_type"],
+    create_purchase_order: ["stock_id"],
+    generic_email: ["to"],
+  };
+
+  const lockedFields = lockedFieldsByAction[actionType] ?? [];
+  for (const field of lockedFields) {
+    if (
+      Object.prototype.hasOwnProperty.call(overridePayload, field) &&
+      basePayload[field] != null &&
+      overridePayload[field] !== basePayload[field]
+    ) {
+      throw new Error(`Campo protetto non modificabile in esecuzione: ${field}`);
+    }
+  }
+
+  return { ...basePayload, ...overridePayload };
+}
 
 // ═══ DISPATCHER ════════════════════════════════════════════════════════════
 
@@ -176,13 +410,14 @@ async function sendOverdueReminder(
   let clientName: string | null = explicitName ?? null;
   let amount: number | null = explicitAmount ?? null;
   let orderCode: string | null = null;
-  let companyName: string | null = null;
+  let companyName = "Edilizia in Cloud";
 
   if (orderId) {
     const { data: order } = await ctx.supabase
       .from("orders")
-      .select("client_email, client_name, client_company, order_code, total_amount, deposit_amount, balance_amount, deposit_expected_date, balance_expected_date")
+      .select("client_email, client_name, client_company, order_code, total_amount, deposit_amount, balance_amount, deposit_expected_date, balance_expected_date, company_id")
       .eq("id", orderId)
+      .eq("company_id", ctx.companyId)
       .maybeSingle();
     if (order) {
       to = to ?? order.client_email;
@@ -206,7 +441,7 @@ async function sendOverdueReminder(
   }
 
   const subject = customSubject ?? `Sollecito di pagamento — ${orderCode ?? "ordine"}`;
-  const body = customBody ?? buildOverdueEmailBody(clientName, orderCode, amount, rataType, companyName);
+  const body = customBody ?? buildOverdueEmailBody(clientName, orderCode, amount, rataType ?? null, companyName);
 
   // Invia via sendEmailUnified
   try {
@@ -277,8 +512,10 @@ async function sendQuoteFollowup(
   if (!quoteId) return { ok: false, message: "quote_id mancante" };
 
   const { data: quote } = await ctx.supabase
-    .from("quotes").select("client_name, client_email, quote_number, total")
-    .eq("id", quoteId).maybeSingle();
+    .from("quotes").select("client_name, client_email, quote_number, total, company_id")
+    .eq("id", quoteId)
+    .eq("company_id", ctx.companyId)
+    .maybeSingle();
 
   if (!quote || !quote.client_email) {
     return { ok: false, message: "Cliente o email mancante per il preventivo" };
@@ -329,7 +566,7 @@ async function markPaymentReceived(
 
   // Verifica ordine appartiene alla company
   const { data: order } = await ctx.supabase
-    .from("orders").select("id, company_id, order_code").eq("id", orderId).maybeSingle();
+    .from("orders").select("id, company_id, order_code").eq("id", orderId).eq("company_id", ctx.companyId).maybeSingle();
   if (!order) return { ok: false, message: "Ordine non trovato" };
   if (order.company_id !== ctx.companyId) return { ok: false, message: "Ordine non autorizzato" };
 
@@ -338,7 +575,7 @@ async function markPaymentReceived(
   updateObj[cols.paid] = true;
   updateObj[cols.date] = new Date().toISOString();
 
-  const { error: updateErr } = await ctx.supabase.from("orders").update(updateObj).eq("id", orderId);
+  const { error: updateErr } = await ctx.supabase.from("orders").update(updateObj).eq("id", orderId).eq("company_id", ctx.companyId);
   if (updateErr) return { ok: false, message: `DB error: ${updateErr.message}` };
 
   return {
@@ -361,8 +598,10 @@ async function createPurchaseOrderDraft(
 
   // Carica info stock
   const { data: stock } = await ctx.supabase
-    .from("warehouse_stock").select("name, internal_code, unit_cost, reorder_quantity, supplier_id")
-    .eq("id", stockId).maybeSingle();
+    .from("warehouse_stock").select("name, internal_code, unit_cost, reorder_quantity, supplier_id, company_id")
+    .eq("id", stockId)
+    .eq("company_id", ctx.companyId)
+    .maybeSingle();
   if (!stock) return { ok: false, message: "Articolo magazzino non trovato" };
 
   const finalSupplierId = supplierId ?? stock.supplier_id;
@@ -371,6 +610,16 @@ async function createPurchaseOrderDraft(
   // Verifica fornitore
   if (!finalSupplierId) {
     return { ok: false, message: "Nessun fornitore associato. Specificalo manualmente in payload.supplier_id." };
+  }
+
+  const { data: supplier } = await ctx.supabase
+    .from("suppliers")
+    .select("id")
+    .eq("id", finalSupplierId)
+    .eq("company_id", ctx.companyId)
+    .maybeSingle();
+  if (!supplier) {
+    return { ok: false, message: "Fornitore non trovato o non autorizzato per questa azienda." };
   }
 
   // Crea purchase_order draft (assume schema purchase_orders/items esistente)

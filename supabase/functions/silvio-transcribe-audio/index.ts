@@ -18,10 +18,23 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import {
+  buildStableAiIdempotencyKey,
+  chargeDirectAiCall,
+  estimateWhisperCostUsd,
+} from "../_shared/directAiLedger.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 const MAX_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
 const WHISPER_MODEL = "whisper-1"; // OpenAI
+
+async function fileSha256(file: File): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
@@ -39,6 +52,7 @@ serve(async (req: Request) => {
       .from("profiles").select("company_id").eq("id", userId).maybeSingle();
     const companyId: string | null = profile?.company_id ?? null;
     if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
     // Parse multipart
     const formData = await req.formData();
@@ -47,6 +61,7 @@ serve(async (req: Request) => {
     if (audioFile.size > MAX_SIZE_BYTES) {
       return errorResponse(`File troppo grande (max ${MAX_SIZE_BYTES / 1024 / 1024} MB)`, 400, corsHeaders);
     }
+    const audioHash = await fileSha256(audioFile);
 
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) return errorResponse("OPENAI_API_KEY non configurata", 500, corsHeaders);
@@ -59,10 +74,11 @@ serve(async (req: Request) => {
     whisperForm.append("response_format", "verbose_json");
 
     const start = Date.now();
-    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    const res = await fetchWithTimeout("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${apiKey}` },
       body: whisperForm,
+      timeoutMs: 60_000,
     });
     const durationMs = Date.now() - start;
 
@@ -75,40 +91,39 @@ serve(async (req: Request) => {
     const result = await res.json();
     const text = result?.text ?? "";
     const durationAudio = result?.duration ?? null;
+    const idempotencyKey = await buildStableAiIdempotencyKey("silvio_whisper", [
+      companyId,
+      userId,
+      audioFile.name || "audio",
+      audioFile.size,
+      durationAudio ?? null,
+      audioHash,
+    ]);
 
-    // Best-effort log nell'AI ledger (status='success', costo Whisper ~$0.006/min)
-    try {
-      const audioMinutes = (durationAudio ?? 0) / 60;
-      const costUsd = audioMinutes * 0.006; // pricing OpenAI Whisper
-      const fxRate = Number(Deno.env.get("AI_FX_USD_EUR") ?? "0.92");
-      await supabaseAdmin.rpc("charge_ai_call", {
-        p_idempotency_key: `whisper_${userId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        p_company_id: companyId,
-        p_user_id: userId,
-        p_task_key: "audio_transcription",
-        p_tier_key: "t2_vision",
-        p_model_used: `openai/${WHISPER_MODEL}`,
-        p_used_primary: true,
-        p_fallback_index: 0,
-        p_persona_key: "silvio",
-        p_tokens_in: 0,
-        p_tokens_out: 0,
-        p_cost_real_usd: costUsd,
-        p_fx_usd_to_eur: fxRate,
-        p_status: "success",
-        p_error_message: null,
-        p_duration_ms: durationMs,
-        p_metadata: { audio_seconds: durationAudio, file_size_bytes: audioFile.size },
-      });
-    } catch (e) {
-      console.warn("[silvio-transcribe] charge log skipped:", e);
-    }
+    const charge = await chargeDirectAiCall({
+      supabase: supabaseAdmin,
+      idempotencyKey,
+      companyId,
+      userId,
+      taskKey: "audio_transcription",
+      tierKey: "t2_vision",
+      modelUsed: `openai/${WHISPER_MODEL}`,
+      personaKey: "silvio",
+      costRealUsd: estimateWhisperCostUsd(durationAudio),
+      durationMs,
+      metadata: {
+        audio_seconds: durationAudio,
+        file_size_bytes: audioFile.size,
+        audio_sha256: audioHash,
+      },
+    });
 
     return jsonResponse({
       text,
       duration_seconds: durationAudio,
       model: WHISPER_MODEL,
       duration_ms: durationMs,
+      ledger_id: charge.ledger_id ?? null,
     }, 200, corsHeaders);
   } catch (err) {
     if (err instanceof Response) return err;

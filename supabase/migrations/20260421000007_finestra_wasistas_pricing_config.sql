@@ -18,6 +18,14 @@
 -- Se la famiglia non esiste nel DB (ambienti senza dati demo), UPDATE = no-op.
 -- ============================================================================
 
+-- Compatibilità catena migrazioni pulita:
+-- la famiglia articoli viene usata qui, mentre l'estensione formale della griglia
+-- a family_id è in 20260917000002. Anticipiamo solo la colonna necessaria.
+ALTER TABLE public.listino_griglia
+  ADD COLUMN IF NOT EXISTS family_id UUID REFERENCES public.article_families(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS idx_griglia_family ON public.listino_griglia(family_id);
+
 -- 1) Config famiglia
 UPDATE public.article_families
 SET

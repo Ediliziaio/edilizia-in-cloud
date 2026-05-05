@@ -221,7 +221,7 @@ export function ensurePersianeRenderConfig(
     );
     const legacyConfig = (rawConfig.legacy_config as ConfigurazionePersiane | undefined) ?? (rawConfig as unknown as ConfigurazionePersiane);
     const provisional: PersianeRenderConfig = {
-      ...(rawConfig as PersianeRenderConfig),
+      ...(rawConfig as unknown as PersianeRenderConfig),
       photo_meta: (rawConfig.photo_meta as PersianePhotoMeta | null | undefined) ?? photoMeta ?? null,
       scene_analysis: normalizedScene,
       legacy_config: legacyConfig,

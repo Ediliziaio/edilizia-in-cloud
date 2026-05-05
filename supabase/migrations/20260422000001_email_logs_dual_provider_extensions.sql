@@ -175,13 +175,33 @@ CREATE INDEX IF NOT EXISTS edl_complaint_idx
 CREATE INDEX IF NOT EXISTS edl_company_sent_idx
   ON public.email_delivery_log(company_id, sent_at DESC);
 
--- 4. Backfill stream dove possibile (campaign_id → marketing)
-UPDATE public.email_delivery_log
-SET stream = CASE
-  WHEN campaign_id IS NOT NULL THEN 'marketing'
-  ELSE 'transactional'
-END
-WHERE stream IS NULL;
+-- 4. Backfill stream dove possibile (campaign_id → marketing).
+-- In una catena pulita campaign_id arriva più avanti
+-- (20260916000043_email_system_foundations), quindi il backfill deve essere
+-- compatibile anche con lo schema transactional-only.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'email_delivery_log'
+      AND column_name = 'campaign_id'
+  ) THEN
+    EXECUTE $sql$
+      UPDATE public.email_delivery_log
+      SET stream = CASE
+        WHEN campaign_id IS NOT NULL THEN 'marketing'
+        ELSE 'transactional'
+      END
+      WHERE stream IS NULL
+    $sql$;
+  ELSE
+    UPDATE public.email_delivery_log
+    SET stream = 'transactional'
+    WHERE stream IS NULL;
+  END IF;
+END $$;
 
 COMMENT ON COLUMN public.email_logs.stream IS
   'Email stream: sempre marketing per email_logs (campaign per-contact). Mantenuto per coerenza schema.';

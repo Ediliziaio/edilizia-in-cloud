@@ -78,7 +78,7 @@ async function fetchWithRetry(
 }
 
 async function getProviderApiKey(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   providerKey: string,
 ): Promise<string> {
   const { data: keyRow } = await supabase
@@ -100,7 +100,7 @@ async function getProviderApiKey(
 }
 
 async function loadRenderProviderWithKey(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
 ): Promise<{ providerConfig: RenderProviderConfig; apiKey: string }> {
   const { data: providerConfig } = await supabase
     .from("render_provider_config")
@@ -231,7 +231,7 @@ function extractFirstJsonObject(rawText: string): Record<string, unknown> | null
 }
 
 async function runPersianeAnalysis(params: {
-  supabase: ReturnType<typeof createClient>;
+  supabase: any;
   imageUrl: string;
 }): Promise<Record<string, unknown>> {
   const geminiApiKey = await getProviderApiKey(params.supabase, "gemini");
@@ -348,7 +348,7 @@ Important rules:
   return analysis;
 }
 
-async function loadSession(supabase: ReturnType<typeof createClient>, sessionId: string): Promise<PersianeSessionRow | null> {
+async function loadSession(supabase: any, sessionId: string): Promise<PersianeSessionRow | null> {
   const { data, error } = await supabase
     .from("render_persiane_sessions")
     .select("id, company_id, original_photo_url, config, status, result_urls")

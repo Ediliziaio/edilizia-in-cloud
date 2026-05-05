@@ -15,9 +15,10 @@
  * Output:
  *   { success, doc_type, extracted: {...}, summary: "...", ai_meta: {...} }
  */
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // Schema specifico per tipo doc — guida il prompt a produrre JSON tipizzato
 const SCHEMA_BY_TYPE: Record<string, string> = {
@@ -160,6 +161,7 @@ Deno.serve(async (req) => {
     if (!storage_bucket || !storage_path || !file_name || !company_id || !doc_type) {
       return errorResponse("storage_bucket, storage_path, file_name, company_id, doc_type required", 400, cors);
     }
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     const schema = SCHEMA_BY_TYPE[doc_type] ?? SCHEMA_BY_TYPE.documento_generico;
     const systemPrompt = PROMPT_TEMPLATE(doc_type, schema);
@@ -187,6 +189,15 @@ Deno.serve(async (req) => {
     }
 
     const t0 = Date.now();
+    const idempotencyKey = await buildStableAiIdempotencyKey("generic_doc_ai_extract", [
+      company_id,
+      userId,
+      storage_bucket,
+      storage_path,
+      file_name,
+      mime_type ?? null,
+      doc_type,
+    ]);
     const aiResult = await aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: supabaseAdmin as any,
@@ -199,6 +210,7 @@ Deno.serve(async (req) => {
       responseFormat: { type: "json_object" },
       companyId: company_id,
       userId,
+      idempotencyKey,
     });
     const elapsedMs = Date.now() - t0;
 

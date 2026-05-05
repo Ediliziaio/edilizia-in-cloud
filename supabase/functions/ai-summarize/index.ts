@@ -11,9 +11,10 @@
  *   { success, summary: { tldr, bullets[], actions_needed[], keywords[] }, ai_meta }
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -64,12 +65,20 @@ Deno.serve(async (req: Request) => {
     };
 
     if (!company_id) return errorResponse("company_id obbligatorio", 400, cors);
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
     if (!text || text.trim().length < 10) {
       return errorResponse("text obbligatorio (min 10 caratteri)", 400, cors);
     }
 
     const truncated = text.slice(0, MAX_INPUT_CHARS);
     const sysPrompt = buildPrompt(focus, max_length ?? "medium");
+    const idempotencyKey = await buildStableAiIdempotencyKey("text_summarize", [
+      company_id,
+      userId,
+      max_length ?? "medium",
+      focus ?? "",
+      truncated,
+    ]);
 
     let aiResult;
     try {
@@ -85,6 +94,7 @@ Deno.serve(async (req: Request) => {
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
+        idempotencyKey,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

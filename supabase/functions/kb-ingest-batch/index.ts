@@ -16,8 +16,10 @@
  *     stats: { inserted, updated, skipped, errors }, ai_meta }
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { estimateEmbeddingUsage, logPlatformAiCall } from "../_shared/directAiLedger.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -34,17 +36,24 @@ interface InputChunk {
 const MAX_BATCH = 100;
 const EMBEDDING_MODEL = "text-embedding-3-small";
 
-async function generateEmbeddingsBatch(apiKey: string, texts: string[]): Promise<number[][]> {
-  const res = await fetch("https://api.openai.com/v1/embeddings", {
+async function generateEmbeddingsBatch(
+  apiKey: string,
+  texts: string[],
+): Promise<{ embeddings: number[][]; tokens: number }> {
+  const res = await fetchWithTimeout("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model: EMBEDDING_MODEL, input: texts }),
+    timeoutMs: 60_000,
   });
   if (!res.ok) {
     throw new Error(`OpenAI embed ${res.status}: ${(await res.text()).slice(0, 300)}`);
   }
   const data = await res.json();
-  return data.data.map((d: { embedding: number[] }) => d.embedding);
+  return {
+    embeddings: data.data.map((d: { embedding: number[] }) => d.embedding),
+    tokens: Number(data.usage?.total_tokens ?? 0),
+  };
 }
 
 Deno.serve(async (req) => {
@@ -54,38 +63,10 @@ Deno.serve(async (req) => {
   try {
     if (req.method !== "POST") return errorResponse("POST only", 405, cors);
 
-    // Auth: solo super_admin può chiamare (verifichiamo dal JWT)
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return errorResponse("Missing Authorization", 401, cors);
-
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY")!;
-    if (!SUPABASE_URL || !SERVICE_KEY) return errorResponse("Supabase env missing", 500, cors);
     if (!OPENAI_KEY) return errorResponse("OPENAI_API_KEY missing", 500, cors);
-
-    // Auth: accetta JWT valido (super_admin o admin) — endpoint usato per setup KB
-    // TODO: ripristinare check super_admin dopo setup iniziale Track 2
-    const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userData?.user) return errorResponse("Invalid JWT", 401, cors);
-
-    const adminClient = createClient(SUPABASE_URL, SERVICE_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
-    // Log chi sta facendo l'ingestion (audit)
-    const { data: roles } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userData.user.id);
-    const userRoles = (roles ?? []).map((r: AnyObj) => r.role);
-    if (!userRoles.some((r: string) => ["super_admin", "company_admin"].includes(r))) {
-      return errorResponse("admin role required", 403, cors);
-    }
-    console.log(`[kb-ingest-batch] caller user_id=${userData.user.id} roles=${userRoles.join(",")}`);
+    const { userId, supabaseAdmin: adminClient } = await requireAuth(req, cors);
+    await requireRole(adminClient, userId, ["super_admin"], cors);
 
     // Parse body
     const body = await req.json().catch(() => ({}));
@@ -106,8 +87,24 @@ Deno.serve(async (req) => {
 
     // Generate embeddings (single batch call)
     const startEmb = Date.now();
-    const embeddings = await generateEmbeddingsBatch(OPENAI_KEY, chunks.map((c) => c.content));
+    const texts = chunks.map((c) => c.content);
+    const { embeddings, tokens: providerTokens } = await generateEmbeddingsBatch(OPENAI_KEY, texts);
     const embDurationMs = Date.now() - startEmb;
+    const estimated = estimateEmbeddingUsage(texts);
+    const tokens = providerTokens || estimated.tokens;
+    await logPlatformAiCall({
+      supabase: adminClient,
+      operationKey: "kb_ingest_batch_embedding",
+      provider: "openai",
+      modelUsed: EMBEDDING_MODEL,
+      userId,
+      tokensIn: tokens,
+      costRealUsd: providerTokens
+        ? Math.max(0.000001, (tokens / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
+        : estimated.costUsd,
+      durationMs: embDurationMs,
+      metadata: { chunks: chunks.length },
+    });
 
     // Upsert each
     const results: Array<{

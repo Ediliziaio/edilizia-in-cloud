@@ -7,7 +7,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export interface AuthResult {
   userId: string;
-  supabaseAdmin: ReturnType<typeof createClient>;
+  // Edge functions use a service-role client with dynamic RPC/table shapes.
+  // Keeping this permissive avoids false Deno type failures on generated DB-less clients.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any;
+}
+
+export interface CompanyAccessResult {
+  companyId: string;
+  profileCompanyId: string | null;
+  roles: string[];
+  isSuperAdmin: boolean;
 }
 
 /**
@@ -74,7 +84,8 @@ export async function requireAuth(
  * Throws a Response (403) if no matching role is found.
  */
 export async function requireRole(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
   userId: string,
   allowedRoles: string[],
   corsHeaders: Record<string, string>
@@ -102,4 +113,118 @@ export async function requireRole(
   }
 
   return matchedRole;
+}
+
+/**
+ * Verifies that the authenticated user can operate inside a company scope.
+ *
+ * Edge functions often need a service-role client for privileged RPCs. This
+ * helper restores the missing tenant boundary before those RPCs are called:
+ * - super_admin can access every company;
+ * - primary profile company is accepted;
+ * - multi_company_access grants are accepted;
+ * - optional role allow-list is enforced after tenant membership.
+ */
+export async function requireCompanyAccess(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  userId: string,
+  companyId: string,
+  corsHeaders: Record<string, string>,
+  options?: { allowedRoles?: string[] },
+): Promise<CompanyAccessResult> {
+  if (!companyId || typeof companyId !== "string") {
+    throw new Response(
+      JSON.stringify({ error: "Forbidden: company scope required" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  const [{ data: profile, error: profileError }, { data: userRoles, error: rolesError }] =
+    await Promise.all([
+      supabaseAdmin
+        .from("profiles")
+        .select("company_id")
+        .eq("id", userId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId),
+    ]);
+
+  if (profileError || rolesError) {
+    throw new Response(
+      JSON.stringify({ error: "Forbidden: unable to verify tenant access" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  const roles = ((userRoles ?? []) as Array<{ role: string }>).map((r) => r.role);
+  const isSuperAdmin = roles.includes("super_admin");
+
+  if (options?.allowedRoles?.length) {
+    const hasAllowedRole = options.allowedRoles.some((role) => roles.includes(role));
+    if (!hasAllowedRole && !isSuperAdmin) {
+      throw new Response(
+        JSON.stringify({ error: "Forbidden: insufficient permissions for this action" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+  }
+
+  const profileCompanyId = (profile as { company_id?: string | null } | null)?.company_id ?? null;
+  if (isSuperAdmin || profileCompanyId === companyId) {
+    return { companyId, profileCompanyId, roles, isSuperAdmin };
+  }
+
+  const { data: multiCompanyAccess, error: accessError } = await supabaseAdmin
+    .from("multi_company_access")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (accessError || !multiCompanyAccess) {
+    throw new Response(
+      JSON.stringify({ error: "Forbidden: tenant access denied" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  return { companyId, profileCompanyId, roles, isSuperAdmin };
+}
+
+/**
+ * Allows cron/internal edge functions to run only when the caller provides
+ * the configured internal secret. Use for verify_jwt=false scheduled jobs.
+ */
+export function requireInternalSecret(
+  req: Request,
+  corsHeaders: Record<string, string>,
+): void {
+  if (!isInternalRequest(req)) {
+    throw new Response(
+      JSON.stringify({ error: "Unauthorized: internal secret required" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+}
+
+export function isInternalRequest(req: Request): boolean {
+  const expectedValues = [
+    Deno.env.get("INTERNAL_CRON_SECRET"),
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+  ].filter(Boolean) as string[];
+
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : "";
+  const providedValues = [
+    req.headers.get("x-internal-cron-secret") ??
+      req.headers.get("x-cron-secret") ??
+      "",
+    bearerToken,
+  ].filter(Boolean);
+
+  return expectedValues.length > 0 && providedValues.some((provided) => expectedValues.includes(provided));
 }

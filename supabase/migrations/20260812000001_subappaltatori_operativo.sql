@@ -96,6 +96,8 @@ CREATE POLICY sub_company_4 ON documenti_subappaltatore
   USING (company_id = (SELECT company_id FROM profiles WHERE id = auth.uid()));
 
 -- ─── 6. View aggregata per dashboard ─────────────────────────
+DROP VIEW IF EXISTS public.v_subappaltatori_dashboard;
+
 CREATE OR REPLACE VIEW v_subappaltatori_dashboard AS
 SELECT
   ss.id,

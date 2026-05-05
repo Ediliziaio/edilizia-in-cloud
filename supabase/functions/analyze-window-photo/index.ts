@@ -2,10 +2,10 @@
 // Analizza foto finestre con Gemini 2.5 Flash
 // Restituisce FotoAnalisi JSON per il wizard RenderNew
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
+import { chargeDirectAiCall, estimateTokenCostUsd } from "../_shared/directAiLedger.ts";
 import { normalizeWindowSceneAnalysis } from "../../../shared/render-window/windowSceneAnalysis.ts";
 
 const SYSTEM_PROMPT = `You are an expert Italian window and door analyzer.
@@ -210,6 +210,37 @@ Deno.serve(async (req: Request) => {
         { status: 400, headers: { ...corsH, "Content-Type": "application/json" } }
       );
     }
+    if (!session_id) {
+      return new Response(
+        JSON.stringify({
+          error: "validation_error",
+          message: "session_id is required for tenant-scoped render analysis",
+        }),
+        { status: 400, headers: { ...corsH, "Content-Type": "application/json" } },
+      );
+    }
+
+    const sessionTable = analyzeMode === "bathroom" ? "render_bagno_sessions" : "render_sessions";
+    const analysisColumn = analyzeMode === "bathroom" ? "analisi_bagno" : "foto_analisi";
+
+    const { data: sess } = await supabase
+      .from(sessionTable)
+      .select("company_id")
+      .eq("id", session_id)
+      .maybeSingle();
+
+    const sessionCompanyId = (sess as { company_id?: string } | null)?.company_id;
+    if (!sessionCompanyId) {
+      return new Response(
+        JSON.stringify({
+          error: "session_not_found",
+          message: "Sessione render non trovata per il session_id fornito.",
+        }),
+        { status: 404, headers: { ...corsH, "Content-Type": "application/json" } },
+      );
+    }
+
+    await requireCompanyAccess(supabase, user.id, sessionCompanyId, corsH);
 
     // ── Recupera Gemini API key da platform_settings ─────────────────────────
     let geminiApiKey = Deno.env.get("GEMINI_API_KEY") ?? "";
@@ -280,6 +311,8 @@ Deno.serve(async (req: Request) => {
     const gemTimeout = setTimeout(() => gemController.abort(), 60_000);
 
     let rawText = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
     try {
       const gemResp = await fetch(geminiEndpoint, {
         method: "POST",
@@ -296,6 +329,26 @@ Deno.serve(async (req: Request) => {
 
       const gemData = await gemResp.json();
       rawText = gemData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      inputTokens = Number(gemData.usageMetadata?.promptTokenCount ?? 0);
+      outputTokens = Number(gemData.usageMetadata?.candidatesTokenCount ?? 0);
+      await chargeDirectAiCall({
+        supabase,
+        idempotencyKey: `render_photo_analysis_${sessionCompanyId}_${user.id}_${session_id}_${analyzeMode}`,
+        companyId: sessionCompanyId,
+        userId: user.id,
+        taskKey: analyzeMode === "bathroom" ? "render_bathroom_photo_analysis" : "render_window_photo_analysis",
+        tierKey: "t2_vision",
+        modelUsed: geminiModel,
+        tokensIn: inputTokens,
+        tokensOut: outputTokens,
+        costRealUsd: estimateTokenCostUsd({
+          provider: "gemini",
+          inputTokens,
+          outputTokens,
+          fallbackCostUsd: 0.002,
+        }),
+        metadata: { session_id, mode: analyzeMode },
+      });
     } catch (err) {
       clearTimeout(gemTimeout);
       return new Response(
@@ -314,7 +367,7 @@ Deno.serve(async (req: Request) => {
       if (analyzeMode === "bathroom") {
         fotoAnalisi = normalizeBathroomAnalysis(fotoAnalisi);
       } else {
-        fotoAnalisi = normalizeWindowSceneAnalysis(fotoAnalisi);
+        fotoAnalisi = normalizeWindowSceneAnalysis(fotoAnalisi) as unknown as Record<string, unknown>;
       }
     } catch {
       return new Response(
@@ -327,49 +380,11 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── Aggiorna sessione con foto_analisi se session_id fornito ────────────
-    // FIX P1.1: prima di scrivere, verifica che la sessione appartenga alla
-    // company effettiva dell'utente (o che l'utente sia super_admin). Senza
-    // questo controllo la service_role key bypasserebbe RLS e permetterebbe
-    // a qualsiasi autenticato di sovrascrivere foto_analisi di sessioni altrui
-    // semplicemente conoscendo l'UUID.
-    if (session_id) {
-      const sessionTable = analyzeMode === "bathroom" ? "render_bagno_sessions" : "render_sessions";
-      const analysisColumn = analyzeMode === "bathroom" ? "analisi_bagno" : "foto_analisi";
-
-      const { data: sess } = await supabase
-        .from(sessionTable)
-        .select("company_id")
-        .eq("id", session_id)
-        .maybeSingle();
-
-      const sessionCompanyId = (sess as { company_id?: string } | null)?.company_id;
-      if (!sessionCompanyId) {
-        return new Response(
-          JSON.stringify({
-            error: "session_not_found",
-            message: "Sessione render non trovata per il session_id fornito.",
-          }),
-          { status: 404, headers: { ...corsH, "Content-Type": "application/json" } },
-        );
-      }
-
-      const allowed = await canAccessCompany(supabase, user.id, sessionCompanyId);
-      if (!allowed) {
-        return new Response(
-          JSON.stringify({
-            error: "forbidden",
-            message: "Non sei autorizzato a modificare questa sessione render.",
-          }),
-          { status: 403, headers: { ...corsH, "Content-Type": "application/json" } },
-        );
-      }
-
-      await supabase
-        .from(sessionTable)
-        .update({ [analysisColumn]: fotoAnalisi })
-        .eq("id", session_id);
-    }
+    await supabase
+      .from(sessionTable)
+      .update({ [analysisColumn]: fotoAnalisi })
+      .eq("id", session_id)
+      .eq("company_id", sessionCompanyId);
 
     return new Response(
       JSON.stringify(

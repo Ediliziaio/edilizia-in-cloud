@@ -339,6 +339,19 @@ COMMENT ON FUNCTION public.has_cost_permission(UUID, TEXT) IS
 -- ---------------------------------------------------------------------------
 -- 5. tariffe_aziendali.costo_default — rinomina soft di costo_interno
 -- ---------------------------------------------------------------------------
+-- Compatibilità catena migrazioni pulita:
+-- costo_interno viene formalizzato nella wave serramenti 202609, ma questa
+-- migration 202605 lo usa già per preservare il costo storico. Lo anticipiamo
+-- qui come colonna neutra, lasciando la migration 202609 idempotente.
+ALTER TABLE public.tariffe_aziendali
+  ADD COLUMN IF NOT EXISTS costo_interno NUMERIC(12,4);
+
+UPDATE public.tariffe_aziendali
+SET costo_interno = prezzo_costo
+WHERE (costo_interno IS NULL OR costo_interno = 0)
+  AND prezzo_costo IS NOT NULL
+  AND prezzo_costo > 0;
+
 ALTER TABLE public.tariffe_aziendali
   ADD COLUMN IF NOT EXISTS costo_default NUMERIC(12,4);
 

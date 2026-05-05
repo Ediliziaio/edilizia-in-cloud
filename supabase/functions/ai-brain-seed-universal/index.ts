@@ -19,8 +19,9 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { generateEmbeddingsBatch, contentHash } from "../_shared/brainEmbed.ts";
+import { estimateEmbeddingUsage, logPlatformAiCall } from "../_shared/directAiLedger.ts";
 
 interface UniversalDoc {
   category: string;
@@ -426,19 +427,26 @@ serve(async (req: Request) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAdmin = auth.supabaseAdmin as any;
 
-    // Verify privileged role (super_admin o company_admin per setup iniziale)
-    const { data: roles } = await supabaseAdmin
-      .from("user_roles").select("role").eq("user_id", userId)
-      .in("role", ["super_admin", "company_admin"]);
-    if (!roles || roles.length === 0) {
-      return errorResponse("Solo super_admin o company_admin può eseguire seed universale", 403, corsHeaders);
-    }
+    await requireRole(supabaseAdmin, userId, ["super_admin"], corsHeaders);
 
     // Generate embeddings
     const contents = CORPUS.map(d => d.content);
     let embeddings: number[][] = [];
+    const startedAt = Date.now();
     try {
       embeddings = await generateEmbeddingsBatch(contents);
+      const estimated = estimateEmbeddingUsage(contents);
+      await logPlatformAiCall({
+        supabase: supabaseAdmin,
+        operationKey: "ai_brain_seed_universal_embedding",
+        provider: "openai",
+        modelUsed: "text-embedding-3-small",
+        userId,
+        tokensIn: estimated.tokens,
+        costRealUsd: estimated.costUsd,
+        durationMs: Date.now() - startedAt,
+        metadata: { documents: CORPUS.length },
+      });
     } catch (e) {
       console.error("[brain-seed-universal] embed error:", e);
       return errorResponse(`Errore embedding: ${e instanceof Error ? e.message : String(e)}`, 500, corsHeaders);

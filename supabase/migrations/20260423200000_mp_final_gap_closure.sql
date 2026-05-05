@@ -125,6 +125,14 @@ GRANT EXECUTE ON FUNCTION public.get_whatsapp_metrics(uuid) TO service_role;
 -- 3. RPC get_cantieri_margine_basso per trigger margine_basso
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- Compatibilità catena pulita: questi campi operativi arrivano anche in
+-- migrazioni successive, ma la RPC/trigger di questo modulo li usa già.
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS percentuale_avanzamento NUMERIC DEFAULT 0;
+
+ALTER TABLE public.campo_rapportini
+  ADD COLUMN IF NOT EXISTS ore_straordinario NUMERIC(4,2) DEFAULT 0;
+
 CREATE OR REPLACE FUNCTION public.get_cantieri_margine_basso(
   p_company_id uuid,
   p_soglia_percent numeric DEFAULT 10

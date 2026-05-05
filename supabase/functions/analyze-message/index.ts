@@ -1,5 +1,6 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { aiRouterComplete } from "../_shared/aiRouter.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -7,44 +8,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-
-    if (!openaiApiKey) {
-      throw new Error("OPENAI_API_KEY is not configured");
-    }
-
-    // Verify caller
-    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const token = authHeader.replace("Bearer ", "");
-    let userId: string | null = null;
-    try {
-      const { data: claimsData } = await (userClient.auth as any).getClaims(token);
-      userId = claimsData?.claims?.sub || null;
-    } catch {}
-    if (!userId) {
-      const { data: { user } } = await userClient.auth.getUser();
-      userId = user?.id || null;
-    }
-    if (!userId) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
-    }
-
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+    const corsHeaders = getCorsHeaders(req);
+    const auth = await requireAuth(req, corsHeaders);
+    const userId = auth.userId;
+    const adminClient = auth.supabaseAdmin;
 
     const { message_id, company_id } = await req.json();
     if (!message_id || !company_id) {
@@ -54,24 +21,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify caller belongs to the requested company (or is super_admin)
-    const { data: callerRoles } = await adminClient.from("user_roles").select("role").eq("user_id", userId);
-    const isSuperAdmin = (callerRoles || []).some((r: any) => r.role === "super_admin");
-    if (!isSuperAdmin) {
-      const { data: callerProfile } = await adminClient.from("profiles").select("company_id").eq("id", userId).maybeSingle();
-      if (!callerProfile || callerProfile.company_id !== company_id) {
-        return new Response(JSON.stringify({ error: "Non autorizzato" }), {
-          status: 403,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        });
-      }
-    }
+    await requireCompanyAccess(adminClient, userId, company_id, corsHeaders);
 
     // Fetch message
     const { data: message, error: msgErr } = await adminClient
       .from("messaging_messages")
       .select("*, messaging_conversations(*)")
       .eq("id", message_id)
+      .eq("company_id", company_id)
       .single();
 
     if (msgErr || !message) {
@@ -151,103 +108,88 @@ Analizza il messaggio e usa la funzione analyze_message per restituire il risult
 - Identifica l'intent principale del messaggio.
 - Suggerisci azioni concrete.`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiApiKey}`,
-        "Content-Type": "application/json",
+    const analysisTool = {
+      type: "function",
+      function: {
+        name: "analyze_message",
+        description: "Analizza un messaggio e restituisce entita', intent e azioni suggerite.",
+        parameters: {
+          type: "object",
+          properties: {
+            matched_entity: {
+              type: "object",
+              properties: {
+                type: { type: "string", enum: ["cliente", "cantiere", "ordine", "dipendente", "nessuno"] },
+                id: { type: "string", description: "UUID dell'entita' se trovata, null altrimenti" },
+                name: { type: "string", description: "Nome dell'entita' trovata" },
+                confidence: { type: "number", description: "Livello di confidenza 0-1" },
+              },
+              required: ["type", "confidence"],
+            },
+            intent: {
+              type: "string",
+              enum: [
+                "problema_cantiere",
+                "materiale_mancante",
+                "report_lavoro",
+                "aggiornamento_stato",
+                "urgenza_ordine",
+                "richiesta_informazioni",
+                "altro",
+              ],
+            },
+            priority: { type: "string", enum: ["bassa", "normale", "alta", "urgente"] },
+            summary: { type: "string", description: "Riassunto breve del messaggio (max 100 caratteri)" },
+            action_suggestions: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  type: { type: "string", enum: ["create_task", "create_daily_report", "change_order_status", "notify", "none"] },
+                  title: { type: "string" },
+                  description: { type: "string" },
+                  priority: { type: "string", enum: ["bassa", "normale", "alta", "urgente"] },
+                  assign_to: { type: "string", description: "Ruolo o nome suggerito" },
+                },
+                required: ["type", "title"],
+              },
+            },
+          },
+          required: ["matched_entity", "intent", "priority", "summary", "action_suggestions"],
+          additionalProperties: false,
+        },
       },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
+    };
+
+    let aiResponse: any;
+    try {
+      const aiResult = await aiRouterComplete({
+        supabase: adminClient,
+        taskKey: "message_analysis",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: textToAnalyze },
         ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "analyze_message",
-              description: "Analizza un messaggio e restituisce entita', intent e azioni suggerite.",
-              parameters: {
-                type: "object",
-                properties: {
-                  matched_entity: {
-                    type: "object",
-                    properties: {
-                      type: { type: "string", enum: ["cliente", "cantiere", "ordine", "dipendente", "nessuno"] },
-                      id: { type: "string", description: "UUID dell'entita' se trovata, null altrimenti" },
-                      name: { type: "string", description: "Nome dell'entita' trovata" },
-                      confidence: { type: "number", description: "Livello di confidenza 0-1" },
-                    },
-                    required: ["type", "confidence"],
-                  },
-                  intent: {
-                    type: "string",
-                    enum: [
-                      "problema_cantiere",
-                      "materiale_mancante",
-                      "report_lavoro",
-                      "aggiornamento_stato",
-                      "urgenza_ordine",
-                      "richiesta_informazioni",
-                      "altro",
-                    ],
-                  },
-                  priority: { type: "string", enum: ["bassa", "normale", "alta", "urgente"] },
-                  summary: { type: "string", description: "Riassunto breve del messaggio (max 100 caratteri)" },
-                  action_suggestions: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        type: { type: "string", enum: ["create_task", "create_daily_report", "change_order_status", "notify", "none"] },
-                        title: { type: "string" },
-                        description: { type: "string" },
-                        priority: { type: "string", enum: ["bassa", "normale", "alta", "urgente"] },
-                        assign_to: { type: "string", description: "Ruolo o nome suggerito" },
-                      },
-                      required: ["type", "title"],
-                    },
-                  },
-                },
-                required: ["matched_entity", "intent", "priority", "summary", "action_suggestions"],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "analyze_message" } },
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("AI gateway error:", response.status, errText);
-
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded, riprova tra poco." }), {
-          status: 429,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Crediti AI esauriti." }), {
-          status: 402,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        });
-      }
-
-      // Update AI run as failed
+        params: {
+          temperature: 0.1,
+          max_tokens: 1600,
+          tools: [analysisTool],
+          tool_choice: { type: "function", function: { name: "analyze_message" } },
+        },
+        companyId: company_id,
+        userId,
+        estimatedCostEur: 0.05,
+        idempotencyKey: `message_analysis_${message_id}`,
+      });
+      aiResponse = aiResult.rawResponse;
+    } catch (aiErr) {
+      const aiMsg = aiErr instanceof Error ? aiErr.message : String(aiErr);
       await adminClient
         .from("messaging_ai_runs")
-        .update({ status: "error", ai_output: { error: errText } })
+        .update({ status: "error", ai_output: { error: aiMsg } })
         .eq("id", aiRun.id);
-
-      throw new Error("AI gateway error");
+      throw aiErr;
     }
-
-    const aiResponse = await response.json();
     let aiOutput: any = null;
 
     // Extract tool call result

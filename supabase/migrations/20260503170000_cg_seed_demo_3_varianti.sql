@@ -16,6 +16,11 @@ DECLARE
   v_anno_prec int := v_anno_corr - 1;
   v_anno_pp   int := v_anno_corr - 2;
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.companies WHERE id = v_demo) THEN
+    RAISE NOTICE 'Demo Azienda % non presente: seed CG 3 varianti saltato', v_demo;
+    RETURN;
+  END IF;
+
   -- ════════════════════════════════════════════════════════════════════════
   -- VARIANTE 1: anno -2 (2024) — Azienda solida
   -- Profilo: alta marginalità, debito basso, riserve consistenti

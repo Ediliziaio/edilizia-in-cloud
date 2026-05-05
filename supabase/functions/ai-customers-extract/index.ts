@@ -22,7 +22,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 interface ExtractPayload {
   storage_path: string;
@@ -105,13 +106,13 @@ ALTRE REGOLE:
 
 // deno-lint-ignore no-explicit-any
 async function callOpenAI(
-  apiKey: string,
   fileBase64: string,
   contentType: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabaseAdmin: any,
   companyId: string | null,
   userId: string | null,
+  sourceKey: string,
 ): Promise<{
   rows: any[];
   detected_context: string | null;
@@ -131,6 +132,12 @@ async function callOpenAI(
 
   // Migrato ad aiRouter — routing OpenRouter + ledger SuperAdmin
   const { aiRouterComplete } = await import("../_shared/aiRouter.ts");
+  const idempotencyKey = await buildStableAiIdempotencyKey("customers_extract", [
+    companyId,
+    userId,
+    sourceKey,
+    contentType,
+  ]);
   const result = await aiRouterComplete({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase: supabaseAdmin as any,
@@ -157,6 +164,7 @@ async function callOpenAI(
     responseFormat: { type: "json_object" },
     companyId,
     userId,
+    idempotencyKey,
   });
   const content = result.content || "{}";
   const json = { usage: { prompt_tokens: result.promptTokens, completion_tokens: result.completionTokens } };
@@ -238,6 +246,7 @@ serve(async (req: Request) => {
 
     companyId = await resolveCompanyId(supabaseAdmin, userId);
     if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
     const body = (await req.json()) as ExtractPayload;
     storagePath = body?.storage_path ?? "";
@@ -248,18 +257,19 @@ serve(async (req: Request) => {
       return errorResponse("storage_path fuori scope utente", 403, corsHeaders);
     }
 
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiKey) {
-      await logAiUsage(supabaseAdmin, companyId, userId, 0, 0, 0, storagePath, "error", "OPENAI_API_KEY non configurata");
-      return errorResponse("AI non configurata sul server", 500, corsHeaders);
-    }
-
     const { base64, contentType, bytes } = await downloadBase64(supabaseAdmin, storagePath);
     if (bytes > 20 * 1024 * 1024) {
       return errorResponse("File troppo grande (>20MB)", 413, corsHeaders);
     }
 
-    const extracted = await callOpenAI(openaiKey, base64, body.mime_type || contentType, supabaseAdmin, companyId, userId);
+    const extracted = await callOpenAI(
+      base64,
+      body.mime_type || contentType,
+      supabaseAdmin,
+      companyId,
+      userId,
+      storagePath,
+    );
     const costCents = estimateCostCents(extracted.tokensIn, extracted.tokensOut);
 
     await logAiUsage(

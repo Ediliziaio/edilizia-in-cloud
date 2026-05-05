@@ -23,7 +23,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 interface ExtractPayload {
   storage_path: string;
@@ -87,13 +88,13 @@ REGOLE:
 - Rispondi SOLO con JSON valido. Nessun testo aggiuntivo.`;
 
 async function callOpenAI(
-  apiKey: string,
   pdfBase64: string,
   objectType: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabaseAdmin: any,
   companyId: string | null,
   userId: string | null,
+  sourceKey: string,
 ): Promise<{
   rows: any[];
   confidence: number;
@@ -122,57 +123,28 @@ async function callOpenAI(
     },
   ];
 
-  // Tenta prima via AI Router (OpenRouter) — modello cost-optimized configurato
-  // dal SuperAdmin per task "listino_extract". Se OPENROUTER_API_KEY manca o
-  // tutti i modelli falliscono, fallback a OpenAI GPT-4o direttamente.
-  let content = "{}";
-  let tokensIn = 0;
-  let tokensOut = 0;
-
-  try {
-    const { aiRouterComplete } = await import("../_shared/aiRouter.ts");
-    const result = await aiRouterComplete({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      supabase: supabaseAdmin as any,
-      taskKey: "listino_extract",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      messages: messages as any,
-      params: { temperature: 0.1, max_tokens: 8000 },
-      responseFormat: { type: "json_object" },
-      companyId,
-      userId,
-    });
-    content = result.content;
-    tokensIn = result.promptTokens;
-    tokensOut = result.completionTokens;
-    console.log(`[ai-listino-extract] via aiRouter: model=${result.modelUsed} cost=$${result.costUsd.toFixed(6)}`);
-  } catch (routerErr) {
-    console.warn(`[ai-listino-extract] aiRouter failed, fallback to direct OpenAI:`, (routerErr as Error).message);
-    // Fallback: chiamata diretta a OpenAI (comportamento legacy)
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        response_format: { type: "json_object" },
-        messages,
-        max_tokens: 8000,
-        temperature: 0.1,
-      }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`OpenAI error ${response.status}: ${text}`);
-    }
-    const json = await response.json();
-    content = json.choices?.[0]?.message?.content ?? "{}";
-    tokensIn = json.usage?.prompt_tokens ?? 0;
-    tokensOut = json.usage?.completion_tokens ?? 0;
-  }
+  const { aiRouterComplete } = await import("../_shared/aiRouter.ts");
+  const idempotencyKey = await buildStableAiIdempotencyKey("listino_extract", [
+    companyId,
+    userId,
+    sourceKey,
+    objectType,
+  ]);
+  const result = await aiRouterComplete({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase: supabaseAdmin as any,
+    taskKey: "listino_extract",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    messages: messages as any,
+    params: { temperature: 0.1, max_tokens: 8000 },
+    responseFormat: { type: "json_object" },
+    companyId,
+    userId,
+    idempotencyKey,
+  });
+  const content = result.content || "{}";
+  const tokensIn = result.promptTokens;
+  const tokensOut = result.completionTokens;
 
   let parsed: any = {};
   try {
@@ -245,6 +217,7 @@ serve(async (req: Request) => {
 
     companyId = await resolveCompanyId(supabaseAdmin, userId);
     if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
     const body = (await req.json()) as ExtractPayload;
     storagePath = body?.storage_path ?? "";
@@ -256,25 +229,9 @@ serve(async (req: Request) => {
       return errorResponse("storage_path fuori scope utente", 403, corsHeaders);
     }
 
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiKey) {
-      await logAiUsage(
-        supabaseAdmin,
-        companyId,
-        userId,
-        0,
-        0,
-        0,
-        storagePath,
-        "error",
-        "OPENAI_API_KEY non configurata",
-      );
-      return errorResponse("AI non configurata", 500, corsHeaders);
-    }
-
     const pdfBase64 = await downloadPdfBase64(supabaseAdmin, storagePath);
 
-    const extracted = await callOpenAI(openaiKey, pdfBase64, objectType, supabaseAdmin, companyId, userId);
+    const extracted = await callOpenAI(pdfBase64, objectType, supabaseAdmin, companyId, userId, storagePath);
     const costCents = estimateCostCents(extracted.tokensIn, extracted.tokensOut);
 
     await logAiUsage(
@@ -306,7 +263,6 @@ serve(async (req: Request) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[ai-listino-extract] error:", msg);
     if (userId && companyId) {
-      const auth = { supabaseAdmin: null } as any;
       try {
         // best-effort log
         const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");

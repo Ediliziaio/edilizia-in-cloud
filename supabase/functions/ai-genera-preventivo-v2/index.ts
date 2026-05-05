@@ -1,9 +1,10 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getSystemPromptForVertical } from "../_shared/ai-prompts/index.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
 import { fetchWithTimeout, isTimeoutError } from "../_shared/fetchWithTimeout.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
 
 // ── Shape dei record DB usati dall'edge function ───────────────────────────
 // Tipi minimali per sostituire `any` senza legarsi alle generated types (che
@@ -139,23 +140,8 @@ Deno.serve(async (req) => {
       foto?: Array<{ name: string; mime: string; data_base64: string }>;
     } = body;
 
-    if (!company_id) return errorResponse("company_id obbligatorio", 400);
-
-    // Validate the caller has access to this company
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-    const { data: roleRow } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
-    const isSuperAdmin = roleRow?.role === "super_admin";
-    if (!isSuperAdmin && profile?.company_id !== company_id) {
-      return errorResponse("Accesso negato a questa azienda", 403);
-    }
+    if (!company_id) return errorResponse("company_id obbligatorio", 400, corsH);
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, corsH);
 
     // FASE 8.5: leggi vertical della company per scegliere il system prompt.
     const { data: company } = await supabaseAdmin
@@ -181,7 +167,8 @@ Deno.serve(async (req) => {
 
     if (openaiKey) {
       try {
-        const embedRes = await fetch("https://api.openai.com/v1/embeddings", {
+        const embeddingInput = `${descrizione ?? ""} | tipo lavoro: ${tipo_lavoro ?? "generico"}`.slice(0, 8000);
+        const embedRes = await fetchWithTimeout("https://api.openai.com/v1/embeddings", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${openaiKey}`,
@@ -189,14 +176,42 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             model: "text-embedding-3-small",
-            input: `${descrizione ?? ""} | tipo lavoro: ${tipo_lavoro ?? "generico"}`.slice(0, 8000),
+            input: embeddingInput,
             dimensions: 1536,
           }),
+          timeoutMs: 60_000,
         });
         if (embedRes.ok) {
           const embedData = await embedRes.json();
           const queryEmbedding = embedData?.data?.[0]?.embedding;
           if (Array.isArray(queryEmbedding) && queryEmbedding.length === 1536) {
+            const embeddingUsage = estimateEmbeddingUsage(embeddingInput);
+            const providerTokens = Number(embedData?.usage?.total_tokens ?? 0);
+            const tokensIn = providerTokens || embeddingUsage.tokens;
+            await chargeDirectAiCall({
+              supabase: supabaseAdmin,
+              idempotencyKey: await buildStableAiIdempotencyKey("preventivo_genera_embedding", [
+                company_id,
+                userId,
+                input_mode ?? "testo",
+                tipo_lavoro ?? null,
+                embeddingInput,
+              ]),
+              companyId: company_id,
+              userId,
+              taskKey: "preventivo_genera_embedding",
+              tierKey: "t1_economic",
+              modelUsed: "text-embedding-3-small",
+              tokensIn,
+              costRealUsd: providerTokens
+                ? Math.max(0.000001, (tokensIn / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
+                : embeddingUsage.costUsd,
+              metadata: {
+                input_mode: input_mode ?? "testo",
+                tipo_lavoro: tipo_lavoro ?? null,
+                retrieval: "listino_semantic",
+              },
+            });
             const embeddingStr = JSON.stringify(queryEmbedding);
 
             // 1. match_articles (prodotti) — comportamento storico FASE 8.3
@@ -542,6 +557,27 @@ REGOLE OUTPUT:
           { type: "text", text: userMessage },
         ]
       : userMessage;
+    const aiIdempotencyKey = await buildStableAiIdempotencyKey("preventivo_genera", [
+      company_id,
+      userId,
+      input_mode ?? "testo",
+      tipo_lavoro ?? null,
+      piano_installazione ?? null,
+      misure ?? [],
+      descrizione ?? "",
+      prodottiCtx,
+      tariffeCtx,
+      famiglieCtx,
+      isFotoMode
+        ? foto!.map((f) => ({
+            name: f.name,
+            mime: f.mime,
+            bytes: f.data_base64.length,
+            head: f.data_base64.slice(0, 80),
+            tail: f.data_base64.slice(-80),
+          }))
+        : [],
+    ]);
 
     // Migrato ad aiRouter — task `preventivo_genera` (claude-haiku-4.5 primary, ~93% saving vs opus)
     // Per modalità foto: serve vision capability → uso `vision_cantiere` task (gpt-4o-mini)
@@ -560,6 +596,7 @@ REGOLE OUTPUT:
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
+        idempotencyKey: aiIdempotencyKey,
       });
       rawText = result.content;
     } catch (err) {
@@ -770,7 +807,7 @@ REGOLE OUTPUT:
             // (prima: riga visualizzata "gratis" senza spiegazione).
             riga.unit_price = null;
             enrichmentWarnings.push(
-              `Prodotto '${riga.name ?? riga.article_template_id}' non trovato nel catalogo — inseriscilo manualmente o rigenera.`,
+              `Prodotto '${riga.nome ?? riga.article_template_id}' non trovato nel catalogo — inseriscilo manualmente o rigenera.`,
             );
             continue;
           }
@@ -827,7 +864,7 @@ REGOLE OUTPUT:
             // P2 FIX: tariffa suggerita non più presente → warning esplicito.
             riga.unit_price = null;
             enrichmentWarnings.push(
-              `Tariffa '${riga.name ?? riga.tariffa_id}' non trovata nel listino manodopera — inseriscila manualmente o rigenera.`,
+              `Tariffa '${riga.nome ?? riga.tariffa_id}' non trovata nel listino manodopera — inseriscila manualmente o rigenera.`,
             );
           }
         } else {

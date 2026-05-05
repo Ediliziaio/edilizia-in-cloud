@@ -513,6 +513,7 @@ function normalizeLegacyWindowConfig(
     hingeFinish: stringOrFallback(cerniere.colore, "argento"),
     hingeStyle: "compact european residential hinges aligned on the outer stiles with realistic proportions",
     hingeConsistencyRule: "All visible hinges must match the selected handle finish exactly, with no mixed-color hinge parts.",
+    manualControlCleanupRule: null,
     reducedNode: String(ni.stile_telaio).includes("nodo_ridotto"),
     centralHandle: String(ni.stile_telaio) === "nodo_ridotto_maniglia_centrale",
     hingeCountVisible: Number(ni.num_ante ?? 2) === 2 ? 2 : Math.max(2, Number(ni.num_ante ?? 2) * Number(cerniere.num_per_anta ?? 2)),
@@ -636,7 +637,7 @@ export function ensureWindowRenderConfig(
       sceneAnalysis,
       (rawConfig.target_selection as { selectedOpeningIds?: string[] } | undefined)?.selectedOpeningIds,
     );
-    const normalized = rawConfig as WindowRenderConfig;
+    const normalized = rawConfig as unknown as WindowRenderConfig;
     const technicalSpecification = normalized.technical_specification.map((spec) => {
       const opening = sceneAnalysis.openings.find((item) => item.id === spec.openingId);
       const replaceCassonetto = Boolean(spec.cassonetto?.replace);

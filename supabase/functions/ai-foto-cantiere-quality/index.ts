@@ -13,10 +13,11 @@
  * Output: { success, analyzed: [{...}], ai_meta }
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -73,6 +74,7 @@ Deno.serve(async (req: Request) => {
     };
 
     if (!company_id) return errorResponse("company_id obbligatorio", 400, cors);
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     const ids = foto_ids && foto_ids.length > 0 ? foto_ids.slice(0, 10) : foto_id ? [foto_id] : [];
     if (ids.length === 0) return errorResponse("foto_id o foto_ids obbligatorio", 400, cors);
@@ -123,6 +125,14 @@ Deno.serve(async (req: Request) => {
           results.push({ foto_id: f.id, error: `Impossibile generare URL firmato per ${f.storage_path}` });
           continue;
         }
+        const idempotencyKey = await buildStableAiIdempotencyKey("foto_cantiere_quality", [
+          company_id,
+          userId,
+          f.id,
+          f.storage_path,
+          f.taken_at ?? null,
+          f.descrizione ?? null,
+        ]);
 
         const aiResult = await aiRouterComplete({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -143,6 +153,7 @@ Deno.serve(async (req: Request) => {
           responseFormat: { type: "json_object" },
           companyId: company_id,
           userId,
+          idempotencyKey,
         });
 
         let parsed: AnyObj = {};

@@ -1,5 +1,7 @@
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -18,6 +20,7 @@ Deno.serve(async (req: Request) => {
     if (!order_id || !company_id) {
       return errorResponse("order_id e company_id sono obbligatori", 400, corsH);
     }
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, corsH);
 
     // Fetch order
     const { data: order, error: orderError } = await supabaseAdmin
@@ -49,11 +52,6 @@ Deno.serve(async (req: Request) => {
       .eq("company_id", company_id)
       .maybeSingle();
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
-      return errorResponse("ANTHROPIC_API_KEY non configurata", 500, corsH);
-    }
-
     const cantiereData = {
       descrizione_lavori: order.description,
       committente: anagrafica?.ragione_sociale || "Non specificato",
@@ -61,18 +59,26 @@ Deno.serve(async (req: Request) => {
       numero_subappaltatori: subappaltatori.length,
       costi_sicurezza_stimati: Number(costi_sicurezza) || 0,
     };
+    const idempotencyKey = await buildStableAiIdempotencyKey("duvri_generate", [
+      company_id,
+      userId,
+      order_id,
+      cantiereData,
+    ]);
 
-    const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 2000,
-        system: `Sei un esperto di sicurezza sul lavoro italiano specializzato in edilizia. Genera un DUVRI (Documento Unico di Valutazione dei Rischi da Interferenza) completo conforme al D.Lgs 81/2008 art. 26.
+    const aiResult = await aiRouterComplete({
+      supabase: supabaseAdmin,
+      taskKey: "duvri_generate",
+      companyId: company_id,
+      userId,
+      personaKey: "compliance",
+      idempotencyKey,
+      responseFormat: { type: "json_object" },
+      params: { temperature: 0.1, max_tokens: 2200 },
+      messages: [
+        {
+          role: "system",
+          content: `Sei un esperto di sicurezza sul lavoro italiano specializzato in edilizia. Genera un DUVRI (Documento Unico di Valutazione dei Rischi da Interferenza) completo conforme al D.Lgs 81/2008 art. 26.
 Il DUVRI deve includere OBBLIGATORIAMENTE:
 1. DATI COMMITTENTE e DATORE DI LAVORO (ragione sociale, P.IVA, rappresentante legale)
 2. DESCRIZIONE ATTIVITÀ INTERFERENTI tra impresa principale e subappaltatori
@@ -92,22 +98,15 @@ Output JSON:
   "note": {string}
 }
 Rispondi SOLO con JSON valido, senza markdown.`,
-        messages: [
-          {
-            role: "user",
-            content: `Genera il DUVRI completo D.Lgs.81/08 per questo cantiere edile con ${subappaltatori.length} subappaltatori: ${JSON.stringify(cantiereData, null, 2)}`,
-          },
-        ],
-      }),
+        },
+        {
+          role: "user",
+          content: `Genera il DUVRI completo D.Lgs.81/08 per questo cantiere edile con ${subappaltatori.length} subappaltatori: ${JSON.stringify(cantiereData, null, 2)}`,
+        },
+      ],
     });
 
-    if (!claudeResponse.ok) {
-      const err = await claudeResponse.text();
-      return errorResponse(`Errore Claude API: ${err}`, 502, corsH);
-    }
-
-    const claudeData = await claudeResponse.json();
-    const rawContent = claudeData.content?.[0]?.text || "{}";
+    const rawContent = aiResult.content || "{}";
 
     let parsed: any = {};
     try {

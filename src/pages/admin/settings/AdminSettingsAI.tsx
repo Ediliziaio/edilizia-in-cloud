@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ElevenLabsVoiceConfig } from "@/components/admin/settings/ElevenLabsVoiceConfig";
-import { Mic, Settings, Zap, DollarSign, Users, BookOpen, Brain } from "lucide-react";
+import { Mic, Settings, Zap, DollarSign, Users, BookOpen, Brain, ShieldCheck } from "lucide-react";
 
 const PlatformSettingsPage = lazy(() => import("@/modules/ai-agents/pages/PlatformSettingsPage"));
 const AdminSettingsAIRouter = lazy(() => import("@/pages/admin/settings/AdminSettingsAIRouter"));
@@ -10,6 +10,7 @@ const AdminSettingsAIPricing = lazy(() => import("@/pages/admin/settings/AdminSe
 const AdminSettingsAIPersonas = lazy(() => import("@/pages/admin/settings/AdminSettingsAIPersonas"));
 const AdminSettingsAIKnowledge = lazy(() => import("@/pages/admin/settings/AdminSettingsAIKnowledge"));
 const AdminSettingsAIMemory = lazy(() => import("@/pages/admin/settings/AdminSettingsAIMemory"));
+const AdminSettingsAIActions = lazy(() => import("@/pages/admin/settings/AdminSettingsAIActions"));
 
 export default function AdminSettingsAI() {
   return (
@@ -42,6 +43,10 @@ export default function AdminSettingsAI() {
           <TabsTrigger value="memory" className="gap-2">
             <Brain className="h-4 w-4" />
             Memoria Silvio
+          </TabsTrigger>
+          <TabsTrigger value="actions" className="gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            Permessi azioni
           </TabsTrigger>
           <TabsTrigger value="settings" className="gap-2">
             <Settings className="h-4 w-4" />
@@ -80,6 +85,12 @@ export default function AdminSettingsAI() {
         <TabsContent value="memory">
           <Suspense fallback={<Skeleton className="h-[400px]" />}>
             <AdminSettingsAIMemory />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="actions">
+          <Suspense fallback={<Skeleton className="h-[400px]" />}>
+            <AdminSettingsAIActions />
           </Suspense>
         </TabsContent>
 

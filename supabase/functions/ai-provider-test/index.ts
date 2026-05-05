@@ -9,26 +9,13 @@
 //   "model_override": "anthropic/claude-haiku-4"   // opzionale, per A/B
 // }
 
-import { corsHeaders } from "../_shared/headers.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
+import { isInternalRequest, requireAuth, requireRole } from "../_shared/auth.ts";
 import {
   chat,
   type ChatRequest,
   type TaskKind,
 } from "../_shared/ai-provider/index.ts";
-
-function extractJwtRole(authHeader: string): string | null {
-  if (!authHeader.startsWith("Bearer ")) return null;
-  const parts = authHeader.substring(7).split(".");
-  if (parts.length !== 3) return null;
-  try {
-    const payload = JSON.parse(
-      atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")),
-    );
-    return typeof payload.role === "string" ? payload.role : null;
-  } catch {
-    return null;
-  }
-}
 
 const VALID_TASK_KINDS: TaskKind[] = [
   "bot_operativo_titolare",
@@ -45,6 +32,7 @@ const VALID_TASK_KINDS: TaskKind[] = [
 ];
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -52,15 +40,17 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  const auth = req.headers.get("Authorization") ?? "";
-  const role = extractJwtRole(auth);
-  // Solo service_role (per smoke test interni) o utenti authenticated (ma
-  // in produzione UI dovrebbe usare SDK supabase.functions.invoke).
-  if (role !== "service_role" && role !== "authenticated") {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  if (!isInternalRequest(req)) {
+    try {
+      const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
+      await requireRole(supabaseAdmin, userId, ["super_admin"], corsHeaders);
+    } catch (err) {
+      if (err instanceof Response) return err;
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
   }
 
   let body: ChatRequest;

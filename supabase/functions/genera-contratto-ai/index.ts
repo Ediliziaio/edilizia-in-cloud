@@ -12,9 +12,10 @@
  * art. 1666 c.c. (subappalto), art. 1667 c.c. (garanzia).
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -96,23 +97,7 @@ Deno.serve(async (req: Request) => {
       return errorResponse("order_id e company_id sono obbligatori", 400, cors);
     }
 
-    // Verifica permessi: user deve essere admin/staff della company
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id, id")
-      .eq("id", userId)
-      .maybeSingle();
-    if (!profile || profile.company_id !== company_id) {
-      // super_admin bypass
-      const { data: rolesData } = await supabaseAdmin
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-      const isSuper = (rolesData || []).some((r: AnyObj) => r.role === "super_admin");
-      if (!isSuper) {
-        return errorResponse("Accesso negato", 403, cors);
-      }
-    }
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     // Fetch order
     const { data: order, error: orderErr } = await supabaseAdmin
@@ -192,6 +177,12 @@ Deno.serve(async (req: Request) => {
         subappalto_consentito: opzioni?.subappalto_consentito ?? true,
       },
     };
+    const idempotencyKey = await buildStableAiIdempotencyKey("genera_contratto", [
+      company_id,
+      userId,
+      order_id,
+      cantierePayload,
+    ]);
 
     // Call AI via router
     let aiResult;
@@ -211,6 +202,7 @@ Deno.serve(async (req: Request) => {
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
+        idempotencyKey,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -226,6 +218,33 @@ Deno.serve(async (req: Request) => {
 
     if (!parsed.contenuto_md || typeof parsed.contenuto_md !== "string") {
       return errorResponse("AI non ha generato contenuto contratto", 502, cors);
+    }
+
+    const idempotentInsertKey = idempotencyKey;
+    const { data: existingContratto, error: existingErr } = await supabaseAdmin
+      .from("contratti_documents")
+      .select("*")
+      .eq("company_id", company_id)
+      .eq("order_id", order_id)
+      .contains("ai_generated_raw", { idempotency_key: idempotentInsertKey })
+      .maybeSingle();
+    if (existingErr) {
+      return errorResponse(`Errore controllo duplicati: ${existingErr.message}`, 500, cors);
+    }
+    if (existingContratto) {
+      return jsonResponse({
+        success: true,
+        contratto: existingContratto,
+        idempotent_replay: true,
+        ai_meta: {
+          model_used: aiResult.modelUsed,
+          tokens: aiResult.totalTokens,
+          cost_eur: aiResult.costRealEur,
+          cost_billed_eur: aiResult.costBilledEur,
+          warnings: parsed.warnings ?? [],
+          suggerimenti: parsed.suggerimenti_next_steps ?? [],
+        },
+      }, 200, cors);
     }
 
     // Numerazione progressiva
@@ -263,7 +282,7 @@ Deno.serve(async (req: Request) => {
         penale_ritardo_eur_giorno: cantierePayload.opzioni.penale_giorno_eur,
         garanzia_anni: cantierePayload.opzioni.garanzia_anni,
         contenuto_md: parsed.contenuto_md,
-        ai_generated_raw: parsed,
+        ai_generated_raw: { ...parsed, idempotency_key: idempotentInsertKey },
         ai_model_used: aiResult.modelUsed,
         generated_by: "ai",
         created_by: userId,

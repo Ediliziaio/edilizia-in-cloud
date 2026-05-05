@@ -6,6 +6,44 @@
 -- 3. AI Router config: foto_cantiere_quality (riusa vision_cantiere ma con prompt dedicato)
 -- ════════════════════════════════════════════════════════════════════════════
 
+-- La tabella foto_cantiere viene formalizzata in una migration futura
+-- (20260911000003_foto_cantiere.sql), ma questa feature AI la estende gia'
+-- nella timeline 202605. Creiamo qui lo schema base compatibile per evitare
+-- installazioni pulite rotte.
+CREATE TABLE IF NOT EXISTS public.foto_cantiere (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+  uploaded_by UUID NOT NULL REFERENCES auth.users(id),
+  storage_path TEXT NOT NULL,
+  thumbnail_path TEXT,
+  latitudine DECIMAL(10,7),
+  longitudine DECIMAL(10,7),
+  accuracy_meters DECIMAL(6,1),
+  taken_at TIMESTAMPTZ NOT NULL,
+  server_timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  descrizione TEXT,
+  tags TEXT[] DEFAULT '{}',
+  source TEXT DEFAULT 'manual' CHECK (source IN ('manual', 'whatsapp', 'campo', 'api')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.foto_cantiere ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS foto_cantiere_company_early ON public.foto_cantiere;
+CREATE POLICY foto_cantiere_company_early ON public.foto_cantiere
+  FOR ALL TO authenticated
+  USING (company_id = public.get_effective_company_id())
+  WITH CHECK (company_id = public.get_effective_company_id());
+
+CREATE INDEX IF NOT EXISTS idx_foto_cantiere_order ON public.foto_cantiere(order_id);
+CREATE INDEX IF NOT EXISTS idx_foto_cantiere_company ON public.foto_cantiere(company_id);
+CREATE INDEX IF NOT EXISTS idx_foto_cantiere_taken ON public.foto_cantiere(company_id, taken_at DESC);
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('foto-cantiere', 'foto-cantiere', false)
+ON CONFLICT DO NOTHING;
+
 ALTER TABLE public.foto_cantiere
   ADD COLUMN IF NOT EXISTS ai_qualita_score int,                    -- 0-100
   ADD COLUMN IF NOT EXISTS ai_qualita_livello text CHECK (ai_qualita_livello IN ('eccellente','buona','sufficiente','problematica','grave')),

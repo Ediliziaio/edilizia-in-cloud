@@ -24,12 +24,15 @@
 -- default sulle view in PostgreSQL, quindi RLS per-tabella viene applicata).
 -- ============================================================================
 
+-- Le tabelle verticali bagno/facciata/pavimento/persiane/tetto/stanza vengono
+-- create più avanti nella storia migration. La prima versione della view deve
+-- quindi restare compatibile con un database pulito e verrà ampliata dalla v2.
 CREATE OR REPLACE VIEW public.company_renders_recent AS
 SELECT
   id,
   company_id,
-  contact_id,
-  opportunity_id,
+  NULL::uuid                               AS contact_id,
+  NULL::uuid                               AS opportunity_id,
   CASE status
     WHEN 'completed'  THEN 'completed'
     WHEN 'processing' THEN 'processing'
@@ -42,101 +45,15 @@ SELECT
   created_at,
   'infissi'::text                          AS render_type,
   'render_sessions'::text                  AS source_table
-FROM public.render_sessions
-
-UNION ALL
-
-SELECT
-  id,
-  company_id,
-  contact_id,
-  opportunity_id,
-  -- Normalizza dialetto italiano → inglese per uniformità UI
-  CASE stato
-    WHEN 'completato' THEN 'completed'
-    WHEN 'errore'     THEN 'failed'
-    WHEN 'processing' THEN 'processing'
-    WHEN 'pending'    THEN 'pending'
-    ELSE stato
-  END AS status,
-  render_result_url                        AS result_url,
-  CASE WHEN render_result_url IS NOT NULL
-       THEN ARRAY[render_result_url]
-       ELSE NULL::text[]
-  END                                      AS result_urls,
-  created_at,
-  'bagno'::text                            AS render_type,
-  'render_bagno_sessions'::text            AS source_table
-FROM public.render_bagno_sessions
-
-UNION ALL
-
-SELECT
-  id, company_id, contact_id, opportunity_id,
-  status,
-  COALESCE(result_urls[1], NULL)           AS result_url,
-  result_urls,
-  created_at,
-  'facciata'::text                         AS render_type,
-  'render_facciata_sessions'::text         AS source_table
-FROM public.render_facciata_sessions
-
-UNION ALL
-
-SELECT
-  id, company_id, contact_id, opportunity_id,
-  status,
-  COALESCE(result_urls[1], NULL)           AS result_url,
-  result_urls,
-  created_at,
-  'pavimento'::text                        AS render_type,
-  'render_pavimento_sessions'::text        AS source_table
-FROM public.render_pavimento_sessions
-
-UNION ALL
-
-SELECT
-  id, company_id, contact_id, opportunity_id,
-  status,
-  COALESCE(result_urls[1], NULL)           AS result_url,
-  result_urls,
-  created_at,
-  'persiane'::text                         AS render_type,
-  'render_persiane_sessions'::text         AS source_table
-FROM public.render_persiane_sessions
-
-UNION ALL
-
-SELECT
-  id, company_id, contact_id, opportunity_id,
-  status,
-  COALESCE(result_urls[1], NULL)           AS result_url,
-  result_urls,
-  created_at,
-  'tetto'::text                            AS render_type,
-  'render_tetto_sessions'::text            AS source_table
-FROM public.render_tetto_sessions
-
-UNION ALL
-
-SELECT
-  id, company_id, contact_id, opportunity_id,
-  status,
-  COALESCE(result_urls[1], NULL)           AS result_url,
-  result_urls,
-  created_at,
-  'stanza'::text                           AS render_type,
-  'render_stanza_sessions'::text           AS source_table
-FROM public.render_stanza_sessions;
+FROM public.render_sessions;
 
 -- Esponi la VIEW a tutti gli utenti authenticated (RLS delegata alle
 -- tabelle sottostanti: SECURITY INVOKER by default su view in PG).
 GRANT SELECT ON public.company_renders_recent TO authenticated;
 
 COMMENT ON VIEW public.company_renders_recent IS
-'Unified recent renders view: aggrega 7 tabelle verticali in un singolo stream
-normalizzato. Sostituisce le 7 query parallele di LinkedRendersList e
-QuoteRenderPicker. RLS ereditata dalle tabelle sorgente.
+'Unified recent renders view: versione compatibile iniziale su render_sessions.
+La v2 successiva aggrega tutte le tabelle verticali quando esistono.
 Columns: id, company_id, contact_id, opportunity_id, status (EN),
          result_url, result_urls, created_at, render_type, source_table.';
 

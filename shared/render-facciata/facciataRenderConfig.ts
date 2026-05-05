@@ -286,7 +286,7 @@ export function ensureFacciataRenderConfig(
     );
     const legacyConfig = (rawConfig.legacy_config as ConfigurazioneFacciata | undefined) ?? (rawConfig as unknown as ConfigurazioneFacciata);
     const provisional: FacciataRenderConfig = {
-      ...(rawConfig as FacciataRenderConfig),
+      ...(rawConfig as unknown as FacciataRenderConfig),
       photo_meta: (rawConfig.photo_meta as FacciataPhotoMeta | null | undefined) ?? photoMeta ?? null,
       scene_analysis: normalizedScene,
       legacy_config: legacyConfig,

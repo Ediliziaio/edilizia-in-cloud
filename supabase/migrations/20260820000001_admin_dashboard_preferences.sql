@@ -18,6 +18,18 @@ CREATE POLICY "admin_own_preferences" ON public.admin_dashboard_preferences
   FOR ALL USING (admin_user_id = auth.uid());
 
 -- Trigger updated_at
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS set_updated_at ON public.admin_dashboard_preferences;
 CREATE TRIGGER set_updated_at
   BEFORE UPDATE ON public.admin_dashboard_preferences
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();

@@ -11,9 +11,10 @@
  *   { success, summary: {...}, top_value: [...], top_at_risk: [...], ai_meta }
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -45,6 +46,7 @@ Deno.serve(async (req: Request) => {
     };
 
     if (!company_id) return errorResponse("company_id obbligatorio", 400, cors);
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     // Step 1: ricalcola snapshots deterministici
     const { data: computeData, error: computeErr } = await supabaseAdmin
@@ -77,6 +79,15 @@ Deno.serve(async (req: Request) => {
 
       for (const s of (snapshots ?? []) as AnyObj[]) {
         try {
+          const idempotencyKey = await buildStableAiIdempotencyKey("customer_ltv_enrich", [
+            company_id,
+            userId,
+            s.id,
+            s.ltv_predetto_12m_eur,
+            s.churn_risk,
+            s.giorni_dall_ultimo_ordine,
+            s.ordini_totali,
+          ]);
           const result = await aiRouterComplete({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             supabase: supabaseAdmin as any,
@@ -89,6 +100,7 @@ Deno.serve(async (req: Request) => {
             responseFormat: { type: "json_object" },
             companyId: company_id,
             userId,
+            idempotencyKey,
           });
           aiTokens += result.totalTokens;
           aiCostEur += result.costRealEur;

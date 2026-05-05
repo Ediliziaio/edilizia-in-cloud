@@ -54,11 +54,43 @@ const ACTION_LABEL: Record<string, string> = {
   generic_email: "Invia email",
 };
 
+const STRONG_CONFIRM_ACTIONS = new Set(["mark_payment_received", "generic_email"]);
+
+function requiresStrongConfirmation(proposal: Proposal) {
+  return proposal.risk_level === "red" || STRONG_CONFIRM_ACTIONS.has(proposal.action_type);
+}
+
+function confirmationPhrase(proposal: Proposal) {
+  return `CONFERMO ${proposal.action_type}`;
+}
+
+function sanitizePayloadForDisplay(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizePayloadForDisplay);
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, nestedValue]) => {
+      const normalizedKey = key.toLowerCase();
+      if (
+        normalizedKey.includes("token") ||
+        normalizedKey.includes("secret") ||
+        normalizedKey.includes("password") ||
+        normalizedKey.includes("api_key") ||
+        normalizedKey.includes("apikey")
+      ) {
+        return [key, "••••••••"];
+      }
+      return [key, sanitizePayloadForDisplay(nestedValue)];
+    }),
+  );
+}
+
 export function SilvioActionProposals({ compact = false }: { compact?: boolean }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Proposal | null>(null);
+  const [confirming, setConfirming] = useState<Proposal | null>(null);
 
   const { data: proposals, isLoading } = useQuery({
     queryKey: ["silvio_action_proposals_pending", companyId],
@@ -94,9 +126,17 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
   });
 
   const executeMut = useMutation({
-    mutationFn: async ({ proposalId, overridePayload }: { proposalId: string; overridePayload?: Record<string, unknown> }) => {
+    mutationFn: async ({
+      proposalId,
+      overridePayload,
+      confirmationText,
+    }: {
+      proposalId: string;
+      overridePayload?: Record<string, unknown>;
+      confirmationText?: string;
+    }) => {
       const { data, error } = await supabase.functions.invoke("silvio-execute-action", {
-        body: { proposal_id: proposalId, override_payload: overridePayload },
+        body: { proposal_id: proposalId, override_payload: overridePayload, confirmation_text: confirmationText },
       });
       if (error) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -122,6 +162,7 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
       if (r?.ok) toast.success(`✅ ${r.message}`);
       else toast.error(`❌ ${r?.message ?? "Esecuzione fallita"}`);
       setEditing(null);
+      setConfirming(null);
     },
     onError: (e: Error) => toast.error(`Errore: ${e.message}`),
   });
@@ -154,7 +195,13 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
             <ProposalRow
               key={p.id}
               proposal={p}
-              onConfirm={() => executeMut.mutate({ proposalId: p.id })}
+              onConfirm={() => {
+                if (requiresStrongConfirmation(p)) {
+                  setConfirming(p);
+                } else {
+                  executeMut.mutate({ proposalId: p.id });
+                }
+              }}
               onEdit={() => setEditing(p)}
               onDismiss={() => dismissMut.mutate(p.id)}
               isApplying={executeMut.isPending && executeMut.variables?.proposalId === p.id}
@@ -168,7 +215,23 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
         <ProposalEditDialog
           proposal={editing}
           onClose={() => setEditing(null)}
-          onApply={(override) => executeMut.mutate({ proposalId: editing.id, overridePayload: override })}
+          onApply={(override, confirmationText) => executeMut.mutate({
+            proposalId: editing.id,
+            overridePayload: override,
+            confirmationText,
+          })}
+          isApplying={executeMut.isPending}
+        />
+      )}
+
+      {confirming && (
+        <StrongConfirmDialog
+          proposal={confirming}
+          onClose={() => setConfirming(null)}
+          onConfirm={(confirmationText) => executeMut.mutate({
+            proposalId: confirming.id,
+            confirmationText,
+          })}
           isApplying={executeMut.isPending}
         />
       )}
@@ -191,6 +254,7 @@ function ProposalRow({
   const Icon = ACTION_ICON[proposal.action_type] ?? Send;
   const label = ACTION_LABEL[proposal.action_type] ?? proposal.action_type;
   const isHighRisk = proposal.risk_level === "red";
+  const needsStrongConfirmation = requiresStrongConfirmation(proposal);
   const expiresIn = Math.max(0, Math.floor((new Date(proposal.expires_at).getTime() - Date.now()) / (1000 * 60 * 60)));
 
   const recipient =
@@ -210,6 +274,11 @@ function ProposalRow({
             {isHighRisk && <Badge variant="destructive" className="text-[10px]">RISCHIO ALTO</Badge>}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{proposal.summary}</p>
+          {needsStrongConfirmation && (
+            <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">
+              Richiede conferma forte prima dell'esecuzione.
+            </p>
+          )}
           {recipient && (
             <p className="text-[10px] text-muted-foreground mt-1">
               <span className="font-medium">→</span> {recipient}
@@ -228,7 +297,7 @@ function ProposalRow({
         >
           {isApplying
             ? <><Loader2 className="h-3 w-3 animate-spin" /> Applico…</>
-            : <><CheckCircle2 className="h-3 w-3" /> Conferma e applica</>
+            : <><CheckCircle2 className="h-3 w-3" /> {needsStrongConfirmation ? "Conferma forte" : "Conferma e applica"}</>
           }
         </Button>
         <Button
@@ -257,7 +326,7 @@ function ProposalEditDialog({
 }: {
   proposal: Proposal;
   onClose: () => void;
-  onApply: (override: Record<string, unknown>) => void;
+  onApply: (override: Record<string, unknown>, confirmationText?: string) => void;
   isApplying: boolean;
 }) {
   // Genera form basato sul tipo di azione
@@ -268,9 +337,13 @@ function ProposalEditDialog({
   const [subject, setSubject] = useState<string>(initial.subject ?? "");
   const [body, setBody] = useState<string>(initial.body ?? "");
   const [reorderQty, setReorderQty] = useState<string>(String(initial.reorder_qty ?? ""));
+  const [confirmation, setConfirmation] = useState("");
 
   const isEmail = ["send_overdue_reminder", "send_quote_followup", "generic_email"].includes(proposal.action_type);
   const isPO = proposal.action_type === "create_purchase_order";
+  const needsStrongConfirmation = requiresStrongConfirmation(proposal);
+  const expectedConfirmation = confirmationPhrase(proposal);
+  const confirmationOk = !needsStrongConfirmation || confirmation.trim() === expectedConfirmation;
 
   const handleApply = () => {
     const override: Record<string, unknown> = { ...initial };
@@ -283,7 +356,7 @@ function ProposalEditDialog({
     if (isPO) {
       if (reorderQty) override.reorder_qty = Number(reorderQty);
     }
-    onApply(override);
+    onApply(override, needsStrongConfirmation ? confirmation.trim() : undefined);
   };
 
   return (
@@ -327,16 +400,77 @@ function ProposalEditDialog({
               <Input value={reorderQty} onChange={(e) => setReorderQty(e.target.value)} type="number" min="1" />
             </div>
           )}
+          {needsStrongConfirmation && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+              <Label>Conferma forte</Label>
+              <p className="mb-2 text-xs text-amber-800">
+                Per applicare questa azione scrivi: <strong>{expectedConfirmation}</strong>
+              </p>
+              <Input
+                value={confirmation}
+                onChange={(e) => setConfirmation(e.target.value)}
+                placeholder={expectedConfirmation}
+              />
+            </div>
+          )}
           <details className="text-xs">
-            <summary className="cursor-pointer text-muted-foreground">Vedi payload completo (debug)</summary>
+            <summary className="cursor-pointer text-muted-foreground">Vedi dati tecnici usati da Silvio</summary>
             <pre className="mt-2 p-2 bg-muted rounded text-[10px] overflow-auto">
-              {JSON.stringify(proposal.payload, null, 2)}
+              {JSON.stringify(sanitizePayloadForDisplay(proposal.payload), null, 2)}
             </pre>
           </details>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annulla</Button>
-          <Button onClick={handleApply} disabled={isApplying} className="gap-1">
+          <Button onClick={handleApply} disabled={isApplying || !confirmationOk} className="gap-1">
+            {isApplying
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Applico…</>
+              : <><CheckCircle2 className="h-3.5 w-3.5" /> Conferma e applica</>
+            }
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StrongConfirmDialog({
+  proposal, onClose, onConfirm, isApplying,
+}: {
+  proposal: Proposal;
+  onClose: () => void;
+  onConfirm: (confirmationText: string) => void;
+  isApplying: boolean;
+}) {
+  const [confirmation, setConfirmation] = useState("");
+  const expected = confirmationPhrase(proposal);
+  const label = ACTION_LABEL[proposal.action_type] ?? proposal.action_type;
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Conferma forte richiesta</DialogTitle>
+          <DialogDescription>
+            {label}: {proposal.summary}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          Questa azione modifica dati economici o invia comunicazioni esterne. Scrivi esattamente:
+          <div className="mt-2 rounded bg-white px-2 py-1 font-mono text-xs">{expected}</div>
+        </div>
+        <Input
+          value={confirmation}
+          onChange={(e) => setConfirmation(e.target.value)}
+          placeholder={expected}
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button
+            onClick={() => onConfirm(confirmation.trim())}
+            disabled={isApplying || confirmation.trim() !== expected}
+            className="gap-1"
+          >
             {isApplying
               ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Applico…</>
               : <><CheckCircle2 className="h-3.5 w-3.5" /> Conferma e applica</>

@@ -12,6 +12,11 @@ DECLARE
   v_cust2 uuid := '52928c2b-c970-4996-b221-1ca3e0ebc798';
   v_cust3 uuid := '0e56074a-0a1b-43e8-b831-6dee5817b0f5';
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.companies WHERE id = v_demo) THEN
+    RAISE NOTICE 'Demo Azienda % non presente: seed ordini CG storici saltato', v_demo;
+    RETURN;
+  END IF;
+
   -- ── 2024 — "Azienda solida" ───────────────────────────────────────────
   -- Ricavi totali ~280.000 € con margine alto (pochi costi)
   IF NOT EXISTS (

@@ -57,6 +57,42 @@ COMMENT ON COLUMN public.suppliers.uses_gs1 IS
 COMMENT ON COLUMN public.suppliers.default_qr_format IS
   'Formato QR di default per stampa etichette: ean13, gtin14, gs1_128, gs1_qr, custom.';
 
+-- Compatibilità catena migrazioni pulita:
+-- stock_units e scan_events referenziano warehouses, ma la tabella formale
+-- multi-magazzino nasce più avanti (20260802000001). La creiamo qui con lo
+-- stesso schema perché le FK siano valide già in MP1.
+CREATE TABLE IF NOT EXISTS public.warehouses (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  type text NOT NULL DEFAULT 'main'
+    CHECK (type IN ('main', 'secondary', 'site', 'vehicle')),
+  address text,
+  city text,
+  province text,
+  postal_code text,
+  contact_name text,
+  contact_phone text,
+  is_active boolean NOT NULL DEFAULT true,
+  is_default boolean NOT NULL DEFAULT false,
+  linked_order_id uuid REFERENCES public.orders(id) ON DELETE SET NULL,
+  position integer NOT NULL DEFAULT 0,
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_warehouses_default
+  ON public.warehouses(company_id) WHERE is_default = true;
+
+CREATE INDEX IF NOT EXISTS idx_warehouses_company
+  ON public.warehouses(company_id);
+
+CREATE INDEX IF NOT EXISTS idx_warehouses_type
+  ON public.warehouses(company_id, type);
+
+ALTER TABLE public.warehouses ENABLE ROW LEVEL SECURITY;
+
 -- ─── 3) stock_units: tracking per singolo pezzo seriale ────────
 CREATE TABLE IF NOT EXISTS public.stock_units (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

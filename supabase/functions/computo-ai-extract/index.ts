@@ -6,9 +6,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Buffer } from "node:buffer";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -190,11 +191,19 @@ async function callOpenAI(
   companyId?: string | null,
   userId?: string | null,
   hasVision = false,
+  idempotencyScope?: unknown[],
 ): Promise<unknown> {
   // taskKey routing:
   //   - hasVision=true → pdf_vision_extract (Gemini Flash 2.5, accetta PDF nativi)
   //   - hasVision=false → computo_extract (gpt-4o-mini, text JSON)
   try {
+    if (!supabaseAdmin) throw new Error("supabaseAdmin mancante per chiamata AI computo");
+    const idempotencyKey = await buildStableAiIdempotencyKey("computo_ai_extract", [
+      companyId ?? null,
+      userId ?? null,
+      hasVision ? "vision" : "text",
+      idempotencyScope ?? messages,
+    ]);
     const result = await aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: supabaseAdmin as any,
@@ -205,6 +214,7 @@ async function callOpenAI(
       responseFormat: { type: "json_object" },
       companyId: companyId ?? null,
       userId: userId ?? null,
+      idempotencyKey,
     });
     const content = result.content;
     if (!content) throw new Error("AI returned empty response");
@@ -229,6 +239,7 @@ async function callPdfVisionAI(
   supabaseAdmin?: any,
   companyId?: string | null,
   userId?: string | null,
+  sourceKey?: string,
 ): Promise<unknown> {
   // Encode PDF to base64 (chunked per evitare stack overflow su file grossi)
   const bytes = new Uint8Array(buffer);
@@ -256,7 +267,10 @@ async function callPdfVisionAI(
     },
   ];
 
-  return await callOpenAI(messages, 8000, supabaseAdmin, companyId, userId, true);
+  return await callOpenAI(messages, 8000, supabaseAdmin, companyId, userId, true, [
+    sourceKey ?? filename,
+    "pdf_vision",
+  ]);
 }
 
 // ── Strategy 1: PDF Text ─────────────────────────────────────────────────────
@@ -323,7 +337,11 @@ async function analyzeWithAI(
     const result = (await callOpenAI([
       { role: "system", content: COMPUTO_TEXT_EXTRACTION_PROMPT },
       { role: "user", content: fullText },
-    ], 8000, supabaseAdmin, companyId, userId)) as ExtractionResult;
+    ], 8000, supabaseAdmin, companyId, userId, false, [
+      computoId,
+      "single_text",
+      fullText,
+    ])) as ExtractionResult;
     return result;
   }
 
@@ -331,7 +349,11 @@ async function analyzeWithAI(
   const metadata = (await callOpenAI([
     { role: "system", content: COMPUTO_METADATA_PROMPT },
     { role: "user", content: fullText.substring(0, 5000) },
-  ], 4000, supabaseAdmin, companyId, userId)) as ExtractionResult["metadata"];
+  ], 4000, supabaseAdmin, companyId, userId, false, [
+    computoId,
+    "metadata",
+    fullText.substring(0, 5000),
+  ])) as ExtractionResult["metadata"];
 
   const capitoli: ExtractionResult["capitoli"] = [];
   for (let i = 0; i < chapters.length; i++) {
@@ -349,7 +371,13 @@ async function analyzeWithAI(
         const subResult = (await callOpenAI([
           { role: "system", content: COMPUTO_CHAPTER_PROMPT },
           { role: "user", content: `Capitolo ${chapter.number}: ${chapter.name}\n\n${sub}` },
-        ], 8000, supabaseAdmin, companyId, userId)) as { voci?: VoceEstratta[] };
+        ], 8000, supabaseAdmin, companyId, userId, false, [
+          computoId,
+          "chapter_sub",
+          chapter.number,
+          j,
+          sub,
+        ])) as { voci?: VoceEstratta[] };
         if (subResult.voci) allVoci.push(...subResult.voci);
       }
       capitoli.push({
@@ -362,7 +390,12 @@ async function analyzeWithAI(
       const result = (await callOpenAI([
         { role: "system", content: COMPUTO_CHAPTER_PROMPT },
         { role: "user", content: `Capitolo ${chapter.number}: ${chapter.name}\n\n${chapterText}` },
-      ], 8000, supabaseAdmin, companyId, userId)) as { voci?: VoceEstratta[] };
+      ], 8000, supabaseAdmin, companyId, userId, false, [
+        computoId,
+        "chapter",
+        chapter.number,
+        chapterText,
+      ])) as { voci?: VoceEstratta[] };
       const voci = result.voci || [];
       capitoli.push({
         numero: chapter.number,
@@ -411,6 +444,7 @@ async function extractFromPDFVision(
       supabaseAdmin,
       companyId,
       userId,
+      computoId,
     )) as ExtractionResult;
     return result;
   } catch (err: any) {
@@ -423,7 +457,14 @@ async function extractFromPDFVision(
 
 // ── Strategy 3: Excel ────────────────────────────────────────────────────────
 
-async function extractFromExcel(buffer: ArrayBuffer): Promise<ExtractionResult> {
+async function extractFromExcel(
+  buffer: ArrayBuffer,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin?: any,
+  companyId?: string | null,
+  userId?: string | null,
+  computoId?: string,
+): Promise<ExtractionResult> {
   const XLSX = (await import("npm:xlsx@0.18.5")).default;
   const workbook = XLSX.read(buffer, { type: "array" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -462,6 +503,10 @@ async function extractFromExcel(buffer: ArrayBuffer): Promise<ExtractionResult> 
           content: `Analizza queste righe di un foglio Excel di un computo metrico. Identifica quale colonna (indice 0-based) corrisponde a: codice, descrizione, um (unità misura), quantita, prezzo, importo. Restituisci JSON: { "codice": N, "descrizione": N, "um": N, "quantita": N, "prezzo": N, "importo": N, "header_row": N }`,
         },
         { role: "user", content: sampleRows },
+      ], 2000, supabaseAdmin, companyId, userId, false, [
+        computoId ?? "xlsx",
+        "xlsx_header_mapping",
+        sampleRows,
       ])) as any;
       if (aiResult.descrizione !== undefined) columnMapping = aiResult;
       headerRowIdx = aiResult.header_row || 0;
@@ -768,7 +813,7 @@ serve(async (req) => {
 
   try {
     // Auth validation
-    const { userId } = await requireAuth(req, cors);
+    const { userId, supabaseAdmin } = await requireAuth(req, cors);
 
     const { computoUploadId } = await req.json();
     if (!computoUploadId) {
@@ -785,6 +830,7 @@ serve(async (req) => {
     if (uploadErr || !upload) {
       return errorResponse("Upload not found", 404, cors);
     }
+    await requireCompanyAccess(supabaseAdmin, userId, upload.company_id, cors);
 
     // 2. File size guard (max 50MB in memory)
     if (upload.file_size > 50 * 1024 * 1024) {
@@ -819,7 +865,7 @@ serve(async (req) => {
       const fileType = upload.file_type as string;
 
       if (fileType === "xlsx" || fileType === "xls") {
-        result = await extractFromExcel(buffer);
+        result = await extractFromExcel(buffer, sb, upload.company_id, userId, computoUploadId);
         method = "xlsx_parse";
       } else if (fileType === "xpwe" || fileType === "dcf") {
         result = await extractFromXPWE(buffer);

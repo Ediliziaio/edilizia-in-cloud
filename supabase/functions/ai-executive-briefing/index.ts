@@ -9,9 +9,10 @@
  * Output: { success, briefing: { titolo, sintesi, sezioni[], decisioni_urgenti[] }, ai_meta }
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -63,6 +64,7 @@ Deno.serve(async (req: Request) => {
     };
 
     if (!company_id) return errorResponse("company_id obbligatorio", 400, cors);
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     // Fetch executive snapshot
     const { data: snapshot, error: snapErr } = await supabaseAdmin.rpc(
@@ -84,13 +86,23 @@ Deno.serve(async (req: Request) => {
       "silvio_detect_frodi_anomalie", { p_company_id: company_id },
     );
 
+    const referenceDay = new Date().toISOString().slice(0, 10);
     const payload = {
       periodo: periodo ?? "settimana",
-      data_riferimento: new Date().toISOString(),
+      data_riferimento: referenceDay,
       kpi_snapshot: snapshot,
       alerts_open: alerts ?? [],
       anomalie_rilevate: frodi ?? {},
     };
+    const idempotencyKey = await buildStableAiIdempotencyKey("executive_briefing", [
+      company_id,
+      userId,
+      payload.periodo,
+      referenceDay,
+      snapshot,
+      alerts ?? [],
+      frodi ?? {},
+    ]);
 
     let aiResult;
     try {
@@ -106,6 +118,7 @@ Deno.serve(async (req: Request) => {
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
+        idempotencyKey,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

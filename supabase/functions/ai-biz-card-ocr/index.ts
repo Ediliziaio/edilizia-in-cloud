@@ -11,9 +11,10 @@
  *   { success, extracted: {...}, contact_created_id?: uuid, ai_meta }
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -65,6 +66,7 @@ Deno.serve(async (req: Request) => {
     };
 
     if (!company_id) return errorResponse("company_id obbligatorio", 400, cors);
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
     if (!image_base64 && !image_url) {
       return errorResponse("image_base64 o image_url obbligatorio", 400, cors);
     }
@@ -72,6 +74,15 @@ Deno.serve(async (req: Request) => {
     const imageContent = image_base64
       ? `data:${mime || "image/jpeg"};base64,${image_base64}`
       : image_url!;
+    const imageFingerprint = image_base64
+      ? await buildStableAiIdempotencyKey("biz_card_image", [image_base64])
+      : image_url!;
+    const idempotencyKey = await buildStableAiIdempotencyKey("biz_card_ocr", [
+      company_id,
+      userId,
+      mime ?? null,
+      imageFingerprint,
+    ]);
 
     let aiResult;
     try {
@@ -94,6 +105,7 @@ Deno.serve(async (req: Request) => {
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
+        idempotencyKey,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -111,6 +123,32 @@ Deno.serve(async (req: Request) => {
     if (auto_create_contact) {
       // Need at least name or company
       if (extracted.first_name || extracted.last_name || extracted.company_name) {
+        const email = extracted.email ? String(extracted.email).trim().toLowerCase() : null;
+        const phone = extracted.phone_mobile ?? extracted.phone
+          ? String(extracted.phone_mobile ?? extracted.phone).trim()
+          : null;
+        let existingContactId: string | null = null;
+        if (email) {
+          const { data: existingByEmail } = await supabaseAdmin
+            .from("marketing_contacts")
+            .select("id")
+            .eq("company_id", company_id)
+            .ilike("email", email)
+            .maybeSingle();
+          existingContactId = existingByEmail?.id ?? null;
+        }
+        if (!existingContactId && phone) {
+          const { data: existingByPhone } = await supabaseAdmin
+            .from("marketing_contacts")
+            .select("id")
+            .eq("company_id", company_id)
+            .or(`phone.eq.${phone},phone_mobile.eq.${phone}`)
+            .maybeSingle();
+          existingContactId = existingByPhone?.id ?? null;
+        }
+        if (existingContactId) {
+          contactCreatedId = existingContactId;
+        } else {
         const tagsArr = ["biz_card_ai", "import_ocr"];
         if (extracted.ruolo_titolo) tagsArr.push(`ruolo_${String(extracted.ruolo_titolo).toLowerCase().slice(0, 30)}`);
 
@@ -137,6 +175,7 @@ Deno.serve(async (req: Request) => {
           .select("id")
           .single();
         if (!createErr && created) contactCreatedId = created.id;
+        }
       }
     }
 

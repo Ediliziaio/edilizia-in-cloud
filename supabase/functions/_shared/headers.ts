@@ -47,21 +47,24 @@ function refreshDomainCacheInBackground(): void {
   if (!supabaseUrl || !serviceKey) return;
 
   const sb = createClient(supabaseUrl, serviceKey);
-  sb.from("company_branding")
-    .select("custom_domain")
-    .eq("custom_domain_verified", true)
-    .eq("is_active", true)
-    .not("custom_domain", "is", null)
-    .then(({ data }) => {
-      verifiedDomainCache.clear();
-      if (data) {
-        for (const row of data) {
-          if (row.custom_domain) verifiedDomainCache.add(row.custom_domain);
-        }
+  void (async () => {
+    const { data } = await sb.from("company_branding")
+      .select("custom_domain")
+      .eq("custom_domain_verified", true)
+      .eq("is_active", true)
+      .not("custom_domain", "is", null);
+
+    verifiedDomainCache.clear();
+    if (data) {
+      for (const row of data) {
+        if (row.custom_domain) verifiedDomainCache.add(row.custom_domain);
       }
-      cacheLoadedAt = Date.now();
-    })
-    .catch(() => { /* silently fail — cache remains stale */ });
+    }
+    cacheLoadedAt = Date.now();
+  })()
+    .catch(() => {
+      /* silently fail — cache remains stale */
+    });
 }
 
 /** Verifica sincrona se un Origin è ammesso. */

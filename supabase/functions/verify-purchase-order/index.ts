@@ -11,8 +11,8 @@
  */
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateTokenCostUsd } from "../_shared/directAiLedger.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -22,6 +22,7 @@ interface VerifyRequest {
   supplier_document_url?: string;
   supplier_document_base64?: string;
   verification_mode: "auto" | "manual" | "document_upload";
+  idempotency_key?: string;
 }
 
 interface VerificationResult {
@@ -60,6 +61,15 @@ const DAILY_LIMIT = 10;
 const MAX_DOC_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 const AI_TIMEOUT_MS = 60000;
 const AI_MODEL = "claude-sonnet-4-20250514";
+
+function compactDocumentForFingerprint(documentBase64?: string): string | null {
+  if (!documentBase64) return null;
+  // The input may be a multi-MB base64 document. A deterministic slice is enough
+  // for retry idempotency without keeping a large payload in memory twice.
+  const prefix = documentBase64.slice(0, 2048);
+  const suffix = documentBase64.slice(-2048);
+  return `${documentBase64.length}:${prefix}:${suffix}`;
+}
 
 // ── System Prompt (FASE 6) ────────────────────────────────────────────────
 
@@ -250,6 +260,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return errorResponse("Utente non associato a un'azienda", 403, corsH);
     }
     const companyId: string = profile.company_id;
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsH);
 
     // ── 2. Load OdA data ──────────────────────────────────────────────
 
@@ -495,7 +506,48 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const aiData = await aiResponse.json();
     rawResponse = aiData;
-    tokensUsed = (aiData.usage?.input_tokens || 0) + (aiData.usage?.output_tokens || 0);
+    const inputTokens = Number(aiData.usage?.input_tokens ?? 0);
+    const outputTokens = Number(aiData.usage?.output_tokens ?? 0);
+    tokensUsed = inputTokens + outputTokens;
+    const requestIdempotencyKey = typeof body.idempotency_key === "string"
+      ? body.idempotency_key.trim().replace(/[^a-zA-Z0-9:_-]/g, "_").slice(0, 160)
+      : "";
+    const chargeIdempotencyKey = requestIdempotencyKey
+      ? `purchase_order_verification_${companyId}_${requestIdempotencyKey}`
+      : await buildStableAiIdempotencyKey("purchase_order_verification", [{
+      company_id: companyId,
+      purchase_order_id,
+      order_id: effectiveOrderId ?? null,
+      verification_mode,
+      supplier_document_type: supplierDocType,
+      supplier_document_url: supplierDocumentUrl || null,
+      supplier_document_base64: compactDocumentForFingerprint(supplier_document_base64),
+      order_data: orderData,
+      purchase_order_data: poDataForPrompt,
+    }]);
+
+    await chargeDirectAiCall({
+      supabase: supabaseAdmin,
+      idempotencyKey: chargeIdempotencyKey,
+      companyId,
+      userId,
+      taskKey: "purchase_order_verification",
+      tierKey: "t3_balanced",
+      modelUsed: AI_MODEL,
+      tokensIn: inputTokens,
+      tokensOut: outputTokens,
+      costRealUsd: estimateTokenCostUsd({
+        provider: "anthropic",
+        inputTokens,
+        outputTokens,
+        fallbackCostUsd: 0.01,
+      }),
+      metadata: {
+        purchase_order_id,
+        order_id: effectiveOrderId ?? null,
+        verification_mode,
+      },
+    });
 
     // Parse the JSON response from Claude
     const textContent = aiData.content?.find((c: Record<string, unknown>) => c.type === "text");

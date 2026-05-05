@@ -45,7 +45,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { aiRouterComplete, type AiRouterMessage } from "../_shared/aiRouter.ts";
 import { buildSystemPrompt } from "../_shared/preambolo.ts";
 
@@ -162,6 +162,7 @@ serve(async (req: Request) => {
     // 3) Resolve company + role
     const { companyId, primaryRole } = await getCompanyAndRole(supabaseAdmin, userId);
     if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
     // 4) RBAC check
     const { data: rbacResult, error: rbacErr } = await supabaseAdmin.rpc("can_user_use_persona", {
@@ -204,26 +205,31 @@ serve(async (req: Request) => {
     // 6) Crea sessione se sessionId mancante
     let sessionId = body.sessionId;
     if (!sessionId) {
-      const { data: newSessionId, error: createErr } = await supabaseAdmin.rpc("create_persona_session", {
-        p_persona_key: personaKey,
-        p_title: userMessage.slice(0, 60),
-        p_user_id: userId,
-        p_company_id: companyId,
-      });
+      const { data: newSession, error: createErr } = await supabaseAdmin
+        .from("ai_persona_sessions")
+        .insert({
+          user_id: userId,
+          company_id: companyId,
+          persona_key: personaKey,
+          title: userMessage.slice(0, 60) || "Nuova conversazione",
+        })
+        .select("id")
+        .single();
       if (createErr) {
         console.error("[ai-orchestrator] create_persona_session error:", createErr);
         return errorResponse(`Errore creazione sessione: ${createErr.message}`, 500, corsHeaders);
       }
-      sessionId = newSessionId as string;
+      sessionId = newSession.id as string;
     } else {
       // Verifica che la sessione esista e appartenga all'utente
       const { data: existingSession, error: sessErr } = await supabaseAdmin
         .from("ai_persona_sessions")
-        .select("id, user_id, persona_key")
+        .select("id, user_id, company_id, persona_key")
         .eq("id", sessionId)
         .maybeSingle();
       if (sessErr || !existingSession) return errorResponse("Sessione non trovata", 404, corsHeaders);
       if (existingSession.user_id !== userId) return errorResponse("Sessione non autorizzata", 403, corsHeaders);
+      if (existingSession.company_id !== companyId) return errorResponse("Sessione fuori tenant", 403, corsHeaders);
       if (existingSession.persona_key !== personaKey) {
         return errorResponse("Persona non corrisponde alla sessione", 400, corsHeaders);
       }
@@ -233,11 +239,15 @@ serve(async (req: Request) => {
     const history = await loadHistory(supabaseAdmin, sessionId!, historyLimit);
 
     // 8) Record user message
-    await supabaseAdmin.rpc("record_persona_message", {
+    const { data: userMessageId, error: userMessageErr } = await supabaseAdmin.rpc("record_persona_message", {
       p_session_id: sessionId,
       p_role: "user",
       p_content: userMessage,
     });
+    if (userMessageErr) {
+      console.error("[ai-orchestrator] record user message error:", userMessageErr);
+      return errorResponse(`Errore salvataggio messaggio: ${userMessageErr.message}`, 500, corsHeaders);
+    }
 
     // 9) Build messages for OpenRouter
     // Track 1 Cervello Supremo: antepone preambolo costituzionale al system_prompt persona
@@ -264,7 +274,7 @@ serve(async (req: Request) => {
     // 10) Call AI Router (auto-charges + logs ledger)
     // task_key dinamico per persona: "persona_<key>" → fallback a config default
     const taskKey = `persona_${personaKey}`;
-    const idempotencyKey = `${sessionId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const idempotencyKey = `persona_${sessionId}_${userMessageId ?? "message"}`;
 
     let aiResult;
     try {

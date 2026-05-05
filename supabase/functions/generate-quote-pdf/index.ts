@@ -74,6 +74,7 @@ Deno.serve(async (req) => {
     let t: any;
     let attachmentRows: any[] = [];
     let branding: any = null;
+    let pdfImp: any = {};
 
     if (isPreview) {
       // Use sample data – no DB lookups needed
@@ -169,7 +170,7 @@ Deno.serve(async (req) => {
         .select("*")
         .eq("company_id", (quoteData as any).company_id)
         .maybeSingle();
-      const pdfImp: any = impData ?? {};
+      pdfImp = impData ?? {};
 
       // Filter items: skip mostra_nel_pdf=false
       const allItems = items;

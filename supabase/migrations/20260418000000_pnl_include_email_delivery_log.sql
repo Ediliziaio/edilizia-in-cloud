@@ -4,6 +4,13 @@
 -- — email_credits_log only captures wallet overage deductions and therefore
 -- undercounts by-plan transactional sends that were within quota).
 
+-- Compatibilità catena migration: le colonne economiche del log delivery
+-- sono state introdotte in migration successive, ma questa vista le legge già.
+ALTER TABLE public.email_delivery_log
+  ADD COLUMN IF NOT EXISTS stream text DEFAULT 'transactional',
+  ADD COLUMN IF NOT EXISTS cost_eur numeric(10,6) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS charged_eur numeric(10,6) DEFAULT 0;
+
 DROP MATERIALIZED VIEW IF EXISTS public.superadmin_service_pnl CASCADE;
 
 CREATE MATERIALIZED VIEW public.superadmin_service_pnl AS

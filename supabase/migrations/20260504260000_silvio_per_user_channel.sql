@@ -18,6 +18,16 @@
 --   4. Trigger: su profile INSERT → auto-create canale Silvio
 -- ════════════════════════════════════════════════════════════════════════════
 
+-- Le colonne DM vengono introdotte anche dalla migration Chat Team futura
+-- (20260721000000_chat_lucia_schema), ma Silvio le usa gia' qui. Rendiamo
+-- quindi questa migration auto-contenuta per database puliti.
+ALTER TABLE public.internal_chat_channels
+  ADD COLUMN IF NOT EXISTS is_dm         BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS is_private    BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS is_system     BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS channel_emoji TEXT,
+  ADD COLUMN IF NOT EXISTS dm_user_ids   UUID[] DEFAULT '{}';
+
 -- ───────────────────────────────────────────────────────────────────────────
 -- 1) Cancella i canali silvio-ai gruppo precedenti
 --    (CASCADE su messages/members tramite FK ON DELETE CASCADE)

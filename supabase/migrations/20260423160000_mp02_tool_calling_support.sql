@@ -35,6 +35,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_campo_rapportini_unique_day
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+-- Compatibilità catena migrazioni pulita:
+-- il tool fuzzy usa client_name/client_company prima della migrazione
+-- 20260705000000 che li introduce formalmente per la conversione preventivo.
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS client_name TEXT,
+  ADD COLUMN IF NOT EXISTS client_company TEXT,
+  ADD COLUMN IF NOT EXISTS indirizzo_lavori TEXT,
+  ADD COLUMN IF NOT EXISTS status TEXT;
+
 CREATE INDEX IF NOT EXISTS ix_orders_description_trgm
   ON public.orders USING gin (description gin_trgm_ops);
 

@@ -57,21 +57,25 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
 
   if (!precall.allow) {
     // Log tentativo bloccato (no call a OpenRouter)
-    await supabase.from("ai_model_usage_log").insert({
-      company_id: req.company_id ?? null,
-      task_kind: req.task_kind,
-      model_requested: "skipped",
-      model_used: "skipped",
-      provider_used: "none",
-      tokens_prompt: 0,
-      tokens_completion: 0,
-      tokens_total: 0,
-      cost_usd: 0,
-      ok: false,
-      error_code: precall.reason,
-      error_detail: "precall_blocked",
-      credits_deducted: false,
-    }).then(() => {}).catch(() => {});
+    try {
+      await supabase.from("ai_model_usage_log").insert({
+        company_id: req.company_id ?? null,
+        task_kind: req.task_kind,
+        model_requested: "skipped",
+        model_used: "skipped",
+        provider_used: "none",
+        tokens_prompt: 0,
+        tokens_completion: 0,
+        tokens_total: 0,
+        cost_usd: 0,
+        ok: false,
+        error_code: precall.reason,
+        error_detail: "precall_blocked",
+        credits_deducted: false,
+      });
+    } catch {
+      // Non bloccare la risposta utente se il log del tentativo fallisce.
+    }
 
     throw new InsufficientCreditsError(
       precall.reason,

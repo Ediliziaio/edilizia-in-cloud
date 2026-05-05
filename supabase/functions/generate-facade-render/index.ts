@@ -244,7 +244,7 @@ function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string;
 }
 
 async function getProviderApiKey(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   providerKey: string,
 ): Promise<string> {
   const { data: keyRow } = await supabase
@@ -266,7 +266,7 @@ async function getProviderApiKey(
 }
 
 async function loadRenderProviderWithKey(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
 ): Promise<{ providerConfig: RenderProviderConfig; apiKey: string }> {
   const { data: providerConfig } = await supabase
     .from("render_provider_config")
@@ -289,7 +289,7 @@ async function loadRenderProviderWithKey(
 }
 
 async function runFacadeAnalysis(params: {
-  supabase: ReturnType<typeof createClient>;
+  supabase: any;
   imageUrl: string;
 }): Promise<Record<string, unknown>> {
   const geminiApiKey = await getProviderApiKey(params.supabase, "gemini");
@@ -434,7 +434,7 @@ async function renderWithProvider(params: {
 
   if (providerKey === "openai") {
     const renderSize = pickProviderSize(params.width, params.height, "openai") ?? "1024x1024";
-    const imageBlob = new Blob([originalImage.bytes], { type: originalImage.mimeType || "image/jpeg" });
+    const imageBlob = new Blob([originalImage.bytes.buffer.slice(originalImage.bytes.byteOffset, originalImage.bytes.byteOffset + originalImage.bytes.byteLength) as ArrayBuffer], { type: originalImage.mimeType || "image/jpeg" });
     const modelChain = [params.providerConfig.model || "gpt-image-1"];
     if (modelChain[0] !== "dall-e-2") modelChain.push("dall-e-2");
 
@@ -704,8 +704,8 @@ Deno.serve(async (req) => {
       apiKey,
       prompt,
       preparedUrl: prepared.url,
-      width: prepared.effective_width,
-      height: prepared.effective_height,
+      width: prepared.effective_width ?? undefined,
+      height: prepared.effective_height ?? undefined,
     });
 
     const uploadPayload = dataUrlToBytes(imageData);

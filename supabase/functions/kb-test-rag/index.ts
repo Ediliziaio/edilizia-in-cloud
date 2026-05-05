@@ -8,8 +8,10 @@
  * Output: { results: [{id, query, top_n, hits: [...]}], summary: {...} }
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { estimateEmbeddingUsage, logPlatformAiCall } from "../_shared/directAiLedger.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const MAX_QUERIES = 100;
@@ -26,14 +28,19 @@ interface TestQuery {
   category?: string;
 }
 
-async function embed(apiKey: string, text: string): Promise<number[]> {
-  const r = await fetch("https://api.openai.com/v1/embeddings", {
+async function embed(apiKey: string, text: string): Promise<{ embedding: number[]; tokens: number }> {
+  const r = await fetchWithTimeout("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model: EMBEDDING_MODEL, input: text }),
+    timeoutMs: 60_000,
   });
   if (!r.ok) throw new Error(`embed ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  return (await r.json()).data[0].embedding;
+  const data = await r.json();
+  return {
+    embedding: data.data[0].embedding,
+    tokens: Number(data.usage?.total_tokens ?? 0),
+  };
 }
 
 Deno.serve(async (req) => {
@@ -42,22 +49,10 @@ Deno.serve(async (req) => {
 
   try {
     if (req.method !== "POST") return errorResponse("POST only", 405, cors);
-    const auth = req.headers.get("Authorization");
-    if (!auth) return errorResponse("Missing Authorization", 401, cors);
-
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY")!;
-
-    const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
-      global: { headers: { Authorization: auth } },
-    });
-    const { data: u } = await userClient.auth.getUser();
-    if (!u?.user) return errorResponse("Invalid JWT", 401, cors);
-
-    const adminClient = createClient(SUPABASE_URL, SERVICE_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    if (!OPENAI_KEY) return errorResponse("OPENAI_API_KEY missing", 500, cors);
+    const { userId, supabaseAdmin: adminClient } = await requireAuth(req, cors);
+    await requireRole(adminClient, userId, ["super_admin"], cors);
 
     const body = await req.json().catch(() => ({}));
     const queries: TestQuery[] = body?.queries ?? [];
@@ -70,7 +65,23 @@ Deno.serve(async (req) => {
 
     for (const q of queries) {
       try {
-        const queryEmb = await embed(OPENAI_KEY, q.query);
+        const startedAt = Date.now();
+        const { embedding: queryEmb, tokens: providerTokens } = await embed(OPENAI_KEY, q.query);
+        const estimated = estimateEmbeddingUsage(q.query);
+        const tokens = providerTokens || estimated.tokens;
+        await logPlatformAiCall({
+          supabase: adminClient,
+          operationKey: "kb_test_rag_embedding",
+          provider: "openai",
+          modelUsed: EMBEDDING_MODEL,
+          userId,
+          tokensIn: tokens,
+          costRealUsd: providerTokens
+            ? Math.max(0.000001, (tokens / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
+            : estimated.costUsd,
+          durationMs: Date.now() - startedAt,
+          metadata: { query_id: q.id, top_k: topK },
+        });
         const { data: hits, error } = await adminClient.rpc("match_brain", {
           p_company_id: null,
           p_query_embedding: `[${queryEmb.join(",")}]`,

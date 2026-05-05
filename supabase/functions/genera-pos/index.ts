@@ -5,9 +5,10 @@
  * Cost tracking via charge_ai_call con markup 350%.
  */
 
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -49,6 +50,7 @@ Deno.serve(async (req: Request) => {
     if (!order_id || !company_id) {
       return errorResponse("order_id e company_id sono obbligatori", 400, corsH);
     }
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, corsH);
 
     // Fetch order data
     const { data: order, error: orderError } = await supabaseAdmin
@@ -105,6 +107,14 @@ Deno.serve(async (req: Request) => {
     // ──── AI call via aiRouter (cost tracking) ────
     let aiResult;
     try {
+      const idempotencyKey = await buildStableAiIdempotencyKey("genera_pos", [
+        company_id,
+        userId,
+        order_id,
+        responsabile_sicurezza ?? null,
+        workerCount ?? 0,
+        subappaltatori,
+      ]);
       aiResult = await aiRouterComplete({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabase: supabaseAdmin as any,
@@ -120,6 +130,7 @@ Deno.serve(async (req: Request) => {
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
+        idempotencyKey,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

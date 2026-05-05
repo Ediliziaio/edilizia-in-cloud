@@ -28,7 +28,7 @@ function line(
   };
 }
 
-function buildTransitionRules(config: FacciataRenderConfig): string[] {
+function buildTransitionRules(config: Pick<FacciataRenderConfig, "technical_specification">): string[] {
   const rules = new Set<string>();
   const plaster = config.technical_specification.plaster;
   const cladding = config.technical_specification.cladding;

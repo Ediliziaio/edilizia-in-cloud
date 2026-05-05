@@ -20,6 +20,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIM = 1536;
@@ -96,7 +97,10 @@ function buildTariffaText(tar: TariffaRow): string {
   return parts.join(" | ").slice(0, 8000);
 }
 
-async function openaiEmbed(texts: string[], apiKey: string): Promise<number[][]> {
+async function openaiEmbed(
+  texts: string[],
+  apiKey: string,
+): Promise<{ embeddings: number[][]; tokens: number }> {
   // P2-5: OpenAI embeddings batch → timeout 60s (batch large può essere lento).
   const res = await fetchWithTimeout("https://api.openai.com/v1/embeddings", {
     method: "POST",
@@ -116,7 +120,10 @@ async function openaiEmbed(texts: string[], apiKey: string): Promise<number[][]>
     throw new Error(`OpenAI embeddings API error ${res.status}: ${err}`);
   }
   const data = await res.json();
-  return (data.data ?? []).map((e: { embedding: number[] }) => e.embedding);
+  return {
+    embeddings: (data.data ?? []).map((e: { embedding: number[] }) => e.embedding),
+    tokens: Number(data.usage?.total_tokens ?? 0),
+  };
 }
 
 function json(data: unknown, status: number, req: Request): Response {
@@ -175,6 +182,8 @@ async function embedAndUpdate<T extends { id: string }>(
   rows: T[],
   textBuilder: (row: T) => string,
   openaiKey: string,
+  companyId: string,
+  userId: string,
 ): Promise<{ processed: number; errors: number }> {
   let processed = 0;
   let errors = 0;
@@ -182,11 +191,34 @@ async function embedAndUpdate<T extends { id: string }>(
     const batch = rows.slice(i, i + BATCH_SIZE);
     const texts = batch.map(textBuilder);
     try {
-      const embeddings = await openaiEmbed(texts, openaiKey);
+      const { embeddings, tokens: providerTokens } = await openaiEmbed(texts, openaiKey);
       if (embeddings.length !== batch.length) {
         errors += batch.length;
         continue;
       }
+      const estimated = estimateEmbeddingUsage(texts);
+      const tokens = providerTokens || estimated.tokens;
+      const firstId = batch[0]?.id ?? "none";
+      const lastId = batch[batch.length - 1]?.id ?? "none";
+      await chargeDirectAiCall({
+        supabase: admin,
+        idempotencyKey: `catalogo_embeddings_${companyId}_${tableName}_${i}_${batch.length}_${firstId}_${lastId}`,
+        companyId,
+        userId,
+        taskKey: "catalogo_embeddings",
+        tierKey: "t1_economic",
+        modelUsed: EMBEDDING_MODEL,
+        tokensIn: tokens,
+        tokensOut: 0,
+        costRealUsd: providerTokens
+          ? Math.max(0.000001, (tokens / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
+          : estimated.costUsd,
+        metadata: {
+          table: tableName,
+          rows: batch.length,
+          mode: "catalogo_embedding_batch",
+        },
+      });
       for (let j = 0; j < batch.length; j++) {
         // `tableName` è ristretto a una di 3 tabelle reali tutte con colonna
         // `embedding` + `embedding_updated_at` + PK `id`. Il cast `as never`
@@ -318,6 +350,8 @@ Deno.serve(async (req) => {
         enriched,
         buildArticleText,
         openaiKey,
+        companyId,
+        userId,
       );
       result.processed.articles = processed;
       result.errors.articles = errors;
@@ -398,6 +432,8 @@ Deno.serve(async (req) => {
         enriched,
         buildFamilyText,
         openaiKey,
+        companyId,
+        userId,
       );
       result.processed.families = processed;
       result.errors.families = errors;
@@ -424,6 +460,8 @@ Deno.serve(async (req) => {
         tars,
         buildTariffaText,
         openaiKey,
+        companyId,
+        userId,
       );
       result.processed.tariffe = processed;
       result.errors.tariffe = errors;

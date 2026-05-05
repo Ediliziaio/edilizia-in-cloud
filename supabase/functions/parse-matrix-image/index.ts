@@ -48,11 +48,9 @@
  * avviene lato frontend via GridBulkImportDialog → FamilyGridEditor.saveGrid().
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateTokenCostUsd } from "../_shared/directAiLedger.ts";
 
 // ── Limiti difensivi ────────────────────────────────────────────────────────
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -412,24 +410,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Auth
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(
-        JSON.stringify({ ok: false, code: "unauthorized", error: "Authorization header mancante" }),
-        { status: 401, headers: { ...corsH, "Content-Type": "application/json" } },
-      );
-    }
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { data: { user }, error: authErr } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", ""),
-    );
-    if (authErr || !user) {
-      return new Response(
-        JSON.stringify({ ok: false, code: "unauthorized", error: "Token non valido" }),
-        { status: 401, headers: { ...corsH, "Content-Type": "application/json" } },
-      );
-    }
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
 
     // Payload
     const body = await req.json().catch(() => ({}));
@@ -438,12 +419,25 @@ Deno.serve(async (req: Request) => {
       mime_type,
       provider: requestedProvider,
       hint,
+      company_id,
     } = body as {
       image_base64?: string;
       mime_type?: string;
       provider?: ProviderId | "auto";
       hint?: string;
+      company_id?: string;
     };
+
+    let companyId = typeof company_id === "string" && company_id.trim() ? company_id.trim() : "";
+    if (!companyId) {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("company_id")
+        .eq("id", userId)
+        .maybeSingle();
+      companyId = (profile as { company_id?: string } | null)?.company_id ?? "";
+    }
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsH);
 
     if (!image_base64 || typeof image_base64 !== "string") {
       return new Response(
@@ -529,6 +523,40 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const inputTokens = Number(usage?.input_tokens ?? 0);
+    const outputTokens = Number(usage?.output_tokens ?? 0);
+    const imageFingerprint = `${image_base64.length}:${image_base64.slice(0, 2048)}:${image_base64.slice(-2048)}`;
+    await chargeDirectAiCall({
+      supabase: supabaseAdmin,
+      idempotencyKey: await buildStableAiIdempotencyKey("parse_matrix_image", [
+        companyId,
+        userId,
+        chosen.id,
+        chosen.model,
+        mime_type,
+        hint ?? null,
+        imageFingerprint,
+      ]),
+      companyId,
+      userId,
+      taskKey: "parse_matrix_image",
+      tierKey: "t2_vision",
+      modelUsed: chosen.model,
+      tokensIn: inputTokens,
+      tokensOut: outputTokens,
+      costRealUsd: estimateTokenCostUsd({
+        provider: chosen.id,
+        inputTokens,
+        outputTokens,
+        fallbackCostUsd: chosen.id === "anthropic" ? 0.025 : chosen.id === "openai" ? 0.02 : 0.01,
+      }),
+      metadata: {
+        provider: chosen.id,
+        mime_type,
+        estimated_image_bytes: estimatedBytes,
+      },
+    });
+
     // Parse + validate
     let parsed: { data: ParsedMatrix; warnings: string[] };
     try {
@@ -565,6 +593,7 @@ Deno.serve(async (req: Request) => {
       { status: 200, headers: { ...corsH, "Content-Type": "application/json" } },
     );
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error("[parse-matrix-image] unhandled:", err);
     return new Response(
       JSON.stringify({ ok: false, code: "internal_error", error: String(err).slice(0, 300) }),

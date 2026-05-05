@@ -81,7 +81,7 @@ async function fetchInlineImageData(url: string): Promise<{ mimeType: string; da
   return { mimeType, data: uint8ToBase64(new Uint8Array(buffer)) };
 }
 
-async function getGeminiQaApiKey(supabase: ReturnType<typeof createClient>): Promise<string> {
+async function getGeminiQaApiKey(supabase: any): Promise<string> {
   const envKey = Deno.env.get("GEMINI_API_KEY")?.trim();
   if (envKey) return envKey;
 
@@ -111,7 +111,7 @@ function getMotorizedManualCleanupTargets(config: WindowRenderConfig): Array<{
 }
 
 async function runMotorizedManualCleanupQa(args: {
-  supabase: ReturnType<typeof createClient>;
+  supabase: any;
   sourceImageUrl: string;
   candidateImageData: string;
   normalizedConfig: WindowRenderConfig;

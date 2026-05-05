@@ -29,7 +29,8 @@
  */
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 interface Hint {
   finanziaria?: string;
@@ -112,7 +113,6 @@ const CHUNK_RANGES: ChunkRange[] = [
 ];
 
 async function callOpenAIChunk(
-  apiKey: string,
   pdfBase64: string,
   filename: string,
   range: ChunkRange | null,
@@ -121,6 +121,7 @@ async function callOpenAIChunk(
   supabaseAdmin?: any,
   companyId?: string | null,
   userId?: string | null,
+  sourceKey?: string,
 ): Promise<{
   rows: unknown[];
   detected: { finanziaria: string | null; prodotto: string | null; condizione: string | null; tan_base: number | null } | null;
@@ -143,6 +144,13 @@ async function callOpenAIChunk(
   let tokensIn = 0, tokensOut = 0;
   try {
     const { aiRouterComplete } = await import("../_shared/aiRouter.ts");
+    const idempotencyKey = await buildStableAiIdempotencyKey("tabella_finanziamento_extract", [
+      companyId ?? null,
+      userId ?? null,
+      sourceKey ?? filename,
+      range?.label ?? "all",
+      hint ?? null,
+    ]);
     const result = await aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: supabaseAdmin as any,
@@ -162,6 +170,7 @@ async function callOpenAIChunk(
       responseFormat: { type: "json_object" },
       companyId: companyId ?? null,
       userId: userId ?? null,
+      idempotencyKey,
     });
     content = result.content || "{}";
     tokensIn = result.promptTokens;
@@ -185,7 +194,6 @@ async function callOpenAIChunk(
 }
 
 async function callOpenAI(
-  apiKey: string,
   pdfBase64: string,
   filename: string,
   hint?: Hint,
@@ -193,6 +201,7 @@ async function callOpenAI(
   supabaseAdmin?: any,
   companyId?: string | null,
   userId?: string | null,
+  sourceKey?: string,
 ): Promise<{
   rows: Array<Record<string, unknown>>;
   detected: { finanziaria: string | null; prodotto: string | null; condizione: string | null; tan_base: number | null } | null;
@@ -204,12 +213,19 @@ async function callOpenAI(
   // di 16k token output di gpt-4o. Ogni range estrae solo le sue righe.
   const results = await Promise.all(
     CHUNK_RANGES.map((range) =>
-      callOpenAIChunk(apiKey, pdfBase64, filename, range, hint, supabaseAdmin, companyId, userId).catch((err) => {
+      callOpenAIChunk(pdfBase64, filename, range, hint, supabaseAdmin, companyId, userId, sourceKey).then((result) => ({
+        ...result,
+        failed: false,
+      })).catch((err) => {
         console.error(`[chunk ${range.label}] ${err}`);
-        return { rows: [], detected: null, confidence: 0, tokensIn: 0, tokensOut: 0 };
+        return { rows: [], detected: null, confidence: 0, tokensIn: 0, tokensOut: 0, failed: true };
       }),
     ),
   );
+  const successfulChunks = results.filter((r) => !r.failed).length;
+  if (successfulChunks === 0) {
+    throw new Error("AI Router non ha restituito nessun chunk valido per la tabella finanziaria");
+  }
 
   // Aggrega: rows concatenati, detected dal primo che lo trova, confidence media
   const allRows: unknown[] = [];
@@ -328,19 +344,16 @@ Deno.serve(async (req: Request) => {
     userId = auth.userId;
     supabaseAdmin = auth.supabaseAdmin;
 
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiKey) {
-      return errorResponse("OPENAI_API_KEY non configurata", 500, corsHeaders);
-    }
-
     companyId = await resolveCompanyId(supabaseAdmin, userId);
+    if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
     const payload = (await req.json().catch(() => ({}))) as ExtractPayload;
     storagePath = payload.storage_path?.trim() ?? "";
     if (!storagePath) return errorResponse("storage_path mancante", 400, corsHeaders);
 
     // Verifica che il path sia nella cartella della company (RLS-friendly check)
-    if (companyId && !storagePath.startsWith(`${companyId}/`)) {
+    if (!storagePath.startsWith(`${companyId}/`)) {
       return errorResponse("storage_path fuori dalla cartella company", 403, corsHeaders);
     }
 
@@ -354,7 +367,15 @@ Deno.serve(async (req: Request) => {
 
     // Call OpenAI
     const filename = storagePath.split("/").pop() ?? "tabella.pdf";
-    const { rows, detected, confidence, tokensIn, tokensOut } = await callOpenAI(openaiKey, pdfBase64, filename, payload.hint, supabaseAdmin, companyId, userId);
+    const { rows, detected, confidence, tokensIn, tokensOut } = await callOpenAI(
+      pdfBase64,
+      filename,
+      payload.hint,
+      supabaseAdmin,
+      companyId,
+      userId,
+      storagePath,
+    );
     const costCents = estimateCostCents(tokensIn, tokensOut);
 
     await logAiUsage(supabaseAdmin, companyId, userId, tokensIn, tokensOut, costCents, storagePath, "success", undefined, {

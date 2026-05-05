@@ -32,9 +32,10 @@
  *     ai_meta: { model_used, tokens, cost_eur, elapsed_ms }
  *   }
  */
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 interface DdtExtracted {
   intestazione?: { numero_ddt?: string; data_ddt?: string };
@@ -109,6 +110,14 @@ ${JSON.stringify(candidates.map(c => ({
 Restituisci il ranking JSON come specificato.`;
 
   const t0 = Date.now();
+  const idempotencyKey = await buildStableAiIdempotencyKey("document_ai_linker", [
+    companyId,
+    userId,
+    ddtExtracted.intestazione?.numero_ddt ?? null,
+    ddtExtracted.intestazione?.data_ddt ?? null,
+    ddtExtracted.mittente?.partita_iva ?? ddtExtracted.mittente?.ragione_sociale ?? null,
+    candidates.map((c) => c.purchase_order_id),
+  ]);
   const aiResult = await aiRouterComplete({
     supabase: supabaseAdmin,
     taskKey: "computo_extract", // text-only task, basta gpt-4o-mini
@@ -120,6 +129,7 @@ Restituisci il ranking JSON come specificato.`;
     responseFormat: { type: "json_object" },
     companyId,
     userId,
+    idempotencyKey,
   });
   const elapsedMs = Date.now() - t0;
 
@@ -162,6 +172,7 @@ Deno.serve(async (req) => {
     if (!doc_type || !extracted || !company_id) {
       return errorResponse("doc_type, extracted, company_id required", 400, cors);
     }
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     // Fetch policy
     const { data: policyData } = await supabaseAdmin.rpc("get_link_policy", {

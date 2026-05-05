@@ -1,8 +1,8 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
-import { fetchWithTimeout, isTimeoutError } from "../_shared/fetchWithTimeout.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 /**
  * bank-categorize-ai: Categorizza transazioni ambigue usando Claude API.
@@ -17,18 +17,11 @@ const CATEGORIES = [
 ];
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
+  const cors = getCorsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
-
-    // Auth
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return errorResponse("Missing authorization", 401);
-    const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (!user) return errorResponse("Unauthorized", 401);
+    const { userId, supabaseAdmin } = await requireAuth(req, cors);
 
     const body = await req.json().catch(() => ({}));
     let companyId = body.company_id;
@@ -36,17 +29,18 @@ Deno.serve(async (req) => {
     const learnRules = body.learn_rules !== false; // default true
 
     if (!companyId) {
-      const { data: profile } = await supabase.from("profiles").select("company_id").eq("id", user.id).single();
+      const { data: profile } = await supabaseAdmin.from("profiles").select("company_id").eq("id", userId).single();
       companyId = profile?.company_id;
     }
-    if (!companyId) return errorResponse("No company", 400);
+    if (!companyId) return errorResponse("No company", 400, cors);
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
 
     // Recupera API key Claude
     // claude_api_key non più richiesta — aiRouter usa OPENROUTER_API_KEY
     // (mantenuto check soft per backward-compat)
 
     // Transazioni da categorizzare
-    const { data: transactions } = await supabase
+    const { data: transactions } = await supabaseAdmin
       .from("bank_transactions")
       .select("id, description, creditor_name, debtor_name, amount, transaction_type, category")
       .eq("company_id", companyId)
@@ -56,11 +50,11 @@ Deno.serve(async (req) => {
       .limit(limit);
 
     if (!transactions || transactions.length === 0) {
-      return jsonResponse({ success: true, categorized: 0, message: "Nessuna transazione da categorizzare" });
+      return jsonResponse({ success: true, categorized: 0, message: "Nessuna transazione da categorizzare" }, 200, cors);
     }
 
     // Regole custom esistenti (per contesto)
-    const { data: customRules } = await supabase
+    const { data: customRules } = await supabaseAdmin
       .from("bank_categorization_rules")
       .select("pattern, category")
       .eq("company_id", companyId)
@@ -83,28 +77,42 @@ ${rulesContext}
 Transazioni da categorizzare:
 ${txList}
 
-Rispondi SOLO con un JSON array, dove ogni elemento ha: { "index": numero, "category": "NomeCategoria", "confidence": 0-100, "pattern": "pattern suggerito per regola futura" }
-Esempio: [{"index": 1, "category": "Utenze", "confidence": 95, "pattern": "ENEL ENERGIA"}]`;
+Rispondi SOLO con JSON valido:
+{ "items": [ { "index": numero, "category": "NomeCategoria", "confidence": 0-100, "pattern": "pattern suggerito per regola futura" } ] }
+Esempio: {"items":[{"index":1,"category":"Utenze","confidence":95,"pattern":"ENEL ENERGIA"}]}`;
 
     // Migrato ad aiRouter: routing OpenRouter + charge_ai_call + ledger SuperAdmin
     let responseText = "";
     try {
-      const { aiRouterComplete } = await import("../_shared/aiRouter.ts");
+      const idempotencyKey = await buildStableAiIdempotencyKey("bank_categorize", [
+        companyId,
+        userId,
+        transactions.map((tx: any) => ({
+          id: tx.id,
+          description: tx.description,
+          creditor_name: tx.creditor_name,
+          debtor_name: tx.debtor_name,
+          amount: tx.amount,
+          category: tx.category,
+        })),
+        customRules ?? [],
+      ]);
       const result = await aiRouterComplete({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        supabase: supabase as any,
+        supabase: supabaseAdmin as any,
         taskKey: "bank_categorize",
         messages: [{ role: "user", content: prompt }],
         params: { temperature: 0.1, max_tokens: 2000 },
         responseFormat: { type: "json_object" },
         companyId,
-        userId: null, // bank-categorize is system-level, no user attribution
+        userId,
+        idempotencyKey,
       });
       responseText = result.content;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes("timeout") || msg.toLowerCase().includes("aborted")) {
-        return jsonResponse({ success: false, error: "Timeout servizio AI" }, 504);
+        return jsonResponse({ success: false, error: "Timeout servizio AI" }, 504, cors);
       }
       throw new Error(`AI Router error: ${msg}`);
     }
@@ -112,9 +120,12 @@ Esempio: [{"index": 1, "category": "Utenze", "confidence": 95, "pattern": "ENEL 
     // P2-4: extractJsonFromLLM gestisce fence markdown + prosa + array.
     let results: Array<{ index: number; category: string; confidence: number; pattern?: string }>;
     try {
-      results = extractJsonFromLLM(responseText);
+      const parsed = extractJsonFromLLM(responseText) as
+        | Array<{ index: number; category: string; confidence: number; pattern?: string }>
+        | { items?: Array<{ index: number; category: string; confidence: number; pattern?: string }> };
+      results = Array.isArray(parsed) ? parsed : Array.isArray(parsed.items) ? parsed.items : [];
     } catch {
-      return jsonResponse({ success: false, error: "Risposta AI non parsabile", raw: responseText });
+      return jsonResponse({ success: false, error: "Risposta AI non parsabile", raw: responseText }, 200, cors);
     }
     let categorized = 0;
     let rulesCreated = 0;
@@ -124,24 +135,25 @@ Esempio: [{"index": 1, "category": "Utenze", "confidence": 95, "pattern": "ENEL 
       if (!tx || !CATEGORIES.includes(result.category)) continue;
 
       // Aggiorna la transazione
-      await supabase
+      await supabaseAdmin
         .from("bank_transactions")
         .update({ category: result.category })
-        .eq("id", tx.id);
+        .eq("id", tx.id)
+        .eq("company_id", companyId);
       categorized++;
 
       // Crea regola se confidence alta e learn_rules attivo
       if (learnRules && result.confidence >= 85 && result.pattern) {
         const pattern = result.pattern.trim().toUpperCase();
         // Controlla se esiste già
-        const { count } = await supabase
+        const { count } = await supabaseAdmin
           .from("bank_categorization_rules")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId)
           .ilike("pattern", pattern);
 
         if ((count ?? 0) === 0) {
-          await supabase.from("bank_categorization_rules").insert({
+          await supabaseAdmin.from("bank_categorization_rules").insert({
             company_id: companyId,
             pattern,
             category: result.category,
@@ -160,10 +172,10 @@ Esempio: [{"index": 1, "category": "Utenze", "confidence": 95, "pattern": "ENEL 
       categorized,
       rules_created: rulesCreated,
       total_processed: transactions.length,
-    });
+    }, 200, cors);
   } catch (e) {
     console.error("bank-categorize-ai error:", e);
-    return errorResponse(e.message, 500);
+    return errorResponse(e instanceof Error ? e.message : String(e), 500, getCorsHeaders(req));
   }
 });
 

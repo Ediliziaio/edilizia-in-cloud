@@ -1,5 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { logPlatformAiCall } from "../_shared/directAiLedger.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -8,8 +10,10 @@ Deno.serve(async (req) => {
 
   const corsH = getCorsHeaders(req);
   try {
-    // Require authenticated user
-    await requireAuth(req, corsH);
+    // Platform asset generation is a SuperAdmin-only operation. It uses
+    // platform OpenAI credentials and must not be burnable by tenant users.
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
+    await requireRole(supabaseAdmin, userId, ["super_admin"], corsH);
 
     const { prompt } = await req.json();
     if (!prompt) {
@@ -22,7 +26,8 @@ Deno.serve(async (req) => {
     }
 
     // Use DALL-E 3 for image generation
-    const response = await fetch("https://api.openai.com/v1/images/generations", {
+    const startedAt = Date.now();
+    const response = await fetchWithTimeout("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
@@ -36,6 +41,7 @@ Deno.serve(async (req) => {
         response_format: "url",
         quality: "standard",
       }),
+      timeoutMs: 90_000,
     });
 
     if (!response.ok) {
@@ -57,6 +63,17 @@ Deno.serve(async (req) => {
     if (!imageUrl) {
       throw new Error("No image returned from OpenAI");
     }
+
+    await logPlatformAiCall({
+      supabase: supabaseAdmin,
+      operationKey: "generate_landing_image",
+      provider: "openai",
+      modelUsed: "dall-e-3",
+      userId,
+      costRealUsd: Number(Deno.env.get("AI_DALLE3_STANDARD_1024_USD") ?? "0.04"),
+      durationMs: Date.now() - startedAt,
+      metadata: { size: "1024x1024", quality: "standard" },
+    });
 
     return jsonResponse({ imageUrl });
   } catch (e) {

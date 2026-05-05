@@ -1,8 +1,11 @@
 import { createRoot } from "react-dom/client";
+import { installInvalidAuthSessionRecovery } from "./lib/authInvalidSessionRecovery";
 import App from "./App.tsx";
 import "./index.css";
 import { initSentry } from "./lib/velocity/sentry";
 import { initWebVitalsReporter } from "./lib/velocity/webVitalsReporter";
+
+installInvalidAuthSessionRecovery();
 
 // Velocity — Sentry init PRIMA del mount per catturare errori early.
 // No-op se VITE_SENTRY_DSN non è definita.
