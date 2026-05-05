@@ -2,7 +2,8 @@ import { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download } from "lucide-react";
+import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
@@ -25,6 +26,7 @@ import {
 import { OrderItem } from "@/components/orders/OrderItemsList";
 import { PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderErrors } from "@/components/orders/OrderErrors";
+import { ContrattoAIDialog } from "@/components/orders/ContrattoAIDialog";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
@@ -1298,6 +1300,22 @@ function OrderDetailInner() {
               />
               {effectiveCompany?.id && (
                 <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
+              )}
+              {effectiveCompany?.id && id && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Sparkles className="h-4 w-4 text-violet-600" />
+                      Documenti AI
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Genera contratti d'appalto con l'AI a partire dai dati di questo ordine.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-wrap gap-2">
+                    <ContrattoAIDialog orderId={id} companyId={effectiveCompany.id} />
+                  </CardContent>
+                </Card>
               )}
             </TabsContent>
 
