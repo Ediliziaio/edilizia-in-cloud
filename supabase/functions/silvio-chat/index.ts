@@ -25,6 +25,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth } from "../_shared/auth.ts";
 import { aiRouterComplete, type AiRouterMessage } from "../_shared/aiRouter.ts";
 import { SILVIO_TOOLS, getToolsForRole, executeTool, type ToolContext } from "../_shared/silvioTools.ts";
+import { buildSystemPrompt } from "../_shared/preambolo.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const PERSONA_KEY = "silvio";
@@ -81,7 +82,7 @@ serve(async (req: Request) => {
     // ── 2) Persona Silvio ───────────────────────────────────────────────
     const { data: persona } = await supabaseAdmin
       .from("ai_personas")
-      .select("system_prompt, recommended_tier_key, recommended_model, enabled")
+      .select("system_prompt, recommended_tier_key, recommended_model, enabled, kb_areas_filter, system_prompt_version")
       .eq("persona_key", PERSONA_KEY)
       .maybeSingle();
 
@@ -197,7 +198,17 @@ serve(async (req: Request) => {
       console.warn("[silvio-chat] memory context fetch failed:", e);
     }
 
-    const enrichedSystemPrompt = persona.system_prompt + userContextPrompt + memoryContextPrompt;
+    // ── Antepone preambolo costituzionale (Track 1 Cervello Supremo) ───
+    // Cache 60s: zero latency aggiunta dopo prima chiamata.
+    // Graceful degradation: se preambolo non caricabile, usa solo persona prompt.
+    const personaWithContext = persona.system_prompt + userContextPrompt + memoryContextPrompt;
+    const { prompt: enrichedSystemPrompt, preamboloVersion } = await buildSystemPrompt(
+      supabaseAdmin,
+      personaWithContext,
+    );
+    if (!preamboloVersion) {
+      console.warn("[silvio-chat] preambolo costituzionale NON applicato (graceful degradation attiva)");
+    }
 
     // ── 6) Carica history (ultimi 12 msg dalla chat) ────────────────────
     const { data: historyRaw } = await supabaseAdmin
@@ -219,6 +230,10 @@ serve(async (req: Request) => {
       companyId,
       userId,
       primaryRole,
+      // Track 1: Silvio ha kb_areas_filter=NULL (vede tutte le aree).
+      // Per coerenza passiamo il valore reale così il tool search_brain lo usa.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      kbAreasFilter: (persona as any).kb_areas_filter ?? null,
     };
 
     // ── 8) Costruisci messages iniziali ─────────────────────────────────

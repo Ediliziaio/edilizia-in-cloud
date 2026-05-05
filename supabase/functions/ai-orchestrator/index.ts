@@ -47,6 +47,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { aiRouterComplete, type AiRouterMessage } from "../_shared/aiRouter.ts";
+import { buildSystemPrompt } from "../_shared/preambolo.ts";
 
 interface OrchestratorPayload {
   sessionId?: string;
@@ -63,6 +64,9 @@ interface PersonaRow {
   recommended_model: string | null;
   enabled: boolean;
   is_system: boolean;
+  // Track 1 Cervello Supremo
+  kb_areas_filter: string[] | null;
+  system_prompt_version: number | null;
 }
 
 interface HistoryRow {
@@ -109,7 +113,7 @@ async function getCompanyAndRole(supabaseAdmin: any, userId: string): Promise<{
 async function loadPersona(supabaseAdmin: any, personaKey: string): Promise<PersonaRow | null> {
   const { data, error } = await supabaseAdmin
     .from("ai_personas")
-    .select("persona_key, display_name, system_prompt, recommended_tier_key, recommended_model, enabled, is_system")
+    .select("persona_key, display_name, system_prompt, recommended_tier_key, recommended_model, enabled, is_system, kb_areas_filter, system_prompt_version")
     .eq("persona_key", personaKey)
     .maybeSingle();
   if (error || !data) return null;
@@ -236,8 +240,19 @@ serve(async (req: Request) => {
     });
 
     // 9) Build messages for OpenRouter
+    // Track 1 Cervello Supremo: antepone preambolo costituzionale al system_prompt persona
+    // Cache 60s nel loader → zero latency dopo prima chiamata
+    // Graceful degradation: se preambolo non caricabile, usa solo persona prompt
+    const { prompt: systemPromptComplete, preamboloVersion } = await buildSystemPrompt(
+      supabaseAdmin,
+      persona.system_prompt,
+    );
+    if (!preamboloVersion) {
+      console.warn(`[ai-orchestrator] preambolo NON applicato per persona ${persona.persona_key}`);
+    }
+
     const messages: AiRouterMessage[] = [
-      { role: "system", content: persona.system_prompt },
+      { role: "system", content: systemPromptComplete },
       ...history.map(h => ({
         role: h.role,
         content: h.content,

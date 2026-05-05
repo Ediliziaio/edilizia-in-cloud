@@ -15,6 +15,13 @@ export interface ToolContext {
   companyId: string;
   userId: string;
   primaryRole: string;
+  /**
+   * Track 1 Cervello Supremo: array di area_id KB universale a cui la persona corrente
+   * ha accesso (es. ["02-finanza-cashflow","05-fiscale-compliance"]).
+   * NULL = accesso a tutte le aree (es. silvio, brain, assistente_imprenditore).
+   * Usato dal tool search_brain per restringere il RAG alle aree pertinenti.
+   */
+  kbAreasFilter?: string[] | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -540,18 +547,28 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         return { error: "embedding non disponibile (OPENAI_API_KEY mancante o servizio down)" };
       }
 
+      // Track 1 Cervello Supremo: applica filtro KB areas universali della persona corrente.
+      // Se kbAreasFilter è null → ricerca su TUTTE le aree universali (es. Silvio, Brain, Imprenditore).
+      // Se kbAreasFilter è array → restringe RAG alle sole aree pertinenti per qualità migliore.
+      const universalCategories = ctx.kbAreasFilter && ctx.kbAreasFilter.length > 0
+        ? ctx.kbAreasFilter
+        : null;
+
       const { data, error } = await ctx.supabase.rpc("match_brain", {
         p_company_id: ctx.companyId,
         p_query_embedding: `[${embedding.join(",")}]`,
         p_match_count: Math.min(args?.limit ?? 6, 15),
         p_min_similarity: 0.20,
         p_source_types: args?.source_types ?? null,
+        p_include_universal: true,
+        p_universal_categories: universalCategories,
       });
 
       if (error) return { error: error.message };
       return {
         query: queryText,
         risultati: data ?? [],
+        kb_filter_applicato: universalCategories,
         nota: data && data.length === 0 ? "Nessun match — prova una query diversa o usa tool strutturati." : undefined,
       };
     },
