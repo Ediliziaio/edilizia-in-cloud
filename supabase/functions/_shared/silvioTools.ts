@@ -230,6 +230,50 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     }),
   },
 
+  get_customers_ltv_top: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_customers_ltv_top",
+        description: "Ritorna i top clienti per LTV predetto 12 mesi (Lifetime Value). Include ticket medio, fatturato storico, frequenza ordini, churn risk, azione consigliata. Usa per 'clienti più preziosi', 'top LTV', 'chi vale di più nel CRM'.",
+        parameters: {
+          type: "object",
+          properties: {
+            limit: { type: "integer", minimum: 1, maximum: 20, default: 10 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_top_value_customers", {
+      p_company_id: ctx.companyId,
+      p_limit: args?.limit ?? 10,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+  },
+
+  get_customers_at_risk: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_customers_at_risk",
+        description: "Ritorna clienti a rischio churn (>180gg inattivi) con azione consigliata. Usa per 'clienti a rischio', 'chi sta perdendo', 'clienti dormienti', 'chi devo riattivare'.",
+        parameters: {
+          type: "object",
+          properties: {
+            limit: { type: "integer", minimum: 1, maximum: 20, default: 10 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_top_at_risk_customers", {
+      p_company_id: ctx.companyId,
+      p_limit: args?.limit ?? 10,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+  },
+
   get_top_customers: {
     schema: {
       type: "function",
