@@ -191,13 +191,14 @@ async function callOpenAI(
   userId?: string | null,
   hasVision = false,
 ): Promise<unknown> {
-  // Migrato ad aiRouter — task `computo_extract` (gpt-4o-mini, ~85% saving vs gpt-4o)
-  // Per pagine vision: usa task `vision_cantiere` (necessita modello vision-capable)
+  // taskKey routing:
+  //   - hasVision=true → pdf_vision_extract (Gemini Flash 2.5, accetta PDF nativi)
+  //   - hasVision=false → computo_extract (gpt-4o-mini, text JSON)
   try {
     const result = await aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: supabaseAdmin as any,
-      taskKey: hasVision ? "vision_cantiere" : "computo_extract",
+      taskKey: hasVision ? "pdf_vision_extract" : "computo_extract",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       messages: messages as any,
       params: { temperature: 0.1, max_tokens: maxTokens },
@@ -215,6 +216,47 @@ async function callOpenAI(
   } catch (err) {
     throw new Error(`AI Router error: ${err instanceof Error ? err.message : String(err)}`);
   }
+}
+
+// Invia il PDF intero come file nativo a un modello vision (Gemini/Claude via OpenRouter).
+// Format OpenRouter-compatible: content[]: [{type:"text"}, {type:"file", file:{filename, file_data}}]
+async function callPdfVisionAI(
+  buffer: ArrayBuffer,
+  filename: string,
+  systemPrompt: string,
+  userPrompt: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin?: any,
+  companyId?: string | null,
+  userId?: string | null,
+): Promise<unknown> {
+  // Encode PDF to base64 (chunked per evitare stack overflow su file grossi)
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  const base64Pdf = btoa(binary);
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    {
+      role: "user",
+      content: [
+        { type: "text", text: userPrompt },
+        {
+          type: "file",
+          file: {
+            filename,
+            file_data: `data:application/pdf;base64,${base64Pdf}`,
+          },
+        },
+      ],
+    },
+  ];
+
+  return await callOpenAI(messages, 8000, supabaseAdmin, companyId, userId, true);
 }
 
 // ── Strategy 1: PDF Text ─────────────────────────────────────────────────────
@@ -338,54 +380,45 @@ async function analyzeWithAI(
 
 async function extractFromPDFVision(
   buffer: ArrayBuffer,
+  filename: string,
   computoId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabaseAdmin?: any,
   companyId?: string | null,
   userId?: string | null,
 ): Promise<ExtractionResult> {
-  // Try to extract text per page using pdfjs-dist
-  let numPages = 0;
-  const pageTexts: string[] = [];
+  // Strategy: invia il PDF NATIVO a Gemini Flash 2.5 via OpenRouter (`type: "file"`).
+  // Gemini sa fare OCR + comprensione layout direttamente sul PDF base64,
+  // senza bisogno di renderizzare canvas (impossibile in Deno edge).
+  await updateStatus(computoId, "analyzing_ai", {
+    raw_extracted_json: { progress: "OCR + analisi vision sul PDF…" },
+  });
+
+  // Limite pratico: PDF > 20MB è troppo grande per inviare in singola call.
+  // (OpenRouter typical limit ~20MB request body.)
+  if (buffer.byteLength > 18 * 1024 * 1024) {
+    throw new Error(
+      "PDF troppo grande per OCR vision (max 18MB). Comprimilo o esportalo in più file."
+    );
+  }
 
   try {
-    const pdfjsLib = await import("npm:pdfjs-dist@4.0.379/legacy/build/pdf.mjs");
-    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
-    numPages = pdf.numPages;
-
-    for (let i = 1; i <= numPages; i++) {
-      await updateStatus(computoId, "analyzing_ai", {
-        raw_extracted_json: { progress: `Pagina ${i} di ${numPages}` },
-      });
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(" ");
-      pageTexts.push(pageText);
-    }
+    const result = (await callPdfVisionAI(
+      buffer,
+      filename,
+      COMPUTO_TEXT_EXTRACTION_PROMPT,
+      "Analizza il PDF allegato (computo metrico estimativo italiano) e restituisci il JSON strutturato come da regole.",
+      supabaseAdmin,
+      companyId,
+      userId,
+    )) as ExtractionResult;
+    return result;
   } catch (err: any) {
-    console.error("PDF Vision text extraction error:", err.message);
-    // If pdfjs fails entirely, return empty result
-    return { metadata: {}, capitoli: [] };
+    console.error("PDF Vision (OpenRouter) error:", err.message);
+    throw new Error(
+      `OCR vision fallito: ${err.message}. Prova un PDF testuale o un Excel/XPWE.`
+    );
   }
-
-  // Process page texts with AI
-  const allText = pageTexts.join("\n\n");
-  if (allText.trim().length > 200) {
-    // There IS text - use text-based extraction
-    return await analyzeWithAI(allText, computoId, supabaseAdmin, companyId, userId);
-  }
-
-  // Truly scanned PDF with no text - return empty with error
-  // (Real Vision OCR with image rendering not available in Deno edge runtime)
-  return {
-    metadata: {},
-    capitoli: [{
-      numero: 1,
-      nome: "Generale",
-      totale: 0,
-      voci: [],
-    }],
-  };
 }
 
 // ── Strategy 3: Excel ────────────────────────────────────────────────────────
@@ -620,14 +653,29 @@ function validateExtraction(result: ExtractionResult): {
   const warnings: string[] = [];
   const errors: string[] = [];
 
-  if (!result.capitoli || result.capitoli.length === 0) {
-    errors.push("Nessun capitolo o voce estratta dal documento");
-    return { warnings, errors };
-  }
+  // Heuristica: se nessuna voce è stata estratta, probabilmente il documento NON è un
+  // computo metrico (potrebbe essere un DDT, fattura, contratto, ecc). Diamo all'utente
+  // un messaggio diagnostico chiaro invece del generico "nessuna info trovata".
+  const noChapters = !result.capitoli || result.capitoli.length === 0;
+  const totalVoci = noChapters
+    ? 0
+    : result.capitoli.reduce((s, c) => s + c.voci.length, 0);
 
-  const totalVoci = result.capitoli.reduce((s, c) => s + c.voci.length, 0);
-  if (totalVoci === 0) {
-    errors.push("Nessuna voce di lavorazione estratta");
+  if (noChapters || totalVoci === 0) {
+    const hasMetadata = !!(
+      result.metadata?.oggetto_lavori ||
+      result.metadata?.committente ||
+      result.metadata?.totale_computo
+    );
+    if (hasMetadata) {
+      errors.push(
+        "Documento riconosciuto ma nessuna voce di lavorazione trovata. Verifica che il file contenga la tabella delle voci con quantità e prezzi."
+      );
+    } else {
+      errors.push(
+        "Il file non sembra un computo metrico (nessuna voce + nessun metadata). Se è un DDT, fattura o contratto, usa la sezione corrispondente in 'Importa documento'."
+      );
+    }
     return { warnings, errors };
   }
 
@@ -777,15 +825,25 @@ serve(async (req) => {
         result = await extractFromXPWE(buffer);
         method = "xpwe_parse";
       } else {
-        // PDF or image - try text extraction first
+        // PDF — try cheap text extraction first; fallback su vision nativo se scansione
         const text = await extractTextFromPDF(buffer);
         if (text.trim().length > 200) {
           await updateStatus(computoUploadId, "analyzing_ai");
           result = await analyzeWithAI(text, computoUploadId, sb, upload.company_id, userId);
           method = "pdf_text";
         } else {
-          // Low text content - try Vision-based approach
-          result = await extractFromPDFVision(buffer, computoUploadId, sb, upload.company_id, userId);
+          // PDF scansionato/immagine: vero OCR via Gemini Flash 2.5 (PDF nativo)
+          await updateStatus(computoUploadId, "analyzing_ai", {
+            raw_extracted_json: { progress: "PDF scansionato — avvio OCR vision…" },
+          });
+          result = await extractFromPDFVision(
+            buffer,
+            upload.file_name,
+            computoUploadId,
+            sb,
+            upload.company_id,
+            userId,
+          );
           method = "pdf_vision";
         }
       }

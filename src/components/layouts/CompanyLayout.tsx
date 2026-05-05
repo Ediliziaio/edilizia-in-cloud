@@ -104,6 +104,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { PWAInstallBanner } from "@/components/ui/PWAInstallBanner";
 import { NpsModal } from "@/components/onboarding/NpsModal";
+import { SilvioFAB } from "@/components/silvio/SilvioFAB";
 
 const MultiCompanySwitcher = memo(function MultiCompanySwitcher() {
   const { role, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, effectiveCompany } = useAuth();
@@ -1242,6 +1243,8 @@ export function CompanyLayout() {
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
       <PWAInstallBanner />
       <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
+      {/* Silvio FAB — sempre visibile in basso a sinistra */}
+      <SilvioFAB />
     </SidebarProvider>
     </>
   );

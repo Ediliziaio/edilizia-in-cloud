@@ -17,7 +17,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import {
   FileUp,
@@ -35,6 +34,7 @@ import {
 } from "lucide-react";
 import { useComputoExtract } from "@/hooks/useComputoExtract";
 import { ComputoPreviewEditor } from "./ComputoPreviewEditor";
+import { AIProcessingStage } from "./AIProcessingStage";
 import type { ComputoVoceLocal } from "@/types/computo";
 
 interface Props {
@@ -150,9 +150,14 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
     if (status === "review" && step === 3 && !hasInitializedRef.current) {
       hasInitializedRef.current = true;
       if (voci.length === 0) {
-        // AI extracted zero voci — show error
-        toast.error("Nessuna voce estratta dal documento. Prova con un file diverso.");
-        setStep(3); // stay on step 3 with failed state
+        // 0 voci con status review = doc riconosciuto ma vuoto.
+        // L'errore vero arriva di solito via status "failed" + extraction_error;
+        // qui copriamo solo il caso edge in cui l'AI ritorna struttura vuota
+        // senza emettere failed.
+        toast.error(
+          "Nessuna voce di lavorazione estratta. Se il file non è un computo metrico, " +
+          "prova la sezione 'Importa documento' per DDT/fatture/contratti."
+        );
         return;
       }
       const ric = applyRicarico ? ricarico : 0;
@@ -207,19 +212,6 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
       }
     );
   };
-
-  // ── Progress percentage ────────────────────────────────────────────────────
-  const progressPercent = (() => {
-    switch (status) {
-      case "uploading": return 15;
-      case "extracting_text": return 30;
-      case "analyzing_ai": return 60;
-      case "validating": return 85;
-      case "review": return 100;
-      case "failed": return 100;
-      default: return 0;
-    }
-  })();
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -352,35 +344,15 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
           </div>
         )}
 
-        {/* ── Step 3: Processing ────────────────────────────────────────── */}
+        {/* ── Step 3: Processing (AI animated stage) ───────────────────── */}
         {step === 3 && (
-          <div className="space-y-6 py-4">
-            <div className="text-center">
-              {status === "failed" ? (
-                <XCircle className="h-12 w-12 mx-auto text-red-500 mb-3" />
-              ) : (
-                <Loader2 className="h-12 w-12 mx-auto text-orange-500 animate-spin mb-3" />
-              )}
-              <p className="text-sm font-medium">{progress}</p>
-              {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
-            </div>
-
-            <Progress value={progressPercent} className="h-2" />
-
-            <p className="text-xs text-center text-muted-foreground">
-              {status === "failed"
-                ? "L'estrazione ha riscontrato un errore. Riprova con un file diverso."
-                : "L'AI sta analizzando il computo metrico..."}
-            </p>
-
-            {status === "failed" && (
-              <div className="flex justify-center">
-                <Button variant="outline" onClick={() => { reset(); setStep(1); setFile(null); }}>
-                  Riprova
-                </Button>
-              </div>
-            )}
-          </div>
+          <AIProcessingStage
+            status={status}
+            progress={progress}
+            error={error}
+            onRetry={() => { reset(); setStep(1); setFile(null); }}
+            onCancel={handleClose}
+          />
         )}
 
         {/* ── Step 4: Preview Editor ────────────────────────────────────── */}

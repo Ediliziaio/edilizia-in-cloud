@@ -138,6 +138,7 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
+import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentImportModal";
 import { ModuliVendutaTab } from "@/components/marketing/preventivi/moduli/ModuliVendutaTab";
 import {
   QuoteHubTabs,
@@ -221,6 +222,7 @@ export default function Preventivi() {
   const [currentPage, setCurrentPage] = useState(0);
   const [showComputoModal, setShowComputoModal] = useState(false);
   const [showFotoModal, setShowFotoModal] = useState(false);
+  const [showSmartImportModal, setShowSmartImportModal] = useState(false);
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const PAGE_SIZE = 50;
 
@@ -692,7 +694,12 @@ export default function Preventivi() {
                   <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuItem onClick={() => setShowSmartImportModal(true)} className="font-semibold">
+                  <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                  Documento intelligente <span className="ml-auto text-[10px] text-orange-600">AI sceglie</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setShowComputoModal(true)}>
                   <FileUp className="h-4 w-4 mr-2" />
                   Computo metrico
@@ -1351,6 +1358,12 @@ export default function Preventivi() {
         onOpenChange={setShowFotoModal}
         intent="foto"
         onComplete={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
+      />
+
+      {/* Smart Document Router — AI classifica e smista al modulo giusto */}
+      <SmartDocumentImportModal
+        open={showSmartImportModal}
+        onOpenChange={setShowSmartImportModal}
       />
 
       {/* Sidebar filtri avanzati (stile Contatti/Opportunità) */}
