@@ -54,6 +54,29 @@ Deno.serve(async (req) => {
   // Default margine company (se modulo settings dispone, override via DB)
   const defaultMarginPct = 25;
 
+  // Carica info cliente per pricing dinamico (LTV alto = sconto, nuovo = standard)
+  let customerLtv: number | null = null;
+  let customerIsNew = true;
+  if (body.customer_id) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: ltvSnap } = await (supabase as any)
+        .from("customer_ltv_snapshots")
+        .select("ltv_total_eur")
+        .eq("company_id", body.company_id)
+        .eq("customer_id", body.customer_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      customerLtv = ltvSnap?.ltv_total_eur ?? null;
+      customerIsNew = customerLtv === null || customerLtv === 0;
+    } catch { /* ltv table may not exist */ }
+  }
+
+  // Stagione (alta domanda primavera/estate per edilizia)
+  const month = new Date().getMonth() + 1;
+  const seasonMultiplier = month >= 3 && month <= 9 ? 1.05 : 1.0;
+
   for (const voce of body.voci) {
     try {
       summary.voci_processate += 1;
@@ -80,17 +103,57 @@ Deno.serve(async (req) => {
         },
       );
 
-      const suggestedPrice = (suggested as { price_eur?: number } | null)?.price_eur ??
-        (storico as { avg_price_eur?: number } | null)?.avg_price_eur ?? 0;
+      const historyAvg = (storico as { avg_price_eur?: number } | null)?.avg_price_eur ?? 0;
       const costReal = (storico as { avg_cost_eur?: number } | null)?.avg_cost_eur ?? 0;
-      const margin = suggestedPrice > 0
-        ? ((suggestedPrice - costReal) / suggestedPrice) * 100
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sampleCount = (storico as any)?.sample_count ?? 0;
+
+      // Pricing context-aware:
+      //  - storico solido (>=5 samples) → usa storico come base
+      //  - cliente fedele (LTV alto) → leggero sconto (relazione)
+      //  - cliente nuovo → margine standard (no aggression)
+      //  - stagione alta → +5%
+      let baseSuggested =
+        (suggested as { price_eur?: number } | null)?.price_eur ??
+        (sampleCount >= 5 ? historyAvg : (costReal > 0 ? costReal * (1 + defaultMarginPct / 100) : 0));
+
+      const reasoningBits: string[] = [];
+
+      // Aggiusto per LTV cliente
+      if (customerLtv !== null && customerLtv > 50000) {
+        baseSuggested *= 0.97;
+        reasoningBits.push(`Cliente fidelizzato (LTV €${customerLtv.toFixed(0)}): −3% relazione`);
+      } else if (customerIsNew) {
+        reasoningBits.push("Cliente nuovo: margine standard");
+      }
+
+      // Aggiusto stagione
+      if (seasonMultiplier > 1) {
+        baseSuggested *= seasonMultiplier;
+        reasoningBits.push(`Stagione alta (mese ${month}): +5%`);
+      }
+
+      // Sample count nel reasoning
+      if (sampleCount >= 5) {
+        reasoningBits.push(`Storico ${sampleCount} preventivi simili`);
+      } else if (sampleCount > 0) {
+        reasoningBits.push(`Solo ${sampleCount} preventivi storici (bassa confidence)`);
+      } else {
+        reasoningBits.push("Nessuno storico (markup default 25%)");
+      }
+
+      const standard = Math.round(baseSuggested * 100) / 100;
+      const economy = Math.round(standard * 0.85 * 100) / 100;
+      const premium = Math.round(standard * 1.2 * 100) / 100;
+
+      const margin = standard > 0 && costReal > 0
+        ? ((standard - costReal) / standard) * 100
         : defaultMarginPct;
 
-      // 3. Calcolo 3 varianti
-      const economy = suggestedPrice * 0.85;
-      const standard = suggestedPrice;
-      const premium = suggestedPrice * 1.2;
+      const aiReasoning = (suggested as { reasoning?: string } | null)?.reasoning ??
+        (reasoningBits.length > 0
+          ? `Pricing suggerito basato su: ${reasoningBits.join("; ")}.`
+          : "Suggestion basata su markup default.");
 
       // 4. Insert in pricing_suggestions
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,12 +166,10 @@ Deno.serve(async (req) => {
           computo_line_id: voce.computo_line_id ?? null,
           voce_descrizione: voce.descrizione,
           cost_real_eur: costReal,
-          price_history_avg_eur: (storico as { avg_price_eur?: number } | null)?.avg_price_eur ?? null,
+          price_history_avg_eur: historyAvg || null,
           suggested_price_eur: standard,
           suggested_margin_pct: margin,
-          ai_reasoning:
-            (suggested as { reasoning?: string } | null)?.reasoning ??
-            "Suggestion basata su storico company.",
+          ai_reasoning: aiReasoning,
           economy_price_eur: economy,
           standard_price_eur: standard,
           premium_price_eur: premium,

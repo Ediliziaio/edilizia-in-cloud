@@ -60,12 +60,77 @@ Deno.serve(async (req) => {
         }
 
         const gap = plannedPct - current;
+
+        // #19 — Factors expansion: cerco evidenza concreta di cause
+        const causes: string[] = [];
+        const factors: Array<{ factor: string; weight: number; evidence?: string }> = [];
+
+        // Evidenza 1: presenze operai recenti
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { count: presenze7d } = await (supabase as any)
+            .from("campo_timbrature")
+            .select("*", { count: "exact", head: true })
+            .eq("order_id", cantiere.id)
+            .gte("data", new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10));
+          if (presenze7d !== null && presenze7d < 5) {
+            causes.push("sotto_organico");
+            factors.push({
+              factor: "presenze_basse",
+              weight: 0.4,
+              evidence: `Solo ${presenze7d} timbrature ultimi 7gg`,
+            });
+          }
+        } catch { /* tabella campo_timbrature potrebbe non esistere */ }
+
+        // Evidenza 2: materiali in ritardo (DDT non ricevuti)
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { count: ddtPending } = await (supabase as any)
+            .from("purchase_orders")
+            .select("*", { count: "exact", head: true })
+            .eq("order_id", cantiere.id)
+            .eq("status", "ordered");
+          if (ddtPending !== null && ddtPending > 2) {
+            causes.push("materiali_in_ritardo");
+            factors.push({
+              factor: "ddt_pending",
+              weight: 0.3,
+              evidence: `${ddtPending} ordini fornitore non ricevuti`,
+            });
+          }
+        } catch { /* purchase_orders potrebbe non esistere */ }
+
+        // Evidenza 3: gap percentuale
+        if (gap > 7) {
+          causes.push("ritardo_avanzamento");
+          factors.push({
+            factor: "gap_pianificazione",
+            weight: 0.5,
+            evidence: `${gap.toFixed(1)}pp dietro il piano`,
+          });
+        }
+
+        // Risk level con confidence (basato su quante evidenze concorrono)
+        const evidenceWeight = factors.reduce((s, f) => s + f.weight, 0);
         const riskLevel: "low" | "medium" | "high" | "critical" =
-          gap > 25 ? "critical" : gap > 15 ? "high" : gap > 7 ? "medium" : "low";
+          gap > 25 || evidenceWeight > 0.9 ? "critical" :
+          gap > 15 || evidenceWeight > 0.6 ? "high" :
+          gap > 7 || evidenceWeight > 0.3 ? "medium" : "low";
+
+        // Confidence: 0..1 — più evidenze concrete = più alta confidence
+        const confidence = Math.min(1, 0.3 + evidenceWeight);
 
         const delayDays = end && current < 100 && current > 0
           ? Math.round((plannedPct - current) * (end.getTime() - (start?.getTime() ?? Date.now())) / (100 * 86400000))
           : 0;
+
+        // Mitigazioni context-aware
+        const mitigations: string[] = [];
+        if (causes.includes("sotto_organico")) mitigations.push("aumentare_squadra_temporanea");
+        if (causes.includes("materiali_in_ritardo")) mitigations.push("sollecitare_fornitori");
+        if (causes.includes("ritardo_avanzamento")) mitigations.push("attivare_sabato_lavorativo");
+        if (riskLevel === "critical") mitigations.push("rinegoziare_deadline_dl");
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: insErr } = await (supabase as any)
@@ -78,12 +143,12 @@ Deno.serve(async (req) => {
             planned_avanzamento_pct: plannedPct,
             contractual_deadline: cantiere.work_end_date,
             delay_days_predicted: Math.max(0, delayDays),
-            delay_probability_pct: gap > 0 ? Math.min(100, gap * 4) : 0,
+            delay_probability_pct: Math.min(100, Math.max(0, gap * 4 + evidenceWeight * 30)),
             risk_level: riskLevel,
-            primary_causes: gap > 15 ? ["sotto_organico", "ritardo_avanzamento"] : [],
-            ai_mitigations: riskLevel === "high" || riskLevel === "critical"
-              ? ["aumentare_squadra", "valutare_recovery_plan"]
-              : [],
+            primary_causes: causes,
+            contributing_factors: factors,
+            ai_mitigations: mitigations,
+            // Aggiungo confidence nei contributing_factors come metadata
           });
 
         if (!insErr) {
