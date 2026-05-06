@@ -3563,6 +3563,87 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lookup_contact_live", { p_company_id: ctx.companyId, p_email: args?.email ?? null, p_phone: args?.phone ?? null, p_name_hint: args?.name_hint ?? null }),
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // VISITA COMMERCIALE — debrief AI post-visita (4 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+  create_visit_debrief: {
+    schema: { type: "function", function: { name: "create_visit_debrief", description: "Crea debrief visita commerciale (audio + foto + note). L'edge ai-visit-debrief-analyzer poi analizza.", parameters: { type: "object", properties: { contact_id: { type: "string" }, quote_id: { type: "string" }, order_id: { type: "string" }, audio_path: { type: "string" }, image_paths: { type: "array", items: { type: "string" } }, free_notes: { type: "string" }, visit_location: { type: "string" } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_create_visit_debrief", { p_company_id: ctx.companyId, p_contact_id: args?.contact_id ?? null, p_quote_id: args?.quote_id ?? null, p_order_id: args?.order_id ?? null, p_audio_path: args?.audio_path ?? null, p_image_paths: args?.image_paths ?? null, p_free_notes: args?.free_notes ?? null, p_visit_location: args?.visit_location ?? null }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
+  },
+
+  lista_visite_a_rischio: {
+    schema: { type: "function", function: { name: "lista_visite_a_rischio", description: "Visite ad alta probabilità di close ma senza follow-up (rischio perdita).", parameters: { type: "object", properties: { days_back: { type: "integer", default: 14 } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_visite_a_rischio", { p_company_id: ctx.companyId, p_days_back: args?.days_back ?? 14 }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // DYNAMIC PRICING REAL-TIME (2 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+  get_dynamic_pricing_factors: {
+    schema: { type: "function", function: { name: "get_dynamic_pricing_factors", description: "Aggrega fattori dinamici di pricing: domanda, stagione, materie prime, concorrenti. Ritorna suggested_adjustment_pct.", parameters: { type: "object", properties: { product_category: { type: "string" }, material_keys: { type: "array", items: { type: "string" } } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_get_dynamic_pricing_factors", { p_company_id: ctx.companyId, p_product_category: args?.product_category ?? null, p_material_keys: args?.material_keys ?? null }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "controller", "cfo", "*"], riskLevel: "safe", domain: "preventivi",
+  },
+
+  record_competitor_signal: {
+    schema: { type: "function", function: { name: "record_competitor_signal", description: "Registra un segnale di pricing competitor (es. 'X ha alzato +5%').", parameters: { type: "object", properties: { competitor_name: { type: "string" }, product_category: { type: "string" }, signal_type: { type: "string", enum: ["price_increase", "price_decrease", "promotion", "new_product", "market_share"] }, signal_value: { type: "number" }, description: { type: "string" }, zone: { type: "string" } }, required: ["competitor_name", "product_category", "signal_type"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_record_competitor_signal", { p_company_id: ctx.companyId, p_competitor_name: args?.competitor_name, p_product_category: args?.product_category, p_signal_type: args?.signal_type, p_signal_value: args?.signal_value ?? null, p_description: args?.description ?? null, p_zone: args?.zone ?? null }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // ROUTE OPTIMIZATION (2 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+  optimize_route: {
+    schema: { type: "function", function: { name: "optimize_route", description: "Ottimizza percorso operaio: nearest-neighbor TSP su stops disponibili in distance_matrix_cache.", parameters: { type: "object", properties: { start_location_id: { type: "string" }, stop_location_ids: { type: "array", items: { type: "string" } }, end_location_id: { type: "string" }, default_stop_min: { type: "integer", default: 60 } }, required: ["start_location_id", "stop_location_ids"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_optimize_route_nearest_neighbor", { p_company_id: ctx.companyId, p_start_location_id: args?.start_location_id, p_stop_location_ids: args?.stop_location_ids, p_end_location_id: args?.end_location_id ?? null, p_default_stop_min: args?.default_stop_min ?? 60 }),
+    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "*"], riskLevel: "safe", domain: "cantiere",
+  },
+
+  save_route_plan: {
+    schema: { type: "function", function: { name: "save_route_plan", description: "Salva piano percorso giornaliero per un operaio.", parameters: { type: "object", properties: { plan_date: { type: "string", format: "date" }, employee_id: { type: "string" }, start_location_id: { type: "string" }, end_location_id: { type: "string" }, stops: { type: "array" }, total_distance_km: { type: "number" }, total_duration_min: { type: "integer" } }, required: ["plan_date", "employee_id", "stops"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_save_route_plan", { p_company_id: ctx.companyId, p_plan_date: args?.plan_date, p_employee_id: args?.employee_id, p_start_location_id: args?.start_location_id ?? null, p_end_location_id: args?.end_location_id ?? null, p_stops: args?.stops, p_total_distance_km: args?.total_distance_km ?? null, p_total_duration_min: args?.total_duration_min ?? null, p_strategy: args?.strategy ?? "nearest_neighbor" }),
+    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere"], riskLevel: "safe", domain: "cantiere",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // VIDEO MONITORING SICUREZZA CANTIERE (3 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+  register_camera_device: {
+    schema: { type: "function", function: { name: "register_camera_device", description: "Registra dispositivo camera per cantiere (IP cam, drone, helmet cam, app mobile).", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, device_name: { type: "string" }, device_type: { type: "string", enum: ["ip_camera", "drone", "mobile_app", "helmet_cam", "webhook"] }, alert_phone: { type: "string" }, alert_email: { type: "string" } }, required: ["cantiere_id", "device_name", "device_type"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_register_camera_device", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_device_name: args?.device_name, p_device_type: args?.device_type, p_alert_phone: args?.alert_phone ?? null, p_alert_email: args?.alert_email ?? null }),
+    allowedPersonas: ["silvio", "compliance", "pm_cantiere"], riskLevel: "yellow", domain: "compliance",
+  },
+
+  lista_violazioni_attive: {
+    schema: { type: "function", function: { name: "lista_violazioni_attive", description: "Violazioni cantiere recenti high/critical da camera devices.", parameters: { type: "object", properties: { hours_back: { type: "integer", default: 24 } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_violazioni_attive", { p_company_id: ctx.companyId, p_hours_back: args?.hours_back ?? 24 }),
+    allowedPersonas: ["silvio", "compliance", "pm_cantiere", "capocantiere", "*"], riskLevel: "safe", domain: "compliance",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // COMPLAINTS / RECLAMI SENTIMENT (4 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+  create_complaint: {
+    schema: { type: "function", function: { name: "create_complaint", description: "Crea reclamo cliente da qualsiasi sorgente. L'edge ai-complaint-analyzer poi analizza e auto-escalate se critical.", parameters: { type: "object", properties: { source: { type: "string", enum: ["email", "whatsapp", "telegram", "web_form", "phone", "review_google", "review_facebook", "visit_in_person", "manual"] }, raw_text: { type: "string" }, customer_name: { type: "string" }, customer_email: { type: "string" }, customer_phone: { type: "string" }, contact_id: { type: "string" }, related_order_id: { type: "string" }, related_quote_id: { type: "string" } }, required: ["source", "raw_text"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_create_complaint", { p_company_id: ctx.companyId, p_source: args?.source, p_raw_text: args?.raw_text, p_customer_name: args?.customer_name ?? null, p_customer_email: args?.customer_email ?? null, p_customer_phone: args?.customer_phone ?? null, p_contact_id: args?.contact_id ?? null, p_related_order_id: args?.related_order_id ?? null, p_related_quote_id: args?.related_quote_id ?? null }),
+    allowedPersonas: ["silvio", "assistente_cliente", "*"], riskLevel: "safe", domain: "crm",
+  },
+
+  lista_reclami_aperti: {
+    schema: { type: "function", function: { name: "lista_reclami_aperti", description: "Reclami aperti ordinati per urgenza.", parameters: { type: "object", properties: { urgency_min: { type: "string", enum: ["low", "medium", "high", "critical"], default: "low" } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_reclami_aperti", { p_company_id: ctx.companyId, p_urgency_min: args?.urgency_min ?? "low" }),
+    allowedPersonas: ["silvio", "assistente_cliente", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
+  },
+
+  resolve_complaint: {
+    schema: { type: "function", function: { name: "resolve_complaint", description: "Marca reclamo come risolto con note risoluzione.", parameters: { type: "object", properties: { complaint_id: { type: "string" }, resolution_notes: { type: "string" }, action_taken: { type: "string" }, customer_satisfied: { type: "boolean" } }, required: ["complaint_id", "resolution_notes"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_resolve_complaint", { p_company_id: ctx.companyId, p_complaint_id: args?.complaint_id, p_resolution_notes: args?.resolution_notes, p_action_taken: args?.action_taken ?? null, p_customer_satisfied: args?.customer_satisfied ?? null }),
+    allowedPersonas: ["silvio", "assistente_cliente", "*"], riskLevel: "yellow", domain: "crm",
+  },
 };
 
 /**
