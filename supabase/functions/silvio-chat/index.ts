@@ -29,6 +29,7 @@ import { executeToolWithRouting } from "../_shared/silvioToolExecution.ts";
 import { buildSystemPrompt } from "../_shared/preambolo.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { buildPreRagContext, type RagSource } from "../_shared/ragInjector.ts";
+import { validateCitations, getCitationMode, CITATION_FORMAT_RULES } from "../_shared/citationValidator.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const PERSONA_KEY = "silvio";
@@ -333,8 +334,10 @@ serve(async (req: Request) => {
     // ── Antepone preambolo costituzionale (Track 1 Cervello Supremo) ───
     // Cache 60s: zero latency aggiunta dopo prima chiamata.
     // Graceful degradation: se preambolo non caricabile, usa solo persona prompt.
+    // MP-03: aggiungiamo le regole di citation enforcement SOLO se ci sono RAG sources
+    const citationRulesBlock = ragSources.length > 0 ? CITATION_FORMAT_RULES : "";
     const personaWithContext =
-      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock;
+      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock + citationRulesBlock;
     const { prompt: enrichedSystemPrompt, preamboloVersion } = await buildSystemPrompt(
       supabaseAdmin,
       personaWithContext,
@@ -635,6 +638,20 @@ serve(async (req: Request) => {
     }
     finalContent = appendEvidenceFooter(finalContent, toolCallsLog, lastResult);
 
+    // ── MP-03: Citation enforcement validation ──────────────────────────
+    const citationMode = getCitationMode();
+    const citationCheck = validateCitations(finalContent, ragSources, citationMode);
+    if (citationCheck.citationsMissing) {
+      console.warn(`[silvio-chat] citation MISSING: ${ragSources.length} sources fornite ma 0 citate`);
+    }
+    if (citationCheck.invalidCitations.length > 0) {
+      console.warn(`[silvio-chat] citation INVALID: ${citationCheck.invalidCitations.join(", ")} non esistono in sources`);
+    }
+    // Modalità "enforce" → usa la response con sezione Fonti normalizzata
+    if (citationMode === "enforce") {
+      finalContent = citationCheck.cleanedResponse;
+    }
+
     // ── 10) Salva risposta nella chat ───────────────────────────────────
     const { data: insertedMsg } = await supabaseAdmin
       .from("internal_chat_messages")
@@ -709,6 +726,11 @@ serve(async (req: Request) => {
         rag_sources: ragSources.length > 0 ? ragSources : null,
         rag_min_similarity: ragSources.length > 0 ? ragMinSimilarity : null,
         rag_source_count: ragSources.length,
+        // MP-03: Citation enforcement audit
+        citations_used: citationCheck.citationsUsed.length > 0 ? citationCheck.citationsUsed : null,
+        citations_missing: citationCheck.citationsMissing,
+        invalid_citations: citationCheck.invalidCitations.length > 0 ? citationCheck.invalidCitations : null,
+        no_rag_prefix: citationCheck.noRagPrefix,
       });
     } catch (logErr) {
       // Non bloccare la response per un fail di logging — solo warn

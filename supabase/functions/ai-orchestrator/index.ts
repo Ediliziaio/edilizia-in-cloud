@@ -53,6 +53,8 @@ import { getToolsForChannel, toolsToOpenAISpec } from "../_shared/silvioTools.ts
 import { executeToolsParallel, type ToolExecutionResult } from "../_shared/silvioToolExecution.ts";
 // MP-01: pre-RAG automatico per le 18 personas
 import { buildPreRagContext, type RagSource } from "../_shared/ragInjector.ts";
+// MP-03: citation enforcement
+import { validateCitations, getCitationMode, CITATION_FORMAT_RULES } from "../_shared/citationValidator.ts";
 
 const MAX_TOOL_ITERATIONS = 5;
 
@@ -360,9 +362,11 @@ serve(async (req: Request) => {
       console.warn("[ai-orchestrator] pre-RAG failed (graceful):", e instanceof Error ? e.message : e);
     }
 
+    // MP-03: aggiungiamo le regole di citation enforcement SOLO se ci sono RAG sources
+    const citationRulesBlock = ragSources.length > 0 ? CITATION_FORMAT_RULES : "";
     // MP-02: persona + userContext + memory + RAG (parità con silvio-chat)
     const personaWithContext =
-      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock;
+      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock + citationRulesBlock;
     const { prompt: systemPromptComplete, preamboloVersion } = await buildSystemPrompt(
       supabaseAdmin,
       personaWithContext,
@@ -508,6 +512,19 @@ serve(async (req: Request) => {
       finalContent = "⚠️ Mi scuso, la richiesta è troppo complessa. Puoi riformularla in più passaggi?";
     }
 
+    // ── MP-03: Citation enforcement validation ──────────────────────────
+    const citationMode = getCitationMode();
+    const citationCheck = validateCitations(finalContent, ragSources, citationMode);
+    if (citationCheck.citationsMissing) {
+      console.warn(`[ai-orchestrator/${personaKey}] citation MISSING: ${ragSources.length} sources fornite ma 0 citate`);
+    }
+    if (citationCheck.invalidCitations.length > 0) {
+      console.warn(`[ai-orchestrator/${personaKey}] citation INVALID: ${citationCheck.invalidCitations.join(", ")} non esistono`);
+    }
+    if (citationMode === "enforce") {
+      finalContent = citationCheck.cleanedResponse;
+    }
+
     // 11) Record assistant message with ledger link + tool calls log
     const { data: msgId, error: msgErr } = await supabaseAdmin.rpc("record_persona_message", {
       p_session_id: sessionId,
@@ -535,6 +552,12 @@ serve(async (req: Request) => {
         memory_facts_count: memoryFactCount,
         memory_summary_count: memorySummaryCount,
         preambolo_version: preamboloVersion ?? null,
+        // MP-03: citation enforcement audit
+        citations_used_count: citationCheck.citationsUsed.length,
+        citations_missing: citationCheck.citationsMissing,
+        invalid_citations_count: citationCheck.invalidCitations.length,
+        no_rag_prefix: citationCheck.noRagPrefix,
+        citation_mode: citationCheck.appliedMode,
       },
     });
     if (msgErr) console.error("[ai-orchestrator] record_persona_message error:", msgErr);
@@ -549,10 +572,15 @@ serve(async (req: Request) => {
             rag_sources: ragSources,
             rag_min_similarity: ragMinSimilarity,
             rag_source_count: ragSources.length,
+            // MP-03: citation enforcement
+            citations_used: citationCheck.citationsUsed.length > 0 ? citationCheck.citationsUsed : null,
+            citations_missing: citationCheck.citationsMissing,
+            invalid_citations: citationCheck.invalidCitations.length > 0 ? citationCheck.invalidCitations : null,
+            no_rag_prefix: citationCheck.noRagPrefix,
           })
           .eq("id", msgId);
       } catch (e) {
-        console.warn("[ai-orchestrator] rag_sources update skipped:", e instanceof Error ? e.message : e);
+        console.warn("[ai-orchestrator] rag_sources/citations update skipped:", e instanceof Error ? e.message : e);
       }
     }
 
