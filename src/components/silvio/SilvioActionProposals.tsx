@@ -96,9 +96,12 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
     queryKey: ["silvio_action_proposals_pending", companyId],
     queryFn: async () => {
       if (!companyId) return [];
+      // FIX TENANT ISOLATION: filtro company_id esplicito (super_admin RLS
+      // bypass + get_my_company_id non rispetta impersonation).
       const { data, error } = await supabase
         .from("ai_action_proposals" as never)
         .select("id, action_type, summary, payload, status, risk_level, expires_at, created_at")
+        .eq("company_id", companyId)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
         .limit(20);

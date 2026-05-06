@@ -489,6 +489,71 @@ export async function aiRouterComplete(
         [],
       );
     }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // MP-PRICE-01 — Budget AI per piano (soft cap → downgrade modello;
+    // hard cap → block o require_topup). Best-effort: se RPC mancante,
+    // procede senza cap (back-compat).
+    // ─────────────────────────────────────────────────────────────────────
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: budget } = await (opts.supabase as any)
+        .rpc("check_company_budget_v2", { p_company_id: opts.companyId });
+
+      if (budget && typeof budget === "object") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const b = budget as any;
+        const capStatus: string = String(b.effective_cap_status ?? b.cap_status ?? "ok");
+        const onSoftCap: string = String(b.on_soft_cap ?? "downgrade_models");
+        const onHardCap: string = String(b.on_hard_cap ?? "require_topup");
+
+        if (capStatus === "hard_cap") {
+          if (onHardCap === "block") {
+            throw new AiRouterError(
+              `Budget AI mensile esaurito (hard cap raggiunto). Upgrade piano o top-up necessario.`,
+              opts.taskKey,
+              [],
+            );
+          }
+          if (onHardCap === "require_topup") {
+            throw new AiRouterError(
+              `Budget AI esaurito. Effettua un top-up dalle impostazioni AI per continuare.`,
+              opts.taskKey,
+              [],
+            );
+          }
+          // 'auto_charge': continua, addebito gestito da auto-topup-trigger separato
+        } else if (capStatus === "soft_cap") {
+          if (onSoftCap === "block") {
+            throw new AiRouterError(
+              `Budget AI: soft cap raggiunto (${b.effective_usage_pct}%). Upgrade piano per continuare.`,
+              opts.taskKey,
+              [],
+            );
+          }
+          if (onSoftCap === "downgrade_models" && config.fallback_models.length > 0) {
+            // Downgrade automatico a modello economico (primo fallback)
+            console.warn(
+              `[aiRouter] soft cap raggiunto per company ${opts.companyId} (${b.effective_usage_pct}%) — downgrade da ${config.primary_model} a ${config.fallback_models[0]}`,
+            );
+            // Riordina modelsToTry: il fallback diventa primario, altri restano come fallback
+            const downgraded = config.fallback_models[0];
+            modelsToTry.length = 0;
+            modelsToTry.push(downgraded, ...config.fallback_models.slice(1));
+            // primary_model originale resta come ultimo fallback (best-effort se downgrade fail)
+            modelsToTry.push(config.primary_model);
+          }
+          // 'notify_only': continua senza modifiche
+        }
+      }
+    } catch (e) {
+      // Se è AiRouterError dei cap, propaga; altrimenti ignora (back-compat)
+      if (e instanceof AiRouterError) throw e;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes("function") && !msg.includes("does not exist")) {
+        console.warn("[aiRouter] checkBudgetAndRoute warning:", msg);
+      }
+    }
   }
 
   for (let i = 0; i < modelsToTry.length; i++) {

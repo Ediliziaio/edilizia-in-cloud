@@ -36,6 +36,8 @@ export function SilvioBellPopover() {
   });
 
   // Pending proposals count
+  // FIX TENANT ISOLATION: filtro esplicito company_id (RLS+bypass super_admin
+  // ignora impersonation, quindi il filtro client è OBBLIGATORIO).
   const { data: pendingProposals } = useQuery({
     queryKey: ["silvio_pending_proposals_count", companyId],
     queryFn: async () => {
@@ -43,6 +45,7 @@ export function SilvioBellPopover() {
       const { count } = await supabase
         .from("ai_action_proposals" as never)
         .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
         .eq("status", "pending");
       return count ?? 0;
     },

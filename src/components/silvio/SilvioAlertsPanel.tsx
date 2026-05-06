@@ -91,9 +91,12 @@ export function SilvioAlertsPanel({
     queryKey: ["silvio_alerts_open", companyId],
     queryFn: async () => {
       if (!companyId) return [];
+      // FIX TENANT ISOLATION: filtro company_id esplicito (super_admin RLS
+      // bypass + get_my_company_id non rispetta impersonation).
       const { data, error } = await supabase
         .from("silvio_alerts" as never)
         .select("id, alert_type, severity, title, message, cta_label, cta_action, cta_payload, source_type, source_id, source_meta, status, created_at")
+        .eq("company_id", companyId)
         .eq("status", "open")
         .order("severity", { ascending: true }) // critical comes first alphabetically
         .order("created_at", { ascending: false })

@@ -48,6 +48,11 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { aiRouterComplete, type AiRouterMessage } from "../_shared/aiRouter.ts";
 import { buildSystemPrompt } from "../_shared/preambolo.ts";
+// MP-AIE-02 v2 — tool calling loop unificato col registry centrale silvioTools.ts
+import { getToolsForChannel, toolsToOpenAISpec } from "../_shared/silvioTools.ts";
+import { executeToolsParallel, type ToolExecutionResult } from "../_shared/silvioToolExecution.ts";
+
+const MAX_TOOL_ITERATIONS = 5;
 
 interface OrchestratorPayload {
   sessionId?: string;
@@ -261,6 +266,14 @@ serve(async (req: Request) => {
       console.warn(`[ai-orchestrator] preambolo NON applicato per persona ${persona.persona_key}`);
     }
 
+    // MP-AIE-02 v2: filtra i tool del registry centrale per channel + persona + role
+    const availableTools = getToolsForChannel({
+      channel: "web_persona",
+      role: primaryRole ?? "company_staff",
+      personaKey,
+    });
+    const toolsSpec = availableTools.length > 0 ? toolsToOpenAISpec(availableTools) : undefined;
+
     const messages: AiRouterMessage[] = [
       { role: "system", content: systemPromptComplete },
       ...history.map(h => ({
@@ -271,80 +284,165 @@ serve(async (req: Request) => {
       { role: "user", content: userMessage },
     ];
 
-    // 10) Call AI Router (auto-charges + logs ledger)
-    // task_key dinamico per persona: "persona_<key>" → fallback a config default
+    // 10) MP-AIE-02 v2 — Loop tool calling (parità con silvio-chat)
     const taskKey = `persona_${personaKey}`;
-    const idempotencyKey = `persona_${sessionId}_${userMessageId ?? "message"}`;
+    let iteration = 0;
+    let finalContent = "";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allToolCalls: any[] = [];
+    const toolCallsLog: Array<{ name: string; args: unknown; result_preview: string }> = [];
+    let lastResult: Awaited<ReturnType<typeof aiRouterComplete>> | null = null;
+    let totalCostBilled = 0;
+    let totalTokensIn = 0;
+    let totalTokensOut = 0;
 
-    let aiResult;
-    try {
-      aiResult = await aiRouterComplete({
+    while (iteration < MAX_TOOL_ITERATIONS) {
+      iteration++;
+      const idempotencyKey = `persona_${sessionId}_${userMessageId ?? "msg"}_iter${iteration}`;
+
+      let aiResult;
+      try {
+        aiResult = await aiRouterComplete({
+          supabase: supabaseAdmin,
+          taskKey,
+          messages,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          params: toolsSpec
+            ? ({ temperature: 0.4, max_tokens: 4000, tools: toolsSpec, tool_choice: "auto" } as any)
+            : { temperature: 0.4, max_tokens: 4000 },
+          companyId,
+          userId,
+          personaKey,
+          idempotencyKey,
+          forceModel: persona.recommended_model ?? undefined,
+        });
+        lastResult = aiResult;
+        totalCostBilled += aiResult.costBilledEur ?? 0;
+        totalTokensIn += aiResult.promptTokens ?? 0;
+        totalTokensOut += aiResult.completionTokens ?? 0;
+      } catch (aiErr) {
+        const errMsg = aiErr instanceof Error ? aiErr.message : String(aiErr);
+        console.error("[ai-orchestrator] aiRouter iter", iteration, "error:", errMsg);
+        await supabaseAdmin.rpc("record_persona_message", {
+          p_session_id: sessionId,
+          p_role: "assistant",
+          p_content: `⚠️ Mi dispiace, c'è stato un problema: ${errMsg.slice(0, 200)}`,
+          p_tool_calls: null,
+          p_tool_call_id: null,
+          p_ledger_id: null,
+          p_tokens_in: null,
+          p_tokens_out: null,
+          p_cost_billed_eur: null,
+          p_model_used: null,
+          p_metadata: { error: true, error_message: errMsg.slice(0, 500) },
+        });
+        return errorResponse(errMsg, 500, corsHeaders);
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawChoice = (aiResult.rawResponse as any)?.choices?.[0];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const toolCalls: any[] = rawChoice?.message?.tool_calls ?? [];
+
+      if (toolCalls.length === 0) {
+        finalContent = aiResult.content || "";
+        break;
+      }
+
+      // L'LLM vuole eseguire tool: aggiungi assistant message con tool_calls
+      messages.push({
+        role: "assistant",
+        content: rawChoice?.message?.content ?? null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tool_calls: toolCalls,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+      allToolCalls.push(...toolCalls);
+
+      // Esegui tool in parallelo via registry centrale
+      const calls = toolCalls.map((tc) => {
+        let parsedArgs: unknown = {};
+        try { parsedArgs = JSON.parse(tc.function?.arguments ?? "{}"); } catch { /* keep {} */ }
+        return { name: tc.function?.name as string, input: parsedArgs };
+      });
+      const results: ToolExecutionResult[] = await executeToolsParallel(calls, {
         supabase: supabaseAdmin,
-        taskKey,
-        messages,
-        params: { temperature: 0.4, max_tokens: 4000 },
         companyId,
         userId,
+        primaryRole: primaryRole ?? "company_staff",
         personaKey,
-        idempotencyKey,
-        forceModel: persona.recommended_model ?? undefined,
-      });
-    } catch (aiErr) {
-      const errMsg = aiErr instanceof Error ? aiErr.message : String(aiErr);
-      console.error("[ai-orchestrator] aiRouter error:", errMsg);
-
-      // Record error message in chat (così l'utente sa che c'è stato un problema)
-      await supabaseAdmin.rpc("record_persona_message", {
-        p_session_id: sessionId,
-        p_role: "assistant",
-        p_content: `⚠️ Mi dispiace, c'è stato un problema: ${errMsg.slice(0, 200)}`,
-        p_tool_calls: null,
-        p_tool_call_id: null,
-        p_ledger_id: null,
-        p_tokens_in: null,
-        p_tokens_out: null,
-        p_cost_billed_eur: null,
-        p_model_used: null,
-        p_metadata: { error: true, error_message: errMsg.slice(0, 500) },
+        channel: "web_persona",
+        sessionId,
+        kbAreasFilter: persona.kb_areas_filter,
       });
 
-      return errorResponse(errMsg, 500, corsHeaders);
+      results.forEach((r, idx) => {
+        const tc = toolCalls[idx];
+        const payload = r.success
+          ? (r.proposalId
+            ? { _proposal: true, proposalId: r.proposalId }
+            : (r.data ?? null))
+          : { error: r.error };
+        const serialized = JSON.stringify(payload).slice(0, 8000);
+        messages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: serialized,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any);
+        toolCallsLog.push({
+          name: r.toolName,
+          args: calls[idx].input,
+          result_preview: serialized.slice(0, 200),
+        });
+      });
+      // continua loop
     }
 
-    // 11) Record assistant message with ledger link
+    if (!finalContent && iteration >= MAX_TOOL_ITERATIONS) {
+      finalContent = "⚠️ Mi scuso, la richiesta è troppo complessa. Puoi riformularla in più passaggi?";
+    }
+
+    // 11) Record assistant message with ledger link + tool calls log
     const { data: msgId, error: msgErr } = await supabaseAdmin.rpc("record_persona_message", {
       p_session_id: sessionId,
       p_role: "assistant",
-      p_content: aiResult.content,
-      p_tool_calls: null,
+      p_content: finalContent,
+      p_tool_calls: toolCallsLog.length > 0
+        ? toolCallsLog.map((t) => ({ name: t.name, args: t.args }))
+        : null,
       p_tool_call_id: null,
-      p_ledger_id: aiResult.ledgerId ?? null,
-      p_tokens_in: aiResult.promptTokens,
-      p_tokens_out: aiResult.completionTokens,
-      p_cost_billed_eur: aiResult.costBilledEur,
-      p_model_used: aiResult.modelUsed,
+      p_ledger_id: lastResult?.ledgerId ?? null,
+      p_tokens_in: totalTokensIn,
+      p_tokens_out: totalTokensOut,
+      p_cost_billed_eur: totalCostBilled,
+      p_model_used: lastResult?.modelUsed ?? null,
       p_metadata: {
-        used_primary: aiResult.usedPrimary,
-        fallback_index: aiResult.fallbackIndex,
-        duration_ms: aiResult.durationMs,
+        iterations: iteration,
+        used_primary: lastResult?.usedPrimary,
+        fallback_index: lastResult?.fallbackIndex,
+        duration_ms: lastResult?.durationMs,
+        tools_invoked: toolCallsLog.map((t) => t.name),
       },
     });
     if (msgErr) console.error("[ai-orchestrator] record_persona_message error:", msgErr);
 
-    // 12) Response
+    // 12) Response (back-compat: stessi campi della v1 + tool_calls + iterations)
     return jsonResponse({
       sessionId,
       messageId: msgId,
-      response: aiResult.content,
+      response: finalContent,
       personaKey,
       personaDisplayName: persona.display_name,
-      modelUsed: aiResult.modelUsed,
-      tokensIn: aiResult.promptTokens,
-      tokensOut: aiResult.completionTokens,
-      costBilledEur: aiResult.costBilledEur,
-      marginEur: aiResult.marginEur,
-      ledgerId: aiResult.ledgerId,
-      durationMs: aiResult.durationMs,
+      modelUsed: lastResult?.modelUsed,
+      tokensIn: totalTokensIn,
+      tokensOut: totalTokensOut,
+      costBilledEur: totalCostBilled,
+      marginEur: lastResult?.marginEur,
+      ledgerId: lastResult?.ledgerId,
+      durationMs: lastResult?.durationMs,
+      iterations: iteration,
+      toolCalls: toolCallsLog,
     }, 200, corsHeaders);
 
   } catch (err) {

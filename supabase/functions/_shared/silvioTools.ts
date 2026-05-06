@@ -1,16 +1,71 @@
 /**
  * Silvio Tool Catalog — JSON Schema OpenAI-compatible per tool calling.
  *
+ * MP-AIE-01 v2: registry CENTRALE multi-canale.
+ * Riusabile da: Silvio chat interna (✅), 18 personas web/mobile (via ai-orchestrator),
+ * WhatsApp processor, Voice ElevenLabs, Telegram bot, Email agent, API.
+ *
  * Ogni tool definito qui:
  *   1. Ha uno `schema` (formato OpenAI function tool) passato all'LLM
  *   2. Ha un `executor(args, ctx)` server-side che chiama la RPC SQL
- *   3. Ritorna sempre JSON serializzabile (stringificabile per il LLM)
+ *   3. Dichiara permission (allowedRoles + allowedPersonas + allowedChannels)
+ *   4. Dichiara riskLevel ('safe' | 'yellow' | 'red') per HITL routing
+ *   5. Ritorna sempre JSON serializzabile (stringificabile per il LLM)
+ *
+ * Helper di esecuzione: ./silvioToolExecution.ts (executeToolWithRouting,
+ * executeToolsParallel, getToolsForChannel, toolsToOpenAISpec).
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
 
 import { chargeDirectAiCall, estimateEmbeddingUsage } from "./directAiLedger.ts";
+
+/**
+ * MP-AIE-01 v2 — canali AI supportati. Ogni tool dichiara su quali può essere
+ * eseguito. Vuoto/undefined = disponibile su tutti i canali.
+ */
+export type Channel =
+  | "internal_chat"   // Silvio nella chat web/mobile interna (1:1 DM)
+  | "web_persona"     // 18 personas web (AssistenteAIPage)
+  | "mobile"          // App mobile EiC nativa
+  | "whatsapp"        // WhatsApp Business
+  | "telegram"        // Telegram bot
+  | "voice"           // ElevenLabs voice agent (telefono)
+  | "email"           // Email autonomous agent (futuro)
+  | "api"             // API per integrazioni terze (futuro)
+  | "cron";           // Job schedulati (es. cron weekly reports)
+
+/**
+ * MP-AIE-01 v2 — risk level per HITL routing.
+ *  - 'safe'   → esegue subito + log success
+ *  - 'yellow' → crea action_proposal in pending (utente conferma via UI)
+ *  - 'red'    → forza HITL anche per super_admin (es. azioni irreversibili)
+ *
+ * Bypass: se ctx.preApproved=true, anche yellow esegue subito (post-conferma UI).
+ */
+export type RiskLevel = "safe" | "yellow" | "red";
+
+/**
+ * Domain logico per filtering UI/RBAC + organizzazione tool.
+ */
+export type ToolDomain =
+  | "kpi"
+  | "cantiere"
+  | "fattura"
+  | "banking"
+  | "email"
+  | "calendar"
+  | "compliance"
+  | "hr"
+  | "crm"
+  | "preventivi"
+  | "filiera"
+  | "anomalie"
+  | "generative"
+  | "knowledge"
+  | "titolare"
+  | "meta";
 
 export interface ToolContext {
   supabase: SupabaseClient;
@@ -24,6 +79,22 @@ export interface ToolContext {
    * Usato dal tool search_brain per restringere il RAG alle aree pertinenti.
    */
   kbAreasFilter?: string[] | null;
+
+  // ── MP-AIE-01 v2 — campi multi-canale ────────────────────────────────────
+  /** Canale di provenienza. Default "internal_chat" se omesso (back-compat Silvio). */
+  channel?: Channel;
+  /** Persona AI che invoca il tool (silvio, cfo, pm_cantiere, ...). */
+  personaKey?: string;
+  /** ID conversazione/sessione corrente (se applicabile). */
+  sessionId?: string;
+  /** Trace ID per correlazione cross-system (audit). */
+  traceId?: string;
+  /**
+   * Se true, esegue ANCHE i tool con riskLevel='yellow' direttamente (l'utente
+   * ha già confermato via UI di action proposals). I tool 'red' richiedono
+   * sempre HITL.
+   */
+  preApproved?: boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,8 +124,20 @@ export interface SilvioTool {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   schema: any;
   executor: ToolExecutor;
-  // Ruoli che possono attivare questo tool. Se vuoto = tutti.
+  /** Ruoli che possono attivare questo tool. Vuoto = tutti. Includere "*" per "tutti". */
   allowedRoles?: string[];
+
+  // ── MP-AIE-01 v2 — campi multi-canale ────────────────────────────────────
+  /** Personas che hanno il tool nel proprio whitelist. Vuoto = tutte. Includere "*" per "tutte". */
+  allowedPersonas?: string[];
+  /** Canali su cui il tool è disponibile. Vuoto = tutti. */
+  allowedChannels?: Channel[];
+  /** Risk level: safe esegue subito, yellow chiede conferma, red forza HITL. Default "safe". */
+  riskLevel?: RiskLevel;
+  /** Domain logico per filtro UI/RBAC. */
+  domain?: ToolDomain;
+  /** Costo stimato EUR per esecuzione (per budgeting). Default 0. */
+  estimatedCostEur?: number;
 }
 
 // Helper per chiamare RPC e ritornare data | error
@@ -80,6 +163,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
     }),
     allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "assistente_imprenditore", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "kpi",
   },
 
   get_orders_summary: {
@@ -107,6 +194,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_status: args?.status ?? "active",
       p_limit: args?.limit ?? 20,
     }),
+      allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "assistente_imprenditore", "sales", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
   },
 
   get_revenue_forecast: {
@@ -132,6 +223,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_days_ahead: args?.days_ahead ?? 30,
     }),
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
+    riskLevel: "safe",
+    domain: "kpi",
   },
 
   get_overdue_payments: {
@@ -147,6 +242,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
     }),
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "fattura",
   },
 
   get_cashflow_status: {
@@ -169,6 +268,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_days_back: args?.days_back ?? 30,
     }),
     allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
+    riskLevel: "safe",
+    domain: "banking",
   },
 
   get_cashflow_forecast_90d: {
@@ -199,6 +302,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_apply_delay: args?.apply_delay ?? true,
     }),
     allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "banking",
   },
 
   get_quotes_summary: {
@@ -224,6 +331,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
       p_status: args?.status ?? "all",
     }),
+      allowedPersonas: ["silvio", "sales", "direttore_vendite", "assistente_imprenditore", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],
+    riskLevel: "safe",
+    domain: "preventivi",
   },
 
   search_orders: {
@@ -245,6 +356,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
       p_query: args?.query ?? "",
     }),
+      allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "assistente_imprenditore", "sales", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
   },
 
   get_industry_benchmark: {
@@ -270,6 +385,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
     }),
     allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "assistente_imprenditore", "direttore_marketing"],
+    allowedChannels: ["internal_chat", "web_persona"],
+    riskLevel: "safe",
+    domain: "kpi",
   },
 
   get_executive_snapshot: {
@@ -285,6 +404,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
     }),
     allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
+    riskLevel: "safe",
+    domain: "kpi",
   },
 
   detect_frodi_anomalie: {
@@ -300,6 +423,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
     }),
     allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "compliance", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "anomalie",
   },
 
   universal_search: {
@@ -323,6 +450,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_query: args?.query ?? "",
       p_limit: args?.limit ?? 20,
     }),
+      allowedPersonas: ["silvio", "assistente_imprenditore", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],
+    riskLevel: "safe",
+    domain: "knowledge",
   },
 
   get_foto_cantiere_summary: {
@@ -339,6 +470,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_order_id: null,
     }),
     allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "tecnico"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "cantiere",
   },
 
   get_employees_workload: {
@@ -354,6 +489,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
     }),
     allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "hr", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "hr",
   },
 
   get_pricing_history: {
@@ -376,6 +515,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_item_name: args?.item_name ?? "",
     }),
     allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "cfo", "controller", "sales", "direttore_vendite"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "preventivi",
   },
 
   get_customers_ltv_top: {
@@ -398,6 +541,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_limit: args?.limit ?? 10,
     }),
     allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "direttore_marketing", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "crm",
   },
 
   get_customers_at_risk: {
@@ -420,6 +567,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_limit: args?.limit ?? 10,
     }),
     allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "direttore_marketing", "cliente_tutor", "assistente_cliente"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "crm",
   },
 
   get_top_customers: {
@@ -442,6 +593,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_limit: args?.limit ?? 10,
     }),
     allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "direttore_marketing"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "crm",
   },
 
   // ── EXTENDED TOOLS ─────────────────────────────────────────────────────
@@ -459,6 +614,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
     }),
     allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "hr", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "hr",
   },
 
   get_warehouse_status: {
@@ -484,6 +643,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_search: args?.search ?? null,
     }),
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "acquisti", "tecnico"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],
+    riskLevel: "safe",
+    domain: "cantiere",
   },
 
   get_suppliers_summary: {
@@ -509,6 +672,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_search: args?.search ?? null,
     }),
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "acquisti", "cfo", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "filiera",
   },
 
   get_subappaltatori_summary: {
@@ -524,6 +691,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
     }),
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "pm_cantiere", "compliance", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "filiera",
   },
 
   get_received_invoices: {
@@ -550,6 +721,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_status: args?.status ?? "unpaid",
     }),
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "acquisti"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "fattura",
   },
 
   search_brain: {
@@ -629,6 +804,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       };
     },
     allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson", "call_center"],
+    allowedPersonas: ["*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice", "email"],
+    riskLevel: "safe",
+    domain: "knowledge",
+    estimatedCostEur: 0.02,
   },
 
   create_quote_draft: {
@@ -693,6 +873,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       return data;
     },
     allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "preventivi",
   },
 
   create_invoice_draft: {
@@ -733,6 +917,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       return data;
     },
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "amministrazione", "cfo"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "fattura",
   },
 
   analyze_image: {
@@ -825,6 +1013,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       }
     },
     allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "tecnico", "pm_cantiere", "capocantiere", "sales", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],
+    riskLevel: "safe",
+    domain: "generative",
+    estimatedCostEur: 0.1,
   },
 
   analyze_quote: {
@@ -890,6 +1083,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       };
     },
     allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "tecnico"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "preventivi",
+    estimatedCostEur: 0.05,
   },
 
   analyze_computo_metrico: {
@@ -931,6 +1129,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       };
     },
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "tecnico", "sales", "pm_cantiere"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "preventivi",
+    estimatedCostEur: 0.08,
   },
 
   propose_action: {
@@ -975,11 +1178,2276 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_risk_level: args?.risk_level ?? "yellow",
     }),
     allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "meta",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-AIE-01 v2 — Tool Phase 2: operations + fattura + banking + hr +
+  // compliance + email + calendar (defensive: ritornano '_note' se schema
+  // mancante anziché errore SQL).
+  // ═════════════════════════════════════════════════════════════════════════
+
+  lista_scadenze: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_scadenze",
+        description: "Lista delle fatture in scadenza nei prossimi N giorni (default 30) per la tua azienda. Ritorna conteggio + dettaglio + giorni alla scadenza per ognuna.",
+        parameters: {
+          type: "object",
+          properties: {
+            days_ahead: { type: "integer", minimum: 1, maximum: 365, default: 30 },
+            only_unpaid: { type: "boolean", default: true },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_scadenze", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_days_ahead: args?.days_ahead ?? 30,
+      p_only_unpaid: args?.only_unpaid !== false,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice", "email"],
+    riskLevel: "safe",
+    domain: "fattura",
+  },
+
+  lista_transazioni: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_transazioni",
+        description: "Lista delle transazioni bancarie ricevute negli ultimi N giorni. Filtro opzionale per mostrare solo quelle non ancora matchate con fatture.",
+        parameters: {
+          type: "object",
+          properties: {
+            days_back: { type: "integer", minimum: 1, maximum: 365, default: 30 },
+            only_unmatched: { type: "boolean", default: false },
+            limit: { type: "integer", minimum: 1, maximum: 200, default: 50 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_transazioni", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_days_back: args?.days_back ?? 30,
+      p_only_unmatched: args?.only_unmatched === true,
+      p_limit: args?.limit ?? 50,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
+    riskLevel: "safe",
+    domain: "banking",
+  },
+
+  lista_dipendenti_oggi: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_dipendenti_oggi",
+        description: "Lista dei dipendenti attivi oggi per la company. Include qualifica e ruolo. Read-only.",
+        parameters: {
+          type: "object",
+          properties: {
+            only_active: { type: "boolean", default: true },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_dipendenti_oggi", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_only_active: args?.only_active !== false,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "hr", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],
+    riskLevel: "safe",
+    domain: "hr",
+  },
+
+  verifica_durc: {
+    schema: {
+      type: "function",
+      function: {
+        name: "verifica_durc",
+        description: "Verifica lo stato del DURC (Documento Unico Regolarità Contributiva) della tua azienda o di un subappaltatore specifico. Ritorna esito + data scadenza + giorni residui.",
+        parameters: {
+          type: "object",
+          properties: {
+            target_type: {
+              type: "string",
+              enum: ["self", "subcontractor"],
+              description: "self = la tua azienda, subcontractor = un subappaltatore",
+              default: "self",
+            },
+            target_id: {
+              type: "string",
+              description: "UUID del subappaltatore (richiesto se target_type=subcontractor)",
+            },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_verifica_durc", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_target_type: args?.target_type ?? "self",
+      p_target_id: args?.target_id ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "compliance", "amministrazione", "assistente_imprenditore", "pm_cantiere"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "compliance",
+  },
+
+  lista_email_thread: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_email_thread",
+        description: "Lista degli ultimi thread email ricevuti dall'azienda. Ritorna {note: 'modulo non attivo'} se la company non ha integrazione email configurata.",
+        parameters: {
+          type: "object",
+          properties: {
+            days_back: { type: "integer", minimum: 1, maximum: 90, default: 7 },
+            limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_email_thread", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_days_back: args?.days_back ?? 7,
+      p_limit: args?.limit ?? 20,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "amministrazione", "sales", "cliente_tutor", "assistente_cliente"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "email",
+  },
+
+  // ── MP-OPS-01 v2 — Reportino settimanale committente ────────────────────
+  genera_reportino_settimanale_committente: {
+    schema: {
+      type: "function",
+      function: {
+        name: "genera_reportino_settimanale_committente",
+        description: "Genera e invia al committente del cantiere un PDF settimanale con narrative AI, foto, KPI cantiere, prossimi step. Idempotente per (cantiere, settimana). Usa quando l'utente dice 'manda reportino al cliente di [cantiere]', 'reportino settimanale', 'aggiornamento committente'.",
+        parameters: {
+          type: "object",
+          properties: {
+            cantiere_id: { type: "string", description: "UUID del cantiere/ordine" },
+            week_start: {
+              type: "string",
+              description: "Data inizio settimana YYYY-MM-DD (lunedì). Se omesso = settimana corrente.",
+            },
+            force_regenerate: {
+              type: "boolean",
+              description: "Se true, rigenera anche se già presente",
+              default: false,
+            },
+            send_email: { type: "boolean", default: true },
+            send_whatsapp: { type: "boolean", default: true },
+          },
+          required: ["cantiere_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      // 1. RPC pre-check + creazione record placeholder (idempotente)
+      const result = await callRpc(ctx.supabase, "silvio_tool_genera_reportino_committente", {
+        p_company_id: ctx.companyId,
+        p_user_id: ctx.userId,
+        p_cantiere_id: args?.cantiere_id,
+        p_week_start: args?.week_start ?? null,
+        p_force_regenerate: args?.force_regenerate === true,
+        p_trigger_source: ctx.channel === "cron" ? "cron" : "conversation",
+        p_triggered_by_persona: ctx.personaKey ?? "silvio",
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r = result as any;
+      if (r?.error) return r;
+      if (r?.already_exists) {
+        return {
+          success: true,
+          report_id: r.report_id,
+          already_exists: true,
+          message: r.message,
+          cantiere_code: r.cantiere_code,
+          week_start: r.week_start,
+          week_end: r.week_end,
+        };
+      }
+
+      // 2. Trigger async PDF generation + delivery (fire-and-forget)
+      try {
+        const { data: invokeRes, error: invokeErr } = await ctx.supabase.functions.invoke(
+          "generate-customer-report-async",
+          {
+            body: {
+              cantiere_id: args?.cantiere_id,
+              week_start: r?.week_start,
+              company_id: ctx.companyId,
+              report_id: r?.report_id,
+              send_email: args?.send_email !== false,
+              send_whatsapp: args?.send_whatsapp !== false,
+              triggered_by_user_id: ctx.userId,
+              triggered_by_persona: ctx.personaKey ?? "silvio",
+            },
+          },
+        );
+        if (invokeErr) {
+          return {
+            success: false,
+            error: `Generazione PDF fallita: ${invokeErr.message}`,
+            report_id: r?.report_id,
+            cantiere_code: r?.cantiere_code,
+          };
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const invokeData = invokeRes as any;
+        return {
+          success: true,
+          report_id: r?.report_id,
+          cantiere_code: r?.cantiere_code,
+          week_start: r?.week_start,
+          week_end: r?.week_end,
+          pdf_url: invokeData?.pdf_signed_url,
+          delivery: invokeData?.delivery,
+          message: `Reportino per cantiere ${r?.cantiere_code} generato e inviato al committente`,
+        };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return {
+          success: false,
+          error: `Errore async PDF: ${msg.slice(0, 200)}`,
+          report_id: r?.report_id,
+        };
+      }
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "assistente_imprenditore", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice", "cron"],
+    riskLevel: "safe", // genera e invia ma è informativo, non è critico
+    domain: "cantiere",
+    estimatedCostEur: 0.08,
+  },
+
+  trova_slot_liberi: {
+    schema: {
+      type: "function",
+      function: {
+        name: "trova_slot_liberi",
+        description: "Trova slot liberi nel calendario per programmare riunioni o appuntamenti. Default: 7 giorni avanti, durata 60min, 09:00-18:00.",
+        parameters: {
+          type: "object",
+          properties: {
+            durata_minuti: { type: "integer", minimum: 15, maximum: 480, default: 60 },
+            giorni_avanti: { type: "integer", minimum: 1, maximum: 30, default: 7 },
+            orario_inizio: { type: "string", description: "HH:MM (es. 09:00)", default: "09:00" },
+            orario_fine: { type: "string", description: "HH:MM (es. 18:00)", default: "18:00" },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_trova_slot_liberi", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_durata_minuti: args?.durata_minuti ?? 60,
+      p_giorni_avanti: args?.giorni_avanti ?? 7,
+      p_orario_inizio: args?.orario_inizio ?? "09:00",
+      p_orario_fine: args?.orario_fine ?? "18:00",
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "assistente_imprenditore", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],
+    riskLevel: "safe",
+    domain: "calendar",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-FAT-02 — Fatturazione Zero-Touch SAL→SDI→Reminder
+  // ═════════════════════════════════════════════════════════════════════════
+
+  verifica_anagrafica_fattura: {
+    schema: {
+      type: "function",
+      function: {
+        name: "verifica_anagrafica_fattura",
+        description: "Verifica completezza anagrafica cliente per emissione fattura elettronica (PIVA/CF, indirizzo, SDI/PEC). Ritorna missing_fields se mancanti dati obbligatori.",
+        parameters: {
+          type: "object",
+          properties: {
+            customer_id: { type: "string", description: "UUID profile del cliente" },
+          },
+          required: ["customer_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_verifica_anagrafica_fattura", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_customer_id: args?.customer_id,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "amministrazione", "cfo", "controller", "sales"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "fattura",
+  },
+
+  avanza_fatt_zero_touch: {
+    schema: {
+      type: "function",
+      function: {
+        name: "avanza_fatt_zero_touch",
+        description: "Avanza state machine fatturazione zero-touch a un nuovo stato. Usato dall'orchestratore edge per registrare gli step della pipeline SAL→SDI→reminder.",
+        parameters: {
+          type: "object",
+          properties: {
+            run_id: { type: "string", description: "UUID del run" },
+            new_status: { type: "string", description: "Nuovo stato (es. 'composing_xml', 'sending_sdi', 'completed')" },
+            metadata: { type: "object", description: "Metadati step (opzionali)" },
+          },
+          required: ["run_id", "new_status"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_avanza_fatt_zero_touch", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_run_id: args?.run_id,
+      p_new_status: args?.new_status,
+      p_metadata: args?.metadata ?? {},
+    }),
+    allowedRoles: ["super_admin"],
+    allowedPersonas: ["silvio", "amministrazione"],
+    allowedChannels: ["internal_chat", "web_persona", "cron"],
+    riskLevel: "safe",
+    domain: "fattura",
+  },
+
+  lista_fatt_zero_touch_runs: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_fatt_zero_touch_runs",
+        description: "Lista degli ultimi N run di fatturazione zero-touch della company. Filtro opzionale per stato (pending/awaiting_hitl_approval/completed/failed).",
+        parameters: {
+          type: "object",
+          properties: {
+            status_filter: { type: "string", description: "Filtro stato (opzionale)" },
+            limit: { type: "integer", minimum: 1, maximum: 200, default: 50 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_fatt_zero_touch_runs", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_status_filter: args?.status_filter ?? null,
+      p_limit: args?.limit ?? 50,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "amministrazione", "cfo", "controller", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "fattura",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-FAT-03 — Prima Nota Auto + Anomaly Detection
+  // ═════════════════════════════════════════════════════════════════════════
+
+  flag_anomalia_finanziaria: {
+    schema: {
+      type: "function",
+      function: {
+        name: "flag_anomalia_finanziaria",
+        description: "Registra un'anomalia finanziaria (duplicate payment, importo sospetto, controparte nuova alto valore, pattern split anti-antiriciclaggio). Crea record + alert per persona compliance/cfo.",
+        parameters: {
+          type: "object",
+          properties: {
+            anomaly_type: {
+              type: "string",
+              enum: ["duplicate_payment","unusual_high_amount","new_counterparty_high_value","split_pattern_suspicion","round_amount_pattern","off_hours_transaction","failed_chargeback","unauthorized_recurring"],
+            },
+            severity: { type: "string", enum: ["low","medium","high","critical"] },
+            ai_description: { type: "string", description: "Descrizione AI (cosa, quando, dove)" },
+            transaction_id: { type: "string", description: "UUID transazione (opzionale)" },
+            amount: { type: "number", description: "Importo EUR" },
+            counterparty_name: { type: "string" },
+            ai_recommendation: { type: "string", description: "Cosa suggerisce di fare" },
+            ai_confidence: { type: "number", minimum: 0, maximum: 1 },
+          },
+          required: ["anomaly_type", "severity", "ai_description"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_flag_anomalia", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_anomaly_type: args?.anomaly_type,
+      p_severity: args?.severity,
+      p_ai_description: args?.ai_description,
+      p_transaction_id: args?.transaction_id ?? null,
+      p_amount: args?.amount ?? null,
+      p_counterparty_name: args?.counterparty_name ?? null,
+      p_ai_recommendation: args?.ai_recommendation ?? null,
+      p_ai_confidence: args?.ai_confidence ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "controller", "cfo", "amministrazione", "compliance"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "cron"],
+    riskLevel: "safe",
+    domain: "anomalie",
+  },
+
+  lista_anomalie_aperte: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_anomalie_aperte",
+        description: "Lista anomalie finanziarie aperte (non false positive, non risolte). Filtro per severity minima.",
+        parameters: {
+          type: "object",
+          properties: {
+            severity_min: { type: "string", enum: ["low","medium","high","critical"], default: "medium" },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_anomalie_aperte", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_severity_min: args?.severity_min ?? "medium",
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "controller", "cfo", "amministrazione", "compliance", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
+    riskLevel: "safe",
+    domain: "anomalie",
+  },
+
+  detect_duplicate_payments: {
+    schema: {
+      type: "function",
+      function: {
+        name: "detect_duplicate_payments",
+        description: "Rileva pagamenti duplicati (stessa controparte + stesso importo + entro N giorni) negli ultimi giorni. Pre-filter rule-based prima di AI deep analysis.",
+        parameters: {
+          type: "object",
+          properties: {
+            days_back: { type: "integer", minimum: 1, maximum: 90, default: 7 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_detect_duplicate_payments", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_days_back: args?.days_back ?? 7,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "controller", "cfo", "amministrazione"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "cron"],
+    riskLevel: "safe",
+    domain: "anomalie",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-OPS-02 — Briefing Capomastro Mattutino
+  // ═════════════════════════════════════════════════════════════════════════
+
+  lista_cantieri_per_briefing: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_cantieri_per_briefing",
+        description: "Lista cantieri attivi che necessitano briefing mattutino (capomastro assegnato + canale preferenza valido + briefing non ancora inviato oggi). Usato dal cron 06:30.",
+        parameters: {
+          type: "object",
+          properties: {
+            briefing_date: { type: "string", description: "Data YYYY-MM-DD (default oggi)" },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_cantieri_per_briefing", {
+      p_company_id: ctx.companyId,
+      p_briefing_date: args?.briefing_date ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "pm_cantiere", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "cron"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  log_briefing_sent: {
+    schema: {
+      type: "function",
+      function: {
+        name: "log_briefing_sent",
+        description: "Registra l'invio di un briefing mattutino al capomastro (idempotente per cantiere+data).",
+        parameters: {
+          type: "object",
+          properties: {
+            cantiere_id: { type: "string" },
+            briefing_date: { type: "string" },
+            capomastro_user_id: { type: "string" },
+            channel: { type: "string", enum: ["whatsapp","telegram","push","email","sms"] },
+            ai_message: { type: "string" },
+            weather_data: { type: "object" },
+            safety_alerts: { type: "object" },
+            external_message_id: { type: "string" },
+            ai_cost_billed_eur: { type: "number" },
+          },
+          required: ["cantiere_id", "briefing_date", "capomastro_user_id", "channel", "ai_message"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_log_briefing_sent", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_cantiere_id: args?.cantiere_id,
+      p_briefing_date: args?.briefing_date,
+      p_capomastro_user_id: args?.capomastro_user_id,
+      p_channel: args?.channel,
+      p_ai_message: args?.ai_message,
+      p_weather_data: args?.weather_data ?? null,
+      p_safety_alerts: args?.safety_alerts ?? null,
+      p_external_message_id: args?.external_message_id ?? null,
+      p_ai_cost_billed_eur: args?.ai_cost_billed_eur ?? null,
+    }),
+    allowedRoles: ["super_admin"],
+    allowedPersonas: ["silvio", "pm_cantiere"],
+    allowedChannels: ["internal_chat", "cron"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-OPS-03 — Giornale Cantiere Auto
+  // ═════════════════════════════════════════════════════════════════════════
+
+  genera_giornale_cantiere: {
+    schema: {
+      type: "function",
+      function: {
+        name: "genera_giornale_cantiere",
+        description: "Genera giornale di cantiere formale per data specifica (default: oggi). Idempotente per (cantiere, data). Aggrega rapportini, foto, DDT, presenze, meteo. Usa per cron 18:00 o re-gen on-demand.",
+        parameters: {
+          type: "object",
+          properties: {
+            cantiere_id: { type: "string" },
+            data: { type: "string", description: "YYYY-MM-DD (default oggi)" },
+            force_regenerate: { type: "boolean", default: false },
+          },
+          required: ["cantiere_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_giornale", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_cantiere_id: args?.cantiere_id,
+      p_data: args?.data ?? null,
+      p_force_regenerate: args?.force_regenerate === true,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "cron"],
+    riskLevel: "safe",
+    domain: "cantiere",
+    estimatedCostEur: 0.05,
+  },
+
+  approva_giornale_cantiere: {
+    schema: {
+      type: "function",
+      function: {
+        name: "approva_giornale_cantiere",
+        description: "Firma digitalmente il giornale di cantiere (PM o titolare). Genera signature_hash SHA-256. Una volta firmato non è più modificabile.",
+        parameters: {
+          type: "object",
+          properties: {
+            giornale_id: { type: "string" },
+            observations: { type: "string", description: "Osservazioni opzionali del firmatario" },
+          },
+          required: ["giornale_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_approva_giornale", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_giornale_id: args?.giornale_id,
+      p_observations: args?.observations ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["pm_cantiere", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow", // firma legale → HITL conferma
+    domain: "cantiere",
+  },
+
+  aggiorna_giornale_evento: {
+    schema: {
+      type: "function",
+      function: {
+        name: "aggiorna_giornale_evento",
+        description: "Aggiunge un evento (visita DL, ispezione ASL, problema sicurezza, ecc.) al giornale del giorno. Solo se non ancora firmato.",
+        parameters: {
+          type: "object",
+          properties: {
+            cantiere_id: { type: "string" },
+            data: { type: "string", description: "YYYY-MM-DD" },
+            evento_type: { type: "string", description: "Es. 'visita_dl', 'ispezione_asl', 'problema_sicurezza'" },
+            evento_descrizione: { type: "string" },
+          },
+          required: ["cantiere_id", "data", "evento_type", "evento_descrizione"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_aggiorna_giornale_evento", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_cantiere_id: args?.cantiere_id,
+      p_data: args?.data,
+      p_evento_type: args?.evento_type,
+      p_evento_descrizione: args?.evento_descrizione,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-SALES-02 — Preventivo da Foto
+  // ═════════════════════════════════════════════════════════════════════════
+
+  crea_preventivo_da_foto: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_preventivo_da_foto",
+        description: "Crea un run di preventivo da foto: salva input (foto storage paths + descrizione + indirizzo) e avvia analisi vision asincrona. Risultato: run_id + status='pending'. L'edge preventivo-da-foto-orchestrator processa.",
+        parameters: {
+          type: "object",
+          properties: {
+            source: { type: "string", enum: ["portal_customer","public_landing","whatsapp","telegram","email","manual_ui"] },
+            customer_id: { type: "string", description: "UUID profile (opzionale, se cliente esistente)" },
+            lead_name: { type: "string" },
+            lead_email: { type: "string" },
+            lead_phone: { type: "string" },
+            cantiere_address: { type: "string" },
+            description: { type: "string", description: "Cosa vuole il cliente" },
+            image_storage_paths: { type: "array", items: { type: "string" } },
+            sketch_storage_paths: { type: "array", items: { type: "string" } },
+            urgenza: { type: "string", enum: ["non_urgente","normale","urgente","molto_urgente"], default: "normale" },
+            budget_hint_eur: { type: "number" },
+          },
+          required: ["source", "image_storage_paths"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_crea_preventivo_da_foto", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_source: args?.source,
+      p_customer_id: args?.customer_id ?? null,
+      p_lead_name: args?.lead_name ?? null,
+      p_lead_email: args?.lead_email ?? null,
+      p_lead_phone: args?.lead_phone ?? null,
+      p_cantiere_address: args?.cantiere_address ?? null,
+      p_description: args?.description ?? null,
+      p_image_storage_paths: args?.image_storage_paths ?? [],
+      p_sketch_storage_paths: args?.sketch_storage_paths ?? null,
+      p_urgenza: args?.urgenza ?? "normale",
+      p_budget_hint_eur: args?.budget_hint_eur ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "pm_cantiere", "tecnico", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "email", "api"],
+    riskLevel: "yellow", // crea proposal review prima dell'invio
+    domain: "preventivi",
+    estimatedCostEur: 0.20,
+  },
+
+  lista_preventivi_da_foto_draft: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_preventivi_da_foto_draft",
+        description: "Lista i preventivi da foto generati da AI in attesa di revisione sales/PM. Default: solo status='draft_ready'.",
+        parameters: {
+          type: "object",
+          properties: {
+            status_filter: { type: "string", description: "Filtro stato (default 'draft_ready')" },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_preventivi_da_foto_draft", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_status_filter: args?.status_filter ?? "draft_ready",
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "pm_cantiere", "tecnico", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "preventivi",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-HR-01 — Onboarding Dipendente Automatizzato
+  // ═════════════════════════════════════════════════════════════════════════
+
+  avvia_onboarding_dipendente: {
+    schema: {
+      type: "function",
+      function: {
+        name: "avvia_onboarding_dipendente",
+        description: "Avvia il processo di onboarding completo per un dipendente: crea i 6 step (contratto, UNILAV, visita medica, formazione 16h, DPI, portale) e popola i dati contrattuali (CCNL, livello, qualifica, RAL).",
+        parameters: {
+          type: "object",
+          properties: {
+            employee_id: { type: "string", description: "UUID dipendente esistente" },
+            ccnl: { type: "string", description: "Es. 'CCNL Edilizia Industria'", default: "CCNL Edilizia Industria" },
+            livello: { type: "string", description: "Es. 'A2', '4° categoria'" },
+            qualifica: { type: "string", description: "Es. 'muratore', 'carpentiere', 'capomastro'" },
+            data_assunzione: { type: "string", description: "YYYY-MM-DD" },
+            ore_settimana: { type: "integer", default: 40 },
+            ral_eur: { type: "number", description: "Retribuzione Annua Lorda EUR" },
+          },
+          required: ["employee_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_avvia_onboarding", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_employee_id: args?.employee_id,
+      p_ccnl: args?.ccnl ?? "CCNL Edilizia Industria",
+      p_livello: args?.livello ?? null,
+      p_qualifica: args?.qualifica ?? null,
+      p_data_assunzione: args?.data_assunzione ?? null,
+      p_ore_settimana: args?.ore_settimana ?? 40,
+      p_ral_eur: args?.ral_eur ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "hr", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "hr",
+  },
+
+  aggiorna_step_onboarding: {
+    schema: {
+      type: "function",
+      function: {
+        name: "aggiorna_step_onboarding",
+        description: "Aggiorna lo stato di uno step di onboarding (contract_generation, unilav_sending, medical_scheduling, training_scheduling, dpi_delivery, portal_activation). Quando tutti completed, employee.onboarding_status = 'completed'.",
+        parameters: {
+          type: "object",
+          properties: {
+            employee_id: { type: "string" },
+            step_key: { type: "string", enum: ["contract_generation","unilav_sending","medical_scheduling","training_scheduling","dpi_delivery","portal_activation"] },
+            status: { type: "string", enum: ["pending","in_progress","completed","failed","skipped"] },
+            document_path: { type: "string" },
+            external_reference: { type: "string" },
+            ai_content: { type: "string" },
+            error_message: { type: "string" },
+          },
+          required: ["employee_id", "step_key", "status"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_aggiorna_step_onboarding", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_employee_id: args?.employee_id,
+      p_step_key: args?.step_key,
+      p_status: args?.status,
+      p_document_path: args?.document_path ?? null,
+      p_external_reference: args?.external_reference ?? null,
+      p_ai_content: args?.ai_content ?? null,
+      p_error_message: args?.error_message ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "hr"],
+    allowedChannels: ["internal_chat", "web_persona", "cron"],
+    riskLevel: "safe",
+    domain: "hr",
+  },
+
+  lista_onboarding_in_corso: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_onboarding_in_corso",
+        description: "Lista dipendenti con onboarding in corso (non completed/blocked). Mostra: nome, qualifica, % step completati, eventuali step falliti.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_onboarding_in_corso", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "hr", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "hr",
+  },
+
+  verifica_completion_onboarding: {
+    schema: {
+      type: "function",
+      function: {
+        name: "verifica_completion_onboarding",
+        description: "Verifica checklist onboarding di un dipendente: contratto firmato? UNILAV inviato? Visita medica? Formazione 16h? DPI? Portale attivo? Ritorna `all_complete` true/false.",
+        parameters: {
+          type: "object",
+          properties: {
+            employee_id: { type: "string" },
+          },
+          required: ["employee_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_verifica_completion_onboarding", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_employee_id: args?.employee_id,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "hr", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "hr",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-OPS-04 — SAL Automatico
+  // ═════════════════════════════════════════════════════════════════════════
+
+  compone_sal_da_rapportini: {
+    schema: {
+      type: "function",
+      function: {
+        name: "compone_sal_da_rapportini",
+        description: "Avvia composizione SAL automatica aggregando rapportini, foto, DDT del periodo specificato. Default periodo: dall'ultimo SAL approvato a oggi. Output: run_id pending; orchestratore async farà composizione AI + calcoli ritenute.",
+        parameters: {
+          type: "object",
+          properties: {
+            order_id: { type: "string", description: "UUID cantiere" },
+            period_start: { type: "string", description: "YYYY-MM-DD (default: dopo ultimo SAL)" },
+            period_end: { type: "string", description: "YYYY-MM-DD (default: oggi)" },
+            force_regenerate: { type: "boolean", default: false },
+          },
+          required: ["order_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_compone_sal_da_rapportini", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_order_id: args?.order_id,
+      p_period_start: args?.period_start ?? null,
+      p_period_end: args?.period_end ?? null,
+      p_force_regenerate: args?.force_regenerate === true,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "pm_cantiere", "controller", "amministrazione"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "cron"],
+    riskLevel: "yellow",
+    domain: "fattura",
+    estimatedCostEur: 0.05,
+  },
+
+  lista_sal_in_attesa: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_sal_in_attesa",
+        description: "Lista SAL in stato bozza/draft_ai (in attesa di approvazione PM). Include warnings AI di validazione.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_sal_in_attesa", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "pm_cantiere", "controller", "cfo", "amministrazione"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "fattura",
+  },
+
+  approva_sal: {
+    schema: {
+      type: "function",
+      function: {
+        name: "approva_sal",
+        description: "Approva un SAL bozza (yellow → HITL). Se ci sono warning bloccanti, richiede force_proceed_with_warnings=true. Una volta approvato è pronto per firma e invio committente/DL.",
+        parameters: {
+          type: "object",
+          properties: {
+            sal_id: { type: "string" },
+            observations: { type: "string", description: "Osservazioni opzionali" },
+            force_proceed_with_warnings: { type: "boolean", default: false },
+          },
+          required: ["sal_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_approva_sal", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_sal_id: args?.sal_id,
+      p_observations: args?.observations ?? null,
+      p_force_proceed_with_warnings: args?.force_proceed_with_warnings === true,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["pm_cantiere", "controller", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "fattura",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-OPS-05 — Materiale JIT + Reorder Predittivo
+  // ═════════════════════════════════════════════════════════════════════════
+
+  predici_consumo_materiali: {
+    schema: {
+      type: "function",
+      function: {
+        name: "predici_consumo_materiali",
+        description: "Predice fabbisogno materiali per un cantiere su orizzonte 7/14/30 giorni basato su storico consumi.",
+        parameters: {
+          type: "object",
+          properties: {
+            order_id: { type: "string" },
+            horizon_days: { type: "integer", enum: [7, 14, 30], default: 14 },
+          },
+          required: ["order_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_predici_consumo_materiali", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_order_id: args?.order_id,
+      p_horizon_days: args?.horizon_days ?? 14,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "pm_cantiere", "acquisti", "capocantiere"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "cron"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  lista_stockout_imminenti: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_stockout_imminenti",
+        description: "Lista materiali a rischio stock-out nei prossimi N giorni per tutti i cantieri attivi. Calcolato da saldo / consumo medio giornaliero.",
+        parameters: {
+          type: "object",
+          properties: {
+            days_ahead: { type: "integer", minimum: 1, maximum: 30, default: 7 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_stockout_imminenti", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_days_ahead: args?.days_ahead ?? 7,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "pm_cantiere", "acquisti", "capocantiere", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "cron"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  crea_proposta_ordine_fornitore: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_proposta_ordine_fornitore",
+        description: "Crea una proposed_purchase_order (yellow → HITL) con: fornitore consigliato + items + timing ottimale. Dopo approvazione il sistema crea PO reale e invia al fornitore.",
+        parameters: {
+          type: "object",
+          properties: {
+            supplier_id: { type: "string" },
+            for_cantiere_id: { type: "string" },
+            items: { type: "array", items: { type: "object" }, description: "[{material_sku, name, qty, unit, price_estimate, note}]" },
+            proposal_reason: { type: "string", description: "Es. 'stockout imminente', 'ordine ricorrente'" },
+            total_amount_eur: { type: "number" },
+            optimal_send_date: { type: "string", description: "YYYY-MM-DD" },
+            expected_delivery_date: { type: "string", description: "YYYY-MM-DD" },
+          },
+          required: ["supplier_id", "for_cantiere_id", "items", "proposal_reason", "total_amount_eur"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_crea_proposta_ordine_fornitore", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_supplier_id: args?.supplier_id,
+      p_for_cantiere_id: args?.for_cantiere_id,
+      p_items: args?.items,
+      p_proposal_reason: args?.proposal_reason,
+      p_total_amount_eur: args?.total_amount_eur,
+      p_optimal_send_date: args?.optimal_send_date ?? null,
+      p_expected_delivery_date: args?.expected_delivery_date ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "acquisti", "pm_cantiere"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "cron"],
+    riskLevel: "yellow",
+    domain: "filiera",
+  },
+
+  lista_proposte_ordini_pending: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_proposte_ordini_pending",
+        description: "Lista proposed_purchase_orders in stato 'draft' (in attesa approval). Per UI inbox acquisti.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_proposte_ordini_pending", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "acquisti", "pm_cantiere", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "filiera",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-SALES-01 — Lead First-Touch < 60s
+  // ═════════════════════════════════════════════════════════════════════════
+
+  crea_lead_first_touch: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_lead_first_touch",
+        description: "Acquisisce un nuovo lead da qualsiasi canale (Meta/Google/TikTok ads, form sito, WhatsApp, missed call, email). Idempotente: se stesso contatto+source entro 1h → ritorna duplicate. AI agent prenderà contatto entro 60s via canale appropriato.",
+        parameters: {
+          type: "object",
+          properties: {
+            source_channel: { type: "string", enum: ["meta_lead_ads","google_ads","tiktok_lead","linkedin","website_form","whatsapp_inbound","telegram_inbound","missed_call","email_inbound","referral"] },
+            contact_name: { type: "string" },
+            contact_phone: { type: "string" },
+            contact_email: { type: "string" },
+            contact_address: { type: "string" },
+            vertical_interest: { type: "string", description: "Es. 'serramentisti', 'tetti', 'bagni'" },
+            source_campaign: { type: "string" },
+            source_landing_url: { type: "string" },
+            raw_payload: { type: "object", description: "Payload originale del webhook/form" },
+          },
+          required: ["source_channel"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_crea_lead_first_touch", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_source_channel: args?.source_channel,
+      p_contact_name: args?.contact_name ?? null,
+      p_contact_phone: args?.contact_phone ?? null,
+      p_contact_email: args?.contact_email ?? null,
+      p_contact_address: args?.contact_address ?? null,
+      p_vertical_interest: args?.vertical_interest ?? null,
+      p_source_campaign: args?.source_campaign ?? null,
+      p_source_landing_url: args?.source_landing_url ?? null,
+      p_raw_payload: args?.raw_payload ?? {},
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "whatsapp", "telegram", "email", "api", "cron"],
+    riskLevel: "safe",
+    domain: "crm",
+  },
+
+  lista_lead_first_touch: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_lead_first_touch",
+        description: "Dashboard KPI lead first-touch: conteggio + SLA met (target <60s) + outcomes (qualified, appointments, passed_to_human). Filtro per outcome + giorni recenti.",
+        parameters: {
+          type: "object",
+          properties: {
+            days_back: { type: "integer", minimum: 1, maximum: 180, default: 30 },
+            outcome_filter: { type: "string" },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_lead_first_touch", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_days_back: args?.days_back ?? 30,
+      p_outcome_filter: args?.outcome_filter ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "direttore_marketing", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "crm",
+  },
+
+  chiudi_lead_first_touch: {
+    schema: {
+      type: "function",
+      function: {
+        name: "chiudi_lead_first_touch",
+        description: "Imposta outcome finale di un lead first-touch (qualified_appointment_booked, qualified_passed_to_human, unqualified, no_response, spam, duplicate). Opzionale: appointment_at + passed_to_user_id.",
+        parameters: {
+          type: "object",
+          properties: {
+            run_id: { type: "string" },
+            outcome: { type: "string", enum: ["qualified_appointment_booked","qualified_passed_to_human","unqualified","no_response","spam","duplicate"] },
+            appointment_at: { type: "string", description: "ISO8601 timestamp" },
+            passed_to_user_id: { type: "string" },
+          },
+          required: ["run_id", "outcome"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_chiudi_lead_first_touch", {
+      p_run_id: args?.run_id,
+      p_company_id: ctx.companyId,
+      p_outcome: args?.outcome,
+      p_appointment_at: args?.appointment_at ?? null,
+      p_passed_to_user_id: args?.passed_to_user_id ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "crm",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-SALES-03 — Win-back Clienti Dormienti
+  // ═════════════════════════════════════════════════════════════════════════
+
+  identify_dormant_customers: {
+    schema: {
+      type: "function",
+      function: {
+        name: "identify_dormant_customers",
+        description: "Identifica clienti dormienti (nessun ordine ultimi N giorni, opt-in valido, no winback recente). Calcola dormancy_score basato su LTV + storico orders + recenza ottimale.",
+        parameters: {
+          type: "object",
+          properties: {
+            threshold_days: { type: "integer", minimum: 30, maximum: 730, default: 180 },
+            top_n: { type: "integer", minimum: 1, maximum: 200, default: 50 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_identify_dormant_customers", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_threshold_days: args?.threshold_days ?? 180,
+      p_top_n: args?.top_n ?? 50,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "direttore_marketing", "cliente_tutor"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "cron"],
+    riskLevel: "safe",
+    domain: "crm",
+  },
+
+  crea_winback_draft: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_winback_draft",
+        description: "Crea bozza campagna winback per cliente dormiente (status='draft' → review obbligatoria). Include AI analysis + offer summary + offered_products + messaggio pronto. Verifica opt-out cliente automaticamente (GDPR).",
+        parameters: {
+          type: "object",
+          properties: {
+            customer_id: { type: "string" },
+            dormancy_days: { type: "integer" },
+            dormancy_score: { type: "number" },
+            customer_ltv_eur: { type: "number" },
+            customer_orders_count: { type: "integer" },
+            ai_analysis: { type: "string", description: "Ragionamento AI su cosa proporre" },
+            ai_offer_summary: { type: "string", description: "Sintesi offerta (max 200 char)" },
+            offered_products: { type: "array", items: { type: "object" } },
+            ai_message: { type: "string", description: "Messaggio personalizzato pronto" },
+            ai_cost_billed_eur: { type: "number" },
+            channel: { type: "string", enum: ["email","whatsapp","sms","phone_call","letter","telegram"], default: "email" },
+          },
+          required: ["customer_id", "dormancy_days", "ai_analysis", "ai_offer_summary", "ai_message"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_crea_winback_draft", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_customer_id: args?.customer_id,
+      p_dormancy_days: args?.dormancy_days,
+      p_dormancy_score: args?.dormancy_score ?? null,
+      p_customer_ltv_eur: args?.customer_ltv_eur ?? null,
+      p_customer_orders_count: args?.customer_orders_count ?? null,
+      p_ai_analysis: args?.ai_analysis,
+      p_ai_offer_summary: args?.ai_offer_summary,
+      p_offered_products: args?.offered_products ?? [],
+      p_ai_message: args?.ai_message,
+      p_ai_cost_billed_eur: args?.ai_cost_billed_eur ?? null,
+      p_channel: args?.channel ?? "email",
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "cliente_tutor"],
+    allowedChannels: ["internal_chat", "web_persona", "cron"],
+    riskLevel: "yellow",
+    domain: "crm",
+    estimatedCostEur: 0.06,
+  },
+
+  lista_winback_campaigns: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_winback_campaigns",
+        description: "Lista campagne winback con KPI: count totale, draft, sent, converted. Per UI dashboard sales.",
+        parameters: {
+          type: "object",
+          properties: {
+            status_filter: { type: "string" },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_winback_campaigns", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_status_filter: args?.status_filter ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "direttore_marketing", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "crm",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-COMP-03 — Subappaltatore Compliance Unificato
+  // ═════════════════════════════════════════════════════════════════════════
+
+  lista_subappaltatori_compliance: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_subappaltatori_compliance",
+        description: "Lista subappaltatori con compliance_score (DURC + visura + DVR + POS + SOA + polizza RC + Cassa Edile). Filtro `only_non_compliant=true` per vedere solo quelli a rischio.",
+        parameters: {
+          type: "object",
+          properties: {
+            only_non_compliant: { type: "boolean", default: false },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_subappaltatori_compliance", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_only_non_compliant: args?.only_non_compliant === true,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "compliance", "amministrazione", "pm_cantiere", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "compliance",
+  },
+
+  archivia_documento_subappaltatore: {
+    schema: {
+      type: "function",
+      function: {
+        name: "archivia_documento_subappaltatore",
+        description: "Archivia documento subappaltatore (DURC/visura/DVR/POS/SOA/polizza RC/Cassa Edile). Trigger automatico marca i precedenti dello stesso tipo come superseded.",
+        parameters: {
+          type: "object",
+          properties: {
+            subappaltatore_id: { type: "string" },
+            tipo: { type: "string", enum: ["durc","visura","dvr","pos","soa","polizza_rc","cassa_edile","antimafia","iscrizione_albo","formazione_operai","altro"] },
+            data_emissione: { type: "string", description: "YYYY-MM-DD" },
+            scadenza: { type: "string", description: "YYYY-MM-DD" },
+            storage_path: { type: "string" },
+            numero_protocollo: { type: "string" },
+            esito: { type: "string", enum: ["regolare","irregolare","in_attesa","valid","expired","errore"] },
+            ai_extracted_data: { type: "object" },
+          },
+          required: ["subappaltatore_id", "tipo", "data_emissione", "scadenza"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_archivia_documento_subappaltatore", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_subappaltatore_id: args?.subappaltatore_id,
+      p_tipo: args?.tipo,
+      p_data_emissione: args?.data_emissione,
+      p_scadenza: args?.scadenza,
+      p_storage_path: args?.storage_path ?? null,
+      p_numero_protocollo: args?.numero_protocollo ?? null,
+      p_esito: args?.esito ?? null,
+      p_ai_extracted_data: args?.ai_extracted_data ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "compliance", "amministrazione"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "compliance",
+  },
+
+  lista_documenti_in_scadenza: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_documenti_in_scadenza",
+        description: "Lista documenti subappaltatori in scadenza nei prossimi N giorni (default 30). Include scaduti e in_scadenza.",
+        parameters: {
+          type: "object",
+          properties: {
+            days_ahead: { type: "integer", minimum: 1, maximum: 365, default: 30 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_documenti_in_scadenza", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_days_ahead: args?.days_ahead ?? 30,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "compliance", "amministrazione", "pm_cantiere"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
+    riskLevel: "safe",
+    domain: "compliance",
+  },
+
+  richiedi_rinnovo_documento: {
+    schema: {
+      type: "function",
+      function: {
+        name: "richiedi_rinnovo_documento",
+        description: "Registra richiesta rinnovo documento subappaltatore (con timestamp). Genera follow-up email/WhatsApp.",
+        parameters: {
+          type: "object",
+          properties: {
+            doc_id: { type: "string" },
+            deadline: { type: "string", description: "YYYY-MM-DD entro cui ricevere il nuovo documento" },
+          },
+          required: ["doc_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_richiedi_rinnovo_documento", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_doc_id: args?.doc_id,
+      p_deadline: args?.deadline ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "compliance", "amministrazione"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "compliance",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-FAT-04 — Cashflow Forecast 90gg con Scenari
+  // ═════════════════════════════════════════════════════════════════════════
+
+  get_cashflow_forecast_scenarios: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_cashflow_forecast_scenarios",
+        description: "Carica forecast cashflow 90gg con 3 scenari (realistic/best/worst). Include daily_balances, primo giorno a rischio, AI recommendations azioni correttive.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_get_cashflow_forecast_scenarios", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
+    riskLevel: "safe",
+    domain: "banking",
+  },
+
+  simula_intervento_cashflow: {
+    schema: {
+      type: "function",
+      function: {
+        name: "simula_intervento_cashflow",
+        description: "Simula impatto di un intervento sul cashflow: sollecito cliente, posticipo fornitore, anticipo SAL, apertura linea credito.",
+        parameters: {
+          type: "object",
+          properties: {
+            intervention_type: { type: "string", enum: ["sollecito_cliente","posticipo_fornitore","apertura_credito","anticipo_sal"] },
+            amount: { type: "number" },
+            target_date: { type: "string", description: "YYYY-MM-DD" },
+            description: { type: "string" },
+          },
+          required: ["intervention_type", "amount", "target_date"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_simula_intervento_cashflow", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_intervention_type: args?.intervention_type,
+      p_amount: args?.amount,
+      p_target_date: args?.target_date,
+      p_description: args?.description ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "banking",
+  },
+
+  save_cashflow_snapshot: {
+    schema: {
+      type: "function",
+      function: {
+        name: "save_cashflow_snapshot",
+        description: "[INTERNAL] Salva snapshot forecast cashflow giornaliero. Chiamato da edge ai-cashflow-forecast-builder.",
+        parameters: {
+          type: "object",
+          properties: {
+            scenario: { type: "string", enum: ["realistic","best","worst"] },
+            starting_balance_eur: { type: "number" },
+            daily_balances: { type: "array" },
+            min_balance_eur: { type: "number" },
+            min_balance_date: { type: "string" },
+            max_balance_eur: { type: "number" },
+            risk_days_count: { type: "integer" },
+            risk_days_list: { type: "array" },
+            first_risk_date: { type: "string" },
+            ai_recommendations: { type: "array" },
+            ai_cost_billed_eur: { type: "number" },
+            ai_confidence: { type: "number" },
+          },
+          required: ["scenario", "starting_balance_eur", "daily_balances"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_save_cashflow_snapshot", {
+      p_company_id: ctx.companyId,
+      p_scenario: args?.scenario,
+      p_starting_balance_eur: args?.starting_balance_eur,
+      p_daily_balances: args?.daily_balances,
+      p_min_balance_eur: args?.min_balance_eur,
+      p_min_balance_date: args?.min_balance_date ?? null,
+      p_max_balance_eur: args?.max_balance_eur,
+      p_risk_days_count: args?.risk_days_count ?? 0,
+      p_risk_days_list: args?.risk_days_list ?? [],
+      p_first_risk_date: args?.first_risk_date ?? null,
+      p_ai_recommendations: args?.ai_recommendations ?? [],
+      p_ai_cost_billed_eur: args?.ai_cost_billed_eur ?? null,
+      p_ai_confidence: args?.ai_confidence ?? null,
+    }),
+    allowedRoles: ["super_admin"],
+    allowedPersonas: ["silvio", "cfo"],
+    allowedChannels: ["internal_chat", "cron"],
+    riskLevel: "safe",
+    domain: "banking",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-HR-02 — Cedolini + Presenze + Assenze
+  // ═════════════════════════════════════════════════════════════════════════
+
+  calcola_ore_mese_dipendente: {
+    schema: {
+      type: "function",
+      function: {
+        name: "calcola_ore_mese_dipendente",
+        description: "Aggrega ore assenze (ferie/malattia/permessi/legge 104) per dipendente in un mese specifico. Per ore lavorate effettive integrare con rapportini.",
+        parameters: {
+          type: "object",
+          properties: {
+            employee_id: { type: "string" },
+            year: { type: "integer" },
+            month: { type: "integer", minimum: 1, maximum: 12 },
+          },
+          required: ["employee_id", "year", "month"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_calcola_ore_mese_dipendente", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_employee_id: args?.employee_id,
+      p_year: args?.year,
+      p_month: args?.month,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "hr", "amministrazione"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "hr",
+  },
+
+  genera_cedolino_dipendente: {
+    schema: {
+      type: "function",
+      function: {
+        name: "genera_cedolino_dipendente",
+        description: "Genera cedolino mensile per dipendente. Idempotente per (employee, anno, mese). Yellow → richiede revisione consulente del lavoro prima invio.",
+        parameters: {
+          type: "object",
+          properties: {
+            employee_id: { type: "string" },
+            year: { type: "integer" },
+            month: { type: "integer", minimum: 1, maximum: 12 },
+            force_regenerate: { type: "boolean", default: false },
+          },
+          required: ["employee_id", "year", "month"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_cedolino_dipendente", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_employee_id: args?.employee_id,
+      p_year: args?.year,
+      p_month: args?.month,
+      p_force_regenerate: args?.force_regenerate === true,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "hr", "amministrazione"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "cron"],
+    riskLevel: "yellow",
+    domain: "hr",
+  },
+
+  lista_cedolini_da_revisionare: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_cedolini_da_revisionare",
+        description: "Lista cedolini auto_ai pending review consulente. Filtro per anno/mese.",
+        parameters: {
+          type: "object",
+          properties: {
+            year: { type: "integer" },
+            month: { type: "integer" },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_cedolini_da_revisionare", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_year: args?.year ?? null,
+      p_month: args?.month ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "hr", "amministrazione", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "hr",
+  },
+
+  registra_assenza: {
+    schema: {
+      type: "function",
+      function: {
+        name: "registra_assenza",
+        description: "Registra assenza dipendente (ferie/malattia/infortunio/permesso/legge 104/maternità/sciopero). Status iniziale 'pending', richiede approvazione admin.",
+        parameters: {
+          type: "object",
+          properties: {
+            employee_id: { type: "string" },
+            data_inizio: { type: "string", description: "YYYY-MM-DD" },
+            data_fine: { type: "string", description: "YYYY-MM-DD" },
+            tipo_assenza: { type: "string", enum: ["ferie","permesso_retribuito","malattia","infortunio","maternita","congedo_studio","sciopero","permesso_legge_104","rol","altro"] },
+            ore_giorno: { type: "number", default: 8 },
+            note: { type: "string" },
+            giustificativo_path: { type: "string" },
+          },
+          required: ["employee_id", "data_inizio", "data_fine", "tipo_assenza"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_registra_assenza", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_employee_id: args?.employee_id,
+      p_data_inizio: args?.data_inizio,
+      p_data_fine: args?.data_fine,
+      p_tipo_assenza: args?.tipo_assenza,
+      p_ore_giorno: args?.ore_giorno ?? 8,
+      p_note: args?.note ?? null,
+      p_giustificativo_path: args?.giustificativo_path ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "hr", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp"],
+    riskLevel: "safe",
+    domain: "hr",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-OPS-06 — Quality Check Foto Cantiere AI
+  // ═════════════════════════════════════════════════════════════════════════
+
+  analizza_qualita_foto: {
+    schema: {
+      type: "function",
+      function: {
+        name: "analizza_qualita_foto",
+        description: "Salva analisi qualità AI di una foto cantiere: quality/safety/order score 1-10 + detected elements + safety/quality issues + recommendations. Aggiorna anche foto_cantiere campi AI esistenti per back-compat.",
+        parameters: {
+          type: "object",
+          properties: {
+            foto_id: { type: "string" },
+            quality_score: { type: "number", minimum: 0, maximum: 10 },
+            safety_score: { type: "number", minimum: 0, maximum: 10 },
+            order_score: { type: "number", minimum: 0, maximum: 10 },
+            detected_elements: { type: "object" },
+            safety_issues: { type: "array", description: "[{type, severity, description}]" },
+            quality_issues: { type: "array" },
+            recommendations: { type: "string" },
+            ai_model: { type: "string" },
+            ai_cost_billed_eur: { type: "number" },
+            ai_confidence: { type: "number" },
+            vertical_specific_checks: { type: "object" },
+          },
+          required: ["foto_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_qualita_foto", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_foto_id: args?.foto_id,
+      p_quality_score: args?.quality_score ?? null,
+      p_safety_score: args?.safety_score ?? null,
+      p_order_score: args?.order_score ?? null,
+      p_detected_elements: args?.detected_elements ?? null,
+      p_safety_issues: args?.safety_issues ?? [],
+      p_quality_issues: args?.quality_issues ?? [],
+      p_recommendations: args?.recommendations ?? null,
+      p_ai_model: args?.ai_model ?? null,
+      p_ai_cost_billed_eur: args?.ai_cost_billed_eur ?? null,
+      p_ai_confidence: args?.ai_confidence ?? null,
+      p_vertical_specific_checks: args?.vertical_specific_checks ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "tecnico", "pm_cantiere", "compliance"],
+    allowedChannels: ["internal_chat", "cron", "api"],
+    riskLevel: "safe",
+    domain: "cantiere",
+    estimatedCostEur: 0.10,
+  },
+
+  trend_qualita_cantiere: {
+    schema: {
+      type: "function",
+      function: {
+        name: "trend_qualita_cantiere",
+        description: "Trend qualità foto cantiere ultimi N giorni: avg score, count critical, safety/quality issues totali, trend ultima settimana.",
+        parameters: {
+          type: "object",
+          properties: {
+            cantiere_id: { type: "string" },
+            period_days: { type: "integer", minimum: 1, maximum: 365, default: 30 },
+          },
+          required: ["cantiere_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_trend_qualita_cantiere", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_cantiere_id: args?.cantiere_id,
+      p_period_days: args?.period_days ?? 30,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "pm_cantiere", "tecnico", "capocantiere", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  lista_foto_critical_recenti: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_foto_critical_recenti",
+        description: "Lista foto con critical safety issues rilevate negli ultimi N giorni. Per dashboard alert urgenti.",
+        parameters: {
+          type: "object",
+          properties: {
+            days_back: { type: "integer", minimum: 1, maximum: 90, default: 7 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_foto_critical_recenti", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_days_back: args?.days_back ?? 7,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "pm_cantiere", "tecnico", "compliance", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram", "whatsapp"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-SALES-04 — Dynamic Pricing Preventivi
+  // ═════════════════════════════════════════════════════════════════════════
+
+  storico_pricing_voce: {
+    schema: {
+      type: "function",
+      function: {
+        name: "storico_pricing_voce",
+        description: "Cerca pricing storico per voce simile (ILIKE descrizione) ultimi N mesi. Ritorna avg/min/max + samples.",
+        parameters: {
+          type: "object",
+          properties: {
+            voce_descrizione: { type: "string" },
+            months_back: { type: "integer", minimum: 1, maximum: 60, default: 12 },
+          },
+          required: ["voce_descrizione"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_storico_pricing_voce", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_voce_descrizione: args?.voce_descrizione,
+      p_months_back: args?.months_back ?? 12,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "tecnico", "controller"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "preventivi",
+  },
+
+  suggerisci_prezzo_voce: {
+    schema: {
+      type: "function",
+      function: {
+        name: "suggerisci_prezzo_voce",
+        description: "AI propone prezzo ottimale per voce computo + 3 varianti (economy/standard/premium). Considera storico + costi reali + margine target. Salva audit in pricing_suggestions.",
+        parameters: {
+          type: "object",
+          properties: {
+            voce_descrizione: { type: "string" },
+            qty: { type: "number" },
+            unita_misura: { type: "string" },
+            cost_real_eur: { type: "number", description: "Costo unitario reale" },
+            customer_id: { type: "string" },
+            quote_id: { type: "string" },
+            ai_reasoning: { type: "string" },
+            ai_confidence: { type: "number" },
+            ai_cost_billed_eur: { type: "number" },
+          },
+          required: ["voce_descrizione", "qty", "unita_misura", "cost_real_eur"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_suggerisci_prezzo_voce", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_voce_descrizione: args?.voce_descrizione,
+      p_qty: args?.qty,
+      p_unita_misura: args?.unita_misura,
+      p_cost_real_eur: args?.cost_real_eur,
+      p_customer_id: args?.customer_id ?? null,
+      p_quote_id: args?.quote_id ?? null,
+      p_ai_reasoning: args?.ai_reasoning ?? null,
+      p_ai_confidence: args?.ai_confidence ?? null,
+      p_ai_cost_billed_eur: args?.ai_cost_billed_eur ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "tecnico"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "preventivi",
+    estimatedCostEur: 0.03,
+  },
+
+  simula_what_if_pricing: {
+    schema: {
+      type: "function",
+      function: {
+        name: "simula_what_if_pricing",
+        description: "Simula impatto cambiamento margine (+/- N%) sul totale quote. Utile per aggiustamenti rapidi.",
+        parameters: {
+          type: "object",
+          properties: {
+            quote_id: { type: "string" },
+            margin_change_pct: { type: "number", description: "Es. +5 = aumenta margine di 5pp; -3 = riduce di 3pp" },
+          },
+          required: ["quote_id", "margin_change_pct"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_simula_what_if_pricing", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_quote_id: args?.quote_id,
+      p_margin_change_pct: args?.margin_change_pct,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "controller"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "preventivi",
+  },
+
+  analizza_storico_pricing_cliente: {
+    schema: {
+      type: "function",
+      function: {
+        name: "analizza_storico_pricing_cliente",
+        description: "Analizza pattern pricing cliente: variant breakdown, acceptance rate, raccomandazione approccio (price-sensitive vs value-oriented).",
+        parameters: {
+          type: "object",
+          properties: {
+            customer_id: { type: "string" },
+          },
+          required: ["customer_id"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_storico_pricing_cliente", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_customer_id: args?.customer_id,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "salesperson"],
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "cliente_tutor"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "preventivi",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-AIE-03 — Action Proposals UI Avanzata (4 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  approve_proposal_with_edits: {
+    schema: { type: "function", function: { name: "approve_proposal_with_edits", description: "Approva una proposal con payload modificato dall'utente. Salva diff originale vs modificato.", parameters: { type: "object", properties: { proposal_id: { type: "string" }, user_edited_payload: { type: "object" }, edit_reasoning: { type: "string" } }, required: ["proposal_id", "user_edited_payload"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_approve_proposal_with_edits", { p_company_id: ctx.companyId, p_proposal_id: args?.proposal_id, p_user_edited_payload: args?.user_edited_payload, p_edit_reasoning: args?.edit_reasoning ?? null }),
+    allowedPersonas: ["silvio", "*"], allowedChannels: ["web_persona", "internal_chat"], riskLevel: "safe", domain: "ai",
+  },
+
+  batch_approve_proposals: {
+    schema: { type: "function", function: { name: "batch_approve_proposals", description: "Approva in batch multiple proposal pendenti. Crea batch_id condiviso.", parameters: { type: "object", properties: { proposal_ids: { type: "array", items: { type: "string" } } }, required: ["proposal_ids"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_batch_approve_proposals", { p_company_id: ctx.companyId, p_proposal_ids: args?.proposal_ids }),
+    allowedPersonas: ["silvio", "*"], allowedChannels: ["web_persona", "internal_chat"], riskLevel: "safe", domain: "ai",
+  },
+
+  undo_executed_action: {
+    schema: { type: "function", function: { name: "undo_executed_action", description: "Annulla un'azione eseguita entro l'undo window. Solo per azioni reversibili (is_reversible=true).", parameters: { type: "object", properties: { proposal_id: { type: "string" }, reason: { type: "string" } }, required: ["proposal_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_undo_executed_action", { p_company_id: ctx.companyId, p_proposal_id: args?.proposal_id, p_reason: args?.reason ?? null }),
+    allowedPersonas: ["silvio", "*"], riskLevel: "yellow", domain: "ai",
+  },
+
+  get_proposal_audit_log: {
+    schema: { type: "function", function: { name: "get_proposal_audit_log", description: "Ritorna l'audit log completo (created/viewed/edited/approved/rejected/executed/undone) di una proposal.", parameters: { type: "object", properties: { proposal_id: { type: "string" } }, required: ["proposal_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_get_proposal_audit_log", { p_company_id: ctx.companyId, p_proposal_id: args?.proposal_id }),
+    allowedPersonas: ["silvio", "compliance", "*"], riskLevel: "safe", domain: "ai",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-COMP-04 — Pratiche Edilizie Workflow (6 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  identifica_tipo_pratica: {
+    schema: { type: "function", function: { name: "identifica_tipo_pratica", description: "AI suggerisce il tipo di pratica edilizia (CILA/SCIA/PdC) basato su descrizione intervento.", parameters: { type: "object", properties: { tipologia_intervento: { type: "string" }, ubicazione: { type: "string" } }, required: ["tipologia_intervento"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_identifica_tipo_pratica", { p_company_id: ctx.companyId, p_tipologia_intervento: args?.tipologia_intervento, p_ubicazione: args?.ubicazione ?? null }),
+    allowedPersonas: ["silvio", "tecnico", "compliance", "*"], riskLevel: "safe", domain: "compliance",
+  },
+
+  checklist_documenti_pratica: {
+    schema: { type: "function", function: { name: "checklist_documenti_pratica", description: "Genera checklist documenti per pratica edilizia (CILA/SCIA/PdC).", parameters: { type: "object", properties: { pratica_id: { type: "string" } }, required: ["pratica_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_checklist_documenti_pratica", { p_company_id: ctx.companyId, p_pratica_id: args?.pratica_id }),
+    allowedPersonas: ["silvio", "tecnico", "compliance", "*"], riskLevel: "safe", domain: "compliance",
+  },
+
+  genera_relazione_tecnica: {
+    schema: { type: "function", function: { name: "genera_relazione_tecnica", description: "Avvia generazione AI della relazione tecnica per una pratica edilizia (template_type: standard|superbonus|paesaggistica).", parameters: { type: "object", properties: { pratica_id: { type: "string" }, template_type: { type: "string" } }, required: ["pratica_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_relazione_tecnica", { p_company_id: ctx.companyId, p_pratica_id: args?.pratica_id, p_template_type: args?.template_type ?? "standard" }),
+    allowedPersonas: ["silvio", "tecnico", "compliance", "*"], riskLevel: "yellow", domain: "compliance", estimatedCostEur: 0.05,
+  },
+
+  verifica_completezza_pratica: {
+    schema: { type: "function", function: { name: "verifica_completezza_pratica", description: "Verifica documenti caricati vs richiesti. Ritorna mancanti.", parameters: { type: "object", properties: { pratica_id: { type: "string" } }, required: ["pratica_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_verifica_completezza_pratica", { p_company_id: ctx.companyId, p_pratica_id: args?.pratica_id }),
+    allowedPersonas: ["silvio", "tecnico", "compliance", "*"], riskLevel: "safe", domain: "compliance",
+  },
+
+  prepara_invio_sue: {
+    schema: { type: "function", function: { name: "prepara_invio_sue", description: "Prepara invio pratica al SUE comunale (se completa). Setta scadenza_silenzio_assenso.", parameters: { type: "object", properties: { pratica_id: { type: "string" } }, required: ["pratica_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_prepara_invio_sue", { p_company_id: ctx.companyId, p_pratica_id: args?.pratica_id }),
+    allowedPersonas: ["silvio", "tecnico", "compliance"], riskLevel: "red", domain: "compliance",
+  },
+
+  monitoraggio_pratica_status: {
+    schema: { type: "function", function: { name: "monitoraggio_pratica_status", description: "Lista pratiche edilizie attive con giorni da invio + giorni a silenzio assenso.", parameters: { type: "object", properties: { pratica_id: { type: "string" } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_monitoraggio_pratica_status", { p_company_id: ctx.companyId, p_pratica_id: args?.pratica_id ?? null }),
+    allowedPersonas: ["silvio", "tecnico", "compliance", "pm_cantiere", "*"], riskLevel: "safe", domain: "compliance",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-FAT-05 — Report CFO Settimanale (3 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  genera_report_cfo_settimanale: {
+    schema: { type: "function", function: { name: "genera_report_cfo_settimanale", description: "Genera report CFO settimanale (skeleton + narrative AI). Idempotente per company+week_start.", parameters: { type: "object", properties: { week_start: { type: "string", format: "date" }, force_regenerate: { type: "boolean" } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_report_cfo_settimanale", { p_company_id: ctx.companyId, p_week_start: args?.week_start ?? null, p_force_regenerate: args?.force_regenerate ?? false }),
+    allowedPersonas: ["silvio", "cfo", "controller", "*"], riskLevel: "safe", domain: "fattura", estimatedCostEur: 0.04,
+  },
+
+  invia_report_cfo: {
+    schema: { type: "function", function: { name: "invia_report_cfo", description: "Invia report CFO via email/whatsapp. Aggiorna sent_at.", parameters: { type: "object", properties: { report_id: { type: "string" }, channels: { type: "array", items: { type: "string", enum: ["email", "whatsapp"] } } }, required: ["report_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_report_cfo", { p_company_id: ctx.companyId, p_report_id: args?.report_id, p_channels: args?.channels ?? ["email"] }),
+    allowedPersonas: ["silvio", "cfo", "controller"], riskLevel: "safe", domain: "fattura",
+  },
+
+  chiedi_riassunto_settimana: {
+    schema: { type: "function", function: { name: "chiedi_riassunto_settimana", description: "Recupera l'ultimo report CFO settimanale generato per quick chat.", parameters: { type: "object", properties: {} } } },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_chiedi_riassunto_settimana", { p_company_id: ctx.companyId }),
+    allowedPersonas: ["silvio", "cfo", "assistente_imprenditore", "*"], riskLevel: "safe", domain: "fattura",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-FAT-06 — Reportistica Fiscale Auto (5 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  genera_lipe_trimestrale: {
+    schema: { type: "function", function: { name: "genera_lipe_trimestrale", description: "Genera Liquidazione Periodica IVA trimestrale (LIPE).", parameters: { type: "object", properties: { year: { type: "integer" }, quarter: { type: "integer", minimum: 1, maximum: 4 } }, required: ["year", "quarter"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_lipe_trimestrale", { p_company_id: ctx.companyId, p_year: args?.year, p_quarter: args?.quarter }),
+    allowedPersonas: ["silvio", "commercialista", "controller", "cfo", "*"], riskLevel: "yellow", domain: "fattura",
+  },
+
+  genera_f24_mese: {
+    schema: { type: "function", function: { name: "genera_f24_mese", description: "Genera F24 mensile (ritenute + INPS + IVA).", parameters: { type: "object", properties: { year: { type: "integer" }, month: { type: "integer", minimum: 1, maximum: 12 } }, required: ["year", "month"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_f24_mese", { p_company_id: ctx.companyId, p_year: args?.year, p_month: args?.month }),
+    allowedPersonas: ["silvio", "commercialista", "controller", "amministrazione"], riskLevel: "yellow", domain: "fattura",
+  },
+
+  genera_cu_anno: {
+    schema: { type: "function", function: { name: "genera_cu_anno", description: "Genera Certificazione Unica annuale per dipendenti/collaboratori.", parameters: { type: "object", properties: { year: { type: "integer" } }, required: ["year"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_cu_anno", { p_company_id: ctx.companyId, p_year: args?.year }),
+    allowedPersonas: ["silvio", "commercialista", "hr", "amministrazione"], riskLevel: "yellow", domain: "fattura",
+  },
+
+  verifica_quadrature_contabili: {
+    schema: { type: "function", function: { name: "verifica_quadrature_contabili", description: "Verifica quadrature contabili per periodo (IVA esigibile/detraibile, ritenute).", parameters: { type: "object", properties: { period_start: { type: "string", format: "date" }, period_end: { type: "string", format: "date" } }, required: ["period_start", "period_end"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_verifica_quadrature_contabili", { p_company_id: ctx.companyId, p_period_start: args?.period_start, p_period_end: args?.period_end }),
+    allowedPersonas: ["silvio", "commercialista", "controller", "cfo", "*"], riskLevel: "safe", domain: "fattura",
+  },
+
+  invia_lipe_ade: {
+    schema: { type: "function", function: { name: "invia_lipe_ade", description: "Invia LIPE all'Agenzia Entrate (action red, richiede HITL).", parameters: { type: "object", properties: { report_id: { type: "string" } }, required: ["report_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_lipe_ade", { p_company_id: ctx.companyId, p_report_id: args?.report_id }),
+    allowedPersonas: ["silvio", "commercialista"], riskLevel: "red", domain: "fattura",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-HR-03 — Allocazione Operai Ottimale (5 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  suggerisci_squadra_cantiere: {
+    schema: { type: "function", function: { name: "suggerisci_squadra_cantiere", description: "Suggerisce top-N operai per un cantiere/lavorazione basato su skill + productivity score.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, lavorazione: { type: "string" }, team_size: { type: "integer", default: 3 } }, required: ["cantiere_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_suggerisci_squadra_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_lavorazione: args?.lavorazione ?? null, p_team_size: args?.team_size ?? 3 }),
+    allowedPersonas: ["silvio", "pm_cantiere", "hr", "*"], riskLevel: "safe", domain: "hr",
+  },
+
+  analizza_competenze_operaio: {
+    schema: { type: "function", function: { name: "analizza_competenze_operaio", description: "Skill matrix di un operaio (proficiency, ore, productivity per skill).", parameters: { type: "object", properties: { employee_id: { type: "string" } }, required: ["employee_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_competenze_operaio", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id }),
+    allowedPersonas: ["silvio", "pm_cantiere", "hr", "*"], riskLevel: "safe", domain: "hr",
+  },
+
+  aggiorna_skill_da_rapportini: {
+    schema: { type: "function", function: { name: "aggiorna_skill_da_rapportini", description: "Aggiorna employee_skills.productivity_score aggregando rapportini periodo.", parameters: { type: "object", properties: { employee_id: { type: "string" }, period_start: { type: "string", format: "date" }, period_end: { type: "string", format: "date" } }, required: ["employee_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_aggiorna_skill_da_rapportini", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id, p_period_start: args?.period_start ?? null, p_period_end: args?.period_end ?? null }),
+    allowedPersonas: ["silvio", "hr"], riskLevel: "safe", domain: "hr",
+  },
+
+  top_performer_lavorazione: {
+    schema: { type: "function", function: { name: "top_performer_lavorazione", description: "Top-N performer per skill_key.", parameters: { type: "object", properties: { skill_key: { type: "string" }, top_n: { type: "integer", default: 5 } }, required: ["skill_key"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_top_performer_lavorazione", { p_company_id: ctx.companyId, p_skill_key: args?.skill_key, p_top_n: args?.top_n ?? 5 }),
+    allowedPersonas: ["silvio", "pm_cantiere", "hr", "capocantiere", "*"], riskLevel: "safe", domain: "hr",
+  },
+
+  analizza_squadra_storia: {
+    schema: { type: "function", function: { name: "analizza_squadra_storia", description: "Storia performance squadra (employee_ids → media produttività/qualità).", parameters: { type: "object", properties: { employee_ids: { type: "array", items: { type: "string" } } }, required: ["employee_ids"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_squadra_storia", { p_company_id: ctx.companyId, p_employee_ids: args?.employee_ids }),
+    allowedPersonas: ["silvio", "pm_cantiere", "hr", "*"], riskLevel: "safe", domain: "hr",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-HR-04 — Sicurezza Operai DPI/Formazione/Visite (6 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  stato_sicurezza_operaio: {
+    schema: { type: "function", function: { name: "stato_sicurezza_operaio", description: "Stato compliance operaio: formazioni + visite + DPI essenziali.", parameters: { type: "object", properties: { employee_id: { type: "string" } }, required: ["employee_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_stato_sicurezza_operaio", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id }),
+    allowedPersonas: ["silvio", "hr", "compliance", "pm_cantiere", "*"], riskLevel: "safe", domain: "hr",
+  },
+
+  operai_non_conformi_sicurezza: {
+    schema: { type: "function", function: { name: "operai_non_conformi_sicurezza", description: "Lista operai non conformi (formazioni mancanti, visite scadute, DPI assenti).", parameters: { type: "object", properties: {} } } },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_operai_non_conformi_sicurezza", { p_company_id: ctx.companyId }),
+    allowedPersonas: ["silvio", "hr", "compliance", "pm_cantiere", "*"], riskLevel: "safe", domain: "hr",
+  },
+
+  formazioni_in_scadenza: {
+    schema: { type: "function", function: { name: "formazioni_in_scadenza", description: "Formazioni operai in scadenza nei prossimi N giorni.", parameters: { type: "object", properties: { days_ahead: { type: "integer", default: 30 } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_formazioni_in_scadenza", { p_company_id: ctx.companyId, p_days_ahead: args?.days_ahead ?? 30 }),
+    allowedPersonas: ["silvio", "hr", "compliance", "*"], riskLevel: "safe", domain: "hr",
+  },
+
+  prenota_formazione_operaio: {
+    schema: { type: "function", function: { name: "prenota_formazione_operaio", description: "Registra formazione completata (o pianificata) per operaio.", parameters: { type: "object", properties: { employee_id: { type: "string" }, formation_type: { type: "string" }, ente_erogante: { type: "string" }, data_completamento: { type: "string", format: "date" } }, required: ["employee_id", "formation_type"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_prenota_formazione_operaio", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id, p_formation_type: args?.formation_type, p_ente_erogante: args?.ente_erogante ?? null, p_data_completamento: args?.data_completamento ?? null }),
+    allowedPersonas: ["silvio", "hr", "compliance"], riskLevel: "yellow", domain: "hr",
+  },
+
+  genera_modulo_consegna_dpi: {
+    schema: { type: "function", function: { name: "genera_modulo_consegna_dpi", description: "Registra consegna DPI per operaio (insert multipli da array dpi_items).", parameters: { type: "object", properties: { employee_id: { type: "string" }, dpi_items: { type: "array", items: { type: "object" } } }, required: ["employee_id", "dpi_items"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_modulo_consegna_dpi", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id, p_dpi_items: args?.dpi_items }),
+    allowedPersonas: ["silvio", "hr", "compliance"], riskLevel: "safe", domain: "hr",
+  },
+
+  blocca_operaio_da_cantiere: {
+    schema: { type: "function", function: { name: "blocca_operaio_da_cantiere", description: "Blocca operaio (is_active=false) per non conformità.", parameters: { type: "object", properties: { employee_id: { type: "string" }, reason: { type: "string" } }, required: ["employee_id", "reason"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_blocca_operaio_da_cantiere", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id, p_reason: args?.reason }),
+    allowedPersonas: ["silvio", "hr", "compliance"], riskLevel: "red", domain: "hr",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-OPS-07 — Pianificazione Multi-Cantiere (5 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  pianifica_cantiere: {
+    schema: { type: "function", function: { name: "pianifica_cantiere", description: "Crea allocazioni cantiere (employees/subcontractors/mezzi).", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, resources: { type: "array", items: { type: "object" } }, start_date: { type: "string", format: "date" }, end_date: { type: "string", format: "date" } }, required: ["cantiere_id", "resources"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_pianifica_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_resources: args?.resources, p_start_date: args?.start_date ?? null, p_end_date: args?.end_date ?? null }),
+    allowedPersonas: ["silvio", "pm_cantiere", "*"], riskLevel: "safe", domain: "cantiere",
+  },
+
+  ottimizza_allocazioni_settimana: {
+    schema: { type: "function", function: { name: "ottimizza_allocazioni_settimana", description: "AI ottimizza allocazioni per settimana (scenario: balanced|max_throughput|min_overtime).", parameters: { type: "object", properties: { start_date: { type: "string", format: "date" }, scenario: { type: "string" } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_ottimizza_allocazioni_settimana", { p_company_id: ctx.companyId, p_start_date: args?.start_date ?? null, p_scenario: args?.scenario ?? "balanced" }),
+    allowedPersonas: ["silvio", "pm_cantiere"], riskLevel: "yellow", domain: "cantiere", estimatedCostEur: 0.06,
+  },
+
+  identifica_conflitti_allocazione: {
+    schema: { type: "function", function: { name: "identifica_conflitti_allocazione", description: "Lista conflitti (stesso operaio su 2+ cantieri stesso periodo).", parameters: { type: "object", properties: {} } } },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_identifica_conflitti_allocazione", { p_company_id: ctx.companyId }),
+    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "*"], riskLevel: "safe", domain: "cantiere",
+  },
+
+  prevedi_impatto_ritardo: {
+    schema: { type: "function", function: { name: "prevedi_impatto_ritardo", description: "Stima allocazioni impattate da ritardo cantiere.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, delay_days: { type: "integer" } }, required: ["cantiere_id", "delay_days"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_prevedi_impatto_ritardo", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_delay_days: args?.delay_days }),
+    allowedPersonas: ["silvio", "pm_cantiere", "*"], riskLevel: "safe", domain: "cantiere",
+  },
+
+  sposta_allocazione: {
+    schema: { type: "function", function: { name: "sposta_allocazione", description: "Sposta una allocazione su nuove date.", parameters: { type: "object", properties: { allocation_id: { type: "string" }, new_start: { type: "string", format: "date" }, new_end: { type: "string", format: "date" }, reason: { type: "string" } }, required: ["allocation_id", "new_start", "new_end"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_sposta_allocazione", { p_company_id: ctx.companyId, p_allocation_id: args?.allocation_id, p_new_start: args?.new_start, p_new_end: args?.new_end, p_reason: args?.reason ?? null }),
+    allowedPersonas: ["silvio", "pm_cantiere"], riskLevel: "yellow", domain: "cantiere",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-OPS-08 — Sicurezza POS Auto (4 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  genera_pos_cantiere: {
+    schema: { type: "function", function: { name: "genera_pos_cantiere", description: "Genera POS (Piano Operativo Sicurezza) per cantiere conforme D.Lgs 81/08.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, force_regenerate: { type: "boolean" } }, required: ["cantiere_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_pos_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_force_regenerate: args?.force_regenerate ?? false }),
+    allowedPersonas: ["silvio", "compliance", "tecnico"], riskLevel: "red", domain: "compliance", estimatedCostEur: 0.08,
+  },
+
+  genera_duvri_cantiere: {
+    schema: { type: "function", function: { name: "genera_duvri_cantiere", description: "Genera DUVRI per cantiere con subappalti.", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_duvri_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
+    allowedPersonas: ["silvio", "compliance"], riskLevel: "red", domain: "compliance", estimatedCostEur: 0.05,
+  },
+
+  valida_dpi_operai_cantiere: {
+    schema: { type: "function", function: { name: "valida_dpi_operai_cantiere", description: "Valida DPI degli operai allocati al cantiere (casco/scarpe).", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_valida_dpi_operai_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
+    allowedPersonas: ["silvio", "compliance", "pm_cantiere", "capocantiere"], riskLevel: "safe", domain: "compliance",
+  },
+
+  verifica_formazioni_operai: {
+    schema: { type: "function", function: { name: "verifica_formazioni_operai", description: "Verifica formazioni e visite mediche operai allocati al cantiere.", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_verifica_formazioni_operai", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
+    allowedPersonas: ["silvio", "compliance", "pm_cantiere", "hr"], riskLevel: "safe", domain: "compliance",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-PRED-02 — Cantiere Ritardo Prediction (5 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  predici_data_fine_cantiere: {
+    schema: { type: "function", function: { name: "predici_data_fine_cantiere", description: "Ultima previsione data fine cantiere + risk level.", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_predici_data_fine_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
+    allowedPersonas: ["silvio", "pm_cantiere", "assistente_imprenditore", "*"], riskLevel: "safe", domain: "cantiere",
+  },
+
+  analizza_cause_ritardo: {
+    schema: { type: "function", function: { name: "analizza_cause_ritardo", description: "Analizza cause primarie e fattori contribuenti al ritardo.", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_cause_ritardo", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
+    allowedPersonas: ["silvio", "pm_cantiere", "*"], riskLevel: "safe", domain: "cantiere",
+  },
+
+  genera_piano_recovery_cantiere: {
+    schema: { type: "function", function: { name: "genera_piano_recovery_cantiere", description: "AI propone piano recovery cantiere a rischio.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, target_date: { type: "string", format: "date" } }, required: ["cantiere_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_piano_recovery_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_target_date: args?.target_date ?? null }),
+    allowedPersonas: ["silvio", "pm_cantiere"], riskLevel: "yellow", domain: "cantiere", estimatedCostEur: 0.05,
+  },
+
+  lista_cantieri_a_rischio: {
+    schema: { type: "function", function: { name: "lista_cantieri_a_rischio", description: "Lista cantieri con risk_level >= soglia (low/medium/high/critical).", parameters: { type: "object", properties: { risk_level_min: { type: "string", enum: ["low", "medium", "high", "critical"] } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lista_cantieri_a_rischio", { p_company_id: ctx.companyId, p_risk_level_min: args?.risk_level_min ?? "medium" }),
+    allowedPersonas: ["silvio", "pm_cantiere", "assistente_imprenditore", "*"], riskLevel: "safe", domain: "cantiere",
+  },
+
+  calcola_costo_ritardo: {
+    schema: { type: "function", function: { name: "calcola_costo_ritardo", description: "Stima costo ritardo cantiere (penali + costi extra).", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, delay_days: { type: "integer" } }, required: ["cantiere_id", "delay_days"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_calcola_costo_ritardo", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_delay_days: args?.delay_days }),
+    allowedPersonas: ["silvio", "pm_cantiere", "cfo", "controller", "*"], riskLevel: "safe", domain: "cantiere",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-SALES-05 — Proposal Commerciale PDF (4 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  genera_proposal_commerciale: {
+    schema: { type: "function", function: { name: "genera_proposal_commerciale", description: "Genera proposal commerciale PDF da preventivo (cover, about us, case studies, FAQ, CTA).", parameters: { type: "object", properties: { quote_id: { type: "string" }, force_regenerate: { type: "boolean" }, target_audience: { type: "string" } }, required: ["quote_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_proposal_commerciale", { p_company_id: ctx.companyId, p_quote_id: args?.quote_id, p_force_regenerate: args?.force_regenerate ?? false, p_target_audience: args?.target_audience ?? null }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm", estimatedCostEur: 0.10,
+  },
+
+  trova_case_studies_simili: {
+    schema: { type: "function", function: { name: "trova_case_studies_simili", description: "Trova orders completati simili a una quote (per tipo lavoro + importo).", parameters: { type: "object", properties: { quote_id: { type: "string" }, similarity_threshold: { type: "number" } }, required: ["quote_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_trova_case_studies_simili", { p_company_id: ctx.companyId, p_quote_id: args?.quote_id, p_similarity_threshold: args?.similarity_threshold ?? 0.6 }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
+  },
+
+  analizza_proposal_engagement: {
+    schema: { type: "function", function: { name: "analizza_proposal_engagement", description: "Engagement proposal (sent/opened/page views/outcome).", parameters: { type: "object", properties: { proposal_id: { type: "string" } }, required: ["proposal_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_proposal_engagement", { p_company_id: ctx.companyId, p_proposal_id: args?.proposal_id }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
+  },
+
+  invia_proposal_cliente: {
+    schema: { type: "function", function: { name: "invia_proposal_cliente", description: "Invia proposal al cliente via canali specificati.", parameters: { type: "object", properties: { proposal_id: { type: "string" }, channels: { type: "array", items: { type: "string", enum: ["email", "whatsapp", "portal"] } }, message: { type: "string" } }, required: ["proposal_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_proposal_cliente", { p_company_id: ctx.companyId, p_proposal_id: args?.proposal_id, p_channels: args?.channels ?? ["email"], p_message: args?.message ?? null }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite"], riskLevel: "yellow", domain: "crm",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-SALES-06 — Pipeline Forecast Sales (4 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  stima_probabilita_close_quote: {
+    schema: { type: "function", function: { name: "stima_probabilita_close_quote", description: "Stima probabilità close quote (heuristic baseline + AI factors).", parameters: { type: "object", properties: { quote_id: { type: "string" } }, required: ["quote_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_stima_probabilita_close_quote", { p_company_id: ctx.companyId, p_quote_id: args?.quote_id }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
+  },
+
+  get_pipeline_forecast: {
+    schema: { type: "function", function: { name: "get_pipeline_forecast", description: "Forecast pipeline aggregato (totale, weighted, 30/60/90gg).", parameters: { type: "object", properties: { horizon_days: { type: "integer", default: 90 } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_get_pipeline_forecast", { p_company_id: ctx.companyId, p_horizon_days: args?.horizon_days ?? 90 }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "cfo", "*"], riskLevel: "safe", domain: "crm",
+  },
+
+  identifica_quotes_da_followup: {
+    schema: { type: "function", function: { name: "identifica_quotes_da_followup", description: "Quotes attive con probabilità >= soglia (priorità follow-up).", parameters: { type: "object", properties: { priority_threshold: { type: "number", default: 60 } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_identifica_quotes_da_followup", { p_company_id: ctx.companyId, p_priority_threshold: args?.priority_threshold ?? 60 }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
+  },
+
+  suggerisci_azione_per_quote: {
+    schema: { type: "function", function: { name: "suggerisci_azione_per_quote", description: "Suggerisce next-action per quote (call/email/wait).", parameters: { type: "object", properties: { quote_id: { type: "string" } }, required: ["quote_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_suggerisci_azione_per_quote", { p_company_id: ctx.companyId, p_quote_id: args?.quote_id }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
 };
 
 /**
  * Ritorna i tool disponibili per il ruolo dell'utente.
+ *
+ * @deprecated MP-AIE-01 v2: preferire `getToolsForChannel` (più potente e
+ * canale-aware). Mantenuto per back-compat con silvio-chat esistente.
  */
 export function getToolsForRole(role: string): SilvioTool[] {
   return Object.values(SILVIO_TOOLS).filter(t =>
@@ -988,7 +3456,58 @@ export function getToolsForRole(role: string): SilvioTool[] {
 }
 
 /**
+ * MP-AIE-01 v2 — filtra i tool per canale + role + persona + domain.
+ * Funzione canonica usata da: silvio-chat, ai-orchestrator, whatsapp-ai-processor,
+ * telegram-bot-processor, internal-agent-tools (voice).
+ *
+ * Logica:
+ *   - allowedChannels vuoto/undefined = disponibile su TUTTI i canali
+ *   - allowedRoles vuoto/undefined o include "*" = disponibile per TUTTI i ruoli
+ *   - allowedPersonas vuoto/undefined o include "*" = disponibile per TUTTE le personas
+ *   - domain filter è opzionale (omettilo per ricevere tutti)
+ */
+export function getToolsForChannel(opts: {
+  channel: Channel;
+  role: string;
+  personaKey?: string;
+  domain?: ToolDomain;
+}): SilvioTool[] {
+  const out: SilvioTool[] = [];
+  for (const tool of Object.values(SILVIO_TOOLS)) {
+    // Channel filter
+    if (tool.allowedChannels && tool.allowedChannels.length > 0) {
+      if (!tool.allowedChannels.includes(opts.channel)) continue;
+    }
+    // Role filter
+    if (tool.allowedRoles && tool.allowedRoles.length > 0) {
+      if (!tool.allowedRoles.includes(opts.role) && !tool.allowedRoles.includes("*")) continue;
+    }
+    // Persona filter
+    if (opts.personaKey && tool.allowedPersonas && tool.allowedPersonas.length > 0) {
+      if (!tool.allowedPersonas.includes(opts.personaKey) && !tool.allowedPersonas.includes("*")) continue;
+    }
+    // Domain filter
+    if (opts.domain && tool.domain !== opts.domain) continue;
+    out.push(tool);
+  }
+  return out;
+}
+
+/**
+ * MP-AIE-01 v2 — converte una lista di SilvioTool in OpenAI function-calling spec.
+ * Usato per costruire il body `params.tools` di aiRouterComplete.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toolsToOpenAISpec(tools: SilvioTool[]): any[] {
+  return tools.map(t => t.schema);
+}
+
+/**
  * Esegue un tool by name + args.
+ *
+ * @deprecated MP-AIE-01 v2: preferire `executeToolWithRouting` da
+ * `silvioToolExecution.ts` (gestisce risk-level + audit log + permission
+ * complete su persona/channel). Mantenuto per back-compat con silvio-chat.
  */
 export async function executeTool(
   name: string,
