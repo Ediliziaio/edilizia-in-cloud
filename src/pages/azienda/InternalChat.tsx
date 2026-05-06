@@ -4,6 +4,8 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
+import { SILVIO_SKILLS, SILVIO_SKILL_CATEGORY_LABELS } from "@/lib/silvio-skills";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -563,8 +565,8 @@ function ChatListItem({
       {/* Avatar */}
       <div className="relative shrink-0">
         {isSilvio ? (
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-violet-600 via-fuchsia-500 to-pink-500 flex items-center justify-center ring-2 ring-violet-300/40">
-            <Sparkles className="h-6 w-6 text-white" />
+          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 flex items-center justify-center ring-2 ring-orange-300/40 shadow-lg shadow-orange-300/30">
+            <Brain className="h-6 w-6 text-white" strokeWidth={2.2} />
           </div>
         ) : isLucia ? (
           <div className="h-12 w-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
@@ -648,8 +650,8 @@ function MessageBubble({
         <div className="w-8 shrink-0 self-end mr-1">
           {showAvatar && (
             isSilvioMsg ? (
-              <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-600 via-fuchsia-500 to-pink-500 flex items-center justify-center ring-1 ring-violet-300/40">
-                <Sparkles className="h-3.5 w-3.5 text-white" />
+              <div className="h-7 w-7 rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 flex items-center justify-center ring-1 ring-orange-300/40 shadow-sm shadow-orange-300/30">
+                <Brain className="h-3.5 w-3.5 text-white" strokeWidth={2.4} />
               </div>
             ) : isAIMsg ? (
               <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
@@ -674,6 +676,8 @@ function MessageBubble({
             "rounded-lg px-3 py-1.5 shadow-sm relative",
             isMe
               ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-foreground rounded-tr-none"
+              : isSilvioMsg
+                ? "bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/40 border border-orange-200/50 dark:border-orange-800/30 rounded-tl-none"
               : isAIMsg
                 ? "bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 border border-violet-200/50 dark:border-violet-800/30 rounded-tl-none"
                 : "bg-white dark:bg-[#202c33] text-foreground rounded-tl-none shadow",
@@ -683,9 +687,11 @@ function MessageBubble({
           {showAvatar && !isMe && (
             <p className={cn(
               "text-[12px] font-semibold mb-0.5",
-              isAIMsg ? "text-violet-600 dark:text-violet-400" : `text-[${userColor(msg.sender_id).replace('bg-', '')}]`,
-            )} style={{ color: isAIMsg ? undefined : getColorHex(msg.sender_id) }}>
-              {isAIMsg ? aiBotName : profileName(sender)}
+              isSilvioMsg ? "text-orange-600 dark:text-orange-400"
+                : isAIMsg ? "text-violet-600 dark:text-violet-400"
+                : `text-[${userColor(msg.sender_id).replace('bg-', '')}]`,
+            )} style={{ color: isSilvioMsg || isAIMsg ? undefined : getColorHex(msg.sender_id) }}>
+              {isSilvioMsg ? "Silvio" : isAIMsg ? aiBotName : profileName(sender)}
             </p>
           )}
 
@@ -866,6 +872,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const [createOpen, setCreateOpen] = useState(false);
   const [createDmOpen, setCreateDmOpen] = useState(false);
   const [newMsg, setNewMsg] = useState("");
+  const [silvioSkillsOpen, setSilvioSkillsOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [luciaTyping, setLuciaTyping] = useState(false);
   const [msgSearch, setMsgSearch] = useState("");
@@ -1876,17 +1883,83 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
             {/* ═══ Compose Bar ═══ */}
             <div className={cn(
               "px-3 py-2 flex items-end gap-2 border-t",
-              isLuciaChannel
-                ? "bg-violet-50/50 dark:bg-violet-950/10"
-                : "bg-[#f0f2f5] dark:bg-[#202c33]",
+              isSilvioChannel
+                ? "bg-orange-50/50 dark:bg-orange-950/10"
+                : isLuciaChannel
+                  ? "bg-violet-50/50 dark:bg-violet-950/10"
+                  : "bg-[#f0f2f5] dark:bg-[#202c33]",
             )}>
+              {/* Skill picker (solo Silvio) — pattern slash command */}
+              {isSilvioChannel && (
+                <Popover open={silvioSkillsOpen} onOpenChange={setSilvioSkillsOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 rounded-full text-orange-600 hover:text-orange-700 hover:bg-orange-100 shrink-0"
+                      title="Skill di Silvio (azioni rapide)"
+                    >
+                      <Plus className="h-6 w-6" strokeWidth={2.4} />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    side="top"
+                    align="start"
+                    sideOffset={8}
+                    className="w-[340px] sm:w-[380px] p-0 border-orange-100 shadow-2xl rounded-2xl overflow-hidden flex flex-col"
+                    style={{ maxHeight: "min(70vh, 540px)" }}
+                  >
+                    <div className="bg-gradient-to-br from-orange-500 to-amber-400 px-3 py-2 text-white shrink-0">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4" fill="currentColor" />
+                        <p className="text-xs font-semibold">Skill rapide di Silvio</p>
+                      </div>
+                      <p className="text-[10px] opacity-90 leading-tight">Click su una skill → riempie il messaggio</p>
+                    </div>
+                    <div className="overflow-y-auto p-2 space-y-3 flex-1">
+                      {(["data", "doc", "operations", "advisor"] as const).map((cat) => {
+                        const items = SILVIO_SKILLS.filter((s) => s.category === cat);
+                        if (items.length === 0) return null;
+                        return (
+                          <div key={cat}>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1.5 mb-1">
+                              {SILVIO_SKILL_CATEGORY_LABELS[cat]}
+                            </p>
+                            <div className="space-y-0.5">
+                              {items.map((skill) => (
+                                <button
+                                  key={skill.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setNewMsg(skill.template);
+                                    setSilvioSkillsOpen(false);
+                                  }}
+                                  className="w-full flex items-start gap-2 px-2 py-1.5 rounded-md text-left hover:bg-orange-50 transition-colors group"
+                                >
+                                  <span className="text-base shrink-0 mt-0.5">{skill.emoji}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[12px] font-semibold text-slate-800 group-hover:text-orange-700 leading-tight">
+                                      {skill.label}
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 leading-tight truncate">{skill.hint}</p>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
               <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] shrink-0">
                 <Smile className="h-6 w-6" />
               </Button>
               <Button variant="ghost" size="icon"
                 className={cn(
                   "h-9 w-9 rounded-full shrink-0",
-                  isSilvioChannel ? "text-violet-600" : "text-[#54656f]"
+                  isSilvioChannel ? "text-orange-600" : "text-[#54656f]"
                 )}
                 onClick={() => isSilvioChannel ? silvioImageInputRef.current?.click() : attachInputRef.current?.click()}
                 disabled={isAttaching || silvioUploading}
@@ -1914,16 +1987,18 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               />
               <div className="flex-1">
                 <Input
-                  placeholder={isLuciaChannel ? "Chiedi a Lucia..." : "Scrivi un messaggio"}
+                  placeholder={isSilvioChannel ? "Scrivi a Silvio..." : isLuciaChannel ? "Chiedi a Lucia..." : "Scrivi un messaggio"}
                   value={newMsg}
                   onChange={(e) => { setNewMsg(e.target.value); if (!isLuciaChannel) broadcastTyping(); }}
                   onKeyDown={handleKeyDown}
                   disabled={luciaTyping}
                   className={cn(
                     "h-10 rounded-lg border-0 text-[15px]",
-                    isLuciaChannel
-                      ? "bg-white dark:bg-[#2a3942] focus-visible:ring-violet-500"
-                      : "bg-white dark:bg-[#2a3942]",
+                    isSilvioChannel
+                      ? "bg-white dark:bg-[#2a3942] focus-visible:ring-orange-500"
+                      : isLuciaChannel
+                        ? "bg-white dark:bg-[#2a3942] focus-visible:ring-violet-500"
+                        : "bg-white dark:bg-[#2a3942]",
                   )}
                 />
               </div>
@@ -1934,9 +2009,11 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   size="icon"
                   className={cn(
                     "h-10 w-10 rounded-full shrink-0",
-                    isLuciaChannel
-                      ? "bg-violet-600 hover:bg-violet-700"
-                      : "bg-[#00a884] hover:bg-[#008f72]",
+                    isSilvioChannel
+                      ? "bg-orange-500 hover:bg-orange-600"
+                      : isLuciaChannel
+                        ? "bg-violet-600 hover:bg-violet-700"
+                        : "bg-[#00a884] hover:bg-[#008f72]",
                   )}
                 >
                   {luciaTyping ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
