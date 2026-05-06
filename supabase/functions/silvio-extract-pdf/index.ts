@@ -29,8 +29,10 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 // pdfjs-dist legacy entry-point — funziona in ambienti senza Worker (Deno edge)
+// `?bundle&no-check` evita di tirare dentro `canvas.node` (binding nativo che
+// rompeva il deploy: "Module not found canvas.node?target=denonext")
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const pdfjs: any = await import("https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs");
+const pdfjs: any = await import("https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs?bundle&no-check");
 // Disabilita worker (richiesto per ambienti senza Web Worker)
 if (pdfjs?.GlobalWorkerOptions) {
   pdfjs.GlobalWorkerOptions.workerSrc = "";
