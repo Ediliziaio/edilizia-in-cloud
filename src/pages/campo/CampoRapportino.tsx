@@ -87,7 +87,7 @@ export default function CampoRapportino() {
   // Acquisisci GPS all'inizio — una sola volta al mount (requestPosition è useCallback
   // con dep [companyId]; se companyId cambia da null a valore, l'effect rilancia una
   // volta sola). Evitiamo comunque di ciclare includendo requestPosition nelle deps.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (profile?.company_id) requestPosition();
     // eslint-disable-next-line react-hooks/exhaustive-deps

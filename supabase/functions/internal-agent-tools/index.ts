@@ -523,7 +523,7 @@ async function scheduleCallback(admin: AdminClient, params: Record<string, unkno
 
 function normalizePhone(phone: string): string {
   // Remove spaces, dashes, parentheses
-  let cleaned = phone.replace(/[\s\-\(\)]/g, "");
+  let cleaned = phone.replace(/[\s()-]/g, "");
   // Ensure starts with +
   if (!cleaned.startsWith("+") && cleaned.length >= 9) {
     cleaned = "+39" + cleaned;

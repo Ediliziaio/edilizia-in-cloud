@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
 import { Loader2, Smartphone, Mail, MonitorSmartphone, AlertCircle, BellOff, BellRing, Save } from "lucide-react";
 
 type Channel = "in_app" | "email" | "sms";

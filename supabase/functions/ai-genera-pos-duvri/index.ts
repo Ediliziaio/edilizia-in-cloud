@@ -46,9 +46,9 @@ Deno.serve(async (req) => {
   const t0 = Date.now();
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const rpcName = docType === "pos" ? "silvio_tool_genera_pos_cantiere" : "silvio_tool_genera_duvri_cantiere";
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const { data: rpcRes } = docType === "pos"
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ? await (supabase as any).rpc(rpcName, {

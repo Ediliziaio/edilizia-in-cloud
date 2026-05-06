@@ -35,8 +35,6 @@ import {
   Truck,
   Trash2,
   Camera,
-  Image as ImageIcon,
-  Upload,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { captureVelocityEvent, captureVelocityError } from "@/lib/velocity/sentry";
@@ -77,6 +75,10 @@ interface AIQuotePanelProps {
   tipoLavoro?: string;
   pianoInstallazione?: number;
 }
+
+const MAX_FOTO_COUNT = 5;
+const MAX_FOTO_MB = 8;
+const FOTO_MIME_PREFIX = "image/";
 
 function categoryIcon(cat: string) {
   const map: Record<string, ReactNode> = {
@@ -210,7 +212,7 @@ export default function AIQuotePanel({
       try {
         mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       } catch (constructErr) {
-        console.warn("[AIQuotePanel] MediaRecorder con mimeType fallito, fallback default:", constructErr);
+        captureVelocityError("preventivatore.ai.recorder_fallback", constructErr);
         mr = new MediaRecorder(stream);
       }
       chunksRef.current = [];
@@ -218,7 +220,7 @@ export default function AIQuotePanel({
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       mr.onerror = (ev) => {
-        console.error("[AIQuotePanel] MediaRecorder error:", ev);
+        captureVelocityError("preventivatore.ai.recorder_error", ev);
         stream.getTracks().forEach((t) => t.stop());
         setIsRecording(false);
         if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
@@ -398,6 +400,19 @@ export default function AIQuotePanel({
     }
   };
 
+  const clearFotoPreviews = useCallback(() => {
+    setFotoPreviewUrls((prev) => {
+      prev.forEach((url) => URL.revokeObjectURL(url));
+      return [];
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      fotoPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [fotoPreviewUrls]);
+
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
@@ -572,13 +587,15 @@ export default function AIQuotePanel({
                   multiple
                   className="hidden"
                   onChange={(e) => {
-                    const files = Array.from(e.target.files ?? []).slice(0, 5);
-                    const valid = files.filter((f) => f.size <= 8 * 1024 * 1024);
+                    const files = Array.from(e.target.files ?? []).slice(0, MAX_FOTO_COUNT);
+                    const valid = files.filter((f) => f.type.startsWith(FOTO_MIME_PREFIX) && f.size <= MAX_FOTO_MB * 1024 * 1024);
                     if (valid.length < files.length) {
-                      toast.error("Alcune foto sono troppo grandi (max 8MB)");
+                      toast.error(`Alcune foto sono state escluse (solo immagini, max ${MAX_FOTO_MB}MB)`);
                     }
+                    clearFotoPreviews();
                     setFotoFiles(valid);
                     setFotoPreviewUrls(valid.map((f) => URL.createObjectURL(f)));
+                    e.target.value = "";
                   }}
                 />
 
@@ -590,7 +607,7 @@ export default function AIQuotePanel({
                   >
                     <Camera className="h-10 w-10 mx-auto mb-2 text-violet-400" />
                     <p className="text-sm font-medium text-violet-700">Scatta o carica foto</p>
-                    <p className="text-xs text-muted-foreground mt-1">Max 5 foto · max 8MB ciascuna</p>
+                    <p className="text-xs text-muted-foreground mt-1">Max {MAX_FOTO_COUNT} foto · max {MAX_FOTO_MB}MB ciascuna</p>
                   </button>
                 ) : (
                   <div className="space-y-2">
@@ -601,6 +618,7 @@ export default function AIQuotePanel({
                           <button
                             type="button"
                             onClick={() => {
+                              URL.revokeObjectURL(fotoPreviewUrls[i]);
                               setFotoFiles((prev) => prev.filter((_, idx) => idx !== i));
                               setFotoPreviewUrls((prev) => prev.filter((_, idx) => idx !== i));
                             }}
@@ -610,7 +628,7 @@ export default function AIQuotePanel({
                           </button>
                         </div>
                       ))}
-                      {fotoFiles.length < 5 && (
+                      {fotoFiles.length < MAX_FOTO_COUNT && (
                         <button
                           type="button"
                           onClick={() => fotoInputRef.current?.click()}
@@ -765,9 +783,13 @@ export default function AIQuotePanel({
                     captureVelocityEvent("preventivatore.ai.regenerate", {
                       descrizione_len: descrizione.length,
                     });
-                    setRisultato(null);
-                    genera();
-                  }}
+	                    setRisultato(null);
+	                    if (activeTab === "foto" && fotoFiles.length > 0) {
+	                      generaDaFoto();
+	                    } else {
+	                      genera();
+	                    }
+	                  }}
                   title="Rigenera con la stessa descrizione"
                 >
                   <Sparkles className="h-4 w-4" />

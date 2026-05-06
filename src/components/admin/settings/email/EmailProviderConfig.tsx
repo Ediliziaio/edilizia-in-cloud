@@ -65,6 +65,7 @@ interface EmailHealthPayload {
     error: string | null;
     webhookSecretConfigured: boolean;
     webhookSecretSource: "env" | "platform_settings" | "missing";
+    failoverProviders?: string[];
   }>>;
 }
 
@@ -117,6 +118,7 @@ export function EmailProviderConfig({ stream }: Props) {
   const fromAddressKey = `${prefix}_from_address`;
   const fromNameKey = `${prefix}_from_name`;
   const domainKey = `${prefix}_domain`;
+  const failoverProvidersKey = `${prefix}_failover_providers`;
   const lastTestKey = `${prefix}_last_test`;
   const lastTestStatusKey = `${prefix}_last_test_status`;
 
@@ -125,6 +127,7 @@ export function EmailProviderConfig({ stream }: Props) {
   const [fromAddress, setFromAddress] = useState("");
   const [fromName, setFromName] = useState("");
   const [domain, setDomain] = useState("");
+  const [failoverProviders, setFailoverProviders] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -136,7 +139,7 @@ export function EmailProviderConfig({ stream }: Props) {
   // mostriamo un placeholder bullet. Sul save, se l'input è uguale al
   // placeholder non trasmettiamo nulla (la key esistente resta).
   const API_KEY_PLACEHOLDER = "••••••••••••";
-  const nonSecretKeys = [providerKey, fromAddressKey, fromNameKey, domainKey, lastTestKey, lastTestStatusKey];
+  const nonSecretKeys = [providerKey, fromAddressKey, fromNameKey, domainKey, failoverProvidersKey, lastTestKey, lastTestStatusKey];
   const secretKeys = [apiKeyKey];
 
   const { data: settings } = useQuery({
@@ -187,8 +190,9 @@ export function EmailProviderConfig({ stream }: Props) {
       if (get(fromAddressKey)) setFromAddress(get(fromAddressKey));
       if (get(fromNameKey)) setFromName(get(fromNameKey));
       if (get(domainKey)) setDomain(get(domainKey));
+      setFailoverProviders(get(failoverProvidersKey));
     }
-  }, [apiKeyKey, domainKey, fromAddressKey, fromNameKey, providerKey, settings]);
+  }, [apiKeyKey, domainKey, failoverProvidersKey, fromAddressKey, fromNameKey, providerKey, settings]);
 
   // Connection status badge
   const getConnectionStatus = (): { status: ConnectionStatus; lastTest?: string } => {
@@ -259,6 +263,7 @@ export function EmailProviderConfig({ stream }: Props) {
         { key: fromAddressKey, value: fromAddress.trim() },
         { key: fromNameKey, value: fromName.trim() },
         { key: domainKey, value: domain.trim() },
+        { key: failoverProvidersKey, value: failoverProviders.trim() },
       ];
       for (const pair of pairs) {
         if (!pair.value) {
@@ -375,18 +380,18 @@ export function EmailProviderConfig({ stream }: Props) {
       <CardContent className="space-y-4">
         {/* Transactional info note */}
         {stream === "transactional" && (
-          <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
+          <Alert className="border-blue-200 bg-blue-50">
             <Info className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-xs text-blue-700 dark:text-blue-300">
+            <AlertDescription className="text-xs text-blue-700">
               Le email transazionali sono messaggi di sistema inviati automaticamente: notifiche, conferme, reset password, inviti utente.
               Queste email non contano come crediti marketing e utilizzano un provider separato per garantire alta deliverability.
             </AlertDescription>
           </Alert>
         )}
         {stream === "marketing" && provider === "elastic_email" && (
-          <Alert className="border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800">
+          <Alert className="border-emerald-200 bg-emerald-50">
             <Info className="h-4 w-4 text-emerald-600" />
-            <AlertDescription className="text-xs text-emerald-700 dark:text-emerald-300">
+            <AlertDescription className="text-xs text-emerald-700">
               Elastic Email e il provider consigliato per campagne e newsletter. Configura una API key con permesso
               <strong> SendHttp</strong>, imposta il webhook qui sotto e usa un dominio marketing verificato per massimizzare deliverability e tracking.
             </AlertDescription>
@@ -465,6 +470,11 @@ export function EmailProviderConfig({ stream }: Props) {
               Mittente: {fromAddress || "non impostato"}
               {provider === "mailgun" && ` · Dominio: ${domain || "non impostato"}`}
             </p>
+            {streamHealth?.failoverProviders?.length ? (
+              <p className="text-xs text-muted-foreground">
+                Failover: {streamHealth.failoverProviders.join(", ")}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -536,6 +546,19 @@ export function EmailProviderConfig({ stream }: Props) {
               )}
             </div>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <Label>Failover provider</Label>
+          <Input
+            value={failoverProviders}
+            onChange={(e) => setFailoverProviders(e.target.value)}
+            placeholder={stream === "marketing" ? "brevo,sendgrid" : "mailgun,sendgrid"}
+          />
+          <p className="text-xs text-muted-foreground">
+            Lista CSV o JSON di provider alternativi usati solo su timeout, rate-limit o 5xx. Le API key fallback restano in platform settings con prefisso
+            {" "}<code>{prefix}_&lt;provider&gt;_api_key</code>.
+          </p>
         </div>
 
         {provider === "elastic_email" && (

@@ -9,7 +9,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
-import { formatCurrency } from "@/lib/formatters";
 import {
   Plus, Pencil, Trash2, Phone, Mail, FileText, Building2,
   Link2, Link2Off, Loader2, HardHat,

@@ -21,7 +21,6 @@ import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanne
 import { useCustomerUnreadCount } from "@/hooks/useCustomerUnreadCount";
 import { CustomerBottomNav } from "@/components/cliente/CustomerBottomNav";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
 import {
   Sidebar,
   SidebarContent,
@@ -32,7 +31,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 
 const navItems = [

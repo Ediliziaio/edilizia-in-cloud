@@ -82,7 +82,7 @@ export default function SettingsSecurityDashboard() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       return data?.overview;
@@ -100,7 +100,7 @@ export default function SettingsSecurityDashboard() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       return data?.sessions || [];
@@ -118,7 +118,7 @@ export default function SettingsSecurityDashboard() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       return data?.audit_log || [];
@@ -136,7 +136,7 @@ export default function SettingsSecurityDashboard() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       return data?.login_attempts || [];
@@ -157,7 +157,7 @@ export default function SettingsSecurityDashboard() {
       const { data, error } = await supabase.functions.invoke("revoke-user-session", { body });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       if (data?.error) throw new Error(data.error);

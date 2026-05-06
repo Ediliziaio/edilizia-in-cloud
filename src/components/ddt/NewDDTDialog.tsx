@@ -111,7 +111,7 @@ export function NewDDTDialog({
     if (ext.autista_nome && !autistaNome) setAutistaNome(String(ext.autista_nome));
     if (ext.ora_inizio_trasporto && !oraArrivo) setOraArrivo(String(ext.ora_inizio_trasporto).slice(0, 5));
     // Quantità totale = somma articoli
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     if (Array.isArray(ext.articoli) && !qty) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const totQty = ext.articoli.reduce((s: number, a: any) => s + Number(a.quantita ?? 0), 0);

@@ -161,7 +161,7 @@ export async function initWebVitalsReporter(): Promise<void> {
   } catch (e) {
     // import fallito (offline, bundle mancante): silenzioso
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
+
       console.warn("[velocity] web-vitals init skipped:", e);
     }
   }

@@ -80,7 +80,7 @@ export function looksLikeEmail(s: string): boolean {
 export function normalizePhone(s: unknown): string | null {
   const raw = cleanString(s);
   if (!raw) return null;
-  const allowed = /^[0-9+\-\s()\.]+$/;
+  const allowed = /^[0-9+\s().-]+$/;
   if (!allowed.test(raw)) return null;
   const digits = raw.replace(/\D/g, "");
   if (digits.length < 6 || digits.length > 15) return null;
@@ -99,8 +99,8 @@ export function sanitizeCustomerInput(raw: RawCustomerInput): SanitizedCustomer 
   let phone = cleanString(raw.phone);
   const email = cleanString(raw.email).toLowerCase();
   let fiscal = cleanString(raw.fiscal_code).toUpperCase();
-  let address = cleanString(raw.address);
-  let siteAddress = cleanString(raw.site_address);
+  const address = cleanString(raw.address);
+  const siteAddress = cleanString(raw.site_address);
   let notes = cleanString(raw.notes);
 
   // ── FIX 1: first_name contiene un telefono ─────────────────────

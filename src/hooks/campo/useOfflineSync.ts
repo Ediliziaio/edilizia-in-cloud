@@ -67,8 +67,10 @@ async function defaultProcessor(item: SyncItem): Promise<void> {
       // Generic: prova insert su target table
       if (!item.target) throw new Error("Nessun target specificato");
       // @ts-expect-error — dynamic table name
-      const { error } = await supabase.from(item.target).insert(item.payload);
-      if (error) throw new Error(error.message);
+      {
+        const { error } = await supabase.from(item.target).insert(item.payload);
+        if (error) throw new Error(error.message);
+      }
   }
 }
 

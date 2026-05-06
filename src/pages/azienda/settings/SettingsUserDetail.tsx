@@ -169,7 +169,7 @@ export default function SettingsUserDetail() {
             .eq("company_id", userData.company_id)
             .maybeSingle();
           if (!sp) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
             await supabase.from("salespeople").insert({
               user_id: userId,
               company_id: userData.company_id,

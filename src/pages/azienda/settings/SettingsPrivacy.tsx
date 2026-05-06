@@ -47,7 +47,7 @@ export default function SettingsPrivacy() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       return data as Array<{ consent_type: string; granted: boolean; granted_at: string | null; revoked_at: string | null }>;
@@ -63,7 +63,7 @@ export default function SettingsPrivacy() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       return data as Array<{ id: string; request_type: string; status: string; download_url: string | null; expires_at: string | null; created_at: string; reason: string | null }>;
@@ -77,7 +77,7 @@ export default function SettingsPrivacy() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
     },
@@ -95,7 +95,7 @@ export default function SettingsPrivacy() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       return data;
@@ -119,7 +119,7 @@ export default function SettingsPrivacy() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
     },

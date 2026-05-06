@@ -21,11 +21,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  AlertTriangle, AlertCircle, Info, Sparkles, X, CheckCircle2, RefreshCw,
+  AlertTriangle, AlertCircle, Info, Sparkles, X, RefreshCw,
   ArrowRight, Bell, Wallet, Package, FileText, Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";

@@ -1,27 +1,21 @@
 import {
   AlertTriangle,
-  Banknote,
   Brain,
   Calculator,
   Calendar,
-  CheckCircle2,
   ClipboardList,
   Clock,
   FileSignature,
   FileText,
   HardHat,
   Landmark,
-  Lock,
   Receipt,
   Send,
   ShieldCheck,
   Smartphone,
-  Sparkles,
   TrendingUp,
   Users,
   Wallet,
-  Wrench,
-  Zap,
 } from "lucide-react";
 import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
 import type { FunzionalitaPageConfig } from "./_template/types";

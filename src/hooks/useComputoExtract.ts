@@ -2,7 +2,7 @@
  * Hook per gestire l'upload e l'estrazione AI di computi metrici.
  * Gestisce: upload file → invoca edge function → polling stato → carica voci estratte.
  */
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";

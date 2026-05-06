@@ -1,22 +1,15 @@
 import {
   AlertTriangle,
-  Banknote,
   BarChart3,
   Bell,
   Building,
   Calendar,
-  CheckCircle2,
   ClipboardList,
-  CreditCard,
   Database,
-  FileText,
   HardHat,
   LineChart,
   PiggyBank,
   Receipt,
-  Search,
-  ShieldCheck,
-  Sparkles,
   Target,
   Timer,
   TrendingDown,
@@ -24,7 +17,6 @@ import {
   Users,
   Wallet,
   Wrench,
-  Zap,
 } from "lucide-react";
 import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
 import type { FunzionalitaPageConfig } from "./_template/types";

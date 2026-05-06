@@ -60,6 +60,78 @@ export async function verifyHmacSha256(
   return timingSafeEqual(expected, normalized);
 }
 
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+export async function verifyHmacSha256Base64(
+  body: string,
+  receivedSignature: string | null | undefined,
+  secret: string,
+): Promise<boolean> {
+  if (!receivedSignature || !secret) return false;
+
+  const encoder = new TextEncoder();
+  const rawSecret = secret.startsWith("whsec_")
+    ? base64ToBytes(secret.slice(6))
+    : encoder.encode(secret);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    rawSecret,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
+  const expected = bytesToBase64(new Uint8Array(sig));
+  const candidates = receivedSignature
+    .split(" ")
+    .flatMap((part) => part.split(","))
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => part.startsWith("v1,") ? part.slice(3) : part.startsWith("v1=") ? part.slice(3) : part);
+
+  return candidates.some((candidate) => timingSafeEqual(candidate, expected));
+}
+
+/**
+ * Mailgun firma `timestamp + token` con la webhook signing key.
+ */
+export async function verifyMailgunWebhookSignature(
+  timestamp: string | null,
+  token: string | null,
+  signature: string | null,
+  signingKey: string,
+): Promise<boolean> {
+  if (!timestamp || !token || !signature || !signingKey) return false;
+  return verifyHmacSha256(`${timestamp}${token}`, signature, signingKey);
+}
+
+/**
+ * Resend usa Svix: firma `svix-id.svix-timestamp.rawBody`.
+ */
+export async function verifySvixWebhookSignature(
+  rawBody: string,
+  svixId: string | null,
+  svixTimestamp: string | null,
+  svixSignature: string | null,
+  secret: string,
+): Promise<boolean> {
+  if (!svixId || !svixTimestamp || !svixSignature || !secret) return false;
+  return verifyHmacSha256Base64(`${svixId}.${svixTimestamp}.${rawBody}`, svixSignature, secret);
+}
+
 /**
  * Sanitizza un numero di telefono per uso in query Supabase (PostgREST).
  *

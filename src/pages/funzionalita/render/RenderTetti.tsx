@@ -14,7 +14,6 @@ import {
   Sun,
   Target,
   Users,
-  Wrench,
   XCircle,
   Zap,
 } from "lucide-react";

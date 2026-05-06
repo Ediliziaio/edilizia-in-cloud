@@ -6,12 +6,12 @@
  * UNA volta dal SuperAdmin.
  *
  * Categorie:
- *   - normativa_sicurezza
- *   - normativa_fiscale
- *   - business_finanza
- *   - business_vendita
- *   - business_operations
- *   - hr_ccnl
+ *   - 01-normativa-edilizia
+ *   - 02-finanza-cashflow
+ *   - 03-controllo-gestione
+ *   - 04-vendita-consulenziale
+ *   - 05-fiscale-compliance
+ *   - 06-hr-edile
  *
  * Permission: SOLO super_admin
  */
@@ -33,7 +33,7 @@ interface UniversalDoc {
 const CORPUS: UniversalDoc[] = [
   // ─── NORMATIVA SICUREZZA ─────────────────────────────────────────────
   {
-    category: "normativa_sicurezza",
+    category: "01-normativa-edilizia",
     title: "D.Lgs 81/08 — Testo Unico Sicurezza Lavoro",
     source_type: "law",
     content: `D.Lgs 81/2008 — Testo Unico per la Sicurezza sul Lavoro
@@ -67,7 +67,7 @@ SANZIONI:
 - Lavoratore senza nomina/formazione: sospensione attività`,
   },
   {
-    category: "normativa_sicurezza",
+    category: "01-normativa-edilizia",
     title: "Sicurezza ponteggi e lavori in quota",
     source_type: "law",
     content: `LAVORI IN QUOTA — D.Lgs 81/08 Titolo IV
@@ -101,7 +101,7 @@ DPI ANTICADUTA:
 
   // ─── NORMATIVA FISCALE ────────────────────────────────────────────────
   {
-    category: "normativa_fiscale",
+    category: "05-fiscale-compliance",
     title: "IVA Edilizia — Reverse Charge e Aliquote",
     source_type: "law",
     content: `IVA NEL SETTORE EDILE ITALIANO
@@ -129,7 +129,7 @@ SPLIT PAYMENT (PA):
 - Fornitore emette fattura con esposizione IVA + nota "scissione pagamenti"`,
   },
   {
-    category: "normativa_fiscale",
+    category: "05-fiscale-compliance",
     title: "Bonus Fiscali Edilizia 2026",
     source_type: "law",
     content: `BONUS FISCALI EDILIZIA — RIEPILOGO 2026
@@ -172,7 +172,7 @@ ATTENZIONE: per sconto in fattura e cessione credito le regole sono molto restri
 
   // ─── BUSINESS FINANZA ─────────────────────────────────────────────────
   {
-    category: "business_finanza",
+    category: "02-finanza-cashflow",
     title: "Cashflow Management Impresa Edile",
     source_type: "knowledge",
     content: `CASHFLOW IMPRESA EDILE — PRINCIPI
@@ -210,7 +210,7 @@ COSA FARE QUANDO SCARSEGGIA LIQUIDITÀ:
 6. Mai indebitarsi a M/L termine per tappare buchi correnti`,
   },
   {
-    category: "business_finanza",
+    category: "02-finanza-cashflow",
     title: "Margine Commessa e Controllo Costi",
     source_type: "knowledge",
     content: `MARGINE COMMESSA — CONTROLLO
@@ -257,7 +257,7 @@ VARIANTI E EXTRA:
 
   // ─── BUSINESS VENDITA ─────────────────────────────────────────────────
   {
-    category: "business_vendita",
+    category: "04-vendita-consulenziale",
     title: "Vendita Consulenziale Edile",
     source_type: "knowledge",
     content: `VENDITA CONSULENZIALE EDILE
@@ -303,7 +303,7 @@ FOLLOW-UP:
 
   // ─── BUSINESS OPERATIONS ──────────────────────────────────────────────
   {
-    category: "business_operations",
+    category: "03-controllo-gestione",
     title: "Gestione Cantiere — Best Practice",
     source_type: "knowledge",
     content: `GESTIONE CANTIERE EDILE — OPERATIVO
@@ -354,7 +354,7 @@ CHIUSURA CANTIERE:
 
   // ─── HR CCNL ──────────────────────────────────────────────────────────
   {
-    category: "hr_ccnl",
+    category: "06-hr-edile",
     title: "CCNL Edilizia Industria — Riepilogo",
     source_type: "knowledge",
     content: `CCNL EDILIZIA INDUSTRIA — PUNTI CHIAVE

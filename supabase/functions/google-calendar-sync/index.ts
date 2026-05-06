@@ -859,9 +859,10 @@ Deno.serve(async (req) => {
         return deleteEvent(userId, companyId, appointmentId);
       case "full-sync":
         return fullSync(userId, companyId);
-      case "reconcile":
+      case "reconcile": {
         const result = await reconcilePrimary(userId, companyId);
         return json({ success: true, reconcile: result });
+      }
       default:
         return json({ error: `Unknown action: ${action}` }, 400);
     }

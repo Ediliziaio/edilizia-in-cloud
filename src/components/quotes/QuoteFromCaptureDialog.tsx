@@ -18,12 +18,24 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { CaptureReviewPanel } from "./CaptureReviewPanel";
 
 const MAX_AUDIO_SECONDS = 180; // 3 min
 const MAX_IMAGES = 5;
+const MAX_IMAGE_MB = 8;
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
+const ALLOWED_IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|heic|heif)$/i;
+
+function safeStorageName(name: string): string {
+  const cleaned = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return cleaned || "capture";
+}
 
 interface Props {
   open: boolean;
@@ -38,6 +50,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
 
   // Stato form
   const [images, setImages] = useState<File[]>([]);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [textInput, setTextInput] = useState("");
   const [verticalKey, setVerticalKey] = useState("");
 
@@ -45,29 +58,11 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
   const [audioMimeExt, setAudioMimeExt] = useState<string>("webm");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Stato pipeline
-  const [phase, setPhase] = useState<"input" | "processing" | "review">("input");
-  const [runId, setRunId] = useState<string | null>(null);
-  const [progressMsg, setProgressMsg] = useState("");
-
-  // Reset al close
-  useEffect(() => {
-    if (!open) {
-      cleanupRecorder();
-      setImages([]);
-      setTextInput("");
-      setAudioBlob(null);
-      setRecordingSeconds(0);
-      setPhase("input");
-      setRunId(null);
-      setProgressMsg("");
-    }
-  }, [open]);
 
   const cleanupRecorder = useCallback(() => {
     if (timerRef.current) {
@@ -82,6 +77,60 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
     mediaRecorderRef.current = null;
     setIsRecording(false);
   }, []);
+
+  // Stato pipeline
+  const [phase, setPhase] = useState<"input" | "processing" | "review">("input");
+  const [runId, setRunId] = useState<string | null>(null);
+  const [progressMsg, setProgressMsg] = useState("");
+
+  // Reset al close
+  useEffect(() => {
+    if (!open) {
+      cleanupRecorder();
+      setImages([]);
+      setImagePreviewUrls((prev) => {
+        prev.forEach((url) => URL.revokeObjectURL(url));
+        return [];
+      });
+      setTextInput("");
+      setAudioBlob(null);
+      setAudioPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setRecordingSeconds(0);
+      setPhase("input");
+      setRunId(null);
+      setProgressMsg("");
+    }
+  }, [open, cleanupRecorder]);
+
+  useEffect(() => {
+    const urls = images.map((img) => URL.createObjectURL(img));
+    setImagePreviewUrls((prev) => {
+      prev.forEach((url) => URL.revokeObjectURL(url));
+      return urls;
+    });
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [images]);
+
+  useEffect(() => {
+    if (!audioBlob) {
+      setAudioPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    const url = URL.createObjectURL(audioBlob);
+    setAudioPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
+    return () => URL.revokeObjectURL(url);
+  }, [audioBlob]);
 
   const startRecording = async () => {
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -160,12 +209,28 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    const valid = files.filter((f) => f.type.startsWith("image/"));
-    if (valid.length === 0) {
-      toast.error("Solo file immagine");
+    const availableSlots = Math.max(0, MAX_IMAGES - images.length);
+    if (availableSlots === 0) {
+      toast.warning(`Puoi caricare massimo ${MAX_IMAGES} foto`);
+      e.target.value = "";
       return;
     }
-    setImages((prev) => [...prev, ...valid].slice(0, MAX_IMAGES));
+    const valid = files
+      .filter((f) => f.type.startsWith("image/") || ALLOWED_IMAGE_TYPES.has(f.type) || ALLOWED_IMAGE_EXTENSIONS.test(f.name))
+      .filter((f) => f.size <= MAX_IMAGE_MB * 1024 * 1024)
+      .slice(0, availableSlots);
+
+    if (valid.length === 0) {
+      toast.error("Carica immagini JPG, PNG, WEBP o HEIC sotto 8MB");
+      e.target.value = "";
+      return;
+    }
+    if (valid.length < files.length) {
+      toast.warning("Alcune foto sono state escluse", {
+        description: `Max ${MAX_IMAGES} immagini, ${MAX_IMAGE_MB}MB ciascuna.`,
+      });
+    }
+    setImages((prev) => [...prev, ...valid]);
     e.target.value = "";
   };
 
@@ -175,13 +240,10 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
       return;
     }
 
-    const hasInput =
-      (activeTab === "foto" && images.length > 0) ||
-      (activeTab === "audio" && audioBlob) ||
-      (activeTab === "testo" && textInput.trim().length > 10);
+    const hasInput = images.length > 0 || !!audioBlob || textInput.trim().length > 10;
 
     if (!hasInput) {
-      toast.error("Inserisci almeno un input (foto, audio o testo)");
+      toast.error("Aggiungi almeno una foto, un audio o una descrizione di almeno 10 caratteri");
       return;
     }
 
@@ -193,9 +255,10 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
       let audioPath: string | undefined;
 
       // Upload foto
-      if (activeTab === "foto" || activeTab === "testo") {
-        for (const img of images) {
-          const path = `captures/${companyId}/${Date.now()}-${img.name}`;
+      if (images.length > 0) {
+        for (const [idx, img] of images.entries()) {
+          setProgressMsg(`Caricamento foto ${idx + 1}/${images.length}…`);
+          const path = `captures/${companyId}/${Date.now()}-${idx}-${safeStorageName(img.name)}`;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { error } = await (supabase as any).storage
             .from("documenti-smart")
@@ -210,7 +273,8 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
       }
 
       // Upload audio
-      if (activeTab === "audio" && audioBlob) {
+      if (audioBlob) {
+        setProgressMsg("Caricamento audio…");
         const path = `captures/${companyId}/${Date.now()}-audio.${audioMimeExt}`;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any).storage
@@ -308,6 +372,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                 <input
                   type="file"
                   accept="image/*"
+                  capture="environment"
                   multiple
                   onChange={handleImageUpload}
                   className="hidden"
@@ -319,12 +384,12 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                 </Button>
               </label>
               {images.length > 0 ? (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                   {images.map((img, i) => (
                     <div key={i} className="relative border rounded-md overflow-hidden">
                       <img
-                        src={URL.createObjectURL(img)}
-                        alt={`Captura ${i + 1}`}
+                        src={imagePreviewUrls[i]}
+                        alt={`Foto ${i + 1}`}
                         className="w-full h-24 object-cover"
                       />
                       <button
@@ -363,7 +428,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                     <Badge variant="outline" className="gap-1">
                       <Mic className="h-3 w-3" /> {(audioBlob.size / 1024).toFixed(1)} KB
                     </Badge>
-                    <audio controls src={URL.createObjectURL(audioBlob)} className="w-full" />
+                    {audioPreviewUrl && <audio controls src={audioPreviewUrl} className="w-full" />}
                     <Button
                       variant="ghost"
                       onClick={() => {
@@ -388,9 +453,20 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                   <Button size="lg" onClick={startRecording}>
                     <Mic className="h-5 w-5 mr-2" /> Inizia registrazione
                   </Button>
-                )}
+	                )}
+	              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">
+                  Note aggiuntive o contesto visita (opzionale)
+                </label>
+                <Textarea
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder="Es. Cliente vuole consegna rapida, colore bianco opaco, posa al secondo piano..."
+                  rows={2}
+                />
               </div>
-            </TabsContent>
+	            </TabsContent>
 
             <TabsContent value="testo" className="space-y-3 pt-3">
               <p className="text-sm text-muted-foreground">

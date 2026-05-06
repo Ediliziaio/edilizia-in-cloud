@@ -9,7 +9,7 @@
  */
 
 import type { ToolContext, ToolDefinition, ToolResult } from "./types.ts";
-import { filterToolsByGrants, isToolAllowed } from "./permissions.ts";
+import { isToolAllowed } from "./permissions.ts";
 import { createActionProposal, logToolExecution } from "./audit.ts";
 
 // ── DOMAIN: cantiere (esempio scaffolding; tool reali verranno migrati da

@@ -12,7 +12,7 @@ import {
   MapPin, AlertTriangle, ChevronRight, ChevronLeft,
   CheckCircle, Loader2, Clock, PlayCircle, PauseCircle, LogOut,
   ShieldCheck, Mic, QrCode, MessageSquare, FileText,
-  CalendarDays, Plus, CreditCard, Receipt, ClipboardCheck,
+  CalendarDays, Receipt, ClipboardCheck,
   Ticket, CalendarDays as CalendarDaysIcon,
 } from "lucide-react";
 import { toast } from "sonner";

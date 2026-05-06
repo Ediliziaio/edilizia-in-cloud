@@ -1,11 +1,203 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
-import { deductEmailCredits } from "../_shared/emailCredits.ts";
+import { sendViaProviderWithFailover, loadProviderSettings, sanitizeFromName } from "../_shared/emailProvider.ts";
+import { addEmailCredits, deductEmailCredits } from "../_shared/emailCredits.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
+import {
+  getSuppressedEmailMap,
+  isValidEmailAddress,
+  normalizeEmailAddress,
+} from "../_shared/emailSuppression.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
+
+function parseJsonObject(value: unknown): Record<string, any> {
+  if (!value) return {};
+  if (typeof value === "object" && !Array.isArray(value)) return value as Record<string, any>;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function dedupeContactsByEmail<T extends { email?: string | null }>(contacts: T[]): T[] {
+  const seen = new Set<string>();
+  const deduped: T[] = [];
+  for (const contact of contacts) {
+    if (!isValidEmailAddress(contact.email)) continue;
+    const email = normalizeEmailAddress(contact.email);
+    if (seen.has(email)) continue;
+    seen.add(email);
+    deduped.push({ ...contact, email });
+  }
+  return deduped;
+}
+
+async function fetchCampaignContacts(
+  adminClient: any,
+  companyId: string,
+  segmentJson: unknown,
+  recipientFilter: unknown,
+): Promise<{ contacts: any[]; error: { message: string } | null }> {
+  const PAGE_SIZE = 1000;
+  const contacts: any[] = [];
+  const seg = parseJsonObject(segmentJson);
+  const filter = parseJsonObject(recipientFilter);
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    let query = adminClient
+      .from("marketing_contacts")
+      .select("id, email, first_name, last_name, phone, city, province, company_name")
+      .eq("company_id", companyId)
+      .eq("email_unsubscribed", false)
+      .not("email", "is", null)
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (seg.tags?.length) query = query.overlaps("tags", seg.tags);
+    if (seg.source) query = query.eq("source", seg.source);
+    if (seg.contact_type) query = query.eq("contact_type", seg.contact_type);
+    if (filter.tags?.length) query = query.overlaps("tags", filter.tags);
+
+    const { data, error } = await query;
+    if (error) return { contacts, error };
+    contacts.push(...((data ?? []) as any[]));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+
+  return { contacts, error: null };
+}
+
+async function claimCampaignOutboxJob(
+  adminClient: any,
+  job: {
+    companyId: string;
+    campaignId: string;
+    contactId: string;
+    recipient: string;
+    subject: string;
+    html: string;
+    fromAddress: string;
+    providerDomain: string | null;
+    headers: Record<string, string>;
+    metadata: Record<string, unknown>;
+    idempotencyKey: string;
+  },
+): Promise<{ id: string | null; shouldSend: boolean; attempts: number; maxAttempts: number }> {
+  const { data: existing } = await adminClient
+    .from("email_outbox")
+    .select("id, status, attempts, max_attempts, lease_until")
+    .eq("idempotency_key", job.idempotencyKey)
+    .maybeSingle();
+
+  if (existing?.status === "sent") {
+    return { id: existing.id, shouldSend: false, attempts: existing.attempts ?? 0, maxAttempts: existing.max_attempts ?? 5 };
+  }
+
+  const nextAttempts = Number(existing?.attempts ?? 0) + 1;
+  const leaseUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  const payload = {
+    company_id: job.companyId,
+    stream: "marketing",
+    campaign_id: job.campaignId,
+    contact_id: job.contactId,
+    recipient: job.recipient,
+    subject: job.subject,
+    html: job.html,
+    template_name: "campaign_send",
+    sender_from: job.fromAddress,
+    provider_domain: job.providerDomain,
+    headers: job.headers,
+    metadata: job.metadata,
+    status: "processing",
+    attempts: nextAttempts,
+    max_attempts: Number(existing?.max_attempts ?? 5),
+    lease_until: leaseUntil,
+    locked_by: "send-email-campaign",
+    scheduled_at: new Date().toISOString(),
+    idempotency_key: job.idempotencyKey,
+  };
+
+  if (!existing?.id) {
+    const { data, error } = await adminClient
+      .from("email_outbox")
+      .insert(payload)
+      .select("id, attempts, max_attempts")
+      .single();
+    if (error) {
+      console.error("[send-email-campaign] email_outbox insert error:", error);
+      return { id: null, shouldSend: true, attempts: nextAttempts, maxAttempts: 5 };
+    }
+    return { id: data.id, shouldSend: true, attempts: data.attempts ?? nextAttempts, maxAttempts: data.max_attempts ?? 5 };
+  }
+
+  const { data, error } = await adminClient
+    .from("email_outbox")
+    .update(payload)
+    .eq("id", existing.id)
+    .neq("status", "sent")
+    .select("id, attempts, max_attempts")
+    .maybeSingle();
+  if (error) {
+    console.error("[send-email-campaign] email_outbox claim error:", error);
+  }
+  return {
+    id: data?.id ?? existing.id,
+    shouldSend: true,
+    attempts: data?.attempts ?? nextAttempts,
+    maxAttempts: data?.max_attempts ?? Number(existing?.max_attempts ?? 5),
+  };
+}
+
+async function finishCampaignOutboxJob(
+  adminClient: any,
+  job: {
+    id: string | null;
+    ok: boolean;
+    provider: string;
+    providerMessageId?: string | null;
+    errorMessage?: string | null;
+    attempts: number;
+    maxAttempts: number;
+    companyId: string;
+    campaignId: string;
+    recipient: string;
+    subject: string;
+    metadata: Record<string, unknown>;
+  },
+) {
+  if (!job.id) return;
+  const dead = !job.ok && job.attempts >= job.maxAttempts;
+  await adminClient
+    .from("email_outbox")
+    .update({
+      status: job.ok ? "sent" : dead ? "dead" : "failed",
+      provider: job.provider,
+      provider_message_id: job.providerMessageId ?? null,
+      last_error: job.errorMessage ?? null,
+      lease_until: null,
+      locked_by: null,
+      sent_at: job.ok ? new Date().toISOString() : null,
+    })
+    .eq("id", job.id);
+
+  if (dead) {
+    await adminClient.from("email_dead_letter").insert({
+      outbox_id: job.id,
+      company_id: job.companyId,
+      stream: "marketing",
+      campaign_id: job.campaignId,
+      recipient: job.recipient,
+      subject: job.subject,
+      attempts: job.attempts,
+      last_error: job.errorMessage ?? "Provider failure",
+      payload: job.metadata,
+    });
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -102,11 +294,27 @@ Deno.serve(async (req) => {
 
     const companyId = campaign.company_id;
 
-    // Mark campaign as sending
-    await adminClient
+    // Mark campaign as sending with optimistic locking. This blocks duplicate
+    // browser submits while still allowing cron/service-role resume from sending.
+    const { data: sendingLock, error: sendingLockError } = await adminClient
       .from("email_campaigns")
       .update({ status: "sending", sent_at: new Date().toISOString() })
-      .eq("id", campaignId);
+      .eq("id", campaignId)
+      .eq("status", campaign.status)
+      .select("id")
+      .maybeSingle();
+    if (sendingLockError) {
+      return new Response(
+        JSON.stringify({ error: "Impossibile bloccare la campagna: " + sendingLockError.message }),
+        { status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
+    if (!sendingLock) {
+      return new Response(
+        JSON.stringify({ error: "Campagna già presa in carico da un altro processo" }),
+        { status: 409, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
 
     // Load provider settings
     const settings = await loadProviderSettings("marketing");
@@ -118,43 +326,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build recipient list
-    let query = adminClient
-      .from("marketing_contacts")
-      .select("id, email, first_name, last_name, phone, city, province, company_name")
-      .eq("company_id", companyId)
-      .eq("email_unsubscribed", false)
-      .not("email", "is", null);
-
-    // Apply segment filters if present
-    if (campaign.segment_json) {
-      const seg = typeof campaign.segment_json === "string"
-        ? JSON.parse(campaign.segment_json)
-        : campaign.segment_json;
-
-      if (seg.tags?.length) {
-        query = query.overlaps("tags", seg.tags);
-      }
-      if (seg.source) {
-        query = query.eq("source", seg.source);
-      }
-      if (seg.contact_type) {
-        query = query.eq("contact_type", seg.contact_type);
-      }
-    }
-
-    // Apply recipient_filter (legacy)
-    if (campaign.recipient_filter) {
-      const filter = typeof campaign.recipient_filter === "string"
-        ? JSON.parse(campaign.recipient_filter)
-        : campaign.recipient_filter;
-
-      if (filter.tags?.length) {
-        query = query.overlaps("tags", filter.tags);
-      }
-    }
-
-    const { data: contacts, error: contactsError } = await query;
+    const { contacts, error: contactsError } = await fetchCampaignContacts(
+      adminClient,
+      companyId,
+      campaign.segment_json,
+      campaign.recipient_filter,
+    );
     if (contactsError) {
       await adminClient.from("email_campaigns").update({ status: "failed" }).eq("id", campaignId);
       return new Response(
@@ -163,19 +340,52 @@ Deno.serve(async (req) => {
       );
     }
 
-    // GAP-13: Filter out globally suppressed emails (cross-company suppression list)
-    const rawRecipients = (contacts ?? []).filter((c: any) => c.email);
-    const { data: suppressions } = await adminClient
-      .from("email_suppressions")
-      .select("email")
-      .in("email", rawRecipients.map((c: any) => c.email));
-    const suppressedEmails = new Set((suppressions || []).map((s: any) => s.email));
-    const recipients = rawRecipients.filter((c: any) => !suppressedEmails.has(c.email));
+    const rawRecipients = dedupeContactsByEmail(contacts);
+    const suppressedEmails = await getSuppressedEmailMap(
+      adminClient,
+      rawRecipients.map((c: any) => c.email),
+      companyId,
+      "marketing",
+    );
+    let recipients = rawRecipients.filter((c: any) => !suppressedEmails.has(normalizeEmailAddress(c.email)));
 
-    if (recipients.length === 0) {
-      await adminClient.from("email_campaigns").update({ status: "failed", failed_count: 0, sent_count: 0 }).eq("id", campaignId);
+    // Idempotenza best-effort: se una funzione viene ritentata dopo timeout,
+    // non reinvia ai contatti già loggati come consegnati per la stessa campagna.
+    const { data: previousSuccessfulLogs } = await adminClient
+      .from("email_logs")
+      .select("contact_id")
+      .eq("campaign_id", campaignId)
+      .in("status", ["delivered", "sent", "opened", "clicked"]);
+    const alreadySentContactIds = new Set(
+      ((previousSuccessfulLogs ?? []) as Array<{ contact_id: string }>).map((row) => row.contact_id),
+    );
+    const alreadySentCount = alreadySentContactIds.size;
+    recipients = recipients.filter((c: any) => !alreadySentContactIds.has(c.id));
+
+    if (recipients.length === 0 && alreadySentCount === 0) {
+      await adminClient.from("email_campaigns").update({
+        status: "failed",
+        failed_count: 0,
+        sent_count: 0,
+        total_recipients: rawRecipients.length,
+        completed_at: new Date().toISOString(),
+      }).eq("id", campaignId);
       return new Response(
         JSON.stringify({ error: "Nessun destinatario trovato", sent: 0 }),
+        { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
+
+    if (recipients.length === 0 && alreadySentCount > 0) {
+      await adminClient.from("email_campaigns").update({
+        status: "sent",
+        sent_count: alreadySentCount,
+        failed_count: 0,
+        total_recipients: alreadySentCount,
+        completed_at: new Date().toISOString(),
+      }).eq("id", campaignId);
+      return new Response(
+        JSON.stringify({ success: true, sent: alreadySentCount, failed: 0, total: alreadySentCount, resumed: true }),
         { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
@@ -192,9 +402,8 @@ Deno.serve(async (req) => {
     }
 
     // Deduct credits upfront (skip if service is free)
-    const emailCost = billingConfig.pricePerUnitEur
-      ? recipients.length * billingConfig.pricePerUnitEur
-      : recipients.length; // 1 credit = 1 email (default)
+    const emailUnitCost = billingConfig.pricePerUnitEur || 1; // 1 credit = 1 email (default)
+    const emailCost = recipients.length * emailUnitCost;
 
     if (!billingConfig.isFree) {
       try {
@@ -220,8 +429,9 @@ Deno.serve(async (req) => {
     let providerDomainForCampaign: string | null = null;
     let fromAddress: string;
     if (campaign.sender_email) {
-      fromAddress = campaign.sender_name
-        ? `${campaign.sender_name} <${campaign.sender_email}>`
+      const safeSenderName = sanitizeFromName(campaign.sender_name);
+      fromAddress = safeSenderName
+        ? `${safeSenderName} <${campaign.sender_email}>`
         : campaign.sender_email;
       providerDomainForCampaign = campaign.sender_email.includes("@")
         ? campaign.sender_email.split("@").pop() ?? null
@@ -241,7 +451,7 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    let sentCount = 0;
+    let sentCount = alreadySentCount;
     let failedCount = 0;
 
     // A/B Testing: split recipients
@@ -264,9 +474,10 @@ Deno.serve(async (req) => {
     }
 
     // Send emails in parallel batches (BUG-08: was 5, increased to avoid timeout on large lists)
-    const BATCH_SIZE = 50;
+    const BATCH_SIZE = Math.max(1, Math.min(Number(Deno.env.get("EMAIL_MARKETING_BATCH_SIZE") || 50), 100));
 
     async function sendToContact(contact: any, abVariant?: string) {
+      let claimedOutbox: { id: string | null; attempts: number; maxAttempts: number } | null = null;
       try {
         // Determine subject based on variant
         const emailSubject = abVariant === "B" && campaign.ab_subject_b
@@ -319,20 +530,55 @@ Deno.serve(async (req) => {
         // so the unsub link goes directly to the unsub endpoint, not through the click tracker
         html = html.replace(/\{\{unsubscribe_url\}\}/g, unsubUrl);
         const unsubHeader = `<${unsubUrl}>`;
+        const headers = {
+          "List-Unsubscribe": unsubHeader,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        };
+        const outbox = await claimCampaignOutboxJob(adminClient, {
+          companyId,
+          campaignId,
+          contactId: contact.id,
+          recipient: contact.email,
+          subject: emailSubject,
+          html,
+          fromAddress,
+          providerDomain: providerDomainForCampaign ?? customDomainForCampaign ?? settings.domain ?? null,
+          headers,
+          metadata: { ab_variant: abVariant ?? null, contact_id: contact.id },
+          idempotencyKey: `campaign:${campaignId}:contact:${contact.id}:variant:${abVariant ?? "A"}`,
+        });
+        claimedOutbox = outbox;
+        if (!outbox.shouldSend) {
+          return true;
+        }
 
-        const result = await sendViaProvider(settings.provider, settings.apiKey, {
+        const result = await sendViaProviderWithFailover("marketing", settings, {
           from: fromAddress,
           to: [contact.email],
           subject: emailSubject,
           html,
-          headers: {
-            "List-Unsubscribe": unsubHeader,
-            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-          },
+          headers,
         }, {
           domain: providerDomainForCampaign ?? customDomainForCampaign ?? settings.domain,
           stream: "marketing",
           disableNativeTracking: true,
+        });
+        const providerUsed = result.providerUsed ?? settings.provider;
+        const providerError = result.ok ? null : JSON.stringify(result.body);
+
+        await finishCampaignOutboxJob(adminClient, {
+          id: outbox.id,
+          ok: result.ok,
+          provider: providerUsed,
+          providerMessageId: result.providerMessageId ?? null,
+          errorMessage: providerError,
+          attempts: outbox.attempts,
+          maxAttempts: outbox.maxAttempts,
+          companyId,
+          campaignId,
+          recipient: contact.email,
+          subject: emailSubject,
+          metadata: { ab_variant: abVariant ?? null, contact_id: contact.id },
         });
 
         // Log the send with A/B variant (email_logs tracks campaign open/click)
@@ -341,11 +587,11 @@ Deno.serve(async (req) => {
           contact_id: contact.id,
           company_id: companyId,
           status: result.ok ? "delivered" : "failed",
-          provider: settings.provider,
+          provider: providerUsed,
           provider_message_id: result.providerMessageId || null,
           stream: "marketing",
           event_timestamp: new Date().toISOString(),
-          error_message: result.ok ? null : JSON.stringify(result.body),
+          error_message: providerError,
           ...(abVariant ? { ab_variant: abVariant } : {}),
         });
 
@@ -357,11 +603,11 @@ Deno.serve(async (req) => {
           subject: emailSubject,
           template_name: "campaign_send",
           status: result.ok ? "sent" : "failed",
-          provider: settings.provider,
+          provider: providerUsed,
           stream: "marketing",
           campaign_id: campaignId,
           provider_id: result.providerMessageId ?? null,
-          error_message: result.ok ? null : JSON.stringify(result.body),
+          error_message: providerError,
           cost_eur: 0,
           charged_eur: 0,
           metadata: { ab_variant: abVariant ?? null, contact_id: contact.id },
@@ -379,6 +625,36 @@ Deno.serve(async (req) => {
           event_timestamp: new Date().toISOString(),
           error_message: err.message,
           ...(abVariant ? { ab_variant: abVariant } : {}),
+        });
+        const fallbackSubject = abVariant === "B" && campaign.ab_subject_b ? campaign.ab_subject_b : campaign.subject || "Senza oggetto";
+        if (claimedOutbox?.id) {
+          await finishCampaignOutboxJob(adminClient, {
+            id: claimedOutbox.id,
+            ok: false,
+            provider: settings.provider,
+            errorMessage: err.message,
+            attempts: claimedOutbox.attempts,
+            maxAttempts: claimedOutbox.maxAttempts,
+            companyId,
+            campaignId,
+            recipient: contact.email,
+            subject: fallbackSubject,
+            metadata: { ab_variant: abVariant ?? null, contact_id: contact.id, provider_exception: true },
+          });
+        }
+        await logEmailDelivery(adminClient, {
+          company_id: companyId,
+          recipient: contact.email,
+          subject: fallbackSubject,
+          template_name: "campaign_send",
+          status: "failed",
+          provider: settings.provider,
+          stream: "marketing",
+          campaign_id: campaignId,
+          error_message: err.message,
+          cost_eur: 0,
+          charged_eur: 0,
+          metadata: { ab_variant: abVariant ?? null, contact_id: contact.id, provider_exception: true },
         });
         return false;
       }
@@ -404,21 +680,37 @@ Deno.serve(async (req) => {
       }
     }
 
+    const failedRefund = !billingConfig.isFree && failedCount > 0
+      ? failedCount * emailUnitCost
+      : 0;
+    let refundedFailedCost = 0;
+    if (failedRefund > 0) {
+      await addEmailCredits(companyId, failedRefund, "refund", {
+        description: `Rimborso invii falliti campagna: ${campaign.name}`,
+        metadata: { campaign_id: campaignId, failed_recipients: failedCount, stream: "marketing" },
+        adminClient,
+      }).then(() => {
+        refundedFailedCost = failedRefund;
+      }).catch((refundErr) => {
+        console.error("[send-email-campaign] failed-send refund error:", refundErr);
+      });
+    }
+
     // Update campaign status
     await adminClient
       .from("email_campaigns")
       .update({
-        status: failedCount === recipients.length ? "failed" : "sent",
+        status: failedCount === recipients.length && alreadySentCount === 0 ? "failed" : "sent",
         sent_count: sentCount,
         failed_count: failedCount,
-        credits_used: emailCost,
+        credits_used: Math.max(0, emailCost - refundedFailedCost),
         completed_at: new Date().toISOString(),
-        total_recipients: recipients.length,
+        total_recipients: recipients.length + alreadySentCount,
       })
       .eq("id", campaignId);
 
     return new Response(
-      JSON.stringify({ success: true, sent: sentCount, failed: failedCount, total: recipients.length }),
+      JSON.stringify({ success: true, sent: sentCount, failed: failedCount, total: recipients.length + alreadySentCount }),
       { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (err: any) {

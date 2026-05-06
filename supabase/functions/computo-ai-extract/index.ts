@@ -5,7 +5,6 @@
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Buffer } from "node:buffer";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
@@ -584,7 +583,7 @@ function parseItalianNumber(val: any): number {
   if (typeof val === "number") return val;
   if (!val) return 0;
   const s = String(val).trim();
-  const cleaned = s.replace(/\./g, "").replace(",", ".").replace(/[^\d.\-]/g, "");
+  const cleaned = s.replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, "");
   const n = parseFloat(cleaned);
   return isNaN(n) ? 0 : n;
 }

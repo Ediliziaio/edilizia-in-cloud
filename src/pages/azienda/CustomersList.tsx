@@ -5,8 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users, Plus, Search, Mail, Phone, ClipboardList, KeyRound, Copy, Check,
   Pencil, Trash2, Download, Upload, MoreVertical, AlertTriangle, ArrowUpDown,
-  Calendar, UserCheck, ChevronLeft, ChevronRight, TrendingUp, TrendingDown,
-  UserPlus, ShoppingBag, ShieldOff, Info, Columns3, Filter, FileSpreadsheet,
+  Calendar, UserCheck, ChevronLeft, ChevronRight,
+  UserPlus, ShoppingBag, ShieldOff, Columns3, Filter, FileSpreadsheet,
   FileText, ChevronDown, X, CreditCard, HardHat, MapPin, StickyNote, Sparkles,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";

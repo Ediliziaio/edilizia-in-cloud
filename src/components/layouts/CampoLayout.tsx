@@ -8,8 +8,6 @@ import {
   Home,
   Calendar,
   MessageSquare,
-  Package,
-  User,
   HardHat,
   Eye,
   LogOut,
@@ -28,7 +26,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils";
 import { usePreviewToken } from "@/hooks/usePreviewToken";
 import { PreviewSessionContext } from "@/contexts/PreviewSessionContext";
 import OfflineBanner from "@/components/campo/OfflineBanner";
@@ -37,7 +34,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 import { CampoBottomNav } from "@/components/campo/CampoBottomNav";
-import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import {
   Sidebar,
   SidebarContent,
@@ -48,7 +44,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 
 export default function CampoLayout() {

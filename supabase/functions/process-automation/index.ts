@@ -1,9 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
-import { sendViaProvider, loadProviderSettings } from "../_shared/emailProvider.ts";
-import { deductEmailCredits } from "../_shared/emailCredits.ts";
+import { sendViaProviderWithFailover, loadProviderSettings, sanitizeFromName } from "../_shared/emailProvider.ts";
+import { addEmailCredits, deductEmailCredits } from "../_shared/emailCredits.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
+import { getSuppressedEmailMap, normalizeEmailAddress } from "../_shared/emailSuppression.ts";
 
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { isInternalRequest, requireAuth, requireCompanyAccess, requireInternalSecret } from "../_shared/auth.ts";
@@ -1386,6 +1387,16 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       return { success: false, error: `No API key configured for ${stream} email provider` };
     }
 
+    const suppressed = await getSuppressedEmailMap(
+      supabase,
+      [contact.email],
+      companyId,
+      stream,
+    );
+    if (suppressed.has(normalizeEmailAddress(contact.email))) {
+      return { success: false, error: "Contact is suppressed for this email stream" };
+    }
+
     // Build email content
     let html = cfg.email_body || cfg.html || "<p>No content</p>";
     const subject = cfg.email_subject || cfg.subject || "Messaggio";
@@ -1406,8 +1417,8 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     // Inject tracking pixel and unsubscribe link for marketing emails
     if (stream === "marketing") {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const trackingPixel = `<img src="${supabaseUrl}/functions/v1/track-email?type=open&contact=${contact.id}&company=${companyId}" width="1" height="1" style="display:none" alt="" />`;
-      const unsubLink = `${supabaseUrl}/functions/v1/track-email?type=unsubscribe&contact=${contact.id}&company=${companyId}`;
+      const trackingPixel = `<img src="${supabaseUrl}/functions/v1/email-tracking?type=automation_open&rid=${contact.id}&co=${companyId}" width="1" height="1" style="display:none" alt="" />`;
+      const unsubLink = `${supabaseUrl}/functions/v1/email-tracking?type=automation_unsub&rid=${contact.id}&co=${companyId}`;
 
       // Inject pixel before </body> or at end
       if (html.includes("</body>")) {
@@ -1423,14 +1434,16 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     const resolvedSender = cfg.from_email
       ? null
       : await resolveSender(companyId, stream, supabase).catch(() => null);
+    const safeFromName = sanitizeFromName(cfg.from_name);
     const fromAddress = cfg.from_email
-      ? cfg.from_name ? `${cfg.from_name} <${cfg.from_email}>` : cfg.from_email
+      ? safeFromName ? `${safeFromName} <${cfg.from_email}>` : cfg.from_email
       : resolvedSender?.from ?? settings.fromDefault;
     const providerDomain = cfg.from_email?.includes("@")
       ? cfg.from_email.split("@").pop() ?? null
       : resolvedSender?.domain ?? settings.domain ?? null;
 
     // Deduct 1 credit for marketing emails (1 credit = cost per email from platform_settings)
+    let deductedEmailCost = 0;
     if (stream === "marketing") {
       try {
         // Get price per email from platform_settings
@@ -1445,34 +1458,39 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
           description: `Automazione email: ${subject}`,
           metadata: { contact_id: contact.id, stream, automation: true },
         });
+        deductedEmailCost = costPerEmail;
       } catch (creditErr: any) {
         console.warn(`Credit deduction failed for company ${companyId}:`, creditErr.message);
         // Continue sending — don't block automation on credit failure
       }
     }
 
-    const result = await sendViaProvider(settings.provider, settings.apiKey, {
+    const result = await sendViaProviderWithFailover(stream, settings, {
       from: fromAddress,
       to: [contact.email],
       subject,
       html,
+      headers: stream === "marketing"
+        ? {
+            "List-Unsubscribe": `<${Deno.env.get("SUPABASE_URL")!}/functions/v1/email-tracking?type=automation_unsub&rid=${contact.id}&co=${companyId}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          }
+        : undefined,
     }, {
       domain: providerDomain ?? undefined,
       stream,
       disableNativeTracking: stream === "marketing",
     });
 
-    // Log the send (email_logs tracks automation open/click)
-    await supabase.from("email_logs").insert({
-      contact_id: contact.id,
-      company_id: companyId,
-      status: result.ok ? "delivered" : "failed",
-      provider: settings.provider,
-      provider_message_id: result.providerMessageId || null,
-      stream,
-      event_timestamp: new Date().toISOString(),
-      error_message: result.ok ? undefined : JSON.stringify(result.body),
-    });
+    if (!result.ok && deductedEmailCost > 0) {
+      await addEmailCredits(companyId, deductedEmailCost, "refund", {
+        description: `Rimborso automazione email fallita: ${subject}`,
+        metadata: { contact_id: contact.id, stream, automation: true, provider_status: result.status },
+        adminClient: supabase,
+      }).catch((refundErr) => {
+        console.error("[process-automation] email refund failed:", refundErr);
+      });
+    }
 
     // Mirror to unified email_delivery_log for SuperAdmin P&L/audit
     await logEmailDelivery(supabase, {
@@ -1481,7 +1499,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       subject,
       template_name: "automation_send",
       status: result.ok ? "sent" : "failed",
-      provider: settings.provider,
+      provider: result.providerUsed ?? settings.provider,
       stream,
       provider_id: result.providerMessageId ?? null,
       error_message: result.ok ? undefined : JSON.stringify(result.body),
@@ -1502,13 +1520,13 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
             Authorization: `Bearer ${anonKey}`,
           },
           body: JSON.stringify({ company_id: companyId }),
-        }).catch(() => {});
-      } catch {}
+        }).catch(() => { /* intentionally ignored */ });
+      } catch { /* intentionally ignored */ }
     }
 
     return {
       success: result.ok,
-      output: { action: "send_email", provider: settings.provider, status: result.status },
+      output: { action: "send_email", provider: result.providerUsed ?? settings.provider, status: result.status },
       error: result.ok ? undefined : `Provider returned ${result.status}`,
     };
   } catch (err: any) {

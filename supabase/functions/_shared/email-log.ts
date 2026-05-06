@@ -54,7 +54,8 @@ export async function logEmailDelivery(
       .select("id")
       .single();
     return { id: (data as { id?: string } | null)?.id };
-  } catch {
+  } catch (err) {
+    console.error("[email-log] delivery log insert failed:", err);
     // Non-blocking — don't let logging failures break email operations
     return {};
   }

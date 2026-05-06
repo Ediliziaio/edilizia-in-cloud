@@ -59,11 +59,18 @@ const DOC_TYPE_LABEL: Record<string, string> = {
   fattura: "Fattura",
   ricevuta: "Ricevuta",
   contratto: "Contratto",
+  preventivo: "Preventivo / offerta",
   listino_prezzi: "Listino prezzi",
   biglietto_visita: "Biglietto da visita",
   foto_cantiere: "Foto cantiere",
+  foto_generale: "Foto generica",
   tabella_finanziamento: "Tabella finanziamento",
   documento_identita: "Documento d'identità",
+  verbale_collaudo: "Verbale di collaudo",
+  polizza_assicurativa: "Polizza assicurativa",
+  documento_pa: "Documento PA",
+  scheda_tecnica: "Scheda tecnica",
+  documento_generico: "Documento generico",
   altro: "Altro / non riconosciuto",
 };
 
@@ -73,13 +80,32 @@ const DOC_TYPE_EMOJI: Record<string, string> = {
   fattura: "💰",
   ricevuta: "🧾",
   contratto: "📜",
+  preventivo: "📝",
   listino_prezzi: "📊",
   biglietto_visita: "👤",
   foto_cantiere: "🏗️",
+  foto_generale: "🖼️",
   tabella_finanziamento: "💳",
   documento_identita: "🪪",
+  verbale_collaudo: "✅",
+  polizza_assicurativa: "🛡️",
+  documento_pa: "🏛️",
+  scheda_tecnica: "📄",
+  documento_generico: "📁",
   altro: "❓",
 };
+
+function safeStorageName(name: string): string {
+  const ext = name.includes(".") ? `.${name.split(".").pop()}` : "";
+  const base = name.replace(/\.[^.]+$/, "");
+  const cleaned = base
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return `${cleaned || "documento"}${ext.toLowerCase()}`;
+}
 
 interface ClassifyResponse {
   success: boolean;
@@ -231,7 +257,7 @@ export function SmartDocumentImportModal({
 
     try {
       // 1. Upload to storage. Try preferred bucket first, fallback su "computi"
-      const path = `${companyId}/smart-${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+      const path = `${companyId}/smart-${Date.now()}-${safeStorageName(file.name)}`;
 
       let usedBucket = storageBucket;
       let upErr = (
@@ -270,7 +296,7 @@ export function SmartDocumentImportModal({
       }
 
       setClassifyStatus("validating");
-      setProgress(`Riconosciuto: ${DOC_TYPE_LABEL[data.doc_type]}`);
+      setProgress(`Riconosciuto: ${DOC_TYPE_LABEL[data.doc_type] ?? data.doc_type}`);
       // Lascia un attimo per mostrare il "validating" pulse
       await new Promise((r) => setTimeout(r, 400));
       setClassifyStatus("review");
@@ -332,7 +358,7 @@ export function SmartDocumentImportModal({
 
       // Outflow legacy → redirect alla pagina che contiene il modale dedicato
       toast.success(
-        `Documento riconosciuto come ${DOC_TYPE_LABEL[result.doc_type]}. ${action.hint ?? ""}`
+        `Documento riconosciuto come ${DOC_TYPE_LABEL[result.doc_type] ?? result.doc_type}. ${action.hint ?? ""}`
       );
       const moduleUrl = AUTOFLOW_REDIRECTS[result.doc_type] ?? null;
       handleClose();
@@ -415,7 +441,6 @@ export function SmartDocumentImportModal({
       // garantisce idempotenza dell'INSERT.
       const { data, error: insErr } = await supabase
         .from("entity_attachments" as never)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .upsert({
           company_id: companyId,
           entity_table: suggestion.entity_table,
@@ -547,8 +572,8 @@ export function SmartDocumentImportModal({
             {step === 3 && "Documento riconosciuto"}
             {step === 4 && result && (
               <>
-                <span>{DOC_TYPE_EMOJI[result.doc_type]}</span>
-                Dati estratti: {DOC_TYPE_LABEL[result.doc_type]}
+                <span>{DOC_TYPE_EMOJI[result.doc_type] ?? "📄"}</span>
+                Dati estratti: {DOC_TYPE_LABEL[result.doc_type] ?? result.doc_type}
               </>
             )}
             {step === 5 && (
@@ -636,12 +661,12 @@ export function SmartDocumentImportModal({
           <div className="space-y-4">
             {/* Hero risultato */}
             <div className="text-center py-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl border border-orange-100">
-              <div className="text-5xl mb-2">{DOC_TYPE_EMOJI[result.doc_type]}</div>
+              <div className="text-5xl mb-2">{DOC_TYPE_EMOJI[result.doc_type] ?? "📄"}</div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">
                 Tipo documento
               </p>
               <p className="text-xl font-semibold text-slate-800 mt-0.5">
-                {DOC_TYPE_LABEL[result.doc_type]}
+                {DOC_TYPE_LABEL[result.doc_type] ?? result.doc_type}
               </p>
               <Badge
                 variant="outline"
@@ -840,9 +865,8 @@ export function SmartDocumentImportModal({
                           if (!companyId) return;
                           try {
                             const isForeign = paese && !/italia|italy/i.test(paese);
-                            const { data: created, error: insErr } = await supabase
+                            const { error: insErr } = await supabase
                               .from("suppliers" as never)
-                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
                               .insert({
                                 company_id: companyId,
                                 name: ragSoc,
@@ -860,8 +884,6 @@ export function SmartDocumentImportModal({
                               toast.error(`Creazione fornitore: ${insErr.message}`);
                               return;
                             }
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            const newId = (created as any)?.id;
                             toast.success(`Fornitore "${ragSoc}" creato. Ricerco i collegamenti…`);
                             // Re-run linker per cercare di nuovo (ora con il fornitore esistente, troverà OdA se ce ne sono)
                             await runLinker(linkerResult.doc_type, ddt, result?.file);

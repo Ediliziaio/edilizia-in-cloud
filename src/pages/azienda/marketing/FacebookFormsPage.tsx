@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, RefreshCw, AlertTriangle, Copy, Check, ShieldCheck, ExternalLink, Activity, CheckCircle2, XCircle, Clock, Loader2, Inbox, Facebook } from "lucide-react";
+import { RefreshCw, AlertTriangle, Copy, Check, ShieldCheck, ExternalLink, Activity, CheckCircle2, XCircle, Clock, Loader2, Inbox, Facebook } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
@@ -79,7 +79,7 @@ export default function FacebookFormsPage() {
         .eq("provider", "meta")
         .eq("event_type", "leadgen")
         .eq("status", "processed");
-      
+
       const counts: Record<string, { total: number; lastAt: string | null }> = {};
       for (const ev of data || []) {
         const formId = (ev.payload as any)?.form_id;

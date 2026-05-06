@@ -41,7 +41,6 @@ import { useTariffaVarianti } from "@/hooks/useTariffaVarianti";
 import { useAssegnazioniMutations } from "@/hooks/useAssegnazioniMutations";
 import {
   MODALITA_CONTABILE_ICONS,
-  MODALITA_CONTABILE_LABELS,
   type FonteCosto,
   type MargineQuoteItem,
 } from "@/types/costVariants";

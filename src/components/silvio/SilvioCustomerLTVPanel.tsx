@@ -21,7 +21,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Sparkles, TrendingUp, AlertTriangle, RefreshCw, Loader2,
-  Crown, UserMinus, Calendar,
+  Crown, UserMinus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";

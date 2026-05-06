@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/alert';
 import {
   ArrowLeft, HardHat, FileText, Euro, Loader2, Plus, AlertTriangle, CheckCircle2, ExternalLink,
-  Check, Upload, Trash2, BriefcaseBusiness, CreditCard, Mail, MapPin, Phone, Link2, Link2Off,
+  Check, Upload, Trash2, BriefcaseBusiness, CreditCard, Mail, MapPin, Link2, Link2Off,
 } from 'lucide-react';
 import type {
   ContrattoSubappalto, SALSubappaltatore, RitenutaGaranzia,
@@ -396,7 +396,7 @@ export default function SubappaltatoreDetail() {
   const uploadDocumentMutation = useMutation({
     mutationFn: async () => {
       if (!docFile) throw new Error('Seleziona un file');
-      const safeName = docFile.name.replace(/[^\w.\-]+/g, '_');
+      const safeName = docFile.name.replace(/[^\w.-]+/g, '_');
       const filePath = `${companyId}/${id}/${Date.now()}-${safeName}`;
       const { error: uploadError } = await supabase.storage
         .from(DOCUMENT_BUCKET)

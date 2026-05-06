@@ -2,12 +2,17 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   loadProviderSettings,
-  sendViaProvider,
+  sendViaProviderWithFailover,
   EmailSendResult,
 } from "./emailProvider.ts";
-import { deductEmailCredits } from "./emailCredits.ts";
+import { addEmailCredits, deductEmailCredits } from "./emailCredits.ts";
 import { logEmailDelivery } from "./email-log.ts";
 import { resolveSender } from "./resolveSender.ts";
+import {
+  getSuppressedEmailMap,
+  normalizeRecipientList,
+  normalizeEmailAddress,
+} from "./emailSuppression.ts";
 
 export type EmailStream = "marketing" | "transactional";
 
@@ -26,6 +31,8 @@ export interface UnifiedEmailArgs {
   campaignId?: string;
   replyTo?: string;
   attachments?: { filename: string; content: string; type: string }[];
+  /** Provider-specific headers, e.g. List-Unsubscribe for marketing sends. */
+  headers?: Record<string, string>;
   /** Force-skip wallet deduction even when over quota (e.g. password reset). */
   skipCredits?: boolean;
   /** Admin client. If not provided, one is built from env. */
@@ -89,8 +96,8 @@ function adminClientOrBuild(c?: SupabaseClient): SupabaseClient {
  */
 export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedEmailResult> {
   const admin = adminClientOrBuild(args.adminClient);
-  const recipients = Array.isArray(args.to) ? args.to : [args.to];
-  const recipientCount = recipients.length;
+  const normalized = normalizeRecipientList(args.to);
+  let recipients = normalized.valid;
 
   // ── 1. Provider settings ─────────────────────────────────────────────────
   const settings = await loadProviderSettings(args.stream);
@@ -101,6 +108,70 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
       body: { error: `No provider configured for stream '${args.stream}'.` },
     };
   }
+
+  for (const invalid of normalized.invalid) {
+    await logEmailDelivery(admin, {
+      company_id:    args.companyId,
+      recipient:     String(invalid ?? ""),
+      subject:       args.subject,
+      template_name: args.templateName,
+      status:        "failed",
+      provider:      settings.provider,
+      stream:        args.stream,
+      campaign_id:   args.campaignId ?? null,
+      error_message: "Indirizzo email non valido",
+      cost_eur:      0,
+      charged_eur:   0,
+      metadata:      { invalid_recipient: true, ...args.metadata },
+    });
+  }
+
+  if (recipients.length > 0) {
+    const suppressed = await getSuppressedEmailMap(admin, recipients, args.companyId, args.stream);
+    if (suppressed.size > 0) {
+      const sendable: string[] = [];
+      for (const r of recipients) {
+        const hit = suppressed.get(normalizeEmailAddress(r));
+        if (!hit) {
+          sendable.push(r);
+          continue;
+        }
+        await logEmailDelivery(admin, {
+          company_id:    args.companyId,
+          recipient:     r,
+          subject:       args.subject,
+          template_name: args.templateName,
+          status:        "failed",
+          provider:      settings.provider,
+          stream:        args.stream,
+          campaign_id:   args.campaignId ?? null,
+          error_message: `Destinatario in suppression list (${hit.reason})`,
+          cost_eur:      0,
+          charged_eur:   0,
+          metadata: {
+            suppressed: true,
+            suppression_reason: hit.reason,
+            suppression_company_id: hit.companyId,
+            ...args.metadata,
+          },
+        });
+      }
+      recipients = sendable;
+    }
+  }
+
+  if (recipients.length === 0) {
+    return {
+      ok: false,
+      status: 409,
+      body: {
+        error: "Nessun destinatario inviabile",
+        invalid: normalized.invalid.length,
+      },
+    };
+  }
+
+  const recipientCount = recipients.length;
 
   // ── 2. Quota resolution ──────────────────────────────────────────────────
   let isFree = false;
@@ -222,9 +293,49 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
   }
 
   // ── 4. Send via provider ─────────────────────────────────────────────────
+  const providerHeaders: Record<string, string> = {
+    ...(args.headers ?? {}),
+    "X-EIC-Stream": args.stream,
+  };
+  if (args.companyId) providerHeaders["X-EIC-Company-ID"] = args.companyId;
+  if (args.templateName) providerHeaders["X-EIC-Template"] = args.templateName;
+  const unsubscribeUrl = args.metadata?.unsubscribe_url;
+  if (
+    args.stream === "marketing" &&
+    typeof unsubscribeUrl === "string" &&
+    unsubscribeUrl.startsWith("http") &&
+    !providerHeaders["List-Unsubscribe"]
+  ) {
+    providerHeaders["List-Unsubscribe"] = `<${unsubscribeUrl}>`;
+    providerHeaders["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
+  }
+
   let result: EmailSendResult;
+  let refundedAfterProviderFailure = false;
+  async function refundFailedSend(reason: string): Promise<boolean> {
+    if (!shouldCharge || chargedTotal <= 0 || !args.companyId) return false;
+    try {
+      await addEmailCredits(args.companyId, chargedTotal, "refund", {
+        description: `Rimborso invio email fallito: ${args.stream}:${args.templateName ?? "unknown"}`,
+        metadata: {
+          provider_failure: true,
+          reason,
+          recipients: recipientCount,
+          stream: args.stream,
+          template_name: args.templateName ?? null,
+          ...args.metadata,
+        },
+        adminClient: admin,
+      });
+      return true;
+    } catch (refundErr) {
+      console.error("[sendEmailUnified] refund after provider failure failed:", refundErr);
+      return false;
+    }
+  }
+
   try {
-    result = await sendViaProvider(settings.provider, settings.apiKey, {
+    result = await sendViaProviderWithFailover(args.stream, settings, {
       from:    fromAddress,
       to:      recipients,
       subject: args.subject,
@@ -232,6 +343,7 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
       text:    args.text,
       replyTo: effectiveReplyTo,
       attachments: args.attachments,
+      headers: providerHeaders,
     }, {
       domain: providerDomain ?? customDomain ?? settings.domain ?? undefined,
       stream: args.stream,
@@ -239,6 +351,7 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    refundedAfterProviderFailure = await refundFailedSend(msg);
     for (const r of recipients) {
       await logEmailDelivery(admin, {
         company_id:    args.companyId,
@@ -251,9 +364,10 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
         campaign_id:   args.campaignId ?? null,
         error_message: msg,
         cost_eur:      0,
-        charged_eur:   shouldCharge ? pricePerEmail : 0,
+        charged_eur:   shouldCharge && !refundedAfterProviderFailure ? pricePerEmail : 0,
         metadata: {
           provider_exception: true,
+          refunded_after_provider_failure: refundedAfterProviderFailure,
           sender_source:       senderSource,
           custom_domain_id:    customDomainId,
           using_custom_domain: usingCustomDomain,
@@ -269,7 +383,15 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
       isFree,
       effectiveLimit,
       sentThisMonth,
+      chargedEur: refundedAfterProviderFailure ? 0 : chargedTotal,
     };
+  }
+
+  if (!result.ok) {
+    const providerFailureReason = typeof result.body === "object"
+      ? JSON.stringify(result.body)
+      : String(result.body ?? `HTTP ${result.status}`);
+    refundedAfterProviderFailure = await refundFailedSend(providerFailureReason);
   }
 
   // ── 5. Log outcome per recipient ─────────────────────────────────────────
@@ -287,16 +409,21 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
       subject:       args.subject,
       template_name: args.templateName,
       status:        result.ok ? "sent" : "failed",
-      provider:      settings.provider,
+      provider:      result.providerUsed ?? settings.provider,
       stream:        args.stream,
       campaign_id:   args.campaignId ?? null,
       provider_id:   result.providerMessageId ?? null,
       error_message: providerError,
       cost_eur:      0,
-      charged_eur:   result.ok && shouldCharge ? pricePerEmail : 0,
+      charged_eur:   result.ok && shouldCharge
+        ? pricePerEmail
+        : !result.ok && shouldCharge && !refundedAfterProviderFailure
+          ? pricePerEmail
+          : 0,
       metadata: {
         over_quota: overQuota,
         is_free: isFree,
+        refunded_after_provider_failure: !result.ok ? refundedAfterProviderFailure : false,
         template_name: args.templateName ?? null,
         custom_domain: customDomain,
         custom_domain_id: customDomainId,
@@ -313,8 +440,8 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
     ...result,
     deliveryLogId: lastLogId,
     creditsBefore,
-    creditsAfter,
-    chargedEur: chargedTotal,
+    creditsAfter: refundedAfterProviderFailure ? creditsBefore : creditsAfter,
+    chargedEur: result.ok ? chargedTotal : refundedAfterProviderFailure ? 0 : chargedTotal,
     overQuota,
     isFree,
     effectiveLimit,

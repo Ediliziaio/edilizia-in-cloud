@@ -316,7 +316,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
   ]
     .filter(e => !!e.date)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   [isLoading, statusHistory, giornale, sal, varianti, rapportini]);
 
   // Guard loading DOPO gli hooks

@@ -8,7 +8,7 @@
  * Best-effort: errori di logging NON bloccano l'esecuzione tool.
  */
 
-import type { ToolContext, ToolDefinition, ToolResult } from "./types.ts";
+import type { ToolContext, ToolDefinition } from "./types.ts";
 
 /**
  * Logga l'esecuzione di un tool (success/error/proposed) in `tool_execution_log`.

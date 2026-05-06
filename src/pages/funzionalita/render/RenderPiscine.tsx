@@ -15,7 +15,6 @@ import {
   Target,
   Users,
   Waves,
-  Wrench,
   XCircle,
   Zap,
 } from "lucide-react";

@@ -69,14 +69,14 @@ interface Chunk {
 // ============ Discovery + parsing ============
 
 async function discoverDocs(basePath: string): Promise<string[]> {
-  const cleanBase = basePath.replace(/^\.\//, "").replace(/[\/\\]$/, "");
+  const cleanBase = basePath.replace(/^\.\//, "").replace(/[/\\]$/, "");
   const docs: string[] = [];
   for await (const entry of walk(basePath, { exts: [".md"] })) {
     if (!entry.isFile) continue;
     if (entry.name === "_README.md" || entry.name === "README.md") continue;
     const idx = entry.path.indexOf(cleanBase);
-    const rel = idx >= 0 ? entry.path.substring(idx + cleanBase.length).replace(/^[\/\\]/, "") : entry.path;
-    const areaId = rel.split(/[\/\\]/)[0];
+    const rel = idx >= 0 ? entry.path.substring(idx + cleanBase.length).replace(/^[/\\]/, "") : entry.path;
+    const areaId = rel.split(/[/\\]/)[0];
     if (CONFIG.excludeAreas.includes(areaId)) continue;
     if (ONLY_AREA && areaId !== ONLY_AREA) continue;
     docs.push(entry.path);
@@ -178,9 +178,9 @@ async function chunkDocument(docPath: string, basePath: string): Promise<Chunk[]
   const fullText = await Deno.readTextFile(docPath);
   const { fm, body } = parseFrontmatter(fullText);
 
-  const cleanBase = basePath.replace(/^\.\//, "").replace(/[\/\\]$/, "");
+  const cleanBase = basePath.replace(/^\.\//, "").replace(/[/\\]$/, "");
   const idx = docPath.indexOf(cleanBase);
-  const rel = (idx >= 0 ? docPath.substring(idx + cleanBase.length).replace(/^[\/\\]/, "") : docPath).replace(/\\/g, "/");
+  const rel = (idx >= 0 ? docPath.substring(idx + cleanBase.length).replace(/^[/\\]/, "") : docPath).replace(/\\/g, "/");
 
   const docTitle = String(fm.titolo ?? rel);
   const category = String(fm.area ?? rel.split("/")[0]);

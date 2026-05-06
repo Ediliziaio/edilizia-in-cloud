@@ -155,7 +155,7 @@ async function callOpenAIChunk(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: supabaseAdmin as any,
       taskKey: "tabella_finanziamento_extract",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -267,7 +267,7 @@ async function callOpenAI(
     "provvigione_dealer",
   ];
 
-  let rowsAsObjects: Array<Record<string, unknown>> = [];
+  const rowsAsObjects: Array<Record<string, unknown>> = [];
   const rawRows = Array.isArray(parsed.rows) ? parsed.rows : [];
   for (const r of rawRows) {
     if (Array.isArray(r)) {

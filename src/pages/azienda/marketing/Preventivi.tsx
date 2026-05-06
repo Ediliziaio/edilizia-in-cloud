@@ -288,7 +288,7 @@ export default function Preventivi() {
     queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter, filters, debouncedSearch],
     enabled: !!companyId,
     queryFn: async () => {
-      let query = applyQuoteListFilters(
+      const query = applyQuoteListFilters(
         supabase
         .from("quotes")
           .select(QUOTE_LIST_SELECT, { count: "exact" })
@@ -597,7 +597,7 @@ export default function Preventivi() {
       toast.error("Azienda non disponibile");
       return;
     }
-    let exportQuery = applyQuoteListFilters(
+    const exportQuery = applyQuoteListFilters(
       supabase
         .from("quotes")
         .select(QUOTE_LIST_SELECT)

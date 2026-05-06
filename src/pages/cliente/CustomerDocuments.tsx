@@ -133,14 +133,6 @@ export default function CustomerDocuments() {
     cancelled: { label: "Annullata", color: "text-gray-500", bg: "bg-gray-100" },
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   const hasContent = attachments.length > 0 || invoices.length > 0;
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredInvoices = useMemo(() => {
@@ -169,6 +161,14 @@ export default function CustomerDocuments() {
     });
   }, [attachments, normalizedSearch]);
   const hasFilteredContent = filteredInvoices.length > 0 || filteredAttachments.length > 0;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

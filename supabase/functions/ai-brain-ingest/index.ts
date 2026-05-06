@@ -28,6 +28,9 @@ interface IngestItem {
   content: string;
   metadata?: Record<string, unknown>;
   visibility_roles?: string[];
+  scope?: "company" | "universal";
+  category?: string | null;
+  title?: string | null;
 }
 
 interface BackfillSource {
@@ -42,6 +45,20 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 function normalizeUuid(value?: string | null): string | null {
   const clean = String(value ?? "").trim();
   return UUID_RE.test(clean) ? clean : null;
+}
+
+function normalizeText(value: unknown): string | null {
+  const clean = typeof value === "string" ? value.trim() : "";
+  return clean.length > 0 ? clean : null;
+}
+
+function normalizeMetadata(metadata: Record<string, unknown> | undefined): Record<string, unknown> {
+  return metadata && typeof metadata === "object" && !Array.isArray(metadata) ? { ...metadata } : {};
+}
+
+function normalizeScope(item: IngestItem): "company" | "universal" {
+  const metadataScope = normalizeText(item.metadata?.scope);
+  return item.scope === "universal" || metadataScope === "universal" ? "universal" : "company";
 }
 
 const BACKFILL_SOURCES: Record<string, BackfillSource> = {
@@ -264,19 +281,23 @@ serve(async (req: Request) => {
     // ── Upsert via RPC ──────────────────────────────────────────────────
     let okCount = 0;
     let failCount = 0;
+    const documentIds: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
       const c = chunks[i];
       const emb = embeddings[i];
 
       try {
         const normalizedSourceId = normalizeUuid(c.source_id);
-        const metadata = !normalizedSourceId && c.source_id
-          ? { ...(c.metadata ?? {}), original_source_id: c.source_id }
-          : c.metadata ?? {};
-        // RPC expects vector as PostgreSQL literal string '[v1,v2,...]'
-        // Supabase JS converts arrays to vector when passed as array
-        const { error: rpcErr } = await supabaseAdmin.rpc("brain_upsert_document", {
-          p_company_id: companyId,
+        const metadata = normalizeMetadata(c.metadata);
+        if (!normalizedSourceId && c.source_id) {
+          metadata.original_source_id = c.source_id;
+        }
+        const scope = normalizeScope(c);
+        const category = normalizeText(c.category ?? metadata.category);
+        const title = normalizeText(c.title ?? metadata.title);
+        // RPC expects vector as PostgreSQL literal string '[v1,v2,...]'.
+        const { data: documentId, error: rpcErr } = await supabaseAdmin.rpc("brain_upsert_document", {
+          p_company_id: scope === "universal" ? null : companyId,
           p_source_type: c.source_type,
           p_source_id: normalizedSourceId,
           p_content: c.chunk,
@@ -284,9 +305,15 @@ serve(async (req: Request) => {
           p_embedding: emb ? `[${emb.join(",")}]` : null,
           p_metadata: metadata,
           p_visibility_roles: c.visibility_roles ?? null,
+          p_scope: scope,
+          p_category: category,
+          p_title: title,
         });
         if (rpcErr) { failCount++; console.error("[brain-ingest] upsert error:", rpcErr.message); }
-        else okCount++;
+        else {
+          okCount++;
+          if (typeof documentId === "string") documentIds.push(documentId);
+        }
       } catch (e) {
         failCount++;
         console.error("[brain-ingest] upsert exception:", e);
@@ -302,6 +329,7 @@ serve(async (req: Request) => {
       failed: failCount,
       total_chunks: chunks.length,
       embedded: embeddings.length,
+      document_ids: Array.from(new Set(documentIds)),
       stats,
     }, 200, corsHeaders);
 

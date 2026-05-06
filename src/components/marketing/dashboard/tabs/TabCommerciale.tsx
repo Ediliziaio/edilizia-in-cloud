@@ -3,7 +3,6 @@
  * Riutilizza i componenti SalesOS (SalesVelocity, WeightedPipeline,
  * SalesForecast, SellerComparison, ConversionBySource, TopLeads).
  */
-import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useWeightedPipeline,

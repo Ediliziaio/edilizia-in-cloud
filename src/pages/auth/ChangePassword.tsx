@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Lock, Eye, EyeOff, Shield } from "lucide-react";
+import { Loader2, Eye, EyeOff, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 

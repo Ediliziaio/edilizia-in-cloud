@@ -136,7 +136,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
     queryKey: ["lookup-contact", customer.email, customer.telefono, customer.nome, companyId],
     enabled:
       !!companyId &&
-      contactStrategy === "auto" &&
+      contactStrategy !== "always_new" &&
       (!!customer.email || !!customer.telefono || (customer.nome && customer.nome.length >= 3)),
     queryFn: async (): Promise<ContactCandidate[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -173,6 +173,24 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
 
   const totalIva = subtotal * 0.22;
   const total = subtotal + totalIva;
+  const formatter = useMemo(
+    () => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }),
+    [],
+  );
+
+  const reviewIssues = useMemo(() => {
+    const issues: string[] = [];
+    products.forEach((p, i) => {
+      const label = p.name || p.descrizione_grezza || `Voce ${i + 1}`;
+      if (!String(label).trim()) issues.push(`Voce ${i + 1}: descrizione mancante`);
+      if (Number(p.quantita ?? 0) <= 0) issues.push(`${label}: quantità non valida`);
+      if (Number(p.unit_price ?? 0) <= 0) issues.push(`${label}: prezzo da verificare`);
+      if ((p.match_confidence ?? 1) < 0.55 && p.match_type !== "manual") {
+        issues.push(`${label}: match listino incerto`);
+      }
+    });
+    return issues.slice(0, 6);
+  }, [products]);
 
   const updateProduct = (idx: number, patch: Partial<MatchedProduct>) => {
     setProducts((prev) =>
@@ -203,6 +221,13 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
     if (!companyId) return;
     if (products.length === 0) {
       toast.error("Nessun prodotto da preventivare");
+      return;
+    }
+    const invalidProduct = products.find((p) => !String(p.name ?? p.descrizione_grezza ?? "").trim() || Number(p.quantita ?? 0) <= 0);
+    if (invalidProduct) {
+      toast.error("Controlla le voci prima di creare il preventivo", {
+        description: "Ogni riga deve avere descrizione e quantità maggiore di zero.",
+      });
       return;
     }
     setSaving(true);
@@ -284,7 +309,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
   return (
     <div className="space-y-4">
       {/* Header confidence */}
-      <div className="flex items-center justify-between rounded-md border p-2">
+      <div className="flex flex-col gap-2 rounded-md border bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 text-sm">
           {confidence > 0.7 ? (
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -296,8 +321,26 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
             <strong>{(confidence * 100).toFixed(0)}%</strong>
           </span>
         </div>
-        <Badge variant="outline">{products.length} voci estratte</Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">{products.length} voci estratte</Badge>
+          {reviewIssues.length > 0 && (
+            <Badge variant="outline" className="border-amber-300 text-amber-700">
+              {reviewIssues.length} controlli
+            </Badge>
+          )}
+        </div>
       </div>
+
+      {reviewIssues.length > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <p className="font-medium">Da verificare prima della conferma</p>
+          <ul className="mt-1 space-y-0.5">
+            {reviewIssues.map((issue) => (
+              <li key={issue}>· {issue}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Avvertenze AI */}
       {avvertenze.length > 0 ? (
@@ -398,6 +441,11 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                   </div>
                 </button>
               ))}
+            </div>
+          ) : null}
+          {contactStrategy === "use_existing" && contactCandidates.length === 0 ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+              Nessun contatto trovato con i dati estratti. Aggiungi email/telefono oppure scegli "Nuovo".
             </div>
           ) : null}
 
@@ -641,15 +689,15 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
       <div className="border rounded-md p-3 bg-muted/30 space-y-1 text-sm">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Subtotale</span>
-          <span className="font-mono">€ {subtotal.toFixed(2)}</span>
+          <span className="font-mono">{formatter.format(subtotal)}</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">IVA 22%</span>
-          <span className="font-mono">€ {totalIva.toFixed(2)}</span>
+          <span className="font-mono">{formatter.format(totalIva)}</span>
         </div>
         <div className="flex justify-between font-semibold border-t pt-1">
           <span>Totale</span>
-          <span className="font-mono text-primary">€ {total.toFixed(2)}</span>
+          <span className="font-mono text-primary">{formatter.format(total)}</span>
         </div>
       </div>
 

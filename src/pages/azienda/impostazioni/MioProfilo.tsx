@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  Camera, User, Save, Loader2, Trash2, Phone, Mail, Lock, Eye, EyeOff,
+  Camera, User, Save, Loader2, Phone, Mail, Lock, Eye, EyeOff,
   Shield, Check, X, CalendarDays, RefreshCw, Unlink, Clock, Bell,
   BellRing, MessageSquare, FileText, Briefcase, Settings,
 } from "lucide-react";
@@ -24,7 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
 
 // ── Role labels ──
 const ROLE_LABELS: Record<string, string> = {

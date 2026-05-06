@@ -5,7 +5,7 @@
  * Read-only safe → esegue direttamente.
  */
 
-import type { ToolContext, ToolDefinition } from "../../types.ts";
+import type { ToolDefinition } from "../../types.ts";
 
 interface Input {
   cantiere_id: string;

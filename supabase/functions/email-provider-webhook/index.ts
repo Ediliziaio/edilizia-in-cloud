@@ -2,10 +2,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders as baseCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import {
+  decideSuppression,
   normalizeEvents as normalizeEventsShared,
-  type NormalizedEvent,
 } from "../_shared/webhookNormalizers.ts";
-import { timingSafeEqual } from "../_shared/webhookSecurity.ts";
+import {
+  timingSafeEqual,
+  verifyMailgunWebhookSignature,
+  verifySvixWebhookSignature,
+} from "../_shared/webhookSecurity.ts";
 
 const corsHeaders = {
   ...baseCorsHeaders,
@@ -29,10 +33,12 @@ Deno.serve(async (req) => {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
 
+  const url = new URL(req.url);
+
   // Verifica token segreto webhook (SEC-012 + P1-6).
-  // Accetta SOLO header `x-webhook-secret`: il vecchio supporto a
-  // ?secret=TOKEN in query string finiva nei log server/Cloudflare.
-  // Confronto timing-safe per non leakare prefisso giusto via latency.
+  // Preferiamo header `x-webhook-secret`. Per compatibilita' operativa con
+  // provider che accettano solo URL webhook manteniamo anche `?secret=...`.
+  // Il valore non viene mai loggato e il confronto resta timing-safe.
   const webhookSecret =
     Deno.env.get("WEBHOOK_SECRET") ||
     await getPlatformSetting("email_provider_webhook_secret");
@@ -42,23 +48,15 @@ Deno.serve(async (req) => {
       { status: 503, headers: corsHeaders }
     );
   }
-  const providedSecret = req.headers.get("x-webhook-secret");
+  const providedSecret = req.headers.get("x-webhook-secret") || url.searchParams.get("secret");
   if (!providedSecret || !timingSafeEqual(providedSecret, webhookSecret)) {
-    // Aiuta la migrazione: se il chiamante sta usando ancora il vecchio
-    // ?secret=TOKEN in query string lo segnaliamo chiaramente. Non
-    // logghiamo il valore del secret.
-    const hasLegacyQuery = new URL(req.url).searchParams.has("secret");
-    console.error(
-      hasLegacyQuery
-        ? "email-provider-webhook: deprecated ?secret= query ignorata; usa header x-webhook-secret (P1-6)"
-        : "email-provider-webhook: token segreto non valido",
-    );
+    console.error("email-provider-webhook: token segreto non valido");
     return new Response("Unauthorized", { status: 401, headers: corsHeaders });
   }
 
   try {
-    const url = new URL(req.url);
     const stream = url.searchParams.get("stream") || "marketing";
+    const rawBodyText = await req.clone().text().catch(() => "");
 
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -81,6 +79,51 @@ Deno.serve(async (req) => {
       return new Response("No body", { status: 400, headers: corsHeaders });
     }
 
+    // Provider-native signatures, when configured. The generic
+    // x-webhook-secret above remains a required coarse gate; native signatures
+    // add payload integrity for providers that support it without breaking
+    // existing provider setup that hasn't enabled native signing yet.
+    const mailgunSigningKey =
+      Deno.env.get("MAILGUN_WEBHOOK_SIGNING_KEY") ||
+      await getPlatformSetting("email_mailgun_webhook_signing_key");
+    const mailgunSignature = req.headers.get("x-mailgun-signature") ||
+      rawBody?.signature?.signature ||
+      rawBody?.signature;
+    const mailgunTimestamp = req.headers.get("x-mailgun-timestamp") ||
+      rawBody?.signature?.timestamp ||
+      rawBody?.timestamp;
+    const mailgunToken = req.headers.get("x-mailgun-token") ||
+      rawBody?.signature?.token ||
+      rawBody?.token;
+    if (mailgunSigningKey && (mailgunSignature || mailgunTimestamp || mailgunToken)) {
+      const ok = await verifyMailgunWebhookSignature(
+        mailgunTimestamp ? String(mailgunTimestamp) : null,
+        mailgunToken ? String(mailgunToken) : null,
+        mailgunSignature ? String(mailgunSignature) : null,
+        mailgunSigningKey,
+      );
+      if (!ok) {
+        return new Response("Invalid Mailgun signature", { status: 401, headers: corsHeaders });
+      }
+    }
+
+    const resendWebhookSecret =
+      Deno.env.get("RESEND_WEBHOOK_SECRET") ||
+      await getPlatformSetting("email_resend_webhook_secret");
+    const svixSignature = req.headers.get("svix-signature");
+    if (resendWebhookSecret && svixSignature) {
+      const ok = await verifySvixWebhookSignature(
+        rawBodyText,
+        req.headers.get("svix-id"),
+        req.headers.get("svix-timestamp"),
+        svixSignature,
+        resendWebhookSecret,
+      );
+      if (!ok) {
+        return new Response("Invalid Resend signature", { status: 401, headers: corsHeaders });
+      }
+    }
+
     // Normalize events (shared pure module, unit-tested)
     const events = normalizeEventsShared(rawBody, stream);
 
@@ -98,12 +141,14 @@ Deno.serve(async (req) => {
         // Find the email_log by provider_message_id (legacy marketing table)
         const { data: log } = await adminClient
           .from("email_logs")
-          .select("id, status")
+          .select("id, status, company_id, stream")
           .eq("provider_message_id", event.providerMessageId)
           .limit(1)
           .maybeSingle();
 
         if (log) {
+          deliveryCompanyId = (log.company_id as string | null) ?? deliveryCompanyId;
+          deliveryStream = (log.stream as string | null) ?? deliveryStream;
           const updates: Record<string, any> = {};
 
           switch (event.type) {
@@ -201,23 +246,11 @@ Deno.serve(async (req) => {
       // Reason values and UNIQUE NULLS NOT DISTINCT constraint are enforced by
       // migration 20260422000003_email_suppressions_company_scope.sql.
       if (event.email) {
-        let supReason: "hard_bounce" | "spam_complaint" | "unsubscribe" | null = null;
-        let supCompanyId: string | null = null;
+        const suppression = decideSuppression(event, deliveryCompanyId);
+        const supReason = suppression.reason;
+        const supCompanyId = suppression.companyIdScope;
 
-        if (event.type === "bounced" && event.isHardBounce === true) {
-          supReason = "hard_bounce";
-          supCompanyId = null; // globale
-        } else if (event.type === "spam") {
-          supReason = "spam_complaint";
-          supCompanyId = null; // globale
-        } else if (event.type === "unsubscribed") {
-          supReason = "unsubscribe";
-          // Per-company: risaliamo dalla delivery_log (o email_logs se
-          // non trovato sopra). Se nessun match → scope globale (safer default).
-          supCompanyId = deliveryCompanyId;
-        }
-
-        if (supReason) {
+        if (suppression.shouldSuppress && supReason) {
           const suppressionRow: Record<string, unknown> = {
             email: event.email,
             company_id: supCompanyId,
@@ -241,6 +274,14 @@ Deno.serve(async (req) => {
             console.error("[email-provider-webhook] suppression upsert error:", supErr);
           }
 
+          if (supReason === "unsubscribe" && supCompanyId) {
+            await adminClient
+              .from("marketing_contacts")
+              .update({ email_unsubscribed: true, email_unsubscribed_at: now })
+              .eq("company_id", supCompanyId)
+              .eq("email", event.email);
+          }
+
           // BUG-03: mantieni marketing_contacts sync per hard bounce / spam
           // (evita di rimandare la newsletter a indirizzi chiaramente cattivi).
           if (supReason === "hard_bounce" || supReason === "spam_complaint") {
@@ -249,6 +290,10 @@ Deno.serve(async (req) => {
               .update({ email_unsubscribed: true, email_unsubscribed_at: now })
               .eq("email", event.email);
           }
+        } else if (event.type === "unsubscribed" && !deliveryCompanyId) {
+          console.warn(
+            "[email-provider-webhook] unsubscribe senza company_id: suppression ignorata per evitare opt-out globale cross-tenant",
+          );
         }
       }
 
@@ -273,7 +318,7 @@ Deno.serve(async (req) => {
           if (refundErr) {
             console.error("[email-provider-webhook] refund error:", refundErr);
           } else {
-            console.log("[email-provider-webhook] refund result:", refundResult);
+            console.info("[email-provider-webhook] refund result:", refundResult);
           }
         } catch (refundCatch) {
           console.error("[email-provider-webhook] refund threw:", refundCatch);
@@ -283,13 +328,13 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ processed: events.length }), {
       status: 200,
-      headers: secureHeaders,
+      headers: { ...corsHeaders, ...secureHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
     console.error("email-provider-webhook error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
-      headers: secureHeaders,
+      headers: { ...corsHeaders, ...secureHeaders, "Content-Type": "application/json" },
     });
   }
 });

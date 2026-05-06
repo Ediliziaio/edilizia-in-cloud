@@ -6,6 +6,7 @@ interface Props {
   companyName?: string;
   page?: 'cover' | 'detail';
   scale?: number;
+  logoSrc?: string;
 }
 
 /**
@@ -40,6 +41,7 @@ export function QuoteTemplatePreview({
   companyName = 'La Tua Azienda Srl',
   page = 'cover',
   scale = 0.4,
+  logoSrc,
 }: Props) {
   const primary = t.primary_color ?? '#1E40AF';
   const secondary = t.secondary_color ?? '#3B82F6';
@@ -83,7 +85,7 @@ export function QuoteTemplatePreview({
           <ClassicLayout
             primary={primary} secondary={secondary} accent={accent}
             headerText={headerText} textColor={textColor}
-            companyName={companyName} t={t} page={page}
+            companyName={companyName} t={t} page={page} logoSrc={logoSrc}
             marginPx={marginPx} type={type} alignment={alignment}
           />
         )}
@@ -91,7 +93,7 @@ export function QuoteTemplatePreview({
           <ModernLayout
             primary={primary} secondary={secondary} accent={accent}
             headerText={headerText} textColor={textColor}
-            companyName={companyName} t={t} page={page}
+            companyName={companyName} t={t} page={page} logoSrc={logoSrc}
             marginPx={marginPx} type={type} alignment={alignment}
           />
         )}
@@ -99,7 +101,7 @@ export function QuoteTemplatePreview({
           <MinimalLayout
             primary={primary} secondary={secondary} accent={accent}
             headerText={headerText} textColor={textColor}
-            companyName={companyName} t={t} page={page}
+            companyName={companyName} t={t} page={page} logoSrc={logoSrc}
             marginPx={marginPx} type={type} alignment={alignment}
           />
         )}
@@ -107,7 +109,7 @@ export function QuoteTemplatePreview({
           <BoldLayout
             primary={primary} secondary={secondary} accent={accent}
             headerText={headerText} textColor={textColor}
-            companyName={companyName} t={t} page={page}
+            companyName={companyName} t={t} page={page} logoSrc={logoSrc}
             marginPx={marginPx} type={type} alignment={alignment}
           />
         )}
@@ -147,23 +149,105 @@ interface LayoutProps {
   companyName: string;
   t: Partial<QuoteTemplate>;
   page: 'cover' | 'detail';
+  logoSrc?: string;
   marginPx: number;
   type: ReturnType<typeof buildTypographyScale>;
   alignment: TextAlignment;
 }
 
-function ClassicLayout({ primary, accent, textColor, companyName, t, page, marginPx, type, alignment }: LayoutProps) {
+function logoSizePx(size: QuoteTemplate['logo_size'] | undefined): number {
+  if (size === 'small') return 34;
+  if (size === 'large') return 62;
+  return 48;
+}
+
+function logoJustify(position: QuoteTemplate['logo_position'] | undefined): React.CSSProperties['justifyContent'] {
+  if (position === 'center') return 'center';
+  if (position === 'right') return 'flex-end';
+  return 'flex-start';
+}
+
+function PreviewLogo({
+  t,
+  logoSrc,
+  primary,
+  headerText,
+}: {
+  t: Partial<QuoteTemplate>;
+  logoSrc?: string;
+  primary: string;
+  headerText?: string;
+}) {
+  if (t.show_logo === false) return null;
+
+  const size = logoSizePx(t.logo_size);
+
+  if (logoSrc) {
+    return (
+      <img
+        src={logoSrc}
+        alt=""
+        style={{
+          width: size,
+          height: size,
+          objectFit: 'contain',
+          borderRadius: 8,
+          backgroundColor: 'rgba(255,255,255,0.94)',
+          padding: 5,
+          border: '1px solid rgba(148,163,184,0.28)',
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 10,
+        backgroundColor: headerText ? 'rgba(255,255,255,0.16)' : `${primary}14`,
+        color: headerText ?? primary,
+        border: `1px solid ${headerText ? 'rgba(255,255,255,0.24)' : `${primary}33`}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: Math.max(10, Math.round(size * 0.28)),
+        fontWeight: 800,
+        letterSpacing: 0,
+      }}
+    >
+      LOGO
+    </div>
+  );
+}
+
+function ClassicLayout({ primary, accent, textColor, companyName, t, page, logoSrc, marginPx, type, alignment }: LayoutProps) {
   return (
     <>
       <div style={{ height: 8, backgroundColor: primary }} />
       <div style={{
         padding: `${marginPx}px ${marginPx}px 0`,
         display: 'flex',
-        justifyContent: alignment === 'center' ? 'center' : alignment === 'right' ? 'flex-end' : 'space-between',
+        justifyContent: 'space-between',
         alignItems: 'center',
+        gap: 16,
       }}>
-        <div style={{ fontSize: type.h2, fontWeight: 700, color: textColor, textAlign: alignment }}>{companyName}</div>
-        {alignment === 'left' && t.show_quote_number !== false && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flex: 1,
+          justifyContent: logoJustify(t.logo_position),
+          textAlign: alignment,
+        }}>
+          <PreviewLogo t={t} logoSrc={logoSrc} primary={primary} />
+          <div>
+            <div style={{ fontSize: type.h2, fontWeight: 760, color: textColor }}>{companyName}</div>
+            <div style={{ fontSize: type.small, color: '#6B7280', marginTop: 2 }}>Serramenti · ristrutturazioni · posa certificata</div>
+          </div>
+        </div>
+        {t.show_quote_number !== false && (
           <div style={{ fontSize: type.small, color: '#6B7280' }}>OFFERTA N. OFF-2026-001</div>
         )}
       </div>
@@ -177,7 +261,7 @@ function ClassicLayout({ primary, accent, textColor, companyName, t, page, margi
   );
 }
 
-function ModernLayout({ primary, accent, headerText, textColor, companyName, t, page, marginPx, type, alignment }: LayoutProps) {
+function ModernLayout({ primary, accent, headerText, textColor, companyName, t, page, logoSrc, marginPx, type, alignment }: LayoutProps) {
   return (
     <>
       <div style={{
@@ -186,10 +270,11 @@ function ModernLayout({ primary, accent, headerText, textColor, companyName, t, 
         color: headerText,
         textAlign: alignment,
       }}>
-        <div style={{ fontSize: type.body + 2, fontWeight: 600, marginBottom: 8 }}>{companyName}</div>
-        {t.show_quote_number !== false && (
-          <div style={{ fontSize: type.small, opacity: 0.8, marginBottom: 16 }}>OFFERTA N. OFF-2026-001</div>
-        )}
+        <div style={{ display: 'flex', justifyContent: logoJustify(t.logo_position), marginBottom: 12 }}>
+          <PreviewLogo t={t} logoSrc={logoSrc} primary={primary} headerText={headerText} />
+        </div>
+        <div style={{ fontSize: type.body + 2, fontWeight: 650, marginBottom: 6 }}>{companyName}</div>
+        {t.show_quote_number !== false && <div style={{ fontSize: type.small, opacity: 0.8, marginBottom: 14 }}>OFFERTA N. OFF-2026-001 · 09/03/2026</div>}
         <div style={{ fontSize: type.h1, fontWeight: 700 }}>OFFERTA COMMERCIALE</div>
         <div style={{ fontSize: type.body, marginTop: 6, opacity: 0.9 }}>Offerta serramenti Villa Rossi</div>
         {t.cover_tagline && (
@@ -197,7 +282,7 @@ function ModernLayout({ primary, accent, headerText, textColor, companyName, t, 
         )}
       </div>
       {page === 'cover' ? (
-        <CoverBody primary={primary} textColor={textColor} t={t} marginPx={marginPx} type={type} startY={0} />
+        <CoverBody primary={primary} textColor={textColor} t={t} marginPx={marginPx} type={type} />
       ) : (
         <DetailBody primary={primary} accent={accent} textColor={textColor} t={t} marginPx={marginPx} type={type} />
       )}
@@ -205,12 +290,15 @@ function ModernLayout({ primary, accent, headerText, textColor, companyName, t, 
   );
 }
 
-function MinimalLayout({ primary, accent, textColor, companyName, t, page, marginPx, type, alignment }: LayoutProps) {
+function MinimalLayout({ primary, accent, textColor, companyName, t, page, logoSrc, marginPx, type, alignment }: LayoutProps) {
   return (
     <div style={{ padding: `${marginPx}px ${marginPx}px 0`, textAlign: alignment }}>
       <div style={{ borderBottom: `2px solid ${primary}`, paddingBottom: 20, marginBottom: 30 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <div style={{ fontSize: type.body + 4, fontWeight: 600, color: textColor }}>{companyName}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <PreviewLogo t={t} logoSrc={logoSrc} primary={primary} />
+            <div style={{ fontSize: type.body + 4, fontWeight: 650, color: textColor }}>{companyName}</div>
+          </div>
           {t.show_quote_number !== false && (
             <div style={{ fontSize: type.small, color: '#9CA3AF' }}>OFF-2026-001</div>
           )}
@@ -222,7 +310,7 @@ function MinimalLayout({ primary, accent, textColor, companyName, t, page, margi
         <div style={{ fontSize: type.small, color: primary, fontStyle: 'italic', marginBottom: 20 }}>{t.cover_tagline}</div>
       )}
       {page === 'cover' ? (
-        <CoverBody primary={primary} textColor={textColor} t={t} marginPx={0} type={type} startY={0} inline />
+        <CoverBody primary={primary} textColor={textColor} t={t} marginPx={0} type={type} inline />
       ) : (
         <DetailBody primary={primary} accent={accent} textColor={textColor} t={t} marginPx={0} type={type} inline />
       )}
@@ -230,14 +318,16 @@ function MinimalLayout({ primary, accent, textColor, companyName, t, page, margi
   );
 }
 
-function BoldLayout({ primary, accent, headerText, textColor, companyName, t, page, marginPx, type, alignment }: LayoutProps) {
+function BoldLayout({ primary, accent, headerText, textColor, companyName, t, page, logoSrc, marginPx, type, alignment }: LayoutProps) {
   return (
     <div style={{ display: 'flex', height: '100%' }}>
       <div style={{
         width: 80, backgroundColor: primary,
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexDirection: 'column',
+        paddingTop: marginPx,
         paddingBottom: marginPx * 2,
       }}>
+        <PreviewLogo t={t} logoSrc={logoSrc} primary={primary} headerText={headerText} />
         <div style={{
           transform: 'rotate(-90deg)', transformOrigin: 'center',
           whiteSpace: 'nowrap', color: headerText,
@@ -261,7 +351,7 @@ function BoldLayout({ primary, accent, headerText, textColor, companyName, t, pa
           <div style={{ fontSize: type.small, color: primary, fontStyle: 'italic', marginBottom: 20 }}>{t.cover_tagline}</div>
         )}
         {page === 'cover' ? (
-          <CoverBody primary={primary} textColor={textColor} t={t} marginPx={0} type={type} startY={0} inline />
+          <CoverBody primary={primary} textColor={textColor} t={t} marginPx={0} type={type} inline />
         ) : (
           <DetailBody primary={primary} accent={accent} textColor={textColor} t={t} marginPx={0} type={type} inline />
         )}
@@ -271,14 +361,13 @@ function BoldLayout({ primary, accent, headerText, textColor, companyName, t, pa
 }
 
 function CoverBody({
-  primary, textColor, t, marginPx, type, startY, inline,
+  primary, textColor, t, marginPx, type, inline,
 }: {
   primary: string;
   textColor: string;
   t: Partial<QuoteTemplate>;
   marginPx: number;
   type: ReturnType<typeof buildTypographyScale>;
-  startY?: number;
   inline?: boolean;
 }) {
   const wrapperStyle: React.CSSProperties = inline
@@ -326,6 +415,28 @@ function CoverBody({
       {t.show_validity_date !== false && (
         <div style={{ marginTop: 24, fontSize: type.small, color: '#6B7280' }}>
           Data: 09/03/2026 — Valida fino al: 08/04/2026
+        </div>
+      )}
+      {(t.show_payment_terms !== false || t.show_delivery_terms !== false) && (
+        <div style={{
+          marginTop: 24,
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 12,
+          fontSize: type.small,
+        }}>
+          {t.show_payment_terms !== false && (
+            <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: 10 }}>
+              <div style={{ color: '#9CA3AF', fontWeight: 700, marginBottom: 4 }}>PAGAMENTO</div>
+              <div style={{ color: '#4B5563' }}>{t.payment_terms_text || 'Acconto 30%, saldo a consegna.'}</div>
+            </div>
+          )}
+          {t.show_delivery_terms !== false && (
+            <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: 10 }}>
+              <div style={{ color: '#9CA3AF', fontWeight: 700, marginBottom: 4 }}>CONSEGNA</div>
+              <div style={{ color: '#4B5563' }}>{t.delivery_terms_text || '3-4 settimane dalla conferma.'}</div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -394,6 +505,25 @@ function DetailBody({
         <div style={{ marginBottom: 4, color: '#6B7280' }}>IVA 22%: € 1.291,40</div>
         <div style={{ fontSize: type.h3, fontWeight: 700, color: primary, marginTop: 8 }}>TOTALE: € 7.161,40</div>
       </div>
+      {(t.show_payment_terms !== false || t.show_delivery_terms !== false || t.show_notes !== false) && (
+        <div style={{ marginTop: 24, display: 'grid', gap: 8, fontSize: type.small, color: '#4B5563' }}>
+          {t.show_payment_terms !== false && (
+            <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 8 }}>
+              <strong style={{ color: textColor }}>Pagamento:</strong> {t.payment_terms_text || 'Acconto del 30% alla firma, saldo alla consegna.'}
+            </div>
+          )}
+          {t.show_delivery_terms !== false && (
+            <div>
+              <strong style={{ color: textColor }}>Consegna:</strong> {t.delivery_terms_text || 'Tempistiche concordate dopo rilievo tecnico.'}
+            </div>
+          )}
+          {t.show_notes !== false && (
+            <div>
+              <strong style={{ color: textColor }}>Note:</strong> prezzo valido salvo variazioni misure in fase di rilievo.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

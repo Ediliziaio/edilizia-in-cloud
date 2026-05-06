@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy, FileText, Eye,
+  CheckCircle2, Palette, Wand2,
 } from "lucide-react";
 
 const LAYOUTS: { key: QuoteTemplateLayout; label: string; desc: string }[] = [
@@ -35,6 +36,58 @@ const FONTS: { key: FontFamily; label: string; desc: string }[] = [
   { key: 'helvetica', label: 'Helvetica', desc: 'Moderno, leggibile' },
   { key: 'times', label: 'Times New Roman', desc: 'Classico, formale' },
   { key: 'courier', label: 'Courier', desc: 'Monospace' },
+];
+
+const DESIGN_PRESETS: Array<{ name: string; desc: string; patch: Partial<QuoteTemplate> }> = [
+  {
+    name: "Executive",
+    desc: "Look premium, ideale per offerte ad alto valore.",
+    patch: {
+      layout: "modern",
+      font_family: "helvetica",
+      font_size_base: 10,
+      heading_size_scale: 1.9,
+      line_height: 1.45,
+      row_density: "comfortable",
+      table_borders: "horizontal",
+      page_margin_mm: 20,
+      table_zebra: true,
+    },
+  },
+  {
+    name: "Compatto",
+    desc: "Più righe per pagina, ottimo per listini lunghi.",
+    patch: {
+      layout: "classic",
+      font_family: "helvetica",
+      font_size_base: 9,
+      heading_size_scale: 1.5,
+      line_height: 1.25,
+      row_density: "compact",
+      table_borders: "horizontal",
+      page_margin_mm: 14,
+      table_zebra: true,
+    },
+  },
+  {
+    name: "Cantiere premium",
+    desc: "Impatto forte e margini chiari per clienti retail.",
+    patch: {
+      layout: "bold",
+      font_family: "helvetica",
+      font_size_base: 10,
+      heading_size_scale: 2.0,
+      line_height: 1.4,
+      row_density: "normal",
+      table_borders: "all",
+      page_margin_mm: 18,
+      table_zebra: false,
+      primary_color: "#EA580C",
+      secondary_color: "#F97316",
+      accent_color: "#FFF7ED",
+      header_text_color: "#FFFFFF",
+    },
+  },
 ];
 
 const getLogoPublicUrl = (path: string) =>
@@ -70,6 +123,42 @@ export default function SettingsQuoteTemplates() {
   const updateForm = useCallback((patch: Partial<QuoteTemplate>) => {
     setForm(prev => ({ ...prev, ...patch }));
   }, []);
+
+  const logoSrcFor = useCallback((tmpl: Partial<QuoteTemplate>) => (
+    tmpl.logo_url ? getLogoPublicUrl(tmpl.logo_url) : undefined
+  ), []);
+
+  const designChecks = useMemo(() => [
+    {
+      label: "Nome riconoscibile",
+      ok: (form.name?.trim().length ?? 0) >= 3,
+    },
+    {
+      label: "Logo o scelta esplicita",
+      ok: form.show_logo === false || !!form.logo_url,
+    },
+    {
+      label: "Condizioni complete",
+      ok: !!form.payment_terms_text?.trim() && !!form.delivery_terms_text?.trim(),
+    },
+    {
+      label: "Tabella leggibile",
+      ok: (form.font_size_base ?? 10) >= 9 && (form.line_height ?? 1.4) >= 1.3,
+    },
+    {
+      label: "Footer cliente",
+      ok: !!form.footer_text?.trim() || !!form.bank_details?.trim(),
+    },
+  ], [form]);
+
+  const designScore = Math.round((designChecks.filter((c) => c.ok).length / designChecks.length) * 100);
+
+  const applyDesignPreset = (patch: Partial<QuoteTemplate>) => {
+    updateForm(patch);
+    toast.success("Preset applicato", {
+      description: "Controlla l'anteprima e salva quando il layout ti convince.",
+    });
+  };
 
   const handleNew = () => {
     setEditId(null);
@@ -187,6 +276,12 @@ export default function SettingsQuoteTemplates() {
               {templates.length} template · {templates.filter((t) => t.is_default).length > 0 ? "default attivo" : "nessun default"}
             </Badge>
           )}
+          {editing && (
+            <Badge variant={designScore >= 80 ? "secondary" : "outline"} className="gap-1 text-[11px] h-6">
+              <CheckCircle2 className="h-3 w-3" />
+              Qualità layout {designScore}%
+            </Badge>
+          )}
           {isAdmin && !editing && (
             <Button onClick={handleNew} size="sm"><Plus className="h-4 w-4 mr-1.5" />Nuovo Template</Button>
           )}
@@ -230,7 +325,7 @@ export default function SettingsQuoteTemplates() {
                   {tmpl.is_default && <Badge variant="secondary"><Star className="h-3 w-3 mr-1" />Default</Badge>}
                 </div>
                 <div className="flex justify-center">
-                  <QuoteTemplatePreview template={tmpl} companyName={effectiveCompany?.name} scale={0.2} />
+                  <QuoteTemplatePreview template={tmpl} companyName={effectiveCompany?.name} logoSrc={logoSrcFor(tmpl)} scale={0.2} />
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(tmpl)}>
@@ -260,6 +355,47 @@ export default function SettingsQuoteTemplates() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Left: form */}
           <div className="lg:col-span-3 space-y-6 overflow-auto max-h-[calc(100vh-200px)] pr-2">
+            <Card className="border-primary/15 bg-gradient-to-br from-primary/5 via-background to-orange-50/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Wand2 className="h-4 w-4 text-primary" />
+                  Design assistant
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {DESIGN_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => applyDesignPreset(preset.patch)}
+                      className="rounded-lg border border-border bg-background/80 p-3 text-left transition-all hover:border-primary hover:bg-primary/5"
+                    >
+                      <div className="flex items-center gap-2 text-sm font-semibold">
+                        <Palette className="h-3.5 w-3.5 text-primary" />
+                        {preset.name}
+                      </div>
+                      <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{preset.desc}</p>
+                    </button>
+                  ))}
+                </div>
+                <div className="rounded-lg border bg-background/75 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium">Checklist impaginazione</p>
+                    <span className="text-xs font-semibold text-primary">{designScore}%</span>
+                  </div>
+                  <div className="mt-2 grid gap-1 sm:grid-cols-2">
+                    {designChecks.map((check) => (
+                      <div key={check.label} className="flex items-center gap-2 text-xs">
+                        <span className={`h-2 w-2 rounded-full ${check.ok ? "bg-emerald-500" : "bg-amber-400"}`} />
+                        <span className={check.ok ? "text-foreground" : "text-muted-foreground"}>{check.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* A: Info base */}
             <Card>
               <CardHeader><CardTitle className="text-base">Informazioni Base</CardTitle></CardHeader>
@@ -289,7 +425,7 @@ export default function SettingsQuoteTemplates() {
                       }`}
                     >
                       <div className="mb-2 flex justify-center">
-                        <QuoteTemplatePreview template={{ ...form, layout: l.key }} companyName={effectiveCompany?.name} scale={0.08} />
+                        <QuoteTemplatePreview template={{ ...form, layout: l.key }} companyName={effectiveCompany?.name} logoSrc={logoSrcFor(form)} scale={0.08} />
                       </div>
                       <p className="font-medium">{l.label}</p>
                       <p className="text-xs text-muted-foreground mt-1">{l.desc}</p>
@@ -712,18 +848,31 @@ export default function SettingsQuoteTemplates() {
           </div>
 
           {/* Right: preview */}
-          <div className="lg:col-span-2 sticky top-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Anteprima</CardTitle>
+          <div className="lg:col-span-2 lg:sticky lg:top-4 self-start">
+            <Card className="overflow-hidden border-slate-200 shadow-sm">
+              <CardHeader className="pb-3 bg-slate-950 text-white">
+                <CardTitle className="text-base flex items-center justify-between gap-3">
+                  <span>Anteprima PDF</span>
+                  <Badge variant="secondary" className="bg-white/10 text-white border-white/20">
+                    {previewPage === "cover" ? "Pagina 1" : "Pagina 2"}
+                  </Badge>
+                </CardTitle>
+                <p className="text-xs text-white/65">
+                  Anteprima fedele a logo, margini, tabella, footer e condizioni.
+                </p>
               </CardHeader>
-              <CardContent className="flex flex-col items-center gap-3">
-                <QuoteTemplatePreview
-                  template={form}
-                  companyName={effectiveCompany?.name}
-                  page={previewPage}
-                  scale={0.45}
-                />
+              <CardContent className="flex flex-col items-center gap-3 bg-slate-100 p-4">
+                <div className="w-full overflow-auto rounded-lg bg-slate-200/80 p-4 shadow-inner">
+                  <div className="flex min-w-max justify-center">
+                    <QuoteTemplatePreview
+                      template={form}
+                      companyName={effectiveCompany?.name}
+                      logoSrc={logoSrcFor(form)}
+                      page={previewPage}
+                      scale={0.45}
+                    />
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <Button variant={previewPage === 'cover' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewPage('cover')}>
                     Pagina 1

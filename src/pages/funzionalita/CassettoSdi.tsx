@@ -2,14 +2,11 @@ import {
   AlertTriangle,
   Archive,
   Banknote,
-  CheckCircle2,
   Clock,
   Database,
   FileSearch,
-  FileText,
   Filter,
   Inbox,
-  Landmark,
   Link2,
   Mail,
   Receipt,
@@ -19,10 +16,8 @@ import {
   ShieldCheck,
   Sparkles,
   Tag,
-  Target,
   TrendingUp,
   Users,
-  Zap,
 } from "lucide-react";
 import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
 import type { FunzionalitaPageConfig } from "./_template/types";

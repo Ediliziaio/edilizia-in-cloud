@@ -10,7 +10,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   ChevronDown,
   ChevronRight,
-  ChevronsUpDown,
   Percent,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";

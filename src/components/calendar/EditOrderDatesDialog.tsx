@@ -7,7 +7,7 @@ import { format, parseISO, isPast, isToday } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   CalendarIcon, Loader2, MapPin, Navigation, Users, UsersRound, Plus, X,
-  HardHat, Wrench, CloudSun, ExternalLink, CreditCard, CircleDollarSign,
+  HardHat, Wrench, ExternalLink, CreditCard,
   CheckCircle2, AlertCircle, Clock, Receipt,
 } from "lucide-react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";

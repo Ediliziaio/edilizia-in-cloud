@@ -190,10 +190,14 @@ Deno.serve(async (req) => {
       "email_marketing_api_key",
       "email_marketing_provider",
       "email_marketing_domain",
+      "email_marketing_failover_providers",
       "email_transactional_api_key",
       "email_transactional_provider",
       "email_transactional_domain",
+      "email_transactional_failover_providers",
       "email_provider_webhook_secret",
+      "email_mailgun_webhook_signing_key",
+      "email_resend_webhook_secret",
       "elevenlabs_api_key",
       "whatsapp_verify_token",
       "telnyx_api_key",
@@ -317,6 +321,20 @@ Deno.serve(async (req) => {
         ? "platform_settings"
         : "missing";
     const webhookSecretConfigured = webhookSecretSource !== "missing";
+    const mailgunSigningConfigured = Boolean(
+      Deno.env.get("MAILGUN_WEBHOOK_SIGNING_KEY") || settingsMap["email_mailgun_webhook_signing_key"],
+    );
+    const resendSigningConfigured = Boolean(
+      Deno.env.get("RESEND_WEBHOOK_SECRET") || settingsMap["email_resend_webhook_secret"],
+    );
+    const parseProviderList = (raw: string | undefined) =>
+      (raw || "")
+        .replace(/^\[/, "")
+        .replace(/\]$/, "")
+        .replace(/"/g, "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
 
     const emailStreams = {
       marketing: {
@@ -384,6 +402,78 @@ Deno.serve(async (req) => {
         webhook_secret_source: webhookSecretSource,
       },
     });
+
+    // ── Email outbox health ───────────────────────────────────────────────
+    let emailOutbox: Record<string, unknown> | null = null;
+    try {
+      const countStatus = async (status: string) => {
+        const { count, error } = await admin
+          .from("email_outbox")
+          .select("id", { head: true, count: "exact" })
+          .eq("status", status);
+        if (error) throw error;
+        return count ?? 0;
+      };
+      const [
+        queued,
+        processing,
+        failed,
+        dead,
+        suppressed,
+        oldestReady,
+      ] = await Promise.all([
+        countStatus("queued"),
+        countStatus("processing"),
+        countStatus("failed"),
+        countStatus("dead"),
+        countStatus("suppressed"),
+        admin
+          .from("email_outbox")
+          .select("scheduled_at, created_at")
+          .in("status", ["queued", "failed"])
+          .order("scheduled_at", { ascending: true })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      const oldestAt = oldestReady.data?.scheduled_at ?? oldestReady.data?.created_at ?? null;
+      const oldestAgeMinutes = oldestAt
+        ? Math.max(0, Math.round((Date.now() - new Date(oldestAt).getTime()) / 60000))
+        : 0;
+      const outboxStatus: IntegrationResult["status"] =
+        dead > 0 || oldestAgeMinutes > 60 || queued > 5000 ? "degraded" : "healthy";
+      emailOutbox = {
+        queued,
+        processing,
+        failed,
+        dead,
+        suppressed,
+        oldestReadyAt: oldestAt,
+        oldestReadyAgeMinutes: oldestAgeMinutes,
+      };
+      results.push({
+        name: "email_outbox",
+        status: outboxStatus,
+        last_seen: now,
+        response_ms: null,
+        error: outboxStatus === "healthy"
+          ? null
+          : "Outbox email con backlog, errori definitivi o job vecchi da processare",
+        metadata: emailOutbox,
+      });
+    } catch (outboxErr) {
+      emailOutbox = {
+        available: false,
+        error: outboxErr instanceof Error ? outboxErr.message : String(outboxErr),
+      };
+      results.push({
+        name: "email_outbox",
+        status: "unconfigured",
+        last_seen: null,
+        response_ms: null,
+        error: "email_outbox non disponibile: applicare la migration enterprise hardening",
+        metadata: emailOutbox,
+      });
+    }
 
     // ── ElevenLabs ────────────────────────────────────────────────────────
     const elevenKey = settingsMap["elevenlabs_api_key"] || Deno.env.get("ELEVENLABS_API_KEY");
@@ -512,6 +602,7 @@ Deno.serve(async (req) => {
             error: marketingProbe.error,
             webhookSecretConfigured,
             webhookSecretSource,
+            failoverProviders: parseProviderList(settingsMap["email_marketing_failover_providers"]),
           },
           transactional: {
             provider: emailStreams.transactional.provider,
@@ -521,12 +612,16 @@ Deno.serve(async (req) => {
             error: transactionalProbe.error,
             webhookSecretConfigured,
             webhookSecretSource,
+            failoverProviders: parseProviderList(settingsMap["email_transactional_failover_providers"]),
           },
         },
         email_webhook: {
           secretConfigured: webhookSecretConfigured,
           secretSource: webhookSecretSource,
+          mailgunSigningConfigured,
+          resendSigningConfigured,
         },
+        email_outbox: emailOutbox,
         ...legacy,
       }),
       { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }

@@ -125,6 +125,37 @@ async function bufferToBase64(buf: ArrayBuffer): Promise<string> {
   return btoa(binary);
 }
 
+// Normalizza l'output AI prima di mostrarlo/salvarlo: l'AI può restituire
+// oggetti quasi corretti ma con array mancanti o confidence fuori range.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeDdtPayload(raw: any): Record<string, unknown> {
+  const ddt = raw && typeof raw === "object" ? raw : {};
+  const warnings = Array.isArray(ddt.warnings) ? ddt.warnings.filter(Boolean) : [];
+  const righe = Array.isArray(ddt.righe_merce) ? ddt.righe_merce : [];
+
+  if (righe.length === 0) {
+    warnings.push("Nessuna riga merce riconosciuta: verifica manualmente il DDT.");
+  }
+  if (!ddt.intestazione?.numero_ddt) {
+    warnings.push("Numero DDT non riconosciuto con certezza.");
+  }
+  if (!ddt.mittente?.ragione_sociale || !ddt.destinatario?.ragione_sociale) {
+    warnings.push("Mittente o destinatario incompleto: controlla i riquadri del documento.");
+  }
+
+  return {
+    ...ddt,
+    righe_merce: righe.map((row: Record<string, unknown>) => ({
+      ...row,
+      descrizione: String(row?.descrizione ?? "").trim(),
+      quantita: Number(row?.quantita ?? 0) || null,
+      unita_misura: row?.unita_misura ? String(row.unita_misura).trim().toLowerCase() : null,
+    })),
+    confidence: Math.max(0, Math.min(1, Number(ddt.confidence ?? 0.55))),
+    warnings: Array.from(new Set(warnings.map(String))),
+  };
+}
+
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
@@ -234,7 +265,7 @@ Deno.serve(async (req) => {
     let ddt;
     try {
       const raw = aiResult.content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-      ddt = JSON.parse(raw);
+      ddt = normalizeDdtPayload(JSON.parse(raw));
     } catch {
       return errorResponse(`AI returned invalid JSON: ${(aiResult.content ?? "").slice(0, 200)}`, 502, cors);
     }

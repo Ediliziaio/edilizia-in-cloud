@@ -57,7 +57,7 @@ export function looksLikeEmail(s: string): boolean {
 export function normalizePhone(s: unknown): string | null {
   const raw = cleanString(s);
   if (!raw) return null;
-  const allowed = /^[0-9+\-\s()\.]+$/;
+  const allowed = /^[0-9+\s().-]+$/;
   if (!allowed.test(raw)) return null;
   const digits = raw.replace(/\D/g, "");
   if (digits.length < 6 || digits.length > 15) return null;

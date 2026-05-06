@@ -2,7 +2,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getSystemPromptForVertical } from "../_shared/ai-prompts/index.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
-import { fetchWithTimeout, isTimeoutError } from "../_shared/fetchWithTimeout.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
 
@@ -587,7 +587,7 @@ REGOLE OUTPUT:
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabase: supabaseAdmin as any,
         taskKey: isFotoMode ? "vision_cantiere" : "preventivo_genera",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent as any },

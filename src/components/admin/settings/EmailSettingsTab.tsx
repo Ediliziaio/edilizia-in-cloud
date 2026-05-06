@@ -1,11 +1,12 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, DollarSign, BarChart3, ScrollText, MessageSquare } from "lucide-react";
+import { Mail, DollarSign, BarChart3, ScrollText, MessageSquare, Inbox } from "lucide-react";
 import { EmailProviderConfig } from "./email/EmailProviderConfig";
 import { EmailWebhookConfig } from "./email/EmailWebhookConfig";
 import { EmailPricingConfig } from "./email/EmailPricingConfig";
 import { EmailDashboard } from "./email/EmailDashboard";
 import { EmailDeliveryLog } from "./email/EmailDeliveryLog";
 import { WhatsAppPricingConfig } from "./email/WhatsAppPricingConfig";
+import { EmailOutboxPanel } from "./email/EmailOutboxPanel";
 
 export default function EmailSettingsTab() {
   return (
@@ -22,6 +23,9 @@ export default function EmailSettingsTab() {
         </TabsTrigger>
         <TabsTrigger value="delivery-log" className="gap-2">
           <ScrollText className="h-4 w-4" /> Delivery Log
+        </TabsTrigger>
+        <TabsTrigger value="outbox" className="gap-2">
+          <Inbox className="h-4 w-4" /> Outbox
         </TabsTrigger>
         <TabsTrigger value="whatsapp-pricing" className="gap-2">
           <MessageSquare className="h-4 w-4" /> Prezzi WhatsApp
@@ -44,6 +48,10 @@ export default function EmailSettingsTab() {
 
       <TabsContent value="delivery-log">
         <EmailDeliveryLog />
+      </TabsContent>
+
+      <TabsContent value="outbox">
+        <EmailOutboxPanel />
       </TabsContent>
 
       <TabsContent value="whatsapp-pricing">

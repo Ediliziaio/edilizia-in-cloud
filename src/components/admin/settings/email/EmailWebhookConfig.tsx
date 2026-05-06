@@ -27,15 +27,21 @@ interface ApiHealthPayload {
   email_webhook?: {
     secretConfigured: boolean;
     secretSource: WebhookSecretSource;
+    mailgunSigningConfigured?: boolean;
+    resendSigningConfigured?: boolean;
   };
 }
 
 const WEBHOOK_SECRET_KEY = "email_provider_webhook_secret";
+const MAILGUN_SIGNING_KEY = "email_mailgun_webhook_signing_key";
+const RESEND_WEBHOOK_SECRET_KEY = "email_resend_webhook_secret";
 
 export function EmailWebhookConfig() {
   const queryClient = useQueryClient();
   const [showSecret, setShowSecret] = useState(false);
   const [webhookSecret, setWebhookSecret] = useState("");
+  const [mailgunSigningKey, setMailgunSigningKey] = useState("");
+  const [resendWebhookSecret, setResendWebhookSecret] = useState("");
 
   const { data: health } = useQuery<ApiHealthPayload>({
     queryKey: queryKeys.apiHealth.all,
@@ -47,22 +53,27 @@ export function EmailWebhookConfig() {
     staleTime: 60_000,
   });
 
-  const { data: storedSecret } = useQuery({
+  const { data: storedSecrets } = useQuery({
     queryKey: [...queryKeys.admin.platformSettingsEmail(), "webhook-secret"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_settings" as never)
-        .select("value")
-        .eq("key" as never, WEBHOOK_SECRET_KEY as never)
-        .maybeSingle();
+        .select("key, value")
+        .in("key" as never, [WEBHOOK_SECRET_KEY, MAILGUN_SIGNING_KEY, RESEND_WEBHOOK_SECRET_KEY] as never);
       if (error) throw error;
-      return (data as { value?: string } | null)?.value ?? "";
+      return ((data as unknown as Array<{ key: string; value: string }>) ?? [])
+        .reduce<Record<string, string>>((acc, row) => {
+          acc[row.key] = row.value ?? "";
+          return acc;
+        }, {});
     },
   });
 
   useEffect(() => {
-    setWebhookSecret(storedSecret ?? "");
-  }, [storedSecret]);
+    setWebhookSecret(storedSecrets?.[WEBHOOK_SECRET_KEY] ?? "");
+    setMailgunSigningKey(storedSecrets?.[MAILGUN_SIGNING_KEY] ?? "");
+    setResendWebhookSecret(storedSecrets?.[RESEND_WEBHOOK_SECRET_KEY] ?? "");
+  }, [storedSecrets]);
 
   const secretSource = health?.email_webhook?.secretSource ?? "missing";
   const secretConfigured = health?.email_webhook?.secretConfigured ?? false;
@@ -90,27 +101,34 @@ export function EmailWebhookConfig() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const trimmed = webhookSecret.trim();
-      if (!trimmed) {
+      const pairs = [
+        { key: WEBHOOK_SECRET_KEY, value: webhookSecret.trim() },
+        { key: MAILGUN_SIGNING_KEY, value: mailgunSigningKey.trim() },
+        { key: RESEND_WEBHOOK_SECRET_KEY, value: resendWebhookSecret.trim() },
+      ];
+
+      for (const pair of pairs) {
+        if (!pair.value) {
+          const { error } = await supabase
+            .from("platform_settings" as never)
+            .delete()
+            .eq("key" as never, pair.key as never);
+          if (error) throw error;
+          continue;
+        }
+
         const { error } = await supabase
           .from("platform_settings" as never)
-          .delete()
-          .eq("key" as never, WEBHOOK_SECRET_KEY as never);
+          .upsert(
+            {
+              key: pair.key,
+              value: pair.value,
+              updated_at: new Date().toISOString(),
+            } as never,
+            { onConflict: "key" as never },
+          );
         if (error) throw error;
-        return;
       }
-
-      const { error } = await supabase
-        .from("platform_settings" as never)
-        .upsert(
-          {
-            key: WEBHOOK_SECRET_KEY,
-            value: trimmed,
-            updated_at: new Date().toISOString(),
-          } as never,
-          { onConflict: "key" as never },
-        );
-      if (error) throw error;
     },
     onSuccess: async () => {
       await Promise.all([
@@ -165,9 +183,9 @@ export function EmailWebhookConfig() {
         )}
 
         {secretSource === "platform_settings" && (
-          <Alert className="border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30">
+          <Alert className="border-emerald-200 bg-emerald-50">
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            <AlertDescription className="text-xs text-emerald-700 dark:text-emerald-300">
+            <AlertDescription className="text-xs text-emerald-700">
               Il webhook sta usando il secret salvato nella piattaforma. Gli URL qui sotto sono completi e copiabili.
             </AlertDescription>
           </Alert>
@@ -194,7 +212,7 @@ export function EmailWebhookConfig() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Elastic Email invia i webhook su URL complete: `?stream=marketing&secret=...`. Se usi il secret salvato qui, il copy funziona subito.
+              Usa `x-webhook-secret` quando il provider supporta header custom. Per provider che accettano solo URL, il link copiabile include `?secret=...`.
             </p>
           </div>
 
@@ -206,6 +224,45 @@ export function EmailWebhookConfig() {
               <li>3. Notifiche consigliate: Sent, Opened, Clicked, Unsubscribed, Complaints, Bounce/Error.</li>
               <li>4. Il webhook deve rispondere `200 OK` anche in GET.</li>
             </ul>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Firma nativa Mailgun</Label>
+            <Input
+              type={showSecret ? "text" : "password"}
+              value={mailgunSigningKey}
+              onChange={(event) => setMailgunSigningKey(event.target.value)}
+              placeholder="Webhook signing key Mailgun"
+            />
+            <p className="text-xs text-muted-foreground">
+              Se configurata, ogni evento Mailgun viene verificato con HMAC timestamp+token.
+            </p>
+            {health?.email_webhook?.mailgunSigningConfigured && (
+              <Badge variant="secondary" className="gap-1">
+                <ShieldCheck className="h-3 w-3" />
+                Firma attiva
+              </Badge>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label>Firma nativa Resend/Svix</Label>
+            <Input
+              type={showSecret ? "text" : "password"}
+              value={resendWebhookSecret}
+              onChange={(event) => setResendWebhookSecret(event.target.value)}
+              placeholder="whsec_..."
+            />
+            <p className="text-xs text-muted-foreground">
+              Se configurata, ogni evento Resend viene verificato con la firma Svix.
+            </p>
+            {health?.email_webhook?.resendSigningConfigured && (
+              <Badge variant="secondary" className="gap-1">
+                <ShieldCheck className="h-3 w-3" />
+                Firma attiva
+              </Badge>
+            )}
           </div>
         </div>
 

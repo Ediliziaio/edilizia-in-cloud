@@ -8,9 +8,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  Plus, CheckCircle, Clock, Circle, Loader2,
-  AlertCircle, ChevronDown, Calendar as CalendarIcon,
-  X, HardHat, MapPin, CalendarCheck, ListChecks, PlayCircle,
+  Plus, CheckCircle, Clock, Circle, Loader2, Calendar as CalendarIcon,
+  X, HardHat, MapPin, ListChecks, PlayCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";

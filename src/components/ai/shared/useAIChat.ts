@@ -206,7 +206,7 @@ export function useAIChat(opts: UseAIChatOptions): UseAIChatResult {
       const r = data as any;
       const assistantContent = (r?.response ?? r?.reply ?? "").toString();
       const toolCallsRaw = r?.toolCalls ?? r?.tool_calls ?? [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const tcMapped: AIToolCall[] = Array.isArray(toolCallsRaw)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ? toolCallsRaw.map((tc: any) => ({

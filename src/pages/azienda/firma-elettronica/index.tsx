@@ -6,7 +6,7 @@ import { it } from 'date-fns/locale';
 import {
   Plus, FileText, FileSignature, Loader2, Send, AlertTriangle,
   Search, Mail, CheckCircle2, Clock, XCircle, Copy,
-  FileStack, Users, Calendar, Target, Sparkles,
+  FileStack, Target,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';

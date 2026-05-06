@@ -238,7 +238,7 @@ export default function SettingsBilling() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       if (data?.error) throw new Error(data.error);
@@ -261,7 +261,7 @@ export default function SettingsBilling() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       if (data?.error) throw new Error(data.error);
@@ -280,7 +280,7 @@ export default function SettingsBilling() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       if (data?.error) throw new Error(data.error);
@@ -310,7 +310,7 @@ export default function SettingsBilling() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       if (data?.success) {

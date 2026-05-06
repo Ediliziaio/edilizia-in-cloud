@@ -13,9 +13,8 @@
 // Caller: super_admin ONLY (endpoint distruttivo/massivo).
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { requireAuth } from "../_shared/auth.ts";
 
 interface ImportClient {
   external_id: string;       // identificatore nel file sorgente (es. "ACANFORA")
@@ -249,7 +248,7 @@ Deno.serve(async (req) => {
         // Non filtrabile per email via listUsers, usiamo getUserByEmail workaround:
         // tentiamo creazione, se fallisce per email_exists usiamo shadow email
         let authUserId: string | null = null;
-        let password = generatePassword();
+        const password = generatePassword();
 
         const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
           email: authEmail,

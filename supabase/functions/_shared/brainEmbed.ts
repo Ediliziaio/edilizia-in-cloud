@@ -13,6 +13,8 @@
  * salvato comunque con embedding=NULL, da reindexare in seguito).
  */
 
+import { fetchWithRetryAndTimeout } from "./fetchWithTimeout.ts";
+
 const EMBED_MODEL = "text-embedding-3-small";
 const EMBED_DIMS = 1536;
 
@@ -27,7 +29,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     throw new Error("OPENAI_API_KEY non configurata");
   }
 
-  const res = await fetch("https://api.openai.com/v1/embeddings", {
+  const res = await fetchWithRetryAndTimeout("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -38,7 +40,8 @@ export async function generateEmbedding(text: string): Promise<number[]> {
       input: cleaned,
       encoding_format: "float",
     }),
-  });
+    timeoutMs: 45_000,
+  }, 2);
 
   if (!res.ok) {
     const errText = await res.text();
@@ -77,7 +80,7 @@ export async function generateEmbeddingsBatch(texts: string[]): Promise<number[]
   const all: number[][] = [];
 
   for (const chunk of chunks) {
-    const res = await fetch("https://api.openai.com/v1/embeddings", {
+    const res = await fetchWithRetryAndTimeout("https://api.openai.com/v1/embeddings", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
@@ -88,7 +91,8 @@ export async function generateEmbeddingsBatch(texts: string[]): Promise<number[]
         input: chunk,
         encoding_format: "float",
       }),
-    });
+      timeoutMs: 60_000,
+    }, 3);
 
     if (!res.ok) {
       const errText = await res.text();

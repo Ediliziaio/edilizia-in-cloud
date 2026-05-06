@@ -40,7 +40,7 @@ const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => MARKETING_SECTION
 
 function EmployeesInner() {
   const { effectiveCompany } = useAuth();
-  
+
   const queryClient = useQueryClient();
   const effectiveCompanyId = effectiveCompany?.id;
 
@@ -193,7 +193,7 @@ function EmployeesInner() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
       }
       if (!data.success) throw new Error(data.error);

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +20,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   ChevronDown,
-  Download,
   FileArchive,
   Loader2,
   Trash2,

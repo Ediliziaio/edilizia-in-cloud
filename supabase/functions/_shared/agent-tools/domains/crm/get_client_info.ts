@@ -5,7 +5,7 @@
  * Read-only safe.
  */
 
-import type { ToolContext, ToolDefinition } from "../../types.ts";
+import type { ToolDefinition } from "../../types.ts";
 
 interface Input {
   client_id?: string;

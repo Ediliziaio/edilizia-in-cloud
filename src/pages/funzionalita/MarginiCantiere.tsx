@@ -2,7 +2,6 @@ import {
   AlertTriangle,
   BarChart3,
   Bell,
-  CheckCircle2,
   ClipboardList,
   Coins,
   Database,
@@ -13,15 +12,12 @@ import {
   Receipt,
   Search,
   ShieldCheck,
-  Sparkles,
   Target,
-  Timer,
   TrendingDown,
   TrendingUp,
   Users,
   Wallet,
   Wrench,
-  Zap,
 } from "lucide-react";
 import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
 import type { FunzionalitaPageConfig } from "./_template/types";

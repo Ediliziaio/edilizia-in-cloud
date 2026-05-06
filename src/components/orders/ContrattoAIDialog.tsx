@@ -21,14 +21,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  FileText, Sparkles, Download, Save, RefreshCw, AlertTriangle,
+  FileText, Sparkles, Download, Save, AlertTriangle,
   CheckCircle2, Loader2, Wand2, ShieldCheck,
 } from "lucide-react";
 

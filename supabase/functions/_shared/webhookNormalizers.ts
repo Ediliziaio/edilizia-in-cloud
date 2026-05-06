@@ -213,6 +213,9 @@ export function decideSuppression(
     return { reason: "spam_complaint", companyIdScope: null, shouldSuppress: true };
   }
   if (event.type === "unsubscribed") {
+    if (!deliveryCompanyId) {
+      return { reason: null, companyIdScope: null, shouldSuppress: false };
+    }
     return {
       reason: "unsubscribe",
       companyIdScope: deliveryCompanyId,

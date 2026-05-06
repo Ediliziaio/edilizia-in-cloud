@@ -35,7 +35,7 @@ export function evalFormula(
     return null;
   }
   try {
-    // eslint-disable-next-line no-new-func
+
     const fn = new Function(`"use strict"; return (${replaced});`);
     const result = fn();
     if (typeof result === "number" && Number.isFinite(result)) return result;

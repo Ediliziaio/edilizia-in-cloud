@@ -43,6 +43,8 @@ export interface EmailSendResult {
   status: number;
   body: unknown;
   providerMessageId?: string;
+  /** Provider effettivamente usato dopo eventuale failover. */
+  providerUsed?: string;
 }
 
 /**
@@ -70,6 +72,44 @@ export async function loadProviderSettings(stream: "marketing" | "transactional"
   return { provider, apiKey, fromEmail, fromName, domain, fromDefault };
 }
 
+type ProviderSettings = Awaited<ReturnType<typeof loadProviderSettings>>;
+
+function parseProviderList(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item).trim()).filter(Boolean);
+    }
+  } catch {
+    // CSV fallback sotto
+  }
+  return trimmed.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function shouldFailover(status: number): boolean {
+  return RETRYABLE_STATUS_CODES.has(status);
+}
+
+async function loadProviderSettingsForFallback(
+  stream: "marketing" | "transactional",
+  provider: string,
+  base: ProviderSettings,
+): Promise<ProviderSettings | null> {
+  const prefix = `email_${stream}_${provider}`;
+  const apiKey = await getPlatformSetting(`${prefix}_api_key`);
+  if (!apiKey) return null;
+
+  const fromEmail = (await getPlatformSetting(`${prefix}_from_address`)) || base.fromEmail;
+  const fromName = sanitizeFromName(await getPlatformSetting(`${prefix}_from_name`)) ?? base.fromName;
+  const domain = await getPlatformSetting(`${prefix}_domain`) || base.domain;
+  const fromDefault = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
+
+  return { provider, apiKey, fromEmail, fromName, domain, fromDefault };
+}
+
 /**
  * Parse "Name <email>" format, returning just the email.
  */
@@ -86,30 +126,65 @@ function extractName(from: string): string | undefined {
   return match ? sanitizeFromName(match[1].trim()) : undefined;
 }
 
+const RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
+const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
+
+function parseRetryAfterMs(value: string | null): number | null {
+  if (!value) return null;
+  const seconds = Number.parseInt(value, 10);
+  if (Number.isFinite(seconds)) return Math.min(seconds * 1000, 30_000);
+  const dateMs = Date.parse(value);
+  if (Number.isFinite(dateMs)) return Math.min(Math.max(dateMs - Date.now(), 0), 30_000);
+  return null;
+}
+
+function retryDelayMs(response: Response | undefined, attempt: number, baseDelayMs: number): number {
+  const retryAfter = parseRetryAfterMs(response?.headers.get("Retry-After") ?? null);
+  if (retryAfter != null) return retryAfter;
+  const exponential = Math.min(baseDelayMs * Math.pow(2, attempt - 1), 30_000);
+  const jitter = Math.floor(Math.random() * 250);
+  return exponential + jitter;
+}
+
+function isRetryableStatus(status: number): boolean {
+  return RETRYABLE_STATUS_CODES.has(status);
+}
+
 /**
- * Fetch with exponential backoff retry on 429 (rate limit) responses.
- * GAP-19: max 3 attempts, base delay 1000ms.
+ * Fetch con timeout + backoff esponenziale su rate-limit, timeout provider,
+ * errori 5xx e failure di rete. Evita Edge Function appese su provider lenti.
  */
 async function fetchWithRetry(
   url: string,
   init: RequestInit,
   maxAttempts = 3,
-  baseDelayMs = 1000
+  baseDelayMs = 1000,
+  timeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
 ): Promise<Response> {
   let lastResponse: Response | undefined;
+  let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const res = await fetch(url, init);
-    if (res.status !== 429) return res;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort("email-provider-timeout"), timeoutMs);
+    let res: Response;
+    try {
+      res = await fetch(url, { ...init, signal: controller.signal });
+    } catch (err) {
+      lastError = err;
+      if (attempt >= maxAttempts) throw err;
+      await new Promise((r) => setTimeout(r, retryDelayMs(undefined, attempt, baseDelayMs)));
+      continue;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!isRetryableStatus(res.status)) return res;
     lastResponse = res;
     if (attempt < maxAttempts) {
-      // Honour Retry-After header if present, otherwise exponential backoff
-      const retryAfter = res.headers.get("Retry-After");
-      const delayMs = retryAfter
-        ? Math.min(parseInt(retryAfter, 10) * 1000, 30_000)
-        : baseDelayMs * Math.pow(2, attempt - 1);
-      await new Promise((r) => setTimeout(r, delayMs));
+      await new Promise((r) => setTimeout(r, retryDelayMs(res, attempt, baseDelayMs)));
     }
   }
+  if (!lastResponse && lastError) throw lastError;
   return lastResponse!;
 }
 
@@ -180,7 +255,13 @@ export async function sendViaProvider(
       const sgRes = await fetchWithRetry(url, { method: "POST", headers, body });
       const sgMsgId = sgRes.headers.get("x-message-id") || undefined;
       const sgJson = await sgRes.json().catch(() => ({}));
-      return { ok: sgRes.ok, status: sgRes.status, body: sgJson, providerMessageId: sgMsgId };
+      return {
+        ok: sgRes.ok,
+        status: sgRes.status,
+        body: sgJson,
+        providerMessageId: sgMsgId,
+        providerUsed: provider,
+      };
     }
 
     case "sendinblue":
@@ -200,6 +281,7 @@ export async function sendViaProvider(
       };
       if (req.text) payload.textContent = req.text;
       if (req.replyTo) payload.replyTo = { email: req.replyTo };
+      if (req.headers) payload.headers = req.headers;
       if (req.attachments?.length) {
         payload.attachment = req.attachments.map((a) => ({
           content: a.content,
@@ -294,6 +376,11 @@ export async function sendViaProvider(
       formData.append("html", req.html);
       if (req.text) formData.append("text", req.text);
       if (req.replyTo) formData.append("h:Reply-To", req.replyTo);
+      if (req.headers) {
+        for (const [key, value] of Object.entries(req.headers)) {
+          formData.append(`h:${key}`, value);
+        }
+      }
       // Disable native tracking
       formData.append("o:tracking", "no");
 
@@ -311,6 +398,7 @@ export async function sendViaProvider(
         status: res.status,
         body: json,
         providerMessageId: json?.id,
+        providerUsed: provider,
       };
     }
 
@@ -329,6 +417,7 @@ export async function sendViaProvider(
       };
       if (req.text) payload.text = req.text;
       if (req.replyTo) payload.reply_to = req.replyTo;
+      if (req.headers) payload.headers = req.headers;
       if (req.attachments?.length) {
         payload.attachments = req.attachments.map((a) => ({
           content: a.content,
@@ -349,5 +438,89 @@ export async function sendViaProvider(
     status: res.status,
     body: json,
     providerMessageId: extractId?.(json as Record<string, unknown>),
+    providerUsed: provider,
+  };
+}
+
+/**
+ * Invio provider con failover configurabile da platform_settings.
+ *
+ * Config:
+ *   email_marketing_failover_providers = ["brevo","sendgrid"] oppure CSV
+ *   email_marketing_brevo_api_key, email_marketing_brevo_from_address, ...
+ *   email_transactional_postmark_api_key, ...
+ *
+ * Il failover parte solo su errori recuperabili (429/timeout/5xx). Un 400
+ * resta sul provider primario perché di solito indica payload o destinatario.
+ */
+export async function sendViaProviderWithFailover(
+  stream: "marketing" | "transactional",
+  primarySettings: ProviderSettings,
+  req: EmailSendRequest,
+  opts?: {
+    domain?: string;
+    stream?: "marketing" | "transactional";
+    disableNativeTracking?: boolean;
+  },
+): Promise<EmailSendResult> {
+  const failoverRaw = await getPlatformSetting(`email_${stream}_failover_providers`);
+  const failoverProviders = parseProviderList(failoverRaw)
+    .filter((provider) => provider && provider !== primarySettings.provider);
+
+  const candidates: ProviderSettings[] = [primarySettings];
+  for (const provider of failoverProviders) {
+    const fallback = await loadProviderSettingsForFallback(stream, provider, primarySettings);
+    if (fallback?.apiKey) candidates.push(fallback);
+  }
+
+  const attempts: Array<{ provider: string; status: number; ok: boolean; error?: string }> = [];
+  let lastResult: EmailSendResult | null = null;
+
+  for (const candidate of candidates) {
+    const isPrimary = candidate.provider === primarySettings.provider;
+    const candidateReq = isPrimary
+      ? req
+      : {
+          ...req,
+          from: candidate.fromDefault,
+        };
+    const candidateOpts = {
+      ...opts,
+      stream,
+      domain: isPrimary ? opts?.domain : candidate.domain ?? opts?.domain,
+    };
+
+    try {
+      const result = await sendViaProvider(candidate.provider, candidate.apiKey, candidateReq, candidateOpts);
+      const withProvider = { ...result, providerUsed: candidate.provider };
+      attempts.push({ provider: candidate.provider, status: result.status, ok: result.ok });
+      lastResult = withProvider;
+      if (result.ok || !shouldFailover(result.status)) {
+        return attempts.length > 1
+          ? { ...withProvider, body: { result: withProvider.body, failover_attempts: attempts } }
+          : withProvider;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      attempts.push({ provider: candidate.provider, status: 0, ok: false, error: message });
+      lastResult = {
+        ok: false,
+        status: 0,
+        body: { error: message },
+        providerUsed: candidate.provider,
+      };
+    }
+  }
+
+  return {
+    ...(lastResult ?? {
+      ok: false,
+      status: 500,
+      body: { error: "No email provider available" },
+    }),
+    body: {
+      result: lastResult?.body ?? null,
+      failover_attempts: attempts,
+    },
   };
 }

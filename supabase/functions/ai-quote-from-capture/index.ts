@@ -25,6 +25,9 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { generateEmbedding } from "../_shared/brainEmbed.ts";
+import { requireCompanyAccess } from "../_shared/auth.ts";
+import { getCorsHeaders } from "../_shared/headers.ts";
 
 interface CaptureRequest {
   run_id?: string;
@@ -131,12 +134,16 @@ REGOLE:
 10. attributi: tag corti utili per matching (materiale, colore, tipo apertura, ecc.).`;
 
 Deno.serve(async (req) => {
+  const cors = getCorsHeaders(req);
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: cors });
+  }
   if (req.method !== "POST") {
-    return jsonOk({ error: "method_not_allowed" }, 405);
+    return jsonOk({ error: "method_not_allowed" }, 405, cors);
   }
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return jsonOk({ error: "unauthorized" }, 401);
+  if (!authHeader) return jsonOk({ error: "unauthorized" }, 401, cors);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -151,13 +158,13 @@ Deno.serve(async (req) => {
 
   // Resolve user / company
   const { data: { user } } = await supaWithAuth.auth.getUser();
-  if (!user) return jsonOk({ error: "unauthorized" }, 401);
+  if (!user) return jsonOk({ error: "unauthorized" }, 401, cors);
 
   let body: CaptureRequest;
   try {
     body = await req.json();
   } catch {
-    return jsonOk({ error: "invalid_json" }, 400);
+    return jsonOk({ error: "invalid_json" }, 400, cors);
   }
 
   // Resolve company_id
@@ -171,7 +178,14 @@ Deno.serve(async (req) => {
       .single();
     companyId = prof?.company_id;
   }
-  if (!companyId) return jsonOk({ error: "company_id_required" }, 400);
+  if (!companyId) return jsonOk({ error: "company_id_required" }, 400, cors);
+
+  try {
+    await requireCompanyAccess(supabase, user.id, companyId, cors);
+  } catch (e) {
+    if (e instanceof Response) return e;
+    return jsonOk({ error: "tenant_access_check_failed" }, 403, cors);
+  }
 
   const t0 = Date.now();
   const summary: {
@@ -197,7 +211,7 @@ Deno.serve(async (req) => {
       });
       runId = (createRes as { run_id?: string } | null)?.run_id;
       if (!runId) {
-        return jsonOk({ error: "run_creation_failed", detail: createRes }, 500);
+        return jsonOk({ error: "run_creation_failed", detail: createRes }, 500, cors);
       }
     }
     summary.run_id = runId;
@@ -264,6 +278,7 @@ Deno.serve(async (req) => {
           { role: "user", content: userMessage },
         ],
         params: { temperature: 0.1, max_tokens: 3000 },
+        responseFormat: { type: "json_object" },
         companyId,
         userId: user.id,
         personaKey: "sales",
@@ -271,11 +286,16 @@ Deno.serve(async (req) => {
       });
 
       const parsed = parseExtractionJson(aiRes.content);
+      const parsedProducts = Array.isArray(parsed.products) ? parsed.products : [];
+      const parsedWarnings = Array.isArray(parsed.avvertenze) ? parsed.avvertenze : [];
+      if (parsedProducts.length === 0) {
+        parsedWarnings.push("Nessuna voce preventivo riconosciuta: aggiungi o correggi manualmente in review.");
+      }
       extraction = {
         customer: parsed.customer ?? null,
-        products: (parsed.products ?? []) as MatchedProduct[],
+        products: parsedProducts as MatchedProduct[],
         note: parsed.note,
-        avvertenze: parsed.avvertenze ?? [],
+        avvertenze: parsedWarnings,
         cantiere: parsed.cantiere,
         global_confidence: computeGlobalConfidence(parsed),
       };
@@ -289,7 +309,7 @@ Deno.serve(async (req) => {
           error_message: (e as Error).message,
         })
         .eq("id", runId);
-      return jsonOk({ run_id: runId, error: "extraction_failed", message: (e as Error).message }, 500);
+      return jsonOk({ run_id: runId, error: "extraction_failed", message: (e as Error).message }, 500, cors);
     }
 
     // ─── STEP 3: Match prodotti listino ─────────────────────────────────────
@@ -345,11 +365,11 @@ Deno.serve(async (req) => {
       .eq("id", runId);
 
     summary.duration_ms = Date.now() - t0;
-    return jsonOk(summary);
+    return jsonOk(summary, 200, cors);
   } catch (e) {
     summary.duration_ms = Date.now() - t0;
     summary.errors.push(`fatal: ${(e as Error).message}`);
-    return jsonOk(summary, 500);
+    return jsonOk(summary, 500, cors);
   }
 });
 
@@ -433,59 +453,37 @@ async function matchViaVector(
   companyId: string,
   product: MatchedProduct,
 ): Promise<void> {
-  // Embedding tramite OpenAI
-  const openaiKey = Deno.env.get("OPENAI_API_KEY");
-  if (!openaiKey) {
-    product.match_type = "none";
-    return;
-  }
-
   try {
     const queryText = [
       product.descrizione_grezza,
       ...(product.attributi ?? []),
     ].filter(Boolean).join(" ");
 
-    const embedRes = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "text-embedding-3-small",
-        input: queryText,
-      }),
-    });
-    if (!embedRes.ok) {
-      product.match_type = "none";
-      return;
-    }
-    const embedData = await embedRes.json();
-    const embedding = embedData.data?.[0]?.embedding;
-    if (!embedding) {
-      product.match_type = "none";
-      return;
-    }
+    const embedding = await generateEmbedding(queryText);
+    const embeddingLiteral = `[${embedding.join(",")}]`;
 
     // Provo prima famiglie (più probabile per serramenti)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: familyMatches } = await (supabase as any).rpc("match_families_semantic", {
-      query_embedding: embedding,
-      match_threshold: 0.5,
-      match_count: 3,
-      target_company_id: companyId,
+    const { data: familyMatches, error: familyMatchError } = await (supabase as any).rpc("match_families_semantic", {
+      p_query_embedding: embeddingLiteral,
+      p_match_threshold: 0.5,
+      p_match_count: 3,
+      p_company_id: companyId,
     });
+    if (familyMatchError) {
+      console.warn("family_vector_match_failed", familyMatchError.message);
+    }
 
     const topFamily = (familyMatches as Array<{
       id: string;
+      nome?: string;
       name?: string;
       similarity: number;
     }> | null)?.[0];
 
     if (topFamily && topFamily.similarity > 0.55) {
       product.matched_family_id = topFamily.id;
-      product.matched_name = topFamily.name;
+      product.matched_name = topFamily.nome ?? topFamily.name;
       product.match_type = "vector";
       product.match_confidence = topFamily.similarity;
       return;
@@ -493,12 +491,15 @@ async function matchViaVector(
 
     // Fallback su articoli singoli
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: articleMatches } = await (supabase as any).rpc("match_articles", {
-      query_embedding: embedding,
-      match_threshold: 0.5,
-      match_count: 3,
-      target_company_id: companyId,
+    const { data: articleMatches, error: articleMatchError } = await (supabase as any).rpc("match_articles", {
+      p_query_embedding: embeddingLiteral,
+      p_match_threshold: 0.5,
+      p_match_count: 3,
+      p_company_id: companyId,
     });
+    if (articleMatchError) {
+      console.warn("article_vector_match_failed", articleMatchError.message);
+    }
     const topArticle = (articleMatches as Array<{
       id: string;
       name?: string;
@@ -587,14 +588,15 @@ async function fillInitialPrice(
   product.unit_price_source = "fallback";
 }
 
-function jsonOk(body: unknown, status = 200): Response {
+function jsonOk(body: unknown, status = 200, corsHeaders?: Record<string, string>): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
+      ...(corsHeaders ?? {}),
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Origin": corsHeaders?.["Access-Control-Allow-Origin"] ?? "*",
+      "Access-Control-Allow-Headers": corsHeaders?.["Access-Control-Allow-Headers"] ?? "authorization, x-client-info, apikey, content-type",
+      "Access-Control-Allow-Methods": corsHeaders?.["Access-Control-Allow-Methods"] ?? "POST, OPTIONS",
     },
   });
 }

@@ -21,8 +21,8 @@ import { useBudgetForecast } from "@/hooks/controlloGestione/useBudget";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import {
-  Activity, AlertTriangle, ArrowDown, ArrowUp,
-  Banknote, Building, Briefcase, Calendar, Shield,
+  Activity, AlertTriangle, ArrowDown,
+  Banknote, Building, Briefcase, Shield,
   TrendingDown, TrendingUp, Wallet,
 } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";

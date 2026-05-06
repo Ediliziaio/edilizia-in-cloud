@@ -56,14 +56,19 @@ Deno.serve(async (req) => {
     for (const campaign of campaigns) {
       try {
         // Mark as sending before triggering to prevent duplicate processing
-        const { error: lockError } = await adminClient
+        const { data: lockedCampaign, error: lockError } = await adminClient
           .from("email_campaigns")
           .update({ status: "sending", sent_at: new Date().toISOString() })
           .eq("id", campaign.id)
-          .eq("status", "scheduled"); // guard against race condition
+          .eq("status", "scheduled") // guard against race condition
+          .select("id")
+          .maybeSingle();
 
         if (lockError) {
           errors.push({ id: campaign.id, error: lockError.message });
+          continue;
+        }
+        if (!lockedCampaign) {
           continue;
         }
 

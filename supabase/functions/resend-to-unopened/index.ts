@@ -13,10 +13,11 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { loadProviderSettings, sendViaProvider } from "../_shared/emailProvider.ts";
+import { loadProviderSettings, sanitizeFromName, sendViaProviderWithFailover } from "../_shared/emailProvider.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
+import { getSuppressedEmailMap, normalizeEmailAddress } from "../_shared/emailSuppression.ts";
 
 // How many hours after campaign completion to re-send to non-openers
 const DEFAULT_RESEND_DELAY_HOURS = 24;
@@ -115,6 +116,17 @@ Deno.serve(async (req) => {
 
       if (contactsError || !contacts || contacts.length === 0) continue;
 
+      const suppressedEmails = await getSuppressedEmailMap(
+        adminClient,
+        contacts.map((contact: any) => contact.email),
+        campaign.company_id,
+        "marketing",
+      );
+      const sendableContacts = contacts.filter(
+        (contact: any) => !suppressedEmails.has(normalizeEmailAddress(contact.email)),
+      );
+      if (sendableContacts.length === 0) continue;
+
       // Create resend campaign record to track this resend
       const resendSubject = campaign.subject
         ? `Hai perso questa email? ${campaign.subject}`
@@ -131,7 +143,7 @@ Deno.serve(async (req) => {
           sender_email: campaign.sender_email,
           status: "sending",
           sent_at: new Date().toISOString(),
-          total_recipients: contacts.length,
+          total_recipients: sendableContacts.length,
         })
         .select("id")
         .single();
@@ -142,9 +154,10 @@ Deno.serve(async (req) => {
       const resolvedSender = campaign.sender_email
         ? null
         : await resolveSender(campaign.company_id, "marketing", adminClient).catch(() => null);
+      const safeSenderName = sanitizeFromName(campaign.sender_name);
       const fromAddress = campaign.sender_email
-        ? campaign.sender_name
-          ? `${campaign.sender_name} <${campaign.sender_email}>`
+        ? safeSenderName
+          ? `${safeSenderName} <${campaign.sender_email}>`
           : campaign.sender_email
         : resolvedSender?.from ?? settings.fromDefault;
       const providerDomain = campaign.sender_email?.includes("@")
@@ -154,7 +167,7 @@ Deno.serve(async (req) => {
       let sentCount = 0;
       let failedCount = 0;
 
-      for (const contact of contacts) {
+      for (const contact of sendableContacts) {
         try {
           let html = campaign.html_content || "<p>Nessun contenuto</p>";
 
@@ -172,9 +185,9 @@ Deno.serve(async (req) => {
           const unsubUrl = `${supabaseUrl}/functions/v1/email-tracking?type=unsub&cid=${resendCampaignId}&rid=${contact.id}&co=${campaign.company_id}`;
           html = html.replace(/\{\{unsubscribe_url\}\}/g, unsubUrl);
 
-          const result = await sendViaProvider(
-            settings.provider,
-            settings.apiKey,
+          const result = await sendViaProviderWithFailover(
+            "marketing",
+            settings,
             {
               from: fromAddress,
               to: [contact.email],
@@ -197,7 +210,7 @@ Deno.serve(async (req) => {
             contact_id: contact.id,
             company_id: campaign.company_id,
             status: result.ok ? "delivered" : "failed",
-            provider: settings.provider,
+            provider: result.providerUsed ?? settings.provider,
             provider_message_id: result.providerMessageId || null,
             stream: "marketing",
             event_timestamp: new Date().toISOString(),
@@ -211,7 +224,7 @@ Deno.serve(async (req) => {
             subject: resendSubject,
             template_name: "campaign_resend",
             status: result.ok ? "sent" : "failed",
-            provider: settings.provider,
+            provider: result.providerUsed ?? settings.provider,
             stream: "marketing",
             campaign_id: resendCampaignId,
             provider_id: result.providerMessageId ?? null,
@@ -232,7 +245,7 @@ Deno.serve(async (req) => {
       await adminClient
         .from("email_campaigns")
         .update({
-          status: failedCount === contacts.length ? "failed" : "sent",
+          status: failedCount === sendableContacts.length ? "failed" : "sent",
           sent_count: sentCount,
           failed_count: failedCount,
           completed_at: new Date().toISOString(),

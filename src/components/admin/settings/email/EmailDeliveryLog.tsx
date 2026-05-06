@@ -21,6 +21,11 @@ const STATUS_COLORS: Record<string, string> = {
   failed: "bg-destructive/10 text-destructive",
   bounced: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
   opened: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
+  clicked: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  dropped: "bg-destructive/10 text-destructive",
+  deferred: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  spam: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  unsubscribed: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
 };
 
 const STATUS_LABEL_IT: Record<string, string> = {
@@ -29,6 +34,11 @@ const STATUS_LABEL_IT: Record<string, string> = {
   failed: "Fallito",
   bounced: "Rimbalzato",
   opened: "Aperto",
+  clicked: "Click",
+  dropped: "Scartato",
+  deferred: "Ritardato",
+  spam: "Spam",
+  unsubscribed: "Disiscritto",
 };
 
 interface DeliveryLogRow {
@@ -179,7 +189,7 @@ export function EmailDeliveryLog() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti gli stati</SelectItem>
-              {(["sent", "delivered", "failed", "bounced", "opened"] as const).map((s) => (
+              {(["sent", "delivered", "failed", "bounced", "opened", "clicked", "deferred", "dropped", "spam", "unsubscribed"] as const).map((s) => (
                 <SelectItem key={s} value={s}>
                   <span className="flex items-center gap-2">
                     {STATUS_LABEL_IT[s]}

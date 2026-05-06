@@ -71,7 +71,7 @@ export async function statoCantiere(
   );
 
   // Costi stimati da materiali usati nei rapportini (campo jsonb)
-  let costiMateriali = 0;
+  const costiMateriali = 0;
   for (const r of rapportini ?? []) {
     // Se i materiali hanno prezzo_unitario, somma qty * prezzo — altrimenti skip
     // Supabase types rendono r un oggetto parziale; il campo materiali_usati non

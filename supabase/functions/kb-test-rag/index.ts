@@ -11,7 +11,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { estimateEmbeddingUsage, logPlatformAiCall } from "../_shared/directAiLedger.ts";
-import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { fetchWithRetryAndTimeout } from "../_shared/fetchWithTimeout.ts";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const MAX_QUERIES = 100;
@@ -29,12 +29,12 @@ interface TestQuery {
 }
 
 async function embed(apiKey: string, text: string): Promise<{ embedding: number[]; tokens: number }> {
-  const r = await fetchWithTimeout("https://api.openai.com/v1/embeddings", {
+  const r = await fetchWithRetryAndTimeout("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model: EMBEDDING_MODEL, input: text }),
     timeoutMs: 60_000,
-  });
+  }, 3);
   if (!r.ok) throw new Error(`embed ${r.status}: ${(await r.text()).slice(0, 200)}`);
   const data = await r.json();
   return {
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
 
         if (q.expected_doc_path) {
           const top3 = hitArr.slice(0, 3);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
           const matchTop1 = top3[0]?.metadata?.doc_path === q.expected_doc_path;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const matchTop3 = top3.some((h: any) => h?.metadata?.doc_path === q.expected_doc_path);
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
           const overlap = q.expected_areas_multiple.filter((a) => top3Areas.has(a));
           if (overlap.length > 0) { result = "pass"; notes.push(`area match: ${overlap.join(",")}`); }
         } else if (q.expected_min_similarity_max !== undefined) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
           const maxSim = hitArr.length > 0 ? Number(hitArr[0].similarity) : 0;
           if (maxSim <= q.expected_min_similarity_max) { result = "pass"; notes.push(`max sim ${maxSim.toFixed(3)} <= ${q.expected_min_similarity_max}`); }
           else notes.push(`sim too high: ${maxSim.toFixed(3)}`);

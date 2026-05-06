@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
 
   for (const c of companies) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const [ceRes, spRes, rtRes, bepRes] = await Promise.all([
         (sb.rpc as any)("cg_get_conto_economico_riclassificato", {
           p_company_id: c.company_id, p_anno: annoCorr,

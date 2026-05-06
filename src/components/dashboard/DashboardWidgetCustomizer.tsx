@@ -2,7 +2,7 @@
  * Pannello di personalizzazione widget del dashboard.
  * Permette di nascondere/mostrare widget e riordinarli.
  */
-import { Eye, EyeOff, ChevronUp, ChevronDown, RotateCcw, Settings2 } from "lucide-react";
+import { ChevronUp, ChevronDown, RotateCcw, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -12,7 +12,6 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import { type WidgetConfig } from "@/hooks/useDashboardWidgets";
 import { cn } from "@/lib/utils";
 

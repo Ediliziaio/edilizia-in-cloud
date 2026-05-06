@@ -97,7 +97,7 @@ export default function CedoliniPersonali() {
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore PDF");
       }
       if (!data?.html) throw new Error("Nessun contenuto PDF");

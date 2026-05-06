@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Building2, Users, User as UserIcon, Image as ImageIcon, ExternalLink } from "lucide-react";
+import { Building2, Users, User as UserIcon, Image as ImageIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogoUploader } from "@/components/settings/LogoUploader";

@@ -103,7 +103,7 @@ interface Chunk {
 async function discoverDocs(basePath: string): Promise<string[]> {
   const docs: string[] = [];
   // Normalizza basePath rimuovendo ./ iniziale
-  const cleanBase = basePath.replace(/^\.\//, "").replace(/[\/\\]$/, "");
+  const cleanBase = basePath.replace(/^\.\//, "").replace(/[/\\]$/, "");
   for await (const entry of walk(basePath, { exts: [".md"] })) {
     if (!entry.isFile) continue;
     if (entry.name === "_README.md") continue;
@@ -111,9 +111,9 @@ async function discoverDocs(basePath: string): Promise<string[]> {
     // Trova il path relativo rimuovendo qualsiasi prefisso che termina con cleanBase
     const idx = entry.path.indexOf(cleanBase);
     const relativePath = idx >= 0
-      ? entry.path.substring(idx + cleanBase.length).replace(/^[\/\\]/, "")
+      ? entry.path.substring(idx + cleanBase.length).replace(/^[/\\]/, "")
       : entry.path;
-    const areaId = relativePath.split(/[\/\\]/)[0];
+    const areaId = relativePath.split(/[/\\]/)[0];
     if (CONFIG.excludeAreas.includes(areaId)) continue;
     if (ONLY_AREA && areaId !== ONLY_AREA) continue;
     docs.push(entry.path);
@@ -236,7 +236,7 @@ async function chunkDocument(docPath: string, basePath: string): Promise<Chunk[]
 
   const relativePath = docPath
     .replace(basePath, "")
-    .replace(/^[\/\\]/, "")
+    .replace(/^[/\\]/, "")
     .replace(/\\/g, "/");
 
   const docTitle = String(fm.titolo ?? relativePath);

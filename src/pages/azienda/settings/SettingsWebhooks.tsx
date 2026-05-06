@@ -96,7 +96,7 @@ function parseAllowedIps(raw: string): { ok: true; ips: string[] } | { ok: false
 
 function sanitizeLogBody(body: string): string {
   return body
-    .replace(/(authorization|api[_-]?key|token|secret|password)(\"?\\s*[:=]\\s*\"?)[^\",\\s}]+/gi, "$1$2[redacted]")
+    .replace(/(authorization|api[_-]?key|token|secret|password)("?\s*[:=]\s*"?)[^",\s}]+/gi, "$1$2[redacted]")
     .slice(0, 1200);
 }
 
@@ -220,7 +220,7 @@ function WebhookFormDialog({
       });
       if (error) {
         let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch {}
+        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
         throw new Error(errBody?.error ?? error.message ?? "Errore invio webhook");
       }
       setTestResult({ status: data?.status, http_status: data?.http_status });

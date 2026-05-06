@@ -5,7 +5,7 @@
  * Read-only safe.
  */
 
-import type { ToolContext, ToolDefinition } from "../../types.ts";
+import type { ToolDefinition } from "../../types.ts";
 
 interface Input {
   limit?: number;
@@ -43,7 +43,7 @@ export const LIST_RECENT_CLIENTS: ToolDefinition<Input, { clients: ClientLite[] 
       .limit(limit);
     if (error) throw new Error(`DB error: ${error.message}`);
     return {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       clients: (data ?? []) as ClientLite[],
     };
   },

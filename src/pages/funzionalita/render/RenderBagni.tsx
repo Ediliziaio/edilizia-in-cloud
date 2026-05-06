@@ -12,10 +12,8 @@ import {
   Send,
   ShieldCheck,
   ShowerHead,
-  Sparkles,
   Target,
   Users,
-  Wrench,
   XCircle,
   Zap,
 } from "lucide-react";

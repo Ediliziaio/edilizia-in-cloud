@@ -11,7 +11,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,16 +41,69 @@ interface BrainDoc {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  normativa_sicurezza: "🦺 Sicurezza (D.Lgs 81/08)",
-  normativa_fiscale: "📜 Fiscale & IVA",
-  business_finanza: "💰 Finanza & Cashflow",
-  business_vendita: "🎯 Vendita",
-  business_operations: "🏗️ Operations Cantiere",
-  hr_ccnl: "👥 HR & CCNL",
-  uncategorized: "📝 Senza categoria",
+  "01-normativa-edilizia": "Normativa edilizia e sicurezza",
+  "02-finanza-cashflow": "Finanza e cashflow",
+  "03-controllo-gestione": "Controllo di gestione",
+  "04-vendita-consulenziale": "Vendita consulenziale",
+  "05-fiscale-compliance": "Fiscale e compliance",
+  "06-hr-edile": "HR edilizia e CCNL",
+  "07-strategia-imprenditoriale": "Strategia imprenditoriale",
+  "08-marketing-edile": "Marketing edilizia",
+  "09-tecnologie-digitalizzazione": "Tecnologie e digitalizzazione",
+  "10-ai-act-governance": "AI Act e governance",
+  "11-advisor-strategico": "Advisor strategico",
+  normativa_sicurezza: "Normativa edilizia e sicurezza",
+  normativa_fiscale: "Fiscale e compliance",
+  business_finanza: "Finanza e cashflow",
+  business_vendita: "Vendita consulenziale",
+  business_operations: "Controllo di gestione",
+  hr_ccnl: "HR edilizia e CCNL",
+  uncategorized: "Senza categoria",
 };
 
-const CATEGORIES = Object.keys(CATEGORY_LABELS).filter(k => k !== "uncategorized");
+const CATEGORIES = [
+  "01-normativa-edilizia",
+  "02-finanza-cashflow",
+  "03-controllo-gestione",
+  "04-vendita-consulenziale",
+  "05-fiscale-compliance",
+  "06-hr-edile",
+  "07-strategia-imprenditoriale",
+  "08-marketing-edile",
+  "09-tecnologie-digitalizzazione",
+  "10-ai-act-governance",
+  "11-advisor-strategico",
+];
+
+const LEGACY_CATEGORY_MAP: Record<string, string> = {
+  normativa_sicurezza: "01-normativa-edilizia",
+  normativa_fiscale: "05-fiscale-compliance",
+  business_finanza: "02-finanza-cashflow",
+  business_vendita: "04-vendita-consulenziale",
+  business_operations: "03-controllo-gestione",
+  hr_ccnl: "06-hr-edile",
+};
+
+const NORMATIVE_CATEGORIES = new Set(["01-normativa-edilizia", "05-fiscale-compliance", "normativa_sicurezza", "normativa_fiscale"]);
+const BUSINESS_CATEGORIES = new Set([
+  "02-finanza-cashflow",
+  "03-controllo-gestione",
+  "04-vendita-consulenziale",
+  "06-hr-edile",
+  "07-strategia-imprenditoriale",
+  "08-marketing-edile",
+  "09-tecnologie-digitalizzazione",
+  "11-advisor-strategico",
+  "business_finanza",
+  "business_vendita",
+  "business_operations",
+  "hr_ccnl",
+]);
+
+function normalizeCategory(category: string | null | undefined): string {
+  if (!category) return CATEGORIES[0];
+  return LEGACY_CATEGORY_MAP[category] ?? (CATEGORIES.includes(category) ? category : CATEGORIES[0]);
+}
 
 export default function AdminSettingsAIKnowledge() {
   const qc = useQueryClient();
@@ -145,7 +198,7 @@ export default function AdminSettingsAIKnowledge() {
           <CardHeader className="pb-2"><CardDescription>Sicurezza & Normativa</CardDescription></CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(docs ?? []).filter(d => d.category?.startsWith("normativa")).length}
+              {(docs ?? []).filter(d => NORMATIVE_CATEGORIES.has(d.category ?? "")).length}
             </div>
           </CardContent>
         </Card>
@@ -153,7 +206,7 @@ export default function AdminSettingsAIKnowledge() {
           <CardHeader className="pb-2"><CardDescription>Business Knowledge</CardDescription></CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(docs ?? []).filter(d => d.category?.startsWith("business") || d.category === "hr_ccnl").length}
+              {(docs ?? []).filter(d => BUSINESS_CATEGORIES.has(d.category ?? "")).length}
             </div>
           </CardContent>
         </Card>
@@ -257,7 +310,7 @@ function DocEditDialog({ doc, onClose }: { doc: BrainDoc | null; onClose: () => 
   const qc = useQueryClient();
   const isNew = !doc;
   const [title, setTitle] = useState(doc?.title ?? "");
-  const [category, setCategory] = useState(doc?.category ?? CATEGORIES[0]);
+  const [category, setCategory] = useState(normalizeCategory(doc?.category));
   const [content, setContent] = useState(doc?.content ?? "");
 
   const saveMut = useMutation({
@@ -269,12 +322,6 @@ function DocEditDialog({ doc, onClose }: { doc: BrainDoc | null; onClose: () => 
       const accessToken = tokenData.session?.access_token;
       if (!accessToken) throw new Error("Non autenticato");
 
-      // Hash content via simple SHA-256
-      const enc = new TextEncoder().encode(content.slice(0, 8000));
-      const hashBuf = await crypto.subtle.digest("SHA-256", enc);
-      const contentHash = Array.from(new Uint8Array(hashBuf))
-        .map(b => b.toString(16).padStart(2, "0")).join("");
-
       // Call ingest endpoint (single doc mode)
       const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL ?? "https://rsbrguhkodgnqfomrevo.supabase.co"}/functions/v1/ai-brain-ingest`, {
         method: "POST",
@@ -283,18 +330,34 @@ function DocEditDialog({ doc, onClose }: { doc: BrainDoc | null; onClose: () => 
           mode: "items",
           items: [{
             source_type: "knowledge",
+            source_id: isNew ? null : doc?.id,
+            scope: "universal",
+            category,
+            title: title.trim(),
             content: content.trim(),
-            metadata: { title: title.trim(), scope: "universal", category },
+            metadata: {
+              title: title.trim(),
+              scope: "universal",
+              category,
+              source: "admin_knowledge_editor",
+              edited_from_id: isNew ? null : doc?.id,
+            },
           }],
         }),
       });
       const result = await r.json();
       if (!result.ok) throw new Error(result.error ?? "Errore ingest");
 
-      // Per ora: ingest crea doc come scope='company' di default (l'edge non sa universal).
-      // Hack: dopo l'ingest, aggiorna il doc al scope 'universal' via SQL diretto se possibile
-      // Soluzione: usa la RPC brain_upsert_document direttamente. Per semplicità lasciamo così.
-      // Il superadmin può poi spostare manualmente da DB se necessario.
+      if (!isNew && doc?.id) {
+        const newDocumentIds = Array.isArray(result.document_ids) ? result.document_ids : [];
+        if (newDocumentIds.length > 0 && !newDocumentIds.includes(doc.id)) {
+          const { error: cleanupError } = await supabase
+            .from("ai_brain_documents" as never)
+            .delete()
+            .eq("id", doc.id);
+          if (cleanupError) throw new Error(`Documento indicizzato, ma vecchia versione non rimossa: ${cleanupError.message}`);
+        }
+      }
 
       return result;
     },

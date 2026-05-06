@@ -14,7 +14,6 @@ import {
   LayoutGrid,
   HardHat,
   TrendingUp,
-  PieChart,
   Plus,
   Search,
   Star,

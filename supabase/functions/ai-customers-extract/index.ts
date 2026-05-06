@@ -142,12 +142,12 @@ async function callOpenAI(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase: supabaseAdmin as any,
     taskKey: "customers_extract",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         content: [
           { type: "text", text: userText },
           {

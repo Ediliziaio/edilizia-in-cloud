@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users, Plus, Shield, ShieldOff, Trash2, Loader2, ShieldCheck, Search,
-  MoreHorizontal, Lock, LockOpen, UserCheck, Phone, TrendingUp,
-  Clock, Wifi, AlertTriangle, Download, Upload, CheckSquare,
+  MoreHorizontal, Lock, LockOpen, UserCheck, Phone, TrendingUp, Wifi, AlertTriangle, Download, Upload, CheckSquare,
   HardHat, Building2, ArrowRightLeft,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -706,7 +705,11 @@ export function UsersConfig() {
   const toggleSelectUser = (userId: string) => {
     setSelectedUsers(prev => {
       const next = new Set(prev);
-      next.has(userId) ? next.delete(userId) : next.add(userId);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
       return next;
     });
   };

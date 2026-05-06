@@ -1,19 +1,9 @@
 import {
   Activity,
   AlertTriangle,
-  BarChart3,
-  Building2,
-  Calculator,
-  CheckCircle2,
-  ClipboardList,
-  Compass,
-  CreditCard,
-  Eye,
-  FileText,
   Gauge,
   HardHat,
   LineChart,
-  Layers,
   PieChart,
   Receipt,
   Search,
@@ -21,12 +11,10 @@ import {
   Smartphone,
   Sparkles,
   Target,
-  Timer,
   TrendingUp,
   TrendingDown,
   Users,
   Wallet,
-  Zap,
 } from "lucide-react";
 import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
 import type { FunzionalitaPageConfig } from "./_template/types";

@@ -18,7 +18,7 @@ import {
 } from "recharts";
 import {
   Loader2, BrainCircuit, Copy, Check, ChevronDown, ChevronUp, Percent, ExternalLink,
-  TrendingUp, TrendingDown, Target, Award, AlertTriangle, Users,
+  TrendingUp, Target, Award, AlertTriangle, Users,
 } from "lucide-react";
 import { Navigate, Link } from "react-router-dom";
 

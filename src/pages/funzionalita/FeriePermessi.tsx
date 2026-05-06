@@ -3,7 +3,6 @@ import {
   Bell,
   Calendar,
   CalendarCheck,
-  CheckCircle2,
   ClipboardList,
   Clock,
   Eye,
@@ -18,9 +17,6 @@ import {
   ThumbsUp,
   TrendingUp,
   Users,
-  Wallet,
-  Wrench,
-  Zap,
 } from "lucide-react";
 import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
 import type { FunzionalitaPageConfig } from "./_template/types";

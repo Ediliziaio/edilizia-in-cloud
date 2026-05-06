@@ -117,13 +117,15 @@ export function SilvioFAB({ hidden = false }: Props) {
     <>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <motion.button
-            type="button"
-            aria-label="Apri assistente Silvio"
-            className="fixed bottom-4 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 hover:shadow-2xl hover:scale-105 transition-all md:bottom-6 md:right-6"
-            whileHover={{ rotate: [0, -5, 5, 0] }}
-            transition={{ duration: 0.5 }}
-          >
+	          <motion.button
+	            type="button"
+	            aria-label="Apri assistente Silvio"
+              aria-expanded={open}
+	            className="fixed bottom-4 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 hover:shadow-2xl hover:scale-105 transition-all sm:w-auto sm:gap-2 sm:px-4 md:bottom-6 md:right-6"
+              style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+	            whileHover={{ rotate: [0, -5, 5, 0] }}
+	            transition={{ duration: 0.5 }}
+	          >
             {/* Glow pulsante quando chiuso */}
             {!open && (
               <motion.span
@@ -149,11 +151,12 @@ export function SilvioFAB({ hidden = false }: Props) {
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.5, opacity: 0 }}
-                  className="relative z-10"
+	                  className="relative z-10 flex items-center gap-2"
                 >
-                  <Sparkles className="h-6 w-6" fill="currentColor" />
-                </motion.span>
-              )}
+	                  <Sparkles className="h-6 w-6" fill="currentColor" />
+                    <span className="hidden text-sm font-semibold sm:inline">Silvio</span>
+	                </motion.span>
+	              )}
             </AnimatePresence>
           </motion.button>
         </PopoverTrigger>

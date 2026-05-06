@@ -1,11 +1,8 @@
 import {
   AlertTriangle,
-  Bell,
   Bot,
   BrainCircuit,
-  CheckCircle2,
   ClipboardList,
-  Cpu,
   Database,
   FileText,
   HardHat,
@@ -14,19 +11,13 @@ import {
   Mail,
   MessageSquare,
   Phone,
-  Receipt,
-  Search,
   ShieldCheck,
   Sparkles,
-  Target,
   Timer,
   TrendingUp,
   UserCog,
   Users,
-  Wallet,
   Workflow,
-  Wrench,
-  Zap,
 } from "lucide-react";
 import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
 import type { FunzionalitaPageConfig } from "./_template/types";

@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
@@ -172,8 +173,8 @@ export default {
     },
   },
   plugins: [
-    require("tailwindcss-animate"),
-    function({ addUtilities }: any) {
+    tailwindcssAnimate,
+    function({ addUtilities }: { addUtilities: (utilities: Record<string, Record<string, string>>) => void }) {
       addUtilities({
         ".pt-safe": { paddingTop: "env(safe-area-inset-top)" },
         ".pb-safe": { paddingBottom: "env(safe-area-inset-bottom)" },

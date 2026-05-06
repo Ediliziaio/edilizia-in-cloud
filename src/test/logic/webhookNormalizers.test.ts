@@ -410,14 +410,14 @@ describe("decideSuppression", () => {
     });
   });
 
-  it("unsubscribe SENZA company_id conosciuta → scope=null (fallback globale)", () => {
+  it("unsubscribe SENZA company_id conosciuta → no suppression globale", () => {
     const r = decideSuppression(
       { type: "unsubscribed", email: "x@y.it" },
       null,
     );
-    expect(r.reason).toBe("unsubscribe");
+    expect(r.reason).toBeNull();
     expect(r.companyIdScope).toBeNull();
-    expect(r.shouldSuppress).toBe(true);
+    expect(r.shouldSuppress).toBe(false);
   });
 
   it("delivered / opened / clicked / dropped / deferred → no suppression", () => {

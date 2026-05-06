@@ -274,7 +274,7 @@ export default function WarehousePurchaseListTab({
               depositExpectedDate: typeof item.depositExpectedDate === "string" ? item.depositExpectedDate : "",
               balancePaid: Boolean(item.balancePaid),
               balanceExpectedDate: typeof item.balanceExpectedDate === "string" ? item.balanceExpectedDate : "",
-              status: PURCHASE_STATUSES.includes(item.status) ? item.status : (Boolean(item.completed) ? "in_magazzino" : "da_ordinare"),
+              status: PURCHASE_STATUSES.includes(item.status) ? item.status : (item.completed ? "in_magazzino" : "da_ordinare"),
               warehouseId: typeof item.warehouseId === "string" ? item.warehouseId : null,
               orderDate: typeof item.orderDate === "string" ? item.orderDate : "",
               arrivalDate: typeof item.arrivalDate === "string" ? item.arrivalDate : "",

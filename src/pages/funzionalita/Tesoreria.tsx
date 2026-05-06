@@ -4,11 +4,8 @@ import {
   Banknote,
   BarChart3,
   Bell,
-  CheckCircle2,
-  CircleDollarSign,
   Clock,
   Database,
-  FileSpreadsheet,
   Gauge,
   Inbox,
   Landmark,
@@ -16,15 +13,9 @@ import {
   Link2,
   PiggyBank,
   Receipt,
-  RefreshCw,
-  Shield,
-  ShieldCheck,
   Sparkles,
-  Target,
   TrendingDown,
   TrendingUp,
-  Wallet,
-  Zap,
 } from "lucide-react";
 import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
 import type { FunzionalitaPageConfig } from "./_template/types";

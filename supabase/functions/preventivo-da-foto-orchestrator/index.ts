@@ -256,7 +256,7 @@ interface ComputoDraft {
 }
 
 async function composeComputo(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   _supabase: unknown,
   _companyId: string,
   verticalKey: string,

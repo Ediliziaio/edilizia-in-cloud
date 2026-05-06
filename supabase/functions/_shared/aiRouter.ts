@@ -449,7 +449,7 @@ export async function aiRouterComplete(
   // Merge params: config default + override esplicito
   const params: AiRouterParams = { ...config.default_params, ...(opts.params ?? {}) };
 
-  const modelsToTry = [config.primary_model, ...config.fallback_models];
+  const modelsToTry = Array.from(new Set([config.primary_model, ...config.fallback_models].filter(Boolean)));
   const attempts: Array<{ model: string; error: string }> = [];
 
   // ───────────────────────────────────────────────────────────────────────
@@ -542,6 +542,9 @@ export async function aiRouterComplete(
             modelsToTry.push(downgraded, ...config.fallback_models.slice(1));
             // primary_model originale resta come ultimo fallback (best-effort se downgrade fail)
             modelsToTry.push(config.primary_model);
+            const dedupedModels = Array.from(new Set(modelsToTry.filter(Boolean)));
+            modelsToTry.length = 0;
+            modelsToTry.push(...dedupedModels);
           }
           // 'notify_only': continua senza modifiche
         }

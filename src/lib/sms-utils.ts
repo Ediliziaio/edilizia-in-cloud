@@ -39,7 +39,7 @@ export function normalizzaTelefono(input: string): NormalizzazioneRisultato {
   }
 
   // Rimuovi spazi, trattini, punti, parentesi
-  let cleaned = input.trim().replace(/[\s\-\.\(\)]/g, '');
+  let cleaned = input.trim().replace(/[\s.()-]/g, '');
 
   // Rimuovi prefisso 0039
   if (cleaned.startsWith('0039')) {

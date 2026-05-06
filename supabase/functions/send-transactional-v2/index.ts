@@ -186,9 +186,10 @@ Deno.serve(async (req) => {
     const sendable: string[] = [];
 
     for (const r of recipients) {
-      const { data: suppressed, error: supErr } = await admin.rpc("is_suppressed", {
+      const { data: suppressed, error: supErr } = await admin.rpc("is_suppressed_for_stream", {
         p_email: r,
         p_company_id: companyId,
+        p_stream: "transactional",
       });
       if (supErr) {
         // Fail-open: meglio inviare che perdere email critiche (password reset etc.)

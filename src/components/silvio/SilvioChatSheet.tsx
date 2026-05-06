@@ -250,44 +250,20 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── 1. Trova/crea il channel silvio-ai per questa company ──────────────
+  // ── 1. Trova/crea il channel Silvio personale via RPC idempotente ──────
   const { data: channelId, isLoading: loadingChannel } = useQuery({
     queryKey: ["silvio-channel", companyId, userId],
     queryFn: async (): Promise<string | null> => {
       if (!companyId || !userId) return null;
-      const { data: existing } = await supabase
-        .from("internal_chat_channels")
-        .select("id")
-        .eq("company_id", companyId)
-        .eq("name", "silvio-ai")
-        .maybeSingle();
-      if (existing?.id) {
-        await supabase.from("internal_chat_members").upsert(
-          { channel_id: existing.id, user_id: userId, last_read_at: new Date().toISOString() },
-          { onConflict: "channel_id,user_id" }
-        );
-        return existing.id;
-      }
-      const { data: created, error } = await supabase
-        .from("internal_chat_channels")
-        .insert({
-          company_id: companyId,
-          name: "silvio-ai",
-          description: "Chat diretta con Silvio AI",
-          type: "direct",
-          created_by: userId,
-        })
-        .select("id")
-        .single();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("ensure_user_silvio_channel");
       if (error) {
-        console.error("[SilvioChatSheet] create channel error", error);
+        toast.error("Non riesco ad aprire la chat Silvio", {
+          description: error.message,
+        });
         return null;
       }
-      await supabase.from("internal_chat_members").insert([
-        { channel_id: created.id, user_id: userId },
-        { channel_id: created.id, user_id: SILVIO_SENDER_ID },
-      ]);
-      return created.id;
+      return data ? String(data) : null;
     },
     enabled: !!companyId && !!userId && open,
     staleTime: 60_000,
@@ -503,18 +479,16 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
       let recorder: MediaRecorder;
       try {
         recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      } catch (constructErr) {
-        // Safari pre-15 può rifiutare anche mp4: ultimo tentativo senza opts
-        console.warn("[SilvioChat] MediaRecorder con mimeType fallito, fallback default:", constructErr);
-        recorder = new MediaRecorder(stream);
-      }
+	      } catch {
+	        // Safari pre-15 può rifiutare anche mp4: ultimo tentativo senza opts
+	        recorder = new MediaRecorder(stream);
+	      }
       audioChunksRef.current = [];
       recorder.ondataavailable = (ev) => {
         if (ev.data.size > 0) audioChunksRef.current.push(ev.data);
       };
-      recorder.onerror = (ev) => {
-        console.error("[SilvioChat] MediaRecorder error:", ev);
-        stream.getTracks().forEach((t) => t.stop());
+	      recorder.onerror = () => {
+	        stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
         if (recordTimerRef.current) clearInterval(recordTimerRef.current);
         toast.error("Errore registrazione audio. Riprova o usa l'upload file.");
@@ -722,23 +696,24 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-md p-0 flex flex-col gap-0"
+        className="w-full sm:max-w-xl p-0 flex flex-col gap-0 bg-slate-50"
       >
         {/* Header */}
-        <SheetHeader className="px-4 py-3 border-b bg-gradient-to-r from-orange-50 to-amber-50">
+        <SheetHeader className="px-4 py-3 border-b bg-white/95 backdrop-blur">
           <SheetTitle className="flex items-center gap-2 text-base">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center">
+            <div className="relative h-9 w-9 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shadow-sm">
               <Brain className="h-4 w-4 text-white" />
+              <span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm font-semibold text-slate-800">Chat con Silvio</p>
-              <p className="text-[11px] text-slate-500 font-normal">Il tuo CFO/PM/Capocantiere AI</p>
+              <p className="text-[11px] text-slate-500 font-normal">Analizza testi, foto, PDF, DDT e vocali con i dati aziendali</p>
             </div>
           </SheetTitle>
         </SheetHeader>
 
         {/* Messages area */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3 bg-white">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3 bg-slate-50">
           {loadingChannel ? (
             <div className="flex items-center justify-center h-32 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -754,13 +729,13 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
                 Posso aiutarti su finanza, cantieri, vendite, personale, strategia.
                 Chiedi qualsiasi cosa con i tuoi dati reali, mandami foto, PDF o vocale.
               </p>
-              <div className="grid grid-cols-1 gap-1.5 w-full max-w-xs">
+              <div className="grid grid-cols-1 gap-1.5 w-full max-w-sm">
                 {SUGGESTED_QUESTIONS.map((q) => (
                   <button
                     key={q}
                     type="button"
                     onClick={() => setDraft(q)}
-                    className="text-left text-xs bg-slate-50 hover:bg-orange-50 border border-slate-200 hover:border-orange-200 rounded-lg px-3 py-2 transition-colors"
+                    className="text-left text-xs bg-white hover:bg-orange-50 border border-slate-200 hover:border-orange-200 rounded-lg px-3 py-2.5 transition-colors shadow-sm"
                   >
                     {q}
                   </button>
@@ -924,7 +899,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
         )}
 
         {/* Input footer */}
-        <div className="border-t p-3 bg-white">
+        <div className="border-t bg-white p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)]" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
           <div className="flex gap-2 items-end">
             {/* Hidden file input */}
             <input
@@ -1141,13 +1116,13 @@ function MessageBubble({
         ref={bubbleRef}
         onClick={isStillTyping ? skipTypewriter : undefined}
         title={isStillTyping ? "Tocca per saltare l'animazione" : undefined}
-        className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words ${
-          isStillTyping ? "cursor-pointer" : ""
-        } ${
-          isMe
-            ? "bg-orange-500 text-white rounded-br-sm"
-            : "bg-slate-100 text-slate-800 rounded-bl-sm"
-        }`}
+	        className={`max-w-[84%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words shadow-sm ${
+	          isStillTyping ? "cursor-pointer" : ""
+	        } ${
+	          isMe
+	            ? "bg-orange-500 text-white rounded-br-sm"
+	            : "bg-white text-slate-800 rounded-bl-sm border border-slate-200"
+	        }`}
       >
         {/* Anteprima allegato */}
         {isImage && (

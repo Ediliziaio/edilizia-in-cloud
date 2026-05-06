@@ -232,7 +232,7 @@ async function composeBriefingMessage(args: {
     : "✅ Nessun alert sicurezza meteo.";
 
   const aiResult = await aiRouterComplete({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     supabase: args.supabase,
     taskKey: "email_compose",
     messages: [

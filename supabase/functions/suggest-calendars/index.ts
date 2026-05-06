@@ -343,7 +343,8 @@ Deno.serve(async (req) => {
         simRoute.total_km, maxKm,
         suggestedTimes.length > 0
       );
-      let { status, reason } = statusResult;
+      const { status } = statusResult;
+      let { reason } = statusResult;
 
       // Enrich reason for OK status
       if (status === "OK") {

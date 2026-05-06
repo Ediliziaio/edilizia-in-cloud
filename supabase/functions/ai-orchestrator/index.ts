@@ -306,7 +306,7 @@ serve(async (req: Request) => {
           supabase: supabaseAdmin,
           taskKey,
           messages,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
           params: toolsSpec
             ? ({ temperature: 0.4, max_tokens: 4000, tools: toolsSpec, tool_choice: "auto" } as any)
             : { temperature: 0.4, max_tokens: 4000 },
@@ -353,7 +353,7 @@ serve(async (req: Request) => {
       messages.push({
         role: "assistant",
         content: rawChoice?.message?.content ?? null,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         tool_calls: toolCalls,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);

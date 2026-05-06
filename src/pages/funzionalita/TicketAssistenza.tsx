@@ -2,16 +2,12 @@ import {
   AlertTriangle,
   ArrowUpRight,
   BookOpen,
-  CheckCircle2,
-  ClipboardList,
   Clock,
   FileSignature,
-  FileText,
   Globe,
   HardHat,
   Headphones,
   History,
-  Lock,
   MessageSquare,
   Phone,
   Search,
@@ -21,9 +17,7 @@ import {
   Star,
   Ticket,
   TrendingUp,
-  Users,
   Wrench,
-  Zap,
 } from "lucide-react";
 import FunzionalitaPageTemplate from "./_template/FunzionalitaPageTemplate";
 import type { FunzionalitaPageConfig } from "./_template/types";

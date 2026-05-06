@@ -19,7 +19,7 @@
  *     -d "url=https://<project>.supabase.co/functions/v1/telegram-bot-processor" \
  *     -d "secret_token=<webhook_secret>"
  */
-// eslint-disable-next-line @typescript-eslint/triple-slash-reference
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";

@@ -22,6 +22,10 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      // Legacy SaaS codebase: payload Supabase/AI/Edge dinamici vengono
+      // tipizzati gradualmente. Il warning resta visibile senza bloccare
+      // cleanup e fix runtime realmente bloccanti.
+      "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": "off",
       "unused-imports/no-unused-imports": "error",
       "unused-imports/no-unused-vars": [
