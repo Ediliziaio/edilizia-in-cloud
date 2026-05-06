@@ -28,6 +28,7 @@ import { getToolsForChannel, toolsToOpenAISpec, type ToolContext } from "../_sha
 import { executeToolWithRouting } from "../_shared/silvioToolExecution.ts";
 import { buildSystemPrompt } from "../_shared/preambolo.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { buildPreRagContext, type RagSource } from "../_shared/ragInjector.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const PERSONA_KEY = "silvio";
@@ -306,10 +307,34 @@ serve(async (req: Request) => {
       console.warn("[silvio-chat] memory context fetch failed:", e);
     }
 
+    // ── MP-01: Pre-RAG automatico ─────────────────────────────────────
+    // Carica top-K chunk universali + company brain pertinenti alla query
+    // PRIMA di chiamare il modello. Marker [S1], [S2]... iniettati nel prompt.
+    let ragSources: RagSource[] = [];
+    let ragMinSimilarity = 0;
+    let ragContextBlock = "";
+    try {
+      const ragResult = await buildPreRagContext({
+        supabase: supabaseAdmin,
+        query: userMessage,
+        companyId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        kbAreasFilter: (persona as any).kb_areas_filter ?? null,
+        topKUniversal: 3,
+        topKCompany: 3,
+      });
+      ragSources = ragResult.sources;
+      ragMinSimilarity = ragResult.minSimilarity;
+      ragContextBlock = ragResult.contextBlock;
+    } catch (e) {
+      console.warn("[silvio-chat] pre-RAG failed (graceful):", e instanceof Error ? e.message : e);
+    }
+
     // ── Antepone preambolo costituzionale (Track 1 Cervello Supremo) ───
     // Cache 60s: zero latency aggiunta dopo prima chiamata.
     // Graceful degradation: se preambolo non caricabile, usa solo persona prompt.
-    const personaWithContext = persona.system_prompt + userContextPrompt + memoryContextPrompt;
+    const personaWithContext =
+      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock;
     const { prompt: enrichedSystemPrompt, preamboloVersion } = await buildSystemPrompt(
       supabaseAdmin,
       personaWithContext,
@@ -680,6 +705,10 @@ serve(async (req: Request) => {
         decided_at: hasPendingActionProposal ? null : new Date().toISOString(),
         executed_at: hasPendingActionProposal ? null : new Date().toISOString(),
         is_critical: isCritical || hasPendingActionProposal,
+        // MP-01: Pre-RAG audit
+        rag_sources: ragSources.length > 0 ? ragSources : null,
+        rag_min_similarity: ragSources.length > 0 ? ragMinSimilarity : null,
+        rag_source_count: ragSources.length,
       });
     } catch (logErr) {
       // Non bloccare la response per un fail di logging — solo warn

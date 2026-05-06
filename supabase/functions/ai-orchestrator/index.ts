@@ -51,6 +51,8 @@ import { buildSystemPrompt } from "../_shared/preambolo.ts";
 // MP-AIE-02 v2 — tool calling loop unificato col registry centrale silvioTools.ts
 import { getToolsForChannel, toolsToOpenAISpec } from "../_shared/silvioTools.ts";
 import { executeToolsParallel, type ToolExecutionResult } from "../_shared/silvioToolExecution.ts";
+// MP-01: pre-RAG automatico per le 18 personas
+import { buildPreRagContext, type RagSource } from "../_shared/ragInjector.ts";
 
 const MAX_TOOL_ITERATIONS = 5;
 
@@ -255,12 +257,33 @@ serve(async (req: Request) => {
     }
 
     // 9) Build messages for OpenRouter
+    // MP-01 Pre-RAG: carica chunk universal + company brain pertinenti alla query
+    // PRIMA di chiamare il modello, iniettando marker [S1], [S2]... nel prompt.
+    let ragSources: RagSource[] = [];
+    let ragMinSimilarity = 0;
+    let ragContextBlock = "";
+    try {
+      const ragResult = await buildPreRagContext({
+        supabase: supabaseAdmin,
+        query: userMessage,
+        companyId,
+        kbAreasFilter: persona.kb_areas_filter ?? null,
+        topKUniversal: 3,
+        topKCompany: 3,
+      });
+      ragSources = ragResult.sources;
+      ragMinSimilarity = ragResult.minSimilarity;
+      ragContextBlock = ragResult.contextBlock;
+    } catch (e) {
+      console.warn("[ai-orchestrator] pre-RAG failed (graceful):", e instanceof Error ? e.message : e);
+    }
+
     // Track 1 Cervello Supremo: antepone preambolo costituzionale al system_prompt persona
     // Cache 60s nel loader → zero latency dopo prima chiamata
     // Graceful degradation: se preambolo non caricabile, usa solo persona prompt
     const { prompt: systemPromptComplete, preamboloVersion } = await buildSystemPrompt(
       supabaseAdmin,
-      persona.system_prompt,
+      persona.system_prompt + ragContextBlock,
     );
     if (!preamboloVersion) {
       console.warn(`[ai-orchestrator] preambolo NON applicato per persona ${persona.persona_key}`);
@@ -423,9 +446,29 @@ serve(async (req: Request) => {
         fallback_index: lastResult?.fallbackIndex,
         duration_ms: lastResult?.durationMs,
         tools_invoked: toolCallsLog.map((t) => t.name),
+        // MP-01: pre-RAG audit (rag_sources colonna dedicata creata da migration 20270201000000)
+        rag_min_similarity: ragSources.length > 0 ? ragMinSimilarity : null,
+        rag_source_count: ragSources.length,
       },
     });
     if (msgErr) console.error("[ai-orchestrator] record_persona_message error:", msgErr);
+
+    // MP-01: aggiorna le colonne dedicate rag_sources/rag_min_similarity/rag_source_count
+    // (separate dal metadata per query analytics più veloci)
+    if (msgId && ragSources.length > 0) {
+      try {
+        await supabaseAdmin
+          .from("ai_persona_messages")
+          .update({
+            rag_sources: ragSources,
+            rag_min_similarity: ragMinSimilarity,
+            rag_source_count: ragSources.length,
+          })
+          .eq("id", msgId);
+      } catch (e) {
+        console.warn("[ai-orchestrator] rag_sources update skipped:", e instanceof Error ? e.message : e);
+      }
+    }
 
     // 12) Response (back-compat: stessi campi della v1 + tool_calls + iterations)
     return jsonResponse({
