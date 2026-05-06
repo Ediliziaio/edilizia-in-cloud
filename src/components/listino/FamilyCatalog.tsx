@@ -1253,7 +1253,7 @@ export function FamilyCatalog() {
                                       className="h-3 w-3"
                                       aria-hidden="true"
                                     />
-                                    Assi di variazione
+                                    Variazioni Prodotto
                                   </p>
                                   <ul className="space-y-0.5 text-xs">
                                     {f.axes.map((a) => (

@@ -13,7 +13,7 @@
  *  - Ordinamento via pulsanti freccia (up/down)
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Trash2,
@@ -347,10 +347,10 @@ export function FamilyAxesEditor({ family }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
         <div className="min-w-0">
           <h3 className="font-medium flex items-center gap-2">
-            Assi di variazione
+            Variazioni Prodotto
             {family.axes.length > 0 ? (
               <span className="text-xs font-normal text-muted-foreground">
-                ({family.axes.length} ass{family.axes.length === 1 ? "e" : "i"} · {stats.totValori} valori)
+                ({family.axes.length} variazion{family.axes.length === 1 ? "e" : "i"} · {stats.totValori} valori)
               </span>
             ) : null}
           </h3>
@@ -406,7 +406,7 @@ export function FamilyAxesEditor({ family }: Props) {
             className="h-9"
           >
             <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-            Aggiungi asse
+            Aggiungi variazione
           </Button>
         </div>
       </div>
@@ -510,7 +510,7 @@ export function FamilyAxesEditor({ family }: Props) {
                         size="icon"
                         variant="ghost"
                         onClick={() => setEditingAxis(axis)}
-                        aria-label="Modifica asse"
+                        aria-label="Modifica variazione"
                         className="h-9 w-9"
                       >
                         <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -911,16 +911,35 @@ function AxisFormDialog({
   onSave: (values: AxisFormValues) => void | Promise<void>;
   saving: boolean;
 }) {
-  const [nome, setNome] = useState("");
-  const [codice, setCodice] = useState("");
-  const [descrizione, setDescrizione] = useState("");
-  const [tipo, setTipo] = useState<AxisTipo>("discrete");
-  const [obbligatorio, setObbligatorio] = useState(true);
-  const [codiceManuallyEdited, setCodiceManuallyEdited] = useState(false);
+  // FIX: inizializzatori lazy leggono da `axis` fin dal primo render. Sync via
+  // useEffect copre il caso in cui il dialog si riusa per record diversi senza
+  // unmount (Radix non sempre invoca onOpenAutoFocus al cambio key).
+  const [nome, setNome] = useState<string>(() => axis?.nome ?? "");
+  const [codice, setCodice] = useState<string>(() => axis?.codice ?? "");
+  const [descrizione, setDescrizione] = useState<string>(() => axis?.descrizione ?? "");
+  const [tipo, setTipo] = useState<AxisTipo>(() => axis?.tipo ?? "discrete");
+  const [obbligatorio, setObbligatorio] = useState<boolean>(() => axis?.obbligatorio ?? true);
+  const [codiceManuallyEdited, setCodiceManuallyEdited] = useState<boolean>(() => axis !== null);
 
-  // Reset aggressivo su cambio open/axis: usiamo `key={axis?.id ?? "new"}` sul
-  // DialogContent (sotto) + `onOpenAutoFocus` per inizializzare lo stato ad
-  // ogni apertura. Nessun useEffect necessario.
+  useEffect(() => {
+    if (!open) return;
+    if (axis) {
+      setNome(axis.nome);
+      setCodice(axis.codice);
+      setDescrizione(axis.descrizione ?? "");
+      setTipo(axis.tipo);
+      setObbligatorio(axis.obbligatorio);
+      setCodiceManuallyEdited(true);
+    } else {
+      setNome("");
+      setCodice("");
+      setDescrizione("");
+      setTipo("discrete");
+      setObbligatorio(true);
+      setCodiceManuallyEdited(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, axis?.id]);
 
   const editing = axis !== null;
   const conflict =
@@ -940,29 +959,11 @@ function AxisFormDialog({
       <DialogContent
         className="w-[96vw] sm:w-full sm:max-w-md max-h-[94vh] overflow-y-auto"
         key={axis?.id ?? "new"}
-        onOpenAutoFocus={() => {
-          // inizializza stato al mount del content
-          if (axis) {
-            setNome(axis.nome);
-            setCodice(axis.codice);
-            setDescrizione(axis.descrizione ?? "");
-            setTipo(axis.tipo);
-            setObbligatorio(axis.obbligatorio);
-            setCodiceManuallyEdited(true);
-          } else {
-            setNome("");
-            setCodice("");
-            setDescrizione("");
-            setTipo("discrete");
-            setObbligatorio(true);
-            setCodiceManuallyEdited(false);
-          }
-        }}
       >
         <DialogHeader>
-          <DialogTitle className="text-base sm:text-lg">{editing ? "Modifica asse" : "Nuovo asse"}</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">{editing ? "Modifica variazione" : "Nuova variazione"}</DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
-            Gli assi rappresentano le dimensioni di variazione della famiglia (es. "Apertura", "Vetro", "Materiale").
+            Le variazioni rappresentano le dimensioni di personalizzazione del prodotto (es. "Apertura", "Vetro", "Materiale").
           </DialogDescription>
         </DialogHeader>
 
@@ -1183,15 +1184,48 @@ function ValueFormDialog({
   onSave: (values: ValueFormValues, otherDefaultIds: string[]) => void | Promise<void>;
   saving: boolean;
 }) {
-  const [valore, setValore] = useState("");
-  const [label, setLabel] = useState("");
-  const [descrizione, setDescrizione] = useState("");
-  const [isDefault, setIsDefault] = useState(false);
-  const [attivo, setAttivo] = useState(true);
-  const [magTipo, setMagTipo] = useState<MaggiorazioneTipo>("none");
-  const [magValore, setMagValore] = useState("0");
-  const [magAcquisto, setMagAcquisto] = useState("0");
-  const [valoreManuallyEdited, setValoreManuallyEdited] = useState(false);
+  // FIX edit dialog precarica vuoto: gli useState dovevano leggere da `value`
+  // fin dal primo render. Inizializzatori lazy + sync via useEffect risolvono
+  // il caso in cui il dialog si riusa per record diversi senza unmount
+  // (onOpenAutoFocus di Radix non sempre scatta in re-mount via key).
+  const [valore, setValore] = useState<string>(() => value?.valore ?? "");
+  const [label, setLabel] = useState<string>(() => value?.label ?? "");
+  const [descrizione, setDescrizione] = useState<string>(() => value?.descrizione ?? "");
+  const [isDefault, setIsDefault] = useState<boolean>(() => value?.is_default ?? false);
+  const [attivo, setAttivo] = useState<boolean>(() => value?.attivo ?? true);
+  const [magTipo, setMagTipo] = useState<MaggiorazioneTipo>(() => value?.maggiorazione_tipo ?? "none");
+  const [magValore, setMagValore] = useState<string>(() => (value ? String(value.maggiorazione_valore) : "0"));
+  const [magAcquisto, setMagAcquisto] = useState<string>(() => (value ? String(value.maggiorazione_acquisto) : "0"));
+  const [valoreManuallyEdited, setValoreManuallyEdited] = useState<boolean>(() => value !== null);
+
+  // Sincronizza il form ogni volta che cambia il record selezionato (open→close→
+  // open su record diverso) o si apre/chiude. Difende dal caso in cui Radix
+  // non chiama onOpenAutoFocus al re-mount via `key`.
+  useEffect(() => {
+    if (!open) return;
+    if (value) {
+      setValore(value.valore);
+      setLabel(value.label);
+      setDescrizione(value.descrizione ?? "");
+      setIsDefault(value.is_default);
+      setAttivo(value.attivo);
+      setMagTipo(value.maggiorazione_tipo);
+      setMagValore(String(value.maggiorazione_valore));
+      setMagAcquisto(String(value.maggiorazione_acquisto));
+      setValoreManuallyEdited(true);
+    } else {
+      setValore("");
+      setLabel("");
+      setDescrizione("");
+      setIsDefault(false);
+      setAttivo(true);
+      setMagTipo("none");
+      setMagValore("0");
+      setMagAcquisto("0");
+      setValoreManuallyEdited(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, value?.id]);
 
   const editing = value !== null;
   const conflict =
@@ -1211,29 +1245,6 @@ function ValueFormDialog({
       <DialogContent
         className="w-[96vw] sm:w-full sm:max-w-md max-h-[94vh] overflow-y-auto"
         key={value?.id ?? `new-${axisId}`}
-        onOpenAutoFocus={() => {
-          if (value) {
-            setValore(value.valore);
-            setLabel(value.label);
-            setDescrizione(value.descrizione ?? "");
-            setIsDefault(value.is_default);
-            setAttivo(value.attivo);
-            setMagTipo(value.maggiorazione_tipo);
-            setMagValore(String(value.maggiorazione_valore));
-            setMagAcquisto(String(value.maggiorazione_acquisto));
-            setValoreManuallyEdited(true);
-          } else {
-            setValore("");
-            setLabel("");
-            setDescrizione("");
-            setIsDefault(false);
-            setAttivo(true);
-            setMagTipo("none");
-            setMagValore("0");
-            setMagAcquisto("0");
-            setValoreManuallyEdited(false);
-          }
-        }}
       >
         <DialogHeader>
           <DialogTitle className="text-base sm:text-lg">{editing ? "Modifica valore" : "Nuovo valore"}</DialogTitle>

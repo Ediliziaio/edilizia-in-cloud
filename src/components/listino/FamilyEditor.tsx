@@ -2457,7 +2457,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
       {/* Card Assi */}
       <RiepilogoCard
         icon={ListChecks}
-        title={`Assi di variazione (${family.axes.length})`}
+        title={`Variazioni Prodotto (${family.axes.length})`}
         onEdit={() => onGotoStep("3")}
       >
         {family.axes.length === 0 ? (
