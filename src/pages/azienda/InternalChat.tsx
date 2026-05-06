@@ -5,7 +5,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 import { SILVIO_SKILLS, SILVIO_SKILL_CATEGORY_LABELS } from "@/lib/silvio-skills";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
