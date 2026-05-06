@@ -133,48 +133,83 @@ Deno.serve(async (req) => {
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, cors);
     const body = await req.json();
-    const { storage_bucket, storage_path, file_name, mime_type, company_id } = body as {
+    // FIX 14 (A9): accetta sia input "storage_path" (preferred) che "image_base64" (legacy
+    // da ddt-ocr-extract) per consolidare le due funzioni.
+    const {
+      storage_bucket,
+      storage_path,
+      file_name,
+      mime_type,
+      company_id,
+      image_base64,
+      legacy_format,
+    } = body as {
       storage_bucket?: string;
       storage_path?: string;
       file_name?: string;
       mime_type?: string;
       company_id?: string;
+      image_base64?: string;
+      legacy_format?: boolean;
     };
-    if (!storage_bucket || !storage_path || !file_name || !company_id) {
-      return errorResponse("storage_bucket, storage_path, file_name, company_id required", 400, cors);
+    if (!company_id) {
+      return errorResponse("company_id required", 400, cors);
     }
     await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
-    const { data: file, error: dlErr } = await supabaseAdmin.storage
-      .from(storage_bucket)
-      .download(storage_path);
-    if (dlErr || !file) return errorResponse(`Download fallito: ${dlErr?.message ?? "?"}`, 500, cors);
+    let base64: string;
+    let resolvedMimeType: string;
+    let resolvedFileName: string;
+    let fingerprintInput: string;
 
-    const buffer = await (file as Blob).arrayBuffer();
-    if (buffer.byteLength > 18 * 1024 * 1024) {
-      return errorResponse("DDT troppo grande (max 18MB)", 413, cors);
+    if (image_base64) {
+      // Modalità legacy: input diretto base64 (max ~18MB raw equivale a ~24MB base64)
+      if (image_base64.length > 24 * 1024 * 1024) {
+        return errorResponse("DDT troppo grande (max ~18MB raw)", 413, cors);
+      }
+      base64 = image_base64;
+      resolvedMimeType = mime_type ?? "image/jpeg";
+      resolvedFileName = file_name ?? "ddt-upload";
+      fingerprintInput = image_base64.substring(0, 256); // primi 256 char come fingerprint
+    } else {
+      if (!storage_bucket || !storage_path || !file_name) {
+        return errorResponse(
+          "Fornire (storage_bucket+storage_path+file_name) oppure image_base64",
+          400,
+          cors,
+        );
+      }
+      const { data: file, error: dlErr } = await supabaseAdmin.storage
+        .from(storage_bucket)
+        .download(storage_path);
+      if (dlErr || !file) return errorResponse(`Download fallito: ${dlErr?.message ?? "?"}`, 500, cors);
+      const buffer = await (file as Blob).arrayBuffer();
+      if (buffer.byteLength > 18 * 1024 * 1024) {
+        return errorResponse("DDT troppo grande (max 18MB)", 413, cors);
+      }
+      base64 = await bufferToBase64(buffer);
+      resolvedMimeType = mime_type ?? "application/pdf";
+      resolvedFileName = file_name;
+      fingerprintInput = `${storage_bucket}/${storage_path}`;
     }
-    const base64 = await bufferToBase64(buffer);
-    const isImage = (mime_type ?? "").startsWith("image/");
-    const dataUrl = `data:${mime_type ?? (isImage ? "image/jpeg" : "application/pdf")};base64,${base64}`;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const userContent: any[] = [
-      { type: "text", text: `Estrai i dati di questo DDT come JSON strutturato. Nome file: "${file_name}".` },
+      { type: "text", text: `Estrai i dati di questo DDT come JSON strutturato. Nome file: "${resolvedFileName}".` },
     ];
     if (isImage) {
       userContent.push({ type: "image_url", image_url: { url: dataUrl } });
     } else {
-      userContent.push({ type: "file", file: { filename: file_name, file_data: dataUrl } });
+      userContent.push({ type: "file", file: { filename: resolvedFileName, file_data: dataUrl } });
     }
 
     const t0 = Date.now();
     const idempotencyKey = await buildStableAiIdempotencyKey("ddt_ai_extract", [
       company_id,
       userId,
-      storage_bucket,
-      storage_path,
-      file_name,
-      mime_type ?? null,
+      fingerprintInput,
+      resolvedFileName,
+      resolvedMimeType,
     ]);
     const aiResult = await aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -200,9 +235,65 @@ Deno.serve(async (req) => {
       return errorResponse(`AI returned invalid JSON: ${(aiResult.content ?? "").slice(0, 200)}`, 502, cors);
     }
 
+    // FIX 14 (A9): se il client chiede legacy_format, mappiamo il JSON strutturato
+    // sullo schema piatto di ddt-ocr-extract per backward compat con NewDDTDialog.tsx
+    let extractedLegacy: Record<string, unknown> | undefined;
+    if (legacy_format) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const d: any = ddt ?? {};
+      extractedLegacy = {
+        numero_ddt: d.intestazione?.numero_ddt ?? null,
+        data_ddt: d.intestazione?.data_ddt ?? null,
+        fornitore_nome: d.mittente?.ragione_sociale ?? null,
+        fornitore_piva: d.mittente?.partita_iva ?? null,
+        fornitore_indirizzo: [
+          d.mittente?.indirizzo,
+          d.mittente?.cap,
+          d.mittente?.comune,
+          d.mittente?.provincia,
+        ].filter(Boolean).join(", ") || null,
+        destinatario_nome: d.destinatario?.ragione_sociale ?? null,
+        destinatario_indirizzo: [
+          d.destinatario?.indirizzo,
+          d.destinatario?.cap,
+          d.destinatario?.comune,
+          d.destinatario?.provincia,
+        ].filter(Boolean).join(", ") || null,
+        luogo_destinazione: d.luogo_destinazione?.indirizzo ?? null,
+        causale_trasporto: d.intestazione?.causale ?? null,
+        porto: d.trasporto?.porto ?? null,
+        corriere: d.vettore?.ragione_sociale ?? null,
+        targa_mezzo: null, // non sempre presente nel nuovo schema; vettore.note può contenerlo
+        autista_nome: null,
+        data_inizio_trasporto: d.intestazione?.data_inizio_trasporto ?? null,
+        ora_inizio_trasporto: d.intestazione?.ora_inizio_trasporto ?? null,
+        totale_colli: d.trasporto?.n_colli ?? null,
+        peso_totale_kg: d.trasporto?.peso_lordo_kg ?? d.trasporto?.peso_netto_kg ?? null,
+        aspetto_esteriore: d.trasporto?.aspetto_esteriore_beni ?? null,
+        articoli: Array.isArray(d.righe_merce)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ? d.righe_merce.map((r: any) => ({
+              codice: r.codice_articolo ?? null,
+              descrizione: r.descrizione ?? "",
+              quantita: r.quantita ?? null,
+              unita_misura: r.unita_misura ?? null,
+              peso_kg: null,
+              note: null,
+            }))
+          : [],
+        note_documento: d.riferimenti?.note_libere ?? null,
+        confidenza_estrazione: typeof d.confidence === "number"
+          ? (d.confidence >= 0.85 ? "alta" : d.confidence >= 0.6 ? "media" : "bassa")
+          : "media",
+        campi_illeggibili: Array.isArray(d.warnings) ? d.warnings : [],
+      };
+    }
+
     return jsonResponse({
       success: true,
       ddt,
+      // legacy alias per consumer ddt-ocr-extract:
+      ...(extractedLegacy ? { extracted: extractedLegacy } : {}),
       ai_meta: {
         model_used: aiResult.modelUsed,
         tokens: aiResult.totalTokens,

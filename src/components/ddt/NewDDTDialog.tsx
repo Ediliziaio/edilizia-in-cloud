@@ -469,11 +469,15 @@ function DocumentoStep({
       for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
       const base64 = btoa(bin);
 
-      const { data: aiData, error } = await supabase.functions.invoke("ddt-ocr-extract", {
+      // FIX 14 (A9): consolidato su ddt-ai-extract (Gemini Flash 2.5, schema più ricco)
+      // con legacy_format=true per backward compat con applyAIExtracted (campi piatti)
+      const { data: aiData, error } = await supabase.functions.invoke("ddt-ai-extract", {
         body: {
           image_base64: base64,
-          mime: file.type || "image/jpeg",
+          mime_type: file.type || "image/jpeg",
+          file_name: file.name,
           company_id: companyId,
+          legacy_format: true,
         },
       });
       if (error) throw error;

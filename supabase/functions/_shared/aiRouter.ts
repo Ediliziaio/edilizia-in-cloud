@@ -163,10 +163,22 @@ async function loadConfig(supabase: SupabaseClient, taskKey: string): Promise<Ro
   };
 }
 
-/** Genera una idempotency key safe se non fornita. */
+/**
+ * Genera una idempotency key cryptographically secure se non fornita.
+ * FIX 3 (C2): Math.random() era PRNG non crittografico — due retry paralleli
+ * potevano collidere. crypto.getRandomValues garantisce unicità anche sotto
+ * concorrenza estrema (probabilità collisione 2^-96).
+ */
 function generateIdempotencyKey(taskKey: string): string {
   const ts = Date.now();
-  const rand = Math.random().toString(36).slice(2, 12);
+  // 16 byte (128 bit) di entropia crittografica → encoded in base36
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  // Converti i byte in stringa base36 (compatto ma sicuro)
+  let rand = "";
+  for (let i = 0; i < bytes.length; i++) {
+    rand += bytes[i].toString(36).padStart(2, "0");
+  }
   return `${taskKey}_${ts}_${rand}`;
 }
 
@@ -301,17 +313,32 @@ async function callOpenRouter(
   if (params.tool_choice) body.tool_choice = params.tool_choice;
   if (responseFormat) body.response_format = responseFormat;
 
-  const res = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      // OpenRouter rankings (best practice — qualifica il traffico)
-      "HTTP-Referer": "https://www.ediliziaincloud.com",
-      "X-Title": "Edilizia in Cloud",
-    },
-    body: JSON.stringify(body),
-  });
+  // FIX 2 (C1): timeout 30s su fetch OpenRouter — evita hang infinito che
+  // blocca la edge function fino al timeout Vercel/Supabase (è 25-60s default).
+  // Usiamo AbortSignal.timeout (Deno >= 1.30 + Edge Functions Supabase).
+  const FETCH_TIMEOUT_MS = 30_000;
+  let res: Response;
+  try {
+    res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        // OpenRouter rankings (best practice — qualifica il traffico)
+        "HTTP-Referer": "https://www.ediliziaincloud.com",
+        "X-Title": "Edilizia in Cloud",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+  } catch (fetchErr) {
+    // AbortError (timeout) o network error → re-throw con messaggio chiaro
+    const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    if (errMsg.includes("aborted") || errMsg.includes("timeout") || errMsg.includes("abort")) {
+      throw new Error(`OpenRouter timeout (>${FETCH_TIMEOUT_MS / 1000}s) — modello ${model} non risponde`);
+    }
+    throw new Error(`OpenRouter network error: ${errMsg.slice(0, 300)}`);
+  }
 
   const durationMs = Date.now() - start;
 
@@ -539,7 +566,73 @@ export async function aiRouterComplete(
               "AI billing ledger unavailable after provider success; response blocked to avoid unbilled AI usage",
             );
           }
+          // FIX 17 (A2): chargeFailOpen=true → la response viene servita ma il
+          // charge_ai_call ha fallito. Inseriamo direttamente nel ledger con
+          // status='unbilled_fail_open' per audit + revenue assurance.
+          try {
+            const fxRate = fxUsdToEur;
+            const costRealEurApprox = costUsd * fxRate;
+            const { error: directInsErr } = await opts.supabase
+              .from("ai_call_ledger")
+              .insert({
+                idempotency_key: `${idempotencyKey}_failopen`,
+                company_id: opts.companyId,
+                user_id: opts.userId ?? null,
+                task_key: opts.taskKey,
+                tier_key: config.tier_key,
+                model_used: model,
+                used_primary: i === 0,
+                fallback_index: i,
+                persona_key: opts.personaKey ?? null,
+                tokens_in: promptTokens,
+                tokens_out: completionTokens,
+                cost_real_usd: costUsd,
+                cost_real_eur: costRealEurApprox,
+                cost_billed_eur: 0,
+                fx_usd_to_eur: fxRate,
+                applied_markup_pct: 0,
+                status: "unbilled_fail_open",
+                error_message: "charge_ai_call RPC failed but fail-open enabled",
+                duration_ms: durationMs,
+                metadata: { task: opts.taskKey, fail_open: true },
+              });
+            if (directInsErr) {
+              console.error("[aiRouter] direct ledger insert (unbilled_fail_open) failed:", directInsErr.message);
+            }
+          } catch (directInsThrow) {
+            console.error("[aiRouter] direct ledger insert threw:", directInsThrow);
+          }
           chargeSkipped = true;
+        }
+      } else if (skipCharge && opts.companyId) {
+        // FIX 17 (A1): skipCharge=true ma c'è un companyId → log informazionale
+        // nel ledger con status='skipped' per audit completo.
+        try {
+          const fxRate = fxUsdToEur;
+          const costRealEurApprox = costUsd * fxRate;
+          await opts.supabase.from("ai_call_ledger").insert({
+            idempotency_key: `${idempotencyKey}_skipped`,
+            company_id: opts.companyId,
+            user_id: opts.userId ?? null,
+            task_key: opts.taskKey,
+            tier_key: config.tier_key,
+            model_used: model,
+            used_primary: i === 0,
+            fallback_index: i,
+            persona_key: opts.personaKey ?? null,
+            tokens_in: promptTokens,
+            tokens_out: completionTokens,
+            cost_real_usd: costUsd,
+            cost_real_eur: costRealEurApprox,
+            cost_billed_eur: 0,
+            fx_usd_to_eur: fxRate,
+            applied_markup_pct: 0,
+            status: "skipped",
+            duration_ms: durationMs,
+            metadata: { task: opts.taskKey, skip_reason: "skipCharge=true" },
+          });
+        } catch (skipInsErr) {
+          console.warn("[aiRouter] skipped ledger insert (non-blocking):", skipInsErr);
         }
       }
 

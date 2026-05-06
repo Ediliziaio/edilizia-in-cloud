@@ -1,6 +1,10 @@
 /**
  * ddt-ocr-extract — FASE B.4
  *
+ * ⚠️  DEPRECATED (FIX 14 / A9): consolidato su `ddt-ai-extract` con
+ *     `legacy_format=true`. Mantenuto per compat ma logga un warning ad ogni
+ *     chiamata. Da rimuovere quando tutti i client puntano a ddt-ai-extract.
+ *
  * Estrae dati strutturati da un DDT (Documento di Trasporto) caricato come
  * immagine o PDF. Usa GPT-4o-mini (vision) via aiRouter task `vision_cantiere`.
  *
@@ -100,6 +104,11 @@ Deno.serve(async (req: Request) => {
     if (!image_base64 && !image_url) {
       return errorResponse("Fornire image_base64 o image_url", 400, cors);
     }
+    // FIX 14 (A9): deprecation warning — preferire ddt-ai-extract con legacy_format=true
+    console.warn(
+      "[ddt-ocr-extract] DEPRECATED: usa ddt-ai-extract con legacy_format=true. " +
+        "Funziona ancora ma sarà rimosso. company_id=" + company_id,
+    );
 
     // Compose vision message
     const imageContent = image_base64

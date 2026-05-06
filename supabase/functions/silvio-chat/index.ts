@@ -31,14 +31,49 @@ import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const PERSONA_KEY = "silvio";
 const MAX_HISTORY = 12;
-const MAX_TOOL_ITERATIONS = 4;
+// FIX 18 (A5): aumentato 4 → 6. Workflow complessi (es. "estrai DDT, cerca
+// fornitore, controlla saldo, proponi azione") richiedono ≥5 tool sequenziali.
+// Limite alzato cautamente: con MAX 6 iterazioni il modello ha più spazio per
+// catene di reasoning, ma resta protetto contro loop infiniti.
+const MAX_TOOL_ITERATIONS = 6;
+
+interface ChatAttachment {
+  /** Path nel bucket silvio-uploads (es. "<company>/<user>/<ts>-foto.jpg") */
+  storage_path: string;
+  /** MIME type (image/png, application/pdf, audio/webm, ...) */
+  mime_type: string;
+  /** Nome originale del file mostrato all'utente */
+  file_name: string;
+  /** Categoria semantica per il modello */
+  kind: "image" | "pdf" | "audio" | "text-doc" | "office-doc" | "other";
+}
 
 interface ChatPayload {
   channel_id: string;
   message: string;
+  attachments?: ChatAttachment[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FIX 10 (A3): hash messaggio per RBAC audit log senza esporre PII.
+// Il messaggio integro PUÒ contenere dati sensibili (nomi cliente, importi,
+// dati sanitari, password). Per compliance GDPR + AI Act, salviamo solo:
+//   - lunghezza
+//   - SHA-256 troncato (64 bit) — sufficient per detecting duplicati
+//   - prima parola (max 20 char) per debugging tipologia tentativo
+// ─────────────────────────────────────────────────────────────────────────────
+async function hashMessageForAudit(rawMessage: string): Promise<string> {
+  const trimmed = (rawMessage ?? "").trim();
+  if (!trimmed) return "[empty]";
+  const len = trimmed.length;
+  const firstWord = trimmed.split(/\s+/)[0]?.substring(0, 20) ?? "";
+  const encoder = new TextEncoder();
+  const data = encoder.encode(trimmed);
+  const hashBuf = await crypto.subtle.digest("SHA-256", data);
+  const hashArr = Array.from(new Uint8Array(hashBuf));
+  const hashHex = hashArr.slice(0, 8).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `[len:${len}|sha:${hashHex}|w0:${firstWord}]`;
+}
 
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
@@ -53,11 +88,21 @@ serve(async (req: Request) => {
 
     const body = (await req.json()) as ChatPayload;
     const channelId = body?.channel_id?.trim();
-    const userMessage = body?.message?.trim();
+    const userMessage = body?.message?.trim() ?? "";
+    const attachments: ChatAttachment[] = Array.isArray(body?.attachments) ? body.attachments : [];
 
     if (!channelId) return errorResponse("channel_id mancante", 400, corsHeaders);
-    if (!userMessage) return errorResponse("message mancante", 400, corsHeaders);
+    // userMessage può essere vuoto se ci sono allegati (es. solo foto)
+    if (!userMessage && attachments.length === 0) {
+      return errorResponse("message o attachments mancanti", 400, corsHeaders);
+    }
     if (userMessage.length > 8000) return errorResponse("message troppo lungo (max 8000 char)", 400, corsHeaders);
+    if (attachments.length > 5) return errorResponse("massimo 5 allegati per messaggio", 400, corsHeaders);
+    for (const a of attachments) {
+      if (!a.storage_path || !a.mime_type || !a.kind) {
+        return errorResponse("attachment incompleto (manca storage_path/mime_type/kind)", 400, corsHeaders);
+      }
+    }
 
     // ── 1) Verifica channel + membership ────────────────────────────────
     const { data: channel } = await supabaseAdmin
@@ -100,22 +145,53 @@ serve(async (req: Request) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rbac = rbacResult as any;
     if (!rbac?.allowed) {
+      // FIX 10 (A3): hash messaggio per evitare PII in audit log
+      const hashedMessage = await hashMessageForAudit(userMessage);
       await supabaseAdmin.rpc("log_rbac_violation", {
         p_company_id: companyId,
         p_user_id: userId,
         p_attempted_persona: PERSONA_KEY,
         p_user_role: null,
-        p_attempted_message: userMessage,
+        p_attempted_message: hashedMessage,
         p_reason: rbac?.reason ?? "unknown",
         p_client_ip: req.headers.get("x-forwarded-for") ?? null,
         p_user_agent: req.headers.get("user-agent") ?? null,
       });
+      // FIX 11 (A4): messaggio RBAC actionable con required_roles + current_roles
+      const rbacReason: string = String(rbac?.reason ?? "unknown");
+      const personaLabel: string = String(rbac?.persona_label ?? "Silvio");
+      const requiredRoles: string[] = Array.isArray(rbac?.required_roles)
+        ? rbac.required_roles.map((r: unknown) => String(r))
+        : [];
+      const currentRoles: string[] = Array.isArray(rbac?.current_roles)
+        ? rbac.current_roles.map((r: unknown) => String(r))
+        : [];
+
+      let denialContent = `🚫 Non posso aiutarti su ${personaLabel} con il tuo ruolo attuale.`;
+      if (rbacReason === "no_roles") {
+        denialContent = `🚫 Il tuo account non ha ruoli assegnati. Chiedi all'amministratore di assegnarti un ruolo per usare ${personaLabel}.`;
+      } else if (rbacReason === "persona_disabled") {
+        denialContent = `⏸️ ${personaLabel} è temporaneamente disabilitato dall'amministratore. Riprova più tardi.`;
+      } else if (rbacReason === "explicit_deny") {
+        denialContent = `🚫 L'amministratore ha esplicitamente negato l'accesso a ${personaLabel} per il tuo account. Contattalo per chiarimenti.`;
+      } else if (rbacReason === "not_in_allowed_roles" && requiredRoles.length > 0) {
+        const reqList = requiredRoles.join(", ");
+        const curList = currentRoles.length > 0 ? currentRoles.join(", ") : "nessuno";
+        denialContent = `🚫 Per usare ${personaLabel} serve uno di questi ruoli: ${reqList}.\nIl tuo ruolo attuale: ${curList}.\nChiedi all'amministratore di estendere i permessi se necessario.`;
+      }
+
       await supabaseAdmin.from("internal_chat_messages").insert({
         channel_id: channelId, sender_id: SILVIO_SENDER_ID, company_id: companyId,
-        content: "🚫 Mi dispiace, non posso accedere a queste informazioni per il tuo ruolo.",
+        content: denialContent,
         message_type: "text",
       });
-      return jsonResponse({ ok: false, error: "rbac_denied" }, 200, corsHeaders);
+      return jsonResponse({
+        ok: false,
+        error: "rbac_denied",
+        reason: rbacReason,
+        required_roles: requiredRoles,
+        current_roles: currentRoles,
+      }, 200, corsHeaders);
     }
 
     // ── 4) Profile + role ───────────────────────────────────────────────
@@ -248,9 +324,142 @@ serve(async (req: Request) => {
       })),
     ];
 
+    // Sprint AI Upload: se ci sono allegati di qualunque tipo (image/pdf/text/office),
+    // costruiamo content multimodal (array). Per gli audio l'utente li avrà già
+    // trascritti client-side via /silvio-transcribe-audio prima di inviare il
+    // messaggio, quindi qui arrivano sempre come testo normale.
+    let userContent: unknown = userMessage || "(allegati senza testo)";
+    const visualAttachments = attachments.filter(
+      (a) => a.kind === "image" || a.kind === "pdf" || a.kind === "text-doc" || a.kind === "office-doc",
+    );
+    if (visualAttachments.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parts: any[] = [];
+      const introNote = userMessage
+        ? userMessage
+        : "Analizza il file allegato e dimmi cosa contiene + cosa è rilevante per la mia attività edile.";
+      parts.push({ type: "text", text: introNote });
+      for (const att of visualAttachments) {
+        if (att.kind === "image") {
+          // Per immagini: signed URL passata direttamente al modello vision
+          const { data: signed, error: sErr } = await supabaseAdmin.storage
+            .from("silvio-uploads")
+            .createSignedUrl(att.storage_path, 300);
+          if (sErr || !signed?.signedUrl) {
+            console.warn("[silvio-chat] signedUrl fallita per", att.storage_path, sErr);
+            continue;
+          }
+          parts.push({
+            type: "image_url",
+            image_url: { url: signed.signedUrl, detail: "high" },
+          });
+        } else if (att.kind === "pdf") {
+          // Element 1 Sprint AI Uploads: estrazione testo PDF reale via
+          // edge function silvio-extract-pdf (pdfjs-dist server-side).
+          // Il testo viene iniettato nel prompt come blocco "[CONTENUTO PDF]".
+          try {
+            const { data: pdfRes, error: pdfErr } = await supabaseAdmin.functions.invoke(
+              "silvio-extract-pdf",
+              {
+                body: { storage_path: att.storage_path, max_chars: 30_000 },
+                headers: {
+                  Authorization: req.headers.get("Authorization") ?? "",
+                },
+              },
+            );
+            const extracted = (pdfRes as {
+              text?: string;
+              pages_count?: number;
+              truncated?: boolean;
+              vision_fallback?: boolean;
+              vision_error?: string;
+              vision_model?: string;
+            } | null) ?? null;
+            // FIX 5 (C6): error message chiaro su PDF estrazione fallita.
+            // Distinzione casi:
+            //   1. RPC error → problema tecnico (storage/auth)
+            //   2. text vuoto + vision_error → vision OCR fallito (timeout/budget)
+            //   3. text vuoto + vision_fallback=false (no error) → PDF non scansione + non testo nativo (raro: probabilmente PDF protetto)
+            //   4. text presente con vision_fallback=true → OK (OCR ha lavorato)
+            //   5. text presente nativo → OK (estrazione standard)
+            if (pdfErr) {
+              console.warn("[silvio-chat] PDF extract RPC error:", pdfErr.message);
+              parts.push({
+                type: "text",
+                text: `[ALLEGATO PDF "${att.file_name}" — IMPOSSIBILE LEGGERE]\nErrore tecnico: ${pdfErr.message.substring(0, 150)}.\nIstruzioni per Silvio: NON inventare contenuti del PDF. Chiedi all'utente di:\n1) verificare che il PDF sia accessibile (non protetto da password)\n2) se possibile, copiare/incollare il testo nel messaggio\n3) oppure scattare una foto chiara del documento.`,
+              });
+            } else if (!extracted?.text || extracted.text.length < 10) {
+              const visionErr = extracted?.vision_error;
+              const errorReason = visionErr
+                ? `OCR vision fallito: ${visionErr}`
+                : "PDF apparentemente vuoto, protetto da password, oppure contiene solo immagini non leggibili";
+              parts.push({
+                type: "text",
+                text: `[ALLEGATO PDF "${att.file_name}" — CONTENUTO NON ESTRAIBILE]\n${errorReason}.\nIstruzioni per Silvio: NON inventare cosa contiene il PDF. Rispondi all'utente:\n"Mi dispiace, non riesco a leggere il PDF '${att.file_name}'. Possibili cause: PDF protetto da password, scansione di bassa qualità, o documento con solo immagini complesse. Soluzioni: copia/incolla il testo, scatta una foto chiara, oppure mandami un'export digitale (es. PDF generato da Word/Excel)."`,
+              });
+            } else {
+              const truncatedNote = extracted.truncated ? " (testo troncato a 30K char)" : "";
+              const sourceLabel = extracted.vision_fallback
+                ? `OCR vision (${extracted.vision_model ?? "?"})`
+                : `estrazione testo nativo`;
+              parts.push({
+                type: "text",
+                text: `[CONTENUTO PDF "${att.file_name}" — ${extracted.pages_count ?? "?"} pagine · fonte: ${sourceLabel}${truncatedNote}]\n\n${extracted.text}\n\n[FINE PDF]`,
+              });
+            }
+          } catch (pdfCatch) {
+            const msg = pdfCatch instanceof Error ? pdfCatch.message : String(pdfCatch);
+            console.warn("[silvio-chat] PDF extract exception:", msg);
+            parts.push({
+              type: "text",
+              text: `[ALLEGATO PDF "${att.file_name}" — ERRORE TECNICO]\n${msg.substring(0, 200)}.\nIstruzioni per Silvio: NON inventare contenuti del PDF. Chiedi all'utente di riprovare tra qualche istante o di copiare/incollare il testo direttamente in chat.`,
+            });
+          }
+        } else if (att.kind === "text-doc") {
+          // .txt / .csv / .md / .json / .log / .xml — leggi come testo
+          try {
+            const docText = await downloadAsText(supabaseAdmin, att.storage_path, 30_000);
+            parts.push({
+              type: "text",
+              text: `[CONTENUTO DOCUMENTO "${att.file_name}" (${att.mime_type})]\n\n${docText}\n\n[FINE DOCUMENTO]`,
+            });
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            parts.push({
+              type: "text",
+              text: `[Allegato documento testo "${att.file_name}" — lettura fallita: ${msg.substring(0, 120)}]`,
+            });
+          }
+        } else if (att.kind === "office-doc") {
+          // .docx / .xlsx — estrazione via libreria esm
+          try {
+            const officeText = await extractOfficeDocument(
+              supabaseAdmin,
+              att.storage_path,
+              att.mime_type,
+              att.file_name,
+            );
+            parts.push({
+              type: "text",
+              text: `[CONTENUTO OFFICE "${att.file_name}"]\n\n${officeText.substring(0, 30_000)}\n\n[FINE OFFICE]`,
+            });
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            parts.push({
+              type: "text",
+              text: `[Allegato office "${att.file_name}" — estrazione fallita: ${msg.substring(0, 120)}]`,
+            });
+          }
+        }
+      }
+      userContent = parts;
+    }
+
     // Aggiungi user message se non già presente come ultimo
-    if (history.length === 0 || history[history.length - 1]?.content !== userMessage) {
-      messages.push({ role: "user", content: userMessage });
+    const lastHist = history[history.length - 1];
+    const isDuplicate = typeof userContent === "string" && lastHist?.content === userContent;
+    if (history.length === 0 || !isDuplicate) {
+      messages.push({ role: "user", content: userContent });
     }
 
     // ── 9) Tool-calling loop ────────────────────────────────────────────
@@ -370,6 +579,142 @@ serve(async (req: Request) => {
       .select()
       .single();
 
+    // ── 11) FIX 8 (C4): Decision Log per AI Act compliance ─────────────────
+    // Inserisce un record in silvio_decision_log per ogni interazione chat,
+    // con metadati completi (tool usati, modello, costo, decisione utente).
+    // Required by EU AI Act art. 15 (logging system per high-risk AI).
+    try {
+      const hasToolErrors = toolCallsLog.some((t) =>
+        (t.result_preview ?? "").toLowerCase().includes("\"error\""),
+      );
+      const confidence = toolCallsLog.length === 0
+        ? "medium"
+        : hasToolErrors
+          ? "low"
+          : "high";
+      // FIX 12 (A8): tool effettivamente esistenti con effetto laterale
+      const SIDE_EFFECT_TOOLS = ["create_quote_draft", "create_invoice_draft", "propose_action"];
+      const isCritical = toolCallsLog.some((t) => SIDE_EFFECT_TOOLS.includes(t.name));
+      await supabaseAdmin.from("silvio_decision_log").insert({
+        company_id: companyId,
+        user_id: userId,
+        persona_key: PERSONA_KEY,
+        trigger_type: "chat_user_request",
+        trigger_source_type: "internal_chat_message",
+        trigger_source_id: insertedMsg?.id ?? null,
+        trigger_metadata: {
+          channel_id: channelId,
+          attachments_count: attachments.length,
+          attachment_kinds: attachments.map((a) => a.kind),
+        },
+        situation_description: userMessage.substring(0, 500) || "(messaggio con solo allegati)",
+        ai_diagnosis: finalContent.substring(0, 1000),
+        ai_diagnosis_data: {
+          tool_calls: toolCallsLog.map((t) => ({ name: t.name, has_error: (t.result_preview ?? "").includes("\"error\"") })),
+          iterations,
+          attachments_count: attachments.length,
+        },
+        ai_options_proposed: toolCallsLog.length > 0
+          ? toolCallsLog.map((t, i) => ({ id: `opt_${i}`, tool: t.name, summary: t.name }))
+          : [{ id: "opt_general", tool: "knowledge_only", summary: "Risposta basata su conoscenza generale" }],
+        ai_recommended_option_id: toolCallsLog.length > 0 ? "opt_0" : "opt_general",
+        ai_confidence_level: confidence,
+        ai_model_used: lastResult?.modelUsed ?? null,
+        ai_tokens_total: (lastResult?.promptTokens ?? 0) + (lastResult?.completionTokens ?? 0),
+        ai_cost_eur: lastResult?.costBilledEur ?? 0,
+        status: "executed", // chat è informativa, non esegue azioni — già completata
+        decided_at: new Date().toISOString(),
+        executed_at: new Date().toISOString(),
+        is_critical: isCritical,
+      });
+    } catch (logErr) {
+      // Non bloccare la response per un fail di logging — solo warn
+      console.warn("[silvio-chat] decision_log insert fallito (non bloccante):", logErr instanceof Error ? logErr.message : String(logErr));
+    }
+
+    // ── 11.5) FIX 12 (A8): Auto-INSERT ai_action_proposals per tool laterali ─
+    // I tool create_quote_draft / create_invoice_draft creano direttamente un
+    // record draft (effetto laterale immediato), ma senza traccia nel pannello
+    // "Azioni proposte da Silvio". Inseriamo qui con status='applied' per
+    // audit trail unificato. propose_action già lo fa via RPC: skip per evitare
+    // duplicati.
+    try {
+      const sideEffectsToTrack = toolCallsLog.filter((t) =>
+        ["create_quote_draft", "create_invoice_draft"].includes(t.name),
+      );
+      for (const t of sideEffectsToTrack) {
+        let draftId: string | null = null;
+        let summary = "";
+        const args = (t.args ?? {}) as Record<string, unknown>;
+        try {
+          const parsed = JSON.parse(t.result_preview);
+          draftId = (parsed?.id ?? parsed?.quote_id ?? parsed?.invoice_id ?? null) as string | null;
+        } catch {
+          /* result_preview troncato: lasciamo draftId null */
+        }
+        if (t.name === "create_quote_draft") {
+          summary = `Bozza preventivo creata${args.client_name ? " per " + String(args.client_name).substring(0, 60) : ""}`;
+        } else {
+          summary = `Bozza fattura creata${args.client_name ? " per " + String(args.client_name).substring(0, 60) : ""}`;
+        }
+        await supabaseAdmin.from("ai_action_proposals").insert({
+          company_id: companyId,
+          user_id: userId,
+          persona_key: PERSONA_KEY,
+          action_type: t.name,
+          summary: summary.substring(0, 200),
+          payload: {
+            tool_name: t.name,
+            tool_args: args,
+            draft_id: draftId,
+          },
+          status: "applied", // già applicato dal tool
+          risk_level: "yellow",
+          applied_at: new Date().toISOString(),
+          applied_result: { tool_result_preview: t.result_preview.substring(0, 500) },
+        });
+      }
+    } catch (proposalErr) {
+      console.warn(
+        "[silvio-chat] ai_action_proposals insert fallito (non bloccante):",
+        proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
+      );
+    }
+
+    // ── 12) FIX 9 (C5): trigger memory extract periodico ─────────────────
+    // Ogni MEMORY_EXTRACT_THRESHOLD messaggi nel canale, lancia in background
+    // l'estrazione fatti+sintesi conversazione → ai_brain_facts +
+    // ai_brain_chat_summaries. Fire-and-forget (no await) — l'utente non
+    // aspetta. Senza questo, Silvio "non ricorda" mai conversazioni precedenti.
+    try {
+      const totalMsgInChannel = (history?.length ?? 0) + 2; // +2 per user + silvio appena inseriti
+      const MEMORY_EXTRACT_THRESHOLD = 8;
+      // Trigger ogni 8 messaggi, evitando ri-trigger su soglie già superate
+      // (uso modulo: trigger esatto su 8, 16, 24, ...)
+      if (
+        totalMsgInChannel >= MEMORY_EXTRACT_THRESHOLD &&
+        totalMsgInChannel % MEMORY_EXTRACT_THRESHOLD === 0
+      ) {
+        // Fire-and-forget: invoke con waitUntil pattern
+        // Non await: l'utente riceve la response subito.
+        void supabaseAdmin.functions.invoke("silvio-memory-extract", {
+          body: {
+            mode: "user",
+            user_id: userId,
+            channel_id: channelId,
+            lookback_hours: 24,
+          },
+          headers: {
+            Authorization: req.headers.get("Authorization") ?? "",
+          },
+        }).catch((e: unknown) => {
+          console.warn("[silvio-chat] memory extract trigger fallito:", e instanceof Error ? e.message : String(e));
+        });
+      }
+    } catch (memErr) {
+      console.warn("[silvio-chat] memory trigger error (non bloccante):", memErr instanceof Error ? memErr.message : String(memErr));
+    }
+
     return jsonResponse({
       ok: true,
       reply: finalContent,
@@ -391,27 +736,122 @@ serve(async (req: Request) => {
   }
 });
 
+/**
+ * Pulisce il contenuto rimuovendo eventuali footer di evidence legacy che
+ * potrebbero arrivare dal modello o da risposte cached. I metadati (tool
+ * usati, modello, costo) restano disponibili nella response JSON dell'edge
+ * function (per audit/debug developer) ma NON nel testo visibile all'utente.
+ *
+ * Modifica del 2026-05-05: l'utente non vuole vedere il footer "Fonti dati
+ * usate / Confidenza / modello" alla fine di ogni risposta — appesantisce
+ * la conversazione e fa sembrare la chat tecnica anziché conversazionale.
+ * I metadati restano fruibili dal pannello Decision Log e dal payload API.
+ */
 function appendEvidenceFooter(
   content: string,
-  toolCallsLog: Array<{ name: string; args: unknown; result_preview: string }>,
-  lastResult: Awaited<ReturnType<typeof aiRouterComplete>> | null,
+  _toolCallsLog: Array<{ name: string; args: unknown; result_preview: string }>,
+  _lastResult: Awaited<ReturnType<typeof aiRouterComplete>> | null,
 ): string {
   const cleanContent = (content ?? "").trim();
   if (!cleanContent) return cleanContent;
-  if (cleanContent.includes("Fonti dati usate:")) return cleanContent;
+  // Strip eventuale footer legacy "Fonti dati usate: ... Confidenza: ... modello: ..."
+  // che potrebbe essere stato incluso da risposte precedenti o dal modello stesso.
+  // Pattern: "\n---\n_Fonti dati usate: ... ._" oppure "\n\n---\n_Fonti dati usate: ... ._"
+  const stripped = cleanContent.replace(
+    /\n+---\n_Fonti dati usate:[\s\S]*?\._\s*$/,
+    "",
+  ).trim();
+  return stripped;
+}
 
-  const uniqueTools = Array.from(new Set(toolCallsLog.map((tool) => tool.name).filter(Boolean)));
-  const hasToolErrors = toolCallsLog.some((tool) => tool.result_preview.toLowerCase().includes("\"error\""));
-  const confidence = uniqueTools.length === 0
-    ? "media (nessun tool dati necessario o disponibile)"
-    : hasToolErrors
-      ? "bassa/media (uno o più tool hanno restituito errori)"
-      : "alta (dati letti dai tool aziendali)";
+// ─────────────────────────────────────────────────────────────────────────
+// Helpers estrazione contenuto allegati (Sprint AI Uploads — formati estesi)
+// ─────────────────────────────────────────────────────────────────────────
 
-  const sources = uniqueTools.length > 0
-    ? uniqueTools.join(", ")
-    : "risposta generale, senza consultazione diretta dei dati aziendali";
-  const modelLine = lastResult?.modelUsed ? ` · modello: ${lastResult.modelUsed}` : "";
+/**
+ * Scarica un file di testo dal bucket silvio-uploads e lo decodifica come UTF-8.
+ * Supporta .txt, .csv, .md, .json, .log, .xml, .yaml, ecc.
+ *
+ * @param maxBytes — limite massimo per evitare context overflow (default 50KB)
+ */
+async function downloadAsText(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  storagePath: string,
+  maxBytes = 50_000,
+): Promise<string> {
+  const { data: file, error } = await supabaseAdmin.storage
+    .from("silvio-uploads")
+    .download(storagePath);
+  if (error || !file) throw new Error(error?.message ?? "download fallito");
+  const buffer = await file.arrayBuffer();
+  if (buffer.byteLength === 0) throw new Error("file vuoto");
+  // BOM + UTF-8 decoding
+  const decoder = new TextDecoder("utf-8", { fatal: false });
+  let text = decoder.decode(buffer);
+  // Strip BOM
+  if (text.charCodeAt(0) === 0xFEFF) text = text.substring(1);
+  // Cap a maxBytes char (~ 1 byte = 1 char per UTF-8 plain)
+  if (text.length > maxBytes) {
+    text = text.substring(0, maxBytes) + "\n\n[... TRONCATO]";
+  }
+  return text;
+}
 
-  return `${cleanContent}\n\n---\n_Fonti dati usate: ${sources}. Confidenza: ${confidence}${modelLine}._`;
+/**
+ * Estrae testo da un documento Office (.docx / .xlsx).
+ * Per .docx usa mammoth (markdown), per .xlsx usa xlsx (CSV-like).
+ * Fallback graceful: se la libreria fallisce, ritorna messaggio descrittivo.
+ */
+async function extractOfficeDocument(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  storagePath: string,
+  mimeType: string,
+  fileName: string,
+): Promise<string> {
+  const { data: file, error } = await supabaseAdmin.storage
+    .from("silvio-uploads")
+    .download(storagePath);
+  if (error || !file) throw new Error(error?.message ?? "download fallito");
+  const buffer = await file.arrayBuffer();
+  const lowerName = fileName.toLowerCase();
+
+  // .docx → mammoth
+  if (
+    mimeType.includes("wordprocessingml") ||
+    mimeType === "application/msword" ||
+    lowerName.endsWith(".docx")
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mammoth: any = await import("https://esm.sh/mammoth@1.8.0?bundle");
+    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+    const text = (result?.value ?? "").trim();
+    if (!text) throw new Error(".docx vuoto o non leggibile");
+    return text;
+  }
+
+  // .xlsx → xlsx (sheetjs)
+  if (
+    mimeType.includes("spreadsheetml") ||
+    mimeType === "application/vnd.ms-excel" ||
+    lowerName.endsWith(".xlsx") ||
+    lowerName.endsWith(".xls")
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const xlsx: any = await import("https://esm.sh/xlsx@0.18.5?bundle");
+    const wb = xlsx.read(new Uint8Array(buffer), { type: "array" });
+    const sheets: string[] = [];
+    for (const sheetName of wb.SheetNames as string[]) {
+      const sheet = wb.Sheets[sheetName];
+      const csv = xlsx.utils.sheet_to_csv(sheet, { blankrows: false });
+      if (csv && csv.trim().length > 0) {
+        sheets.push(`=== Foglio: ${sheetName} ===\n${csv}`);
+      }
+    }
+    if (sheets.length === 0) throw new Error(".xlsx vuoto");
+    return sheets.join("\n\n");
+  }
+
+  throw new Error(`MIME non supportato: ${mimeType}`);
 }

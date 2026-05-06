@@ -410,10 +410,13 @@ export function SmartDocumentImportModal({
   ): Promise<string | null> => {
     if (!companyId || !user || !result?.file || !deepResult) return null;
     try {
+      // FIX 13 (C7): upsert con onConflict per evitare duplicati su doppio click/retry
+      // L'unique index parziale (company_id,entity_table,entity_id,storage_path) WHERE deleted_at IS NULL
+      // garantisce idempotenza dell'INSERT.
       const { data, error: insErr } = await supabase
         .from("entity_attachments" as never)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .insert({
+        .upsert({
           company_id: companyId,
           entity_table: suggestion.entity_table,
           entity_id: suggestion.entity_id,
@@ -430,7 +433,10 @@ export function SmartDocumentImportModal({
           link_confidence: suggestion.scores.combined,
           link_reasoning: suggestion.reasoning,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any)
+        } as any, {
+          onConflict: "company_id,entity_table,entity_id,storage_path",
+          ignoreDuplicates: false,
+        })
         .select("id")
         .single();
       if (insErr) {

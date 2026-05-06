@@ -178,27 +178,65 @@ export default function AIQuotePanel({
   }, []);
 
   const startRecording = async () => {
+    // FIX 16 (A7): MediaRecorder fallback robusto Safari/iOS — mp4/aac quando webm KO
+    if (typeof MediaRecorder === "undefined") {
+      toast.error("Browser non supporta registrazione audio. Usa la modalità testo.");
+      setActiveTab("testo");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error("Microfono non disponibile (richiede HTTPS). Usa la modalità testo.");
+      setActiveTab("testo");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")
-        ? "audio/ogg;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/ogg")
-        ? "audio/ogg"
-        : "";
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const candidates = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4;codecs=mp4a.40.2",
+        "audio/mp4",
+        "audio/aac",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+      ];
+      let mimeType = "";
+      for (const c of candidates) {
+        try {
+          if (MediaRecorder.isTypeSupported(c)) { mimeType = c; break; }
+        } catch { /* continue */ }
+      }
+      let mr: MediaRecorder;
+      try {
+        mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      } catch (constructErr) {
+        console.warn("[AIQuotePanel] MediaRecorder con mimeType fallito, fallback default:", constructErr);
+        mr = new MediaRecorder(stream);
+      }
       chunksRef.current = [];
       mr.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
+      mr.onerror = (ev) => {
+        console.error("[AIQuotePanel] MediaRecorder error:", ev);
+        stream.getTracks().forEach((t) => t.stop());
+        setIsRecording(false);
+        if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+        toast.error("Errore registrazione. Usa la modalità testo.");
+      };
       mr.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
-        const effectiveMimeType = mimeType || "audio/webm";
-        const ext = effectiveMimeType.startsWith("audio/ogg") ? "ogg" : "webm";
+        const effectiveMimeType = mr.mimeType || mimeType || "audio/webm";
+        const ext = effectiveMimeType.includes("mp4") || effectiveMimeType.includes("aac")
+          ? "m4a"
+          : effectiveMimeType.includes("ogg")
+            ? "ogg"
+            : "webm";
         const blob = new Blob(chunksRef.current, { type: effectiveMimeType });
+        if (blob.size === 0) {
+          toast.warning("Nessun audio registrato — controlla il microfono.");
+          return;
+        }
         const fd = new FormData();
         fd.append("audio", blob, `audio.${ext}`);
         fd.append("language", "it");
@@ -225,8 +263,15 @@ export default function AIQuotePanel({
           return s + 1;
         });
       }, 1000);
-    } catch {
-      toast.error("Microfono non disponibile — usa la modalità testo");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("NotAllowedError") || msg.includes("Permission")) {
+        toast.error("Permesso microfono negato. Usa la modalità testo.");
+      } else if (msg.includes("NotFoundError")) {
+        toast.error("Nessun microfono rilevato. Usa la modalità testo.");
+      } else {
+        toast.error(`Microfono non disponibile: ${msg.slice(0, 80)}`);
+      }
       setActiveTab("testo");
     }
   };
@@ -451,6 +496,7 @@ export default function AIQuotePanel({
 
                 <Button
                   onClick={genera}
+                  disabled={stato === "generando" || !descrizione.trim()}
                   className="w-full bg-violet-600 hover:bg-violet-700 text-white"
                 >
                   <Sparkles className="h-4 w-4 mr-2" /> Genera preventivo →
@@ -499,6 +545,7 @@ export default function AIQuotePanel({
                   {trascrizione && (
                     <Button
                       onClick={genera}
+                      disabled={stato === "generando"}
                       className="w-full bg-violet-600 hover:bg-violet-700 text-white"
                     >
                       <Sparkles className="h-4 w-4 mr-2" /> Genera preventivo →
@@ -584,7 +631,7 @@ export default function AIQuotePanel({
 
                 <Button
                   onClick={generaDaFoto}
-                  disabled={fotoFiles.length === 0}
+                  disabled={fotoFiles.length === 0 || stato === "generando"}
                   className="w-full bg-violet-600 hover:bg-violet-700 text-white"
                 >
                   <Sparkles className="h-4 w-4 mr-2" /> Estrai e genera preventivo →
