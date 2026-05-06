@@ -142,7 +142,6 @@ Deno.serve(async (req) => {
             const remaining = (inv.total || 0) - (inv.paid_amount || 0);
             if (remaining <= 0) continue;
 
-            console.log('IBAN match check tx:', tx.creditor_iban || tx.debtor_iban, '| inv:', inv.bank_iban);
             const score = computeMatchScore(tx, {
               remaining,
               client_iban: inv.bank_iban, // bank_iban è il campo corretto (non client_iban)
@@ -212,7 +211,8 @@ Deno.serve(async (req) => {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (e) {
-    console.error("bank-auto-reconcile error:", e);
-    return errorResponse(e.message, 500);
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("bank-auto-reconcile error:", message);
+    return errorResponse(message, 500);
   }
 });

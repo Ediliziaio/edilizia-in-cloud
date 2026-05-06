@@ -43,6 +43,17 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "Fallita",
 };
 
+function getActionPayload(payload: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  if (
+    payload?.input &&
+    typeof payload.input === "object" &&
+    !Array.isArray(payload.input)
+  ) {
+    return payload.input as Record<string, unknown>;
+  }
+  return payload ?? {};
+}
+
 export function ActionProposalCard({ proposalId }: { proposalId: string }) {
   const [proposal, setProposal] = useState<ProposalRow | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -103,8 +114,11 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
   const handleConfirm = async () => {
     setIsProcessing(true);
     try {
+      const confirmationText = proposal?.risk_level === "red"
+        ? window.prompt(`Conferma forte richiesta. Scrivi: CONFERMO ${proposal.action_type}`) ?? ""
+        : undefined;
       const { error: invokeErr } = await supabase.functions.invoke("silvio-execute-action", {
-        body: { proposal_id: proposalId, action: "confirm" },
+        body: { proposal_id: proposalId, action: "confirm", confirmation_text: confirmationText },
       });
       if (invokeErr) throw new Error(invokeErr.message);
       toast.success("Azione applicata con successo");
@@ -117,13 +131,14 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
   };
 
   const handleReject = async () => {
+    if (!proposal?.company_id) return;
     setIsProcessing(true);
     try {
-      const { error: dbErr } = await supabase
-        .from("ai_action_proposals" as never)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .update({ status: "rejected", resolved_at: new Date().toISOString() } as any)
-        .eq("id", proposalId);
+      const { error: dbErr } = await supabase.rpc("silvio_tool_reject_proposal" as never, {
+        p_company_id: proposal.company_id,
+        p_proposal_id: proposalId,
+        p_reason: "Rifiutata dalla UI",
+      } as never);
       if (dbErr) throw new Error(dbErr.message);
       toast.info("Azione rifiutata");
     } catch (e) {
@@ -166,7 +181,7 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
           <details className="text-xs">
             <summary className="cursor-pointer text-muted-foreground">Dettagli payload</summary>
             <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted p-2 text-[10px]">
-              {JSON.stringify(proposal.payload, null, 2)}
+              {JSON.stringify(getActionPayload(proposal.payload), null, 2)}
             </pre>
           </details>
         )}

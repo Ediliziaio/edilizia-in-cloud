@@ -193,6 +193,10 @@ Deno.serve(async (req) => {
       fingerprintInput = `${storage_bucket}/${storage_path}`;
     }
 
+    const normalizedMimeType = resolvedMimeType || "application/pdf";
+    const dataUrl = `data:${normalizedMimeType};base64,${base64}`;
+    const isImage = normalizedMimeType.startsWith("image/");
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const userContent: any[] = [
       { type: "text", text: `Estrai i dati di questo DDT come JSON strutturato. Nome file: "${resolvedFileName}".` },

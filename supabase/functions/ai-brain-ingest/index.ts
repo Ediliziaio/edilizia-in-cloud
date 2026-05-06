@@ -37,6 +37,13 @@ interface BackfillSource {
   metadata?: string; // SQL expression per metadata jsonb
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function normalizeUuid(value?: string | null): string | null {
+  const clean = String(value ?? "").trim();
+  return UUID_RE.test(clean) ? clean : null;
+}
+
 const BACKFILL_SOURCES: Record<string, BackfillSource> = {
   order: {
     source_type: "order",
@@ -140,25 +147,37 @@ serve(async (req: Request) => {
           continue;
         }
 
-        // Build query dinamica
-        const sql = `
-          SELECT
-            ${cfg.table.includes("(SELECT") ? "id" : "id"} AS row_id,
-            ${cfg.build} AS content,
-            ${cfg.metadata ?? "'{}'::jsonb"} AS metadata
-          FROM public.${cfg.table.includes("(SELECT") ? cfg.table : cfg.table}
-          WHERE company_id = $1
-          LIMIT $2
-        `;
-
         try {
-          // Use raw query via RPC wrapper (postgrest direct)
-          // Workaround: define inline a small helper that does this safely is complex.
-          // Use direct SQL via supabase-js .rpc('exec_sql', ...) — but we need to define one.
-          // Per ora: limito i tipi a quelli con tabella diretta e uso .from() + .select.
-          if (cfg.table.includes("(SELECT")) {
-            // skip dynamic subquery sources for now (customer would require service-level access)
-            // We can implement this via a dedicated SQL fn later.
+          if (srcKey === "customer") {
+            const { data, error } = await supabaseAdmin
+              .from("orders")
+              .select("id, customer_id, client_name, client_company, client_email, client_phone, client_address, indirizzo_lavori, work_address, status, total_amount, created_at")
+              .eq("company_id", companyId)
+              .limit(Math.min(limitPerSource * 4, 1000));
+
+            if (error) {
+              console.error("[brain-ingest] backfill customer error:", error.message);
+              continue;
+            }
+
+            const seen = new Set<string>();
+            for (const row of data ?? []) {
+              const dedupeKey = String(
+                row.customer_id ?? row.client_email ?? row.client_phone ?? row.client_company ?? row.client_name ?? row.id,
+              ).trim().toLowerCase();
+              if (!dedupeKey || seen.has(dedupeKey)) continue;
+              seen.add(dedupeKey);
+
+              const content = buildContentForSource("customer", row);
+              if (!content || content.length < 20) continue;
+              items.push({
+                source_type: "customer",
+                source_id: normalizeUuid(row.customer_id) ?? normalizeUuid(row.id),
+                content,
+                metadata: buildMetadataForSource("customer", row),
+              });
+              if (seen.size >= limitPerSource) break;
+            }
             continue;
           }
 
@@ -201,6 +220,7 @@ serve(async (req: Request) => {
     const chunks: Array<IngestItem & { chunk: string; hash: string }> = [];
     for (const item of items) {
       for (const chunk of chunkText(item.content)) {
+        if (chunk.trim().length < 5) continue;
         const hash = await contentHash(chunk);
         chunks.push({ ...item, chunk, hash });
       }
@@ -249,16 +269,20 @@ serve(async (req: Request) => {
       const emb = embeddings[i];
 
       try {
+        const normalizedSourceId = normalizeUuid(c.source_id);
+        const metadata = !normalizedSourceId && c.source_id
+          ? { ...(c.metadata ?? {}), original_source_id: c.source_id }
+          : c.metadata ?? {};
         // RPC expects vector as PostgreSQL literal string '[v1,v2,...]'
         // Supabase JS converts arrays to vector when passed as array
         const { error: rpcErr } = await supabaseAdmin.rpc("brain_upsert_document", {
           p_company_id: companyId,
           p_source_type: c.source_type,
-          p_source_id: c.source_id ?? null,
+          p_source_id: normalizedSourceId,
           p_content: c.chunk,
           p_content_hash: c.hash,
           p_embedding: emb ? `[${emb.join(",")}]` : null,
-          p_metadata: c.metadata ?? {},
+          p_metadata: metadata,
           p_visibility_roles: c.visibility_roles ?? null,
         });
         if (rpcErr) { failCount++; console.error("[brain-ingest] upsert error:", rpcErr.message); }
@@ -317,6 +341,18 @@ function buildContentForSource(src: string, row: any): string {
         `NOTE: ${row.notes ?? ""}`,
       ].filter(s => s.split(": ")[1]?.trim()).join("\n");
 
+    case "customer":
+      return [
+        `CLIENTE: ${row.client_name ?? row.client_company ?? ""}`,
+        `AZIENDA: ${row.client_company ?? ""}`,
+        `EMAIL: ${row.client_email ?? ""}`,
+        `TELEFONO: ${row.client_phone ?? ""}`,
+        `INDIRIZZO CLIENTE: ${row.client_address ?? ""}`,
+        `INDIRIZZO LAVORO: ${row.indirizzo_lavori ?? row.work_address ?? ""}`,
+        `ULTIMO STATO COMMESSA: ${row.status ?? ""}`,
+        `VALORE ULTIMA COMMESSA: € ${row.total_amount ?? 0}`,
+      ].filter(s => s.split(": ")[1]?.trim()).join("\n");
+
     case "supplier":
       return [
         `FORNITORE: ${row.name ?? ""}`,
@@ -353,6 +389,15 @@ function buildMetadataForSource(src: string, row: any): Record<string, unknown> 
         cliente: row.client_name ?? row.client_company,
         valore_eur: row.total_amount,
         status: row.status,
+      };
+    case "customer":
+      return {
+        cliente: row.client_name ?? row.client_company,
+        azienda: row.client_company,
+        email: row.client_email,
+        phone: row.client_phone,
+        ultima_commessa_status: row.status,
+        ultima_commessa_valore_eur: row.total_amount,
       };
     case "quote":
       return { quote_number: row.quote_number, cliente: row.client_name, valore_eur: row.total, status: row.status };

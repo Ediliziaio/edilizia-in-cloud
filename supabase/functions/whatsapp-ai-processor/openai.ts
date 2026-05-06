@@ -129,7 +129,9 @@ export async function transcribeAudioWhisper(
   if (!apiKey) throw new Error("OPENAI_API_KEY non configurata");
 
   const form = new FormData();
-  form.append("file", new Blob([audioBytes]), filename);
+  const audioBuffer = new ArrayBuffer(audioBytes.byteLength);
+  new Uint8Array(audioBuffer).set(audioBytes);
+  form.append("file", new Blob([audioBuffer]), filename);
   form.append("model", "whisper-1");
   form.append("language", "it");
 

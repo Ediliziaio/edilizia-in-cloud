@@ -8,8 +8,11 @@ const AES_PREFIX = "aes:";
 export function getEncryptionKey(): string {
   const key = Deno.env.get("GOOGLE_TOKEN_ENCRYPTION_KEY");
   if (key) return key;
-  // Fallback: derive from service role key (always available)
-  const srk = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "default-dev-key";
+  // Fallback temporaneo: deriva dalla service role key, ma non usare mai chiavi dev statiche.
+  const srk = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!srk) {
+    throw new Error("GOOGLE_TOKEN_ENCRYPTION_KEY or SUPABASE_SERVICE_ROLE_KEY is required for token encryption.");
+  }
   return srk.substring(0, 32);
 }
 

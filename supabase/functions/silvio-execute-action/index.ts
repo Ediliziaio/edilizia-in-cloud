@@ -24,6 +24,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { SILVIO_TOOLS, type Channel, type ToolContext } from "../_shared/silvioTools.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 
@@ -107,7 +108,8 @@ serve(async (req: Request) => {
     if (proposal.user_id !== userId) return errorResponse("Proposta non autorizzata", 403, corsHeaders);
     if (!proposal.company_id) return errorResponse("Proposta senza scope azienda", 400, corsHeaders);
 
-    const policy = ACTION_POLICIES[proposal.action_type];
+    const registryTool = SILVIO_TOOLS[proposal.action_type];
+    const policy = ACTION_POLICIES[proposal.action_type] ?? actionPolicyFromRegistryTool(registryTool);
     if (!policy) return errorResponse(`Action type non consentito: ${proposal.action_type}`, 400, corsHeaders);
 
     const permission = await loadActionPermission(supabaseAdmin, proposal.company_id, proposal.action_type, policy);
@@ -133,9 +135,10 @@ serve(async (req: Request) => {
       ]))
       : permission.allowedRoles;
 
-    await requireCompanyAccess(supabaseAdmin, userId, proposal.company_id, corsHeaders, {
+    const access = await requireCompanyAccess(supabaseAdmin, userId, proposal.company_id, corsHeaders, {
       allowedRoles: effectiveAllowedRoles,
     });
+    const primaryRole = pickPrimaryRole(access.roles);
 
     const requiresStrongConfirmation =
       proposal.risk_level === "red" ||
@@ -161,7 +164,11 @@ serve(async (req: Request) => {
 
     let finalPayload: Record<string, unknown>;
     try {
-      finalPayload = buildFinalPayload(proposal.action_type, proposal.payload ?? {}, body.override_payload ?? null);
+      finalPayload = buildFinalPayload(
+        proposal.action_type,
+        normalizeProposalPayload(proposal.action_type, proposal.payload ?? {}),
+        body.override_payload ?? null,
+      );
     } catch (e) {
       return errorResponse(e instanceof Error ? e.message : String(e), 400, corsHeaders);
     }
@@ -192,6 +199,7 @@ serve(async (req: Request) => {
       userId,
       companyId: proposal.company_id,
       proposal,
+      primaryRole,
     };
 
     // Dispatch
@@ -350,6 +358,7 @@ function buildFinalPayload(
     send_quote_followup: ["quote_id", "client_email", "client_name"],
     mark_payment_received: ["order_id", "rata_type"],
     create_purchase_order: ["stock_id"],
+    create_invoice_draft: ["order_id", "rata_type"],
     generic_email: ["to"],
   };
 
@@ -372,7 +381,7 @@ function buildFinalPayload(
 async function dispatchAction(
   actionType: string,
   payload: Record<string, unknown>,
-  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown> },
+  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string },
 ): Promise<ExecutionResult> {
   switch (actionType) {
     case "send_overdue_reminder":
@@ -386,7 +395,141 @@ async function dispatchAction(
     case "generic_email":
       return await sendGenericEmail(payload, ctx);
     default:
+      if (SILVIO_TOOLS[actionType]) {
+        return await executeRegisteredSilvioTool(actionType, payload, ctx);
+      }
       return { ok: false, message: `Action type sconosciuto: ${actionType}` };
+  }
+}
+
+function actionPolicyFromRegistryTool(tool: (typeof SILVIO_TOOLS)[string] | undefined): {
+  allowedRoles: string[];
+  requiresStrongConfirmation?: boolean;
+} | null {
+  if (!tool) return null;
+  const allowedRoles = (tool.allowedRoles ?? ["super_admin"])
+    .filter((role) => role !== "*");
+  return {
+    allowedRoles: allowedRoles.length > 0 ? allowedRoles : ["super_admin"],
+    requiresStrongConfirmation: tool.riskLevel === "red",
+  };
+}
+
+function pickPrimaryRole(roles: string[]): string {
+  const priority = ["super_admin", "company_admin", "salesperson", "call_center", "company_staff", "employee", "subcontractor", "worker"];
+  return priority.find((role) => roles.includes(role)) ?? roles[0] ?? "company_staff";
+}
+
+function normalizeProposalPayload(
+  actionType: string,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const input = payload.input;
+  if (
+    payload.tool_name === actionType &&
+    input &&
+    typeof input === "object" &&
+    !Array.isArray(input)
+  ) {
+    return {
+      ...(input as Record<string, unknown>),
+      __tool_meta: {
+        tool_name: payload.tool_name,
+        tool_domain: payload.tool_domain,
+        channel: payload.channel,
+        session_id: payload.session_id,
+        trace_id: payload.trace_id,
+      },
+    };
+  }
+  return payload;
+}
+
+function extractToolMeta(payload: Record<string, unknown>): {
+  cleanPayload: Record<string, unknown>;
+  channel: Channel;
+  sessionId?: string;
+  traceId?: string;
+} {
+  const { __tool_meta, ...cleanPayload } = payload;
+  const meta = (__tool_meta && typeof __tool_meta === "object" && !Array.isArray(__tool_meta))
+    ? (__tool_meta as Record<string, unknown>)
+    : {};
+  const channel = isChannel(meta.channel) ? meta.channel : "internal_chat";
+  return {
+    cleanPayload,
+    channel,
+    sessionId: typeof meta.session_id === "string" ? meta.session_id : undefined,
+    traceId: typeof meta.trace_id === "string" ? meta.trace_id : undefined,
+  };
+}
+
+function isChannel(value: unknown): value is Channel {
+  return value === "internal_chat" ||
+    value === "web_persona" ||
+    value === "mobile" ||
+    value === "whatsapp" ||
+    value === "telegram" ||
+    value === "voice" ||
+    value === "email" ||
+    value === "cron" ||
+    value === "api";
+}
+
+async function executeRegisteredSilvioTool(
+  actionType: string,
+  payload: Record<string, unknown>,
+  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string },
+): Promise<ExecutionResult> {
+  const tool = SILVIO_TOOLS[actionType];
+  if (!tool) return { ok: false, message: `Tool non registrato: ${actionType}` };
+
+  const { cleanPayload, channel, sessionId, traceId } = extractToolMeta(payload);
+  const personaKey = typeof ctx.proposal.persona_key === "string" ? ctx.proposal.persona_key : "silvio";
+
+  if (tool.allowedPersonas?.length && !tool.allowedPersonas.includes(personaKey) && !tool.allowedPersonas.includes("*")) {
+    return { ok: false, message: `Persona non autorizzata per ${actionType}` };
+  }
+  if (tool.allowedChannels?.length && !tool.allowedChannels.includes(channel)) {
+    return { ok: false, message: `Canale non autorizzato per ${actionType}: ${channel}` };
+  }
+
+  const toolCtx: ToolContext = {
+    supabase: ctx.supabase,
+    companyId: ctx.companyId,
+    userId: ctx.userId,
+    primaryRole: ctx.primaryRole,
+    personaKey,
+    channel,
+    sessionId,
+    traceId,
+    preApproved: true,
+  };
+
+  try {
+    const data = await tool.executor(cleanPayload, toolCtx);
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      const payload = data as Record<string, unknown>;
+      if (
+        payload.ok === false ||
+        payload.success === false ||
+        typeof payload.error === "string"
+      ) {
+        const message = typeof payload.message === "string"
+          ? payload.message
+          : typeof payload.error === "string"
+          ? payload.error
+          : `Tool "${actionType}" non completato.`;
+        return { ok: false, message, details: data };
+      }
+    }
+    return {
+      ok: true,
+      message: `Tool "${actionType}" eseguito dopo conferma.`,
+      details: data,
+    };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
 }
 

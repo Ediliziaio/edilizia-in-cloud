@@ -4,7 +4,7 @@
  * Mostra ai_action_proposals con status='pending', con bottoni:
  *   - Conferma e applica → invoca silvio-execute-action edge function
  *   - Modifica payload → apre dialog editor
- *   - Annulla → status='dismissed'
+ *   - Rifiuta → invoca RPC auditata
  */
 
 import { useState } from "react";
@@ -43,6 +43,8 @@ const ACTION_ICON: Record<string, typeof Send> = {
   send_quote_followup: Mail,
   mark_payment_received: CheckCircle2,
   create_purchase_order: Package,
+  create_quote_draft: Send,
+  create_invoice_draft: Wallet,
   generic_email: Mail,
 };
 
@@ -51,6 +53,8 @@ const ACTION_LABEL: Record<string, string> = {
   send_quote_followup: "Follow-up preventivo",
   mark_payment_received: "Segna pagamento ricevuto",
   create_purchase_order: "Crea ordine fornitore (bozza)",
+  create_quote_draft: "Crea bozza preventivo",
+  create_invoice_draft: "Crea bozza fattura",
   generic_email: "Invia email",
 };
 
@@ -62,6 +66,17 @@ function requiresStrongConfirmation(proposal: Proposal) {
 
 function confirmationPhrase(proposal: Proposal) {
   return `CONFERMO ${proposal.action_type}`;
+}
+
+function getActionPayload(payload: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  if (
+    payload?.input &&
+    typeof payload.input === "object" &&
+    !Array.isArray(payload.input)
+  ) {
+    return payload.input as Record<string, unknown>;
+  }
+  return payload ?? {};
 }
 
 function sanitizePayloadForDisplay(value: unknown): unknown {
@@ -115,10 +130,12 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
 
   const dismissMut = useMutation({
     mutationFn: async (proposalId: string) => {
-      const { error } = await supabase
-        .from("ai_action_proposals" as never)
-        .update({ status: "rejected", resolved_at: new Date().toISOString() })
-        .eq("id", proposalId);
+      if (!companyId) throw new Error("Azienda non selezionata");
+      const { error } = await supabase.rpc("silvio_tool_reject_proposal" as never, {
+        p_company_id: companyId,
+        p_proposal_id: proposalId,
+        p_reason: "Rifiutata dalla UI Silvio",
+      } as never);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -259,11 +276,12 @@ function ProposalRow({
   const isHighRisk = proposal.risk_level === "red";
   const needsStrongConfirmation = requiresStrongConfirmation(proposal);
   const expiresIn = Math.max(0, Math.floor((new Date(proposal.expires_at).getTime() - Date.now()) / (1000 * 60 * 60)));
+  const actionPayload = getActionPayload(proposal.payload);
 
   const recipient =
-    (proposal.payload as { client_name?: string; client_email?: string; to?: string }).client_name ??
-    (proposal.payload as { client_email?: string }).client_email ??
-    (proposal.payload as { to?: string }).to;
+    (actionPayload as { client_name?: string; client_email?: string; to?: string }).client_name ??
+    (actionPayload as { client_email?: string }).client_email ??
+    (actionPayload as { to?: string }).to;
 
   return (
     <div className="rounded-lg border border-violet-200 bg-white p-3 space-y-2">
@@ -334,7 +352,7 @@ function ProposalEditDialog({
 }) {
   // Genera form basato sul tipo di azione
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const initial = (proposal.payload ?? {}) as any;
+  const initial = getActionPayload(proposal.payload) as any;
 
   const [to, setTo] = useState<string>(initial.client_email ?? initial.to ?? "");
   const [subject, setSubject] = useState<string>(initial.subject ?? "");

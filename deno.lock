@@ -8833,10 +8833,15 @@
     "https://deno.land/x/media_types@v2.9.0/mod.ts": "d63583b978d32eff8b76e1ae5d83cba2fb27baa90cc1bcb0ad15a06122ea8c19",
     "https://deno.land/x/xhr@0.1.0/mod.ts": "5200325d879e571961f0927e8e32e66fd33f4ba0d29a219560cf9e0fe9bc6cdf",
     "https://esm.sh/@supabase/supabase-js@2.105.3": "5a134c393ed588a62d398734c1af54ff1eab170090908bbaef624106b5201d41",
+    "https://esm.sh/@supabase/supabase-js@2.43.4": "ed6952bb6d04f4abd86e80a0dde37f35798d483d2603cc8408baf310a21a0b36",
     "https://esm.sh/@supabase/supabase-js@2.49.1": "947c71e163ca8bb5b538eccb5ee86fbc8da6bcb916a861586db5fad1af4701bb",
     "https://esm.sh/date-fns@3.6.0": "5d26302ab9da2db6d87a3777e2d703acf8cb26e16ca69d2a7763292c1105ab88",
+    "https://esm.sh/mammoth@1.8.0?bundle": "62b3c0647c305aecca13b12db2fa5d1c17579a4364f7e36920e16924142291a0",
     "https://esm.sh/pdf-lib@1.17.1": "cf7c5527829cb9bbb3aa20d339c530067441c10eb98880360aea9e77c3c87ff8",
-    "https://esm.sh/qrcode-generator@1.4.4?target=deno": "2ddf24413cee64dda8a5d34d07a7001a5a9b40b97c914a2ae3b66cf0589495f4"
+    "https://esm.sh/pdfjs-dist@4.0.379/denonext/legacy/build/pdf.bundle.mjs": "1494e30e0d1902e11595605ae25eb9b892f9f1db45f809b85417ed82cb4bcf66",
+    "https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs?bundle&no-check": "bb145f4b898158671381cfbb770d8dc7b3c3e30a54c32d524107c097ef6f6918",
+    "https://esm.sh/qrcode-generator@1.4.4?target=deno": "2ddf24413cee64dda8a5d34d07a7001a5a9b40b97c914a2ae3b66cf0589495f4",
+    "https://esm.sh/xlsx@0.18.5?bundle": "28b6f3ea3fadd9e078001c5ff5b604e0475c5b5e927bca63052d8c78b60e4f69"
   },
   "workspace": {
     "packageJson": {

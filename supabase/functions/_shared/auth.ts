@@ -212,10 +212,8 @@ export function requireInternalSecret(
 }
 
 export function isInternalRequest(req: Request): boolean {
-  const expectedValues = [
-    Deno.env.get("INTERNAL_CRON_SECRET"),
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
-  ].filter(Boolean) as string[];
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  if (!cronSecret) return false;
 
   const authHeader = req.headers.get("Authorization") ?? "";
   const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : "";
@@ -226,5 +224,5 @@ export function isInternalRequest(req: Request): boolean {
     bearerToken,
   ].filter(Boolean);
 
-  return expectedValues.length > 0 && providedValues.some((provided) => expectedValues.includes(provided));
+  return providedValues.some((provided) => provided === cronSecret);
 }

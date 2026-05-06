@@ -136,6 +136,23 @@ export async function executeToolWithRouting(
   if (risk === "red") {
     // Forza HITL anche per super_admin
     const proposalId = await createActionProposal(ctx, tool, toolName, input, "red");
+    if (!proposalId) {
+      await logAudit(ctx, tool, toolName, {
+        inputPayload: sanitize(input),
+        outputPayload: null,
+        status: "error",
+        errorMessage: "failed to create red-risk action proposal",
+        proposalId: null,
+        durationMs: Date.now() - t0,
+      });
+      return {
+        success: false,
+        toolName,
+        error: { code: "proposal_creation_failed", message: "Non sono riuscito a creare la proposta di conferma." },
+        durationMs: Date.now() - t0,
+        riskLevel: "red",
+      };
+    }
     await logAudit(ctx, tool, toolName, {
       inputPayload: sanitize(input),
       outputPayload: null,
@@ -155,6 +172,23 @@ export async function executeToolWithRouting(
 
   if (risk === "yellow" && !ctx.preApproved) {
     const proposalId = await createActionProposal(ctx, tool, toolName, input, "yellow");
+    if (!proposalId) {
+      await logAudit(ctx, tool, toolName, {
+        inputPayload: sanitize(input),
+        outputPayload: null,
+        status: "error",
+        errorMessage: "failed to create yellow-risk action proposal",
+        proposalId: null,
+        durationMs: Date.now() - t0,
+      });
+      return {
+        success: false,
+        toolName,
+        error: { code: "proposal_creation_failed", message: "Non sono riuscito a creare la proposta di conferma." },
+        durationMs: Date.now() - t0,
+        riskLevel: "yellow",
+      };
+    }
     await logAudit(ctx, tool, toolName, {
       inputPayload: sanitize(input),
       outputPayload: null,
@@ -314,7 +348,7 @@ async function logAudit(
 function sanitize(value: unknown): Record<string, unknown> | null {
   if (value === null || value === undefined) return null;
   try {
-    const json = JSON.stringify(value);
+    const json = JSON.stringify(redactSensitive(value));
     if (json.length > 50_000) {
       return { _truncated: true, _length: json.length, _preview: json.substring(0, 1000) };
     }
@@ -322,4 +356,19 @@ function sanitize(value: unknown): Record<string, unknown> | null {
   } catch {
     return { _unserializable: true };
   }
+}
+
+const SENSITIVE_KEY_RE = /(password|passwd|secret|token|api[_-]?key|authorization|cookie|iban|tax_code|codice_fiscale|fiscal_code|phone|telefono|email)/i;
+
+function redactSensitive(value: unknown, depth = 0): unknown {
+  if (depth > 8) return "[redacted-depth]";
+  if (Array.isArray(value)) return value.map((item) => redactSensitive(item, depth + 1));
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = SENSITIVE_KEY_RE.test(key) ? "[redacted]" : redactSensitive(nested, depth + 1);
+    }
+    return out;
+  }
+  return value;
 }

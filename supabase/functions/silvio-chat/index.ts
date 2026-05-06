@@ -24,7 +24,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
-import { getToolsForRole, executeTool, type ToolContext } from "../_shared/silvioTools.ts";
+import { getToolsForChannel, toolsToOpenAISpec, type ToolContext } from "../_shared/silvioTools.ts";
+import { executeToolWithRouting } from "../_shared/silvioToolExecution.ts";
 import { buildSystemPrompt } from "../_shared/preambolo.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
@@ -75,6 +76,26 @@ async function hashMessageForAudit(rawMessage: string): Promise<string> {
   return `[len:${len}|sha:${hashHex}|w0:${firstWord}]`;
 }
 
+function hasUnsafeStoragePathSegment(storagePath: string): boolean {
+  return (
+    !storagePath ||
+    storagePath.startsWith("/") ||
+    storagePath.includes("\\") ||
+    storagePath.split("/").some((segment) => segment === ".." || segment === "")
+  );
+}
+
+function isAuthorizedSilvioUploadPath(storagePath: string, companyId: string, userId: string): boolean {
+  const clean = String(storagePath ?? "").trim();
+  if (hasUnsafeStoragePathSegment(clean)) return false;
+  return clean.startsWith(`${companyId}/`) || clean.startsWith(`${userId}/`);
+}
+
+function attachmentLogLabel(storagePath: string): string {
+  const clean = String(storagePath ?? "").replace(/\\/g, "/");
+  return clean.split("/").pop()?.slice(0, 80) || "allegato";
+}
+
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -102,6 +123,9 @@ serve(async (req: Request) => {
       if (!a.storage_path || !a.mime_type || !a.kind) {
         return errorResponse("attachment incompleto (manca storage_path/mime_type/kind)", 400, corsHeaders);
       }
+      if (a.storage_path.length > 600) {
+        return errorResponse("attachment storage_path troppo lungo", 400, corsHeaders);
+      }
     }
 
     // ── 1) Verifica channel + membership ────────────────────────────────
@@ -116,6 +140,12 @@ serve(async (req: Request) => {
 
     const companyId: string = channel.company_id;
     await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
+
+    for (const a of attachments) {
+      if (!isAuthorizedSilvioUploadPath(a.storage_path, companyId, userId)) {
+        return errorResponse("attachment non autorizzato per questa azienda/utente", 403, corsHeaders);
+      }
+    }
 
     const { data: membership } = await supabaseAdmin
       .from("internal_chat_members")
@@ -300,14 +330,20 @@ serve(async (req: Request) => {
     const history: Array<{ sender_id: string; content: string }> = (historyRaw ?? []).reverse() as any;
 
     // ── 7) Ottieni tool disponibili per il ruolo ────────────────────────
-    const allowedTools = getToolsForRole(primaryRole);
-    const toolSchemas = allowedTools.map(t => t.schema);
+    const allowedTools = getToolsForChannel({
+      channel: "internal_chat",
+      role: primaryRole,
+      personaKey: PERSONA_KEY,
+    });
+    const toolSchemas = toolsToOpenAISpec(allowedTools);
 
     const toolCtx: ToolContext = {
       supabase: supabaseAdmin,
       companyId,
       userId,
       primaryRole,
+      personaKey: PERSONA_KEY,
+      channel: "internal_chat",
       // Track 1: Silvio ha kb_areas_filter=NULL (vede tutte le aree).
       // Per coerenza passiamo il valore reale così il tool search_brain lo usa.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -346,7 +382,7 @@ serve(async (req: Request) => {
             .from("silvio-uploads")
             .createSignedUrl(att.storage_path, 300);
           if (sErr || !signed?.signedUrl) {
-            console.warn("[silvio-chat] signedUrl fallita per", att.storage_path, sErr);
+            console.warn("[silvio-chat] signedUrl fallita per", attachmentLogLabel(att.storage_path), sErr?.message ?? sErr);
             continue;
           }
           parts.push({
@@ -476,7 +512,13 @@ serve(async (req: Request) => {
     let finalContent = "";
     let lastResult: Awaited<ReturnType<typeof aiRouterComplete>> | null = null;
     let iteration = 0;
-    const toolCallsLog: Array<{ name: string; args: unknown; result_preview: string }> = [];
+    const toolCallsLog: Array<{
+      name: string;
+      args: unknown;
+      result_preview: string;
+      proposal_id?: string | null;
+      risk_level?: string | null;
+    }> = [];
 
     while (iteration < MAX_TOOL_ITERATIONS) {
       iteration++;
@@ -536,13 +578,15 @@ serve(async (req: Request) => {
             toolArgs = {};
           }
 
-          const toolResult = await executeTool(toolName, toolArgs, toolCtx);
+          const toolResult = await executeToolWithRouting(toolName, toolArgs, toolCtx);
           const resultStr = JSON.stringify(toolResult).slice(0, 8000);
 
           toolCallsLog.push({
             name: toolName,
             args: toolArgs,
             result_preview: resultStr.slice(0, 200),
+            proposal_id: toolResult.proposalId ?? null,
+            risk_level: toolResult.riskLevel ?? null,
           });
 
           messages.push({
@@ -595,6 +639,10 @@ serve(async (req: Request) => {
       // FIX 12 (A8): tool effettivamente esistenti con effetto laterale
       const SIDE_EFFECT_TOOLS = ["create_quote_draft", "create_invoice_draft", "propose_action"];
       const isCritical = toolCallsLog.some((t) => SIDE_EFFECT_TOOLS.includes(t.name));
+      const pendingProposalIds = toolCallsLog
+        .map((t) => t.proposal_id)
+        .filter((proposalId): proposalId is string => Boolean(proposalId));
+      const hasPendingActionProposal = pendingProposalIds.length > 0;
       await supabaseAdmin.from("silvio_decision_log").insert({
         company_id: companyId,
         user_id: userId,
@@ -610,8 +658,14 @@ serve(async (req: Request) => {
         situation_description: userMessage.substring(0, 500) || "(messaggio con solo allegati)",
         ai_diagnosis: finalContent.substring(0, 1000),
         ai_diagnosis_data: {
-          tool_calls: toolCallsLog.map((t) => ({ name: t.name, has_error: (t.result_preview ?? "").includes("\"error\"") })),
-          iterations,
+          tool_calls: toolCallsLog.map((t) => ({
+            name: t.name,
+            risk_level: t.risk_level ?? null,
+            proposal_id: t.proposal_id ?? null,
+            has_error: (t.result_preview ?? "").includes("\"error\""),
+          })),
+          pending_proposal_ids: pendingProposalIds,
+          iterations: iteration,
           attachments_count: attachments.length,
         },
         ai_options_proposed: toolCallsLog.length > 0
@@ -622,10 +676,10 @@ serve(async (req: Request) => {
         ai_model_used: lastResult?.modelUsed ?? null,
         ai_tokens_total: (lastResult?.promptTokens ?? 0) + (lastResult?.completionTokens ?? 0),
         ai_cost_eur: lastResult?.costBilledEur ?? 0,
-        status: "executed", // chat è informativa, non esegue azioni — già completata
-        decided_at: new Date().toISOString(),
-        executed_at: new Date().toISOString(),
-        is_critical: isCritical,
+        status: hasPendingActionProposal ? "pending_review" : "executed",
+        decided_at: hasPendingActionProposal ? null : new Date().toISOString(),
+        executed_at: hasPendingActionProposal ? null : new Date().toISOString(),
+        is_critical: isCritical || hasPendingActionProposal,
       });
     } catch (logErr) {
       // Non bloccare la response per un fail di logging — solo warn
@@ -640,7 +694,7 @@ serve(async (req: Request) => {
     // duplicati.
     try {
       const sideEffectsToTrack = toolCallsLog.filter((t) =>
-        ["create_quote_draft", "create_invoice_draft"].includes(t.name),
+        ["create_quote_draft", "create_invoice_draft"].includes(t.name) && !t.proposal_id,
       );
       for (const t of sideEffectsToTrack) {
         let draftId: string | null = null;
