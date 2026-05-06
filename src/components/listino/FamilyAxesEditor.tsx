@@ -265,6 +265,113 @@ export function FamilyAxesEditor({ family }: Props) {
     }
   };
 
+  // ── #9 Riordino valori dentro un asse ────────────────────────────────
+  const moveValue = async (
+    axis: FamilyAxis,
+    valueId: string,
+    direction: "up" | "down",
+  ) => {
+    const sorted = [...axis.values].sort((a, b) => a.sort_order - b.sort_order);
+    const idx = sorted.findIndex((v) => v.id === valueId);
+    const target = direction === "up" ? idx - 1 : idx + 1;
+    if (target < 0 || target >= sorted.length) return;
+
+    const cur = sorted[idx];
+    const other = sorted[target];
+    try {
+      await Promise.all([
+        updateAxisValue.mutateAsync({
+          id: cur.id,
+          familyId: family.id,
+          patch: { sort_order: other.sort_order },
+        }),
+        updateAxisValue.mutateAsync({
+          id: other.id,
+          familyId: family.id,
+          patch: { sort_order: cur.sort_order },
+        }),
+      ]);
+    } catch {
+      /* toast already shown */
+    }
+  };
+
+  // ── #10 Bulk operations sui valori ──────────────────────────────────
+  const [selectedValueIds, setSelectedValueIds] = useState<Set<string>>(new Set());
+  const toggleValueSelection = (id: string) => {
+    setSelectedValueIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedValueIds(new Set());
+
+  const bulkDeactivate = async () => {
+    const ids = Array.from(selectedValueIds);
+    try {
+      await Promise.all(
+        ids.map((id) =>
+          updateAxisValue.mutateAsync({
+            id,
+            familyId: family.id,
+            patch: { attivo: false },
+          }),
+        ),
+      );
+      toast.success(`${ids.length} valori disattivati`);
+      clearSelection();
+    } catch {
+      /* error already shown */
+    }
+  };
+
+  const bulkActivate = async () => {
+    const ids = Array.from(selectedValueIds);
+    try {
+      await Promise.all(
+        ids.map((id) =>
+          updateAxisValue.mutateAsync({
+            id,
+            familyId: family.id,
+            patch: { attivo: true },
+          }),
+        ),
+      );
+      toast.success(`${ids.length} valori attivati`);
+      clearSelection();
+    } catch {
+      /* error already shown */
+    }
+  };
+
+  const bulkApplyMaggiorazione = async (
+    tipo: "percentuale" | "fisso_eur",
+    valore: number,
+  ) => {
+    const ids = Array.from(selectedValueIds);
+    try {
+      await Promise.all(
+        ids.map((id) =>
+          updateAxisValue.mutateAsync({
+            id,
+            familyId: family.id,
+            patch: {
+              maggiorazione_tipo: tipo,
+              maggiorazione_valore: valore,
+              maggiorazione_acquisto: valore,
+            },
+          }),
+        ),
+      );
+      toast.success(`Maggiorazione applicata a ${ids.length} valori`);
+      clearSelection();
+    } catch {
+      /* error already shown */
+    }
+  };
+
   // Applica un preset: traduce PresetAxis[] → payload bulkInsertAxesWithValues.
   // Il sort_order parte da `nextAxisSortOrder` e cresce di 10 per asse (mantiene
   // spazio per riordini manuali successivi). Idem per i valori (step 10).
@@ -411,6 +518,51 @@ export function FamilyAxesEditor({ family }: Props) {
         </div>
       </div>
 
+      {/* #10 — Barra bulk actions (visibile solo se ≥1 valore selezionato) */}
+      {selectedValueIds.size > 0 ? (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-primary/10 border border-primary/30 rounded-md px-3 py-2 text-sm">
+          <span className="font-medium">{selectedValueIds.size} selezionati</span>
+          <span className="flex-1" />
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={bulkActivate} disabled={updateAxisValue.isPending}>
+            Attiva
+          </Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={bulkDeactivate} disabled={updateAxisValue.isPending}>
+            Disattiva
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            onClick={() => {
+              const v = window.prompt("Maggiorazione % da applicare ai selezionati (es. 10 per +10%):");
+              if (v !== null && !isNaN(parseFloat(v))) {
+                bulkApplyMaggiorazione("percentuale", parseFloat(v));
+              }
+            }}
+            disabled={updateAxisValue.isPending}
+          >
+            Applica %
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            onClick={() => {
+              const v = window.prompt("Maggiorazione € fissa da applicare ai selezionati:");
+              if (v !== null && !isNaN(parseFloat(v))) {
+                bulkApplyMaggiorazione("fisso_eur", parseFloat(v));
+              }
+            }}
+            disabled={updateAxisValue.isPending}
+          >
+            Applica €
+          </Button>
+          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={clearSelection}>
+            Annulla
+          </Button>
+        </div>
+      ) : null}
+
       {family.axes.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-8 text-center space-y-3">
@@ -546,8 +698,17 @@ export function FamilyAxesEditor({ family }: Props) {
                           return (
                             <li
                               key={v.id}
-                              className="flex items-start gap-1.5 sm:gap-2 text-sm p-2 rounded-md border"
+                              className={`flex items-start gap-1.5 sm:gap-2 text-sm p-2 rounded-md border ${
+                                selectedValueIds.has(v.id) ? "bg-primary/5 border-primary/40" : ""
+                              }`}
                             >
+                              {/* #10 — Checkbox bulk-select */}
+                              <Checkbox
+                                checked={selectedValueIds.has(v.id)}
+                                onCheckedChange={() => toggleValueSelection(v.id)}
+                                className="mt-1 shrink-0"
+                                aria-label={`Seleziona ${v.label}`}
+                              />
                               <div className="flex-1 min-w-0">
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <span className="font-medium break-words">
@@ -600,6 +761,29 @@ export function FamilyAxesEditor({ family }: Props) {
                                 ) : null}
                               </div>
                               <div className="flex items-center gap-0.5 shrink-0">
+                                {/* #9 — Riordino valori */}
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => moveValue(axis, v.id, "up")}
+                                  disabled={updateAxisValue.isPending}
+                                  aria-label="Sposta su"
+                                  title="Sposta su"
+                                  className="h-9 w-9"
+                                >
+                                  <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => moveValue(axis, v.id, "down")}
+                                  disabled={updateAxisValue.isPending}
+                                  aria-label="Sposta giù"
+                                  title="Sposta giù"
+                                  className="h-9 w-9"
+                                >
+                                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                                </Button>
                                 <Button
                                   size="icon"
                                   variant="ghost"
@@ -1396,6 +1580,63 @@ function ValueFormDialog({
                   <strong>acquisto</strong> è il margine per il serramentista
                   su questo valore.
                 </p>
+
+                {/* #11 — Diff prezzi quando si modifica un valore esistente */}
+                {editing && value ? (
+                  <div className="text-[11px] text-muted-foreground bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900 rounded px-2 py-1.5 space-y-0.5">
+                    <div className="font-medium text-amber-900 dark:text-amber-200">
+                      Confronto con valore originale:
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Prima:</span>
+                      <span className="font-mono">
+                        {value.maggiorazione_tipo === "none"
+                          ? "Nessuna"
+                          : value.maggiorazione_tipo === "percentuale"
+                            ? `+${value.maggiorazione_valore}%`
+                            : `+${value.maggiorazione_valore} €`}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Dopo:</span>
+                      <span className="font-mono">
+                        {magTipo === "none"
+                          ? "Nessuna"
+                          : magTipo === "percentuale"
+                            ? `+${magValore}%`
+                            : `+${magValore} €`}
+                      </span>
+                    </div>
+                    {(() => {
+                      const oldV = value.maggiorazione_tipo === "none" ? 0 : value.maggiorazione_valore;
+                      const newV = magTipo === "none" ? 0 : parseFloat(magValore) || 0;
+                      const diff = newV - oldV;
+                      const sameType = value.maggiorazione_tipo === magTipo;
+                      if (!sameType) {
+                        return (
+                          <div className="flex justify-between text-rose-700 font-medium">
+                            <span>⚠ Tipo diverso</span>
+                            <span>impatto da valutare</span>
+                          </div>
+                        );
+                      }
+                      if (Math.abs(diff) < 0.001) return null;
+                      return (
+                        <div
+                          className={`flex justify-between font-medium ${
+                            diff > 0 ? "text-rose-700" : "text-emerald-700"
+                          }`}
+                        >
+                          <span>Variazione:</span>
+                          <span className="font-mono">
+                            {diff > 0 ? "+" : ""}
+                            {magTipo === "percentuale" ? `${diff.toFixed(2)}%` : `${diff.toFixed(2)} €`}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : null}
 
                 {/* Preview prezzo live: aiuta a validare il valore inserito
                     evitando errori grossolani (un "+5" percentuale letto come
