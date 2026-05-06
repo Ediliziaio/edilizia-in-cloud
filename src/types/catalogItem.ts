@@ -100,9 +100,30 @@ export interface CatalogCategory {
   colore: string | null;
   immagine_url: string | null;
   sort_order: number;
+  /** Macrocategoria di appartenenza (NULL = legacy / nessuna). */
+  macrocategoria_id: string | null;
   count_families: number;
   count_articles: number;
   total: number;
+}
+
+/**
+ * Macrocategoria di catalogo (livello superiore alle CatalogCategory).
+ * Usata dallo Stadio 1 del Preventivatore quando esiste >1 macrocat:
+ * l'utente prima sceglie la macrocategoria (es. "PIU' LUCE", "Sistema X")
+ * e poi vede le categorie/modelli al suo interno.
+ */
+export interface CatalogMacrocategory {
+  id: string;
+  nome: string;
+  descrizione: string | null;
+  icona: string | null;
+  colore: string | null;
+  sort_order: number;
+  /** Numero di categorie sotto la macrocategoria (con ≥1 prodotto). */
+  count_categories: number;
+  /** Numero TOTALE di prodotti annidati (sommatoria su tutte le categorie). */
+  count_products: number;
 }
 
 /**

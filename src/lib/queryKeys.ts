@@ -1096,8 +1096,10 @@ export const queryKeys = {
   // articoli.
   catalog: {
     all: ["catalog"] as const,
-    categories: (companyId: string | undefined) =>
-      ["catalog", "categories", companyId] as const,
+    macrocategories: (companyId: string | undefined) =>
+      ["catalog", "macrocategories", companyId] as const,
+    categories: (companyId: string | undefined, macrocategoriaId?: string | null) =>
+      ["catalog", "categories", companyId, macrocategoriaId ?? null] as const,
     items: (companyId: string | undefined, categoriaId: string | null) =>
       ["catalog", "items", companyId, categoriaId] as const,
   },

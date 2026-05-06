@@ -14,6 +14,7 @@
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  ArrowLeft,
   Blinds,
   Bath,
   Building2,
@@ -33,7 +34,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCatalogCategories } from "@/hooks/useCatalogCategories";
-import type { CatalogCategory } from "@/types/catalogItem";
+import type { CatalogCategory, CatalogMacrocategory } from "@/types/catalogItem";
 
 /** Mappa nomi lucide → componente. Estendibile in base alle icone usate. */
 const LUCIDE_MAP: Record<string, LucideIcon> = {
@@ -80,6 +81,15 @@ function CategoryIcon({ icona }: { icona: string | null }) {
 
 export interface CategoryGridProps {
   onSelectCategory: (category: CatalogCategory) => void;
+  /**
+   * Macrocategoria selezionata in stage precedente. Se valorizzata, vengono
+   * caricate solo le categorie sotto di essa (filtro server-side) e viene
+   * mostrato un breadcrumb in alto. Se NULL, si torna al comportamento legacy
+   * (tutte le categorie aziendali — usato quando non esistono macrocat).
+   */
+  macrocategory?: CatalogMacrocategory | null;
+  /** Click su "← Macrocategorie" del breadcrumb (solo se macrocategory != null). */
+  onBack?: () => void;
   onAddFreeLine?: () => void;
   onAddDiscount?: () => void;
   onAddSubtotal?: () => void;
@@ -87,11 +97,15 @@ export interface CategoryGridProps {
 
 export function CategoryGrid({
   onSelectCategory,
+  macrocategory,
+  onBack,
   onAddFreeLine,
   onAddDiscount,
   onAddSubtotal,
 }: CategoryGridProps) {
-  const { data: categories, isLoading } = useCatalogCategories();
+  const { data: categories, isLoading } = useCatalogCategories({
+    macrocategoriaId: macrocategory?.id ?? null,
+  });
 
   if (isLoading) {
     return (
@@ -108,6 +122,15 @@ export function CategoryGrid({
 
   return (
     <div className="space-y-4">
+      {macrocategory && onBack && (
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            <ArrowLeft className="mr-1 h-4 w-4" /> Macrocategorie
+          </Button>
+          <span className="text-sm text-muted-foreground">›</span>
+          <span className="text-sm font-medium">{macrocategory.nome}</span>
+        </div>
+      )}
       {empty ? (
         <div className="rounded-md border border-dashed p-8 text-center">
           <Package className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />

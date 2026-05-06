@@ -1,27 +1,24 @@
 /**
- * AddItemDialog — Preventivatore Unificato (Sprint A §4.3).
+ * AddItemDialog — Preventivatore Unificato (Sprint A §4.3 + fix gerarchia).
  *
- * Dialog a tre stadi dietro il feature flag `PREVENTIVATORE_UNIFIED_V1`.
+ * Dialog a quattro stadi dietro il feature flag `PREVENTIVATORE_UNIFIED_V1`.
  * Sostituisce i 5 bottoni legacy (Wizard serramenti / Articolo / Tariffa /
- * Riga libera / Aggiungi bundle) con un unico entry point a UX lineare:
+ * Riga libera / Aggiungi bundle) con un unico entry point a UX gerarchico:
  *
- *   Stadio 1 · Macrocategoria → CategoryGrid
- *   Stadio 2 · Prodotto       → ProductPicker
- *   Stadio 3 · Configurazione → ProductConfigurator (dispatcher family|article)
+ *   Stadio 1 · Macrocategoria  → MacrocategoryGrid (es. "PIU' LUCE")
+ *   Stadio 2 · Categoria       → CategoryGrid filtrata per macrocat
+ *   Stadio 3 · Prodotto        → ProductPicker
+ *   Stadio 4 · Configurazione  → ProductConfigurator (dispatcher family|article)
  *
- * Il contratto verso QuoteBuilder rimane uguale a prima: callback
- * `onAddItems(items, nextSortOrder)` che il builder usa per appendere le
- * righe al preventivo. Il parent NON vede né il concetto di "famiglia vs
- * articolo" né quello di "posa linked": entrambi sono risolti qui dentro
- * tramite `ConfiguredItem.parent_temp_id` (persistito come `parent_item_id`
- * al SAVE — v. Step 9 masterprompt).
+ * Auto-skip rules per non costringere doppi click inutili:
+ *   • Se esiste 1 sola macrocategoria → salta lo Stadio 1 e va a Stadio 2.
+ *   • Se la company NON ha proprio macrocategorie → resta sul vecchio flow
+ *     (Categoria diretta come Stadio 1).
  *
- * Le azioni "Riga libera / Sconto / Subtotale" sono esposte allo Stadio 1
- * tramite i secondary buttons di CategoryGrid, che delegano ai callback
- * opzionali del dialog. Se il QuoteBuilder non li fornisce, non vengono
- * mostrati.
+ * Il contratto verso QuoteBuilder rimane uguale: callback `onAddItems(items,
+ * nextSortOrder)`. Il parent NON vede il livello macrocat: è solo UX.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -30,16 +27,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CategoryGrid } from "./CategoryGrid";
+import { MacrocategoryGrid } from "./MacrocategoryGrid";
 import { ProductPicker } from "./ProductPicker";
 import { ProductConfigurator } from "./configurators/ProductConfigurator";
+import { useCatalogMacrocategories } from "@/hooks/useCatalogMacrocategories";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
 import type {
   CatalogCategory,
   CatalogItem,
+  CatalogMacrocategory,
   ConfiguredItem,
 } from "@/types/catalogItem";
 
-export type AddItemStage = 1 | 2 | 3;
+export type AddItemStage = 1 | 2 | 3 | 4;
 
 export interface AddItemDialogProps {
   open: boolean;
@@ -66,12 +66,34 @@ export function AddItemDialog({
   onAddDiscount,
   onAddSubtotal,
 }: AddItemDialogProps) {
+  const { data: macros, isLoading: macrosLoading } = useCatalogMacrocategories();
+
   const [stage, setStage] = useState<AddItemStage>(1);
+  const [macro, setMacro] = useState<CatalogMacrocategory | null>(null);
   const [category, setCategory] = useState<CatalogCategory | null>(null);
   const [item, setItem] = useState<CatalogItem | null>(null);
 
+  // ── Auto-skip Stadio 1 quando c'è ≤1 macrocategoria ───────────────────
+  // Se NON ci sono macrocategorie → flow legacy: parto da Stadio 2 senza filtro
+  // Se c'è 1 sola macrocat → la pre-seleziono e parto da Stadio 2 con filtro
+  useEffect(() => {
+    if (!open || macrosLoading) return;
+    if (stage !== 1) return;
+    if (macro) return;
+    const list = macros ?? [];
+    if (list.length === 0) {
+      // Nessuna macrocat: legacy mode — categorie tutte assieme
+      setMacro(null);
+      setStage(2);
+    } else if (list.length === 1) {
+      setMacro(list[0]);
+      setStage(2);
+    }
+  }, [open, macrosLoading, macros, stage, macro]);
+
   function reset(): void {
     setStage(1);
+    setMacro(null);
     setCategory(null);
     setItem(null);
   }
@@ -81,26 +103,47 @@ export function AddItemDialog({
     onClose();
   }
 
-  function handleSelectCategory(cat: CatalogCategory): void {
-    setCategory(cat);
+  function handleSelectMacro(m: CatalogMacrocategory): void {
+    setMacro(m);
+    setCategory(null);
     setItem(null);
     setStage(2);
   }
 
-  function handleSelectItem(it: CatalogItem): void {
-    setItem(it);
-    setStage(3);
-  }
-
-  function handleBackFromPicker(): void {
+  function handleBackFromCategoryGrid(): void {
+    // Se l'utente ha solo 1 macrocategoria non possiamo "tornare indietro" a una
+    // schermata vuota: in quel caso chiudiamo. Altrimenti torniamo a Stadio 1.
+    const list = macros ?? [];
+    if (list.length <= 1) {
+      handleClose();
+      return;
+    }
+    setMacro(null);
     setCategory(null);
     setItem(null);
     setStage(1);
   }
 
-  function handleBackFromConfigurator(): void {
+  function handleSelectCategory(cat: CatalogCategory): void {
+    setCategory(cat);
+    setItem(null);
+    setStage(3);
+  }
+
+  function handleSelectItem(it: CatalogItem): void {
+    setItem(it);
+    setStage(4);
+  }
+
+  function handleBackFromPicker(): void {
+    setCategory(null);
     setItem(null);
     setStage(2);
+  }
+
+  function handleBackFromConfigurator(): void {
+    setItem(null);
+    setStage(3);
   }
 
   function handleAddItems(items: ConfiguredItem[], nextSortOrder: number): void {
@@ -121,6 +164,10 @@ export function AddItemDialog({
     stage === 1
       ? "Scegli una macrocategoria per iniziare."
       : stage === 2
+      ? macro
+        ? `Scegli una categoria di "${macro.nome}".`
+        : "Scegli una categoria."
+      : stage === 3
       ? "Scegli il prodotto."
       : "Configura il prodotto.";
 
@@ -133,7 +180,18 @@ export function AddItemDialog({
         </DialogHeader>
 
         {stage === 1 && (
+          <MacrocategoryGrid
+            onSelectMacrocategory={handleSelectMacro}
+            onAddFreeLine={handleSecondary(onAddFreeLine)}
+            onAddDiscount={handleSecondary(onAddDiscount)}
+            onAddSubtotal={handleSecondary(onAddSubtotal)}
+          />
+        )}
+
+        {stage === 2 && (
           <CategoryGrid
+            macrocategory={macro}
+            onBack={macro ? handleBackFromCategoryGrid : undefined}
             onSelectCategory={handleSelectCategory}
             onAddFreeLine={handleSecondary(onAddFreeLine)}
             onAddDiscount={handleSecondary(onAddDiscount)}
@@ -141,7 +199,7 @@ export function AddItemDialog({
           />
         )}
 
-        {stage === 2 && category && (
+        {stage === 3 && category && (
           <ProductPicker
             category={category}
             onBack={handleBackFromPicker}
@@ -149,7 +207,7 @@ export function AddItemDialog({
           />
         )}
 
-        {stage === 3 && item && (
+        {stage === 4 && item && (
           <ProductConfigurator
             item={item}
             tariffe={tariffe}
