@@ -1,7 +1,7 @@
 -- MP-PRICE-01 — PAYG Top-ups + view distribuzione per persona + tabella alert
 -- ════════════════════════════════════════════════════════════════════════════
 -- Schema base plan_ai_budgets + company_ai_usage_month + RPC check_company_budget
--- è stato creato in 20270506140000_plan_ai_budgets.sql.
+-- è stato creato in 20260506090900_plan_ai_budgets.sql.
 --
 -- Questo MP aggiunge:
 --   • ai_payg_topups: storia top-up Stripe over-cap

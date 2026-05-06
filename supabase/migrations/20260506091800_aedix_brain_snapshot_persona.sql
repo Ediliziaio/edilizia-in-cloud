@@ -1,7 +1,7 @@
 -- MP-AEDIX-01 — Brain Cross-Tenant Phase 2: persona aedix_brain + tool query
 -- ════════════════════════════════════════════════════════════════════════════
 -- Schema base aedix_brain.company_snapshots + market_metrics + opt-in companies
--- è già stato creato in 20270506130000_aedix_brain_schema.sql.
+-- è già stato creato in 20260506090800_aedix_brain_schema.sql.
 --
 -- Questo MP aggiunge:
 --   • Persona AI 'aedix_brain' (super_admin only, meta)
