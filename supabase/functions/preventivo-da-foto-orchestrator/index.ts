@@ -1,5 +1,9 @@
 /**
- * MP-SALES-02 — Preventivo da Foto Orchestrator
+ * MP-SALES-02 — Preventivo da Foto Orchestrator (LEGACY ASYNC)
+ *
+ * ⚠️ Flusso async legacy mantenuto per WhatsApp/Telegram/email inbound.
+ * Per UI desktop usa invece l'edge SYNC `ai-quote-from-capture` (più moderno,
+ * usa retrieval pgvector reale e supporta foto+audio+testo unificati).
  *
  * Triggerato dal tool `crea_preventivo_da_foto` (status='pending'). Esegue
  * pipeline asincrona:
@@ -11,6 +15,9 @@
  *
  * Defensive: vertical_category_templates e tariffe_aziendali possono non
  * esistere → fallback a prezzi medi vertical.
+ *
+ * TODO refactor: sostituire prezzi hardcoded con la pipeline retrieval
+ * pgvector di ai-quote-from-capture (oggi usa solo prezzi medi vertical).
  */
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";

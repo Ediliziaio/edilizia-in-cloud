@@ -3523,6 +3523,46 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_suggerisci_azione_per_quote", { p_company_id: ctx.companyId, p_quote_id: args?.quote_id }),
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
   },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // QUOTE FROM CAPTURE — generazione preventivi da foto/audio/testo (8 tool)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  create_capture_run: {
+    schema: { type: "function", function: { name: "create_capture_run", description: "Crea un nuovo run di estrazione preventivo da foto/audio/testo. Ritorna run_id.", parameters: { type: "object", properties: { capture_mode: { type: "string", enum: ["foto", "audio", "testo", "mixed"] }, image_paths: { type: "array", items: { type: "string" } }, audio_path: { type: "string" }, description: { type: "string" }, vertical_key: { type: "string" } }, required: ["capture_mode"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_create_capture_run", { p_company_id: ctx.companyId, p_capture_mode: args?.capture_mode, p_image_paths: args?.image_paths ?? null, p_audio_path: args?.audio_path ?? null, p_description: args?.description ?? null, p_vertical_key: args?.vertical_key ?? null }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "preventivi",
+  },
+
+  get_capture_run: {
+    schema: { type: "function", function: { name: "get_capture_run", description: "Recupera dati di un capture run (estratto cliente + prodotti + status).", parameters: { type: "object", properties: { run_id: { type: "string" } }, required: ["run_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_get_capture_run", { p_company_id: ctx.companyId, p_run_id: args?.run_id }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "preventivi",
+  },
+
+  apply_capture_review: {
+    schema: { type: "function", function: { name: "apply_capture_review", description: "Trasforma un capture run reviewato in quote + quote_items + auto-create/update marketing_contact. Strategia contact: auto/manual/always_new/use_existing.", parameters: { type: "object", properties: { run_id: { type: "string" }, corrections: { type: "object", properties: { customer: { type: "object" }, products: { type: "array" }, contact_strategy: { type: "string", enum: ["auto", "manual", "always_new", "use_existing"] }, existing_contact_id: { type: "string" } } } }, required: ["run_id", "corrections"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_apply_capture_review", { p_company_id: ctx.companyId, p_run_id: args?.run_id, p_corrections: args?.corrections ?? {} }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite"], riskLevel: "yellow", domain: "preventivi",
+  },
+
+  match_product_alias: {
+    schema: { type: "function", function: { name: "match_product_alias", description: "Cerca alias prodotto cached per nome locale (es. 'infisso PVC' → article_template_id). Bumpa use_count.", parameters: { type: "object", properties: { alias_text: { type: "string" } }, required: ["alias_text"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_match_product_alias", { p_company_id: ctx.companyId, p_alias_text: args?.alias_text }),
+    allowedPersonas: ["silvio", "sales", "*"], riskLevel: "safe", domain: "preventivi",
+  },
+
+  register_product_alias: {
+    schema: { type: "function", function: { name: "register_product_alias", description: "Registra un alias prodotto dopo che l'utente ha confermato il match.", parameters: { type: "object", properties: { alias_text: { type: "string" }, article_template_id: { type: "string" }, family_id: { type: "string" }, tariffa_id: { type: "string" }, learned_from: { type: "string", enum: ["manual", "capture_review", "history", "import"] }, confidence: { type: "number" } }, required: ["alias_text"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_register_product_alias", { p_company_id: ctx.companyId, p_alias_text: args?.alias_text, p_article_template_id: args?.article_template_id ?? null, p_family_id: args?.family_id ?? null, p_tariffa_id: args?.tariffa_id ?? null, p_learned_from: args?.learned_from ?? "capture_review", p_confidence: args?.confidence ?? 0.95 }),
+    allowedPersonas: ["silvio", "sales", "*"], riskLevel: "safe", domain: "preventivi",
+  },
+
+  lookup_contact_live: {
+    schema: { type: "function", function: { name: "lookup_contact_live", description: "Cerca contact candidates per email/telefono/nome (UI suggestion live).", parameters: { type: "object", properties: { email: { type: "string" }, phone: { type: "string" }, name_hint: { type: "string" } } } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lookup_contact_live", { p_company_id: ctx.companyId, p_email: args?.email ?? null, p_phone: args?.phone ?? null, p_name_hint: args?.name_hint ?? null }),
+    allowedPersonas: ["silvio", "sales", "direttore_vendite", "*"], riskLevel: "safe", domain: "crm",
+  },
 };
 
 /**
