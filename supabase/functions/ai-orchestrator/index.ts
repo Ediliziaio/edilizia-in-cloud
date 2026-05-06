@@ -55,6 +55,14 @@ import { executeToolsParallel, type ToolExecutionResult } from "../_shared/silvi
 import { buildPreRagContext, type RagSource } from "../_shared/ragInjector.ts";
 // MP-03: citation enforcement
 import { validateCitations, getCitationMode, CITATION_FORMAT_RULES } from "../_shared/citationValidator.ts";
+// MP-04: structured output CoT + confidence
+import {
+  AI_RESPONSE_SCHEMA,
+  shouldUseStructured,
+  STRUCTURED_OUTPUT_SYSTEM_RULES,
+  parseStructuredResponse,
+  type StructuredAiResponse,
+} from "../_shared/structuredOutput.ts";
 
 const MAX_TOOL_ITERATIONS = 5;
 
@@ -364,9 +372,12 @@ serve(async (req: Request) => {
 
     // MP-03: aggiungiamo le regole di citation enforcement SOLO se ci sono RAG sources
     const citationRulesBlock = ragSources.length > 0 ? CITATION_FORMAT_RULES : "";
+    // MP-04: structured output (solo per tier balanced/premium)
+    const useStructured = shouldUseStructured(persona.recommended_tier_key);
+    const structuredRulesBlock = useStructured ? STRUCTURED_OUTPUT_SYSTEM_RULES : "";
     // MP-02: persona + userContext + memory + RAG (parità con silvio-chat)
     const personaWithContext =
-      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock + citationRulesBlock;
+      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock + citationRulesBlock + structuredRulesBlock;
     const { prompt: systemPromptComplete, preamboloVersion } = await buildSystemPrompt(
       supabaseAdmin,
       personaWithContext,
@@ -419,6 +430,10 @@ serve(async (req: Request) => {
           params: toolsSpec
             ? ({ temperature: 0.4, max_tokens: 4000, tools: toolsSpec, tool_choice: "auto" } as any)
             : { temperature: 0.4, max_tokens: 4000 },
+          // MP-04: structured output strict per tier balanced/premium (no quando tools attivi).
+          responseFormat: useStructured && !toolsSpec
+            ? { type: "json_schema", json_schema: { name: "AiResponse", schema: AI_RESPONSE_SCHEMA, strict: true } }
+            : undefined,
           companyId,
           userId,
           personaKey,
@@ -512,6 +527,17 @@ serve(async (req: Request) => {
       finalContent = "⚠️ Mi scuso, la richiesta è troppo complessa. Puoi riformularla in più passaggi?";
     }
 
+    // ── MP-04: Tenta parsing structured output ────────────────────────────
+    let structured: StructuredAiResponse | null = null;
+    if (useStructured) {
+      structured = parseStructuredResponse(finalContent);
+      if (structured) {
+        finalContent = structured.answer;
+      } else {
+        console.warn(`[ai-orchestrator/${personaKey}] structured output: parse failed, fallback to raw`);
+      }
+    }
+
     // ── MP-03: Citation enforcement validation ──────────────────────────
     const citationMode = getCitationMode();
     const citationCheck = validateCitations(finalContent, ragSources, citationMode);
@@ -564,23 +590,32 @@ serve(async (req: Request) => {
 
     // MP-01: aggiorna le colonne dedicate rag_sources/rag_min_similarity/rag_source_count
     // (separate dal metadata per query analytics più veloci)
-    if (msgId && ragSources.length > 0) {
+    if (msgId) {
       try {
-        await supabaseAdmin
-          .from("ai_persona_messages")
-          .update({
-            rag_sources: ragSources,
-            rag_min_similarity: ragMinSimilarity,
-            rag_source_count: ragSources.length,
-            // MP-03: citation enforcement
-            citations_used: citationCheck.citationsUsed.length > 0 ? citationCheck.citationsUsed : null,
-            citations_missing: citationCheck.citationsMissing,
-            invalid_citations: citationCheck.invalidCitations.length > 0 ? citationCheck.invalidCitations : null,
-            no_rag_prefix: citationCheck.noRagPrefix,
-          })
-          .eq("id", msgId);
+        const updates: Record<string, unknown> = {};
+        if (ragSources.length > 0) {
+          updates.rag_sources = ragSources;
+          updates.rag_min_similarity = ragMinSimilarity;
+          updates.rag_source_count = ragSources.length;
+          // MP-03
+          updates.citations_used = citationCheck.citationsUsed.length > 0 ? citationCheck.citationsUsed : null;
+          updates.citations_missing = citationCheck.citationsMissing;
+          updates.invalid_citations = citationCheck.invalidCitations.length > 0 ? citationCheck.invalidCitations : null;
+          updates.no_rag_prefix = citationCheck.noRagPrefix;
+        }
+        // MP-04 structured (può esistere anche senza RAG)
+        if (structured) {
+          updates.ai_thinking = structured.thinking;
+          updates.confidence = structured.confidence;
+          updates.uncertainty_reasons = structured.uncertainty_reasons ?? null;
+          updates.followup_suggestions = structured.followup_suggestions ?? null;
+          updates.requires_human_review = structured.requires_human_review ?? false;
+        }
+        if (Object.keys(updates).length > 0) {
+          await supabaseAdmin.from("ai_persona_messages").update(updates).eq("id", msgId);
+        }
       } catch (e) {
-        console.warn("[ai-orchestrator] rag_sources/citations update skipped:", e instanceof Error ? e.message : e);
+        console.warn("[ai-orchestrator] audit update skipped:", e instanceof Error ? e.message : e);
       }
     }
 

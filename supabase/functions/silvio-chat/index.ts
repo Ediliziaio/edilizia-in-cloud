@@ -30,6 +30,14 @@ import { buildSystemPrompt } from "../_shared/preambolo.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { buildPreRagContext, type RagSource } from "../_shared/ragInjector.ts";
 import { validateCitations, getCitationMode, CITATION_FORMAT_RULES } from "../_shared/citationValidator.ts";
+// MP-04: structured output per CoT + confidence
+import {
+  AI_RESPONSE_SCHEMA,
+  shouldUseStructured,
+  STRUCTURED_OUTPUT_SYSTEM_RULES,
+  parseStructuredResponse,
+  type StructuredAiResponse,
+} from "../_shared/structuredOutput.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const PERSONA_KEY = "silvio";
@@ -336,8 +344,12 @@ serve(async (req: Request) => {
     // Graceful degradation: se preambolo non caricabile, usa solo persona prompt.
     // MP-03: aggiungiamo le regole di citation enforcement SOLO se ci sono RAG sources
     const citationRulesBlock = ragSources.length > 0 ? CITATION_FORMAT_RULES : "";
+    // MP-04: structured output (solo per tier balanced/premium)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const useStructured = shouldUseStructured((persona as any).recommended_tier_key);
+    const structuredRulesBlock = useStructured ? STRUCTURED_OUTPUT_SYSTEM_RULES : "";
     const personaWithContext =
-      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock + citationRulesBlock;
+      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock + citationRulesBlock + structuredRulesBlock;
     const { prompt: enrichedSystemPrompt, preamboloVersion } = await buildSystemPrompt(
       supabaseAdmin,
       personaWithContext,
@@ -565,6 +577,12 @@ serve(async (req: Request) => {
             tools: toolSchemas,
             tool_choice: "auto",
           },
+          // MP-04: structured output (json_schema strict) per tier balanced/premium.
+          // Se tier non supporta, il modello segue STRUCTURED_OUTPUT_SYSTEM_RULES iniettato nel prompt.
+          // Disabilitato durante tool calls (json_schema entra in conflitto con tool_choice=auto).
+          responseFormat: useStructured && toolSchemas.length === 0
+            ? { type: "json_schema", json_schema: { name: "AiResponse", schema: AI_RESPONSE_SCHEMA, strict: true } }
+            : undefined,
           companyId,
           userId,
           personaKey: PERSONA_KEY,
@@ -636,6 +654,17 @@ serve(async (req: Request) => {
     if (!finalContent && iteration >= MAX_TOOL_ITERATIONS) {
       finalContent = "⚠️ Non sono riuscito a completare l'analisi. Riformula la domanda in modo più specifico.";
     }
+    // ── MP-04: Tenta parsing structured output (per tier balanced/premium) ──
+    let structured: StructuredAiResponse | null = null;
+    if (useStructured) {
+      structured = parseStructuredResponse(finalContent);
+      if (structured) {
+        finalContent = structured.answer; // sostituisce il JSON con il solo answer
+      } else {
+        console.warn("[silvio-chat] structured output: parse failed, fallback to raw content");
+      }
+    }
+
     finalContent = appendEvidenceFooter(finalContent, toolCallsLog, lastResult);
 
     // ── MP-03: Citation enforcement validation ──────────────────────────
@@ -731,6 +760,12 @@ serve(async (req: Request) => {
         citations_missing: citationCheck.citationsMissing,
         invalid_citations: citationCheck.invalidCitations.length > 0 ? citationCheck.invalidCitations : null,
         no_rag_prefix: citationCheck.noRagPrefix,
+        // MP-04: CoT + Confidence audit
+        ai_thinking: structured?.thinking ?? null,
+        ai_confidence: structured?.confidence ?? null,
+        ai_uncertainty_reasons: structured?.uncertainty_reasons ?? null,
+        followup_suggestions: structured?.followup_suggestions ?? null,
+        requires_human_review: structured?.requires_human_review ?? false,
       });
     } catch (logErr) {
       // Non bloccare la response per un fail di logging — solo warn
