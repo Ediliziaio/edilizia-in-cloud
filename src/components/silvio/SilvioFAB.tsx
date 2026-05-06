@@ -16,6 +16,7 @@ import {
   Sparkles,
   MessageSquare,
   Brain,
+  BrainCircuit,
   FileUp,
   Search,
   X,
@@ -77,6 +78,7 @@ export function SilvioFAB({ hidden = false }: Props) {
   const [smartImportOpen, setSmartImportOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [tipIdx, setTipIdx] = useState(0);
+  const [tipsExpanded, setTipsExpanded] = useState(false);
 
   // Rotate tip ogni 7s quando il popover è aperto
   useEffect(() => {
@@ -147,15 +149,15 @@ export function SilvioFAB({ hidden = false }: Props) {
                 </motion.span>
               ) : (
                 <motion.span
-                  key="sparkles"
+                  key="brain"
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.5, opacity: 0 }}
-	                  className="relative z-10 flex items-center gap-2"
+                  className="relative z-10 flex items-center gap-2"
                 >
-	                  <Sparkles className="h-6 w-6" fill="currentColor" />
-                    <span className="hidden text-sm font-semibold sm:inline">Silvio</span>
-	                </motion.span>
+                  <BrainCircuit className="h-7 w-7" strokeWidth={2.2} />
+                  <span className="hidden text-sm font-semibold sm:inline">Silvio</span>
+                </motion.span>
 	              )}
             </AnimatePresence>
           </motion.button>
@@ -214,51 +216,89 @@ export function SilvioFAB({ hidden = false }: Props) {
               />
             </div>
 
-            {/* Cose da sapere — tip rotante */}
-            <div className="mt-3 border-t pt-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1 flex items-center gap-1 mb-1.5">
-                <Lightbulb className="h-3 w-3 text-amber-500" />
-                Cose da sapere
-              </p>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={tipIdx}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.3 }}
-                  className="bg-amber-50 border border-amber-100 rounded-lg p-2.5"
-                >
-                  <p className="text-xs font-semibold text-amber-900 mb-0.5">
-                    {currentTip.title}
-                  </p>
-                  <p className="text-[11px] leading-snug text-slate-700">{currentTip.body}</p>
-                  {currentTip.cta && (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="text-orange-600 h-auto p-0 mt-1 text-[11px] font-medium"
-                      onClick={() => handleAction(currentTip.cta!.action)}
-                    >
-                      {currentTip.cta.label} <ArrowRight className="h-3 w-3 ml-0.5" />
-                    </Button>
-                  )}
-                </motion.div>
+            {/* Cose da sapere — accordion collassabile (default chiuso) */}
+            <div className="mt-3 border-t pt-2">
+              <button
+                type="button"
+                onClick={() => setTipsExpanded((v) => !v)}
+                className="w-full flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500 px-1 hover:text-slate-700 transition-colors py-1"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Lightbulb className="h-3 w-3 text-amber-500" />
+                  Cose da sapere
+                  <span className="text-[9px] font-normal text-slate-400 normal-case">
+                    ({KNOW_HOW_TIPS.length} suggerimenti)
+                  </span>
+                </span>
+                <motion.span animate={{ rotate: tipsExpanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
+                  <ArrowRight className="h-3 w-3" />
+                </motion.span>
+              </button>
+              <AnimatePresence initial={false}>
+                {tipsExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-2">
+                      <AnimatePresence mode="wait">
+                        <motion.div
+                          key={tipIdx}
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -10 }}
+                          transition={{ duration: 0.2 }}
+                          className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-lg p-3"
+                        >
+                          <p className="text-[12px] font-semibold text-slate-800 mb-1 leading-snug">
+                            {currentTip.title}
+                          </p>
+                          <p className="text-[11px] leading-relaxed text-slate-600">{currentTip.body}</p>
+                          {currentTip.cta && (
+                            <button
+                              type="button"
+                              className="text-orange-600 hover:text-orange-700 mt-1.5 text-[11px] font-semibold flex items-center gap-1"
+                              onClick={() => handleAction(currentTip.cta!.action)}
+                            >
+                              {currentTip.cta.label} <ArrowRight className="h-3 w-3" />
+                            </button>
+                          )}
+                        </motion.div>
+                      </AnimatePresence>
+                      <div className="flex items-center justify-between mt-2 px-1">
+                        <button
+                          type="button"
+                          onClick={() => setTipIdx((i) => (i - 1 + KNOW_HOW_TIPS.length) % KNOW_HOW_TIPS.length)}
+                          className="text-[10px] text-slate-400 hover:text-slate-700"
+                          aria-label="Tip precedente"
+                        >‹ prec</button>
+                        <div className="flex gap-1">
+                          {KNOW_HOW_TIPS.map((_, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setTipIdx(i)}
+                              className={`h-1 rounded-full transition-all ${
+                                i === tipIdx ? "bg-orange-500 w-3" : "bg-slate-300 w-1 hover:bg-slate-400"
+                              }`}
+                              aria-label={`Tip ${i + 1}`}
+                            />
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setTipIdx((i) => (i + 1) % KNOW_HOW_TIPS.length)}
+                          className="text-[10px] text-slate-400 hover:text-slate-700"
+                          aria-label="Tip successivo"
+                        >succ ›</button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
               </AnimatePresence>
-              {/* Pagination dots */}
-              <div className="flex justify-center gap-1 mt-2">
-                {KNOW_HOW_TIPS.map((_, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setTipIdx(i)}
-                    className={`h-1.5 rounded-full transition-all ${
-                      i === tipIdx ? "bg-orange-500 w-4" : "bg-slate-300 w-1.5 hover:bg-slate-400"
-                    }`}
-                    aria-label={`Tip ${i + 1}`}
-                  />
-                ))}
-              </div>
             </div>
           </div>
         </PopoverContent>

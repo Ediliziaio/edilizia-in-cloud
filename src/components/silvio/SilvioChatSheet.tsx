@@ -30,6 +30,7 @@ import {
   Send,
   Loader2,
   Brain,
+  BrainCircuit,
   User as UserIcon,
   ExternalLink,
   Sparkles,
@@ -42,13 +43,54 @@ import {
   FileSpreadsheet,
   FileType,
   File as FileIcon,
+  Plus,
+  Zap,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const MAX_ATTACHMENTS = 5;
+
+// Skill shortcuts: ognuna riempie il draft con un prompt template che
+// invoca tool/comportamenti specifici di Silvio. Pattern: come slash
+// commands di Claude/Cursor — accelera l'invocazione delle skill
+// principali senza che l'utente debba ricordarle.
+interface SilvioSkill {
+  id: string;
+  emoji: string;
+  label: string;
+  hint: string;
+  template: string;       // prompt da incollare nel draft
+  category: "data" | "doc" | "operations" | "advisor";
+}
+
+const SILVIO_SKILLS: SilvioSkill[] = [
+  // 📊 Dati aziendali
+  { id: "cashflow",   emoji: "💰", label: "Cashflow 30gg",      hint: "Forecast cassa prossimi 30 giorni", template: "Mostrami il cashflow forecast prossimi 30 giorni con dettaglio entrate/uscite e segnale eventuali tensioni di liquidità.", category: "data" },
+  { id: "margini",    emoji: "📊", label: "Margine commesse",   hint: "Quali commesse erodono margine",    template: "Quali commesse stanno erodendo margine? Mostrami le top 5 con margine più basso e perché.", category: "data" },
+  { id: "crediti",    emoji: "⚠️", label: "Crediti scaduti",   hint: "Clienti in ritardo grave",            template: "Quali clienti hanno crediti scaduti gravi (oltre 60 giorni)? Lista con importo e ultimo contatto.", category: "data" },
+  { id: "pipeline",   emoji: "🎯", label: "Pipeline preventivi",hint: "Stato vendite + conversion",         template: "Stato pipeline commerciale: preventivi inviati, accettati, in attesa. Tasso di conversion ultimi 90 giorni.", category: "data" },
+  { id: "operai",     emoji: "👷", label: "Operai + costi",     hint: "Headcount + costo personale",        template: "Quanti operai ho attivi e qual è il costo del personale al mese? Voglio anche dettaglio per ruolo.", category: "data" },
+  { id: "magazzino",  emoji: "📦", label: "Magazzino sotto soglia", hint: "Articoli da riordinare",          template: "Cosa devo riordinare in magazzino? Quali articoli sono sotto soglia minima?", category: "data" },
+
+  // 📄 Documenti
+  { id: "ddt",        emoji: "🚚", label: "Analizza DDT",        hint: "Carica foto/PDF di un DDT",         template: "Ti carico un DDT (in allegato). Estrai mittente, righe merce, totali. Se trovi un OdA aperto del fornitore, suggerisci il collegamento.", category: "doc" },
+  { id: "computo",    emoji: "📐", label: "Estrai computo",      hint: "Computo metrico → preventivo",     template: "Ti carico un computo metrico (in allegato). Estrai voci, prezzi, U.M. e suggerisci anomalie/sotto-prezzo rispetto al mercato.", category: "doc" },
+  { id: "fattura",    emoji: "🧾", label: "Analizza fattura",    hint: "Fattura attiva/passiva",            template: "Ti carico una fattura (in allegato). Estrai numero, data, P.IVA, totali e dimmi se è in regola.", category: "doc" },
+  { id: "contratto",  emoji: "📜", label: "Review contratto",    hint: "Analisi clausole + rischi",         template: "Ti carico un contratto (in allegato). Fammi review: parti, oggetto, importi, scadenze, penali, clausole rischiose.", category: "doc" },
+
+  // 🏗️ Operations
+  { id: "cantiere",   emoji: "🏗️", label: "Stato cantiere",     hint: "Avanzamento + costi commessa",     template: "Stato del cantiere {nome cantiere}: avanzamento, ore consumate, costi reali vs preventivo, anomalie.", category: "operations" },
+  { id: "subappalti", emoji: "🤝", label: "Subappalti aperti",   hint: "Lavori in subappalto",              template: "Lista subappalti in corso: subappaltatore, importo, % completamento, eventuali ritardi.", category: "operations" },
+
+  // 🧠 Advisor strategico (multi-area Council)
+  { id: "assumere",   emoji: "💼", label: "Posso assumere?",     hint: "Multi-area: HR + Finance + Strategic", template: "In base ai dati attuali della mia azienda, posso permettermi di assumere un nuovo operaio? Voglio l'analisi cross-area: cassa, CCNL, pipeline cantieri.", category: "advisor" },
+  { id: "rischi",     emoji: "🚨", label: "Allerta crisi",       hint: "Indici codice crisi D.Lgs 14/2019", template: "Calcolami gli indici di allerta crisi d'impresa (Codice Crisi D.Lgs 14/2019). Sono in zona di pericolo?", category: "advisor" },
+  { id: "search_kb",  emoji: "🔍", label: "Cerca in KB",         hint: "Cerca nel cervello aziendale",      template: "Cerca nella knowledge base: ", category: "advisor" },
+];
 const MAX_FILE_MB = 10; // limite ragionevole per chat
 
 type AttachmentKind = "image" | "pdf" | "audio" | "text-doc" | "office-doc" | "other";
@@ -217,6 +259,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   // Element 3: messaggi Silvio appena arrivati che devono ricevere effetto
   // typewriter. Quando arrivano via realtime, vengono inseriti in questo set;
   // dopo render iniziale, restano "freschi" finché l'animazione finisce.
@@ -911,6 +954,81 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
               onChange={handleFilePick}
               className="hidden"
             />
+            {/* Skill picker — "+" che apre menu di shortcut prompts (slash command style) */}
+            <Popover open={skillPickerOpen} onOpenChange={setSkillPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  type="button"
+                  disabled={sending || loadingChannel}
+                  className="h-10 w-10 rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50"
+                  title="Skill di Silvio (azioni rapide)"
+                >
+                  <Plus className="h-5 w-5" strokeWidth={2.5} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="top"
+                align="start"
+                className="w-[340px] sm:w-[380px] max-h-[60vh] p-0 border-orange-100 shadow-2xl rounded-2xl overflow-hidden flex flex-col"
+              >
+                <div className="bg-gradient-to-br from-orange-500 to-amber-400 px-3 py-2 text-white shrink-0">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4" fill="currentColor" />
+                    <p className="text-xs font-semibold">Skill rapide di Silvio</p>
+                  </div>
+                  <p className="text-[10px] opacity-90 leading-tight">Click su una skill → riempie il messaggio</p>
+                </div>
+                <div className="overflow-y-auto p-2 space-y-3">
+                  {(["data", "doc", "operations", "advisor"] as const).map((cat) => {
+                    const items = SILVIO_SKILLS.filter((s) => s.category === cat);
+                    if (items.length === 0) return null;
+                    const catLabel: Record<string, string> = {
+                      data: "📊 Dati aziendali",
+                      doc: "📄 Documenti",
+                      operations: "🏗️ Operations",
+                      advisor: "🧠 Advisor strategico",
+                    };
+                    return (
+                      <div key={cat}>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1.5 mb-1">
+                          {catLabel[cat]}
+                        </p>
+                        <div className="space-y-0.5">
+                          {items.map((skill) => (
+                            <button
+                              key={skill.id}
+                              type="button"
+                              onClick={() => {
+                                setDraft(skill.template);
+                                setSkillPickerOpen(false);
+                                // focus textarea
+                                setTimeout(() => {
+                                  const ta = document.querySelector<HTMLTextAreaElement>(
+                                    'textarea[placeholder*="Silvio"], textarea[placeholder*="analizzi"]',
+                                  );
+                                  ta?.focus();
+                                }, 50);
+                              }}
+                              className="w-full flex items-start gap-2 px-2 py-1.5 rounded-md text-left hover:bg-orange-50 transition-colors group"
+                            >
+                              <span className="text-base shrink-0 mt-0.5">{skill.emoji}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[12px] font-semibold text-slate-800 group-hover:text-orange-700 leading-tight">
+                                  {skill.label}
+                                </p>
+                                <p className="text-[10px] text-slate-500 leading-tight truncate">{skill.hint}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
             {/* Paperclip button */}
             <Button
               size="icon"
