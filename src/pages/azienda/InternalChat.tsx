@@ -3,7 +3,8 @@
  * Supports DMs, group chats, Lucia AI bot, reactions, replies, pins
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
+import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
+import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
 import { SILVIO_SKILLS, SILVIO_SKILL_CATEGORY_LABELS } from "@/lib/silvio-skills";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -100,6 +101,13 @@ interface Message {
   reactions?: Record<string, string[]> | null;
   message_type?: string;
   is_pinned?: boolean | null;
+  // Sessione 1 — metadata AI (presenti solo per messaggi Silvio/Lucia)
+  rag_sources?: ChatMarkdownSource[] | null;
+  rag_min_similarity?: number | null;
+  ai_confidence?: "high" | "medium" | "low" | null;
+  ai_requires_human_review?: boolean | null;
+  followup_suggestions?: string[] | null;
+  council_data?: AiMeta["council_data"] | null;
 }
 
 interface Profile {
@@ -627,13 +635,14 @@ function ChatListItem({
 // ─── Message Bubble ──────────────────────────────────────────────────────────
 function MessageBubble({
   msg, isMe, isLucia, sender, showAvatar, replyMsg, profileMap,
-  onReply, onPin, onReaction, onDelete, userId,
+  onReply, onPin, onReaction, onDelete, userId, onAskFollowup,
 }: {
   msg: Message; isMe: boolean; isLucia: boolean;
   sender: Profile | undefined; showAvatar: boolean;
   replyMsg: Message | null; profileMap: Map<string, Profile>;
   onReply: () => void; onPin: () => void; onDelete?: () => void;
   onReaction: (emoji: string) => void; userId?: string;
+  onAskFollowup?: (query: string) => void;
 }) {
   // Detect AI bot type from sender_id (Silvio o Lucia hanno UUID sentinel)
   const isSilvioMsg = msg.sender_id === SILVIO_SENDER_ID;
@@ -747,18 +756,43 @@ function MessageBubble({
             </div>
           )}
 
+          {/* AI metadata top: review banner + low confidence + multi-area badge */}
+          {isAIMsg && (
+            <AiMessageMetaTop
+              meta={{
+                ai_confidence: msg.ai_confidence,
+                ai_requires_human_review: msg.ai_requires_human_review,
+                followup_suggestions: msg.followup_suggestions,
+                council_data: msg.council_data,
+              }}
+            />
+          )}
+
           {/* Content */}
           {msg.content && !(msg.attachment_url && msg.content === `📎 ${msg.attachment_name}`) && (
             isAIMsg ? (
               // Silvio + Lucia + canale AI: render markdown completo (### → h3, **bold**, liste, tabelle, [S1] chip)
               <div className="text-[14px] break-words pr-14">
-                <ChatMarkdown content={msg.content} />
+                <ChatMarkdown content={msg.content} sources={msg.rag_sources ?? undefined} />
               </div>
             ) : (
               <p className="text-[14px] whitespace-pre-wrap break-words pr-14 leading-relaxed">
                 {renderWithMentions(msg.content)}
               </p>
             )
+          )}
+
+          {/* AI metadata bottom: council expandable + chip follow-up */}
+          {isAIMsg && (
+            <AiMessageMetaBottom
+              meta={{
+                ai_confidence: msg.ai_confidence,
+                ai_requires_human_review: msg.ai_requires_human_review,
+                followup_suggestions: msg.followup_suggestions,
+                council_data: msg.council_data,
+              }}
+              onAskFollowup={onAskFollowup}
+            />
           )}
 
           {/* Time + check marks */}
@@ -1821,6 +1855,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                           onDelete={isMe ? () => setMessageToDelete(msg) : undefined}
                           onReaction={(emoji) => toggleReaction(msg.id, emoji, msg.reactions)}
                           userId={userId}
+                          onAskFollowup={isSilvioChannel ? sendToSilvio : undefined}
                         />
                       </React.Fragment>
                     );
