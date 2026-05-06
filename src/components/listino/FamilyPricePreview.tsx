@@ -14,7 +14,7 @@
  * fuori dell'editor.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Calculator } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -31,6 +32,20 @@ import {
 } from "@/components/ui/select";
 import { applyScontiFornitore, applyMarkup } from "@/lib/priceMarkup";
 import type { FamilyWithAxes, AxisSelection } from "@/types/articleFamily";
+
+// Limiti plausibili per validazione client (#4)
+const MIN_DIM_MM = 100;
+const MAX_DIM_MM = 10000;
+
+// Unità di misura supportate (#5)
+type DimUnit = "mm" | "cm" | "m";
+const UNIT_TO_MM: Record<DimUnit, number> = { mm: 1, cm: 10, m: 1000 };
+function toMm(value: number, unit: DimUnit): number {
+  return value * UNIT_TO_MM[unit];
+}
+function fromMm(mm: number, unit: DimUnit): number {
+  return mm / UNIT_TO_MM[unit];
+}
 
 interface GridCell {
   valore_x: number;
@@ -114,9 +129,42 @@ export function FamilyPricePreview({ family }: Props) {
   }, [family.axes]);
 
   const [selection, setSelection] = useState<AxisSelection>(initialSelection);
-  const [larghezza, setLarghezza] = useState("1200");
-  const [altezza, setAltezza] = useState("1400");
-  const [quantita, setQuantita] = useState("1");
+  // #7 — Persistenza ultima simulazione su localStorage (per family.id).
+  const lsKey = `eic:simulator:${family.id}`;
+  type Persisted = { larghezza: string; altezza: string; quantita: string; unit: DimUnit };
+  const persisted: Persisted | null = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(lsKey);
+      return raw ? (JSON.parse(raw) as Persisted) : null;
+    } catch {
+      return null;
+    }
+  }, [lsKey]);
+
+  const [larghezza, setLarghezza] = useState<string>(() => persisted?.larghezza ?? "1200");
+  const [altezza, setAltezza] = useState<string>(() => persisted?.altezza ?? "1400");
+  const [quantita, setQuantita] = useState<string>(() => persisted?.quantita ?? "1");
+  const [unit, setUnit] = useState<DimUnit>(() => persisted?.unit ?? "mm");
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        lsKey,
+        JSON.stringify({ larghezza, altezza, quantita, unit }),
+      );
+    } catch {
+      /* Safari Private Browsing */
+    }
+  }, [lsKey, larghezza, altezza, quantita, unit]);
+
+  // #4 — Validazione client min/max (in mm normalizzato)
+  const wMm = toMm(parseFloat(larghezza) || 0, unit);
+  const hMm = toMm(parseFloat(altezza) || 0, unit);
+  const wInvalid = wMm > 0 && (wMm < MIN_DIM_MM || wMm > MAX_DIM_MM);
+  const hInvalid = hMm > 0 && (hMm < MIN_DIM_MM || hMm > MAX_DIM_MM);
+
+  // #1 — Dimensioni standard ricavate dalla griglia (per dropdown smart-fill)
+  // (Calcolato dopo gridCells, vedi sotto.)
 
   // Carica griglia se serve
   const { data: gridCells = [] } = useQuery({
@@ -134,10 +182,10 @@ export function FamilyPricePreview({ family }: Props) {
     staleTime: 60 * 1000,
   });
 
-  // Calcolo
+  // Calcolo (sempre in mm: wMm/hMm sono già normalizzati)
   const result = useMemo(() => {
-    const w = parseFloat(larghezza) || 0;
-    const h = parseFloat(altezza) || 0;
+    const w = wMm;
+    const h = hMm;
     const q = parseFloat(quantita) || 1;
     const warnings: string[] = [];
 
@@ -312,7 +360,21 @@ export function FamilyPricePreview({ family }: Props) {
       gridLookupInfo,
       outOfRange,
     };
-  }, [family, gridCells, selection, larghezza, altezza, quantita]);
+  }, [family, gridCells, selection, wMm, hMm, quantita]);
+
+  // #1 — Liste W e H disponibili in griglia (per dropdown smart-fill)
+  const availableWidths = useMemo(
+    () => Array.from(new Set(gridCells.map((c) => c.valore_x))).sort((a, b) => a - b),
+    [gridCells],
+  );
+  const availableHeights = useMemo(
+    () => Array.from(new Set(gridCells.map((c) => c.valore_y))).sort((a, b) => a - b),
+    [gridCells],
+  );
+
+  // Helpers per applicare dimensioni dal banner / dropdown (input mostra unità corrente)
+  const setLarghezzaMm = (mm: number) => setLarghezza(String(fromMm(mm, unit)));
+  const setAltezzaMm = (mm: number) => setAltezza(String(fromMm(mm, unit)));
 
   const showDims =
     family.modalita_prezzo_base === "griglia" || family.modalita_prezzo_base === "mq";
@@ -330,33 +392,120 @@ export function FamilyPricePreview({ family }: Props) {
       </CardHeader>
       <CardContent className="space-y-3">
         {showDims ? (
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="text-xs text-muted-foreground">Larghezza (mm)</label>
-              <Input
-                type="number"
-                value={larghezza}
-                onChange={(e) => setLarghezza(e.target.value)}
-                className="h-8"
-              />
+          <div className="space-y-2">
+            {/* #5 — Switch unità mm/cm/m + #1 dropdown dimensioni standard */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground">Unità:</span>
+                {(["mm", "cm", "m"] as const).map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => {
+                      // Converti i valori correnti nella nuova unità (mantieni il valore in mm)
+                      const wMmCurrent = toMm(parseFloat(larghezza) || 0, unit);
+                      const hMmCurrent = toMm(parseFloat(altezza) || 0, unit);
+                      setUnit(u);
+                      if (wMmCurrent > 0) setLarghezza(String(fromMm(wMmCurrent, u)));
+                      if (hMmCurrent > 0) setAltezza(String(fromMm(hMmCurrent, u)));
+                    }}
+                    className={`px-2 py-0.5 rounded border ${
+                      unit === u
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "border-border hover:bg-muted"
+                    }`}
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+              {availableWidths.length > 0 && availableHeights.length > 0 ? (
+                <span className="text-[10px] text-muted-foreground">
+                  Griglia: {availableWidths.length}W × {availableHeights.length}H
+                </span>
+              ) : null}
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Altezza (mm)</label>
-              <Input
-                type="number"
-                value={altezza}
-                onChange={(e) => setAltezza(e.target.value)}
-                className="h-8"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Quantità</label>
-              <Input
-                type="number"
-                value={quantita}
-                onChange={(e) => setQuantita(e.target.value)}
-                className="h-8"
-              />
+
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground">Larghezza ({unit})</label>
+                {availableWidths.length > 0 ? (
+                  <Select
+                    value={availableWidths.includes(wMm) ? String(wMm) : "_custom"}
+                    onValueChange={(v) => {
+                      if (v !== "_custom") setLarghezzaMm(parseFloat(v));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 mb-1">
+                      <SelectValue placeholder="Standard…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_custom">— personalizzata —</SelectItem>
+                      {availableWidths.map((w) => (
+                        <SelectItem key={w} value={String(w)}>
+                          {fromMm(w, unit)} {unit}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
+                <Input
+                  type="number"
+                  value={larghezza}
+                  onChange={(e) => setLarghezza(e.target.value)}
+                  className={`h-8 ${wInvalid ? "border-destructive" : ""}`}
+                  aria-invalid={wInvalid}
+                />
+                {wInvalid ? (
+                  <p className="text-[10px] text-destructive mt-0.5">
+                    Min {fromMm(MIN_DIM_MM, unit)} · Max {fromMm(MAX_DIM_MM, unit)} {unit}
+                  </p>
+                ) : null}
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Altezza ({unit})</label>
+                {availableHeights.length > 0 ? (
+                  <Select
+                    value={availableHeights.includes(hMm) ? String(hMm) : "_custom"}
+                    onValueChange={(v) => {
+                      if (v !== "_custom") setAltezzaMm(parseFloat(v));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 mb-1">
+                      <SelectValue placeholder="Standard…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_custom">— personalizzata —</SelectItem>
+                      {availableHeights.map((h) => (
+                        <SelectItem key={h} value={String(h)}>
+                          {fromMm(h, unit)} {unit}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
+                <Input
+                  type="number"
+                  value={altezza}
+                  onChange={(e) => setAltezza(e.target.value)}
+                  className={`h-8 ${hInvalid ? "border-destructive" : ""}`}
+                  aria-invalid={hInvalid}
+                />
+                {hInvalid ? (
+                  <p className="text-[10px] text-destructive mt-0.5">
+                    Min {fromMm(MIN_DIM_MM, unit)} · Max {fromMm(MAX_DIM_MM, unit)} {unit}
+                  </p>
+                ) : null}
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Quantità</label>
+                <Input
+                  type="number"
+                  value={quantita}
+                  onChange={(e) => setQuantita(e.target.value)}
+                  className="h-8"
+                />
+              </div>
             </div>
           </div>
         ) : (
@@ -409,8 +558,20 @@ export function FamilyPricePreview({ family }: Props) {
         {result.gridLookupInfo ? (
           <GridStatusBanner
             info={result.gridLookupInfo}
-            requestedW={parseFloat(larghezza) || 0}
-            requestedH={parseFloat(altezza) || 0}
+            requestedW={wMm}
+            requestedH={hMm}
+            availableWidths={availableWidths}
+            availableHeights={availableHeights}
+            onUseMax={
+              result.outOfRange && availableWidths.length > 0 && availableHeights.length > 0
+                ? () => {
+                    const maxW = Math.max(...availableWidths);
+                    const maxH = Math.max(...availableHeights);
+                    setLarghezzaMm(maxW);
+                    setAltezzaMm(maxH);
+                  }
+                : undefined
+            }
           />
         ) : null}
 
@@ -524,6 +685,15 @@ export function FamilyPricePreview({ family }: Props) {
                 </span>
               ) : null}
             </div>
+            {/* #3 — Prezzo per m² come info aggiuntiva */}
+            {showDims && result.mq > 0 && result.prezzoVendita > 0 ? (
+              <div className="flex justify-between text-xs pt-0.5">
+                <span className="text-muted-foreground">Prezzo vendita / m²</span>
+                <span className="font-mono text-muted-foreground">
+                  {formatEur(result.prezzoVendita / result.mq)}/m²
+                </span>
+              </div>
+            ) : null}
           </div>
         )}
       </CardContent>
@@ -539,10 +709,16 @@ function GridStatusBanner({
   info,
   requestedW,
   requestedH,
+  availableWidths,
+  availableHeights,
+  onUseMax,
 }: {
   info: GridLookupResult;
   requestedW: number;
   requestedH: number;
+  availableWidths?: number[];
+  availableHeights?: number[];
+  onUseMax?: () => void;
 }) {
   if (info.kind === "exact") {
     return (
@@ -573,7 +749,7 @@ function GridStatusBanner({
   }
   if (info.kind === "out_of_range") {
     return (
-      <div className="text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 rounded-md p-2 space-y-1 border border-rose-200 dark:border-rose-900">
+      <div className="text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 rounded-md p-2 space-y-2 border border-rose-200 dark:border-rose-900">
         <div className="flex items-center gap-2 font-medium">
           <span aria-hidden>✕</span>
           <span>Dimensione fuori griglia: prezzo non calcolabile.</span>
@@ -581,6 +757,13 @@ function GridStatusBanner({
         <div className="text-[11px] opacity-90 pl-5">
           Richiesta: <strong>{requestedW}×{requestedH}</strong> mm — Massimo disponibile in griglia: <strong>{info.maxX}×{info.maxY}</strong> mm. Riduci le misure o richiedi un'offerta speciale al fornitore.
         </div>
+        {onUseMax ? (
+          <div className="pl-5">
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onUseMax}>
+              Usa dimensione max disponibile ({info.maxX}×{info.maxY} mm)
+            </Button>
+          </div>
+        ) : null}
       </div>
     );
   }
