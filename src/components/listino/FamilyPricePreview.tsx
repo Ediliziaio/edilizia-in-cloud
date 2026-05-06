@@ -146,6 +146,13 @@ export function FamilyPricePreview({ family }: Props) {
   const [quantita, setQuantita] = useState<string>(() => persisted?.quantita ?? "1");
   const [unit, setUnit] = useState<DimUnit>(() => persisted?.unit ?? "mm");
 
+  // #6 — Mini-heatmap griglia (collapsible)
+  const [showHeatmap, setShowHeatmap] = useState<boolean>(false);
+
+  // #8 — Confronto multi-dimensione (max 3 alternative)
+  type ComparisonRow = { id: string; w: string; h: string };
+  const [comparisons, setComparisons] = useState<ComparisonRow[]>([]);
+
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -583,6 +590,79 @@ export function FamilyPricePreview({ family }: Props) {
           </div>
         ) : null}
 
+        {/* #6 — Mini-heatmap griglia (collapsible, click cella → carica nel form) */}
+        {family.modalita_prezzo_base === "griglia" && gridCells.length > 0 ? (
+          <div className="border rounded-md bg-background">
+            <button
+              type="button"
+              onClick={() => setShowHeatmap((s) => !s)}
+              className="w-full px-3 py-1.5 text-xs font-medium flex items-center justify-between hover:bg-muted/40"
+            >
+              <span>📐 Griglia disponibile ({availableWidths.length}×{availableHeights.length} celle)</span>
+              <span className="text-muted-foreground">{showHeatmap ? "▼" : "▶"}</span>
+            </button>
+            {showHeatmap ? (
+              <div className="px-3 pb-3 overflow-x-auto">
+                <table className="text-[10px] border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="border-b border-r p-1 bg-muted/40 sticky left-0">H \ W</th>
+                      {availableWidths.map((w) => (
+                        <th key={w} className="border-b p-1 bg-muted/40 font-mono">
+                          {fromMm(w, unit)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {availableHeights.map((h) => (
+                      <tr key={h}>
+                        <th className="border-r p-1 bg-muted/40 font-mono sticky left-0">
+                          {fromMm(h, unit)}
+                        </th>
+                        {availableWidths.map((w) => {
+                          const cell = gridCells.find(
+                            (c) => c.valore_x === w && c.valore_y === h,
+                          );
+                          const isCurrent = wMm === w && hMm === h;
+                          return (
+                            <td
+                              key={`${w}-${h}`}
+                              className={`p-1 text-center border ${
+                                isCurrent
+                                  ? "bg-primary/30 ring-2 ring-primary"
+                                  : cell
+                                    ? "bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 cursor-pointer"
+                                    : "bg-rose-50 dark:bg-rose-900/10 text-muted-foreground"
+                              }`}
+                              onClick={() => {
+                                if (cell) {
+                                  setLarghezzaMm(w);
+                                  setAltezzaMm(h);
+                                }
+                              }}
+                              title={
+                                cell
+                                  ? `${w}×${h} mm: ${formatEur(cell.prezzo_vendita ?? 0)}`
+                                  : `${w}×${h} mm: non disponibile`
+                              }
+                            >
+                              {cell ? "✓" : "·"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Click su una cella verde per caricarla nel simulatore.
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {/* Breakdown tabellare per mode=acquisto_markup — nascosto se fuori griglia */}
         {result.breakdown && !result.outOfRange ? (
           <div className="border rounded-md overflow-hidden bg-background">
@@ -696,6 +776,108 @@ export function FamilyPricePreview({ family }: Props) {
             ) : null}
           </div>
         )}
+
+        {/* #8 — Confronto multi-dimensione (max 3 alternative side-by-side) */}
+        {showDims && family.modalita_prezzo_base === "griglia" && gridCells.length > 0 ? (
+          <div className="border-t pt-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Confronto dimensioni</span>
+              {comparisons.length < 3 ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() =>
+                    setComparisons((prev) => [
+                      ...prev,
+                      { id: crypto.randomUUID(), w: larghezza, h: altezza },
+                    ])
+                  }
+                >
+                  + Aggiungi confronto
+                </Button>
+              ) : null}
+            </div>
+            {comparisons.length > 0 ? (
+              <div className="space-y-1.5">
+                {comparisons.map((c) => {
+                  const cWMm = toMm(parseFloat(c.w) || 0, unit);
+                  const cHMm = toMm(parseFloat(c.h) || 0, unit);
+                  const cLookup =
+                    cWMm > 0 && cHMm > 0
+                      ? lookupGridPrice(gridCells, cWMm, cHMm)
+                      : null;
+                  const cellPrice = cLookup && (cLookup.kind === "exact" || cLookup.kind === "round_up")
+                    ? cLookup.cell.prezzo_vendita ?? null
+                    : null;
+                  const delta = cellPrice !== null && result.prezzoVendita > 0
+                    ? cellPrice - result.prezzoVendita
+                    : null;
+                  return (
+                    <div key={c.id} className="flex items-center gap-1.5 text-xs">
+                      <Input
+                        type="number"
+                        value={c.w}
+                        onChange={(e) =>
+                          setComparisons((prev) =>
+                            prev.map((p) => (p.id === c.id ? { ...p, w: e.target.value } : p)),
+                          )
+                        }
+                        placeholder={`W (${unit})`}
+                        className="h-7 w-20 text-xs"
+                      />
+                      <span className="text-muted-foreground">×</span>
+                      <Input
+                        type="number"
+                        value={c.h}
+                        onChange={(e) =>
+                          setComparisons((prev) =>
+                            prev.map((p) => (p.id === c.id ? { ...p, h: e.target.value } : p)),
+                          )
+                        }
+                        placeholder={`H (${unit})`}
+                        className="h-7 w-20 text-xs"
+                      />
+                      <span className="font-mono ml-auto">
+                        {cellPrice !== null ? formatEur(cellPrice) : "—"}
+                      </span>
+                      {delta !== null ? (
+                        <span
+                          className={`font-mono w-16 text-right ${
+                            delta > 0
+                              ? "text-rose-600"
+                              : delta < 0
+                                ? "text-emerald-600"
+                                : "text-muted-foreground"
+                          }`}
+                        >
+                          {delta > 0 ? "+" : ""}
+                          {formatEur(delta)}
+                        </span>
+                      ) : (
+                        <span className="w-16" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setComparisons((prev) => prev.filter((p) => p.id !== c.id))
+                        }
+                        className="text-muted-foreground hover:text-destructive px-1"
+                        aria-label="Rimuovi confronto"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                Aggiungi una riga per confrontare il prezzo con un'altra dimensione.
+              </p>
+            )}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
