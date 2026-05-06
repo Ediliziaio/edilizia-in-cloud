@@ -12,12 +12,15 @@
  * a garantire accesso al team interno).
  */
 import { useQuery } from "@tanstack/react-query";
+import { lazy, Suspense } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
-import InternalChat from "@/pages/azienda/InternalChat";
 import { Card, CardContent } from "@/components/ui/card";
+
+// Lazy load: InternalChat è 2k+ LOC. Riduce bundle iniziale admin.
+const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 
 export default function AdminTeamChat() {
   const { permissions } = useSuperAdminPermissions();
@@ -71,5 +74,13 @@ export default function AdminTeamChat() {
   }
 
   // Riusa InternalChat con scope sulla platform admin company
-  return <InternalChat companyIdOverride={platformCompanyId} />;
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <InternalChat companyIdOverride={platformCompanyId} />
+    </Suspense>
+  );
 }

@@ -9,7 +9,7 @@
  *
  * Pattern: Popover ancorato al bottone, animazioni leggere via framer-motion.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -25,8 +25,16 @@ import {
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentImportModal";
-import { SilvioChatSheet } from "@/components/silvio/SilvioChatSheet";
+// Lazy load: il SmartDocumentImportModal e il SilvioChatSheet sono pesanti
+// (chat ha 1k LOC + supabase realtime + framer-motion + audio recording).
+// Caricamento on-demand al primo open → boot iniziale del CompanyLayout
+// resta veloce (fab visibile immediatamente, modali si fetchano al click).
+const SmartDocumentImportModal = lazy(() =>
+  import("@/components/documenti/SmartDocumentImportModal").then(m => ({ default: m.SmartDocumentImportModal })),
+);
+const SilvioChatSheet = lazy(() =>
+  import("@/components/silvio/SilvioChatSheet").then(m => ({ default: m.SilvioChatSheet })),
+);
 
 // ─────────────────────────────────────────────────────────────────────────
 // Tip rotanti — "Cose da sapere" che gli utenti trovano utili
@@ -304,14 +312,22 @@ export function SilvioFAB({ hidden = false }: Props) {
         </PopoverContent>
       </Popover>
 
-      {/* Smart Document Import Modal — gestito dal FAB */}
-      <SmartDocumentImportModal
-        open={smartImportOpen}
-        onOpenChange={setSmartImportOpen}
-      />
+      {/* Smart Document Import Modal — gestito dal FAB (lazy: carica al primo open) */}
+      {smartImportOpen && (
+        <Suspense fallback={null}>
+          <SmartDocumentImportModal
+            open={smartImportOpen}
+            onOpenChange={setSmartImportOpen}
+          />
+        </Suspense>
+      )}
 
-      {/* Chat con Silvio inline (sheet laterale) */}
-      <SilvioChatSheet open={chatOpen} onOpenChange={setChatOpen} />
+      {/* Chat con Silvio inline (sheet laterale) — lazy: carica al primo open */}
+      {chatOpen && (
+        <Suspense fallback={null}>
+          <SilvioChatSheet open={chatOpen} onOpenChange={setChatOpen} />
+        </Suspense>
+      )}
     </>
   );
 }
