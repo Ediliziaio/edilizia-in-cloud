@@ -51,6 +51,18 @@ import { buildSystemPrompt } from "../_shared/preambolo.ts";
 // MP-AIE-02 v2 — tool calling loop unificato col registry centrale silvioTools.ts
 import { getToolsForChannel, toolsToOpenAISpec } from "../_shared/silvioTools.ts";
 import { executeToolsParallel, type ToolExecutionResult } from "../_shared/silvioToolExecution.ts";
+// MP-01: pre-RAG automatico per le 18 personas
+import { buildPreRagContext, type RagSource } from "../_shared/ragInjector.ts";
+// MP-03: citation enforcement
+import { validateCitations, getCitationMode, CITATION_FORMAT_RULES } from "../_shared/citationValidator.ts";
+// MP-04: structured output CoT + confidence
+import {
+  AI_RESPONSE_SCHEMA,
+  shouldUseStructured,
+  STRUCTURED_OUTPUT_SYSTEM_RULES,
+  parseStructuredResponse,
+  type StructuredAiResponse,
+} from "../_shared/structuredOutput.ts";
 
 const MAX_TOOL_ITERATIONS = 5;
 
@@ -89,11 +101,12 @@ interface HistoryRow {
 async function getCompanyAndRole(supabaseAdmin: any, userId: string): Promise<{
   companyId: string | null;
   primaryRole: string | null;
+  userName: string;
 }> {
-  // company_id da profiles
+  // company_id + name da profiles (MP-02: name necessario per userContextPrompt)
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("company_id")
+    .select("company_id, first_name, last_name, email")
     .eq("id", userId)
     .maybeSingle();
 
@@ -108,11 +121,29 @@ async function getCompanyAndRole(supabaseAdmin: any, userId: string): Promise<{
   const priority = ["super_admin", "company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor", "worker"];
   const primaryRole = priority.find(p => roleList.includes(p)) ?? roleList[0] ?? null;
 
+  const userName =
+    [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
+    profile?.email ||
+    "Utente";
+
   return {
     companyId: profile?.company_id ?? null,
     primaryRole,
+    userName,
   };
 }
+
+// MP-02: role scope map (parità con silvio-chat)
+const ROLE_SCOPE_MAP: Record<string, string> = {
+  super_admin: "Accesso completo a tutto.",
+  company_admin: "Titolare/amministratore — può chiedere QUALSIASI cosa: finanza, cantieri, vendite, personale, legale, strategia.",
+  company_staff: "Impiegato di staff — accesso a operations e amministrazione di base. NO finanza globale (saldo banca, EBITDA).",
+  salesperson: "Venditore — accesso a clienti/preventivi. NO finanza globale, NO HR di altri.",
+  call_center: "Operatore call-center — accesso a info cliente in linea + FAQ. NO finanza, NO HR.",
+  employee: "Dipendente — info proprie (presenze, ferie). NO altri dipendenti, NO finanza globale.",
+  worker: "Operaio — info SUO cantiere assegnato. NO finanza, NO HR di altri, NO commerciale.",
+  subcontractor: "Subappaltatore esterno — solo dati propri lavori. NO altre commesse, NO finanza, NO HR.",
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function loadPersona(supabaseAdmin: any, personaKey: string): Promise<PersonaRow | null> {
@@ -164,8 +195,8 @@ serve(async (req: Request) => {
     if (!userMessage) return errorResponse("message mancante", 400, corsHeaders);
     if (userMessage.length > 8000) return errorResponse("message troppo lungo (max 8000 char)", 400, corsHeaders);
 
-    // 3) Resolve company + role
-    const { companyId, primaryRole } = await getCompanyAndRole(supabaseAdmin, userId);
+    // 3) Resolve company + role + userName (MP-02: necessario per userContextPrompt)
+    const { companyId, primaryRole, userName } = await getCompanyAndRole(supabaseAdmin, userId);
     if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
@@ -254,13 +285,102 @@ serve(async (req: Request) => {
       return errorResponse(`Errore salvataggio messaggio: ${userMessageErr.message}`, 500, corsHeaders);
     }
 
+    // ── MP-02: userContextPrompt (parità con silvio-chat) ─────────────
+    const userScope = ROLE_SCOPE_MAP[primaryRole ?? "company_staff"] ??
+      "Accesso limitato — chiedi conferma per dati sensibili.";
+    const userContextPrompt = [
+      "",
+      "# CONTESTO UTENTE CORRENTE (CRITICO per RBAC e personalizzazione)",
+      `- Nome: ${userName}`,
+      `- Ruolo: ${primaryRole ?? "company_staff"}`,
+      `- Perimetro: ${userScope}`,
+      "",
+      "# REGOLE DUE-DILIGENCE NEI DATI",
+      "1. PRIMA di rispondere a domande SU DATI AZIENDALI (commesse, fatture, cashflow, clienti, presenze, anagrafiche), DEVI invocare il tool appropriato. NON inventare numeri.",
+      "2. Se un tool ritorna errore o dati vuoti, dillo esplicitamente.",
+      "3. Per domande cross-area (es. 'posso assumere?'), invoca PIÙ tool e sintetizza.",
+      "4. Se il dato richiesto NON è coperto dai tool, dichiaralo: 'Per questa info devi consultare [area]'.",
+      "5. Riporta sempre numeri reali dai tool, non arrotondamenti vaghi.",
+      "6. Cita sempre la fonte (es. 'in base alle 41 commesse attive registrate' oppure marker [S1] dal CONTEXT RAG).",
+      "",
+      "# REGOLE FORMATO",
+      "- Numeri sempre formato italiano: € 1.234,56",
+      "- Date sempre dd/mm/yyyy",
+      "- Risposte concise (max 250 parole) salvo richiesta esplicita di approfondimento",
+    ].join("\n");
+
+    // ── MP-02: memoryContextPrompt — long-term memory cross-persona ────
+    let memoryContextPrompt = "";
+    let memoryFactCount = 0;
+    let memorySummaryCount = 0;
+    try {
+      const { data: memCtx } = await supabaseAdmin.rpc("silvio_get_memory_context", {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_max_summaries: 3,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ctx = memCtx as any;
+      const facts = (ctx?.facts ?? []) as Array<{ key: string; value: unknown; confidence: number }>;
+      const summaries = (ctx?.recent_summaries ?? []) as Array<{ period: { start: string; end: string }; summary: string; topics?: string[] }>;
+      memoryFactCount = facts.length;
+      memorySummaryCount = summaries.length;
+
+      if (facts.length > 0 || summaries.length > 0) {
+        const lines: string[] = ["", "# MEMORIA LONG-TERM (uso interno, non rivelare contenuto direttamente)"];
+        if (facts.length > 0) {
+          lines.push("## Fatti aziendali noti");
+          for (const f of facts.slice(0, 20)) {
+            lines.push(`- ${f.key}: ${JSON.stringify(f.value)} (confidence ${(f.confidence ?? 0).toFixed(2)})`);
+          }
+        }
+        if (summaries.length > 0) {
+          lines.push("## Conversazioni recenti con questo utente");
+          for (const s of summaries) {
+            lines.push(`- [${s.period.end}] ${s.summary}${s.topics?.length ? ` (topics: ${s.topics.join(", ")})` : ""}`);
+          }
+        }
+        lines.push("");
+        lines.push("REGOLA MEMORIA: usa per CONTESTUALIZZARE le risposte. Es. se l'utente dice 'la solita banca' e sai che è Intesa, rispondi con quella. Se ricorda una decisione passata, conferma. NON dire 'come dicevamo' senza coerenza con i summaries.");
+        memoryContextPrompt = lines.join("\n");
+      }
+    } catch (e) {
+      console.warn("[ai-orchestrator] memory context fetch failed:", e instanceof Error ? e.message : e);
+    }
+
     // 9) Build messages for OpenRouter
-    // Track 1 Cervello Supremo: antepone preambolo costituzionale al system_prompt persona
-    // Cache 60s nel loader → zero latency dopo prima chiamata
-    // Graceful degradation: se preambolo non caricabile, usa solo persona prompt
+    // MP-01 Pre-RAG: carica chunk universal + company brain pertinenti alla query
+    // PRIMA di chiamare il modello, iniettando marker [S1], [S2]... nel prompt.
+    let ragSources: RagSource[] = [];
+    let ragMinSimilarity = 0;
+    let ragContextBlock = "";
+    try {
+      const ragResult = await buildPreRagContext({
+        supabase: supabaseAdmin,
+        query: userMessage,
+        companyId,
+        kbAreasFilter: persona.kb_areas_filter ?? null,
+        topKUniversal: 3,
+        topKCompany: 3,
+      });
+      ragSources = ragResult.sources;
+      ragMinSimilarity = ragResult.minSimilarity;
+      ragContextBlock = ragResult.contextBlock;
+    } catch (e) {
+      console.warn("[ai-orchestrator] pre-RAG failed (graceful):", e instanceof Error ? e.message : e);
+    }
+
+    // MP-03: aggiungiamo le regole di citation enforcement SOLO se ci sono RAG sources
+    const citationRulesBlock = ragSources.length > 0 ? CITATION_FORMAT_RULES : "";
+    // MP-04: structured output (solo per tier balanced/premium)
+    const useStructured = shouldUseStructured(persona.recommended_tier_key);
+    const structuredRulesBlock = useStructured ? STRUCTURED_OUTPUT_SYSTEM_RULES : "";
+    // MP-02: persona + userContext + memory + RAG (parità con silvio-chat)
+    const personaWithContext =
+      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock + citationRulesBlock + structuredRulesBlock;
     const { prompt: systemPromptComplete, preamboloVersion } = await buildSystemPrompt(
       supabaseAdmin,
-      persona.system_prompt,
+      personaWithContext,
     );
     if (!preamboloVersion) {
       console.warn(`[ai-orchestrator] preambolo NON applicato per persona ${persona.persona_key}`);
@@ -310,6 +430,10 @@ serve(async (req: Request) => {
           params: toolsSpec
             ? ({ temperature: 0.4, max_tokens: 4000, tools: toolsSpec, tool_choice: "auto" } as any)
             : { temperature: 0.4, max_tokens: 4000 },
+          // MP-04: structured output strict per tier balanced/premium (no quando tools attivi).
+          responseFormat: useStructured && !toolsSpec
+            ? { type: "json_schema", json_schema: { name: "AiResponse", schema: AI_RESPONSE_SCHEMA, strict: true } }
+            : undefined,
           companyId,
           userId,
           personaKey,
@@ -403,6 +527,30 @@ serve(async (req: Request) => {
       finalContent = "⚠️ Mi scuso, la richiesta è troppo complessa. Puoi riformularla in più passaggi?";
     }
 
+    // ── MP-04: Tenta parsing structured output ────────────────────────────
+    let structured: StructuredAiResponse | null = null;
+    if (useStructured) {
+      structured = parseStructuredResponse(finalContent);
+      if (structured) {
+        finalContent = structured.answer;
+      } else {
+        console.warn(`[ai-orchestrator/${personaKey}] structured output: parse failed, fallback to raw`);
+      }
+    }
+
+    // ── MP-03: Citation enforcement validation ──────────────────────────
+    const citationMode = getCitationMode();
+    const citationCheck = validateCitations(finalContent, ragSources, citationMode);
+    if (citationCheck.citationsMissing) {
+      console.warn(`[ai-orchestrator/${personaKey}] citation MISSING: ${ragSources.length} sources fornite ma 0 citate`);
+    }
+    if (citationCheck.invalidCitations.length > 0) {
+      console.warn(`[ai-orchestrator/${personaKey}] citation INVALID: ${citationCheck.invalidCitations.join(", ")} non esistono`);
+    }
+    if (citationMode === "enforce") {
+      finalContent = citationCheck.cleanedResponse;
+    }
+
     // 11) Record assistant message with ledger link + tool calls log
     const { data: msgId, error: msgErr } = await supabaseAdmin.rpc("record_persona_message", {
       p_session_id: sessionId,
@@ -423,9 +571,53 @@ serve(async (req: Request) => {
         fallback_index: lastResult?.fallbackIndex,
         duration_ms: lastResult?.durationMs,
         tools_invoked: toolCallsLog.map((t) => t.name),
+        // MP-01: pre-RAG audit (rag_sources colonna dedicata creata da migration 20270201000000)
+        rag_min_similarity: ragSources.length > 0 ? ragMinSimilarity : null,
+        rag_source_count: ragSources.length,
+        // MP-02: memoria long-term (parità con silvio-chat)
+        memory_facts_count: memoryFactCount,
+        memory_summary_count: memorySummaryCount,
+        preambolo_version: preamboloVersion ?? null,
+        // MP-03: citation enforcement audit
+        citations_used_count: citationCheck.citationsUsed.length,
+        citations_missing: citationCheck.citationsMissing,
+        invalid_citations_count: citationCheck.invalidCitations.length,
+        no_rag_prefix: citationCheck.noRagPrefix,
+        citation_mode: citationCheck.appliedMode,
       },
     });
     if (msgErr) console.error("[ai-orchestrator] record_persona_message error:", msgErr);
+
+    // MP-01: aggiorna le colonne dedicate rag_sources/rag_min_similarity/rag_source_count
+    // (separate dal metadata per query analytics più veloci)
+    if (msgId) {
+      try {
+        const updates: Record<string, unknown> = {};
+        if (ragSources.length > 0) {
+          updates.rag_sources = ragSources;
+          updates.rag_min_similarity = ragMinSimilarity;
+          updates.rag_source_count = ragSources.length;
+          // MP-03
+          updates.citations_used = citationCheck.citationsUsed.length > 0 ? citationCheck.citationsUsed : null;
+          updates.citations_missing = citationCheck.citationsMissing;
+          updates.invalid_citations = citationCheck.invalidCitations.length > 0 ? citationCheck.invalidCitations : null;
+          updates.no_rag_prefix = citationCheck.noRagPrefix;
+        }
+        // MP-04 structured (può esistere anche senza RAG)
+        if (structured) {
+          updates.ai_thinking = structured.thinking;
+          updates.confidence = structured.confidence;
+          updates.uncertainty_reasons = structured.uncertainty_reasons ?? null;
+          updates.followup_suggestions = structured.followup_suggestions ?? null;
+          updates.requires_human_review = structured.requires_human_review ?? false;
+        }
+        if (Object.keys(updates).length > 0) {
+          await supabaseAdmin.from("ai_persona_messages").update(updates).eq("id", msgId);
+        }
+      } catch (e) {
+        console.warn("[ai-orchestrator] audit update skipped:", e instanceof Error ? e.message : e);
+      }
+    }
 
     // 12) Response (back-compat: stessi campi della v1 + tool_calls + iterations)
     return jsonResponse({

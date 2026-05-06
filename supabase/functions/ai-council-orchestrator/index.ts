@@ -1,0 +1,236 @@
+/**
+ * ai-council-orchestrator — MP-09 Cross-area orchestration
+ *
+ * Riceve una query potenzialmente multi-area:
+ *   1. Classifica via queryClassifier (multi-area? quali personas?)
+ *   2. Se single-area: ritorna early con classification (caller usa la persona corrente)
+ *   3. Se multi-area: invoca ai-orchestrator IN PARALLELO per ogni persona della decomposition
+ *   4. Se synthesis_required: chiama Silvio per sintetizzare le N risposte
+ *   5. Logga in ai_council_usage_log per cost guard
+ *
+ * Input:
+ *   { query, current_persona, session_id?, company_id }
+ *
+ * Output:
+ *   { multi_area, classification, sub_outputs?, synthesis?, cost_guard }
+ */
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { classifyQuery } from "../_shared/queryClassifier.ts";
+
+interface CouncilRequest {
+  query: string;
+  current_persona: string;
+  session_id?: string;
+  company_id: string;
+  /** Limit personas in decomposition (cost guard). Default 4. */
+  max_personas?: number;
+}
+
+interface SubOutput {
+  area: string;
+  persona_key: string;
+  sub_query: string;
+  why: string;
+  response: string | null;
+  rag_sources: unknown[];
+  confidence: string | null;
+  error?: string;
+  duration_ms?: number;
+}
+
+Deno.serve(async (req) => {
+  const cors = getCorsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method !== "POST") return errorResponse("POST only", 405, cors);
+
+  const t0 = Date.now();
+
+  try {
+    const { userId, supabaseAdmin } = await requireAuth(req, cors);
+    const body = (await req.json()) as CouncilRequest;
+    const { query, current_persona, session_id, company_id } = body;
+    const maxPersonas = Math.max(1, Math.min(body.max_personas ?? 4, 6));
+
+    if (!query || !current_persona || !company_id) {
+      return errorResponse("query, current_persona, company_id required", 400, cors);
+    }
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
+
+    // 1. Classify
+    const classification = await classifyQuery({
+      supabase: supabaseAdmin,
+      query,
+      currentPersona: current_persona,
+      companyId: company_id,
+      userId,
+    });
+
+    // 2. Cost guard: limita decomposition
+    if (classification.decomposition.length > maxPersonas) {
+      classification.decomposition = classification.decomposition.slice(0, maxPersonas);
+    }
+
+    // Cost guard giornaliero: alert se > 50 calls/giorno per company
+    try {
+      const { count } = await supabaseAdmin
+        .from("ai_council_usage_log")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", company_id)
+        .gte("created_at", new Date(Date.now() - 24 * 3600_000).toISOString());
+      if ((count ?? 0) > 50) {
+        console.warn(`[council] cost guard: company ${company_id} ha già fatto ${count} council call in 24h`);
+      }
+    } catch (_) { /* non bloccante */ }
+
+    // 3. Single-area → ritorna early
+    if (!classification.is_multi_area || classification.decomposition.length === 0) {
+      try {
+        await supabaseAdmin.from("ai_council_usage_log").insert({
+          company_id, user_id: userId,
+          query_preview: query.slice(0, 500),
+          current_persona,
+          is_multi_area: false,
+          primary_area: classification.primary_area,
+          involved_areas: classification.involved_areas,
+          involved_personas: classification.involved_personas,
+          estimated_complexity: classification.estimated_complexity,
+          decomposition: classification.decomposition,
+          duration_ms: Date.now() - t0,
+        });
+      } catch (e) { /* non bloccante */ }
+
+      return jsonResponse({
+        multi_area: false,
+        classification,
+        recommended_persona: current_persona,
+      }, 200, cors);
+    }
+
+    // 4. Multi-area: invoca ai-orchestrator in parallelo per ogni decomposition
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const apiKeyHeader = req.headers.get("apikey") ?? "";
+
+    const subResults = await Promise.allSettled(
+      classification.decomposition.map(async (d) => {
+        const start = Date.now();
+        const subRes = await fetch(`${SUPABASE_URL}/functions/v1/ai-orchestrator`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": authHeader,
+            "apikey": apiKeyHeader,
+          },
+          body: JSON.stringify({
+            personaKey: d.persona_key,
+            message: d.sub_query,
+            historyLimit: 5,
+          }),
+        });
+        const data = await subRes.json();
+        return {
+          area: d.area,
+          persona_key: d.persona_key,
+          sub_query: d.sub_query,
+          why: d.why,
+          response: data?.response ?? null,
+          rag_sources: data?.ragSources ?? data?.rag_sources ?? [],
+          confidence: data?.confidence ?? null,
+          duration_ms: Date.now() - start,
+        } as SubOutput;
+      }),
+    );
+
+    const subOutputs: SubOutput[] = subResults.map((s, i) => {
+      if (s.status === "fulfilled") return s.value;
+      const d = classification.decomposition[i];
+      return {
+        area: d.area, persona_key: d.persona_key, sub_query: d.sub_query, why: d.why,
+        response: null, rag_sources: [], confidence: null,
+        error: String(s.reason),
+      };
+    });
+
+    // 5. Synthesis se richiesta
+    let synthesisText: string | null = null;
+    let synthesisCost = 0;
+    if (classification.synthesis_required) {
+      try {
+        const synthesisPrompt = [
+          "Hai ricevuto risposte da più consulenti virtuali su una stessa domanda complessa dell'imprenditore.",
+          "",
+          `## Domanda originale\n${query}`,
+          "",
+          "## Risposte dei consulenti",
+          ...subOutputs.map((s) =>
+            [
+              `### ${s.persona_key} (area: ${s.area})`,
+              `Sub-query: ${s.sub_query}`,
+              `Risposta: ${s.response ?? "(errore: " + (s.error ?? "?") + ")"}`,
+              s.confidence ? `Confidenza: ${s.confidence}` : "",
+              "",
+            ].join("\n"),
+          ),
+          "",
+          "## Compito",
+          "Componi una risposta unica per l'imprenditore che:",
+          "1. Risponde DIRETTAMENTE alla domanda originale (sì/no/dipende-da-X)",
+          "2. Sintetizza i punti chiave da ogni area, citando il consulente specifico",
+          "3. Identifica conflitti tra consulenti se ce ne sono",
+          "4. Suggerisce 1-2 azioni concrete da fare ORA",
+          "5. Stile imprenditore-a-imprenditore (no sociologismi)",
+          "",
+          "Output: prosa markdown, max 350 parole.",
+        ].join("\n");
+
+        const synthesisRes = await aiRouterComplete({
+          supabase: supabaseAdmin,
+          taskKey: "council_synthesis",
+          messages: [{ role: "user", content: synthesisPrompt }],
+          params: { temperature: 0.5, max_tokens: 2000 },
+          companyId: company_id,
+          userId,
+          personaKey: "silvio",
+        });
+        synthesisText = synthesisRes.content ?? null;
+        synthesisCost = synthesisRes.costBilledEur ?? 0;
+      } catch (e) {
+        console.warn("[council] synthesis failed:", e instanceof Error ? e.message : e);
+      }
+    }
+
+    // 6. Log
+    try {
+      await supabaseAdmin.from("ai_council_usage_log").insert({
+        company_id, user_id: userId,
+        query_preview: query.slice(0, 500),
+        current_persona,
+        is_multi_area: true,
+        primary_area: classification.primary_area,
+        involved_areas: classification.involved_areas,
+        involved_personas: classification.involved_personas,
+        estimated_complexity: classification.estimated_complexity,
+        decomposition: classification.decomposition,
+        sub_outputs: subOutputs,
+        synthesis_text: synthesisText,
+        synthesis_used: !!synthesisText,
+        total_personas_invoked: subOutputs.length,
+        total_cost_eur: synthesisCost,
+        duration_ms: Date.now() - t0,
+      });
+    } catch (e) { /* non bloccante */ }
+
+    return jsonResponse({
+      multi_area: true,
+      classification,
+      sub_outputs: subOutputs,
+      synthesis: synthesisText,
+      total_duration_ms: Date.now() - t0,
+    }, 200, cors);
+  } catch (err) {
+    if (err instanceof Response) return err;
+    return errorResponse(err instanceof Error ? err.message : String(err), 500, getCorsHeaders(req));
+  }
+});
