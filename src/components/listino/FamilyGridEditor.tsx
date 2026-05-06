@@ -19,7 +19,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Save, Loader2, Upload } from "lucide-react";
+import { Plus, Trash2, Save, Loader2, Upload, Download, FileUp, History } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -120,6 +120,101 @@ export function FamilyGridEditor({
   const [newX, setNewX] = useState("");
   const [newY, setNewY] = useState("");
   const [bulkOpen, setBulkOpen] = useState(false);
+
+  // #12 — Export CSV
+  const handleExportCSV = () => {
+    const header = `${asseXLabel},${asseYLabel},prezzo_vendita,prezzo_acquisto`;
+    const lines: string[] = [header];
+    for (const x of xAxis) {
+      for (const y of yAxis) {
+        const c = cells.get(`${x}_${y}`);
+        if (c) {
+          lines.push(`${x},${y},${c.prezzo_vendita},${c.prezzo_acquisto}`);
+        }
+      }
+    }
+    const csv = lines.join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `listino-griglia-${familyId.slice(0, 8)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Esportate ${lines.length - 1} celle`);
+  };
+
+  // #12 — Import CSV
+  const handleImportCSV = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = String(e.target?.result || "");
+        const lines = text.split(/\r?\n/).filter((l) => l.trim());
+        if (lines.length < 2) {
+          toast.error("CSV vuoto o senza dati");
+          return;
+        }
+        // skip header
+        const newCells = new Map(cells);
+        const newXs = new Set(xAxis);
+        const newYs = new Set(yAxis);
+        let imported = 0;
+        for (let i = 1; i < lines.length; i++) {
+          const parts = lines[i].split(",").map((p) => p.trim());
+          if (parts.length < 4) continue;
+          const x = parseFloat(parts[0]);
+          const y = parseFloat(parts[1]);
+          const pv = parseFloat(parts[2]);
+          const pa = parseFloat(parts[3]);
+          if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(pv)) continue;
+          newCells.set(`${x}_${y}`, {
+            prezzo_vendita: pv,
+            prezzo_acquisto: Number.isFinite(pa) ? pa : pv,
+          });
+          newXs.add(x);
+          newYs.add(y);
+          imported++;
+        }
+        setXAxis(Array.from(newXs).sort((a, b) => a - b));
+        setYAxis(Array.from(newYs).sort((a, b) => a - b));
+        setCells(newCells);
+        toast.success(`Importate ${imported} celle. Ricordati di salvare.`);
+      } catch (err) {
+        toast.error("Errore parsing CSV", {
+          description: err instanceof Error ? err.message : String(err),
+        });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // #13 — Storico modifiche prezzi
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { data: priceHistory = [] } = useQuery({
+    queryKey: ["listino_history", familyId],
+    enabled: !!companyId && !!familyId && historyOpen,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc(
+        "silvio_tool_lista_storico_prezzi_griglia",
+        { p_company_id: companyId!, p_family_id: familyId, p_limit: 100 },
+      );
+      if (error) throw new Error(error.message);
+      return (data ?? []) as Array<{
+        id: string;
+        valore_x: number;
+        valore_y: number;
+        prezzo_vendita: number;
+        prezzo_acquisto: number;
+        operation: string;
+        changed_at: string;
+      }>;
+    },
+    staleTime: 30 * 1000,
+  });
 
   // Bootstrap dallo stato server
   useEffect(() => {
@@ -393,17 +488,118 @@ export function FamilyGridEditor({
               Definisci le taglie standard. Ogni cella contiene prezzo vendita (€) e acquisto (€). Celle vuote = taglia non disponibile.
             </p>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setBulkOpen(true)}
-            className="shrink-0"
-          >
-            <Upload className="h-4 w-4 mr-2" aria-hidden="true" />
-            Importa (testo o immagine AI)
-          </Button>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setBulkOpen(true)}
+            >
+              <Upload className="h-4 w-4 mr-2" aria-hidden="true" />
+              Importa AI
+            </Button>
+            {/* #12 — Export CSV */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              disabled={cells.size === 0}
+              title="Esporta CSV"
+            >
+              <Download className="h-4 w-4 mr-2" aria-hidden="true" />
+              Esporta CSV
+            </Button>
+            {/* #12 — Import CSV */}
+            <label className="inline-flex">
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleImportCSV(f);
+                  e.target.value = "";
+                }}
+              />
+              <Button type="button" variant="outline" size="sm" asChild>
+                <span>
+                  <FileUp className="h-4 w-4 mr-2" aria-hidden="true" />
+                  Importa CSV
+                </span>
+              </Button>
+            </label>
+            {/* #13 — Storico prezzi */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setHistoryOpen((s) => !s)}
+              title="Storico modifiche prezzi"
+            >
+              <History className="h-4 w-4 mr-2" aria-hidden="true" />
+              Storico
+            </Button>
+          </div>
         </div>
+        {/* #13 — Pannello storico (toggle) */}
+        {historyOpen ? (
+          <div className="mt-3 border rounded-md bg-muted/20 max-h-60 overflow-y-auto">
+            <div className="px-3 py-2 text-xs font-medium border-b sticky top-0 bg-muted/40">
+              Ultime modifiche prezzi ({priceHistory.length})
+            </div>
+            {priceHistory.length === 0 ? (
+              <p className="px-3 py-3 text-xs text-muted-foreground">
+                Nessuna modifica registrata. Lo storico parte dalle prime modifiche dopo l'attivazione.
+              </p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead className="bg-muted/30">
+                  <tr>
+                    <th className="px-2 py-1 text-left">Quando</th>
+                    <th className="px-2 py-1 text-left">Cella</th>
+                    <th className="px-2 py-1 text-right">Vendita</th>
+                    <th className="px-2 py-1 text-right">Acquisto</th>
+                    <th className="px-2 py-1 text-left">Op</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {priceHistory.map((h) => (
+                    <tr key={h.id} className="border-t">
+                      <td className="px-2 py-1 font-mono">
+                        {new Date(h.changed_at).toLocaleString("it-IT", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </td>
+                      <td className="px-2 py-1 font-mono">
+                        {h.valore_x}×{h.valore_y}
+                      </td>
+                      <td className="px-2 py-1 text-right font-mono">
+                        {formatCurrency(h.prezzo_vendita)}
+                      </td>
+                      <td className="px-2 py-1 text-right font-mono text-muted-foreground">
+                        {formatCurrency(h.prezzo_acquisto)}
+                      </td>
+                      <td className="px-2 py-1">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${
+                            h.operation === "DELETE"
+                              ? "border-rose-300 text-rose-700"
+                              : "border-amber-300 text-amber-700"
+                          }`}
+                        >
+                          {h.operation}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Asse X */}
