@@ -91,11 +91,12 @@ interface HistoryRow {
 async function getCompanyAndRole(supabaseAdmin: any, userId: string): Promise<{
   companyId: string | null;
   primaryRole: string | null;
+  userName: string;
 }> {
-  // company_id da profiles
+  // company_id + name da profiles (MP-02: name necessario per userContextPrompt)
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("company_id")
+    .select("company_id, first_name, last_name, email")
     .eq("id", userId)
     .maybeSingle();
 
@@ -110,11 +111,29 @@ async function getCompanyAndRole(supabaseAdmin: any, userId: string): Promise<{
   const priority = ["super_admin", "company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor", "worker"];
   const primaryRole = priority.find(p => roleList.includes(p)) ?? roleList[0] ?? null;
 
+  const userName =
+    [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
+    profile?.email ||
+    "Utente";
+
   return {
     companyId: profile?.company_id ?? null,
     primaryRole,
+    userName,
   };
 }
+
+// MP-02: role scope map (parità con silvio-chat)
+const ROLE_SCOPE_MAP: Record<string, string> = {
+  super_admin: "Accesso completo a tutto.",
+  company_admin: "Titolare/amministratore — può chiedere QUALSIASI cosa: finanza, cantieri, vendite, personale, legale, strategia.",
+  company_staff: "Impiegato di staff — accesso a operations e amministrazione di base. NO finanza globale (saldo banca, EBITDA).",
+  salesperson: "Venditore — accesso a clienti/preventivi. NO finanza globale, NO HR di altri.",
+  call_center: "Operatore call-center — accesso a info cliente in linea + FAQ. NO finanza, NO HR.",
+  employee: "Dipendente — info proprie (presenze, ferie). NO altri dipendenti, NO finanza globale.",
+  worker: "Operaio — info SUO cantiere assegnato. NO finanza, NO HR di altri, NO commerciale.",
+  subcontractor: "Subappaltatore esterno — solo dati propri lavori. NO altre commesse, NO finanza, NO HR.",
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function loadPersona(supabaseAdmin: any, personaKey: string): Promise<PersonaRow | null> {
@@ -166,8 +185,8 @@ serve(async (req: Request) => {
     if (!userMessage) return errorResponse("message mancante", 400, corsHeaders);
     if (userMessage.length > 8000) return errorResponse("message troppo lungo (max 8000 char)", 400, corsHeaders);
 
-    // 3) Resolve company + role
-    const { companyId, primaryRole } = await getCompanyAndRole(supabaseAdmin, userId);
+    // 3) Resolve company + role + userName (MP-02: necessario per userContextPrompt)
+    const { companyId, primaryRole, userName } = await getCompanyAndRole(supabaseAdmin, userId);
     if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
@@ -256,6 +275,69 @@ serve(async (req: Request) => {
       return errorResponse(`Errore salvataggio messaggio: ${userMessageErr.message}`, 500, corsHeaders);
     }
 
+    // ── MP-02: userContextPrompt (parità con silvio-chat) ─────────────
+    const userScope = ROLE_SCOPE_MAP[primaryRole ?? "company_staff"] ??
+      "Accesso limitato — chiedi conferma per dati sensibili.";
+    const userContextPrompt = [
+      "",
+      "# CONTESTO UTENTE CORRENTE (CRITICO per RBAC e personalizzazione)",
+      `- Nome: ${userName}`,
+      `- Ruolo: ${primaryRole ?? "company_staff"}`,
+      `- Perimetro: ${userScope}`,
+      "",
+      "# REGOLE DUE-DILIGENCE NEI DATI",
+      "1. PRIMA di rispondere a domande SU DATI AZIENDALI (commesse, fatture, cashflow, clienti, presenze, anagrafiche), DEVI invocare il tool appropriato. NON inventare numeri.",
+      "2. Se un tool ritorna errore o dati vuoti, dillo esplicitamente.",
+      "3. Per domande cross-area (es. 'posso assumere?'), invoca PIÙ tool e sintetizza.",
+      "4. Se il dato richiesto NON è coperto dai tool, dichiaralo: 'Per questa info devi consultare [area]'.",
+      "5. Riporta sempre numeri reali dai tool, non arrotondamenti vaghi.",
+      "6. Cita sempre la fonte (es. 'in base alle 41 commesse attive registrate' oppure marker [S1] dal CONTEXT RAG).",
+      "",
+      "# REGOLE FORMATO",
+      "- Numeri sempre formato italiano: € 1.234,56",
+      "- Date sempre dd/mm/yyyy",
+      "- Risposte concise (max 250 parole) salvo richiesta esplicita di approfondimento",
+    ].join("\n");
+
+    // ── MP-02: memoryContextPrompt — long-term memory cross-persona ────
+    let memoryContextPrompt = "";
+    let memoryFactCount = 0;
+    let memorySummaryCount = 0;
+    try {
+      const { data: memCtx } = await supabaseAdmin.rpc("silvio_get_memory_context", {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_max_summaries: 3,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ctx = memCtx as any;
+      const facts = (ctx?.facts ?? []) as Array<{ key: string; value: unknown; confidence: number }>;
+      const summaries = (ctx?.recent_summaries ?? []) as Array<{ period: { start: string; end: string }; summary: string; topics?: string[] }>;
+      memoryFactCount = facts.length;
+      memorySummaryCount = summaries.length;
+
+      if (facts.length > 0 || summaries.length > 0) {
+        const lines: string[] = ["", "# MEMORIA LONG-TERM (uso interno, non rivelare contenuto direttamente)"];
+        if (facts.length > 0) {
+          lines.push("## Fatti aziendali noti");
+          for (const f of facts.slice(0, 20)) {
+            lines.push(`- ${f.key}: ${JSON.stringify(f.value)} (confidence ${(f.confidence ?? 0).toFixed(2)})`);
+          }
+        }
+        if (summaries.length > 0) {
+          lines.push("## Conversazioni recenti con questo utente");
+          for (const s of summaries) {
+            lines.push(`- [${s.period.end}] ${s.summary}${s.topics?.length ? ` (topics: ${s.topics.join(", ")})` : ""}`);
+          }
+        }
+        lines.push("");
+        lines.push("REGOLA MEMORIA: usa per CONTESTUALIZZARE le risposte. Es. se l'utente dice 'la solita banca' e sai che è Intesa, rispondi con quella. Se ricorda una decisione passata, conferma. NON dire 'come dicevamo' senza coerenza con i summaries.");
+        memoryContextPrompt = lines.join("\n");
+      }
+    } catch (e) {
+      console.warn("[ai-orchestrator] memory context fetch failed:", e instanceof Error ? e.message : e);
+    }
+
     // 9) Build messages for OpenRouter
     // MP-01 Pre-RAG: carica chunk universal + company brain pertinenti alla query
     // PRIMA di chiamare il modello, iniettando marker [S1], [S2]... nel prompt.
@@ -278,12 +360,12 @@ serve(async (req: Request) => {
       console.warn("[ai-orchestrator] pre-RAG failed (graceful):", e instanceof Error ? e.message : e);
     }
 
-    // Track 1 Cervello Supremo: antepone preambolo costituzionale al system_prompt persona
-    // Cache 60s nel loader → zero latency dopo prima chiamata
-    // Graceful degradation: se preambolo non caricabile, usa solo persona prompt
+    // MP-02: persona + userContext + memory + RAG (parità con silvio-chat)
+    const personaWithContext =
+      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock;
     const { prompt: systemPromptComplete, preamboloVersion } = await buildSystemPrompt(
       supabaseAdmin,
-      persona.system_prompt + ragContextBlock,
+      personaWithContext,
     );
     if (!preamboloVersion) {
       console.warn(`[ai-orchestrator] preambolo NON applicato per persona ${persona.persona_key}`);
@@ -449,6 +531,10 @@ serve(async (req: Request) => {
         // MP-01: pre-RAG audit (rag_sources colonna dedicata creata da migration 20270201000000)
         rag_min_similarity: ragSources.length > 0 ? ragMinSimilarity : null,
         rag_source_count: ragSources.length,
+        // MP-02: memoria long-term (parità con silvio-chat)
+        memory_facts_count: memoryFactCount,
+        memory_summary_count: memorySummaryCount,
+        preambolo_version: preamboloVersion ?? null,
       },
     });
     if (msgErr) console.error("[ai-orchestrator] record_persona_message error:", msgErr);
