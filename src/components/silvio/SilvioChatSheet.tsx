@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const MAX_ATTACHMENTS = 5;
@@ -1157,7 +1158,14 @@ function MessageBubble({
             </span>
           </a>
         )}
-        {visibleContent && <span>{visibleContent}</span>}
+        {visibleContent && (
+          isMe || isStillTyping
+            // Per i messaggi utente E durante il typing animato, manteniamo il
+            // testo grezzo (typewriter funziona char-by-char, markdown si renderizza
+            // SOLO al completamento).
+            ? <span>{visibleContent}</span>
+            : <ChatMarkdown content={visibleContent} className="text-[13px]" />
+        )}
         {/* Cursor blinking durante typing */}
         {isStillTyping && (
           <span className="inline-block w-0.5 h-3.5 ml-0.5 bg-slate-500 align-middle animate-pulse" />

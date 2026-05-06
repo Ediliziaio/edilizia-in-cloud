@@ -3,6 +3,7 @@
  * Supports DMs, group chats, Lucia AI bot, reactions, replies, pins
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -743,9 +744,11 @@ function MessageBubble({
 
           {/* Content */}
           {msg.content && !(msg.attachment_url && msg.content === `📎 ${msg.attachment_name}`) && (
-            isLucia ? (
-              <p className="text-[14px] break-words leading-relaxed pr-14"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+            isAIMsg ? (
+              // Silvio + Lucia + canale AI: render markdown completo (### → h3, **bold**, liste, tabelle, [S1] chip)
+              <div className="text-[14px] break-words pr-14">
+                <ChatMarkdown content={msg.content} />
+              </div>
             ) : (
               <p className="text-[14px] whitespace-pre-wrap break-words pr-14 leading-relaxed">
                 {renderWithMentions(msg.content)}
