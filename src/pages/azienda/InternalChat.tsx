@@ -37,7 +37,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Plus, Send, Search, Users, MessageCircle, CornerDownRight, Bot, Sparkles, Loader2,
+  Plus, Send, Search, Users, MessageCircle, CornerDownRight, Bot, Brain, Sparkles, Loader2,
   Smile, X, Pin, PinOff, ArrowLeft, MoreVertical, UserPlus, UsersRound, CheckCheck,
   Paperclip, Mic, Trash2, AlertCircle, RefreshCw,
 } from "lucide-react";
