@@ -51,6 +51,55 @@ function formatEur(n: number): string {
   }).format(n);
 }
 
+/**
+ * Strategia di lookup per griglia W×H quando l'utente inserisce dimensioni
+ * arbitrarie (es. 1234×1567) che potrebbero non corrispondere esattamente a
+ * una cella in griglia.
+ *
+ * Comportamento — coerente con la prassi del settore serramentisti:
+ *   1. Match esatto → usa quella cella (caso ideale).
+ *   2. Match round-up → la cella più piccola che CONTENGA W×H (cioè
+ *      `valore_x ≥ W AND valore_y ≥ H` con prodotto minimo). Il pezzo
+ *      viene "tagliato" da quella misura → si paga il prezzo della cella
+ *      superiore. Standard nel mercato.
+ *   3. Fuori griglia (richiesta supera la cella massima) → blocca calcolo
+ *      e segnala chiaramente la dimensione massima disponibile.
+ *   4. Griglia vuota → fallback su prezzo_base_*.
+ */
+type GridLookupResult =
+  | { kind: "exact"; cell: GridCell }
+  | { kind: "round_up"; cell: GridCell }
+  | { kind: "out_of_range"; maxX: number; maxY: number }
+  | { kind: "empty_grid" };
+
+function findGridCell(
+  w: number,
+  h: number,
+  cells: GridCell[],
+): GridLookupResult {
+  if (cells.length === 0) return { kind: "empty_grid" };
+
+  // 1. Match esatto
+  const exact = cells.find((c) => c.valore_x === w && c.valore_y === h);
+  if (exact) return { kind: "exact", cell: exact };
+
+  // 2. Round-up: cella più piccola che contiene W×H
+  const containing = cells.filter((c) => c.valore_x >= w && c.valore_y >= h);
+  if (containing.length > 0) {
+    const best = containing.reduce(
+      (min, c) =>
+        c.valore_x * c.valore_y < min.valore_x * min.valore_y ? c : min,
+      containing[0],
+    );
+    return { kind: "round_up", cell: best };
+  }
+
+  // 3. Fuori griglia: nessuna cella contiene W×H → segnala max disponibile
+  const maxX = Math.max(...cells.map((c) => c.valore_x));
+  const maxY = Math.max(...cells.map((c) => c.valore_y));
+  return { kind: "out_of_range", maxX, maxY };
+}
+
 export function FamilyPricePreview({ family }: Props) {
   const companyId = useEffectiveCompanyId();
 
@@ -106,19 +155,41 @@ export function FamilyPricePreview({ family }: Props) {
     //   essere trattata come baseline, ma se siamo in acquisto_markup dobbiamo
     //   comunque applicare il markup — coerenza con la policy famiglia.
     let inFallback = false;
+    // Info per la UI (riquadro dimensione griglia usata)
+    let gridLookupInfo: GridLookupResult | null = null;
+    let outOfRange = false;
     if (family.modalita_prezzo_base === "griglia") {
-      const cell = gridCells.find((c) => c.valore_x === w && c.valore_y === h);
-      if (cell) {
-        baseVendita = Number(cell.prezzo_vendita);
-        baseLordoAcquisto = Number(cell.prezzo_acquisto);
-      } else {
-        inFallback = true;
-        baseVendita = Number(family.prezzo_base_vendita);
-        baseLordoAcquisto = Number(family.prezzo_base_acquisto);
-        const fbMsg = isAcquistoMarkup
-          ? `Cella ${w}×${h} non in griglia — uso fallback acquisto base ${formatEur(baseLordoAcquisto)}; il markup sarà riapplicato per ricalcolare la vendita.`
-          : `Cella ${w}×${h} non in griglia — uso fallback prezzo_base_vendita (${formatEur(baseVendita)}).`;
-        warnings.push(fbMsg);
+      gridLookupInfo = findGridCell(w, h, gridCells);
+      switch (gridLookupInfo.kind) {
+        case "exact":
+          baseVendita = Number(gridLookupInfo.cell.prezzo_vendita);
+          baseLordoAcquisto = Number(gridLookupInfo.cell.prezzo_acquisto);
+          break;
+        case "round_up": {
+          const c = gridLookupInfo.cell;
+          baseVendita = Number(c.prezzo_vendita);
+          baseLordoAcquisto = Number(c.prezzo_acquisto);
+          warnings.push(
+            `Dimensione richiesta ${w}×${h} mm non in griglia — applicato prezzo della cella superiore ${c.valore_x}×${c.valore_y} mm (taglio dalla misura standard).`,
+          );
+          break;
+        }
+        case "out_of_range":
+          outOfRange = true;
+          baseVendita = 0;
+          baseLordoAcquisto = 0;
+          warnings.push(
+            `Dimensione ${w}×${h} mm fuori griglia: massimo disponibile ${gridLookupInfo.maxX}×${gridLookupInfo.maxY} mm. Riduci le misure o contatta il fornitore per dimensioni speciali.`,
+          );
+          break;
+        case "empty_grid":
+          inFallback = true;
+          baseVendita = Number(family.prezzo_base_vendita);
+          baseLordoAcquisto = Number(family.prezzo_base_acquisto);
+          warnings.push(
+            "Griglia non configurata — uso prezzo base famiglia. Configura la griglia per prezzi precisi.",
+          );
+          break;
       }
     } else if (family.modalita_prezzo_base === "mq") {
       const mq = (w * h) / 1_000_000; // mm² → m²
@@ -238,6 +309,8 @@ export function FamilyPricePreview({ family }: Props) {
       warnings,
       mq,
       breakdown,
+      gridLookupInfo,
+      outOfRange,
     };
   }, [family, gridCells, selection, larghezza, altezza, quantita]);
 
@@ -332,16 +405,25 @@ export function FamilyPricePreview({ family }: Props) {
           </div>
         ) : null}
 
-        {result.warnings.length > 0 ? (
-          <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 rounded-md p-2 space-y-0.5">
+        {/* Stato griglia: banner colorato per esatto/round-up/out-of-range/empty */}
+        {result.gridLookupInfo ? (
+          <GridStatusBanner
+            info={result.gridLookupInfo}
+            requestedW={parseFloat(larghezza) || 0}
+            requestedH={parseFloat(altezza) || 0}
+          />
+        ) : null}
+
+        {result.warnings.length > 0 && !result.gridLookupInfo ? (
+          <div className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-md p-2 space-y-0.5">
             {result.warnings.map((w, i) => (
               <div key={i}>⚠ {w}</div>
             ))}
           </div>
         ) : null}
 
-        {/* Breakdown tabellare per mode=acquisto_markup */}
-        {result.breakdown ? (
+        {/* Breakdown tabellare per mode=acquisto_markup — nascosto se fuori griglia */}
+        {result.breakdown && !result.outOfRange ? (
           <div className="border rounded-md overflow-hidden bg-background">
             <div className="bg-muted/40 px-3 py-1.5 text-xs font-medium">
               Breakdown prezzo (acquisto → vendita)
@@ -403,42 +485,112 @@ export function FamilyPricePreview({ family }: Props) {
           </div>
         ) : null}
 
-        <div className="border-t pt-3 space-y-1 text-sm">
-          {!result.breakdown ? (
-            <>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Prezzo base</span>
-                <span className="font-mono">{formatEur(result.base)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Vendita unitario</span>
-                <span className="font-mono">{formatEur(result.prezzoVendita)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Acquisto unitario</span>
-                <span className="font-mono text-muted-foreground">
-                  {formatEur(result.prezzoAcquisto)}
-                </span>
-              </div>
-            </>
-          ) : null}
-          <div className="flex justify-between font-semibold border-t pt-1">
-            <span>Totale vendita ({quantita} pz)</span>
-            <span className="font-mono text-primary">{formatEur(result.totVendita)}</span>
+        {result.outOfRange ? (
+          <div className="border-t pt-3 text-sm text-muted-foreground">
+            Calcolo non disponibile per questa dimensione — vedi avviso sopra.
           </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">
-              Margine: {formatEur(result.margine)} ({result.marginePerc.toFixed(1)}%
-              {result.breakdown ? " su vendita, vs netto" : ""})
-            </span>
-            {showDims ? (
-              <span className="text-muted-foreground">
-                {result.mq.toFixed(2)} m²
-              </span>
+        ) : (
+          <div className="border-t pt-3 space-y-1 text-sm">
+            {!result.breakdown ? (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Prezzo base</span>
+                  <span className="font-mono">{formatEur(result.base)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Vendita unitario</span>
+                  <span className="font-mono">{formatEur(result.prezzoVendita)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Acquisto unitario</span>
+                  <span className="font-mono text-muted-foreground">
+                    {formatEur(result.prezzoAcquisto)}
+                  </span>
+                </div>
+              </>
             ) : null}
+            <div className="flex justify-between font-semibold border-t pt-1">
+              <span>Totale vendita ({quantita} pz)</span>
+              <span className="font-mono text-primary">{formatEur(result.totVendita)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">
+                Margine: {formatEur(result.margine)} ({result.marginePerc.toFixed(1)}%
+                {result.breakdown ? " su vendita, vs netto" : ""})
+              </span>
+              {showDims ? (
+                <span className="text-muted-foreground">
+                  {result.mq.toFixed(2)} m²
+                </span>
+              ) : null}
+            </div>
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Banner che comunica all'utente come è stata risolta la richiesta W×H sulla
+ * griglia: esatto / round-up / fuori griglia / griglia vuota.
+ */
+function GridStatusBanner({
+  info,
+  requestedW,
+  requestedH,
+}: {
+  info: GridLookupResult;
+  requestedW: number;
+  requestedH: number;
+}) {
+  if (info.kind === "exact") {
+    return (
+      <div className="text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-md p-2 flex items-center gap-2">
+        <span aria-hidden>✓</span>
+        <span>
+          Dimensione esatta in griglia ({info.cell.valore_x}×{info.cell.valore_y} mm).
+        </span>
+      </div>
+    );
+  }
+  if (info.kind === "round_up") {
+    const sizeUp =
+      info.cell.valore_x !== requestedW || info.cell.valore_y !== requestedH;
+    return (
+      <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md p-2 space-y-1">
+        <div className="flex items-center gap-2 font-medium">
+          <span aria-hidden>⚠</span>
+          <span>Dimensione non in griglia — applicato prezzo cella superiore.</span>
+        </div>
+        {sizeUp ? (
+          <div className="text-[11px] opacity-90 pl-5">
+            Richiesta: <strong>{requestedW}×{requestedH}</strong> mm — Cella usata: <strong>{info.cell.valore_x}×{info.cell.valore_y}</strong> mm. Il pezzo sarà tagliato dalla misura standard.
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+  if (info.kind === "out_of_range") {
+    return (
+      <div className="text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 rounded-md p-2 space-y-1 border border-rose-200 dark:border-rose-900">
+        <div className="flex items-center gap-2 font-medium">
+          <span aria-hidden>✕</span>
+          <span>Dimensione fuori griglia: prezzo non calcolabile.</span>
+        </div>
+        <div className="text-[11px] opacity-90 pl-5">
+          Richiesta: <strong>{requestedW}×{requestedH}</strong> mm — Massimo disponibile in griglia: <strong>{info.maxX}×{info.maxY}</strong> mm. Riduci le misure o richiedi un'offerta speciale al fornitore.
+        </div>
+      </div>
+    );
+  }
+  // empty_grid
+  return (
+    <div className="text-xs text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 rounded-md p-2 flex items-center gap-2">
+      <span aria-hidden>ℹ</span>
+      <span>
+        Griglia non configurata — calcolo da prezzo base famiglia. Configura la griglia per prezzi precisi.
+      </span>
+    </div>
   );
 }
