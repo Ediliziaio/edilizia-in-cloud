@@ -51,9 +51,70 @@ export interface QuoteTemplate {
   payment_terms_text: string;
   delivery_terms_text: string;
   bank_details: string;
+  // Copertina personalizzata + termini contrattuali/legali
+  cover_image_url: string | null;
+  cover_title: string | null;
+  cover_subtitle: string | null;
+  show_cover_image: boolean;
+  contractual_terms_text: string | null;
+  legal_terms_text: string | null;
+  show_contractual_terms: boolean;
+  show_legal_terms: boolean;
   created_at: string;
   updated_at: string;
 }
+
+/**
+ * Lista merge tag supportati nei testi del template.
+ * Vengono sostituiti dal generatore PDF al momento dell'export.
+ * Tenuto sincronizzato con la view DB v_quote_template_merge_tags.
+ */
+export interface MergeTag {
+  tag: string;          // es. "cliente.nome"
+  descrizione: string;
+  group: "cliente" | "cantiere" | "preventivo" | "azienda" | "data";
+}
+
+export const MERGE_TAGS: MergeTag[] = [
+  // Cliente — persona fisica
+  { tag: "cliente.nome", descrizione: "Nome del cliente", group: "cliente" },
+  { tag: "cliente.cognome", descrizione: "Cognome del cliente", group: "cliente" },
+  { tag: "cliente.nome_completo", descrizione: "Nome + cognome", group: "cliente" },
+  { tag: "cliente.email", descrizione: "Email cliente", group: "cliente" },
+  { tag: "cliente.telefono", descrizione: "Telefono cliente", group: "cliente" },
+  { tag: "cliente.codice_fiscale", descrizione: "Codice fiscale", group: "cliente" },
+  { tag: "cliente.indirizzo", descrizione: "Indirizzo residenza", group: "cliente" },
+  { tag: "cliente.cap", descrizione: "CAP residenza", group: "cliente" },
+  { tag: "cliente.citta", descrizione: "Città residenza", group: "cliente" },
+  { tag: "cliente.provincia", descrizione: "Provincia residenza", group: "cliente" },
+  // Cliente — persona giuridica (P.IVA)
+  { tag: "cliente.ragione_sociale", descrizione: "Ragione sociale (P.IVA)", group: "cliente" },
+  { tag: "cliente.partita_iva", descrizione: "Partita IVA", group: "cliente" },
+  { tag: "cliente.sede_legale", descrizione: "Sede legale (P.IVA)", group: "cliente" },
+  { tag: "cliente.legale_rappresentante", descrizione: "Legale rappresentante (P.IVA)", group: "cliente" },
+  { tag: "cliente.pec", descrizione: "PEC", group: "cliente" },
+  { tag: "cliente.codice_destinatario", descrizione: "Codice SDI", group: "cliente" },
+  // Cantiere
+  { tag: "cantiere.indirizzo", descrizione: "Indirizzo cantiere", group: "cantiere" },
+  { tag: "cantiere.citta", descrizione: "Città cantiere", group: "cantiere" },
+  { tag: "cantiere.note", descrizione: "Note cantiere", group: "cantiere" },
+  // Preventivo
+  { tag: "preventivo.numero", descrizione: "Numero preventivo", group: "preventivo" },
+  { tag: "preventivo.data", descrizione: "Data preventivo", group: "preventivo" },
+  { tag: "preventivo.scadenza", descrizione: "Scadenza offerta", group: "preventivo" },
+  { tag: "preventivo.totale", descrizione: "Totale offerta", group: "preventivo" },
+  { tag: "preventivo.subtotale", descrizione: "Subtotale (imponibile)", group: "preventivo" },
+  { tag: "preventivo.iva", descrizione: "Importo IVA", group: "preventivo" },
+  // Azienda (la tua)
+  { tag: "azienda.ragione_sociale", descrizione: "Ragione sociale azienda", group: "azienda" },
+  { tag: "azienda.partita_iva", descrizione: "P.IVA azienda", group: "azienda" },
+  { tag: "azienda.indirizzo", descrizione: "Indirizzo azienda", group: "azienda" },
+  { tag: "azienda.email", descrizione: "Email azienda", group: "azienda" },
+  { tag: "azienda.telefono", descrizione: "Telefono azienda", group: "azienda" },
+  // Data
+  { tag: "data.oggi", descrizione: "Data odierna", group: "data" },
+  { tag: "data.anno", descrizione: "Anno corrente", group: "data" },
+];
 
 export const COLOR_PALETTES = [
   // Palette base
@@ -111,6 +172,14 @@ export const DEFAULT_TEMPLATE: Omit<QuoteTemplate, 'id' | 'company_id' | 'create
   payment_terms_text: 'Acconto del 30% alla firma del contratto. Saldo alla consegna.',
   delivery_terms_text: '3-4 settimane dalla conferma ordine.',
   bank_details: '',
+  cover_image_url: null,
+  cover_title: null,
+  cover_subtitle: null,
+  show_cover_image: false,
+  contractual_terms_text: null,
+  legal_terms_text: null,
+  show_contractual_terms: true,
+  show_legal_terms: false,
 };
 
 /* ─── Label/Option utilities per UI ─────────────────────────── */

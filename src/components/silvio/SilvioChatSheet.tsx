@@ -45,8 +45,10 @@ import {
   File as FileIcon,
   Plus,
   Zap,
+  Smile,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
@@ -1029,6 +1031,23 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
             >
               {recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             </Button>
+            {/* Emoji picker stile WhatsApp */}
+            <EmojiPicker
+              accent="orange"
+              onPick={(emoji) => setDraft((cur) => cur + emoji)}
+              trigger={
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  type="button"
+                  className="h-10 w-10 rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50"
+                  title="Inserisci emoji"
+                  aria-label="Inserisci emoji"
+                >
+                  <Smile className="h-4 w-4" />
+                </Button>
+              }
+            />
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}

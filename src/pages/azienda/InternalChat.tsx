@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 import { SILVIO_SKILLS, SILVIO_SKILL_CATEGORY_LABELS } from "@/lib/silvio-skills";
+import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -1473,9 +1474,11 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
     return otherId ? profileMap.get(otherId) : undefined;
   }, [userId, profileMap]);
 
-  const chatDisplayName = selectedChannel?.is_dm
-    ? profileName(getDmProfile(selectedChannel))
-    : selectedChannel?.name ?? "";
+  const chatDisplayName = selectedChannel?.name?.toLowerCase() === "silvio-ai"
+    ? "Silvio AI"
+    : selectedChannel?.is_dm
+      ? profileName(getDmProfile(selectedChannel))
+      : selectedChannel?.name ?? "";
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
@@ -1663,8 +1666,12 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   onClick={() => setShowMobile(false)}>
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
-                {/* Avatar */}
-                {isLuciaChannel ? (
+                {/* Avatar — Silvio (brain orange), Lucia (bot violet), DM, group */}
+                {isSilvioChannel ? (
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 flex items-center justify-center shrink-0 ring-1 ring-orange-300/40 shadow-sm shadow-orange-300/30">
+                    <Brain className="h-5 w-5 text-white" strokeWidth={2.4} />
+                  </div>
+                ) : isLuciaChannel ? (
                   <div className="h-10 w-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0">
                     <Bot className="h-5 w-5 text-white" />
                   </div>
@@ -1952,9 +1959,16 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   </PopoverContent>
                 </Popover>
               )}
-              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] shrink-0">
-                <Smile className="h-6 w-6" />
-              </Button>
+              {/* Emoji picker stile WhatsApp — append all'inizio cursore textarea */}
+              <EmojiPicker
+                accent={isSilvioChannel ? "orange" : isLuciaChannel ? "violet" : "green"}
+                onPick={(emoji) => setNewMsg((cur) => cur + emoji)}
+                trigger={
+                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] shrink-0" type="button" aria-label="Inserisci emoji">
+                    <Smile className="h-6 w-6" />
+                  </Button>
+                }
+              />
               <Button variant="ghost" size="icon"
                 className={cn(
                   "h-9 w-9 rounded-full shrink-0",

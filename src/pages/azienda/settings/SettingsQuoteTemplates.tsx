@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
@@ -22,8 +22,9 @@ import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy, FileText, Eye,
-  CheckCircle2, Palette, Wand2,
+  CheckCircle2, Palette, Wand2, FileImage, Scale, ScrollText, Tag,
 } from "lucide-react";
+import { MergeTagInserter } from "@/components/quotes/MergeTagInserter";
 
 const LAYOUTS: { key: QuoteTemplateLayout; label: string; desc: string }[] = [
   { key: 'classic', label: 'Classic', desc: 'Header bianco, bordo colorato. Professionale.' },
@@ -242,6 +243,42 @@ export default function SettingsQuoteTemplates() {
       e.target.value = "";
     }
   };
+
+  const [coverUploading, setCoverUploading] = useState(false);
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !effectiveCompany?.id) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error("Max 5MB"); return; }
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      toast.error("Carica un'immagine PNG o JPG");
+      e.target.value = "";
+      return;
+    }
+    setCoverUploading(true);
+    try {
+      const ext = file.type === "image/png" ? "png" : "jpg";
+      const path = `${effectiveCompany.id}/template-cover-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("quote-template-assets").upload(path, file, { upsert: true });
+      if (error) throw error;
+      updateForm({ cover_image_url: path, show_cover_image: true });
+      toast.success("Copertina caricata");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Errore caricamento copertina");
+    } finally {
+      setCoverUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  // Refs per merge tag (inserimento alla posizione cursore)
+  const coverTitleRef = useRef<HTMLInputElement>(null);
+  const coverSubtitleRef = useRef<HTMLInputElement>(null);
+  const paymentRef = useRef<HTMLTextAreaElement>(null);
+  const deliveryRef = useRef<HTMLTextAreaElement>(null);
+  const contractualRef = useRef<HTMLTextAreaElement>(null);
+  const legalRef = useRef<HTMLTextAreaElement>(null);
+  const footerRef = useRef<HTMLTextAreaElement>(null);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
 
   const applyPalette = (p: typeof COLOR_PALETTES[number]) => {
     updateForm({
@@ -781,45 +818,177 @@ export default function SettingsQuoteTemplates() {
               </CardContent>
             </Card>
 
-            {/* G: Texts */}
+            {/* COVER: Copertina personalizzata */}
+            <Card className="border-orange-200 bg-gradient-to-br from-orange-50/40 via-background to-amber-50/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileImage className="h-4 w-4 text-orange-600" />
+                  Copertina personalizzata
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Immagine + titolo che appaiono come prima pagina del PDF. Supporta merge tag come <code className="text-[10px] bg-white px-1 rounded border">{`{{cliente.nome}}`}</code>.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between rounded-lg border border-orange-200 bg-white px-3 py-2">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Mostra copertina</Label>
+                    <p className="text-[11px] text-muted-foreground">Aggiunge una pagina cover prima del preventivo</p>
+                  </div>
+                  <Switch checked={!!form.show_cover_image} onCheckedChange={(v) => updateForm({ show_cover_image: v })} />
+                </div>
+
+                {form.show_cover_image && (
+                  <>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Immagine di copertina</Label>
+                      <div className="mt-1 flex items-start gap-3">
+                        <div className="h-24 w-24 shrink-0 rounded-lg border-2 border-dashed border-orange-300 bg-white overflow-hidden flex items-center justify-center">
+                          {form.cover_image_url ? (
+                            <img src={getLogoPublicUrl(form.cover_image_url)} alt="Cover" className="h-full w-full object-cover" />
+                          ) : (
+                            <ImageIcon className="h-6 w-6 text-orange-300" />
+                          )}
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => coverFileInputRef.current?.click()}
+                            disabled={coverUploading}
+                            className="w-full gap-2"
+                          >
+                            {coverUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                            {form.cover_image_url ? "Sostituisci immagine" : "Carica immagine"}
+                          </Button>
+                          {form.cover_image_url && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => updateForm({ cover_image_url: null })}
+                              className="w-full text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                            </Button>
+                          )}
+                          <p className="text-[10px] text-muted-foreground">PNG/JPG · max 5 MB · ottimale 1200×800</p>
+                        </div>
+                      </div>
+                      <input
+                        ref={coverFileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg"
+                        onChange={handleCoverUpload}
+                        className="hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Titolo copertina</Label>
+                        <MergeTagInserter
+                          targetRef={coverTitleRef}
+                          currentValue={form.cover_title ?? ""}
+                          onInsert={(v) => updateForm({ cover_title: v })}
+                        />
+                      </div>
+                      <Input
+                        ref={coverTitleRef}
+                        value={form.cover_title ?? ''}
+                        onChange={e => updateForm({ cover_title: e.target.value })}
+                        placeholder="Es. Offerta personalizzata per {{cliente.nome_completo}}"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Sottotitolo / claim</Label>
+                        <MergeTagInserter
+                          targetRef={coverSubtitleRef}
+                          currentValue={form.cover_subtitle ?? ""}
+                          onInsert={(v) => updateForm({ cover_subtitle: v })}
+                        />
+                      </div>
+                      <Input
+                        ref={coverSubtitleRef}
+                        value={form.cover_subtitle ?? ''}
+                        onChange={e => updateForm({ cover_subtitle: e.target.value })}
+                        placeholder="Es. Cantiere {{cantiere.indirizzo}} — Offerta n. {{preventivo.numero}}"
+                      />
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* G: Texts (cover tagline + footer) */}
             <Card>
               <CardHeader><CardTitle className="text-base">Testi Personalizzabili</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label>Tagline copertina</Label>
+                  <Label>Tagline (sotto titolo offerta)</Label>
                   <Input value={form.cover_tagline || ''} onChange={e => updateForm({ cover_tagline: e.target.value })} placeholder="Es: La qualità che fa la differenza." />
-                  <p className="text-xs text-muted-foreground mt-1">Apparirà sotto il titolo dell'offerta</p>
+                  <p className="text-xs text-muted-foreground mt-1">Apparirà sotto il titolo dell'offerta nelle pagine interne</p>
                 </div>
                 <div>
-                  <Label>Testo footer pagine</Label>
-                  <Textarea value={form.footer_text || ''} onChange={e => updateForm({ footer_text: e.target.value })} placeholder="Es: Per informazioni: info@azienda.it | 02 123456" rows={2} />
+                  <div className="flex items-center justify-between mb-1">
+                    <Label>Testo footer pagine</Label>
+                    <MergeTagInserter
+                      targetRef={footerRef}
+                      currentValue={form.footer_text ?? ""}
+                      onInsert={(v) => updateForm({ footer_text: v })}
+                    />
+                  </div>
+                  <Textarea ref={footerRef} value={form.footer_text || ''} onChange={e => updateForm({ footer_text: e.target.value })} placeholder="Es: Per informazioni: info@azienda.it | 02 123456" rows={2} />
                   <p className="text-xs text-muted-foreground mt-1">Apparirà in fondo a ogni pagina</p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* T3: Testi standard condizioni */}
+            {/* T3: Condizioni pagamento + consegna + bancarie */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Testi Standard</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ScrollText className="h-4 w-4 text-slate-600" />
+                  Condizioni standard
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Pagamento, consegna, IBAN. Supportano merge tag.</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label className="text-xs text-muted-foreground">Condizioni di pagamento</Label>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="text-xs text-muted-foreground">Condizioni di pagamento</Label>
+                    <MergeTagInserter
+                      targetRef={paymentRef}
+                      currentValue={form.payment_terms_text ?? ""}
+                      onInsert={(v) => updateForm({ payment_terms_text: v })}
+                    />
+                  </div>
                   <Textarea
+                    ref={paymentRef}
                     value={form.payment_terms_text || ''}
                     onChange={e => updateForm({ payment_terms_text: e.target.value })}
                     rows={3}
-                    placeholder="Acconto 30%, saldo a consegna..."
+                    placeholder="Es. Acconto 30% alla firma, 40% a inizio lavori, saldo {{cliente.nome}} a consegna chiavi in mano."
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Condizioni di consegna</Label>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="text-xs text-muted-foreground">Condizioni di consegna</Label>
+                    <MergeTagInserter
+                      targetRef={deliveryRef}
+                      currentValue={form.delivery_terms_text ?? ""}
+                      onInsert={(v) => updateForm({ delivery_terms_text: v })}
+                    />
+                  </div>
                   <Textarea
+                    ref={deliveryRef}
                     value={form.delivery_terms_text || ''}
                     onChange={e => updateForm({ delivery_terms_text: e.target.value })}
                     rows={2}
-                    placeholder="3-4 settimane dalla conferma..."
+                    placeholder="3-4 settimane dalla conferma. Cantiere: {{cantiere.indirizzo}}"
                   />
                 </div>
                 <div>
@@ -831,6 +1000,82 @@ export default function SettingsQuoteTemplates() {
                     placeholder="IBAN: IT00 X000 0000 0000 0000 0000 000 · BIC: XXXXITXX"
                   />
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* T4: Termini contrattuali estesi */}
+            <Card className="border-blue-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ScrollText className="h-4 w-4 text-blue-600" />
+                  Termini contrattuali
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Clausole contrattuali specifiche (oltre pagamento/consegna): garanzia, varianti, penali, modifica progetto, ecc.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50/40 px-3 py-2">
+                  <Label className="text-sm font-medium">Mostra in PDF</Label>
+                  <Switch checked={!!form.show_contractual_terms} onCheckedChange={(v) => updateForm({ show_contractual_terms: v })} />
+                </div>
+                {form.show_contractual_terms && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label className="text-xs text-muted-foreground">Testo clausole contrattuali</Label>
+                      <MergeTagInserter
+                        targetRef={contractualRef}
+                        currentValue={form.contractual_terms_text ?? ""}
+                        onInsert={(v) => updateForm({ contractual_terms_text: v })}
+                      />
+                    </div>
+                    <Textarea
+                      ref={contractualRef}
+                      value={form.contractual_terms_text ?? ''}
+                      onChange={e => updateForm({ contractual_terms_text: e.target.value })}
+                      rows={8}
+                      placeholder={`Es.\n\n1. OGGETTO\nL'azienda {{azienda.ragione_sociale}} si impegna ad eseguire i lavori descritti per il cliente {{cliente.nome_completo}} presso {{cantiere.indirizzo}}.\n\n2. GARANZIA\nLa garanzia è di 24 mesi dalla data di consegna.\n\n3. VARIANTI\nEventuali varianti devono essere concordate per iscritto...`}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* T5: Termini legali */}
+            <Card className="border-purple-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Scale className="h-4 w-4 text-purple-600" />
+                  Termini legali
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Privacy GDPR, diritto di recesso, foro competente. Apparirà in coda al PDF.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50/40 px-3 py-2">
+                  <Label className="text-sm font-medium">Mostra in PDF</Label>
+                  <Switch checked={!!form.show_legal_terms} onCheckedChange={(v) => updateForm({ show_legal_terms: v })} />
+                </div>
+                {form.show_legal_terms && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label className="text-xs text-muted-foreground">Testo termini legali</Label>
+                      <MergeTagInserter
+                        targetRef={legalRef}
+                        currentValue={form.legal_terms_text ?? ""}
+                        onInsert={(v) => updateForm({ legal_terms_text: v })}
+                      />
+                    </div>
+                    <Textarea
+                      ref={legalRef}
+                      value={form.legal_terms_text ?? ''}
+                      onChange={e => updateForm({ legal_terms_text: e.target.value })}
+                      rows={8}
+                      placeholder={`Es.\n\nPRIVACY (GDPR Reg. UE 2016/679)\nI dati personali di {{cliente.nome_completo}} saranno trattati nel rispetto del GDPR per l'esecuzione del contratto...\n\nDIRITTO DI RECESSO\nIl cliente può recedere dal contratto entro 14 giorni come da art. 52 D.lgs 206/2005...\n\nFORO COMPETENTE\nPer ogni controversia è competente il Foro di [città azienda].`}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
