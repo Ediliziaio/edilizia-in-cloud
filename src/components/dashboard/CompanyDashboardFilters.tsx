@@ -9,6 +9,7 @@ import { it } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 export type DatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "year" | "all" | "custom";
 
@@ -22,6 +23,8 @@ export interface CompanyDashboardFiltersState {
 interface Props {
   filters: CompanyDashboardFiltersState;
   onUpdate: (partial: Partial<CompanyDashboardFiltersState>) => void;
+  compact?: boolean;
+  className?: string;
 }
 
 const DATE_PRESETS: { value: DatePreset; label: string }[] = [
@@ -35,7 +38,7 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: "custom", label: "Personalizzato" },
 ];
 
-export function CompanyDashboardFilters({ filters, onUpdate }: Props) {
+export function CompanyDashboardFilters({ filters, onUpdate, compact, className }: Props) {
   const [customOpen, setCustomOpen] = useState(false);
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -60,11 +63,11 @@ export function CompanyDashboardFilters({ filters, onUpdate }: Props) {
   ].filter(Boolean).length;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 py-3">
+    <div className={cn("flex min-w-0 flex-wrap items-center gap-2", compact ? "py-1.5" : "py-3", className)}>
       <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
 
       {/* Date presets — scroll horizontally on mobile */}
-      <div className="flex flex-nowrap items-center gap-1 rounded-lg border bg-card p-1 w-full sm:w-auto overflow-x-auto scrollbar-none">
+      <div className="flex max-w-full flex-nowrap items-center gap-1 overflow-x-auto rounded-lg border bg-card p-1 scrollbar-none sm:w-auto">
         {DATE_PRESETS.map(p =>
           p.value === "custom" ? (
             <Popover key="custom" open={customOpen} onOpenChange={setCustomOpen}>
@@ -72,7 +75,7 @@ export function CompanyDashboardFilters({ filters, onUpdate }: Props) {
                 <Button
                   variant={filters.datePreset === "custom" ? "default" : "ghost"}
                   size="sm"
-                  className="h-7 text-xs px-2.5 gap-1.5 shrink-0"
+                  className="h-7 shrink-0 gap-1.5 px-2.5 text-xs"
                   onClick={() => {
                     onUpdate({ datePreset: "custom" });
                     setCustomOpen(true);
@@ -106,7 +109,7 @@ export function CompanyDashboardFilters({ filters, onUpdate }: Props) {
               key={p.value}
               variant={filters.datePreset === p.value ? "default" : "ghost"}
               size="sm"
-              className="h-7 text-xs px-2.5 shrink-0"
+              className="h-7 shrink-0 px-2.5 text-xs"
               onClick={() => onUpdate({ datePreset: p.value })}
             >
               {p.label}

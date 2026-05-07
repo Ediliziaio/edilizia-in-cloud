@@ -300,6 +300,10 @@ serve(async (req: Request) => {
       "4. Se il dato richiesto NON è coperto dai tool, dichiaralo: 'Per questa info devi consultare [area]'.",
       "5. Riporta sempre numeri reali dai tool, non arrotondamenti vaghi.",
       "6. Cita sempre la fonte (es. 'in base alle 41 commesse attive registrate' oppure marker [S1] dal CONTEXT RAG).",
+      "7. Se un tool ritorna data_quality.warnings, non trattare lo zero come certezza: spiega cosa manca e dai solo una lettura prudente.",
+      "8. Se un tool ritorna priorita_recupero o campi priorita, usa quell'ordine per dire chi/cosa fare prima.",
+      "9. Non nominare mai personas/consulenti interni nella risposta finale: rispondi come una sola regia, Silvio.",
+      "10. Se un tool ritorna proposalId, _proposal o riskLevel yellow/red, l'azione NON è conclusa: dì che è pronta/in attesa di conferma, non che è stata eseguita.",
       "",
       "# REGOLE FORMATO",
       "- Numeri sempre formato italiano: € 1.234,56",
@@ -414,7 +418,13 @@ serve(async (req: Request) => {
     let finalContent = "";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allToolCalls: any[] = [];
-    const toolCallsLog: Array<{ name: string; args: unknown; result_preview: string }> = [];
+    const toolCallsLog: Array<{
+      name: string;
+      args: unknown;
+      result_preview: string;
+      proposal_id?: string | null;
+      risk_level?: string | null;
+    }> = [];
     let lastResult: Awaited<ReturnType<typeof aiRouterComplete>> | null = null;
     let totalCostBilled = 0;
     let totalTokensIn = 0;
@@ -432,7 +442,7 @@ serve(async (req: Request) => {
           messages,
 
           params: toolsSpec
-            ? ({ temperature: 0.4, max_tokens: 4000, tools: toolsSpec, tool_choice: "auto" } as any)
+            ? { temperature: 0.4, max_tokens: 4000, tools: toolsSpec, tool_choice: "auto" }
             : { temperature: 0.4, max_tokens: 4000 },
           // MP-04: structured output strict per tier balanced/premium (no quando tools attivi).
           responseFormat: useStructured && !toolsSpec
@@ -522,6 +532,8 @@ serve(async (req: Request) => {
           name: r.toolName,
           args: calls[idx].input,
           result_preview: serialized.slice(0, 200),
+          proposal_id: r.proposalId ?? null,
+          risk_level: r.riskLevel ?? null,
         });
       });
       // continua loop
@@ -561,7 +573,12 @@ serve(async (req: Request) => {
       p_role: "assistant",
       p_content: finalContent,
       p_tool_calls: toolCallsLog.length > 0
-        ? toolCallsLog.map((t) => ({ name: t.name, args: t.args }))
+        ? toolCallsLog.map((t) => ({
+          name: t.name,
+          args: t.args,
+          proposal_id: t.proposal_id ?? null,
+          risk_level: t.risk_level ?? null,
+        }))
         : null,
       p_tool_call_id: null,
       p_ledger_id: lastResult?.ledgerId ?? null,
@@ -575,6 +592,11 @@ serve(async (req: Request) => {
         fallback_index: lastResult?.fallbackIndex,
         duration_ms: lastResult?.durationMs,
         tools_invoked: toolCallsLog.map((t) => t.name),
+        tool_risk_levels: toolCallsLog.map((t) => ({
+          name: t.name,
+          risk_level: t.risk_level ?? null,
+          proposal_id: t.proposal_id ?? null,
+        })),
         // MP-01: pre-RAG audit (rag_sources colonna dedicata creata da migration 20270201000000)
         rag_min_similarity: ragSources.length > 0 ? ragMinSimilarity : null,
         rag_source_count: ragSources.length,

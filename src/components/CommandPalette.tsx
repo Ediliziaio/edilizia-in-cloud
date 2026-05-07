@@ -34,6 +34,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { label: "Form & UTM",                 path: "/azienda/impostazioni/form-builder" },
   { label: "Materiali preventivi",       path: "/azienda/impostazioni/materiali-preventivi" },
   { label: "Template offerte",           path: "/azienda/impostazioni/template-preventivi" },
+  { label: "Firma Elettronica",          path: "/azienda/impostazioni/firma-elettronica" },
   { label: "Calendari marketing",        path: "/azienda/impostazioni/calendari" },
   { label: "Lead Facebook",              path: "/azienda/impostazioni/lead-forms" },
   { label: "Persone & Accessi",          path: "/azienda/impostazioni/persone" },

@@ -28,7 +28,10 @@ export function useRichiediFirma() {
   return useMutation({
     mutationFn: async (input: RichiediFirmaInput): Promise<RichiediFirmaResult> => {
       const { data, error } = await supabase.functions.invoke("fea-richiedi-firma", {
-        body: input,
+        body: {
+          ...input,
+          expires_giorni: input.scadenza_giorni,
+        },
       });
       if (error) throw new Error(error.message);
       if (!data?.token) throw new Error("Risposta server non valida (token mancante)");

@@ -98,6 +98,23 @@ Deno.serve(async (req: Request) => {
       .update(updatePayload)
       .eq("id", sigReq.id);
 
+    if (sigReq.quote_id) {
+      const { error: quoteUpdateErr } = await supabaseAdmin
+        .from("quotes")
+        .update({
+          status: "accettata",
+          signed_at: ora,
+          signed_by_name: sigReq.signer_name,
+          updated_at: ora,
+        })
+        .eq("id", sigReq.quote_id)
+        .eq("company_id", sigReq.company_id);
+
+      if (quoteUpdateErr) {
+        console.error("Quote FEA signed sync error:", quoteUpdateErr);
+      }
+    }
+
     // Audit log firma_completata
     await supabaseAdmin.from("fea_audit_log").insert({
       request_id: sigReq.id,

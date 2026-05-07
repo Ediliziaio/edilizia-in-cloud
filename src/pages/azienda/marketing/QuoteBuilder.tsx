@@ -78,6 +78,17 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+
+const templateAssetUrl = (path?: string | null) => {
+  if (!path) return undefined;
+  if (/^https?:\/\//i.test(path)) return path;
+  const clean = path.replace(/^\/+/, "");
+  const [maybeBucket, ...rest] = clean.split("/");
+  if ((maybeBucket === "quote-template-assets" || maybeBucket === "company-assets") && rest.length > 0) {
+    return supabase.storage.from(maybeBucket).getPublicUrl(rest.join("/")).data.publicUrl;
+  }
+  return supabase.storage.from("quote-template-assets").getPublicUrl(clean).data.publicUrl;
+};
 import {
   Table,
   TableBody,
@@ -760,7 +771,7 @@ export default function QuoteBuilder() {
 
   // FASE 9: families disponibili → abilita bottone Wizard Serramentista solo se configurate
   const { families: articleFamilies } = useFamilies();
-  const hasSerramentiFamilies = articleFamilies.length > 0;
+  const _hasSerramentiFamilies = articleFamilies.length > 0;
 
   // MP-preventivi-v2: mappe lookup immagini prodotto (thumbnail riga).
   // Le foto vengono lette dinamicamente dal listino, cosi` se aggiorni
@@ -3450,6 +3461,7 @@ export default function QuoteBuilder() {
                         <QuoteTemplatePreview
                           template={{ ...selectedTemplate, layout }}
                           companyName={effectiveCompany?.name}
+                          logoSrc={templateAssetUrl(selectedTemplate?.logo_url)}
                           scale={0.06}
                         />
                         <span className="capitalize mt-1 block">{layout}</span>
@@ -3462,6 +3474,7 @@ export default function QuoteBuilder() {
                       <QuoteTemplatePreview
                         template={effectiveTemplate}
                         companyName={effectiveCompany?.name}
+                        logoSrc={templateAssetUrl(effectiveTemplate.logo_url)}
                         scale={0.25}
                       />
                     </div>

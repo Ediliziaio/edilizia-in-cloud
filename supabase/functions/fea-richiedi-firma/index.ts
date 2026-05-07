@@ -20,8 +20,11 @@ Deno.serve(async (req: Request) => {
       tipo_firmatario,
       signer_email,
       signer_name,
-      expires_giorni = 30,
     } = body;
+    const expiresGiorniRaw = Number(body.expires_giorni ?? body.scadenza_giorni ?? 30);
+    const expiresGiorni = Number.isFinite(expiresGiorniRaw)
+      ? Math.min(Math.max(Math.trunc(expiresGiorniRaw), 1), 365)
+      : 30;
 
     // Validazione campi obbligatori
     if (!tipo_documento || !documento_id || !tipo_firmatario || !signer_email || !signer_name) {
@@ -76,7 +79,7 @@ Deno.serve(async (req: Request) => {
 
     // Calcola scadenza
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + expires_giorni);
+    expiresAt.setDate(expiresAt.getDate() + expiresGiorni);
 
     // Costruisci insertPayload
     const insertPayload: Record<string, unknown> = {
@@ -118,9 +121,31 @@ Deno.serve(async (req: Request) => {
 
     const request_id = inserted.id;
 
+    if (tipo_documento === "quote") {
+      const { error: quoteUpdateErr } = await supabaseAdmin
+        .from("quotes")
+        .update({
+          status: "inviata",
+          signature_token: inserted.token,
+          sent_at: new Date().toISOString(),
+          expires_at: expiresAt.toISOString(),
+          client_email: signer_email,
+          client_name: signer_name,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", documento_id)
+        .eq("company_id", company_id);
+
+      if (quoteUpdateErr) {
+        console.error("Quote FEA sync error:", quoteUpdateErr);
+      }
+    }
+
     // Chiama internamente fea-genera-otp
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    let otpInviato = false;
 
     try {
       // P2-5: fn interna → timeout 15s (cold start + generazione OTP).
@@ -138,6 +163,8 @@ Deno.serve(async (req: Request) => {
         const otpErr = await otpRes.text();
         console.error("OTP generation failed:", otpErr);
         // Non blocchiamo: la richiesta è creata, l'OTP può essere rigenerato
+      } else {
+        otpInviato = true;
       }
     } catch (otpErr) {
       console.error("OTP call error:", otpErr);
@@ -152,7 +179,7 @@ Deno.serve(async (req: Request) => {
     });
 
     return new Response(
-      JSON.stringify({ success: true, request_id, token: inserted.token }),
+      JSON.stringify({ success: true, request_id, token: inserted.token, otp_inviato: otpInviato }),
       { status: 200, headers: { ...corsH, "Content-Type": "application/json" } }
     );
   } catch (err) {

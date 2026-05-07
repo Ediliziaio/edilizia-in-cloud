@@ -89,17 +89,17 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter, compact }:
   ].filter(Boolean).length;
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", compact ? "py-1.5" : "py-3")}>
-      <Filter className="h-4 w-4 text-muted-foreground" />
+    <div className={cn("flex min-w-0 flex-wrap items-center gap-2", compact ? "py-1.5" : "py-3")}>
+      <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
 
       {/* Date presets */}
-      <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
+      <div className="flex max-w-full flex-nowrap items-center gap-1 overflow-x-auto rounded-lg border bg-card p-1 scrollbar-none">
         {DATE_PRESETS.map(p => (
           <Button
             key={p.value}
             variant={filters.datePreset === p.value ? "default" : "ghost"}
             size="sm"
-            className="h-7 text-xs px-2.5"
+            className="h-7 shrink-0 px-2.5 text-xs"
             onClick={() => onUpdate({ datePreset: p.value })}
           >
             {p.label}

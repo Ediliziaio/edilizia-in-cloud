@@ -71,6 +71,7 @@ export interface ComposedTemplate extends QuoteTemplateRow {
 export async function loadTemplateWithBlocks(
   supabase: SupabaseClient,
   templateId: string,
+  expectedCompanyId?: string | null,
 ): Promise<ComposedTemplate | null> {
   const { data: template, error } = await supabase
     .from("quote_templates")
@@ -78,6 +79,20 @@ export async function loadTemplateWithBlocks(
     .eq("id", templateId)
     .maybeSingle();
   if (error || !template) return null;
+
+  if (expectedCompanyId && template.company_id !== expectedCompanyId) {
+    return null;
+  }
+
+  return attachLinkedBlocks(supabase, template as QuoteTemplateRow, expectedCompanyId ?? template.company_id);
+}
+
+export async function attachLinkedBlocks(
+  supabase: SupabaseClient,
+  template: QuoteTemplateRow,
+  expectedCompanyId?: string | null,
+): Promise<ComposedTemplate> {
+  const companyId = expectedCompanyId ?? template.company_id;
 
   // Solo le offerte compongono blocchi
   if ((template.kind ?? "offerta") !== "offerta") {
@@ -101,6 +116,7 @@ export async function loadTemplateWithBlocks(
     .from("quote_templates")
     .select("*")
     .in("id", idsToFetch)
+    .eq("company_id", companyId)
     .eq("is_active", true);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -2,10 +2,9 @@
  * CompanyDashboard — la regia operativa dell'azienda.
  *
  * Layout:
- *  1. Header sticky (titolo + azioni rapide + refresh)
- *  2. Filtri della vista gestione
- *  3. Sintesi operativa blu
- *  4. Board operativo: agenda, commesse da seguire, blocchi da risolvere
+ *  1. Header dashboard (titolo + filtri + azioni rapide)
+ *  2. Sintesi operativa blu
+ *  3. Board operativo: agenda, commesse da seguire, blocchi da risolvere
  *
  * Principi UX:
  *  - Risponde in 5 secondi a: "cosa deve fare il team adesso"
@@ -40,6 +39,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DashboardQuickActions, DashboardKeyboardHint } from "@/components/dashboard/DashboardQuickActions";
 import { CompanyDashboardFilters } from "@/components/dashboard/CompanyDashboardFilters";
 import { useCompanyDashboardData } from "@/hooks/useCompanyDashboardData";
@@ -1243,22 +1243,14 @@ export default function CompanyDashboard() {
     <div className="space-y-4 sm:space-y-6">
       <DashboardSelectorBar title="Dashboard Gestione" />
 
-      {/* ─── HEADER STICKY ─── */}
-      <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 px-3 sm:px-4 py-2 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-2xl font-bold text-foreground flex items-center gap-2">
-                <LayoutDashboard className="h-5 w-5 text-primary hidden sm:inline" />
-                Dashboard Gestione
-              </h1>
-              <DashboardKeyboardHint />
-            </div>
-            <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-              La tua sala operativa · aggiornata {lastRefresh.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+      <DashboardPageHeader
+        title="Dashboard Gestione"
+        subtitle={`La tua sala operativa · aggiornata ${lastRefresh.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}
+        icon={LayoutDashboard}
+        leftAccessory={<DashboardKeyboardHint />}
+        toolbar={<CompanyDashboardFilters filters={filters} onUpdate={updateFilters} compact />}
+        actions={
+          <>
             <DashboardQuickActions />
             <Button
               variant="ghost"
@@ -1271,12 +1263,9 @@ export default function CompanyDashboard() {
             >
               <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
             </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Filtri */}
-      <CompanyDashboardFilters filters={filters} onUpdate={updateFilters} />
+          </>
+        }
+      />
 
 
       <ManagementOverview

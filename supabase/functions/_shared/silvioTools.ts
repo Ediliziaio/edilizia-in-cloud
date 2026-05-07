@@ -251,7 +251,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "get_revenue_forecast",
-        description: "Ritorna gli incassi previsti nei prossimi N giorni (acconti, saldi, finanziamenti attesi). Usa per domande 'quanto incasso prossimo mese', 'cassa attesa', 'soldi in arrivo'.",
+        description: "Ritorna gli incassi futuri previsti nei prossimi N giorni (acconti, saldi, finanziamenti attesi), escludendo rate già scadute. Output normalizzato: total_expected_eur, expected_count, overdue_excluded_eur, data_quality, incassi_futuri. Usa per domande 'quanto incasso prossimo mese', 'cassa attesa', 'soldi in arrivo'. Per 'quanto devo fatturare per coprire costi fissi' usa calculate_revenue_needed_next_month.",
         parameters: {
           type: "object",
           properties: {
@@ -275,12 +275,50 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "kpi",
   },
 
+  calculate_revenue_needed_next_month: {
+    schema: {
+      type: "function",
+      function: {
+        name: "calculate_revenue_needed_next_month",
+        description: "Calcola il target operativo del prossimo mese distinguendo fatturato, incasso reale e cassa libera dopo costi variabili. Usa SEMPRE per domande tipo 'quanto dovrei fatturare il mese prossimo per pagare i costi fissi', 'quanto devo vendere per coprire stipendi e fornitori', 'punto di pareggio cassa prossimo mese'. La risposta NON deve essere un numero secco: spiega che fatturato non significa incasso, considera materiali/manodopera/subappaltatori/IVA delle nuove commesse e presenta scenari (recupero crediti, nuove commesse con acconto protetto, mix prudente). Se il risultato contiene data_quality.warnings, dichiara quali dati aziendali mancano e non trattare un gap a 0 come certezza.",
+        parameters: {
+          type: "object",
+          properties: {
+            target_month: {
+              type: "string",
+              format: "date",
+              description: "Primo giorno del mese target. Se omesso usa il mese prossimo.",
+            },
+            margin_pct: {
+              type: "number",
+              minimum: 0.05,
+              maximum: 0.95,
+              default: 0.30,
+              description: "Margine operativo stimato sul nuovo fatturato. Default 30%.",
+            },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_revenue_needed_next_month", {
+      p_company_id: ctx.companyId,
+      p_target_month: args?.target_month ?? null,
+      p_margin_pct: args?.margin_pct ?? 0.30,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
+    riskLevel: "safe",
+    domain: "banking",
+  },
+
   get_overdue_payments: {
     schema: {
       type: "function",
       function: {
         name: "get_overdue_payments",
-        description: "Ritorna le rate (acconto, acconto2, saldo, finanziamento) SCADUTE e non pagate. Usa per domande 'chi mi deve pagare', 'rate in ritardo', 'crediti scaduti'.",
+        description: "Ritorna le rate (acconto, acconto2, saldo, finanziamento) SCADUTE e non pagate. Output normalizzato: total_overdue_eur, count, data_quality e priorita_recupero con azione_suggerita. Usa per domande 'chi mi deve pagare', 'quali clienti devo sollecitare prima', 'rate in ritardo', 'crediti scaduti'.",
         parameters: { type: "object", properties: {}, required: [] },
       },
     },
@@ -1192,7 +1230,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         },
       },
     },
-    executor: async (args, ctx) => {
+    executor: async (args, _ctx) => {
       const text = String(args?.computo_text ?? "").trim();
       if (text.length < 50) return { error: "Testo computo troppo corto (min 50 char)" };
 

@@ -13,6 +13,7 @@ import type {
 } from "@/types/quoteTemplate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,8 +25,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy, FileText, Eye,
-  CheckCircle2, Palette, Wand2, FileImage, Scale, ScrollText, Tag, ArrowLeft, Save,
-  Type, Layout as LayoutIcon, Sparkles,
+  CheckCircle2, Palette, Wand2, FileImage, Scale, ScrollText, ArrowLeft, Save,
 } from "lucide-react";
 import { MergeTagInserter } from "@/components/quotes/MergeTagInserter";
 import { CanvaColorPicker } from "@/components/quotes/CanvaColorPicker";
@@ -95,8 +95,17 @@ const DESIGN_PRESETS: Array<{ name: string; desc: string; patch: Partial<QuoteTe
   },
 ];
 
-const getLogoPublicUrl = (path: string) =>
-  supabase.storage.from("quote-template-assets").getPublicUrl(path).data.publicUrl;
+const TEMPLATE_ASSET_BUCKET = "quote-template-assets";
+
+const getLogoPublicUrl = (path: string) => {
+  if (/^https?:\/\//i.test(path)) return path;
+  const clean = path.replace(/^\/+/, "");
+  const [maybeBucket, ...rest] = clean.split("/");
+  if ((maybeBucket === TEMPLATE_ASSET_BUCKET || maybeBucket === "company-assets") && rest.length > 0) {
+    return supabase.storage.from(maybeBucket).getPublicUrl(rest.join("/")).data.publicUrl;
+  }
+  return supabase.storage.from(TEMPLATE_ASSET_BUCKET).getPublicUrl(clean).data.publicUrl;
+};
 
 const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg"]);
 
@@ -178,6 +187,23 @@ type TemplateVisibilityKey =
   | "show_notes"
   | "show_page_numbers";
 
+function quoteTemplateKind(tmpl: Partial<QuoteTemplate>): QuoteTemplateKind {
+  return (tmpl.kind as QuoteTemplateKind | undefined) ?? "offerta";
+}
+
+function getReferencingOffers(tmpl: QuoteTemplate, templates: QuoteTemplate[]): QuoteTemplate[] {
+  if (quoteTemplateKind(tmpl) === "offerta") return [];
+  return templates.filter((t) =>
+    quoteTemplateKind(t) === "offerta" && (
+      t.linked_cover_id === tmpl.id ||
+      t.linked_terms_id === tmpl.id ||
+      t.linked_legal_id === tmpl.id ||
+      (t.linked_product_ids ?? []).includes(tmpl.id) ||
+      (t.linked_section_ids ?? []).includes(tmpl.id)
+    ),
+  );
+}
+
 // ─── Sub-componente KindPreview (anteprima per blocchi non-offerta) ────────
 function KindPreview({ form, kind }: { form: Partial<QuoteTemplate>; kind: QuoteTemplateKind }) {
   const meta = KIND_META[kind];
@@ -219,7 +245,7 @@ function KindPreview({ form, kind }: { form: Partial<QuoteTemplate>; kind: Quote
             <p className="text-xs uppercase tracking-wide text-slate-400">{form.product_category || "Prodotto"}</p>
             <h3 className="text-lg font-bold text-slate-900">{form.name || "Nome prodotto"}</h3>
             <p className="text-sm text-slate-600">{form.product_short_description || "Descrizione breve…"}</p>
-            {form.product_indicative_price && (
+            {form.product_indicative_price !== null && form.product_indicative_price !== undefined && (
               <p className="text-base font-semibold text-emerald-700 pt-1">
                 €{Number(form.product_indicative_price).toFixed(2)}
                 {form.product_unit ? ` / ${form.product_unit}` : ""}
@@ -427,7 +453,7 @@ function ProductTemplateEditor({ form, updateForm, productImageInputRef, product
             <p className="text-[10px] text-muted-foreground mt-0.5">Solo orientativo, NON usato come prezzo del preventivo</p>
           </div>
           <div className="self-end text-[11px] text-muted-foreground pb-2.5">
-            {form.product_indicative_price && form.product_unit
+            {form.product_indicative_price !== null && form.product_indicative_price !== undefined && form.product_unit
               ? `→ €${Number(form.product_indicative_price).toFixed(2)} / ${form.product_unit}`
               : null}
           </div>
@@ -599,6 +625,7 @@ export default function SettingsQuoteTemplates() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [previewPage, setPreviewPage] = useState<'cover' | 'detail'>('cover');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   // Tab attiva nella libreria template (offerta | copertina | condizioni | ...)
   const [activeKind, setActiveKind] = useState<QuoteTemplateKind>('offerta');
   // Dialog "Scegli che tipo di template creare"
@@ -617,6 +644,16 @@ export default function SettingsQuoteTemplates() {
     }
     return c;
   }, [templates]);
+
+  const deleteTarget = useMemo(
+    () => templates.find((t) => t.id === deleteConfirmId) ?? null,
+    [templates, deleteConfirmId],
+  );
+
+  const deleteImpactOffers = useMemo(
+    () => deleteTarget ? getReferencingOffers(deleteTarget, templates) : [],
+    [deleteTarget, templates],
+  );
 
   // Template filtrati per kind attivo nella libreria
   const filteredTemplates = useMemo(
@@ -640,7 +677,15 @@ export default function SettingsQuoteTemplates() {
 
   const updateForm = useCallback((patch: Partial<QuoteTemplate>) => {
     setForm(prev => ({ ...prev, ...patch }));
+    setIsDirty(true);
   }, []);
+
+  useBeforeUnload(editing && (isDirty || upsertTemplate.isPending));
+
+  const confirmDiscardChanges = useCallback(() => {
+    if (!editing || !isDirty) return true;
+    return window.confirm("Hai modifiche non salvate. Vuoi uscire senza salvarle?");
+  }, [editing, isDirty]);
 
   const logoSrcFor = useCallback((tmpl: Partial<QuoteTemplate>) => (
     tmpl.logo_url ? getLogoPublicUrl(tmpl.logo_url) : undefined
@@ -678,28 +723,41 @@ export default function SettingsQuoteTemplates() {
     });
   };
 
-  const handleNew = (kind: QuoteTemplateKind = activeKind) => {
+  const openNewTemplate = useCallback((kind: QuoteTemplateKind) => {
     setEditId(null);
     setForm(blankTemplateForKind(kind));
+    setIsDirty(false);
     setEditing(true);
+  }, []);
+
+  const handleNew = (kind: QuoteTemplateKind = activeKind) => {
+    if (!confirmDiscardChanges()) return;
+    openNewTemplate(kind);
   };
 
   const handleEdit = (tmpl: QuoteTemplate) => {
+    if (!confirmDiscardChanges()) return;
     setEditId(tmpl.id);
     setForm({ ...tmpl });
+    setIsDirty(false);
     setEditing(true);
   };
 
   const handleDuplicate = (tmpl: QuoteTemplate) => {
+    if (!confirmDiscardChanges()) return;
     const { id: _id, created_at: _createdAt, updated_at: _updatedAt, ...rest } = tmpl;
     setEditId(null);
     setForm({ ...rest, name: `${tmpl.name} (copia)`, is_default: false });
+    setIsDirty(true);
     setEditing(true);
   };
 
   const handleCancel = () => {
+    if (!confirmDiscardChanges()) return false;
     setEditing(false);
     setEditId(null);
+    setIsDirty(false);
+    return true;
   };
 
   /**
@@ -708,11 +766,11 @@ export default function SettingsQuoteTemplates() {
    * - asDefault=false (Salva bozza): salva senza chiudere, l'utente può continuare a modificare.
    *   Dopo il primo insert, editId viene aggiornato così i salvataggi successivi sono UPDATE.
    */
-  const handleSave = async (asDefault = false) => {
+  const handleSave = async (asDefault = false): Promise<boolean> => {
     const templateName = form.name?.trim();
     if (!templateName) {
       toast.error("Inserisci un nome template");
-      return;
+      return false;
     }
     const payload: TemplateFormPayload = { ...form };
     payload.name = templateName;
@@ -726,6 +784,7 @@ export default function SettingsQuoteTemplates() {
         toast.success(editId ? "Template salvato come default" : "Template creato e impostato come default");
         setEditing(false);
         setEditId(null);
+        setIsDirty(false);
       } else {
         // Salva bozza: resta in editor. Se era un nuovo template, ora abbiamo un id.
         toast.success(editId ? "Bozza salvata" : "Bozza creata");
@@ -735,9 +794,12 @@ export default function SettingsQuoteTemplates() {
           setEditId(newId);
           setForm((prev) => ({ ...prev, id: newId }));
         }
+        setIsDirty(false);
       }
+      return true;
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore salvataggio");
+      return false;
     }
   };
 
@@ -993,6 +1055,11 @@ export default function SettingsQuoteTemplates() {
               {!editId && (
                 <Badge variant="outline" className="text-[10px] h-5 shrink-0 bg-orange-50 text-orange-700 border-orange-200">Bozza</Badge>
               )}
+              {isDirty && (
+                <Badge variant="outline" className="text-[10px] h-5 shrink-0 bg-amber-50 text-amber-700 border-amber-200">
+                  Modifiche non salvate
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Button
@@ -1125,21 +1192,33 @@ export default function SettingsQuoteTemplates() {
                     value={form.linked_cover_id ?? null}
                     options={templatesByKind('copertina')}
                     onChange={(id) => updateForm({ linked_cover_id: id })}
-                    onCreate={() => { handleCancel(); setActiveKind('copertina'); setTimeout(() => handleNew('copertina'), 50); }}
+                    onCreate={() => {
+                      if (!handleCancel()) return;
+                      setActiveKind('copertina');
+                      setTimeout(() => openNewTemplate('copertina'), 50);
+                    }}
                   />
                   <BlockLinkSelector
                     label="📜 Condizioni contrattuali"
                     value={form.linked_terms_id ?? null}
                     options={templatesByKind('condizioni')}
                     onChange={(id) => updateForm({ linked_terms_id: id })}
-                    onCreate={() => { handleCancel(); setActiveKind('condizioni'); setTimeout(() => handleNew('condizioni'), 50); }}
+                    onCreate={() => {
+                      if (!handleCancel()) return;
+                      setActiveKind('condizioni');
+                      setTimeout(() => openNewTemplate('condizioni'), 50);
+                    }}
                   />
                   <BlockLinkSelector
                     label="⚖️ Termini legali"
                     value={form.linked_legal_id ?? null}
                     options={templatesByKind('legali')}
                     onChange={(id) => updateForm({ linked_legal_id: id })}
-                    onCreate={() => { handleCancel(); setActiveKind('legali'); setTimeout(() => handleNew('legali'), 50); }}
+                    onCreate={() => {
+                      if (!handleCancel()) return;
+                      setActiveKind('legali');
+                      setTimeout(() => openNewTemplate('legali'), 50);
+                    }}
                   />
                   <MultiBlockSelector
                     label="🛒 Schede prodotto da includere"
@@ -1947,7 +2026,8 @@ export default function SettingsQuoteTemplates() {
               <Button variant="outline" onClick={handleCancel}>Annulla e torna alla libreria</Button>
               <Button
                 onClick={async () => {
-                  await handleSave(false);
+                  const saved = await handleSave(false);
+                  if (!saved) return;
                   setEditing(false);
                   setEditId(null);
                 }}
@@ -2011,7 +2091,12 @@ export default function SettingsQuoteTemplates() {
                     setDownloadingPdf(true);
                     try {
                       const { data, error } = await supabase.functions.invoke("generate-quote-pdf", {
-                        body: { preview_mode: true, template_data: form, company_name: effectiveCompany?.name },
+                        body: {
+                          preview_mode: true,
+                          template_data: form,
+                          company_name: effectiveCompany?.name,
+                          preview_signature: true,
+                        },
                       });
                       if (error) {
                         let errBody: { error?: string; message?: string } | null = null;
@@ -2106,7 +2191,24 @@ export default function SettingsQuoteTemplates() {
           <AlertDialogHeader>
             <AlertDialogTitle>Elimina template</AlertDialogTitle>
             <AlertDialogDescription>
-              Sei sicuro di voler eliminare questo template? L'azione non è reversibile.
+              {deleteTarget ? (
+                <span className="space-y-2 block">
+                  <span className="block">
+                    Stai eliminando <strong>{deleteTarget.name}</strong>. Il template verrà disattivato e non sarà più disponibile per nuove offerte.
+                  </span>
+                  {deleteImpactOffers.length > 0 ? (
+                    <span className="block rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                      Questo blocco è usato da {deleteImpactOffers.length} offerte template:{" "}
+                      {deleteImpactOffers.slice(0, 3).map((offer) => offer.name).join(", ")}
+                      {deleteImpactOffers.length > 3 ? ` e altre ${deleteImpactOffers.length - 3}` : ""}. Dopo l'eliminazione verrà scollegato automaticamente.
+                    </span>
+                  ) : (
+                    <span className="block text-muted-foreground">Non risulta collegato ad altri template attivi.</span>
+                  )}
+                </span>
+              ) : (
+                "Sei sicuro di voler eliminare questo template? L'azione non è reversibile."
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

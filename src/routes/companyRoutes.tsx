@@ -57,6 +57,7 @@ const SettingsFinanceAutomation = lazy(() => import("@/pages/azienda/settings/Se
 const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
 const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/SettingsQuoteMaterials"));
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
+const SettingsFirmaElettronica = lazy(() => import("@/pages/azienda/settings/SettingsFirmaElettronica"));
 const SettingsTariffe = lazy(() => import("@/pages/azienda/settings/SettingsTariffe"));
 const ListinoManutenzione = lazy(() => import("@/pages/azienda/settings/ListinoManutenzione"));
 const SettingsFinanziamenti = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamenti"));
@@ -543,6 +544,7 @@ export function companyRoutes() {
         <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditMarketingOpportunities", <QuoteBuilder />)} />
         <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewMarketingOpportunities", <QuoteDetail />)} />
         <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditMarketingOpportunities", <QuoteBuilder />)} />
+        <Route path="marketing/firma-elettronica" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
         {/* Sprint B — Varianti Costo Manodopera: vista admin-only gated da can_view_margins */}
         <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <QuoteMargini />)} />
         
@@ -627,6 +629,7 @@ export function companyRoutes() {
           <Route path="branding" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBranding />)} />
           <Route path="materiali-preventivi" element={withCompanyPermission("canViewSettingsCustomization", <SettingsQuoteMaterials />)} />
           <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsCustomization", <SettingsQuoteTemplates />)} />
+          <Route path="firma-elettronica" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFirmaElettronica />)} />
           <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <SettingsBilling />)} />
           <Route path="fatturazione-nativa" element={withCompanyPermission("canViewBilling", <ImpostazioniFatturazione />)} />
           <Route path="abbonamento" element={withCompanyPermission("canViewBilling", <SettingsSubscriptionBilling />)} />
@@ -641,8 +644,8 @@ export function companyRoutes() {
         <Route path="archivio-sostitutivo" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nell'archivio sostitutivo"><ArchivioSostitutivo /></ErrorBoundary>)} />
 
         {/* FEA — Firma Elettronica Avanzata + Documenti (gated: firma_fea) */}
-        <Route path="firma-elettronica" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
-        <Route path="firma-elettronica/nuovo-template" element={withCompanyPermission("canEditMarketingOpportunities", <FeatureRoute featureKey="firma_fea"><NuovoTemplate /></FeatureRoute>)} />
+        <Route path="firma-elettronica" element={withCompanyPermission("canViewOrders", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
+        <Route path="firma-elettronica/nuovo-template" element={withCompanyPermission("canEditSettingsCustomization", <FeatureRoute featureKey="firma_fea"><NuovoTemplate /></FeatureRoute>)} />
       </Route>
     </>
   );

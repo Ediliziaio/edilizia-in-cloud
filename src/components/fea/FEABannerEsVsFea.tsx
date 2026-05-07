@@ -3,6 +3,7 @@ import { X, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 const rows = [
   { aspetto: 'Valore legale', fes: 'Limitato', fea: 'Pieno (eIDAS)' },
@@ -11,24 +12,31 @@ const rows = [
   { aspetto: 'Costo', fes: 'Incluso', fea: 'Add-on' },
 ];
 
-export function FEABannerEsVsFea() {
+interface FEABannerEsVsFeaProps {
+  dismissible?: boolean;
+  className?: string;
+}
+
+export function FEABannerEsVsFea({ dismissible = true, className }: FEABannerEsVsFeaProps) {
   const [dismissed, setDismissed] = useState(false);
 
   if (dismissed) return null;
 
   return (
-    <Card className="relative">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="absolute top-2 right-2 h-7 w-7 p-0 text-gray-400 hover:text-gray-600"
-        onClick={() => setDismissed(true)}
-        aria-label="Chiudi"
-      >
-        <X className="h-4 w-4" />
-      </Button>
+    <Card className={cn("relative", className)}>
+      {dismissible && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="absolute top-2 right-2 h-7 w-7 p-0 text-gray-400 hover:text-gray-600"
+          onClick={() => setDismissed(true)}
+          aria-label="Chiudi"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
 
-      <CardHeader className="pb-3 pr-10">
+      <CardHeader className={cn("pb-3", dismissible && "pr-10")}>
         <CardTitle className="text-base">
           Firma Elettronica Avanzata vs Firma Elettronica Semplice
         </CardTitle>

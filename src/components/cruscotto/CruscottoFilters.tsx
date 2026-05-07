@@ -6,10 +6,13 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import type { CruscottoFiltersState, CruscottoDatePreset } from "@/hooks/useCruscottoData";
+import { cn } from "@/lib/utils";
 
 interface Props {
   filters: CruscottoFiltersState;
   onUpdate: (partial: Partial<CruscottoFiltersState>) => void;
+  compact?: boolean;
+  className?: string;
 }
 
 const DATE_PRESETS: { value: CruscottoDatePreset; label: string }[] = [
@@ -22,18 +25,18 @@ const DATE_PRESETS: { value: CruscottoDatePreset; label: string }[] = [
   { value: "custom", label: "Custom" },
 ];
 
-export const CruscottoFilters = memo(function CruscottoFilters({ filters, onUpdate }: Props) {
+export const CruscottoFilters = memo(function CruscottoFilters({ filters, onUpdate, compact, className }: Props) {
   return (
-    <div className="flex flex-nowrap items-center gap-2 p-3 rounded-lg border bg-card overflow-x-auto scrollbar-none">
+    <div className={cn("flex min-w-0 flex-wrap items-center gap-2", compact ? "py-1.5" : "py-3", className)}>
       <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
 
-      <div className="flex flex-nowrap items-center gap-1 rounded-lg border bg-background p-1 overflow-x-auto scrollbar-none">
+      <div className="flex max-w-full flex-nowrap items-center gap-1 overflow-x-auto rounded-lg border bg-card p-1 scrollbar-none">
         {DATE_PRESETS.map(p => (
           <Button
             key={p.value}
             variant={filters.datePreset === p.value ? "default" : "ghost"}
             size="sm"
-            className="h-7 text-xs px-2.5 shrink-0"
+            className="h-7 shrink-0 px-2.5 text-xs"
             onClick={() => onUpdate({ datePreset: p.value })}
           >
             {p.label}

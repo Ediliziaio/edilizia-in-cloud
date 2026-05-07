@@ -4,8 +4,8 @@
  *
  *   • [Top] banner "Richiede review umana" se requires_human_review=true
  *   • [Top] badge "Confidence bassa" se ai_confidence='low'
- *   • [Top] badge "Multi-area Council" se council_data.is_multi_area
- *   • [Bottom] CouncilExpandable: card collassabili con sub_outputs delle personas
+ *   • [Top] badge "Analisi multi-area" se council_data.is_multi_area
+ *   • [Bottom] CouncilExpandable: card collassabili con sub_outputs delle aree
  *   • [Bottom] FollowupChips: max 3 chip cliccabili → richiamano onAskFollowup
  *
  * Tutto opzionale. Se i metadata sono null/undefined il componente non
@@ -17,7 +17,6 @@ import {
   AlertTriangle, Brain, ChevronDown, Sparkles, Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
 
 export interface CouncilSubOutput {
@@ -83,11 +82,27 @@ const AREA_EMOJI: Record<string, string> = {
   strategic: "🧠",
 };
 
+const AREA_LABELS: Record<string, string> = {
+  finance: "Finanza",
+  operations: "Operatività",
+  sales: "Vendite",
+  marketing: "Marketing",
+  hr: "Personale",
+  compliance: "Compliance",
+  fiscal: "Fiscale",
+  client: "Clienti",
+  tech: "Tecnologia",
+  strategic: "Strategia",
+};
+
 export function AiMessageMetaTop({ meta }: { meta?: AiMeta }) {
   if (!meta) return null;
   const showReview = meta.ai_requires_human_review === true;
   const showLowConf = meta.ai_confidence === "low";
   const showCouncil = meta.council_data?.is_multi_area === true;
+  const councilAreasCount = meta.council_data?.sub_outputs?.length
+    ?? meta.council_data?.involved_areas?.length
+    ?? 0;
 
   if (!showReview && !showLowConf && !showCouncil) return null;
 
@@ -112,7 +127,7 @@ export function AiMessageMetaTop({ meta }: { meta?: AiMeta }) {
       {showCouncil && (
         <Badge variant="outline" className="text-[10px] border-purple-300 text-purple-700 bg-purple-50">
           <Users className="h-3 w-3 mr-1" />
-          Multi-area · {meta.council_data?.involved_personas?.length ?? 0} consulenti
+          Analisi multi-area · {councilAreasCount} aree
         </Badge>
       )}
     </div>
@@ -134,7 +149,7 @@ export function AiMessageMetaBottom({
 
   return (
     <div className="mt-1.5 space-y-2">
-      {/* Council view: card collassabili "vedi cosa dice ogni consulente" */}
+      {/* Council view: card collassabili per area */}
       {subOutputs.length > 0 && <CouncilExpandable subOutputs={subOutputs} />}
 
       {/* Followup chips */}
@@ -167,7 +182,7 @@ function CouncilExpandable({ subOutputs }: { subOutputs: CouncilSubOutput[] }) {
       >
         <span className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-700">
           <Brain className="h-3.5 w-3.5" />
-          Vedi cosa dice ogni consulente ({subOutputs.length})
+          Vedi dettagli per area ({subOutputs.length})
         </span>
         <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
           <ChevronDown className="h-4 w-4 text-purple-600" />
@@ -187,7 +202,7 @@ function CouncilExpandable({ subOutputs }: { subOutputs: CouncilSubOutput[] }) {
                 <div key={i} className="bg-white border border-purple-100 rounded-md p-2">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[11px] font-semibold text-purple-700">
-                      {AREA_EMOJI[s.area] ?? "•"} {PERSONA_LABELS[s.persona_key] ?? s.persona_key}
+                      {AREA_EMOJI[s.area] ?? "•"} {AREA_LABELS[s.area] ?? PERSONA_LABELS[s.persona_key] ?? s.area}
                       <span className="text-[10px] text-slate-400 font-normal ml-1.5">
                         ({s.area})
                       </span>

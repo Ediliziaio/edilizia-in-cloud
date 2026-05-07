@@ -4,7 +4,7 @@ import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib@1.17.1";
 import qrcode from "https://esm.sh/qrcode-generator@1.4.4?target=deno";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
-import { loadTemplateWithBlocks, applyMergeTagsToTemplate, buildMergeContext, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
+import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -29,6 +29,38 @@ async function getFont(pdfDoc: any, family: string, style: "normal" | "bold" | "
   };
   const familyMap = map[family] || map.helvetica;
   return pdfDoc.embedFont(familyMap[style] || familyMap.normal);
+}
+
+function normalizeTemplateText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/h[1-6]>/gi, "\n\n")
+    .replace(/<li>/gi, "- ")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
+}
+
+function wrapText(text: string, maxChars: number): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > maxChars && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length ? lines : [""];
 }
 
 const DEFAULT_T = {
@@ -65,7 +97,7 @@ Deno.serve(async (req) => {
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, corsH);
     const body = await req.json();
-    const { quote_id, preview_mode, template_data, company_name } = body;
+    const { quote_id, preview_mode, template_data, company_name, preview_signature } = body;
 
     // ─── PREVIEW MODE ───
     const isPreview = preview_mode === true && template_data;
@@ -81,6 +113,18 @@ Deno.serve(async (req) => {
     if (isPreview) {
       // Use sample data – no DB lookups needed
       t = { ...DEFAULT_T, ...template_data };
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("company_id")
+        .eq("id", userId)
+        .maybeSingle();
+      if (profile?.company_id) {
+        t = await attachLinkedBlocks(
+          supabaseAdmin,
+          { ...t, company_id: profile.company_id } as ComposedTemplate,
+          profile.company_id,
+        );
+      }
       company = {
         name: company_name || "La Tua Azienda Srl",
         email: "info@azienda-esempio.it",
@@ -109,12 +153,32 @@ Deno.serve(async (req) => {
         total: 7563.63,
         notes: "Pagamento: 50% alla conferma, saldo alla consegna.\nTempo di consegna stimato: 4-6 settimane lavorative.\nGaranzia: 10 anni sui profili, 5 anni sugli accessori.",
         company_id: "preview",
+        id: "preview",
+        firma_digitale_abilitata: preview_signature === true,
+        signature_token: preview_signature === true ? "preview-token" : null,
       };
       items = [
         { name: "Finestra PVC 120x140 doppio vetro", description: "Profilo 5 camere, vetro basso-emissivo 4/16/4", quantity: 4, unit_of_measure: "pz", unit_price: 850.00, discount_percent: 0, vat_rate: 22, line_total: 3400.00 },
         { name: "Porta finestra PVC 80x220", description: "Apertura anta-ribalta, soglia bassa", quantity: 2, unit_of_measure: "pz", unit_price: 1200.00, discount_percent: 5, vat_rate: 22, line_total: 2280.00 },
         { name: "Installazione e posa in opera", description: "Inclusi controtelaio, schiuma, silicone e smaltimento", quantity: 1, unit_of_measure: "servizio", unit_price: 846.00, discount_percent: 0, vat_rate: 22, line_total: 846.00 },
       ];
+      if (t && (t.composed_cover || t.composed_terms || t.composed_legal)) {
+        if (t.composed_cover) {
+          if (t.composed_cover.cover_image_url) t.cover_image_url = t.composed_cover.cover_image_url;
+          if (t.composed_cover.cover_title) t.cover_title = t.composed_cover.cover_title;
+          if (t.composed_cover.cover_subtitle) t.cover_subtitle = t.composed_cover.cover_subtitle;
+          t.show_cover_image = true;
+        }
+        if (t.composed_terms?.body_html) {
+          t.contractual_terms_text = t.composed_terms.body_html;
+          t.show_contractual_terms = true;
+        }
+        if (t.composed_legal?.body_html) {
+          t.legal_terms_text = t.composed_legal.body_html;
+          t.show_legal_terms = true;
+        }
+      }
+      t = applyMergeTagsToTemplate(t as ComposedTemplate, buildMergeContext({ quote, company }));
     } else {
       // ─── NORMAL MODE ───
       if (!quote_id) return errorResponse("quote_id richiesto");
@@ -140,7 +204,7 @@ Deno.serve(async (req) => {
       // Load template + blocchi linkati (libreria componibile per kind)
       let template: ComposedTemplate | null = null;
       if (quote.template_id) {
-        template = await loadTemplateWithBlocks(supabaseAdmin, quote.template_id);
+        template = await loadTemplateWithBlocks(supabaseAdmin, quote.template_id, quote.company_id);
       }
       if (!template) {
         // Fallback: cerca template default kind=offerta della company
@@ -153,7 +217,7 @@ Deno.serve(async (req) => {
           .eq("is_active", true)
           .maybeSingle();
         if (defaultTmpl?.id) {
-          template = await loadTemplateWithBlocks(supabaseAdmin, defaultTmpl.id);
+          template = await loadTemplateWithBlocks(supabaseAdmin, defaultTmpl.id, quote.company_id);
         }
       }
       t = { ...DEFAULT_T, ...(template || {}) };
@@ -326,6 +390,145 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════
     let page = pdfDoc.addPage([pageWidth, pageHeight]);
     let y = pageHeight - margin;
+
+    const startContentPage = (title: string) => {
+      page = pdfDoc.addPage([pageWidth, pageHeight]);
+      y = pageHeight - margin;
+      if (t.layout === "bold") {
+        page.drawRectangle({ x: 0, y: 0, width: 80, height: pageHeight, color: primaryC });
+        y = drawLogo(page, y, 100);
+      } else {
+        y = drawLogo(page, y);
+      }
+      const x = t.layout === "bold" ? 100 : margin;
+      page.drawText(title, { x, y, size: 13, font: fontBold, color: primaryC });
+      y -= 22;
+      page.drawLine({ start: { x, y: y + 8 }, end: { x: pageWidth - margin, y: y + 8 }, thickness: 0.6, color: accentC });
+    };
+
+    const ensureSpace = (needed = 40, title = "CONTINUA") => {
+      if (y > margin + needed) return;
+      drawWatermark(page);
+      startContentPage(title);
+    };
+
+    const contentLeftX = () => (t.layout === "bold" ? 100 : margin);
+    const contentMaxWidth = () => (t.layout === "bold" ? contentWidth - 50 : contentWidth);
+
+    const drawRichTextBlock = (title: string, body: unknown) => {
+      const text = normalizeTemplateText(body);
+      if (!text) return;
+      startContentPage(title);
+      const x = contentLeftX();
+      const maxChars = t.layout === "bold" ? 86 : 96;
+      for (const rawLine of text.split(/\n+/)) {
+        const trimmed = rawLine.trim();
+        if (!trimmed) {
+          y -= 8;
+          continue;
+        }
+        const isHeading = /^#{1,4}\s+/.test(trimmed);
+        const isList = /^[-*]\s+/.test(trimmed);
+        const normalized = trimmed
+          .replace(/^#{1,4}\s+/, "")
+          .replace(/^[-*]\s+/, "• ");
+        const lines = wrapText(normalized, isHeading ? 72 : maxChars);
+        for (const line of lines) {
+          ensureSpace(isHeading ? 26 : 18, title);
+          page.drawText(line, {
+            x,
+            y,
+            size: isHeading ? 11 : 8.8,
+            font: isHeading ? fontBold : font,
+            color: isHeading ? primaryC : textC,
+            maxWidth: contentMaxWidth(),
+          });
+          y -= isHeading ? 16 : 13;
+        }
+        if (!isList) y -= isHeading ? 4 : 2;
+      }
+      drawWatermark(page);
+    };
+
+    const drawProductBlocks = () => {
+      const products = (t.composed_products ?? []).filter(Boolean);
+      if (!products.length) return;
+      startContentPage("SCHEDE PRODOTTO");
+      const x = contentLeftX();
+      const w = contentMaxWidth();
+      for (const product of products) {
+        ensureSpace(92, "SCHEDE PRODOTTO");
+        const cardTop = y;
+        const cardH = 82;
+        page.drawRectangle({
+          x,
+          y: cardTop - cardH + 8,
+          width: w,
+          height: cardH,
+          color: accentC,
+          borderColor: primaryC,
+          borderWidth: 0.4,
+        });
+        page.drawText(product.product_category || "Prodotto", {
+          x: x + 12,
+          y: cardTop - 12,
+          size: 7.2,
+          font: fontBold,
+          color: primaryC,
+        });
+        page.drawText(product.name || "Scheda prodotto", {
+          x: x + 12,
+          y: cardTop - 28,
+          size: 11,
+          font: fontBold,
+          color: textC,
+          maxWidth: w - 24,
+        });
+        const desc = normalizeTemplateText(product.product_short_description || product.product_long_description);
+        if (desc) {
+          const descLines = wrapText(desc, 86).slice(0, 2);
+          descLines.forEach((line, idx) => {
+            page.drawText(line, {
+              x: x + 12,
+              y: cardTop - 44 - (idx * 11),
+              size: 8,
+              font,
+              color: grayC,
+              maxWidth: w - 24,
+            });
+          });
+        }
+        const specs = Array.isArray(product.product_specs) ? product.product_specs.slice(0, 3) : [];
+        if (specs.length) {
+          const specText = specs
+            .filter((s: any) => s?.label || s?.value)
+            .map((s: any) => `${s.label}: ${s.value}`.trim())
+            .join("  ·  ");
+          if (specText) {
+            page.drawText(specText.substring(0, 130), {
+              x: x + 12,
+              y: cardTop - 68,
+              size: 7.2,
+              font,
+              color: textC,
+              maxWidth: w - 150,
+            });
+          }
+        }
+        if (product.product_indicative_price !== null && product.product_indicative_price !== undefined) {
+          const unit = product.product_unit ? `/${product.product_unit}` : "";
+          page.drawText(`€ ${Number(product.product_indicative_price).toFixed(2)}${unit}`, {
+            x: x + w - 125,
+            y: cardTop - 68,
+            size: 10,
+            font: fontBold,
+            color: primaryC,
+          });
+        }
+        y -= cardH + 12;
+      }
+      drawWatermark(page);
+    };
 
     if (t.layout === "modern") {
       // Full-color header
@@ -670,7 +873,7 @@ Deno.serve(async (req) => {
       }
 
       // ── QR firma digitale ──────────────────────────────────────────
-      if (!isPreview && (quote as any).firma_digitale_abilitata && (quote as any).signature_token) {
+      if ((quote as any).firma_digitale_abilitata && (quote as any).signature_token) {
         try {
           const siteUrl = branding?.siteUrl || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.it";
           const signUrl = `${siteUrl}/accetta-preventivo/${quote.id}?token=${(quote as any).signature_token}`;
@@ -705,6 +908,20 @@ Deno.serve(async (req) => {
       }
 
       drawWatermark(page);
+    }
+
+    drawProductBlocks();
+
+    for (const section of (t.composed_sections ?? [])) {
+      drawRichTextBlock(section.name || "Sezione", section.body_html);
+    }
+
+    if (t.show_contractual_terms && t.contractual_terms_text) {
+      drawRichTextBlock("CONDIZIONI CONTRATTUALI", t.contractual_terms_text);
+    }
+
+    if (t.show_legal_terms && t.legal_terms_text) {
+      drawRichTextBlock("TERMINI LEGALI E PRIVACY", t.legal_terms_text);
     }
 
     // ─── Notes page ───

@@ -14,7 +14,7 @@ export const DashboardCustomizePanel = memo(function DashboardCustomizePanel({ t
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
+        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
           <Settings2 className="h-3.5 w-3.5" />
           Personalizza
         </Button>

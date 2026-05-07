@@ -16,6 +16,22 @@ export function buildSignatureUrl(quoteId: string, token: string): string {
   return `${base}/accetta-preventivo/${quoteId}?token=${encodeURIComponent(token)}`;
 }
 
+async function resolveQuoteSignatureUrl(quoteId: string, legacyToken?: string | null): Promise<string | null> {
+  const { data } = await supabase
+    .from("signature_requests")
+    .select("token")
+    .eq("quote_id", quoteId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (data?.token) {
+    return `${window.location.origin}/firma-fea/${data.token}`;
+  }
+
+  return legacyToken ? buildSignatureUrl(quoteId, legacyToken) : null;
+}
+
 export function useSignatureActions(quoteId: string | undefined) {
   const queryClient = useQueryClient();
 
@@ -40,7 +56,7 @@ export function useSignatureActions(quoteId: string | undefined) {
       return data;
     },
     onSuccess: () => {
-      toast.success("Offerta inviata al cliente per la firma");
+      toast.success("Offerta inviata al cliente per la firma OTP");
       invalidate();
     },
     onError: (err: unknown) => {
@@ -53,7 +69,7 @@ export function useSignatureActions(quoteId: string | undefined) {
    * Apre WhatsApp con un messaggio pre-compilato contenente il link di firma.
    * Richiede che il preventivo abbia già un signature_token (status "inviata").
    */
-  function openWhatsApp(quote: {
+  async function openWhatsApp(quote: {
     id: string;
     quote_number: string;
     client_name?: string | null;
@@ -61,13 +77,13 @@ export function useSignatureActions(quoteId: string | undefined) {
     signature_token?: string | null;
     firma_digitale_abilitata?: boolean | null;
   }) {
-    if (!quote.signature_token) {
-      toast.error("Invia prima il preventivo per email per generare il link di firma");
+    const signUrl = await resolveQuoteSignatureUrl(quote.id, quote.signature_token);
+    if (!signUrl) {
+      toast.error("Invia prima il preventivo per generare il link di firma");
       return;
     }
-    const signUrl = buildSignatureUrl(quote.id, quote.signature_token);
     const nomeCliente = quote.client_name || "Cliente";
-    const msg = `Buongiorno ${nomeCliente},\n\nLe inviamo l'offerta commerciale ${quote.quote_number} da visionare e firmare online al seguente link:\n\n${signUrl}\n\nRimanendo a disposizione per qualsiasi informazione.\n\nCordiali saluti`;
+    const msg = `Buongiorno ${nomeCliente},\n\nLe inviamo l'offerta commerciale ${quote.quote_number} da visionare e firmare online con codice OTP al seguente link:\n\n${signUrl}\n\nRimanendo a disposizione per qualsiasi informazione.\n\nCordiali saluti`;
     const encoded = encodeURIComponent(msg);
     // Normalize phone: remove spaces, dashes; keep leading +
     const rawPhone = (quote.client_phone || "").replace(/[\s\-()]/g, "");
@@ -85,11 +101,11 @@ export function useSignatureActions(quoteId: string | undefined) {
     id: string;
     signature_token?: string | null;
   }) {
-    if (!quote.signature_token) {
+    const url = await resolveQuoteSignatureUrl(quote.id, quote.signature_token);
+    if (!url) {
       toast.error("Nessun link di firma disponibile. Invia prima il preventivo.");
       return;
     }
-    const url = buildSignatureUrl(quote.id, quote.signature_token);
     try {
       await navigator.clipboard.writeText(url);
       toast.success("Link di firma copiato negli appunti");

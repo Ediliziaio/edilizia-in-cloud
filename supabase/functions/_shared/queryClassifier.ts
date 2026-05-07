@@ -92,6 +92,34 @@ function unique<T>(items: T[]): T[] {
   return Array.from(new Set(items));
 }
 
+function isRevenueTargetQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const asksRevenueTarget = /\b(fattur\w*|fatture|incass\w*|vend\w*|venduto|ordini nuovi|nuove commesse|nuovi clienti|fare di fatturato)\b/.test(q)
+    && /\b(quanto|quanti|quale importo|che importo|target|obiettivo)\b/.test(q);
+  const hasCashNeed = /\b(costi fissi|stipendi|personale|fornitori|saldi dei clienti|crediti|rate scadute|cassa|cashflow|liquidita|liquidità|pareggio|break even|gap di cassa)\b/.test(q);
+  const hasForwardPeriod = /\b(mese prossimo|prossimo mese|mese dopo|prossimi 30 giorni|30 giorni|settimana prossima|prossima settimana|prossimo periodo)\b/.test(q);
+  const asksCashCoverage = /\b(quanto|quanti|quale importo|che importo)\b/.test(q) && hasCashNeed && hasForwardPeriod;
+
+  return (asksRevenueTarget && hasCashNeed && hasForwardPeriod) || asksCashCoverage;
+}
+
+function isCashOrMarginDecisionQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const hasEconomics = /\b(cassa|cashflow|liquidita|liquidità|margine|marginalita|marginalità|incass\w*|fattur\w*|venduto|acconto|fornitori|materiali|merce|manodopera|subappaltatori|costi variabili|iva)\b/.test(q);
+  const asksDecision = /\b(quanto|posso|conviene|rischio|rischioso|avviare|partire|accettare|scontare|prezzo|coprire|pagare|chiedere|minimo|simula|scenario)\b/.test(q);
+
+  return hasEconomics && asksDecision;
+}
+
+function isCollectionPriorityQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const hasCollectionAction = /\b(sollecit\w*|recuper\w*|incass\w*|chiam\w*|scriv\w*|promemoria|reminder|messa in mora|chi mi deve pagare|chi deve pagare)\b/.test(q);
+  const hasReceivableTarget = /\b(clienti|cliente|crediti|rate|saldo|saldi|acconti|pagamenti|scadut\w*|ritardo|insolut\w*)\b/.test(q);
+  const asksPriority = /\b(quali|chi|prima|priorit\w*|urgente|subito|ordine|elenco|lista)\b/.test(q);
+
+  return hasCollectionAction && hasReceivableTarget && asksPriority;
+}
+
 function sanitizeClassification(
   parsed: Partial<QueryClassification>,
   fallback: QueryClassification,
@@ -138,14 +166,19 @@ function sanitizeClassification(
   const complexity = parsed.estimated_complexity === "complex" || parsed.estimated_complexity === "medium"
     ? parsed.estimated_complexity
     : "simple";
-  const multiArea = parsed.is_multi_area === true
-    && (involvedAreas.length > 1 || decomposition.length > 1);
+  const multiArea = parsed.is_multi_area === true && decomposition.length > 1;
+  const finalPersonas = multiArea
+    ? unique(decomposition.map((item) => item.persona_key)).slice(0, 4)
+    : involvedPersonas;
+  const finalAreas = multiArea
+    ? unique(decomposition.map((item) => item.area)).slice(0, 4)
+    : involvedAreas;
 
   return {
     is_multi_area: multiArea,
     primary_area: primaryArea,
-    involved_areas: involvedAreas.length > 0 ? involvedAreas : fallback.involved_areas,
-    involved_personas: involvedPersonas.length > 0 ? involvedPersonas : fallback.involved_personas,
+    involved_areas: finalAreas.length > 0 ? finalAreas : fallback.involved_areas,
+    involved_personas: finalPersonas.length > 0 ? finalPersonas : fallback.involved_personas,
     decomposition: multiArea ? decomposition : [],
     synthesis_required: multiArea && parsed.synthesis_required === true,
     estimated_complexity: multiArea ? complexity : "simple",
@@ -215,6 +248,21 @@ export async function classifyQuery(opts: ClassifyOptions): Promise<QueryClassif
 
   if (Deno.env.get("COUNCIL_ENABLED") === "false") return fallback;
   if (!opts.query || opts.query.trim().length < 10) return fallback;
+  if (
+    isRevenueTargetQuestion(opts.query) ||
+    isCashOrMarginDecisionQuestion(opts.query) ||
+    isCollectionPriorityQuestion(opts.query)
+  ) {
+    return {
+      is_multi_area: false,
+      primary_area: "finance",
+      involved_areas: ["finance"],
+      involved_personas: [isPersona(opts.currentPersona) ? opts.currentPersona : "silvio"],
+      decomposition: [],
+      synthesis_required: false,
+      estimated_complexity: "simple",
+    };
+  }
 
   try {
     const r = await aiRouterComplete({

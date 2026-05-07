@@ -46,6 +46,24 @@ export function useBreadcrumb(): BreadcrumbResult {
       };
     }
 
+    if (pathname === "/azienda/marketing/firma-elettronica" || pathname.startsWith("/azienda/marketing/firma-elettronica/")) {
+      return {
+        area: "Marketing & Vendita",
+        areaIcon: macroAreas.find((macroArea) => macroArea.id === "area_marketing")?.icon ?? null,
+        page: "Firma Elettronica",
+        pageUrl: "/azienda/marketing/firma-elettronica",
+      };
+    }
+
+    if (pathname === "/azienda/firma-elettronica" || pathname.startsWith("/azienda/firma-elettronica/")) {
+      return {
+        area: "Cantieri & Lavori",
+        areaIcon: macroAreas.find((macroArea) => macroArea.id === "area_cantieri")?.icon ?? null,
+        page: "Firma Elettronica",
+        pageUrl: "/azienda/firma-elettronica",
+      };
+    }
+
     // Flatten all items across all areas, sort globally by URL length descending
     // so more specific routes always win (e.g. /azienda/prima-nota beats /azienda)
     const allCandidates = macroAreas.flatMap((area) =>

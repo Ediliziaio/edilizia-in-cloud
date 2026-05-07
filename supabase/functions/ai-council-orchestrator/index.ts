@@ -18,6 +18,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { classifyQuery } from "../_shared/queryClassifier.ts";
+import { GENERAL_EXECUTION_PLAYBOOKS } from "../_shared/executionPlaybooks.ts";
 
 interface CouncilRequest {
   query: string;
@@ -50,7 +51,7 @@ Deno.serve(async (req) => {
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, cors);
     const body = (await req.json()) as CouncilRequest;
-    const { query, current_persona, session_id, company_id } = body;
+    const { query, current_persona, session_id: _session_id, company_id } = body;
     const maxPersonas = Math.max(1, Math.min(body.max_personas ?? 4, 6));
 
     if (!query || !current_persona || !company_id) {
@@ -82,7 +83,7 @@ Deno.serve(async (req) => {
       if ((count ?? 0) > 50) {
         console.warn(`[council] cost guard: company ${company_id} ha già fatto ${count} council call in 24h`);
       }
-    } catch (_) { /* non bloccante */ }
+    } catch { /* non bloccante */ }
 
     // 3. Single-area → ritorna early
     if (!classification.is_multi_area || classification.decomposition.length === 0) {
@@ -99,7 +100,7 @@ Deno.serve(async (req) => {
           decomposition: classification.decomposition,
           duration_ms: Date.now() - t0,
         });
-      } catch (e) { /* non bloccante */ }
+      } catch { /* non bloccante */ }
 
       return jsonResponse({
         multi_area: false,
@@ -159,11 +160,11 @@ Deno.serve(async (req) => {
     if (classification.synthesis_required) {
       try {
         const synthesisPrompt = [
-          "Hai ricevuto risposte da più consulenti virtuali su una stessa domanda complessa dell'imprenditore.",
+          "Hai ricevuto risposte tecniche interne da più aree su una stessa domanda complessa dell'imprenditore.",
           "",
           `## Domanda originale\n${query}`,
           "",
-          "## Risposte dei consulenti",
+          "## Risposte tecniche interne",
           ...subOutputs.map((s) =>
             [
               `### ${s.persona_key} (area: ${s.area})`,
@@ -175,12 +176,18 @@ Deno.serve(async (req) => {
           ),
           "",
           "## Compito",
-          "Componi una risposta unica per l'imprenditore che:",
-          "1. Risponde DIRETTAMENTE alla domanda originale (sì/no/dipende-da-X)",
-          "2. Sintetizza i punti chiave da ogni area, citando il consulente specifico",
-          "3. Identifica conflitti tra consulenti se ce ne sono",
-          "4. Suggerisce 1-2 azioni concrete da fare ORA",
-          "5. Stile imprenditore-a-imprenditore (no sociologismi)",
+          "Componi una risposta unica come Silvio, senza mostrare la cucina interna:",
+          GENERAL_EXECUTION_PLAYBOOKS,
+          "1. Rispondi DIRETTAMENTE alla domanda originale. Non aprire con 'dipende' se hai dati numerici utili: dai il minimo certificato e separa cosa manca.",
+          "2. NON nominare consulenti/personas interne (es. CFO, Cliente Tutor, Silvio come fonte, Amministrazione). Usa 'dai dati aziendali' o 'dalla situazione attuale'.",
+          "3. Sintetizza i punti chiave per area senza etichette interne e senza conflitti accademici inutili.",
+          "4. Se i dati sono incompleti, indica quali voci mancano e proponi comunque un range/calcolo prudente basato sui dati presenti.",
+          "5. Se parli di cassa, non confondere fatturato e incasso: separa venduto/fatturato, incasso previsto e cassa libera dopo materiali, posa, subappaltatori, provvigioni e IVA.",
+          "6. Per domande tipo 'quanto devo fatturare/vendere/incassare', presenta scenari operativi: recupero crediti scaduti, nuove commesse solo con acconto protetto, piano misto. Non dare un solo numero come verita assoluta.",
+          "7. Se nei dati compaiono data_quality.warnings, non nasconderli: spiega quali dati mancano e abbassa la certezza della risposta.",
+          "8. Se nei dati compare priorita_recupero, usa quell'ordine per le azioni.",
+          "9. Suggerisci 1-2 azioni concrete da fare ORA.",
+          "10. Stile imprenditore-a-imprenditore (no sociologismi).",
           "",
           "Output: prosa markdown, max 350 parole.",
         ].join("\n");
@@ -220,7 +227,7 @@ Deno.serve(async (req) => {
         total_cost_eur: synthesisCost,
         duration_ms: Date.now() - t0,
       });
-    } catch (e) { /* non bloccante */ }
+    } catch { /* non bloccante */ }
 
     return jsonResponse({
       multi_area: true,

@@ -38,6 +38,7 @@ import { SemaforoMarketing } from "@/components/marketing/dashboard/SemaforoMark
 import { SaluteCommerciale } from "@/components/marketing/dashboard/SaluteCommerciale";
 import { AzioniCommerciali } from "@/components/marketing/dashboard/AzioniCommerciali";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { supabase } from "@/integrations/supabase/client";
@@ -326,22 +327,13 @@ export default function MarketingDashboard() {
     <div className="space-y-3 sm:space-y-4">
       <DashboardSelectorBar title="Dashboard Marketing" />
 
-      <ApiHealthBanner filter={["meta", "email_marketing"]} />
-
-      {/* Header — stesso pattern di CruscottoAziendale */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6 print:border-0 print:shadow-none">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-              <LayoutDashboard className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Dashboard Marketing</h1>
-              <p className="mt-0.5 text-sm text-slate-500">Regia commerciale, pipeline e conversioni — {todayCap}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 print:hidden">
-            <DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} compact />
+      <DashboardPageHeader
+        title="Dashboard Marketing"
+        subtitle={`Regia commerciale, pipeline e conversioni — ${todayCap}`}
+        icon={LayoutDashboard}
+        toolbar={<DashboardFilters filters={filters} onUpdate={updateFilters} hideUserFilter={permissions.onlyAssigned} compact />}
+        actions={
+          <>
             {permissions.isAdmin && <SalesTargetsDialog />}
             <DashboardCustomizePanel tabs={tabs} onToggle={toggleTabVisibility} />
             <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => refetch()} disabled={isLoading}>
@@ -352,9 +344,11 @@ export default function MarketingDashboard() {
               <Download className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Esporta</span>
             </Button>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
+
+      <ApiHealthBanner filter={["meta", "email_marketing"]} />
 
       {/* Alert banner generico */}
       <AlertBanner alerts={data?.alerts} isLoading={isLoading} />

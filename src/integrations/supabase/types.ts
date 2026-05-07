@@ -31189,6 +31189,7 @@ export type Database = {
           otp_hash: string | null
           otp_scadenza: string | null
           otp_tentativi: number
+          quote_id: string | null
           rifiuto_motivo: string | null
           sessione_id: string | null
           signature_data: string | null
@@ -31224,6 +31225,7 @@ export type Database = {
           otp_hash?: string | null
           otp_scadenza?: string | null
           otp_tentativi?: number
+          quote_id?: string | null
           rifiuto_motivo?: string | null
           sessione_id?: string | null
           signature_data?: string | null
@@ -31259,6 +31261,7 @@ export type Database = {
           otp_hash?: string | null
           otp_scadenza?: string | null
           otp_tentativi?: number
+          quote_id?: string | null
           rifiuto_motivo?: string | null
           sessione_id?: string | null
           signature_data?: string | null
@@ -31300,6 +31303,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
             referencedColumns: ["id"]
           },
           {

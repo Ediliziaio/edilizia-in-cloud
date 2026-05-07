@@ -13,7 +13,6 @@ import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Sparkles,
   MessageSquare,
   Brain,
   BrainCircuit,
@@ -24,7 +23,6 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
 // Lazy load: il SmartDocumentImportModal e il SilvioChatSheet sono pesanti
 // (chat ha 1k LOC + supabase realtime + framer-motion + audio recording).
 // Caricamento on-demand al primo open → boot iniziale del CompanyLayout

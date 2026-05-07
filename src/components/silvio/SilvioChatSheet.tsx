@@ -30,7 +30,6 @@ import {
   Send,
   Loader2,
   Brain,
-  BrainCircuit,
   User as UserIcon,
   ExternalLink,
   Sparkles,
@@ -60,7 +59,7 @@ const MAX_ATTACHMENTS = 5;
 
 // Skill shortcuts riusabili (pattern slash command)
 // Definizioni in src/lib/silvio-skills.ts (shared con InternalChat)
-import { SILVIO_SKILLS as SILVIO_SKILLS_SHARED, SILVIO_SKILL_CATEGORY_LABELS } from "@/lib/silvio-skills";
+import { SILVIO_SKILLS as SILVIO_SKILLS_SHARED } from "@/lib/silvio-skills";
 
 // Local alias per back-compat (codice sotto usa SILVIO_SKILLS)
 const SILVIO_SKILLS = SILVIO_SKILLS_SHARED;

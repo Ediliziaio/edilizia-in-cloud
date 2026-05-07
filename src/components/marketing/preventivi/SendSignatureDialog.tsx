@@ -97,8 +97,8 @@ export function SendSignatureDialog({
   const generateWhatsAppText = () =>
     encodeURIComponent(
       `Salve${name ? ` ${name}` : ""},\n\n` +
-      `Le inviamo il preventivo ${quoteNumber} per la sua approvazione.\n\n` +
-      `Può visualizzare e approvare il preventivo direttamente da questo link:\n` +
+      `Le inviamo il preventivo ${quoteNumber} per la sua approvazione con firma elettronica OTP.\n\n` +
+      `Può visualizzare e firmare il preventivo direttamente da questo link:\n` +
       `${resultLink || "[link non disponibile]"}\n\n` +
       `Il link è valido per ${days} giorni.\n\n` +
       `Per qualsiasi informazione è a nostra disposizione.\n\nCordiali saluti.`
@@ -108,9 +108,9 @@ export function SendSignatureDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Invia per Firma</DialogTitle>
+          <DialogTitle>Invia per Firma Elettronica</DialogTitle>
           <DialogDescription>
-            Invia l'offerta {quoteNumber} al cliente per la firma digitale.
+            Invia l'offerta {quoteNumber} al cliente: ricevera il link sicuro e il codice OTP per firmare.
           </DialogDescription>
         </DialogHeader>
 
@@ -173,7 +173,7 @@ export function SendSignatureDialog({
                 ) : (
                   <Send className="h-4 w-4 mr-2" />
                 )}
-                {isSending ? "Invio in corso..." : "Invia Email"}
+                {isSending ? "Invio in corso..." : "Invia email e OTP"}
               </Button>
             </DialogFooter>
           </>
@@ -183,7 +183,7 @@ export function SendSignatureDialog({
               <CheckCircle className="h-12 w-12 text-primary" />
               <p className="font-medium">Offerta inviata con successo!</p>
               <p className="text-sm text-muted-foreground">
-                Il cliente riceverà un'email con il link per visualizzare e firmare l'offerta.
+                Il cliente ricevera il link sicuro e il codice OTP per visualizzare e firmare l'offerta.
               </p>
             </div>
 

@@ -36,6 +36,7 @@
 import { buildSystemPrompt, loadActivePreambolo } from "./preambolo.ts";
 import { CITATION_FORMAT_RULES } from "./citationValidator.ts";
 import { STRUCTURED_OUTPUT_SYSTEM_RULES, shouldUseStructured } from "./structuredOutput.ts";
+import { GENERAL_EXECUTION_PLAYBOOKS } from "./executionPlaybooks.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
@@ -95,6 +96,26 @@ interface ProposalRow {
 // Cache locale dei proposal in test (TTL 60s)
 let _propCache: { data: ProposalRow[]; fetchedAt: number } | null = null;
 const PROP_CACHE_TTL_MS = 60_000;
+
+function buildRuntimeContextBlock(now = new Date()): string {
+  let formattedRome = now.toISOString();
+  try {
+    formattedRome = new Intl.DateTimeFormat("it-IT", {
+      timeZone: "Europe/Rome",
+      dateStyle: "full",
+      timeStyle: "short",
+    }).format(now);
+  } catch {
+    // Intl can fail in constrained runtimes; ISO is still safer than no date.
+  }
+
+  return [
+    "# CONTESTO TEMPORALE OPERATIVO",
+    `- Data/ora corrente: ${formattedRome} (Europe/Rome).`,
+    "- Usa questa data per interpretare oggi, domani, ieri, prossimo mese, prossima settimana e scadenze.",
+    "- Non usare anni o mesi impliciti se il dato aziendale/tool indica date diverse: dichiara sempre il perimetro temporale.",
+  ].join("\n");
+}
 
 async function loadInTestProposals(supabase: SupabaseClient): Promise<ProposalRow[]> {
   const now = Date.now();
@@ -203,12 +224,14 @@ export async function buildPersonaPrompt(
     const structuredRulesBlock = useStructured ? STRUCTURED_OUTPUT_SYSTEM_RULES : "";
     const personaWithContext = [
       runtimeVariant.prompt,
+      buildRuntimeContextBlock(),
       args.userContext ?? "",
+      GENERAL_EXECUTION_PLAYBOOKS,
       args.memoryContext ?? "",
       args.ragContextBlock ?? "",
       citationRulesBlock,
       structuredRulesBlock,
-    ].filter(Boolean).join("");
+    ].filter(Boolean).join("\n\n");
     const { prompt: systemPrompt, preamboloVersion } = await buildSystemPrompt(supabase, personaWithContext);
 
     return {
@@ -239,12 +262,14 @@ export async function buildPersonaPrompt(
   // ── 4) Compose persona-with-context ───────────────────────────────────
   const personaWithContext = [
     personaPrompt,
+    buildRuntimeContextBlock(),
     args.userContext ?? "",
+    GENERAL_EXECUTION_PLAYBOOKS,
     args.memoryContext ?? "",
     args.ragContextBlock ?? "",
     citationRulesBlock,
     structuredRulesBlock,
-  ].filter(Boolean).join("");
+  ].filter(Boolean).join("\n\n");
 
   // ── 5) Antepone preambolo costituzionale ──────────────────────────────
   const { prompt: systemPrompt, preamboloVersion } = await buildSystemPrompt(supabase, personaWithContext);

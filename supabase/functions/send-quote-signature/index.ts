@@ -3,6 +3,7 @@ import { requireAuth } from "../_shared/auth.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -48,16 +49,48 @@ Deno.serve(async (req) => {
       return errorResponse("Il cliente non ha un indirizzo email");
     }
 
-    // Generate signature token if not present
-    let signatureToken = quote.signature_token;
-    if (!signatureToken) {
-      signatureToken = crypto.randomUUID();
-    }
-
     // Calculate expires_at
     const daysValid = expires_days && expires_days > 0 ? expires_days : 30;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + daysValid);
+
+    const signatureToken = crypto.randomUUID().replace(/-/g, "");
+    const tipoFirmatario = quote.client_company || quote.client_vat_number ? "b2b" : "b2c";
+    const nowIso = new Date().toISOString();
+
+    // Una sola richiesta attiva per preventivo: le vecchie richieste aperte vengono annullate.
+    const { error: cancelErr } = await supabaseAdmin
+      .from("signature_requests")
+      .update({ status: "cancelled", updated_at: nowIso })
+      .eq("company_id", quote.company_id)
+      .eq("quote_id", quote_id)
+      .in("status", ["pending", "otp_verified"]);
+
+    if (cancelErr) {
+      console.error("Cancel previous quote signature requests failed:", cancelErr);
+    }
+
+    const { data: signatureRequest, error: sigReqErr } = await supabaseAdmin
+      .from("signature_requests")
+      .insert({
+        company_id: quote.company_id,
+        quote_id,
+        token: signatureToken,
+        signer_email: finalEmail,
+        signer_name: finalName,
+        status: "pending",
+        expires_at: expiresAt.toISOString(),
+        created_by: userId,
+        tipo_documento: "quote",
+        tipo_firmatario: tipoFirmatario,
+      })
+      .select("id, token")
+      .single();
+
+    if (sigReqErr || !signatureRequest) {
+      console.error("Quote signature request creation failed:", sigReqErr);
+      return errorResponse("Errore nella creazione della richiesta di firma FEA", 500);
+    }
 
     // Update quote
     await supabaseAdmin
@@ -65,17 +98,14 @@ Deno.serve(async (req) => {
       .update({
         status: "inviata",
         signature_token: signatureToken,
-        sent_at: new Date().toISOString(),
+        sent_at: nowIso,
         expires_at: expiresAt.toISOString(),
         client_email: finalEmail,
         client_name: finalName,
-        updated_at: new Date().toISOString(),
+        firma_digitale_abilitata: true,
+        updated_at: nowIso,
       })
       .eq("id", quote_id);
-
-    // Build signature link
-    const appUrl = await getPlatformSetting("site_url", "SITE_URL") || Deno.env.get("SITE_URL") || "";
-    const signatureLink = `${appUrl}/offerta/${signatureToken}`;
 
     // Load company info
     const { data: company } = await supabaseAdmin
@@ -85,6 +115,11 @@ Deno.serve(async (req) => {
       .single();
 
     const branding = await getBrandingForCompany(supabaseAdmin, quote.company_id);
+    const appUrl = await getPlatformSetting("site_url", "SITE_URL")
+      || Deno.env.get("SITE_URL")
+      || branding.siteUrl
+      || "";
+    const signatureLink = `${appUrl}/firma-fea/${signatureToken}`;
     const companyName = company?.name || "L'azienda";
 
     // Format total
@@ -120,6 +155,7 @@ Deno.serve(async (req) => {
       </p>
       <p style="color: #3f3f46; line-height: 1.6; margin: 0 0 15px;">
         Le inviamo la nostra offerta${quote.title ? ` per <strong>${quote.title}</strong>` : ""}.
+        Potrà visualizzarla e firmarla online con codice OTP.
       </p>
 
       ${custom_message ? `
@@ -141,7 +177,7 @@ Deno.serve(async (req) => {
       <div style="text-align: center; margin: 30px 0;">
         <a href="${signatureLink}" 
            style="display: inline-block; background: #2563eb; color: #ffffff; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
-          Visualizza e Firma l'Offerta
+          Visualizza e firma con OTP
         </a>
       </div>
 
@@ -160,6 +196,37 @@ Deno.serve(async (req) => {
   </div>
 </body>
 </html>`;
+
+    // Genera subito l'OTP iniziale: il cliente può comunque rigenerarlo dalla pagina pubblica.
+    let otpInviato = false;
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const otpRes = await fetchWithTimeout(`${supabaseUrl}/functions/v1/fea-genera-otp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({ request_id: signatureRequest.id, azienda_nome: companyName }),
+        timeoutMs: 15_000,
+      });
+
+      if (otpRes.ok) {
+        otpInviato = true;
+      } else {
+        console.error("Quote FEA OTP generation failed:", await otpRes.text());
+      }
+    } catch (otpErr) {
+      console.error("Quote FEA OTP call error:", otpErr);
+    }
+
+    await supabaseAdmin.from("fea_audit_log").insert({
+      request_id: signatureRequest.id,
+      company_id: quote.company_id,
+      evento: "sessione_creata",
+      metadati: { tipo_documento: "quote", signer_email: finalEmail, quote_id },
+    });
 
     // Send email via unified pipeline (transactional stream)
     const result = await sendEmailUnified({
@@ -183,6 +250,8 @@ Deno.serve(async (req) => {
       success: true,
       message: "Offerta inviata con successo",
       signature_link: signatureLink,
+      signature_request_id: signatureRequest.id,
+      otp_inviato: otpInviato,
     });
   } catch (e) {
     if (e instanceof Response) return e;

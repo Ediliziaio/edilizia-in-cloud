@@ -40,6 +40,7 @@ export interface FinancingProposal {
   table_id: string;
   amount: number;
   num_installments: number;
+  /** Rata mensile effettiva per il cliente, inclusa spesa incasso rata. */
   monthly_rate: number;
   total_due: number;
   calculation: RisultatoCalcolo;
@@ -98,11 +99,12 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
       return;
     }
     if (result && result.modalita !== "errore" && tableId) {
+      const monthlyRate = result.rata_completa ?? result.importo_rata ?? 0;
       onChange({
         table_id: tableId,
         amount,
         num_installments: numInstallments!,
-        monthly_rate: result.importo_rata ?? 0,
+        monthly_rate: monthlyRate,
         total_due: result.importo_totale_dovuto ?? 0,
         calculation: result,
       });
@@ -273,8 +275,8 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <Stat
                   icon={<Banknote className="h-3.5 w-3.5" />}
-                  label="Rata mensile"
-                  value={fmtEur(result.importo_rata ?? 0)}
+                  label="Rata mensile cliente"
+                  value={fmtEur(result.rata_completa ?? result.importo_rata ?? 0)}
                   highlight
                 />
                 <Stat
@@ -294,11 +296,16 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
                 />
               </div>
 
-              {result.spese_istruttoria && result.spese_istruttoria > 0 && (
+              {((result.spese_istruttoria ?? 0) > 0 ||
+                (result.spese_incasso_rata ?? 0) > 0) && (
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  Spese istruttoria: {fmtEur(result.spese_istruttoria)}
-                  {result.spese_incasso_rata && result.spese_incasso_rata > 0 &&
-                    ` · Spese incasso/rata: ${fmtEur(result.spese_incasso_rata)}`}
+                  {(result.spese_istruttoria ?? 0) > 0 &&
+                    `Spese istruttoria: ${fmtEur(result.spese_istruttoria ?? 0)}`}
+                  {(result.spese_istruttoria ?? 0) > 0 &&
+                    (result.spese_incasso_rata ?? 0) > 0 &&
+                    " · "}
+                  {(result.spese_incasso_rata ?? 0) > 0 &&
+                    `Spese incasso/rata: ${fmtEur(result.spese_incasso_rata ?? 0)}`}
                 </p>
               )}
             </div>

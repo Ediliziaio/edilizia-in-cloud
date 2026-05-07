@@ -33,10 +33,10 @@ export function DashboardQuickActions() {
       {/* Desktop: azioni inline */}
       <div className="hidden sm:flex items-center gap-1.5">
         {QUICK_ACTIONS.map((a) => (
-          <Button key={a.href} variant="outline" size="sm" asChild>
+          <Button key={a.href} variant="outline" size="sm" className="h-8 text-xs" asChild>
             <Link to={a.href} aria-label={a.label}>
               <Plus className="h-4 w-4 mr-1" />
-              <span className="text-xs">{a.label.replace("Nuovo ", "")}</span>
+              <span>{a.label.replace("Nuovo ", "")}</span>
             </Link>
           </Button>
         ))}
