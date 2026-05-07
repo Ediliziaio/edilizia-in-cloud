@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy, FileText, Eye,
   CheckCircle2, Palette, Wand2, FileImage, Scale, ScrollText, Tag,
@@ -541,6 +542,8 @@ export default function SettingsQuoteTemplates() {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   // Tab attiva nella libreria template (offerta | copertina | condizioni | ...)
   const [activeKind, setActiveKind] = useState<QuoteTemplateKind>('offerta');
+  // Dialog "Scegli che tipo di template creare"
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   // Kind correntemente in editing (deriva da form.kind, default offerta)
   const formKind: QuoteTemplateKind = (form.kind as QuoteTemplateKind | undefined) ?? 'offerta';
 
@@ -563,9 +566,17 @@ export default function SettingsQuoteTemplates() {
   );
 
   // Helper: lista template di un kind specifico (per i selettori del master Offerta)
+  // Bug-fix: esclude il template attualmente in editing (no self-reference)
+  // e i template inattivi (is_active=false) per evitare link a blocchi cestinati.
   const templatesByKind = useCallback(
-    (k: QuoteTemplateKind) => templates.filter((t) => ((t.kind as QuoteTemplateKind | undefined) ?? 'offerta') === k),
-    [templates],
+    (k: QuoteTemplateKind) =>
+      templates.filter(
+        (t) =>
+          ((t.kind as QuoteTemplateKind | undefined) ?? 'offerta') === k &&
+          t.is_active !== false &&
+          t.id !== editId,
+      ),
+    [templates, editId],
   );
 
   const updateForm = useCallback((patch: Partial<QuoteTemplate>) => {
@@ -796,9 +807,9 @@ export default function SettingsQuoteTemplates() {
             </Badge>
           )}
           {isAdmin && !editing && (
-            <Button onClick={() => handleNew(activeKind)} size="sm" className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500">
+            <Button onClick={() => setCreateDialogOpen(true)} size="sm" className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500">
               <Plus className="h-4 w-4 mr-1.5" />
-              Nuovo {KIND_META[activeKind].label.toLowerCase()}
+              Nuovo template
             </Button>
           )}
         </div>
@@ -852,6 +863,11 @@ export default function SettingsQuoteTemplates() {
             {isAdmin && (
               <Button onClick={() => handleNew(activeKind)} className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500">
                 <Plus className="h-4 w-4 mr-2" />Crea il primo
+              </Button>
+            )}
+            {isAdmin && (
+              <Button variant="outline" onClick={() => setCreateDialogOpen(true)} size="sm" className="ml-2">
+                Vedi tutti i tipi
               </Button>
             )}
           </Card>
@@ -1870,6 +1886,54 @@ export default function SettingsQuoteTemplates() {
           </div>
         </div>
       )}
+
+      {/* Dialog "Scegli che tipo di template creare" — 6 cards selezionabili */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Crea un nuovo template</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Scegli quale tipo di blocco vuoi aggiungere alla tua libreria. I blocchi sono riusabili tra più offerte.
+            </p>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+            {KIND_ORDER.map((k) => {
+              const meta = KIND_META[k];
+              const count = countsByKind[k] ?? 0;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => {
+                    setCreateDialogOpen(false);
+                    setActiveKind(k);
+                    handleNew(k);
+                  }}
+                  className={`text-left rounded-xl border-2 ${meta.borderColor} ${meta.bgColor} hover:scale-[1.02] hover:shadow-md transition-all p-4 group focus:outline-none focus:ring-2 focus:ring-orange-400`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="text-3xl">{meta.emoji}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <h3 className={`font-semibold ${meta.color}`}>{meta.label}</h3>
+                        {count > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/80 text-slate-700 font-medium">
+                            {count} esistenti
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 leading-snug">{meta.description}</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>Annulla</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete template confirmation */}
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>

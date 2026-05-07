@@ -33,7 +33,11 @@ export function useQuoteTemplates() {
     gcTime: 15 * 60 * 1000,
   });
 
-  const defaultTemplate = templates.find(t => t.is_default) ?? templates[0] ?? null;
+  // Bug-fix (libreria template per kind): il default per generare PDF deve essere
+  // SOLO un template kind='offerta' (i blocchi standalone come copertina/condizioni
+  // non possono essere default). Fallback sulla prima offerta esistente, mai su un blocco.
+  const offertaTemplates = templates.filter(t => ((t as { kind?: string }).kind ?? 'offerta') === 'offerta');
+  const defaultTemplate = offertaTemplates.find(t => t.is_default) ?? offertaTemplates[0] ?? null;
 
   const upsertTemplate = useMutation({
     mutationFn: async (template: QuoteTemplateMutation) => {

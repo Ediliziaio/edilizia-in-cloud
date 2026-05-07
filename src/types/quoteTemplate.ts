@@ -347,6 +347,11 @@ export const HEADER_ALIGNMENT_LABELS: Record<TextAlignment, string> = {
 /**
  * Crea un template "vuoto" per un dato kind, partendo dal DEFAULT_TEMPLATE
  * e impostando solo i campi rilevanti per quel kind.
+ *
+ * Bug-fix: NON imposta is_default=true di default. Il flag default deve essere
+ * scelto esplicitamente dall'utente, altrimenti un nuovo template "ruba" il
+ * default a quello esistente. Inoltre solo kind='offerta' può essere default
+ * (vincolo DB su uq_quote_templates_default_per_company).
  */
 export function blankTemplateForKind(kind: QuoteTemplateKind): typeof DEFAULT_TEMPLATE {
   const meta = KIND_META[kind];
@@ -354,7 +359,7 @@ export function blankTemplateForKind(kind: QuoteTemplateKind): typeof DEFAULT_TE
     ...DEFAULT_TEMPLATE,
     kind,
     name: `Nuovo ${meta.label}`,
-    is_default: kind === 'offerta',
+    is_default: false,
     description: null,
   };
 }

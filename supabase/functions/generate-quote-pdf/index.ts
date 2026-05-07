@@ -3,6 +3,8 @@ import { requireAuth } from "../_shared/auth.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib@1.17.1";
 import qrcode from "https://esm.sh/qrcode-generator@1.4.4?target=deno";
+// Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
+import { loadTemplateWithBlocks, applyMergeTagsToTemplate, buildMergeContext, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -135,24 +137,24 @@ Deno.serve(async (req) => {
         return errorResponse("Non autorizzato", 403);
       }
 
-      // Load template
-      let template = null;
+      // Load template + blocchi linkati (libreria componibile per kind)
+      let template: ComposedTemplate | null = null;
       if (quote.template_id) {
-        const { data: tmpl } = await supabaseAdmin
-          .from("quote_templates")
-          .select("*")
-          .eq("id", quote.template_id)
-          .single();
-        template = tmpl;
+        template = await loadTemplateWithBlocks(supabaseAdmin, quote.template_id);
       }
       if (!template) {
+        // Fallback: cerca template default kind=offerta della company
         const { data: defaultTmpl } = await supabaseAdmin
           .from("quote_templates")
-          .select("*")
+          .select("id")
           .eq("company_id", quote.company_id)
+          .eq("kind", "offerta")
           .eq("is_default", true)
+          .eq("is_active", true)
           .maybeSingle();
-        template = defaultTmpl;
+        if (defaultTmpl?.id) {
+          template = await loadTemplateWithBlocks(supabaseAdmin, defaultTmpl.id);
+        }
       }
       t = { ...DEFAULT_T, ...(template || {}) };
 
@@ -187,6 +189,42 @@ Deno.serve(async (req) => {
 
       // Branding dinamico per white-label
       branding = await getBrandingForCompany(supabaseAdmin, quote.company_id);
+
+      // ── Composizione blocchi linkati + merge tag substitution ────────────
+      // Se l'offerta ha blocchi linkati (cover/condizioni/legali), i loro
+      // contenuti hanno priorità sui campi inline. Sostituiamo poi {{tag}}.
+      if (t && (t.composed_cover || t.composed_terms || t.composed_legal)) {
+        if (t.composed_cover) {
+          if (t.composed_cover.cover_image_url) t.cover_image_url = t.composed_cover.cover_image_url;
+          if (t.composed_cover.cover_title) t.cover_title = t.composed_cover.cover_title;
+          if (t.composed_cover.cover_subtitle) t.cover_subtitle = t.composed_cover.cover_subtitle;
+          t.show_cover_image = true;
+        }
+        if (t.composed_terms?.body_html) {
+          t.contractual_terms_text = t.composed_terms.body_html;
+          t.show_contractual_terms = true;
+        }
+        if (t.composed_legal?.body_html) {
+          t.legal_terms_text = t.composed_legal.body_html;
+          t.show_legal_terms = true;
+        }
+      }
+      try {
+        // Carica contact se presente per merge tag
+        let contact: Record<string, unknown> | null = null;
+        if (quote.contact_id) {
+          const { data: c } = await supabaseAdmin
+            .from("marketing_contacts")
+            .select("*")
+            .eq("id", quote.contact_id)
+            .maybeSingle();
+          contact = c ?? null;
+        }
+        const mergeCtx = buildMergeContext({ quote, company, contact });
+        t = applyMergeTagsToTemplate(t as ComposedTemplate, mergeCtx);
+      } catch (e) {
+        console.warn("[generate-quote-pdf] merge tag substitution fallita (non bloccante):", e instanceof Error ? e.message : e);
+      }
 
       // Load attached PDF materials
       const { data: attRows = [] } = await supabaseAdmin
