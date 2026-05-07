@@ -31,11 +31,11 @@ describe("translateListinoError — duplicate key", () => {
 
   it("23505 su listino_categorie → messaggio categoria duplicata", () => {
     const err = new Error(
-      'duplicate key value violates unique constraint "listino_categorie_company_id_nome_key"',
+      'duplicate key value violates unique constraint "listino_categorie_company_macro_nome_uniq"',
     );
     const result = translateListinoError(err);
     expect(result.message).toMatch(/categoria/i);
-    expect(result.message).not.toMatch(/macrocategoria/i);
+    expect(result.message).toMatch(/macrocategoria/i);
   });
 
   it("duplicate generico → messaggio fallback nome già in uso", () => {

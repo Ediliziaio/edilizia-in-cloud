@@ -57,7 +57,8 @@ export function translateListinoError(err: unknown): TranslatedError {
     }
     if (/listino_categorie/i.test(raw)) {
       return {
-        message: "Esiste già una categoria con questo nome.",
+        message:
+          "Esiste già una categoria con questo nome in questa macrocategoria.",
         isTransient: false,
       };
     }
