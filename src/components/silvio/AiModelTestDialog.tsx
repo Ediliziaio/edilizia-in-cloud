@@ -80,18 +80,33 @@ const DEFAULT_SELECTED = [
 const DEFAULT_PROMPT =
   "Per Demo Azienda S.r.l., dimmi quanto dovrei fatturare il mese prossimo per coprire costi fissi, incassi previsti, rate scadute dei clienti, costi variabili delle commesse, merce/manodopera e margini attesi. Voglio scenari pratici e azioni prioritarie.";
 
-const MODEL_RUN_TIMEOUT_MS = 125_000;
+const MODEL_RUN_TIMEOUT_MS = 190_000;
+const KIMI_MODEL_RUN_TIMEOUT_MS = 185_000;
 const MODEL_RUN_CONCURRENCY = 2;
+const DEMO_LAB_EMAIL = "demo@azienda.srl";
+
+function normalizeCompanyName(companyName?: string | null) {
+  return String(companyName ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function isDemoCompanyName(companyName?: string | null) {
+  const normalizedCompany = normalizeCompanyName(companyName);
+  return normalizedCompany === "demo azienda s r l" || normalizedCompany === "demo azienda srl";
+}
 
 function isDemoLabVisible(email?: string | null, role?: string | null, companyName?: string | null) {
   const normalizedEmail = String(email ?? "").trim().toLowerCase();
-  const normalizedCompany = String(companyName ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  const normalizedRole = String(role ?? "").trim().toLowerCase();
 
-  if (normalizedEmail === "demo@azienda.srl") return true;
-  return role === "super_admin" && normalizedCompany.includes("demo azienda");
+  if (!isDemoCompanyName(companyName)) return false;
+  if (normalizedEmail === DEMO_LAB_EMAIL) return true;
+  return ["super_admin", "company_admin", "admin"].includes(normalizedRole);
 }
 
 function formatMoney(value?: number) {
@@ -115,6 +130,14 @@ function formatUsd(value?: number) {
 function formatContext(value?: number) {
   if (!value) return null;
   return `${Math.round(value / 1000).toLocaleString("it-IT")}k ctx`;
+}
+
+function isKimiModel(model: string) {
+  return /moonshotai\/kimi/i.test(model) || /(^|\/)kimi-/i.test(model);
+}
+
+function getModelTimeoutMs(model: string) {
+  return isKimiModel(model) ? KIMI_MODEL_RUN_TIMEOUT_MS : MODEL_RUN_TIMEOUT_MS;
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
@@ -215,24 +238,24 @@ export function AiModelTestDialog() {
   const [results, setResults] = useState<ModelResult[]>([]);
   const [runError, setRunError] = useState<string | null>(null);
 
-  const isLocalhost =
-    typeof window !== "undefined" &&
-    ["localhost", "127.0.0.1"].includes(window.location.hostname);
-  const visible = isLocalhost || isDemoLabVisible(user?.email, role, effectiveCompany?.name);
+  const visible = isDemoLabVisible(user?.email, role, effectiveCompany?.name);
 
   useEffect(() => {
     if (!open) return;
 
-    const controller = new AbortController();
+    if (!companyId) return;
+    let cancelled = false;
     const load = async () => {
       setLoadingModels(true);
       try {
-        const res = await fetch("https://openrouter.ai/api/v1/models", {
-          signal: controller.signal,
+        const { data, error } = await supabase.functions.invoke<{ ok?: boolean; models?: OpenRouterModel[] }>("ai-model-test-lab", {
+          body: {
+            action: "models",
+            company_id: companyId,
+          },
         });
-        if (!res.ok) throw new Error(`OpenRouter models ${res.status}`);
-        const json = await res.json();
-        const remoteModels = Array.isArray(json?.data) ? json.data as OpenRouterModel[] : [];
+        if (error) throw error;
+        const remoteModels = Array.isArray(data?.models) ? data.models : [];
         const usable = remoteModels
           .filter((model) => model?.id && !model.id.includes(":free"))
           .map((model) => ({
@@ -244,19 +267,21 @@ export function AiModelTestDialog() {
         const merged = [...FALLBACK_MODELS, ...usable].filter(
           (model, index, arr) => arr.findIndex((item) => item.id === model.id) === index,
         );
-        setModels(merged);
-      } catch (err) {
-        if (!controller.signal.aborted) {
+        if (!cancelled) setModels(merged);
+      } catch {
+        if (!cancelled) {
           setModels(FALLBACK_MODELS);
         }
       } finally {
-        if (!controller.signal.aborted) setLoadingModels(false);
+        if (!cancelled) setLoadingModels(false);
       }
     };
 
     load();
-    return () => controller.abort();
-  }, [open]);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, companyId]);
 
   const filteredModels = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -303,6 +328,7 @@ export function AiModelTestDialog() {
 
     const runOne = async (model: string) => {
       try {
+        const invokeTimeout = getModelTimeoutMs(model);
         const { data, error } = await withTimeout(
           supabase.functions.invoke<CompareResponse>("ai-model-test-lab", {
             body: {
@@ -312,9 +338,9 @@ export function AiModelTestDialog() {
               models: [model],
               include_tools: includeTools,
             },
-            timeout: MODEL_RUN_TIMEOUT_MS,
+            timeout: invokeTimeout,
           }),
-          MODEL_RUN_TIMEOUT_MS + 5_000,
+          invokeTimeout + 5_000,
           model,
         );
 
@@ -328,7 +354,10 @@ export function AiModelTestDialog() {
           reply: normalizeLabReply(data.results[0].reply),
           status: "done" as const,
         };
-        setResults((current) => current.map((item) => item.model === model ? nextResult : item));
+        setResults((current) =>
+          current.map((item) => item.model === model ? nextResult : item)
+        );
+        return null;
       } catch (err) {
         const msg = await readFunctionErrorMessage(err);
         const looksLikeTimeout = /timeout|timed out|Signal timed out|non risponde/i.test(msg);
@@ -342,11 +371,10 @@ export function AiModelTestDialog() {
             item.model === model
               ? { model, ok: false, status: "done", error: errorMessage }
               : item,
-          ),
+          )
         );
         return errorMessage;
       }
-      return null;
     };
 
     try {

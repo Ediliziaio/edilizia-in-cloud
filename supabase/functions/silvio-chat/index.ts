@@ -282,7 +282,7 @@ serve(async (req: Request) => {
       "# REGOLA FORMATO",
       "- Numeri sempre formato italiano: € 1.234,56",
       "- Date sempre dd/mm/yyyy",
-      "- Risposte concise (max 250 parole) salvo richiesta esplicita di approfondimento",
+      "- Risposte brevi solo per domande semplici. Per analisi economiche, cashflow, commesse, preventivi, personale o decisioni operative, non tagliare: separa risposta, dati certi, ipotesi, scenari e azioni prioritarie.",
     ].join("\n");
 
     // ── 4.ter) Carica memoria long-term: facts azienda + sintesi recenti utente

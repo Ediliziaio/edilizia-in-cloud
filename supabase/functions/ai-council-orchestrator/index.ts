@@ -250,14 +250,14 @@ Deno.serve(async (req) => {
           "12. Suggerisci 2-3 azioni concrete da fare ORA, ordinate per priorità.",
           "13. Stile imprenditore-a-imprenditore (no sociologismi, no gergo tecnico inutile).",
           "",
-          "Output: prosa markdown, max 450 parole.",
+          "Output: prosa markdown completa e operativa. Non tagliare dati decisivi per stare breve: se la domanda e' economica o cross-area, usa numeri, ipotesi, scenari e azioni in ordine di priorita'.",
         ].join("\n");
 
         const synthesisRes = await aiRouterComplete({
           supabase: supabaseAdmin,
           taskKey: "council_synthesis",
           messages: [{ role: "user", content: synthesisPrompt }],
-          params: { temperature: 0.5, max_tokens: 2000 },
+          params: { temperature: 0.45, max_tokens: 4200 },
           companyId: company_id,
           userId,
           personaKey: "silvio",

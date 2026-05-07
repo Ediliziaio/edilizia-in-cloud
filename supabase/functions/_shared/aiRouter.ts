@@ -59,7 +59,7 @@ export interface AiRouterParams {
    * internal reasoning to produce a final answer.
    */
   reasoning?: {
-    effort?: "low" | "medium" | "high";
+    effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
     max_tokens?: number;
     exclude?: boolean;
     enabled?: boolean;
@@ -190,21 +190,51 @@ function jitterMs(baseMs: number): number {
   return baseMs + jitter;
 }
 
+function extractContentPart(part: any): string {
+  if (typeof part === "string") return part;
+  if (!part || typeof part !== "object") return "";
+  if (typeof part.text === "string") return part.text;
+  if (typeof part.text?.value === "string") return part.text.value;
+  if (typeof part.content === "string") return part.content;
+  if (typeof part.input_text === "string") return part.input_text;
+  if (typeof part.output_text === "string") return part.output_text;
+  if (Array.isArray(part.content)) {
+    return part.content.map(extractContentPart).filter(Boolean).join("\n");
+  }
+  return "";
+}
+
 function extractChoiceContent(choice: any): string {
-  const content = choice?.message?.content;
+  const message = choice?.message ?? {};
+  const content = message.content;
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (typeof part === "string") return part;
-        if (typeof part?.text === "string") return part.text;
-        if (typeof part?.content === "string") return part.content;
-        if (typeof part?.input_text === "string") return part.input_text;
-        return "";
-      })
+    const fromParts = content
+      .map(extractContentPart)
       .filter(Boolean)
       .join("\n")
       .trim();
+    if (fromParts) return fromParts;
+  }
+  if (content && typeof content === "object") {
+    const fromObject = extractContentPart(content).trim();
+    if (fromObject) return fromObject;
+  }
+  const fallbackFields = [
+    message.output_text,
+    message.final_answer,
+    message.answer,
+    choice.output_text,
+    choice.text,
+    choice.delta?.content,
+  ];
+  for (const value of fallbackFields) {
+    if (typeof value === "string" && value.trim()) return value;
+    if (Array.isArray(value)) {
+      const fromArray = value.map(extractContentPart).filter(Boolean).join("\n")
+        .trim();
+      if (fromArray) return fromArray;
+    }
   }
   if (typeof choice?.text === "string") return choice.text;
   return "";
@@ -520,7 +550,12 @@ async function callOpenRouter(
   if (params.top_p != null) body.top_p = params.top_p;
   if (params.tools) body.tools = params.tools;
   if (params.tool_choice) body.tool_choice = params.tool_choice;
-  if (params.reasoning) body.reasoning = params.reasoning;
+  // I modelli reasoning su OpenRouter (inclusi Kimi K2.x) possono consumare
+  // tutto il budget in thinking se non chiediamo esplicitamente di escludere
+  // i token di ragionamento dalla risposta finale.
+  if (params.reasoning) {
+    body.reasoning = params.reasoning;
+  }
   if (params.include_reasoning != null) {
     body.include_reasoning = params.include_reasoning;
   }

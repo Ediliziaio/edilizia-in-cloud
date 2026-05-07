@@ -15,7 +15,9 @@ import { parseStructuredResponse } from "../_shared/structuredOutput.ts";
 const PERSONA_KEY = "silvio";
 const DEMO_LAB_EMAIL = "demo@azienda.srl";
 const MAX_MODELS_PER_RUN = 6;
-const MODEL_REQUEST_TIMEOUT_MS = 95_000;
+const MODEL_REQUEST_TIMEOUT_MS = 140_000;
+const KIMI_REQUEST_TIMEOUT_MS = 170_000;
+const MODEL_COMPARE_CONCURRENCY = 2;
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 const TOOL_SNAPSHOT_TIMEOUT_MS = 12_000;
 const TOOL_SNAPSHOT_CONCURRENCY = 3;
@@ -92,7 +94,7 @@ function normalizeCompanyName(name: string | null | undefined): string {
 
 function isDemoCompany(name: string | null | undefined): boolean {
   const normalized = normalizeCompanyName(name);
-  return normalized.includes("demo azienda");
+  return normalized === "demo azienda s r l" || normalized === "demo azienda srl";
 }
 
 function normalizeEmail(email: unknown): string {
@@ -104,6 +106,10 @@ function sanitizeModelId(model: unknown): string | null {
   if (!value || value.length > 160) return null;
   if (!/^[a-zA-Z0-9._~:/-]+$/.test(value)) return null;
   return value;
+}
+
+function isKimiModel(model: string): boolean {
+  return /moonshotai\/kimi/i.test(model) || /(^|\/)kimi-/i.test(model);
 }
 
 async function fetchOpenRouterModels(): Promise<ModelInfo[]> {
@@ -170,6 +176,62 @@ async function loadLabRequesterAccess(supabaseAdmin: any, userId: string) {
     isSuperAdmin: roles.includes("super_admin"),
     isDemoLabUser: email === DEMO_LAB_EMAIL,
   };
+}
+
+async function requireDemoLabAccess(
+  supabaseAdmin: any,
+  userId: string,
+  companyId: string | undefined,
+  corsHeaders: Record<string, string>,
+) {
+  if (!companyId) {
+    return {
+      response: errorResponse("company_id mancante", 400, corsHeaders),
+      company: null,
+      labAccess: null,
+    };
+  }
+
+  await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
+
+  const { data: company, error: companyError } = await supabaseAdmin
+    .from("companies")
+    .select("id, name")
+    .eq("id", companyId)
+    .maybeSingle();
+  if (companyError || !company) {
+    return {
+      response: errorResponse("azienda non trovata", 404, corsHeaders),
+      company: null,
+      labAccess: null,
+    };
+  }
+  if (!isDemoCompany(company.name)) {
+    return {
+      response: errorResponse(
+        "AI Test Lab disponibile solo su Demo Azienda S.r.l.",
+        403,
+        corsHeaders,
+      ),
+      company: null,
+      labAccess: null,
+    };
+  }
+
+  const labAccess = await loadLabRequesterAccess(supabaseAdmin, userId);
+  if (!labAccess.isSuperAdmin && !labAccess.isDemoLabUser) {
+    return {
+      response: errorResponse(
+        "AI Test Lab disponibile solo per SuperAdmin o demo@azienda.srl.",
+        403,
+        corsHeaders,
+      ),
+      company: null,
+      labAccess: null,
+    };
+  }
+
+  return { response: null, company, labAccess };
 }
 
 async function loadUserRuntime(supabaseAdmin: any, userId: string) {
@@ -239,6 +301,7 @@ function buildLabSystemPrompt(
     "- NON stai parlando nella chat normale e NON devi scrivere messaggi, documenti o bozze operative.",
     "- Non nominare mai personas, council, tutor o consulenti interni: rispondi sempre come un unico Silvio.",
     "- Non dire 'tool', 'snapshot', 'RAG', 'fonti', 'modello', 'provider', 'test lab'.",
+    "- Rispondi direttamente con la risposta finale. Non usare sezioni di ragionamento interno e non lasciare mai vuota la risposta finale.",
     "",
     "# REGOLE DI RAGIONAMENTO",
     "- Se analizzi cassa o vendite, separa sempre venduto/fatturato, incassato, scaduto, incassi previsti, costi fissi, costi variabili e margine atteso.",
@@ -247,7 +310,8 @@ function buildLabSystemPrompt(
     "- Per commesse nuove considera costi variabili iniziali: merce, manodopera, fornitori, posa, eventuali subappaltatori.",
     "- Non confondere mai giornate lavoro, ore, scadenze o conteggi documento con numero dipendenti. Il team reale va preso solo da campi espliciti tipo operai, dipendenti, employee_count, team_size.",
     "- Se due dati sembrano contraddirsi, segnala il dubbio e usa il valore piu' prudente invece di inventare.",
-    "- Dai una risposta confrontabile: sintesi, numeri usati, scenario prudente, scenario operativo, azioni prioritarie.",
+    "- Dai una risposta confrontabile ma reale: sintesi, numeri usati, formula di calcolo, scenario prudente, scenario operativo, scenario aggressivo se utile, azioni prioritarie.",
+    "- Se la domanda richiede decisione economica, non fare una risposta corta: pesa tutti i dati disponibili e spiega cosa cambia se incassi prima, vendi nuovo, anticipi merce/manodopera o recuperi scaduti.",
     includeTools
       ? "- Usa i dati aziendali forniti sotto. Se manca un dato, dichiara l'ipotesi in modo semplice."
       : "- Se non hai dati aziendali reali, dichiara che la risposta e' solo qualitativa.",
@@ -257,7 +321,7 @@ function buildLabSystemPrompt(
     "- Date in formato dd/mm/yyyy",
     "- Usa titoletti brevi, bullet chiari e una conclusione operativa.",
     "- Evita tabelle troppo larghe: se servono, tienile piccole.",
-    "- Non superare 900 parole.",
+    "- Non usare limiti artificiali di lunghezza: sii completo quanto serve, senza ripetizioni inutili.",
   ].join("\n");
 }
 
@@ -275,11 +339,11 @@ function cleanLabReplyForUser(content: string): string {
     .trim();
 }
 
-function truncateJson(value: unknown, maxChars = 1400): string {
+function truncateJson(value: unknown, maxChars = 2600): string {
   try {
     const json = JSON.stringify(value, null, 2);
     if (json.length <= maxChars) return json;
-    return `${json.slice(0, maxChars)}\n... [troncato per confronto modelli]`;
+    return `${json.slice(0, maxChars)}\n... [dato lungo: usa quanto visibile e segnala eventuale limite]`;
   } catch {
     return String(value).slice(0, maxChars);
   }
@@ -332,6 +396,7 @@ async function runLimited<T, R>(
 async function buildDeterministicDataSnapshot(
   toolCtx: ToolContext,
   includeTools: boolean,
+  options: { maxPreviewChars?: number; maxBlockChars?: number } = {},
 ): Promise<{
   block: string;
   calls: Array<
@@ -382,7 +447,7 @@ async function buildDeterministicDataSnapshot(
     const payload = result.success
       ? result.data
       : { error: result.error?.message ?? "dato non disponibile" };
-    const preview = truncateJson(payload);
+    const preview = truncateJson(payload, options.maxPreviewChars ?? 2600);
     lines.push(`\n## ${call.label} (${call.name})\n${preview}`);
     calls.push({
       name: call.name,
@@ -392,7 +457,7 @@ async function buildDeterministicDataSnapshot(
   }
 
   return {
-    block: lines.join("\n").slice(0, 11_000),
+    block: lines.join("\n").slice(0, options.maxBlockChars ?? 24_000),
     calls,
   };
 }
@@ -441,7 +506,14 @@ async function runModelComparison(args: {
     traceId: crypto.randomUUID(),
   };
 
-  const snapshot = await buildDeterministicDataSnapshot(toolCtx, includeTools);
+  const kimiMode = isKimiModel(model);
+  const snapshot = await buildDeterministicDataSnapshot(toolCtx, includeTools, {
+    // Kimi K2.x funziona meglio con contesto operativo ricco ma non enorme:
+    // i numeri reali restano presenti, ma evitiamo JSON enormi che su OpenRouter
+    // aumentano molto la latenza e fanno scadere il test prima della risposta.
+    maxPreviewChars: kimiMode ? 1200 : 2600,
+    maxBlockChars: kimiMode ? 11_500 : 24_000,
+  });
 
   const messages: any[] = [
     {
@@ -475,10 +547,14 @@ async function runModelComparison(args: {
     messages,
     params: {
       temperature: 0.25,
-      max_tokens: 3200,
-      request_timeout_ms: MODEL_REQUEST_TIMEOUT_MS,
+      max_tokens: kimiMode ? 9000 : 6000,
+      request_timeout_ms: kimiMode
+        ? KIMI_REQUEST_TIMEOUT_MS
+        : MODEL_REQUEST_TIMEOUT_MS,
       request_retries: 0,
-      reasoning: { exclude: true },
+      reasoning: kimiMode
+        ? { effort: "none", exclude: true }
+        : { exclude: true },
       include_reasoning: false,
     },
     companyId,
@@ -535,21 +611,32 @@ serve(async (req: Request) => {
     const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
     const body = (await req.json()) as LabPayload;
     const action = body.action ?? "compare";
+    const companyId = body.company_id?.trim();
+
+    if (action !== "models" && action !== "compare") {
+      return errorResponse("azione non valida", 400, corsHeaders);
+    }
+
+    const access = await requireDemoLabAccess(
+      supabaseAdmin,
+      userId,
+      companyId,
+      corsHeaders,
+    );
+    if (access.response) return access.response;
+    const company = access.company!;
+    const demoCompanyId = String(company.id);
 
     if (action === "models") {
       const models = await fetchOpenRouterModels();
       return jsonResponse({ ok: true, models }, 200, corsHeaders);
     }
 
-    const companyId = body.company_id?.trim();
     const prompt = body.prompt?.trim() ?? "";
     const models = (body.models ?? []).map(sanitizeModelId).filter((
       m,
     ): m is string => Boolean(m));
 
-    if (!companyId) {
-      return errorResponse("company_id mancante", 400, corsHeaders);
-    }
     if (!prompt) return errorResponse("prompt mancante", 400, corsHeaders);
     if (prompt.length > 8000) {
       return errorResponse(
@@ -569,62 +656,32 @@ serve(async (req: Request) => {
       );
     }
 
-    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
-
-    const { data: company, error: companyError } = await supabaseAdmin
-      .from("companies")
-      .select("id, name")
-      .eq("id", companyId)
-      .maybeSingle();
-    if (companyError || !company) {
-      return errorResponse("azienda non trovata", 404, corsHeaders);
-    }
-    if (!isDemoCompany(company.name)) {
-      return errorResponse(
-        "AI Test Lab disponibile solo su Demo Azienda S.r.l.",
-        403,
-        corsHeaders,
-      );
-    }
-
-    const labAccess = await loadLabRequesterAccess(supabaseAdmin, userId);
-    if (!labAccess.isSuperAdmin && !labAccess.isDemoLabUser) {
-      return errorResponse(
-        "AI Test Lab disponibile solo per SuperAdmin o demo@azienda.srl.",
-        403,
-        corsHeaders,
-      );
-    }
-
     const includeTools = body.include_tools !== false;
-    const results = [];
-    for (const model of models) {
+    const results = await runLimited(models, MODEL_COMPARE_CONCURRENCY, async (model) => {
       try {
-        results.push(
-          await runModelComparison({
-            supabaseAdmin,
-            companyId,
-            userId,
-            userMessage: prompt,
-            model,
-            includeTools,
-          }),
-        );
+        return await runModelComparison({
+          supabaseAdmin,
+          companyId: demoCompanyId,
+          userId,
+          userMessage: prompt,
+          model,
+          includeTools,
+        });
       } catch (e) {
         const attempts = e instanceof AiRouterError ? e.attempts : [];
         const singleAttemptError = attempts.length === 1
           ? attempts[0]?.error
           : "";
-        results.push({
+        return {
           model,
           ok: false,
           error: singleAttemptError ||
             (e instanceof Error ? e.message : String(e)),
           attempts,
           duration_ms: 0,
-        });
+        };
       }
-    }
+    });
 
     return jsonResponse(
       {
