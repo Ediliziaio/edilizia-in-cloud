@@ -38,6 +38,8 @@ import {
   parseStructuredResponse,
   type StructuredAiResponse,
 } from "../_shared/structuredOutput.ts";
+// MP-09: auto-delegate al Council orchestrator quando la query è multi-area
+import { classifyQuery, type QueryClassification } from "../_shared/queryClassifier.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const PERSONA_KEY = "silvio";
@@ -538,6 +540,74 @@ serve(async (req: Request) => {
       messages.push({ role: "user", content: userContent });
     }
 
+    // ── 8.5) MP-09: Auto-delegate al Council se la query è multi-area ───
+    // Se la classificazione segnala is_multi_area + complexity != simple, invochiamo
+    // ai-council-orchestrator. La sua synthesis diventa la response finale (skip tool loop).
+    // Graceful degradation: ogni errore qui NON blocca la chat, fa fallback al flow normale.
+    let councilData: {
+      is_multi_area: boolean;
+      involved_personas?: string[];
+      involved_areas?: string[];
+      estimated_complexity?: "simple" | "medium" | "complex";
+      sub_outputs?: unknown[];
+      synthesis_used?: boolean;
+    } | null = null;
+    let councilSynthesis: string | null = null;
+    const ENABLE_COUNCIL_AUTO = Deno.env.get("ENABLE_COUNCIL_AUTO_DELEGATE") !== "false";
+    if (
+      ENABLE_COUNCIL_AUTO &&
+      typeof userContent === "string" && // skip multi-modal (immagini/pdf): troppo costoso classificare
+      userMessage.length >= 25 &&         // skip query troppo brevi (probabilmente conversational)
+      attachments.length === 0
+    ) {
+      try {
+        const classification: QueryClassification = await classifyQuery({
+          supabase: supabaseAdmin,
+          query: userMessage,
+          currentPersona: PERSONA_KEY,
+          companyId,
+          userId,
+        });
+        if (classification.is_multi_area && classification.estimated_complexity !== "simple") {
+          console.log(
+            `[silvio-chat] MP-09 council auto-delegate: ${classification.involved_personas.length} personas, complexity=${classification.estimated_complexity}`,
+          );
+          const { data: councilRes, error: councilErr } = await supabaseAdmin.functions.invoke(
+            "ai-council-orchestrator",
+            {
+              body: {
+                query: userMessage,
+                current_persona: PERSONA_KEY,
+                company_id: companyId,
+                max_personas: 4,
+              },
+              headers: { Authorization: req.headers.get("Authorization") ?? "" },
+            },
+          );
+          if (councilErr) {
+            console.warn("[silvio-chat] council invoke failed:", councilErr.message);
+          } else if (councilRes && (councilRes as { multi_area?: boolean }).multi_area) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const r = councilRes as any;
+            councilSynthesis = (r.synthesis as string | null) ?? null;
+            councilData = {
+              is_multi_area: true,
+              involved_personas: r.classification?.involved_personas ?? [],
+              involved_areas: r.classification?.involved_areas ?? [],
+              estimated_complexity: r.classification?.estimated_complexity ?? "medium",
+              sub_outputs: Array.isArray(r.sub_outputs) ? r.sub_outputs : [],
+              synthesis_used: !!councilSynthesis,
+            };
+          }
+        }
+      } catch (e) {
+        console.warn(
+          "[silvio-chat] council auto-delegate fallita (graceful):",
+          e instanceof Error ? e.message : String(e),
+        );
+      }
+    }
+
     // ── 9) Tool-calling loop ────────────────────────────────────────────
     const idempotencyBase = await buildStableAiIdempotencyKey("silvio_chat", [
       companyId,
@@ -560,7 +630,14 @@ serve(async (req: Request) => {
       risk_level?: string | null;
     }> = [];
 
-    while (iteration < MAX_TOOL_ITERATIONS) {
+    // MP-09: se il council ha già prodotto la synthesis, usa quella come finalContent
+    // e salta il tool-calling loop. Manteniamo gli altri flow (citation check, evidence,
+    // structured output check) che girano normalmente più sotto.
+    if (councilSynthesis && councilSynthesis.trim().length > 0) {
+      finalContent = councilSynthesis;
+    }
+
+    while (!finalContent && iteration < MAX_TOOL_ITERATIONS) {
       iteration++;
       const idempotencyKey = `${idempotencyBase}_iter${iteration}`;
 
@@ -682,6 +759,8 @@ serve(async (req: Request) => {
     }
 
     // ── 10) Salva risposta nella chat ───────────────────────────────────
+    // Sessione 1 — Persist MP-01 (rag_sources), MP-04 (confidence/review/followup)
+    // e MP-09 (council_data) per rendering UI con citation tooltip + badge + chip.
     const { data: insertedMsg } = await supabaseAdmin
       .from("internal_chat_messages")
       .insert({
@@ -690,6 +769,15 @@ serve(async (req: Request) => {
         company_id: companyId,
         content: finalContent,
         message_type: "text",
+        rag_sources: ragSources.length > 0 ? ragSources : null,
+        rag_min_similarity: ragSources.length > 0 ? ragMinSimilarity : null,
+        ai_confidence: structured?.confidence ?? null,
+        ai_requires_human_review: structured?.requires_human_review ?? null,
+        followup_suggestions:
+          structured?.followup_suggestions && structured.followup_suggestions.length > 0
+            ? structured.followup_suggestions.slice(0, 3)
+            : null,
+        council_data: councilData,
       })
       .select()
       .single();

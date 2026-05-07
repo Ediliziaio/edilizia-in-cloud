@@ -51,7 +51,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
+import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
+import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const MAX_ATTACHMENTS = 5;
@@ -97,6 +98,13 @@ interface SilvioMessage {
   created_at: string;
   attachment_url?: string | null;
   attachment_name?: string | null;
+  // Sessione 1 — metadata AI
+  rag_sources?: ChatMarkdownSource[] | null;
+  rag_min_similarity?: number | null;
+  ai_confidence?: "high" | "medium" | "low" | null;
+  ai_requires_human_review?: boolean | null;
+  followup_suggestions?: string[] | null;
+  council_data?: AiMeta["council_data"] | null;
 }
 
 /**
@@ -294,7 +302,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
       if (!channelId) return [];
       const { data } = await supabase
         .from("internal_chat_messages")
-        .select("id, channel_id, sender_id, content, message_type, created_at, attachment_url, attachment_name")
+        .select("id, channel_id, sender_id, content, message_type, created_at, attachment_url, attachment_name, rag_sources, rag_min_similarity, ai_confidence, ai_requires_human_review, followup_suggestions, council_data")
         .eq("channel_id", channelId)
         .order("created_at", { ascending: true })
         .limit(30);
@@ -766,6 +774,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
                   message={m}
                   isMe={m.sender_id === userId}
                   streaming={streamingMessageIds.has(m.id)}
+                  onAskFollowup={(q) => setDraft(q)}
                 />
               ))}
             </AnimatePresence>
@@ -1173,10 +1182,12 @@ function MessageBubble({
   message,
   isMe,
   streaming,
+  onAskFollowup,
 }: {
   message: SilvioMessage;
   isMe: boolean;
   streaming: boolean;
+  onAskFollowup?: (query: string) => void;
 }) {
   const isSilvio = message.sender_id === SILVIO_SENDER_ID;
   const isImage = message.message_type === "image" && message.attachment_url;
@@ -1267,17 +1278,40 @@ function MessageBubble({
             </span>
           </a>
         )}
+        {/* AI metadata top: review banner + low confidence + multi-area badge */}
+        {isSilvio && !isStillTyping && (
+          <AiMessageMetaTop
+            meta={{
+              ai_confidence: message.ai_confidence,
+              ai_requires_human_review: message.ai_requires_human_review,
+              followup_suggestions: message.followup_suggestions,
+              council_data: message.council_data,
+            }}
+          />
+        )}
         {visibleContent && (
           isMe || isStillTyping
             // Per i messaggi utente E durante il typing animato, manteniamo il
             // testo grezzo (typewriter funziona char-by-char, markdown si renderizza
             // SOLO al completamento).
             ? <span>{visibleContent}</span>
-            : <ChatMarkdown content={visibleContent} className="text-[13px]" />
+            : <ChatMarkdown content={visibleContent} className="text-[13px]" sources={message.rag_sources ?? undefined} />
         )}
         {/* Cursor blinking durante typing */}
         {isStillTyping && (
           <span className="inline-block w-0.5 h-3.5 ml-0.5 bg-slate-500 align-middle animate-pulse" />
+        )}
+        {/* AI metadata bottom: council expandable + chip follow-up */}
+        {isSilvio && !isStillTyping && (
+          <AiMessageMetaBottom
+            meta={{
+              ai_confidence: message.ai_confidence,
+              ai_requires_human_review: message.ai_requires_human_review,
+              followup_suggestions: message.followup_suggestions,
+              council_data: message.council_data,
+            }}
+            onAskFollowup={onAskFollowup}
+          />
         )}
       </div>
       {isMe && (
