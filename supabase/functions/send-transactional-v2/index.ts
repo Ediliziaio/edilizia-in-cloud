@@ -193,7 +193,10 @@ Deno.serve(async (req) => {
       });
       if (supErr) {
         // Fail-open: meglio inviare che perdere email critiche (password reset etc.)
-        console.warn(`[send-transactional-v2] is_suppressed error for ${r}:`, supErr.message);
+        console.warn("[send-transactional-v2] is_suppressed error", {
+          company_id: companyId,
+          message:    supErr.message,
+        });
         sendable.push(r);
         continue;
       }

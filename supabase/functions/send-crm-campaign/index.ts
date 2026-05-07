@@ -8,6 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
+const getErrorMessage = (err: unknown) => err instanceof Error ? err.message : String(err);
+
 interface ContactFilter {
   contact_type?: string;
   tags?: string[];
@@ -182,7 +184,11 @@ Deno.serve(async (req) => {
           }
         } catch (err) {
           errorCount++;
-          console.error(`[send-crm-campaign] Errore per ${c.email}:`, (err as Error).message);
+          console.error("[send-crm-campaign] Errore invio contatto", {
+            campaign_id,
+            contact_id: c.id,
+            message:    getErrorMessage(err),
+          });
         }
       })
     );

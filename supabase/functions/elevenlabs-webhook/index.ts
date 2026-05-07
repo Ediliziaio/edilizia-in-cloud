@@ -154,7 +154,10 @@ Deno.serve(async (req) => {
         .eq("phone", metadata.caller_phone)
         .maybeSingle();
       if (callerContact?.optout_call) {
-        console.warn(`[WEBHOOK] Inbound call from DND contact ${callerContact.id} (phone: ${metadata.caller_phone})`);
+        console.warn("[WEBHOOK] Inbound call from DND contact", {
+          contact_id: callerContact.id,
+          company_id: companyId,
+        });
       }
       if (callerContact) {
         contactId = callerContact.id;

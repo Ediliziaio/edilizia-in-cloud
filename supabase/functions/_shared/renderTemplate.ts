@@ -199,7 +199,7 @@ export async function renderEmailTemplate<K extends TemplateName>(params: {
   if (override) {
     // Placeholder data: props + branding-derived (companyName ecc.)
     const placeholderData: Record<string, unknown> = {
-      ...(params.props as Record<string, unknown>),
+      ...(params.props as unknown as Record<string, unknown>),
       companyName: branding.companyName,
     };
 

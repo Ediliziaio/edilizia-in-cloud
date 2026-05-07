@@ -28,7 +28,8 @@ export interface CitationValidationResult {
   appliedMode: "warn" | "enforce" | "off";
 }
 
-const MARKER_RE = /\[S(\d+)\+?\]/g;
+const INITIAL_MARKER_RE = /\[S(\d+)\]/g;
+const TOOL_MARKER_RE = /\[S(\d+)\+\]/g;
 const FONTI_SECTION_RE = /\n#{1,3}\s+Fonti\s*[\s\S]*$/i;
 
 export function validateCitations(
@@ -51,18 +52,26 @@ export function validateCitations(
   const text = String(response ?? "");
   const available = sources.map((s) => s.id);
   const used = new Set<string>();
+  const toolUsed = new Set<string>();
   let m: RegExpExecArray | null;
-  // reset regex (global stateful)
-  MARKER_RE.lastIndex = 0;
-  while ((m = MARKER_RE.exec(text)) !== null) {
+
+  // reset regex (global stateful). [S1] valida solo fonti pre-RAG; [S1+]
+  // indica fonti recuperate via tool e non deve mascherare citazioni inventate.
+  INITIAL_MARKER_RE.lastIndex = 0;
+  while ((m = INITIAL_MARKER_RE.exec(text)) !== null) {
     used.add(`S${m[1]}`);
   }
+  TOOL_MARKER_RE.lastIndex = 0;
+  while ((m = TOOL_MARKER_RE.exec(text)) !== null) {
+    toolUsed.add(`S${m[1]}+`);
+  }
+
   const usedArr = Array.from(used).sort();
   const invalid = usedArr.filter((s) => !available.includes(s));
   const noRag = text.trimStart().startsWith("[no-rag]");
   const hasFontiSection = FONTI_SECTION_RE.test(text);
-  const missingFonti = used.size > 0 && !hasFontiSection;
-  const citationsMissing = !noRag && sources.length > 0 && used.size === 0;
+  const missingFonti = (used.size > 0 || toolUsed.size > 0) && !hasFontiSection;
+  const citationsMissing = !noRag && sources.length > 0 && used.size === 0 && toolUsed.size === 0;
 
   let cleanedResponse = text;
   if (mode === "enforce" && used.size > 0) {

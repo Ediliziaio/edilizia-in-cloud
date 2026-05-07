@@ -51,6 +51,107 @@ const PERSONA_TO_AREA: Record<string, Area> = {
   brain: "strategic",
 };
 
+const VALID_AREAS: Area[] = [
+  "finance",
+  "operations",
+  "sales",
+  "marketing",
+  "hr",
+  "compliance",
+  "client",
+  "fiscal",
+  "tech",
+  "strategic",
+];
+
+const AREA_FALLBACK_PERSONA: Record<Area, string> = {
+  finance: "cfo",
+  operations: "pm_cantiere",
+  sales: "sales",
+  marketing: "direttore_marketing",
+  hr: "hr",
+  compliance: "compliance",
+  client: "assistente_cliente",
+  fiscal: "commercialista",
+  tech: "tecnico",
+  strategic: "assistente_imprenditore",
+};
+
+const VALID_PERSONAS = new Set(Object.keys(PERSONA_TO_AREA));
+const VALID_AREA_SET = new Set<Area>(VALID_AREAS);
+
+function isArea(value: unknown): value is Area {
+  return typeof value === "string" && VALID_AREA_SET.has(value as Area);
+}
+
+function isPersona(value: unknown): value is string {
+  return typeof value === "string" && VALID_PERSONAS.has(value);
+}
+
+function unique<T>(items: T[]): T[] {
+  return Array.from(new Set(items));
+}
+
+function sanitizeClassification(
+  parsed: Partial<QueryClassification>,
+  fallback: QueryClassification,
+  originalQuery: string,
+): QueryClassification {
+  const primaryArea = isArea(parsed.primary_area) ? parsed.primary_area : fallback.primary_area;
+  const parsedPersonas = Array.isArray(parsed.involved_personas)
+    ? parsed.involved_personas.filter(isPersona)
+    : [];
+  const parsedAreas = Array.isArray(parsed.involved_areas)
+    ? parsed.involved_areas.filter(isArea)
+    : [];
+
+  const involvedPersonas = unique(parsedPersonas.length > 0 ? parsedPersonas : fallback.involved_personas).slice(0, 4);
+  const areasFromPersonas = involvedPersonas
+    .map((persona) => PERSONA_TO_AREA[persona])
+    .filter((area): area is Area => Boolean(area));
+  const involvedAreas = unique(
+    [...parsedAreas, ...areasFromPersonas, primaryArea].filter(isArea),
+  ).slice(0, 4);
+
+  const rawDecomposition = Array.isArray(parsed.decomposition) ? parsed.decomposition : [];
+  const decomposition = rawDecomposition
+    .slice(0, 4)
+    .map((item) => {
+      const record = (item ?? {}) as Record<string, unknown>;
+      const area = isArea(record.area) ? record.area : primaryArea;
+      const personaKey = isPersona(record.persona_key)
+        ? record.persona_key
+        : AREA_FALLBACK_PERSONA[area];
+      return {
+        area: PERSONA_TO_AREA[personaKey] ?? area,
+        persona_key: personaKey,
+        sub_query: typeof record.sub_query === "string" && record.sub_query.trim()
+          ? record.sub_query.trim().slice(0, 1000)
+          : originalQuery.slice(0, 1000),
+        why: typeof record.why === "string" && record.why.trim()
+          ? record.why.trim().slice(0, 500)
+          : "Area coinvolta nella richiesta multi-consulente.",
+      };
+    })
+    .filter((item) => isPersona(item.persona_key));
+
+  const complexity = parsed.estimated_complexity === "complex" || parsed.estimated_complexity === "medium"
+    ? parsed.estimated_complexity
+    : "simple";
+  const multiArea = parsed.is_multi_area === true
+    && (involvedAreas.length > 1 || decomposition.length > 1);
+
+  return {
+    is_multi_area: multiArea,
+    primary_area: primaryArea,
+    involved_areas: involvedAreas.length > 0 ? involvedAreas : fallback.involved_areas,
+    involved_personas: involvedPersonas.length > 0 ? involvedPersonas : fallback.involved_personas,
+    decomposition: multiArea ? decomposition : [],
+    synthesis_required: multiArea && parsed.synthesis_required === true,
+    estimated_complexity: multiArea ? complexity : "simple",
+  };
+}
+
 const CLASSIFIER_PROMPT = `Sei un classificatore di intent multi-area per un sistema AI di gestione di imprese edili italiane.
 
 ## Aree disponibili
@@ -138,15 +239,7 @@ export async function classifyQuery(opts: ClassifyOptions): Promise<QueryClassif
     if (first < 0 || last <= first) return fallback;
 
     const parsed = JSON.parse(raw.substring(first, last + 1)) as Partial<QueryClassification>;
-    return {
-      is_multi_area: parsed.is_multi_area === true,
-      primary_area: (parsed.primary_area as Area) ?? fallback.primary_area,
-      involved_areas: Array.isArray(parsed.involved_areas) ? parsed.involved_areas as Area[] : fallback.involved_areas,
-      involved_personas: Array.isArray(parsed.involved_personas) ? parsed.involved_personas : fallback.involved_personas,
-      decomposition: Array.isArray(parsed.decomposition) ? parsed.decomposition.slice(0, 4) : [],
-      synthesis_required: parsed.synthesis_required === true,
-      estimated_complexity: (parsed.estimated_complexity as "simple" | "medium" | "complex") ?? "simple",
-    };
+    return sanitizeClassification(parsed, fallback, opts.query);
   } catch (e) {
     console.warn("[queryClassifier] failed (fallback to single-area):", e instanceof Error ? e.message : e);
     return fallback;

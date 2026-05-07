@@ -61,6 +61,12 @@ export interface BuildPersonaPromptArgs {
   sessionId?: string | null;
   /** Company id (per A/B scoped per tenant) */
   companyId?: string | null;
+  /** User id usato dalla RPC ai_get_prompt_variant per fallback bucket */
+  userId?: string | null;
+}
+
+export interface BuildEnrichedSystemPromptArgs extends BuildPersonaPromptArgs {
+  supabase: SupabaseClient;
 }
 
 export interface BuiltPersonaPrompt {
@@ -72,6 +78,10 @@ export interface BuiltPersonaPrompt {
   useStructured: boolean;
   /** Versione effettiva del prompt persona (variant se A/B, altrimenti la base) */
   effectivePersonaVersion: number | null;
+  /** ID test A/B servito dalla RPC ai_get_prompt_variant, se disponibile */
+  abTestId: string | null;
+  /** True se il prompt effettivo arriva dal ramo variant del test */
+  abVariantServed: boolean;
 }
 
 interface ProposalRow {
@@ -138,6 +148,45 @@ function pickAbVariant(
   return bucket < proposal.test_traffic_pct ? proposal : null;
 }
 
+interface PromptVariantRuntime {
+  prompt: string | null;
+  testId: string | null;
+  isVariant: boolean;
+}
+
+async function loadRuntimePromptVariant(
+  supabase: SupabaseClient,
+  args: BuildPersonaPromptArgs,
+): Promise<PromptVariantRuntime | null> {
+  if (!args.companyId || !args.sessionId) return null;
+
+  try {
+    const { data, error } = await supabase.rpc("ai_get_prompt_variant", {
+      p_persona_key: args.personaKey,
+      p_company_id: args.companyId,
+      p_user_id: args.userId ?? null,
+      p_session_id: args.sessionId,
+    });
+    if (error) {
+      console.warn("[promptBuilder] prompt variant RPC error:", error.message);
+      return null;
+    }
+
+    const row = (data ?? {}) as Record<string, unknown>;
+    const prompt = typeof row.prompt === "string" && row.prompt.trim().length > 0
+      ? row.prompt
+      : null;
+    return {
+      prompt,
+      testId: typeof row.test_id === "string" ? row.test_id : null,
+      isVariant: row.variant === true,
+    };
+  } catch (e) {
+    console.warn("[promptBuilder] prompt variant RPC exception:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 /**
  * Funzione master per costruire il system prompt persona-aware con A/B test.
  */
@@ -146,6 +195,35 @@ export async function buildPersonaPrompt(
   args: BuildPersonaPromptArgs,
 ): Promise<BuiltPersonaPrompt> {
   // ── 1) Determina se servire variant A/B ─────────────────────────────────
+  const runtimeVariant = await loadRuntimePromptVariant(supabase, args);
+  if (runtimeVariant?.prompt) {
+    const ragCount = args.ragSourcesCount ?? 0;
+    const citationRulesBlock = ragCount > 0 ? CITATION_FORMAT_RULES : "";
+    const useStructured = shouldUseStructured(args.recommendedTierKey ?? null);
+    const structuredRulesBlock = useStructured ? STRUCTURED_OUTPUT_SYSTEM_RULES : "";
+    const personaWithContext = [
+      runtimeVariant.prompt,
+      args.userContext ?? "",
+      args.memoryContext ?? "",
+      args.ragContextBlock ?? "",
+      citationRulesBlock,
+      structuredRulesBlock,
+    ].filter(Boolean).join("");
+    const { prompt: systemPrompt, preamboloVersion } = await buildSystemPrompt(supabase, personaWithContext);
+
+    return {
+      systemPrompt,
+      preamboloVersion,
+      abVariantId: runtimeVariant.isVariant ? runtimeVariant.testId : null,
+      useStructured,
+      effectivePersonaVersion: runtimeVariant.isVariant ? null : (args.personaVersion ?? null),
+      abTestId: runtimeVariant.testId,
+      abVariantServed: runtimeVariant.isVariant,
+    };
+  }
+
+  // Fallback retrocompatibile: se la RPC MP-05 non è disponibile o non ha test
+  // attivi, usa la tabella proposals storica.
   const proposals = await loadInTestProposals(supabase);
   const abVariant = pickAbVariant(proposals, args.personaKey, args.sessionId ?? null, args.companyId ?? null);
   const personaPrompt = abVariant ? abVariant.proposed_prompt : args.basePrompt;
@@ -177,7 +255,20 @@ export async function buildPersonaPrompt(
     abVariantId: abVariant?.id ?? null,
     useStructured,
     effectivePersonaVersion: abVariant ? null : (args.personaVersion ?? null),
+    abTestId: null,
+    abVariantServed: Boolean(abVariant),
   };
+}
+
+/**
+ * Entry point esplicito richiesto da MP-02. Incapsula supabase negli opts
+ * così le edge function non devono conoscere i singoli layer del prompt.
+ */
+export async function buildEnrichedSystemPrompt(
+  opts: BuildEnrichedSystemPromptArgs,
+): Promise<BuiltPersonaPrompt> {
+  const { supabase, ...args } = opts;
+  return buildPersonaPrompt(supabase, args);
 }
 
 /**

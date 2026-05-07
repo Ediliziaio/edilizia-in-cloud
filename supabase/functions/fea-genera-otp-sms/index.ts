@@ -78,19 +78,22 @@ Deno.serve(async (req) => {
       });
 
       if (!smsRes.ok) {
-        const errText = await smsRes.text();
-        console.error("Telnyx SMS error:", errText);
+        console.error("Telnyx SMS error:", {
+          status:     smsRes.status,
+          statusText: smsRes.statusText,
+        });
         return errorResponse("Errore invio SMS", 502);
       }
     } else {
-      // Modalità dev: log OTP in console
-      console.log(`[DEV] OTP per ${phone}: ${otp}`);
+      console.warn("[fea-genera-otp-sms] Telnyx non configurato: OTP generato ma SMS non inviato", {
+        signature_request_id,
+      });
     }
 
     return jsonResponse({ success: true, message: "OTP inviato via SMS" });
   } catch (error: unknown) {
-    console.error("fea-genera-otp-sms error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("fea-genera-otp-sms error:", message);
     return errorResponse(message, 500);
   }
 });

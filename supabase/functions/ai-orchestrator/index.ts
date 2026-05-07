@@ -47,19 +47,17 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { aiRouterComplete, type AiRouterMessage } from "../_shared/aiRouter.ts";
-import { buildSystemPrompt } from "../_shared/preambolo.ts";
+import { buildEnrichedSystemPrompt } from "../_shared/promptBuilder.ts";
 // MP-AIE-02 v2 — tool calling loop unificato col registry centrale silvioTools.ts
 import { getToolsForChannel, toolsToOpenAISpec } from "../_shared/silvioTools.ts";
 import { executeToolsParallel, type ToolExecutionResult } from "../_shared/silvioToolExecution.ts";
 // MP-01: pre-RAG automatico per le 18 personas
 import { buildPreRagContext, type RagSource } from "../_shared/ragInjector.ts";
 // MP-03: citation enforcement
-import { validateCitations, getCitationMode, CITATION_FORMAT_RULES } from "../_shared/citationValidator.ts";
+import { validateCitations, getCitationMode } from "../_shared/citationValidator.ts";
 // MP-04: structured output CoT + confidence
 import {
   AI_RESPONSE_SCHEMA,
-  shouldUseStructured,
-  STRUCTURED_OUTPUT_SYSTEM_RULES,
   parseStructuredResponse,
   type StructuredAiResponse,
 } from "../_shared/structuredOutput.ts";
@@ -370,18 +368,24 @@ serve(async (req: Request) => {
       console.warn("[ai-orchestrator] pre-RAG failed (graceful):", e instanceof Error ? e.message : e);
     }
 
-    // MP-03: aggiungiamo le regole di citation enforcement SOLO se ci sono RAG sources
-    const citationRulesBlock = ragSources.length > 0 ? CITATION_FORMAT_RULES : "";
-    // MP-04: structured output (solo per tier balanced/premium)
-    const useStructured = shouldUseStructured(persona.recommended_tier_key);
-    const structuredRulesBlock = useStructured ? STRUCTURED_OUTPUT_SYSTEM_RULES : "";
-    // MP-02: persona + userContext + memory + RAG (parità con silvio-chat)
-    const personaWithContext =
-      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock + citationRulesBlock + structuredRulesBlock;
-    const { prompt: systemPromptComplete, preamboloVersion } = await buildSystemPrompt(
-      supabaseAdmin,
-      personaWithContext,
-    );
+    // MP-02: promptBuilder centralizzato (parità con silvio-chat)
+    const builtPrompt = await buildEnrichedSystemPrompt({
+      supabase: supabaseAdmin,
+      personaKey,
+      basePrompt: persona.system_prompt,
+      personaVersion: persona.system_prompt_version ?? null,
+      recommendedTierKey: persona.recommended_tier_key ?? null,
+      userContext: userContextPrompt,
+      memoryContext: memoryContextPrompt,
+      ragContextBlock,
+      ragSourcesCount: ragSources.length,
+      sessionId,
+      companyId,
+      userId,
+    });
+    const systemPromptComplete = builtPrompt.systemPrompt;
+    const preamboloVersion = builtPrompt.preamboloVersion;
+    const useStructured = builtPrompt.useStructured;
     if (!preamboloVersion) {
       console.warn(`[ai-orchestrator] preambolo NON applicato per persona ${persona.persona_key}`);
     }

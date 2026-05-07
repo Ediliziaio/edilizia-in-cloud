@@ -1,4 +1,9 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+type SupabaseLikeClient = {
+  // Supabase edge functions import different supabase-js minor versions.
+  // Keep this structural to avoid protected-member type conflicts across URLs.
+  // deno-lint-ignore no-explicit-any
+  from: (table: string) => any;
+};
 
 const PRICING_TABLE_MAP: Record<string, string> = {
   email:     "email_pricing",
@@ -13,7 +18,7 @@ const PRICING_TABLE_MAP: Record<string, string> = {
  * Falls back to 0.001 if no pricing row found.
  */
 export async function getActiveProviderCost(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseLikeClient,
   service: "email" | "whatsapp" | "ai_agents" | "sms"
 ): Promise<number> {
   const table = PRICING_TABLE_MAP[service];
@@ -54,7 +59,7 @@ const DEFAULT_CONFIG: BillingConfig = {
  * Falls back to defaults if no override exists.
  */
 export async function getCompanyBillingConfig(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseLikeClient,
   companyId: string,
   service: string
 ): Promise<BillingConfig> {
@@ -69,11 +74,19 @@ export async function getCompanyBillingConfig(
     return DEFAULT_CONFIG;
   }
 
+  const row = data as Partial<{
+    is_enabled: boolean;
+    is_free: boolean;
+    price_per_unit_eur: number | null;
+    markup_multiplier: number | null;
+    monthly_fee_eur: number | null;
+  }>;
+
   return {
-    isEnabled: data.is_enabled ?? true,
-    isFree: data.is_free ?? false,
-    pricePerUnitEur: data.price_per_unit_eur ?? null,
-    markupMultiplier: data.markup_multiplier ?? null,
-    monthlyFeeEur: data.monthly_fee_eur ?? null,
+    isEnabled: row.is_enabled ?? true,
+    isFree: row.is_free ?? false,
+    pricePerUnitEur: row.price_per_unit_eur ?? null,
+    markupMultiplier: row.markup_multiplier ?? null,
+    monthlyFeeEur: row.monthly_fee_eur ?? null,
   };
 }

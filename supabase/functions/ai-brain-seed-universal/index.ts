@@ -467,7 +467,11 @@ serve(async (req: Request) => {
           p_content: doc.content,
           p_content_hash: hash,
           p_embedding: emb ? `[${emb.join(",")}]` : null,
-          p_metadata: { title: doc.title },
+          p_metadata: {
+            title:    doc.title,
+            area:     doc.category,
+            category: doc.category,
+          },
           p_visibility_roles: null,
           p_scope: "universal",
           p_category: doc.category,

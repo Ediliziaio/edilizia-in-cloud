@@ -88,14 +88,18 @@ Deno.serve(async (req) => {
           sent.push(recipient.email);
         }
       } catch (err) {
-        console.error(`Failed to send to ${recipient.email}:`, err);
+        console.error("[ticket-notify] Failed to send notification", {
+          recipient_id: recipient.id,
+          ticket_id:    ticket.id,
+          message:      err instanceof Error ? err.message : String(err),
+        });
       }
     }
 
     return jsonResponse({ ok: true, notified: sent.length > 0 ? sent : recipients.map((r) => r.email) });
   } catch (err) {
     if (err instanceof Response) return err;
-    console.error("ticket-notify error:", err);
+    console.error("ticket-notify error:", err instanceof Error ? err.message : String(err));
     return errorResponse(String(err), 500);
   }
 });

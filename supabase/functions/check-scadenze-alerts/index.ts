@@ -129,12 +129,22 @@ Deno.serve(async (req) => {
 
           if (sendResult.ok) {
             emailSent = true;
-            console.log(`Alert email sent to ${pref.alert_email} for company ${pref.company_id}`);
+            console.log("[check-scadenze-alerts] Alert email sent", {
+              company_id: pref.company_id,
+              status:     sendResult.status,
+            });
           } else {
-            console.error(`Failed to send alert email to ${pref.alert_email}:`, sendResult.body);
+            console.error("[check-scadenze-alerts] Failed to send alert email", {
+              company_id: pref.company_id,
+              status:     sendResult.status,
+              provider:   sendResult.providerUsed,
+            });
           }
         } catch (emailErr) {
-          console.error(`Email sending error for company ${pref.company_id}:`, emailErr);
+          console.error("[check-scadenze-alerts] Email sending error", {
+            company_id: pref.company_id,
+            message:    emailErr instanceof Error ? emailErr.message : String(emailErr),
+          });
         }
       }
 

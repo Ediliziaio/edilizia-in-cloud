@@ -167,11 +167,13 @@ async function extractStructuredData(
     try {
       return JSON.parse(result.content) as DatiEstratti;
     } catch {
-      console.warn("[parse-rapportino] JSON parse failed, content:", result.content?.slice(0, 200));
+      console.warn("[parse-rapportino] JSON parse failed", {
+        content_length: result.content?.length ?? 0,
+      });
       return {};
     }
   } catch (err) {
-    console.error("[parse-rapportino] aiRouter error", err);
+    console.error("[parse-rapportino] aiRouter error", err instanceof Error ? err.message : String(err));
     return {};
   }
 }

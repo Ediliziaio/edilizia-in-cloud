@@ -2,6 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
+const getErrorMessage = (err: unknown) => err instanceof Error ? err.message : String(err);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -123,7 +125,7 @@ Deno.serve(async (req) => {
     });
 
     if (settings.smtp_host && settings.smtp_user && settings.smtp_pass) {
-      console.log(`[partner-notification] Sending ${type} email to ${referrer.email}: ${subject}`);
+      console.log("[partner-notification] Sending partner email", { type, referrer_id });
 
       await sendEmailUnified({
         companyId:    null,
@@ -137,12 +139,13 @@ Deno.serve(async (req) => {
         metadata:     { type, referrer_id },
       });
     } else {
-      console.log(`[partner-notification] SMTP not configured, skipping email for ${type} to ${referrer.email}`);
+      console.log("[partner-notification] SMTP not configured, skipping partner email", { type, referrer_id });
     }
 
     return jsonResponse({ success: true, type, referrer_email: referrer.email });
-  } catch (err) {
-    console.error("[partner-notification] Error:", err);
-    return errorResponse(err.message || "Internal error", 500);
+  } catch (err: unknown) {
+    const message = getErrorMessage(err);
+    console.error("[partner-notification] Error:", message);
+    return errorResponse(message || "Internal error", 500);
   }
 });

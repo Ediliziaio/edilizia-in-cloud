@@ -26,15 +26,13 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { getToolsForChannel, toolsToOpenAISpec, type ToolContext } from "../_shared/silvioTools.ts";
 import { executeToolWithRouting } from "../_shared/silvioToolExecution.ts";
-import { buildSystemPrompt } from "../_shared/preambolo.ts";
+import { buildEnrichedSystemPrompt } from "../_shared/promptBuilder.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { buildPreRagContext, type RagSource } from "../_shared/ragInjector.ts";
-import { validateCitations, getCitationMode, CITATION_FORMAT_RULES } from "../_shared/citationValidator.ts";
+import { validateCitations, getCitationMode } from "../_shared/citationValidator.ts";
 // MP-04: structured output per CoT + confidence
 import {
   AI_RESPONSE_SCHEMA,
-  shouldUseStructured,
-  STRUCTURED_OUTPUT_SYSTEM_RULES,
   parseStructuredResponse,
   type StructuredAiResponse,
 } from "../_shared/structuredOutput.ts";
@@ -341,21 +339,26 @@ serve(async (req: Request) => {
       console.warn("[silvio-chat] pre-RAG failed (graceful):", e instanceof Error ? e.message : e);
     }
 
-    // ── Antepone preambolo costituzionale (Track 1 Cervello Supremo) ───
-    // Cache 60s: zero latency aggiunta dopo prima chiamata.
-    // Graceful degradation: se preambolo non caricabile, usa solo persona prompt.
-    // MP-03: aggiungiamo le regole di citation enforcement SOLO se ci sono RAG sources
-    const citationRulesBlock = ragSources.length > 0 ? CITATION_FORMAT_RULES : "";
-    // MP-04: structured output (solo per tier balanced/premium)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const useStructured = shouldUseStructured((persona as any).recommended_tier_key);
-    const structuredRulesBlock = useStructured ? STRUCTURED_OUTPUT_SYSTEM_RULES : "";
-    const personaWithContext =
-      persona.system_prompt + userContextPrompt + memoryContextPrompt + ragContextBlock + citationRulesBlock + structuredRulesBlock;
-    const { prompt: enrichedSystemPrompt, preamboloVersion } = await buildSystemPrompt(
-      supabaseAdmin,
-      personaWithContext,
-    );
+    // ── MP-02: promptBuilder centralizzato ───────────────────────────────
+    // Unifica persona, preambolo, memoria, RAG, citation rules, structured
+    // output e prompt A/B senza duplicare logica nelle singole edge function.
+    const builtPrompt = await buildEnrichedSystemPrompt({
+      supabase: supabaseAdmin,
+      personaKey: PERSONA_KEY,
+      basePrompt: persona.system_prompt,
+      personaVersion: persona.system_prompt_version ?? null,
+      recommendedTierKey: persona.recommended_tier_key ?? null,
+      userContext: userContextPrompt,
+      memoryContext: memoryContextPrompt,
+      ragContextBlock,
+      ragSourcesCount: ragSources.length,
+      sessionId: channelId,
+      companyId,
+      userId,
+    });
+    const enrichedSystemPrompt = builtPrompt.systemPrompt;
+    const preamboloVersion = builtPrompt.preamboloVersion;
+    const useStructured = builtPrompt.useStructured;
     if (!preamboloVersion) {
       console.warn("[silvio-chat] preambolo costituzionale NON applicato (graceful degradation attiva)");
     }
