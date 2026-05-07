@@ -6,12 +6,57 @@ export type RowDensity = 'compact' | 'normal' | 'comfortable';
 export type TableBorders = 'none' | 'horizontal' | 'all';
 export type TextAlignment = 'left' | 'center' | 'right';
 
+/**
+ * Tipo di template nella libreria.
+ *  - offerta:    master template (estetica + link a copertina/condizioni/prodotti)
+ *  - copertina:  pagina cover personalizzata (immagine + titoli)
+ *  - condizioni: clausole contrattuali multi-pagina (rich text)
+ *  - legali:     privacy GDPR, recesso, foro competente
+ *  - prodotto:   scheda prodotto riusabile (immagine + specs + prezzo indicativo)
+ *  - sezione:    sezione libera ("Chi siamo", "Garanzie", testimonianze)
+ */
+export type QuoteTemplateKind =
+  | 'offerta'
+  | 'copertina'
+  | 'condizioni'
+  | 'legali'
+  | 'prodotto'
+  | 'sezione';
+
+export type BodyFormat = 'markdown' | 'html' | 'plain';
+
+export interface ProductSpec {
+  label: string;
+  value: string;
+}
+
 export interface QuoteTemplate {
   id: string;
   company_id: string;
+  /** Tipo di template (libreria componibile). Default 'offerta' per back-compat. */
+  kind: QuoteTemplateKind;
   name: string;
+  description: string | null;
+  thumbnail_url: string | null;
   is_default: boolean;
   is_active: boolean;
+  // ─── Composizione (solo kind='offerta') ────────────────────────────────
+  linked_cover_id: string | null;
+  linked_terms_id: string | null;
+  linked_legal_id: string | null;
+  linked_product_ids: string[];
+  linked_section_ids: string[];
+  // ─── Body ricco (kind=condizioni, legali, sezione) ─────────────────────
+  body_html: string | null;
+  body_format: BodyFormat;
+  // ─── Scheda prodotto (kind='prodotto') ─────────────────────────────────
+  product_image_url: string | null;
+  product_short_description: string | null;
+  product_long_description: string | null;
+  product_specs: ProductSpec[];
+  product_indicative_price: number | null;
+  product_unit: string | null;
+  product_category: string | null;
   layout: QuoteTemplateLayout;
   logo_url: string | null;
   logo_position: LogoPosition;
@@ -134,7 +179,88 @@ export const COLOR_PALETTES = [
   { name: 'Sabbia Classico', primary: '#78350F', secondary: '#B45309', accent: '#FFFBEB', headerText: '#FFFFFF' },
 ] as const;
 
+/**
+ * Metadati per ogni kind: label, descrizione, icona, colore tema.
+ * Usato dall'UI per le tab e i menu di creazione.
+ */
+export const KIND_META: Record<QuoteTemplateKind, {
+  label: string;
+  emoji: string;
+  description: string;
+  color: string; // tailwind class fragment
+  bgColor: string;
+  borderColor: string;
+}> = {
+  offerta: {
+    label: 'Offerta',
+    emoji: '📄',
+    description: 'Template master del preventivo. Compone copertina + prodotti + condizioni.',
+    color: 'text-orange-700',
+    bgColor: 'bg-orange-50',
+    borderColor: 'border-orange-200',
+  },
+  copertina: {
+    label: 'Copertina',
+    emoji: '🎨',
+    description: 'Prima pagina del PDF: immagine + titolo + sottotitolo.',
+    color: 'text-pink-700',
+    bgColor: 'bg-pink-50',
+    borderColor: 'border-pink-200',
+  },
+  condizioni: {
+    label: 'Condizioni contrattuali',
+    emoji: '📜',
+    description: 'Clausole contrattuali multi-pagina (garanzia, varianti, penali).',
+    color: 'text-blue-700',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-200',
+  },
+  legali: {
+    label: 'Termini legali',
+    emoji: '⚖️',
+    description: 'Privacy GDPR, recesso, foro competente.',
+    color: 'text-purple-700',
+    bgColor: 'bg-purple-50',
+    borderColor: 'border-purple-200',
+  },
+  prodotto: {
+    label: 'Scheda prodotto',
+    emoji: '🛒',
+    description: 'Prodotto riusabile (immagine + specs + prezzo indicativo).',
+    color: 'text-emerald-700',
+    bgColor: 'bg-emerald-50',
+    borderColor: 'border-emerald-200',
+  },
+  sezione: {
+    label: 'Sezione libera',
+    emoji: '✨',
+    description: 'Blocco riusabile ("Chi siamo", "Garanzie", testimonianze).',
+    color: 'text-amber-700',
+    bgColor: 'bg-amber-50',
+    borderColor: 'border-amber-200',
+  },
+};
+
+export const KIND_ORDER: QuoteTemplateKind[] = ['offerta', 'copertina', 'condizioni', 'legali', 'prodotto', 'sezione'];
+
 export const DEFAULT_TEMPLATE: Omit<QuoteTemplate, 'id' | 'company_id' | 'created_at' | 'updated_at'> = {
+  kind: 'offerta',
+  description: null,
+  thumbnail_url: null,
+  linked_cover_id: null,
+  linked_terms_id: null,
+  linked_legal_id: null,
+  linked_product_ids: [],
+  linked_section_ids: [],
+  body_html: null,
+  body_format: 'markdown',
+  product_image_url: null,
+  product_short_description: null,
+  product_long_description: null,
+  product_specs: [],
+  product_indicative_price: null,
+  product_unit: null,
+  product_category: null,
   name: 'Template Default',
   is_default: true,
   is_active: true,
@@ -217,3 +343,18 @@ export const HEADER_ALIGNMENT_LABELS: Record<TextAlignment, string> = {
   center: "Centro",
   right: "Destra",
 };
+
+/**
+ * Crea un template "vuoto" per un dato kind, partendo dal DEFAULT_TEMPLATE
+ * e impostando solo i campi rilevanti per quel kind.
+ */
+export function blankTemplateForKind(kind: QuoteTemplateKind): typeof DEFAULT_TEMPLATE {
+  const meta = KIND_META[kind];
+  return {
+    ...DEFAULT_TEMPLATE,
+    kind,
+    name: `Nuovo ${meta.label}`,
+    is_default: kind === 'offerta',
+    description: null,
+  };
+}

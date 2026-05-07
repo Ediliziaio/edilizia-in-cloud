@@ -5,10 +5,11 @@ import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
 import {
   COLOR_PALETTES, DEFAULT_TEMPLATE, FONT_SIZE_PRESETS, LINE_HEIGHT_PRESETS,
   ROW_DENSITY_LABELS, TABLE_BORDERS_LABELS, HEADER_ALIGNMENT_LABELS,
+  KIND_META, KIND_ORDER, blankTemplateForKind,
 } from "@/types/quoteTemplate";
 import type {
-  QuoteTemplate, QuoteTemplateLayout, LogoPosition, LogoSize, FontFamily,
-  RowDensity, TableBorders, TextAlignment,
+  QuoteTemplate, QuoteTemplateLayout, QuoteTemplateKind, LogoPosition, LogoSize, FontFamily,
+  RowDensity, TableBorders, TextAlignment, ProductSpec,
 } from "@/types/quoteTemplate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -96,6 +97,15 @@ const getLogoPublicUrl = (path: string) =>
 
 const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg"]);
 
+/** Compone le classi per le tab kind (active vs inactive). */
+function cnTab(active: boolean, color: string, borderColor: string, bgColor: string): string {
+  const base = "inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-t-lg transition-all -mb-px";
+  if (active) {
+    return `${base} ${bgColor} ${color} ${borderColor} border border-b-transparent`;
+  }
+  return `${base} text-slate-600 hover:bg-slate-50 border border-transparent`;
+}
+
 type TemplateFormPayload = Partial<Omit<QuoteTemplate, "created_at" | "updated_at">>;
 type TemplateColorKey = "primary_color" | "secondary_color" | "accent_color" | "text_color" | "header_text_color";
 type TemplateVisibilityKey =
@@ -107,6 +117,415 @@ type TemplateVisibilityKey =
   | "show_delivery_terms"
   | "show_notes"
   | "show_page_numbers";
+
+// ─── Sub-componente KindPreview (anteprima per blocchi non-offerta) ────────
+function KindPreview({ form, kind }: { form: Partial<QuoteTemplate>; kind: QuoteTemplateKind }) {
+  const meta = KIND_META[kind];
+  const A4 = "w-[420px] aspect-[1/1.414] bg-white shadow-xl border border-slate-300 overflow-hidden flex flex-col";
+
+  if (kind === 'copertina') {
+    return (
+      <div className={A4}>
+        {form.cover_image_url ? (
+          <div className="flex-1 bg-slate-100 overflow-hidden">
+            <img src={getLogoPublicUrl(form.cover_image_url)} alt="cover" className="w-full h-full object-cover" />
+          </div>
+        ) : (
+          <div className={`flex-1 ${meta.bgColor} flex items-center justify-center`}>
+            <ImageIcon className="h-16 w-16 text-pink-300" />
+          </div>
+        )}
+        <div className="p-8 bg-white space-y-2">
+          <h2 className="text-2xl font-bold text-slate-900">{form.cover_title || "Titolo offerta"}</h2>
+          <p className="text-sm text-slate-600">{form.cover_subtitle || "Sottotitolo / claim"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === 'prodotto') {
+    const specs: ProductSpec[] = (form.product_specs as ProductSpec[] | undefined) ?? [];
+    return (
+      <div className={A4 + " p-6"}>
+        <div className="flex gap-4 mb-4">
+          {form.product_image_url ? (
+            <img src={getLogoPublicUrl(form.product_image_url)} alt="" className="h-32 w-32 object-cover rounded-lg border" />
+          ) : (
+            <div className="h-32 w-32 rounded-lg border-2 border-dashed border-emerald-300 bg-emerald-50 flex items-center justify-center">
+              <ImageIcon className="h-8 w-8 text-emerald-300" />
+            </div>
+          )}
+          <div className="flex-1 space-y-1">
+            <p className="text-xs uppercase tracking-wide text-slate-400">{form.product_category || "Prodotto"}</p>
+            <h3 className="text-lg font-bold text-slate-900">{form.name || "Nome prodotto"}</h3>
+            <p className="text-sm text-slate-600">{form.product_short_description || "Descrizione breve…"}</p>
+            {form.product_indicative_price && (
+              <p className="text-base font-semibold text-emerald-700 pt-1">
+                €{Number(form.product_indicative_price).toFixed(2)}
+                {form.product_unit ? ` / ${form.product_unit}` : ""}
+              </p>
+            )}
+          </div>
+        </div>
+        {form.product_long_description && (
+          <p className="text-xs text-slate-700 leading-relaxed mb-3">{form.product_long_description}</p>
+        )}
+        {specs.length > 0 && (
+          <div className="border-t pt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Specifiche</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              {specs.map((s, i) => (
+                <div key={i} className="text-[11px] flex justify-between border-b border-slate-100 py-0.5">
+                  <span className="text-slate-500">{s.label}</span>
+                  <span className="text-slate-900 font-medium">{s.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // condizioni / legali / sezione → preview testo multi-pagina
+  const body = form.body_html ?? "";
+  return (
+    <div className={A4 + " p-8"}>
+      <div className="border-b border-slate-200 pb-2 mb-4">
+        <p className={`text-[10px] font-semibold uppercase tracking-wide ${meta.color}`}>{meta.label}</p>
+        <h3 className="text-base font-bold text-slate-900">{form.name || "Senza nome"}</h3>
+      </div>
+      <div className="text-[10px] leading-relaxed text-slate-700 whitespace-pre-wrap font-mono">
+        {body || `(Vuoto — scrivi il testo a sinistra. Supporta merge tag {{cliente.nome}}.)`}
+      </div>
+    </div>
+  );
+}
+
+// ─── Sub-componente BlockLinkSelector (1 link a blocco kind) ──────────────
+interface BlockLinkSelectorProps {
+  label: string;
+  value: string | null;
+  options: QuoteTemplate[];
+  onChange: (id: string | null) => void;
+  onCreate?: () => void;
+}
+
+function BlockLinkSelector({ label, value, options, onChange, onCreate }: BlockLinkSelectorProps) {
+  const selected = options.find((o) => o.id === value);
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-slate-700">{label}</p>
+          {selected ? (
+            <p className="text-[11px] text-emerald-600 truncate">✓ {selected.name}</p>
+          ) : (
+            <p className="text-[11px] text-slate-400">Nessuno selezionato</p>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <select
+            value={value ?? ''}
+            onChange={(e) => onChange(e.target.value || null)}
+            className="h-8 text-xs rounded-md border-slate-200 bg-white px-2 max-w-[150px]"
+          >
+            <option value="">— Nessuno —</option>
+            {options.map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
+          {onCreate && options.length === 0 && (
+            <Button type="button" variant="outline" size="sm" className="h-8 text-[10px] gap-1" onClick={onCreate}>
+              <Plus className="h-3 w-3" />Crea
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sub-componente MultiBlockSelector (N link, es. prodotti) ──────────────
+interface MultiBlockSelectorProps {
+  label: string;
+  values: string[];
+  options: QuoteTemplate[];
+  onChange: (ids: string[]) => void;
+}
+
+function MultiBlockSelector({ label, values, options, onChange }: MultiBlockSelectorProps) {
+  const toggle = (id: string) => {
+    if (values.includes(id)) onChange(values.filter((v) => v !== id));
+    else onChange([...values, id]);
+  };
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+      <p className="text-xs font-medium text-slate-700 mb-2">{label} <span className="text-slate-400 font-normal">({values.length} selezionati)</span></p>
+      {options.length === 0 ? (
+        <p className="text-[11px] text-slate-400">Nessun blocco disponibile. Crealo nella sua tab.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+          {options.map((o) => {
+            const sel = values.includes(o.id);
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => toggle(o.id)}
+                className={`px-2 py-1 text-[11px] rounded-full border transition-colors ${
+                  sel
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {sel ? '✓ ' : '+ '}
+                {o.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Sub-componente ProductTemplateEditor (kind=prodotto) ───────────────────
+interface ProductTemplateEditorProps {
+  form: Partial<QuoteTemplate>;
+  updateForm: (patch: Partial<QuoteTemplate>) => void;
+  productImageInputRef: React.RefObject<HTMLInputElement>;
+  productImageUploading: boolean;
+  onProductImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}
+
+function ProductTemplateEditor({ form, updateForm, productImageInputRef, productImageUploading, onProductImageUpload }: ProductTemplateEditorProps) {
+  const specs: ProductSpec[] = (form.product_specs as ProductSpec[] | undefined) ?? [];
+  const updateSpec = (idx: number, patch: Partial<ProductSpec>) => {
+    const next = specs.map((s, i) => (i === idx ? { ...s, ...patch } : s));
+    updateForm({ product_specs: next });
+  };
+  const addSpec = () => updateForm({ product_specs: [...specs, { label: "", value: "" }] });
+  const removeSpec = (idx: number) => updateForm({ product_specs: specs.filter((_, i) => i !== idx) });
+
+  return (
+    <Card className="border-emerald-200 bg-emerald-50/30">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <span>🛒</span>
+          Scheda prodotto
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">Riusabile in più offerte. Le specifiche saranno mostrate in tabella.</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <Label className="text-xs text-muted-foreground">Foto prodotto</Label>
+          <div className="mt-1 flex items-start gap-3">
+            <div className="h-24 w-24 shrink-0 rounded-lg border-2 border-dashed border-emerald-300 bg-white overflow-hidden flex items-center justify-center">
+              {form.product_image_url ? (
+                <img src={getLogoPublicUrl(form.product_image_url)} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <ImageIcon className="h-6 w-6 text-emerald-300" />
+              )}
+            </div>
+            <div className="flex-1 space-y-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => productImageInputRef.current?.click()} disabled={productImageUploading} className="w-full gap-2">
+                {productImageUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                {form.product_image_url ? "Sostituisci" : "Carica foto"}
+              </Button>
+              {form.product_image_url && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => updateForm({ product_image_url: null })} className="w-full text-red-600 hover:text-red-700">
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                </Button>
+              )}
+              <p className="text-[10px] text-muted-foreground">PNG/JPG · max 5 MB</p>
+            </div>
+          </div>
+          <input ref={productImageInputRef} type="file" accept="image/png,image/jpeg" onChange={onProductImageUpload} className="hidden" />
+        </div>
+
+        <div>
+          <Label>Descrizione breve</Label>
+          <Input value={form.product_short_description ?? ''} onChange={e => updateForm({ product_short_description: e.target.value })} placeholder="1 riga sintetica per la tabella" />
+        </div>
+
+        <div>
+          <Label>Descrizione estesa</Label>
+          <Textarea value={form.product_long_description ?? ''} onChange={e => updateForm({ product_long_description: e.target.value })} rows={4} placeholder="Dettagli, materiali, finitura, vantaggi…" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Prezzo indicativo (€)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={form.product_indicative_price ?? ''}
+              onChange={e => updateForm({ product_indicative_price: e.target.value === '' ? null : Number(e.target.value) })}
+              placeholder="0.00"
+            />
+            <p className="text-[10px] text-muted-foreground mt-0.5">Solo orientativo, NON usato come prezzo del preventivo</p>
+          </div>
+          <div className="self-end text-[11px] text-muted-foreground pb-2.5">
+            {form.product_indicative_price && form.product_unit
+              ? `→ €${Number(form.product_indicative_price).toFixed(2)} / ${form.product_unit}`
+              : null}
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <Label>Specifiche tecniche</Label>
+            <Button type="button" variant="outline" size="sm" onClick={addSpec} className="gap-1 h-7 text-[11px]">
+              <Plus className="h-3 w-3" />Aggiungi spec
+            </Button>
+          </div>
+          {specs.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic px-3 py-2 border border-dashed rounded">Nessuna specifica. Aggiungi (es. Spessore: 3 cm)</p>
+          ) : (
+            <div className="space-y-1.5">
+              {specs.map((spec, idx) => (
+                <div key={idx} className="flex gap-2 items-center">
+                  <Input value={spec.label} onChange={e => updateSpec(idx, { label: e.target.value })} placeholder="Etichetta (es. Spessore)" className="flex-1" />
+                  <Input value={spec.value} onChange={e => updateSpec(idx, { value: e.target.value })} placeholder="Valore (es. 3 cm)" className="flex-1" />
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeSpec(idx)} className="h-9 w-9 text-red-600 hover:text-red-700">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Sub-componente TemplateCard (cards per kind) ──────────────────────────
+interface TemplateCardProps {
+  tmpl: QuoteTemplate;
+  kindMeta: typeof KIND_META[QuoteTemplateKind];
+  logoSrcFor: (t: Partial<QuoteTemplate>) => string | undefined;
+  effectiveCompanyName?: string;
+  templates: QuoteTemplate[];
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}
+
+function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templates, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
+  const kind = (tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta';
+
+  // Anteprima specifica per kind
+  const renderPreview = () => {
+    if (kind === 'offerta') {
+      return <QuoteTemplatePreview template={tmpl} companyName={effectiveCompanyName} logoSrc={logoSrcFor(tmpl)} scale={0.2} />;
+    }
+    if (kind === 'copertina' && tmpl.cover_image_url) {
+      return (
+        <div className="aspect-[4/5] w-full max-w-[160px] rounded border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center">
+          <img src={getLogoPublicUrl(tmpl.cover_image_url)} alt="cover" className="w-full h-full object-cover" />
+        </div>
+      );
+    }
+    if (kind === 'prodotto' && tmpl.product_image_url) {
+      return (
+        <div className="aspect-square w-full max-w-[160px] rounded border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center">
+          <img src={getLogoPublicUrl(tmpl.product_image_url)} alt={tmpl.name} className="w-full h-full object-cover" />
+        </div>
+      );
+    }
+    // condizioni / legali / sezione → preview testo
+    return (
+      <div className={`aspect-[3/4] w-full max-w-[160px] rounded border ${kindMeta.borderColor} ${kindMeta.bgColor} p-3 overflow-hidden`}>
+        <div className="text-[8px] leading-tight text-slate-700 line-clamp-[12]">
+          {tmpl.body_html ?? tmpl.contractual_terms_text ?? tmpl.legal_terms_text ?? "(vuoto)"}
+        </div>
+      </div>
+    );
+  };
+
+  // Preview info per kind
+  const renderMeta = () => {
+    if (kind === 'offerta') {
+      const parts: string[] = [tmpl.layout];
+      if (tmpl.linked_cover_id) parts.push("+ copertina");
+      if (tmpl.linked_terms_id) parts.push("+ condizioni");
+      if (tmpl.linked_legal_id) parts.push("+ legali");
+      const productCount = (tmpl.linked_product_ids ?? []).length;
+      if (productCount > 0) parts.push(`+ ${productCount} prodotti`);
+      return parts.join(" · ");
+    }
+    if (kind === 'prodotto') {
+      const price = tmpl.product_indicative_price;
+      const cat = tmpl.product_category;
+      const parts: string[] = [];
+      if (cat) parts.push(cat);
+      if (price !== null && price !== undefined) parts.push(`€${Number(price).toFixed(2)}${tmpl.product_unit ? `/${tmpl.product_unit}` : ""}`);
+      return parts.join(" · ") || "Scheda prodotto";
+    }
+    if (kind === 'copertina') return "Pagina cover";
+    if (kind === 'condizioni') return `Clausole · ${tmpl.body_format ?? 'markdown'}`;
+    if (kind === 'legali') return "Privacy + recesso";
+    if (kind === 'sezione') return "Sezione libera";
+    return kindMeta.label;
+  };
+
+  // Conteggio reverse: per blocchi (non-offerta), quante offerte le linkano?
+  const usedByCount = useMemo(() => {
+    if (kind === 'offerta') return 0;
+    return templates.filter((t) =>
+      ((t.kind as QuoteTemplateKind | undefined) ?? 'offerta') === 'offerta' && (
+        t.linked_cover_id === tmpl.id ||
+        t.linked_terms_id === tmpl.id ||
+        t.linked_legal_id === tmpl.id ||
+        (t.linked_product_ids ?? []).includes(tmpl.id) ||
+        (t.linked_section_ids ?? []).includes(tmpl.id)
+      ),
+    ).length;
+  }, [templates, tmpl.id, kind]);
+
+  return (
+    <Card className={`relative overflow-hidden border ${kindMeta.borderColor} hover:shadow-md transition-shadow`}>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className={`h-8 w-8 rounded ${kindMeta.bgColor} flex items-center justify-center text-base shrink-0`}>
+              {kindMeta.emoji}
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold truncate">{tmpl.name}</p>
+              <p className="text-xs text-muted-foreground truncate">{renderMeta()}</p>
+            </div>
+          </div>
+          {tmpl.is_default && kind === 'offerta' && (
+            <Badge variant="secondary" className="shrink-0"><Star className="h-3 w-3 mr-1" />Default</Badge>
+          )}
+          {usedByCount > 0 && (
+            <Badge variant="outline" className="shrink-0 text-[10px]">{usedByCount} offerte</Badge>
+          )}
+        </div>
+        <div className="flex justify-center">{renderPreview()}</div>
+        {tmpl.description && (
+          <p className="text-xs text-muted-foreground line-clamp-2">{tmpl.description}</p>
+        )}
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1" onClick={onEdit}>
+            <Pencil className="h-3 w-3 mr-1" />Modifica
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onDuplicate} title="Duplica">
+            <Copy className="h-3 w-3" />
+          </Button>
+          {!(tmpl.is_default && kind === 'offerta') && (
+            <Button variant="ghost" size="sm" onClick={onDelete} aria-label="Elimina template" className="text-red-600 hover:text-red-700 hover:bg-red-50">
+              <Trash2 className="h-3 w-3" aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function SettingsQuoteTemplates() {
   const { role, effectiveCompany } = useAuth();
@@ -120,6 +539,34 @@ export default function SettingsQuoteTemplates() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [previewPage, setPreviewPage] = useState<'cover' | 'detail'>('cover');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  // Tab attiva nella libreria template (offerta | copertina | condizioni | ...)
+  const [activeKind, setActiveKind] = useState<QuoteTemplateKind>('offerta');
+  // Kind correntemente in editing (deriva da form.kind, default offerta)
+  const formKind: QuoteTemplateKind = (form.kind as QuoteTemplateKind | undefined) ?? 'offerta';
+
+  // Conteggio template per ogni kind (per badge nelle tab)
+  const countsByKind = useMemo(() => {
+    const c: Record<QuoteTemplateKind, number> = {
+      offerta: 0, copertina: 0, condizioni: 0, legali: 0, prodotto: 0, sezione: 0,
+    };
+    for (const t of templates) {
+      const k = (t.kind as QuoteTemplateKind | undefined) ?? 'offerta';
+      c[k] = (c[k] ?? 0) + 1;
+    }
+    return c;
+  }, [templates]);
+
+  // Template filtrati per kind attivo nella libreria
+  const filteredTemplates = useMemo(
+    () => templates.filter((t) => ((t.kind as QuoteTemplateKind | undefined) ?? 'offerta') === activeKind),
+    [templates, activeKind],
+  );
+
+  // Helper: lista template di un kind specifico (per i selettori del master Offerta)
+  const templatesByKind = useCallback(
+    (k: QuoteTemplateKind) => templates.filter((t) => ((t.kind as QuoteTemplateKind | undefined) ?? 'offerta') === k),
+    [templates],
+  );
 
   const updateForm = useCallback((patch: Partial<QuoteTemplate>) => {
     setForm(prev => ({ ...prev, ...patch }));
@@ -161,9 +608,9 @@ export default function SettingsQuoteTemplates() {
     });
   };
 
-  const handleNew = () => {
+  const handleNew = (kind: QuoteTemplateKind = activeKind) => {
     setEditId(null);
-    setForm({ ...DEFAULT_TEMPLATE, name: 'Nuovo Template', is_default: false });
+    setForm(blankTemplateForKind(kind));
     setEditing(true);
   };
 
@@ -279,6 +726,35 @@ export default function SettingsQuoteTemplates() {
   const legalRef = useRef<HTMLTextAreaElement>(null);
   const footerRef = useRef<HTMLTextAreaElement>(null);
   const coverFileInputRef = useRef<HTMLInputElement>(null);
+  const bodyHtmlRef = useRef<HTMLTextAreaElement>(null);
+  const productImageInputRef = useRef<HTMLInputElement>(null);
+
+  // Upload immagine prodotto (riusa bucket quote-template-assets)
+  const [productImageUploading, setProductImageUploading] = useState(false);
+  const handleProductImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !effectiveCompany?.id) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error("Max 5MB"); return; }
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      toast.error("Carica un'immagine PNG o JPG");
+      e.target.value = "";
+      return;
+    }
+    setProductImageUploading(true);
+    try {
+      const ext = file.type === "image/png" ? "png" : "jpg";
+      const path = `${effectiveCompany.id}/template-product-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("quote-template-assets").upload(path, file, { upsert: true });
+      if (error) throw error;
+      updateForm({ product_image_url: path });
+      toast.success("Immagine prodotto caricata");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Errore caricamento immagine");
+    } finally {
+      setProductImageUploading(false);
+      e.target.value = "";
+    }
+  };
 
   const applyPalette = (p: typeof COLOR_PALETTES[number]) => {
     updateForm({
@@ -295,14 +771,14 @@ export default function SettingsQuoteTemplates() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <FileText className="h-5 w-5 text-primary" />
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+            <FileText className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Template Offerte</h1>
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Libreria Template Preventivi</h1>
             <p className="text-sm text-muted-foreground">
-              Personalizza il layout, colori, logo e tipografia dei PDF di preventivi e offerte.
-              Ogni modifica viene mostrata in anteprima live qui sotto.
+              Crea e gestisci blocchi riusabili: copertine, condizioni, schede prodotto, sezioni libere.
+              I template "Offerta" li compongono in un PDF unico.
             </p>
           </div>
         </div>
@@ -310,80 +786,89 @@ export default function SettingsQuoteTemplates() {
           {!editing && templates.length > 0 && (
             <Badge variant="outline" className="gap-1 text-[11px] h-6">
               <Eye className="h-3 w-3" />
-              {templates.length} template · {templates.filter((t) => t.is_default).length > 0 ? "default attivo" : "nessun default"}
+              {templates.length} totali
             </Badge>
           )}
-          {editing && (
+          {editing && formKind === 'offerta' && (
             <Badge variant={designScore >= 80 ? "secondary" : "outline"} className="gap-1 text-[11px] h-6">
               <CheckCircle2 className="h-3 w-3" />
               Qualità layout {designScore}%
             </Badge>
           )}
           {isAdmin && !editing && (
-            <Button onClick={handleNew} size="sm"><Plus className="h-4 w-4 mr-1.5" />Nuovo Template</Button>
+            <Button onClick={() => handleNew(activeKind)} size="sm" className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500">
+              <Plus className="h-4 w-4 mr-1.5" />
+              Nuovo {KIND_META[activeKind].label.toLowerCase()}
+            </Button>
           )}
         </div>
       </div>
 
+      {/* Tabs per kind (solo in modalità lista) */}
+      {!editing && (
+        <div className="flex flex-wrap gap-1.5 border-b border-slate-200 pb-0">
+          {KIND_ORDER.map((k) => {
+            const meta = KIND_META[k];
+            const count = countsByKind[k] ?? 0;
+            const isActive = activeKind === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setActiveKind(k)}
+                className={cnTab(isActive, meta.color, meta.borderColor, meta.bgColor)}
+              >
+                <span className="text-base">{meta.emoji}</span>
+                <span>{meta.label}</span>
+                <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full ${
+                  isActive ? "bg-white/80 text-slate-700" : "bg-slate-200 text-slate-600"
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {!editing ? (
-        /* Template list */
+        /* Template list filtrata per kind attivo */
         fetchError ? (
           <Card className="p-8 text-center">
             <p className="text-destructive font-medium">Errore nel caricamento dei template</p>
             <p className="text-sm text-muted-foreground mt-1">{(fetchError as Error).message}</p>
           </Card>
-        ) : !isLoading && templates.length === 0 ? (
-          <Card className="p-8 text-center space-y-3">
-            <ImageIcon className="h-10 w-10 mx-auto text-muted-foreground/40" />
-            <p className="text-muted-foreground">Nessun template trovato</p>
+        ) : !isLoading && filteredTemplates.length === 0 ? (
+          <Card className={`p-8 text-center space-y-3 ${KIND_META[activeKind].borderColor} ${KIND_META[activeKind].bgColor}/30`}>
+            <div className="text-4xl">{KIND_META[activeKind].emoji}</div>
+            <div>
+              <p className={`font-semibold ${KIND_META[activeKind].color}`}>
+                Nessun {KIND_META[activeKind].label.toLowerCase()} ancora
+              </p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+                {KIND_META[activeKind].description}
+              </p>
+            </div>
             {isAdmin && (
-              <Button onClick={handleNew}><Plus className="h-4 w-4 mr-2" />Crea il primo template</Button>
+              <Button onClick={() => handleNew(activeKind)} className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500">
+                <Plus className="h-4 w-4 mr-2" />Crea il primo
+              </Button>
             )}
           </Card>
         ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {templates.map(tmpl => (
-            <Card key={tmpl.id} className="relative overflow-hidden">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    {tmpl.logo_url ? (
-                      <img src={getLogoPublicUrl(tmpl.logo_url)} alt="" className="h-8 w-8 rounded object-contain border border-border bg-muted/50 p-0.5" />
-                    ) : (
-                      <div className="h-8 w-8 rounded border border-dashed border-muted-foreground/25 flex items-center justify-center bg-muted/30">
-                        <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-semibold">{tmpl.name}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{tmpl.layout}</p>
-                    </div>
-                  </div>
-                  {tmpl.is_default && <Badge variant="secondary"><Star className="h-3 w-3 mr-1" />Default</Badge>}
-                </div>
-                <div className="flex justify-center">
-                  <QuoteTemplatePreview template={tmpl} companyName={effectiveCompany?.name} logoSrc={logoSrcFor(tmpl)} scale={0.2} />
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(tmpl)}>
-                    <Pencil className="h-3 w-3 mr-1" />Modifica
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => handleDuplicate(tmpl)} title="Duplica">
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                  {!tmpl.is_default && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeleteConfirmId(tmpl.id)}
-                      aria-label="Elimina template"
-                    >
-                      <Trash2 className="h-3 w-3" aria-hidden="true" />
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+          {filteredTemplates.map(tmpl => (
+            <TemplateCard
+              key={tmpl.id}
+              tmpl={tmpl}
+              kindMeta={KIND_META[((tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta')]}
+              logoSrcFor={logoSrcFor}
+              effectiveCompanyName={effectiveCompany?.name}
+              templates={templates}
+              onEdit={() => handleEdit(tmpl)}
+              onDuplicate={() => handleDuplicate(tmpl)}
+              onDelete={() => setDeleteConfirmId(tmpl.id)}
+            />
           ))}
         </div>
         )
@@ -392,6 +877,7 @@ export default function SettingsQuoteTemplates() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Left: form */}
           <div className="lg:col-span-3 space-y-6 overflow-auto max-h-[calc(100vh-200px)] pr-2">
+            {formKind === 'offerta' && (
             <Card className="border-primary/15 bg-gradient-to-br from-primary/5 via-background to-orange-50/50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -432,22 +918,223 @@ export default function SettingsQuoteTemplates() {
                 </div>
               </CardContent>
             </Card>
+            )}
 
-            {/* A: Info base */}
-            <Card>
-              <CardHeader><CardTitle className="text-base">Informazioni Base</CardTitle></CardHeader>
+            {/* A: Info base — comune a tutti i kind */}
+            <Card className={`border ${KIND_META[formKind].borderColor}`}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <span className="text-base">{KIND_META[formKind].emoji}</span>
+                  Informazioni Base — {KIND_META[formKind].label}
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">{KIND_META[formKind].description}</p>
+              </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label>Nome template *</Label>
-                  <Input value={form.name || ''} onChange={e => updateForm({ name: e.target.value })} placeholder="Es. Classico Aziendale" />
+                  <Label>Nome *</Label>
+                  <Input value={form.name || ''} onChange={e => updateForm({ name: e.target.value })} placeholder={`Es. ${KIND_META[formKind].label} aziendale`} />
                 </div>
-                <div className="flex items-center gap-3">
-                  <Switch checked={form.is_default ?? false} onCheckedChange={v => updateForm({ is_default: v })} />
-                  <Label>Imposta come default</Label>
+                <div>
+                  <Label>Descrizione (interna)</Label>
+                  <Input value={form.description ?? ''} onChange={e => updateForm({ description: e.target.value })} placeholder="A cosa serve questo template (es. ritrutturazioni, serramenti…)" />
                 </div>
+                {formKind === 'offerta' && (
+                  <div className="flex items-center gap-3">
+                    <Switch checked={form.is_default ?? false} onCheckedChange={v => updateForm({ is_default: v })} />
+                    <Label>Imposta come template di default per nuovi preventivi</Label>
+                  </div>
+                )}
+                {formKind === 'prodotto' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Categoria</Label>
+                      <Input value={form.product_category ?? ''} onChange={e => updateForm({ product_category: e.target.value })} placeholder="Es. Serramenti, Pavimenti…" />
+                    </div>
+                    <div>
+                      <Label>Unità di misura</Label>
+                      <Input value={form.product_unit ?? ''} onChange={e => updateForm({ product_unit: e.target.value })} placeholder="mq, pz, ml, h…" />
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
+            {/* COMPOSITORE OFFERTA: solo per kind=offerta — selettori dei blocchi linkati */}
+            {formKind === 'offerta' && (
+              <Card className="border-orange-200 bg-gradient-to-br from-orange-50/40 to-amber-50/30">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-orange-600" />
+                    Componi l'offerta
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Scegli quali blocchi della libreria includere nel PDF. Vai nelle altre tab per crearli.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <BlockLinkSelector
+                    label="🎨 Copertina"
+                    value={form.linked_cover_id ?? null}
+                    options={templatesByKind('copertina')}
+                    onChange={(id) => updateForm({ linked_cover_id: id })}
+                    onCreate={() => { handleCancel(); setActiveKind('copertina'); setTimeout(() => handleNew('copertina'), 50); }}
+                  />
+                  <BlockLinkSelector
+                    label="📜 Condizioni contrattuali"
+                    value={form.linked_terms_id ?? null}
+                    options={templatesByKind('condizioni')}
+                    onChange={(id) => updateForm({ linked_terms_id: id })}
+                    onCreate={() => { handleCancel(); setActiveKind('condizioni'); setTimeout(() => handleNew('condizioni'), 50); }}
+                  />
+                  <BlockLinkSelector
+                    label="⚖️ Termini legali"
+                    value={form.linked_legal_id ?? null}
+                    options={templatesByKind('legali')}
+                    onChange={(id) => updateForm({ linked_legal_id: id })}
+                    onCreate={() => { handleCancel(); setActiveKind('legali'); setTimeout(() => handleNew('legali'), 50); }}
+                  />
+                  <MultiBlockSelector
+                    label="🛒 Schede prodotto da includere"
+                    values={form.linked_product_ids ?? []}
+                    options={templatesByKind('prodotto')}
+                    onChange={(ids) => updateForm({ linked_product_ids: ids })}
+                  />
+                  <MultiBlockSelector
+                    label="✨ Sezioni libere"
+                    values={form.linked_section_ids ?? []}
+                    options={templatesByKind('sezione')}
+                    onChange={(ids) => updateForm({ linked_section_ids: ids })}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* COPERTINA: campi specifici quando kind=copertina */}
+            {formKind === 'copertina' && (
+              <Card className="border-pink-200 bg-pink-50/30">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4 text-pink-600" />
+                    Contenuto copertina
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">Apparirà come prima pagina del PDF dell'offerta. Supporta merge tag.</p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Immagine copertina</Label>
+                    <div className="mt-1 flex items-start gap-3">
+                      <div className="h-24 w-24 shrink-0 rounded-lg border-2 border-dashed border-pink-300 bg-white overflow-hidden flex items-center justify-center">
+                        {form.cover_image_url ? (
+                          <img src={getLogoPublicUrl(form.cover_image_url)} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <ImageIcon className="h-6 w-6 text-pink-300" />
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => coverFileInputRef.current?.click()} disabled={coverUploading} className="w-full gap-2">
+                          {coverUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                          {form.cover_image_url ? "Sostituisci immagine" : "Carica immagine"}
+                        </Button>
+                        {form.cover_image_url && (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => updateForm({ cover_image_url: null })} className="w-full text-red-600 hover:text-red-700">
+                            <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                          </Button>
+                        )}
+                        <p className="text-[10px] text-muted-foreground">PNG/JPG · max 5 MB · ottimale 1200×800</p>
+                      </div>
+                    </div>
+                    <input ref={coverFileInputRef} type="file" accept="image/png,image/jpeg" onChange={handleCoverUpload} className="hidden" />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label className="text-xs text-muted-foreground">Titolo copertina</Label>
+                      <MergeTagInserter targetRef={coverTitleRef} currentValue={form.cover_title ?? ""} onInsert={(v) => updateForm({ cover_title: v })} />
+                    </div>
+                    <Input ref={coverTitleRef} value={form.cover_title ?? ''} onChange={e => updateForm({ cover_title: e.target.value })} placeholder="Es. Offerta personalizzata per {{cliente.nome_completo}}" />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label className="text-xs text-muted-foreground">Sottotitolo / claim</Label>
+                      <MergeTagInserter targetRef={coverSubtitleRef} currentValue={form.cover_subtitle ?? ""} onInsert={(v) => updateForm({ cover_subtitle: v })} />
+                    </div>
+                    <Input ref={coverSubtitleRef} value={form.cover_subtitle ?? ''} onChange={e => updateForm({ cover_subtitle: e.target.value })} placeholder="Es. Cantiere {{cantiere.indirizzo}} — {{data.oggi}}" />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* CONDIZIONI / LEGALI / SEZIONE: rich text body multi-pagina */}
+            {(formKind === 'condizioni' || formKind === 'legali' || formKind === 'sezione') && (
+              <Card className={`border ${KIND_META[formKind].borderColor}`}>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <span>{KIND_META[formKind].emoji}</span>
+                    Contenuto {KIND_META[formKind].label.toLowerCase()}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Testo multi-pagina (markdown). Supporta merge tag come <code className="text-[10px] bg-white border px-1 rounded">{`{{cliente.nome}}`}</code>.
+                    Il PDF inserirà page break automatici.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Formato</Label>
+                    <div className="flex gap-1.5">
+                      {(['markdown', 'html', 'plain'] as const).map((fmt) => (
+                        <button
+                          key={fmt}
+                          type="button"
+                          onClick={() => updateForm({ body_format: fmt })}
+                          className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
+                            form.body_format === fmt
+                              ? 'bg-slate-900 text-white border-slate-900'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          {fmt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label className="text-xs text-muted-foreground">Testo</Label>
+                      <MergeTagInserter targetRef={bodyHtmlRef} currentValue={form.body_html ?? ""} onInsert={(v) => updateForm({ body_html: v })} />
+                    </div>
+                    <Textarea
+                      ref={bodyHtmlRef}
+                      value={form.body_html ?? ''}
+                      onChange={e => updateForm({ body_html: e.target.value })}
+                      rows={20}
+                      className="font-mono text-[12px] leading-relaxed"
+                      placeholder={
+                        formKind === 'condizioni'
+                          ? `# Condizioni contrattuali\n\n## 1. Oggetto\nL'azienda {{azienda.ragione_sociale}} si impegna ad eseguire i lavori per il cliente {{cliente.nome_completo}} presso {{cantiere.indirizzo}}.\n\n## 2. Garanzia\n24 mesi dalla consegna.\n\n## 3. Varianti\nEventuali varianti devono essere concordate per iscritto…`
+                          : formKind === 'legali'
+                            ? `# Termini legali\n\n## Privacy (GDPR Reg. UE 2016/679)\nI dati personali di {{cliente.nome_completo}} saranno trattati nel rispetto del GDPR…\n\n## Diritto di recesso\nIl cliente può recedere entro 14 giorni come da art. 52 D.lgs 206/2005.\n\n## Foro competente\nPer ogni controversia è competente il Foro di [città].`
+                            : `# {{titolo sezione}}\n\nContenuto libero della sezione…`
+                      }
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* PRODOTTO: scheda prodotto */}
+            {formKind === 'prodotto' && (
+              <ProductTemplateEditor
+                form={form}
+                updateForm={updateForm}
+                productImageInputRef={productImageInputRef}
+                productImageUploading={productImageUploading}
+                onProductImageUpload={handleProductImageUpload}
+              />
+            )}
+
+            {/* Le sezioni Layout/Logo/Palette/Tipografia/Tabella/Margini/Elementi/Testi
+                e Termini contrattuali/legali sono SOLO per kind=offerta (estetica
+                generale dell'offerta master). I blocchi standalone hanno editor focalizzati. */}
+            {formKind === 'offerta' && <>
             {/* B: Layout */}
             <Card>
               <CardHeader><CardTitle className="text-base">Layout</CardTitle></CardHeader>
@@ -1078,6 +1765,7 @@ export default function SettingsQuoteTemplates() {
                 )}
               </CardContent>
             </Card>
+            </>}
 
             {/* H: Actions */}
             <div className="flex gap-3 pb-8">
@@ -1092,40 +1780,48 @@ export default function SettingsQuoteTemplates() {
             </div>
           </div>
 
-          {/* Right: preview */}
+          {/* Right: preview kind-aware */}
           <div className="lg:col-span-2 lg:sticky lg:top-4 self-start">
             <Card className="overflow-hidden border-slate-200 shadow-sm">
               <CardHeader className="pb-3 bg-slate-950 text-white">
                 <CardTitle className="text-base flex items-center justify-between gap-3">
-                  <span>Anteprima PDF</span>
+                  <span>Anteprima {KIND_META[formKind].label}</span>
                   <Badge variant="secondary" className="bg-white/10 text-white border-white/20">
-                    {previewPage === "cover" ? "Pagina 1" : "Pagina 2"}
+                    {KIND_META[formKind].emoji}
                   </Badge>
                 </CardTitle>
                 <p className="text-xs text-white/65">
-                  Anteprima fedele a logo, margini, tabella, footer e condizioni.
+                  {formKind === 'offerta'
+                    ? "Anteprima fedele a logo, margini, tabella, footer e condizioni."
+                    : `Blocco riusabile linkabile dalle offerte. Apparirà nel PDF finale come ${KIND_META[formKind].label.toLowerCase()}.`}
                 </p>
               </CardHeader>
               <CardContent className="flex flex-col items-center gap-3 bg-slate-100 p-4">
                 <div className="w-full overflow-auto rounded-lg bg-slate-200/80 p-4 shadow-inner">
                   <div className="flex min-w-max justify-center">
-                    <QuoteTemplatePreview
-                      template={form}
-                      companyName={effectiveCompany?.name}
-                      logoSrc={logoSrcFor(form)}
-                      page={previewPage}
-                      scale={0.45}
-                    />
+                    {formKind === 'offerta' ? (
+                      <QuoteTemplatePreview
+                        template={form}
+                        companyName={effectiveCompany?.name}
+                        logoSrc={logoSrcFor(form)}
+                        page={previewPage}
+                        scale={0.45}
+                      />
+                    ) : (
+                      <KindPreview form={form} kind={formKind} />
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant={previewPage === 'cover' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewPage('cover')}>
-                    Pagina 1
-                  </Button>
-                  <Button variant={previewPage === 'detail' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewPage('detail')}>
-                    Pagina 2
-                  </Button>
-                </div>
+                {formKind === 'offerta' && (
+                  <div className="flex gap-2">
+                    <Button variant={previewPage === 'cover' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewPage('cover')}>
+                      Pagina 1
+                    </Button>
+                    <Button variant={previewPage === 'detail' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewPage('detail')}>
+                      Pagina 2
+                    </Button>
+                  </div>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
