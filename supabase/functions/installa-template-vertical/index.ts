@@ -135,11 +135,15 @@ async function installTemplates(
     .eq("attivo", true);
   if (catErr) throw new Error(`Errore caricamento categorie template: ${catErr.message}`);
 
-  // Categorie già esistenti in listino_categorie per questa company
+  // Categorie già esistenti in listino_categorie per questa company.
+  // I template verticali storici non hanno macrocategoria: la deduplica deve
+  // restare nello stesso livello, senza agganciare categorie omonime dentro
+  // macrocategorie diverse.
   const { data: existingCats } = await supabase
     .from("listino_categorie")
     .select("id, nome")
-    .eq("company_id", companyId);
+    .eq("company_id", companyId)
+    .is("macrocategoria_id", null);
 
   const existingCatByNome = new Map<string, string>(
     (existingCats ?? []).map((c) => [c.nome, c.id]),
@@ -182,19 +186,24 @@ async function installTemplates(
     .eq("attivo", true);
   if (famErr) throw new Error(`Errore caricamento famiglie template: ${famErr.message}`);
 
-  // Famiglie già esistenti per questa company (dedup per nome)
+  // Famiglie già esistenti per questa company. Da quando le categorie possono
+  // ripetere il nome sotto macrocategorie diverse, anche le famiglie vanno
+  // deduplicate per categoria padre + nome, non solo per nome globale.
   const { data: existingFams } = await supabase
     .from("article_families")
-    .select("id, nome")
-    .eq("company_id", companyId);
-  const existingFamByNome = new Set<string>((existingFams ?? []).map((f) => f.nome));
+    .select("id, nome, categoria_id")
+    .eq("company_id", companyId)
+    .eq("vertical", vertical);
+  const familyKey = (categoriaId: string | null, nome: string) => `${categoriaId ?? "__no_category__"}::${nome}`;
+  const existingFamByScope = new Set<string>(
+    (existingFams ?? []).map((f) => familyKey(f.categoria_id ?? null, f.nome)),
+  );
 
   for (const tf of famTemplates ?? []) {
-    if (existingFamByNome.has(tf.nome)) continue;
-
     const categoriaId = tf.categoria_template_id
       ? templateToCompanyCatId.get(tf.categoria_template_id) ?? null
       : null;
+    if (existingFamByScope.has(familyKey(categoriaId, tf.nome))) continue;
 
     const { data: newFam, error: famInsErr } = await supabase
       .from("article_families")

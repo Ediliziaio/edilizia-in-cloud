@@ -365,16 +365,10 @@ async function ensureCategoria(
     .from("listino_categorie")
     .select("id")
     .eq("company_id", companyId)
+    .eq("macrocategoria_id", macrocategoria_id)
     .eq("nome", nome)
     .maybeSingle();
-  if (existing?.id) {
-    // aggiorna macrocategoria_id se non allineata
-    await sb
-      .from("listino_categorie")
-      .update({ macrocategoria_id })
-      .eq("id", existing.id);
-    return existing.id as string;
-  }
+  if (existing?.id) return existing.id as string;
 
   const { data, error } = await sb
     .from("listino_categorie")
@@ -407,6 +401,8 @@ async function ensureFamily(
     .from("article_families")
     .select("id")
     .eq("company_id", companyId)
+    .eq("vertical", "serramentista")
+    .eq("categoria_id", payload.categoria_id)
     .eq("nome", payload.nome)
     .maybeSingle();
 
