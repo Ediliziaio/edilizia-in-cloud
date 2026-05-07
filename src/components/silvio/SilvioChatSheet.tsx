@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
+import { useAutoSizeTextarea } from "@/hooks/useAutoSizeTextarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
@@ -237,6 +238,8 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [draft, setDraft] = useState("");
+  // Textarea auto-grow stile WhatsApp: 1 → 5 righe, poi scroll interno
+  const draftTextareaRef = useAutoSizeTextarea(draft, { maxRows: 5 });
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
@@ -1062,6 +1065,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
               }
             />
             <textarea
+              ref={draftTextareaRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
@@ -1072,7 +1076,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
               }}
               placeholder={attachments.length > 0 ? "Descrivi cosa vuoi che analizzi…" : "Scrivi a Silvio…"}
               rows={1}
-              className="flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 max-h-32"
+              className="flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
               disabled={sending || loadingChannel}
             />
             <Button

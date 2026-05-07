@@ -7,6 +7,7 @@ import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkd
 import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
 import { SILVIO_SKILLS, SILVIO_SKILL_CATEGORY_LABELS } from "@/lib/silvio-skills";
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
+import { useAutoSizeTextarea } from "@/hooks/useAutoSizeTextarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -906,6 +907,8 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const [createOpen, setCreateOpen] = useState(false);
   const [createDmOpen, setCreateDmOpen] = useState(false);
   const [newMsg, setNewMsg] = useState("");
+  // Textarea auto-grow stile WhatsApp: cresce fino a 5 righe poi scrolla internamente
+  const newMsgTextareaRef = useAutoSizeTextarea(newMsg, { maxRows: 5 });
   const [silvioSkillsOpen, setSilvioSkillsOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [luciaTyping, setLuciaTyping] = useState(false);
@@ -2034,14 +2037,20 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 }}
               />
               <div className="flex-1">
-                <Input
+                {/* Textarea auto-grow stile WhatsApp (max 5 righe poi scroll interno).
+                    Sostituisce il vecchio <Input> single-line che troncava i testi
+                    incollati. Enter invia, Shift+Enter capo. */}
+                <textarea
+                  ref={newMsgTextareaRef}
                   placeholder={isSilvioChannel ? "Scrivi a Silvio..." : isLuciaChannel ? "Chiedi a Lucia..." : "Scrivi un messaggio"}
                   value={newMsg}
                   onChange={(e) => { setNewMsg(e.target.value); if (!isLuciaChannel) broadcastTyping(); }}
                   onKeyDown={handleKeyDown}
                   disabled={luciaTyping}
+                  rows={1}
                   className={cn(
-                    "h-10 rounded-lg border-0 text-[15px]",
+                    "block w-full resize-none rounded-lg border-0 text-[15px] px-3 py-2 leading-relaxed",
+                    "focus:outline-none focus-visible:ring-2",
                     isSilvioChannel
                       ? "bg-white dark:bg-[#2a3942] focus-visible:ring-orange-500"
                       : isLuciaChannel
