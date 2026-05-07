@@ -44,17 +44,23 @@ export function useQuoteTemplates() {
       if (!companyId) throw new Error('Azienda non disponibile');
       const { id, ...rest } = template;
       if (id) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('quote_templates')
           .update({ ...rest, updated_at: new Date().toISOString() })
           .eq('id', id)
-          .eq('company_id', companyId);
+          .eq('company_id', companyId)
+          .select('id')
+          .single();
         if (error) throw error;
+        return data; // { id }
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('quote_templates')
-          .insert({ ...rest, company_id: companyId });
+          .insert({ ...rest, company_id: companyId })
+          .select('id')
+          .single();
         if (error) throw error;
+        return data; // { id }
       }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.quoteTemplates.all }),

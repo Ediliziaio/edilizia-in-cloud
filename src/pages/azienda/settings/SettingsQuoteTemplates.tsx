@@ -24,9 +24,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy, FileText, Eye,
-  CheckCircle2, Palette, Wand2, FileImage, Scale, ScrollText, Tag,
+  CheckCircle2, Palette, Wand2, FileImage, Scale, ScrollText, Tag, ArrowLeft, Save,
+  Type, Layout as LayoutIcon, Sparkles,
 } from "lucide-react";
 import { MergeTagInserter } from "@/components/quotes/MergeTagInserter";
+import { CanvaColorPicker } from "@/components/quotes/CanvaColorPicker";
 
 const LAYOUTS: { key: QuoteTemplateLayout; label: string; desc: string }[] = [
   { key: 'classic', label: 'Classic', desc: 'Header bianco, bordo colorato. Professionale.' },
@@ -97,6 +99,63 @@ const getLogoPublicUrl = (path: string) =>
   supabase.storage.from("quote-template-assets").getPublicUrl(path).data.publicUrl;
 
 const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg"]);
+
+/** Hint contestuale per la sezione "Palette colori" in base al kind. */
+function kindColorHint(kind: QuoteTemplateKind): string {
+  switch (kind) {
+    case 'offerta':    return "Colori globali del PDF: header, evidenziazioni, sfondi.";
+    case 'copertina':  return "Colori della copertina: titolo, sottotitolo, accent overlay.";
+    case 'condizioni': return "Colori del blocco: heading sezioni, accent, testo corpo.";
+    case 'legali':     return "Colori sobri per termini legali: heading, accent, corpo.";
+    case 'prodotto':   return "Colori della scheda: nome prodotto, categoria, prezzo, accent.";
+    case 'sezione':    return "Colori del blocco libero: heading, accent, corpo.";
+  }
+}
+
+/** Etichette kind-aware per i 5 picker colore (Canva-style). */
+function kindColorLabels(kind: QuoteTemplateKind): Array<{
+  key: TemplateColorKey;
+  label: string;
+  hint?: string;
+}> {
+  switch (kind) {
+    case 'copertina':
+      return [
+        { key: 'primary_color',      label: 'Titolo',         hint: 'Colore del titolo principale' },
+        { key: 'secondary_color',    label: 'Sottotitolo',    hint: 'Colore del claim/sottotitolo' },
+        { key: 'accent_color',       label: 'Accent overlay', hint: 'Sfumatura/banda decorativa' },
+        { key: 'header_text_color',  label: 'Testo su immagine', hint: 'Colore testo sopra cover image' },
+        { key: 'text_color',         label: 'Testo corpo',    hint: 'Colore testo descrittivo' },
+      ];
+    case 'condizioni':
+    case 'legali':
+    case 'sezione':
+      return [
+        { key: 'primary_color',      label: 'Heading sezioni', hint: 'H1/H2/H3 colorati' },
+        { key: 'accent_color',       label: 'Accent / divider', hint: 'Linee, evidenziazioni' },
+        { key: 'text_color',         label: 'Testo corpo',     hint: 'Paragrafi standard' },
+        { key: 'secondary_color',    label: 'Citazioni/note',  hint: 'Testo secondario' },
+        { key: 'header_text_color',  label: 'Testo su accent', hint: 'Su sfondo colorato' },
+      ];
+    case 'prodotto':
+      return [
+        { key: 'primary_color',      label: 'Nome prodotto', hint: 'Colore del titolo' },
+        { key: 'accent_color',       label: 'Sfondo card',   hint: 'Sfondo leggero card' },
+        { key: 'secondary_color',    label: 'Categoria',     hint: 'Etichetta categoria' },
+        { key: 'text_color',         label: 'Descrizione',   hint: 'Testo corpo' },
+        { key: 'header_text_color',  label: 'Prezzo',        hint: 'Colore del prezzo' },
+      ];
+    case 'offerta':
+    default:
+      return [
+        { key: 'primary_color',      label: 'Primario',         hint: 'Header e accenti forti' },
+        { key: 'secondary_color',    label: 'Secondario',       hint: 'Bordi, righe tabella' },
+        { key: 'accent_color',       label: 'Sfondo leggero',   hint: 'Sfondo zebra, alert' },
+        { key: 'text_color',         label: 'Testo corpo',      hint: 'Paragrafi e voci' },
+        { key: 'header_text_color',  label: 'Testo header',     hint: 'Su sfondo primario' },
+      ];
+  }
+}
 
 /** Compone le classi per le tab kind (active vs inactive). */
 function cnTab(active: boolean, color: string, borderColor: string, bgColor: string): string {
@@ -643,6 +702,12 @@ export default function SettingsQuoteTemplates() {
     setEditId(null);
   };
 
+  /**
+   * Salva il template.
+   * - asDefault=true: imposta come default e chiude (azione "Salva e usa default")
+   * - asDefault=false (Salva bozza): salva senza chiudere, l'utente può continuare a modificare.
+   *   Dopo il primo insert, editId viene aggiornato così i salvataggi successivi sono UPDATE.
+   */
   const handleSave = async (asDefault = false) => {
     const templateName = form.name?.trim();
     if (!templateName) {
@@ -656,10 +721,21 @@ export default function SettingsQuoteTemplates() {
     if (!editId) delete payload.id;
 
     try {
-      await upsertTemplate.mutateAsync(payload);
-      toast.success(editId ? "Template aggiornato" : "Template creato");
-      setEditing(false);
-      setEditId(null);
+      const result = await upsertTemplate.mutateAsync(payload);
+      if (asDefault) {
+        toast.success(editId ? "Template salvato come default" : "Template creato e impostato come default");
+        setEditing(false);
+        setEditId(null);
+      } else {
+        // Salva bozza: resta in editor. Se era un nuovo template, ora abbiamo un id.
+        toast.success(editId ? "Bozza salvata" : "Bozza creata");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const newId = (result as any)?.id ?? (result as any)?.[0]?.id ?? null;
+        if (!editId && newId) {
+          setEditId(newId);
+          setForm((prev) => ({ ...prev, id: newId }));
+        }
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore salvataggio");
     }
@@ -890,6 +966,62 @@ export default function SettingsQuoteTemplates() {
         )
       ) : (
         /* Editor with preview */
+        <div className="space-y-3">
+          {/* Sticky toolbar: ← Indietro · breadcrumb · Salva bozza · Salva e usa */}
+          <div className="sticky top-0 z-30 -mx-2 px-2 py-2 bg-white/95 backdrop-blur-md border-b border-slate-200 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleCancel}
+                className="gap-1.5 shrink-0"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Indietro
+              </Button>
+              <span className="text-slate-300 text-sm shrink-0">/</span>
+              <span className={`text-sm font-medium ${KIND_META[formKind].color} flex items-center gap-1 shrink-0`}>
+                <span>{KIND_META[formKind].emoji}</span>
+                {KIND_META[formKind].label}
+              </span>
+              <span className="text-slate-300 text-sm shrink-0">·</span>
+              <span className="text-sm font-semibold text-slate-900 truncate">{form.name || "Senza nome"}</span>
+              {editId && (
+                <Badge variant="outline" className="text-[10px] h-5 shrink-0">Modifica</Badge>
+              )}
+              {!editId && (
+                <Badge variant="outline" className="text-[10px] h-5 shrink-0 bg-orange-50 text-orange-700 border-orange-200">Bozza</Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleSave(false)}
+                disabled={upsertTemplate.isPending}
+                title="Salva senza chiudere"
+              >
+                {upsertTemplate.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Salva bozza
+              </Button>
+              {formKind === 'offerta' && (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={() => handleSave(true)}
+                  disabled={upsertTemplate.isPending}
+                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 gap-1.5"
+                >
+                  <Star className="h-3.5 w-3.5" />
+                  Salva e usa default
+                </Button>
+              )}
+            </div>
+          </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Left: form */}
           <div className="lg:col-span-3 space-y-6 overflow-auto max-h-[calc(100vh-200px)] pr-2">
@@ -1150,7 +1282,9 @@ export default function SettingsQuoteTemplates() {
             {/* Le sezioni Layout/Logo/Palette/Tipografia/Tabella/Margini/Elementi/Testi
                 e Termini contrattuali/legali sono SOLO per kind=offerta (estetica
                 generale dell'offerta master). I blocchi standalone hanno editor focalizzati. */}
-            {formKind === 'offerta' && <>
+            {/* SOLO offerta: Layout master */}
+            {formKind === 'offerta' && (
+            <>
             {/* B: Layout */}
             <Card>
               <CardHeader><CardTitle className="text-base">Layout</CardTitle></CardHeader>
@@ -1174,6 +1308,12 @@ export default function SettingsQuoteTemplates() {
                 </div>
               </CardContent>
             </Card>
+            </>
+            )}
+
+            {/* PERSONALIZZAZIONE UNIVERSALE — Logo + Palette + Tipografia
+                disponibili per ogni kind (Canva-style). Per kind=prodotto/sezione
+                il "logo" viene usato come watermark/header se attivato. */}
 
             {/* C: Logo */}
             <Card>
@@ -1237,49 +1377,63 @@ export default function SettingsQuoteTemplates() {
               </CardContent>
             </Card>
 
-            {/* D: Palette */}
+            {/* D: Palette colori — Canva style con preset + custom HEX + recenti */}
             <Card>
-              <CardHeader><CardTitle className="text-base">Palette Colori</CardTitle></CardHeader>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Palette className="h-4 w-4 text-orange-500" />
+                  Palette colori
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  {kindColorHint(formKind)}
+                </p>
+              </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {COLOR_PALETTES.map(p => (
-                    <button
-                      key={p.name}
-                      onClick={() => applyPalette(p)}
-                      className={`border rounded-lg p-2 text-center text-xs transition-all hover:border-primary ${
-                        form.primary_color === p.primary && form.accent_color === p.accent
-                          ? 'border-primary ring-2 ring-primary/20' : 'border-border'
-                      }`}
-                    >
-                      <div className="flex gap-1 justify-center mb-1">
-                        <div className="h-5 w-5 rounded-full" style={{ backgroundColor: p.primary }} />
-                        <div className="h-5 w-5 rounded-full" style={{ backgroundColor: p.accent }} />
-                      </div>
-                      <span className="text-muted-foreground">{p.name}</span>
-                    </button>
-                  ))}
+                {/* Quick palette: applica tutti i 4 colori in un click */}
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Palette pronte</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+                    {COLOR_PALETTES.map(p => {
+                      const isActive = form.primary_color === p.primary && form.accent_color === p.accent;
+                      return (
+                        <button
+                          key={p.name}
+                          type="button"
+                          onClick={() => applyPalette(p)}
+                          className={`group relative rounded-lg p-2 transition-all hover:scale-[1.03] hover:shadow-md ${
+                            isActive ? 'ring-2 ring-orange-500 shadow-md' : 'border border-slate-200 hover:border-slate-300'
+                          }`}
+                          title={p.name}
+                        >
+                          <div className="flex gap-0.5 mb-1.5 justify-center">
+                            <div className="h-5 w-5 rounded-l" style={{ backgroundColor: p.primary }} />
+                            <div className="h-5 w-5" style={{ backgroundColor: p.secondary }} />
+                            <div className="h-5 w-5 rounded-r" style={{ backgroundColor: p.accent }} />
+                          </div>
+                          <p className="text-[10px] text-slate-600 truncate text-center">{p.name}</p>
+                          {isActive && (
+                            <CheckCircle2 className="absolute top-1 right-1 h-3 w-3 text-orange-500" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
-                  {[
-                    { key: 'primary_color' as const, label: 'Primario' },
-                    { key: 'secondary_color' as const, label: 'Secondario' },
-                    { key: 'accent_color' as const, label: 'Sfondo leggero' },
-                    { key: 'text_color' as const, label: 'Testo corpo' },
-                    { key: 'header_text_color' as const, label: 'Testo header' },
-                  ].map((c: { key: TemplateColorKey; label: string }) => (
-                    <div key={c.key}>
-                      <Label className="text-xs">{c.label}</Label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <input
-                          type="color"
-                          value={form[c.key] || '#000000'}
-                          onChange={e => updateForm({ [c.key]: e.target.value })}
-                          className="h-8 w-8 rounded border border-border cursor-pointer"
-                        />
-                        <span className="text-xs text-muted-foreground">{form[c.key]}</span>
-                      </div>
-                    </div>
-                  ))}
+
+                {/* Custom colors: 5 picker Canva-style con label kind-aware */}
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Personalizza ogni colore</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {kindColorLabels(formKind).map((c) => (
+                      <CanvaColorPicker
+                        key={c.key}
+                        label={c.label}
+                        hint={c.hint}
+                        value={(form[c.key] as string) || '#000000'}
+                        onChange={(hex) => updateForm({ [c.key]: hex })}
+                      />
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1400,6 +1554,9 @@ export default function SettingsQuoteTemplates() {
               </CardContent>
             </Card>
 
+            {/* SOLO offerta: Tabella voci + Margini + Elementi + Testi inline */}
+            {formKind === 'offerta' && (
+            <>
             {/* E-bis: Layout tabella */}
             <Card>
               <CardHeader>
@@ -1781,17 +1938,24 @@ export default function SettingsQuoteTemplates() {
                 )}
               </CardContent>
             </Card>
-            </>}
+            </>
+            )}
 
-            {/* H: Actions */}
-            <div className="flex gap-3 pb-8">
-              <Button variant="outline" onClick={handleCancel}>Annulla</Button>
-              <Button onClick={() => handleSave(false)} disabled={upsertTemplate.isPending}>
-                {upsertTemplate.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                Salva Template
-              </Button>
-              <Button variant="secondary" onClick={() => handleSave(true)} disabled={upsertTemplate.isPending}>
-                Salva e Imposta Default
+            {/* Footer actions: solo "Salva e chiudi" come backup, le azioni
+                principali sono nella sticky toolbar in alto. */}
+            <div className="flex gap-3 pb-8 pt-4 border-t border-slate-100">
+              <Button variant="outline" onClick={handleCancel}>Annulla e torna alla libreria</Button>
+              <Button
+                onClick={async () => {
+                  await handleSave(false);
+                  setEditing(false);
+                  setEditId(null);
+                }}
+                disabled={upsertTemplate.isPending}
+                className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500"
+              >
+                {upsertTemplate.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                Salva e torna alla libreria
               </Button>
             </div>
           </div>
@@ -1884,6 +2048,7 @@ export default function SettingsQuoteTemplates() {
               </CardContent>
             </Card>
           </div>
+        </div>
         </div>
       )}
 
