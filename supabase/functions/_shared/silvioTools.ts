@@ -3644,6 +3644,68 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_resolve_complaint", { p_company_id: ctx.companyId, p_complaint_id: args?.complaint_id, p_resolution_notes: args?.resolution_notes, p_action_taken: args?.action_taken ?? null, p_customer_satisfied: args?.customer_satisfied ?? null }),
     allowedPersonas: ["silvio", "assistente_cliente", "*"], riskLevel: "yellow", domain: "crm",
   },
+
+  // ── MP-06: Activity Brain ─────────────────────────────────────────────────
+  // Query strutturata sul log delle attività azienda (modifiche, decisioni, alert).
+  // Usata per domande tipo "cosa è cambiato sui preventivi questa settimana?"
+  // "chi ha modificato il listino?" "ultimi 10 contatti CRM aggiornati".
+  query_activity: {
+    schema: {
+      type: "function",
+      function: {
+        name: "query_activity",
+        description: "Ricerca filtrata sul log attività aziendale (company_activity_log): cosa è cambiato, quando, da chi, con quale impatto. Usa per domande tipo 'cosa è successo questa settimana sui preventivi', 'chi ha cambiato il listino', 'ultimi assunti', 'modifiche critiche oggi'.",
+        parameters: {
+          type: "object",
+          properties: {
+            query_text: { type: "string", description: "Testo libero da cercare in description/target_label/event_type (ILIKE)." },
+            categories: {
+              type: "array",
+              items: { type: "string", enum: ["modification", "decision", "alert", "auth_event", "integration_event", "system_event", "chat_message"] },
+              description: "Filtro categorie. Vuoto = tutte.",
+            },
+            event_types: {
+              type: "array",
+              items: { type: "string" },
+              description: "Filtro tipi evento (es. 'quote.created', 'employee.hired'). Vuoto = tutti.",
+            },
+            target_table: { type: "string", description: "Limita a una tabella specifica (orders/quotes/marketing_contacts/employees/listino_prezzi)." },
+            min_importance: { type: "string", enum: ["low", "normal", "high", "critical"], description: "Soglia minima di importanza." },
+            from_iso: { type: "string", description: "Inizio range in ISO (es. '2027-03-01T00:00:00Z')." },
+            to_iso: { type: "string", description: "Fine range in ISO." },
+            limit: { type: "integer", minimum: 1, maximum: 100, default: 30 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const data = await callRpc(ctx.supabase, "search_company_activity", {
+        p_company_id: ctx.companyId,
+        p_query_text: args?.query_text ?? null,
+        p_categories: Array.isArray(args?.categories) && args.categories.length > 0 ? args.categories : null,
+        p_event_types: Array.isArray(args?.event_types) && args.event_types.length > 0 ? args.event_types : null,
+        p_target_table: args?.target_table ?? null,
+        p_min_importance: args?.min_importance ?? null,
+        p_actor_user_id: null,
+        p_from: args?.from_iso ?? null,
+        p_to: args?.to_iso ?? null,
+        p_limit: Math.min(Math.max(Number(args?.limit ?? 30), 1), 100),
+      });
+      if (data && typeof data === "object" && "error" in data) return data;
+      return {
+        risultati: data ?? [],
+        nota: Array.isArray(data) && data.length === 0
+          ? "Nessuna attività trovata con i filtri indicati."
+          : undefined,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "knowledge",
+  },
 };
 
 /**
