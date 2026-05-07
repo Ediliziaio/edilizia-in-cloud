@@ -85,6 +85,11 @@ export function SilvioFAB({ hidden = false }: Props) {
   const [open, setOpen] = useState(false);
   const [smartImportOpen, setSmartImportOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  // Una volta aperta la prima volta, manteniamo SilvioChatSheet montato (anche
+  // quando chatOpen=false). Così non si ricarica ogni apertura: messaggi, query
+  // realtime e cache React Query restano vivi tra open/close.
+  const [chatHasMounted, setChatHasMounted] = useState(false);
+  useEffect(() => { if (chatOpen) setChatHasMounted(true); }, [chatOpen]);
   const [tipIdx, setTipIdx] = useState(0);
   const [tipsExpanded, setTipsExpanded] = useState(false);
 
@@ -322,8 +327,9 @@ export function SilvioFAB({ hidden = false }: Props) {
         </Suspense>
       )}
 
-      {/* Chat con Silvio inline (sheet laterale) — lazy: carica al primo open */}
-      {chatOpen && (
+      {/* Chat con Silvio inline (sheet laterale) — lazy: carica al primo open
+          e poi resta montata (chatHasMounted) per non ricaricarsi ogni volta */}
+      {chatHasMounted && (
         <Suspense fallback={null}>
           <SilvioChatSheet open={chatOpen} onOpenChange={setChatOpen} />
         </Suspense>

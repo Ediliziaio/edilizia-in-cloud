@@ -297,12 +297,14 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   //       Supabase Realtime invece di polling — risparmio batteria mobile
   //       e latency immediata) ─────────────────────────────────────────────
   const { data: messages = [] } = useQuery({
-    queryKey: ["silvio-messages", channelId],
+    queryKey: ["internal-chat-messages", channelId],
     queryFn: async (): Promise<SilvioMessage[]> => {
       if (!channelId) return [];
+      // select("*") per condividere la cache React Query con InternalChat
+      // (stesso queryKey "internal-chat-messages") senza schema drift
       const { data } = await supabase
         .from("internal_chat_messages")
-        .select("id, channel_id, sender_id, content, message_type, created_at, attachment_url, attachment_name, rag_sources, rag_min_similarity, ai_confidence, ai_requires_human_review, followup_suggestions, council_data")
+        .select("*")
         .eq("channel_id", channelId)
         .order("created_at", { ascending: true })
         .limit(30);
@@ -311,6 +313,8 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
     enabled: !!channelId && open,
     // staleTime alto: il refresh viene pilotato dal realtime listener qui sotto
     staleTime: 30 * 60 * 1000,
+    // gcTime alto: la cache sopravvive a chiusura/riapertura sheet senza fetch
+    gcTime: 60 * 60 * 1000,
   });
 
   // ── 2.b Realtime subscription per nuovi messaggi (Sprint AI Uploads #4)
@@ -327,7 +331,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
           filter: `channel_id=eq.${channelId}`,
         },
         () => {
-          qc.invalidateQueries({ queryKey: ["silvio-messages", channelId] });
+          qc.invalidateQueries({ queryKey: ["internal-chat-messages", channelId] });
         },
       )
       .on(
@@ -341,7 +345,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
         () => {
           // Used dallo streaming Silvio (vedi Element 3): aggiorna mentre il
           // testo cresce token-per-token sul record di Silvio.
-          qc.invalidateQueries({ queryKey: ["silvio-messages", channelId] });
+          qc.invalidateQueries({ queryKey: ["internal-chat-messages", channelId] });
         },
       )
       .subscribe();
@@ -670,7 +674,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
         attachment_name: firstAtt?.file.name ?? null,
       });
       if (insertErr) throw new Error(`Invio: ${insertErr.message}`);
-      qc.invalidateQueries({ queryKey: ["silvio-messages", channelId] });
+      qc.invalidateQueries({ queryKey: ["internal-chat-messages", channelId] });
 
       // Invoke Silvio with full attachments list
       const res = await supabase.functions.invoke("silvio-chat", {
@@ -686,7 +690,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
         },
       });
       if (res.error) throw new Error(`Silvio: ${res.error.message}`);
-      qc.invalidateQueries({ queryKey: ["silvio-messages", channelId] });
+      qc.invalidateQueries({ queryKey: ["internal-chat-messages", channelId] });
     },
     onSuccess: () => {
       setDraft("");
@@ -963,7 +967,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
                   </div>
                   <p className="text-[10px] opacity-90 leading-tight">Click su una skill → riempie il messaggio</p>
                 </div>
-                <div className="overflow-y-auto p-2 space-y-3">
+                <div className="overflow-y-auto p-2 space-y-3 flex-1 min-h-0">
                   {(["data", "doc", "operations", "advisor"] as const).map((cat) => {
                     const items = SILVIO_SKILLS.filter((s) => s.category === cat);
                     if (items.length === 0) return null;
