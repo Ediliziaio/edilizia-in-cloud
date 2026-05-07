@@ -12,14 +12,11 @@ import {
   createClient,
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2";
-import type {
-  ChatRequest,
-  ChatResponse,
-  AIProviderError,
-} from "./types.ts";
+import type { AIProviderError, ChatRequest, ChatResponse } from "./types.ts";
+import { makeAIError } from "./types.ts";
 import { resolveModelConfig } from "./config.ts";
 import { callOpenRouter } from "./openrouter.ts";
-import { precallCheck, chargeAndLog } from "./billing.ts";
+import { chargeAndLog, precallCheck } from "./billing.ts";
 
 let _supabase: SupabaseClient | null = null;
 function getSupabase(): SupabaseClient {
@@ -47,6 +44,8 @@ export class InsufficientCreditsError extends Error {
 
 export async function chat(req: ChatRequest): Promise<ChatResponse> {
   const supabase = getSupabase();
+
+  await enforceProviderRateLimits(supabase, req);
 
   // 1. Pre-call check saldo
   const precall = await precallCheck(supabase, {
@@ -114,10 +113,9 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
           model,
           messages: req.messages as unknown[],
           tools: req.tools as unknown[] | undefined,
-          tool_choice:
-            req.tools && req.tools.length > 0
-              ? (req.tool_choice ?? "auto")
-              : undefined,
+          tool_choice: req.tools && req.tools.length > 0
+            ? (req.tool_choice ?? "auto")
+            : undefined,
           temperature,
           max_tokens,
           ...(req.json_mode
@@ -161,8 +159,7 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
       // invalid_api_key → abort (inutile altri modelli)
       if (err.code === "invalid_api_key") throw err;
 
-      const shouldFallback =
-        err.code === "rate_limit" ||
+      const shouldFallback = err.code === "rate_limit" ||
         err.code === "timeout" ||
         err.code === "model_not_found" ||
         err.code === "context_too_long" ||
@@ -176,13 +173,106 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
   throw lastError ?? new Error("AI chat failed on all fallback models");
 }
 
+async function enforceProviderRateLimits(
+  supabase: SupabaseClient,
+  req: ChatRequest,
+): Promise<void> {
+  if (Deno.env.get("AI_PROVIDER_RATE_LIMIT_ENABLED") === "false") return;
+
+  const failOpen = Deno.env.get("AI_PROVIDER_RATE_LIMIT_FAIL_OPEN") !== "false";
+  const windowSeconds = readEnvInt(
+    "AI_PROVIDER_RATE_WINDOW_SECONDS",
+    60,
+    10,
+    3600,
+  );
+  const checks: Array<{ scope: string; key: string; maxCalls: number }> = [
+    {
+      scope: "global",
+      key: "openrouter",
+      maxCalls: readEnvInt("AI_PROVIDER_GLOBAL_PER_MINUTE", 300, 1, 100_000),
+    },
+  ];
+
+  if (req.company_id) {
+    checks.push({
+      scope: "company",
+      key: req.company_id,
+      maxCalls: readEnvInt("AI_PROVIDER_COMPANY_PER_MINUTE", 40, 1, 10_000),
+    });
+    checks.push({
+      scope: "company_task",
+      key: `${req.company_id}:${req.task_kind}`,
+      maxCalls: readEnvInt(
+        "AI_PROVIDER_COMPANY_TASK_PER_MINUTE",
+        20,
+        1,
+        10_000,
+      ),
+    });
+  }
+
+  try {
+    for (const check of checks) {
+      const { data, error } = await supabase.rpc("check_ai_router_rate_limit", {
+        p_function_name: `ai_provider:${check.scope}`,
+        p_caller_id: check.key,
+        p_max_calls: check.maxCalls,
+        p_window_seconds: windowSeconds,
+      });
+      if (error) throw error;
+      const result = data as
+        | { allowed?: boolean; retry_after_seconds?: number }
+        | null;
+      if (result?.allowed === false) {
+        throw makeAIError(
+          "rate_limit",
+          `Troppe richieste AI in contemporanea. Riprova tra ${
+            Number(result.retry_after_seconds ?? 60)
+          } secondi.`,
+          true,
+          429,
+        );
+      }
+    }
+  } catch (e) {
+    if ((e as AIProviderError)?.code === "rate_limit") throw e;
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!failOpen) {
+      throw makeAIError(
+        "rate_limit",
+        "Controllo rate-limit AI non disponibile. Riprova tra qualche secondo.",
+        true,
+        429,
+      );
+    }
+    if (!msg.includes("function") && !msg.includes("does not exist")) {
+      console.warn(
+        "[ai-provider] rate-limit check warning:",
+        msg.slice(0, 300),
+      );
+    }
+  }
+}
+
+function readEnvInt(
+  name: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const raw = Number(Deno.env.get(name) ?? fallback);
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.min(Math.max(Math.floor(raw), min), max);
+}
+
 // Re-export per consumer
 export type {
+  AIProviderError,
+  ChatMessage,
   ChatRequest,
   ChatResponse,
   TaskKind,
-  ChatMessage,
-  ToolDefinition,
   ToolCall,
-  AIProviderError,
+  ToolDefinition,
 } from "./types.ts";

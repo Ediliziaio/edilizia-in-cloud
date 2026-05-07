@@ -4,7 +4,10 @@
 import type { ToolDef } from "./shared/types.ts";
 
 // Operaio
-import { creaRapportino, creaRapportinoDef } from "./operaio/crea_rapportino.ts";
+import {
+  creaRapportino,
+  creaRapportinoDef,
+} from "./operaio/crea_rapportino.ts";
 import {
   aggiungiAttivitaRapportino,
   aggiungiAttivitaRapportinoDef,
@@ -54,21 +57,45 @@ import {
 export const TOOLS_REGISTRY: ToolDef[] = [
   // Operaio (8)
   { ...creaRapportinoDef, handler: creaRapportino as ToolDef["handler"] },
-  { ...aggiungiAttivitaRapportinoDef, handler: aggiungiAttivitaRapportino as ToolDef["handler"] },
-  { ...caricaDDTDef, handler: caricaDDT as ToolDef["handler"] },
-  { ...caricaFotoCantiereDef, handler: caricaFotoCantiere as ToolDef["handler"] },
-  { ...registraPresenzaDef, handler: registraPresenza as ToolDef["handler"] },
-  { ...creaSegnalazioneDef, handler: creaSegnalazione as ToolDef["handler"] },
-  { ...elencaMieiCantieriOggiDef, handler: elencaMieiCantieriOggi as ToolDef["handler"] },
-  { ...impostaCantiereCorrenteDef, handler: impostaCantiereCorrente as ToolDef["handler"] },
+  {
+    ...aggiungiAttivitaRapportinoDef,
+    handler: aggiungiAttivitaRapportino as ToolDef["handler"],
+  },
+  { ...caricaDDTDef, handler: caricaDDT as unknown as ToolDef["handler"] },
+  {
+    ...caricaFotoCantiereDef,
+    handler: caricaFotoCantiere as unknown as ToolDef["handler"],
+  },
+  {
+    ...registraPresenzaDef,
+    handler: registraPresenza as unknown as ToolDef["handler"],
+  },
+  {
+    ...creaSegnalazioneDef,
+    handler: creaSegnalazione as unknown as ToolDef["handler"],
+  },
+  {
+    ...elencaMieiCantieriOggiDef,
+    handler: elencaMieiCantieriOggi as ToolDef["handler"],
+  },
+  {
+    ...impostaCantiereCorrenteDef,
+    handler: impostaCantiereCorrente as ToolDef["handler"],
+  },
 
   // Titolare (6)
   { ...statoCantiereDef, handler: statoCantiere as ToolDef["handler"] },
-  { ...marginalitaCantiereDef, handler: marginalitaCantiere as ToolDef["handler"] },
+  {
+    ...marginalitaCantiereDef,
+    handler: marginalitaCantiere as ToolDef["handler"],
+  },
   { ...scadenzeFattureDef, handler: scadenzeFatture as ToolDef["handler"] },
   { ...costiMeseDef, handler: costiMese as ToolDef["handler"] },
   { ...listaApprovazioniDef, handler: listaApprovazioni as ToolDef["handler"] },
-  { ...approvaRichiestaDef, handler: approvaRichiesta as ToolDef["handler"] },
+  {
+    ...approvaRichiestaDef,
+    handler: approvaRichiesta as unknown as ToolDef["handler"],
+  },
 ];
 
 /** Filtra tool disponibili in base ai grants dell'utente. */

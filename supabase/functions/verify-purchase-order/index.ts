@@ -10,9 +10,17 @@
  *  - document_upload: confronto con documento fornitore (PDF/immagine)
  */
 
-import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import {
+  errorResponse,
+  getCorsHeaders,
+  jsonResponse,
+} from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
-import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateTokenCostUsd } from "../_shared/directAiLedger.ts";
+import {
+  buildStableAiIdempotencyKey,
+  chargeDirectAiCall,
+  estimateTokenCostUsd,
+} from "../_shared/directAiLedger.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -61,6 +69,86 @@ const DAILY_LIMIT = 10;
 const MAX_DOC_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 const AI_TIMEOUT_MS = 60000;
 const AI_MODEL = "claude-sonnet-4-20250514";
+const RATE_WINDOW_SECONDS = 60;
+const COMPANY_RATE_PER_MINUTE = 8;
+const USER_RATE_PER_MINUTE = 3;
+
+async function checkRateLimit(
+  // deno-lint-ignore no-explicit-any
+  supabaseAdmin: any,
+  functionName: string,
+  callerId: string,
+  maxCalls: number,
+): Promise<{ allowed: boolean; retry_after_seconds?: number }> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "check_ai_router_rate_limit",
+    {
+      p_function_name: functionName,
+      p_caller_id: callerId,
+      p_max_calls: maxCalls,
+      p_window_seconds: RATE_WINDOW_SECONDS,
+    },
+  );
+  if (error) {
+    if (Deno.env.get("DIRECT_AI_RATE_LIMIT_FAIL_OPEN") === "false") {
+      throw error;
+    }
+    console.warn(
+      "[verify-purchase-order] rate limit fail-open:",
+      error.message,
+    );
+    return { allowed: true };
+  }
+  return {
+    allowed: data?.allowed !== false,
+    retry_after_seconds: Number(data?.retry_after_seconds ?? 0) || undefined,
+  };
+}
+
+async function enforceDirectAiRateLimits(
+  // deno-lint-ignore no-explicit-any
+  supabaseAdmin: any,
+  companyId: string,
+  userId: string,
+): Promise<
+  { allowed: true } | { allowed: false; retry_after_seconds?: number }
+> {
+  if (Deno.env.get("DIRECT_AI_RATE_LIMIT_ENABLED") === "false") {
+    return { allowed: true };
+  }
+  for (
+    const check of [
+      {
+        functionName: "direct_ai:verify_purchase_order:company",
+        callerId: companyId,
+        maxCalls: COMPANY_RATE_PER_MINUTE,
+      },
+      {
+        functionName: "direct_ai:verify_purchase_order:user",
+        callerId: userId,
+        maxCalls: USER_RATE_PER_MINUTE,
+      },
+    ]
+  ) {
+    const result = await checkRateLimit(
+      supabaseAdmin,
+      check.functionName,
+      check.callerId,
+      check.maxCalls,
+    );
+    if (!result.allowed) {
+      return {
+        allowed: false,
+        retry_after_seconds: result.retry_after_seconds,
+      };
+    }
+  }
+  return { allowed: true };
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "AbortError";
+}
 
 function compactDocumentForFingerprint(documentBase64?: string): string | null {
   if (!documentBase64) return null;
@@ -73,7 +161,8 @@ function compactDocumentForFingerprint(documentBase64?: string): string | null {
 
 // ── System Prompt (FASE 6) ────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `Sei un esperto verificatore di ordini nel settore edilizia e serramenti in Italia.
+const SYSTEM_PROMPT =
+  `Sei un esperto verificatore di ordini nel settore edilizia e serramenti in Italia.
 
 Il tuo compito è confrontare DUE documenti:
 1. DOCUMENTO CLIENTE: l'ordine originale del cliente (cosa ha richiesto)
@@ -99,7 +188,13 @@ REGOLE DI SEVERITA:
 
 function buildUserPrompt(
   orderData: { code: string; items: unknown[]; total: number },
-  poData: { oda_number: string; supplier_name: string; items: unknown[]; total: number; notes?: string },
+  poData: {
+    oda_number: string;
+    supplier_name: string;
+    items: unknown[];
+    total: number;
+    notes?: string;
+  },
 ): string {
   return `ISTRUZIONI DI VERIFICA:
 
@@ -177,13 +272,17 @@ function buildDocumentPrompt(
 
 Confronta il documento del cliente con il documento del fornitore allegato.
 
-${documentType === "image" ? `ISTRUZIONI AGGIUNTIVE PER DOCUMENTO IMMAGINE:
+${
+    documentType === "image"
+      ? `ISTRUZIONI AGGIUNTIVE PER DOCUMENTO IMMAGINE:
 L'immagine allegata è una foto/scansione del preventivo del fornitore.
 1. ESTRAI tutti i dati leggibili dall'immagine
 2. Se alcune parti sono illeggibili, indica CHIARAMENTE quali
 3. Se il documento è in formato tabellare, leggi riga per riga
 4. Abbreviazioni tipiche: AR=anta-ribalta, VAS=vasistas, PF=porta-finestra, SC=scorrevole, BI=bianco, EL=effetto legno
-` : ""}
+`
+      : ""
+  }
 
 === DOCUMENTO CLIENTE (Ordine #${orderData.code}) ===
 
@@ -193,7 +292,11 @@ ${JSON.stringify(orderData.items, null, 2)}
 Totale ordine cliente: €${orderData.total}
 
 === DOCUMENTO FORNITORE ===
-${documentType === "image" ? "Vedi immagine allegata." : "Vedi documento PDF allegato - analizza il testo estratto."}
+${
+    documentType === "image"
+      ? "Vedi immagine allegata."
+      : "Vedi documento PDF allegato - analizza il testo estratto."
+  }
 
 FORMATO OUTPUT OBBLIGATORIO (rispondi SOLO con questo JSON, nessun altro testo):
 
@@ -242,7 +345,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, corsH);
     const body: VerifyRequest = await req.json();
-    const { purchase_order_id, order_id, supplier_document_url, supplier_document_base64, verification_mode } = body;
+    const {
+      purchase_order_id,
+      order_id,
+      supplier_document_url,
+      supplier_document_base64,
+      verification_mode,
+    } = body;
 
     if (!purchase_order_id) {
       return errorResponse("purchase_order_id obbligatorio", 400, corsH);
@@ -297,11 +406,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
         corsH,
       );
     }
+    const rateLimit = await enforceDirectAiRateLimits(
+      supabaseAdmin,
+      companyId,
+      userId,
+    );
+    if (!rateLimit.allowed) {
+      return errorResponse(
+        `Troppe verifiche OdA in questo momento. Riprova tra ${
+          rateLimit.retry_after_seconds ?? RATE_WINDOW_SECONDS
+        } secondi.`,
+        429,
+        corsH,
+      );
+    }
 
     // ── 4. Load order data if needed ──────────────────────────────────
 
     const effectiveOrderId = order_id || po.order_id;
-    let orderData: { code: string; items: unknown[]; total: number } | null = null;
+    let orderData: { code: string; items: unknown[]; total: number } | null =
+      null;
 
     if (effectiveOrderId) {
       const { data: order } = await supabaseAdmin
@@ -314,7 +438,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Items live in order_items table, join supplier name
       const { data: orderItemRows } = await supabaseAdmin
         .from("order_items")
-        .select("name, quantity, purchase_price, unit_price, description, status, supplier_id, suppliers(name)")
+        .select(
+          "name, quantity, purchase_price, unit_price, description, status, supplier_id, suppliers(name)",
+        )
         .eq("order_id", effectiveOrderId)
         .order("position");
 
@@ -346,7 +472,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (supplier_document_base64) {
         // Check size (base64 is ~33% larger than binary)
         if (supplier_document_base64.length > MAX_DOC_SIZE_BYTES * 1.34) {
-          return errorResponse("Documento troppo grande (max 10MB)", 400, corsH);
+          return errorResponse(
+            "Documento troppo grande (max 10MB)",
+            400,
+            corsH,
+          );
         }
         // Detect if it's an image or PDF by data URL prefix or magic bytes
         const isImage = supplier_document_base64.startsWith("data:image/") ||
@@ -355,7 +485,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         if (isImage) {
           supplierDocType = "uploaded_image";
-          imageBase64 = supplier_document_base64.replace(/^data:image\/[^;]+;base64,/, "");
+          imageBase64 = supplier_document_base64.replace(
+            /^data:image\/[^;]+;base64,/,
+            "",
+          );
         } else {
           supplierDocType = "uploaded_pdf";
         }
@@ -365,7 +498,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
           ? "uploaded_image"
           : "uploaded_pdf";
       } else {
-        return errorResponse("Documento fornitore non fornito per modalità upload", 400, corsH);
+        return errorResponse(
+          "Documento fornitore non fornito per modalità upload",
+          400,
+          corsH,
+        );
       }
     }
 
@@ -373,8 +510,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const poDataForPrompt = {
       oda_number: po.oda_number,
-      supplier_name: (po.suppliers as Record<string, unknown>)?.name as string || "Fornitore",
-      items: (poItems ?? []).map((item: Record<string, unknown>, idx: number) => ({
+      supplier_name:
+        (po.suppliers as Record<string, unknown>)?.name as string ||
+        "Fornitore",
+      items: (poItems ?? []).map((
+        item: Record<string, unknown>,
+        idx: number,
+      ) => ({
         numero: idx + 1,
         descrizione: item.description || "",
         quantita: item.quantity || 1,
@@ -391,9 +533,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const messages: Array<{ role: string; content: unknown }> = [];
 
     // Detect raw base64 for PDF (non-image document upload)
-    const pdfBase64 = (verification_mode === "document_upload" && supplier_document_base64 && supplierDocType === "uploaded_pdf")
-      ? supplier_document_base64.replace(/^data:application\/pdf;base64,/, "")
-      : null;
+    const pdfBase64 =
+      (verification_mode === "document_upload" && supplier_document_base64 &&
+          supplierDocType === "uploaded_pdf")
+        ? supplier_document_base64.replace(/^data:application\/pdf;base64,/, "")
+        : null;
 
     if (verification_mode === "document_upload" && pdfBase64 && orderData) {
       // PDF document mode — send as document block
@@ -402,7 +546,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         content: [
           {
             type: "document",
-            source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: pdfBase64,
+            },
           },
           {
             type: "text",
@@ -410,14 +558,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
           },
         ],
       });
-    } else if (verification_mode === "document_upload" && imageBase64 && orderData) {
+    } else if (
+      verification_mode === "document_upload" && imageBase64 && orderData
+    ) {
       // Vision mode — send image
       messages.push({
         role: "user",
         content: [
           {
             type: "image",
-            source: { type: "base64", media_type: "image/jpeg", data: imageBase64 },
+            source: {
+              type: "base64",
+              media_type: "image/jpeg",
+              data: imageBase64,
+            },
           },
           {
             type: "text",
@@ -426,7 +580,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         ],
       });
     } else if (verification_mode === "document_upload" && !orderData) {
-      return errorResponse("Ordine cliente necessario per confronto documento", 400, corsH);
+      return errorResponse(
+        "Ordine cliente necessario per confronto documento",
+        400,
+        corsH,
+      );
     } else if (orderData) {
       // Structured or manual comparison
       messages.push({
@@ -434,7 +592,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         content: buildUserPrompt(orderData, poDataForPrompt),
       });
     } else {
-      return errorResponse("Ordine cliente non trovato — impossibile verificare", 400, corsH);
+      return errorResponse(
+        "Ordine cliente non trovato — impossibile verificare",
+        400,
+        corsH,
+      );
     }
 
     // ── 7. Call Claude API ────────────────────────────────────────────
@@ -473,7 +635,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         return resp;
       } catch (err) {
         clearTimeout(timeout);
-        if (retry < 1) {
+        if (!isAbortError(err) && retry < 1) {
           // Exponential backoff retry
           await new Promise((r) => setTimeout(r, 2000 * (retry + 1)));
           return callClaude(retry + 1);
@@ -501,7 +663,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         verified_by: userId,
       });
 
-      return errorResponse(`Errore nell'analisi AI: ${aiResponse.status}`, 502, corsH);
+      return errorResponse(
+        `Errore nell'analisi AI: ${aiResponse.status}`,
+        502,
+        corsH,
+      );
     }
 
     const aiData = await aiResponse.json();
@@ -510,21 +676,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const outputTokens = Number(aiData.usage?.output_tokens ?? 0);
     tokensUsed = inputTokens + outputTokens;
     const requestIdempotencyKey = typeof body.idempotency_key === "string"
-      ? body.idempotency_key.trim().replace(/[^a-zA-Z0-9:_-]/g, "_").slice(0, 160)
+      ? body.idempotency_key.trim().replace(/[^a-zA-Z0-9:_-]/g, "_").slice(
+        0,
+        160,
+      )
       : "";
     const chargeIdempotencyKey = requestIdempotencyKey
       ? `purchase_order_verification_${companyId}_${requestIdempotencyKey}`
       : await buildStableAiIdempotencyKey("purchase_order_verification", [{
-      company_id: companyId,
-      purchase_order_id,
-      order_id: effectiveOrderId ?? null,
-      verification_mode,
-      supplier_document_type: supplierDocType,
-      supplier_document_url: supplierDocumentUrl || null,
-      supplier_document_base64: compactDocumentForFingerprint(supplier_document_base64),
-      order_data: orderData,
-      purchase_order_data: poDataForPrompt,
-    }]);
+        company_id: companyId,
+        purchase_order_id,
+        order_id: effectiveOrderId ?? null,
+        verification_mode,
+        supplier_document_type: supplierDocType,
+        supplier_document_url: supplierDocumentUrl || null,
+        supplier_document_base64: compactDocumentForFingerprint(
+          supplier_document_base64,
+        ),
+        order_data: orderData,
+        purchase_order_data: poDataForPrompt,
+      }]);
 
     await chargeDirectAiCall({
       supabase: supabaseAdmin,
@@ -550,7 +721,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
 
     // Parse the JSON response from Claude
-    const textContent = aiData.content?.find((c: Record<string, unknown>) => c.type === "text");
+    const textContent = aiData.content?.find((c: Record<string, unknown>) =>
+      c.type === "text"
+    );
     if (!textContent?.text) {
       throw new Error("Risposta AI vuota");
     }
@@ -671,29 +844,34 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // ── 12. Return result ─────────────────────────────────────────────
 
-    return jsonResponse({
-      verification_id: verification!.id,
-      status: "completed",
-      result: result.overall_result,
-      confidence_score: result.confidence_score,
-      summary: result.summary,
-      total_items_checked: result.total_items_checked,
-      items_matched: result.items_matched,
-      items_mismatched: result.items_mismatched,
-      items_missing: result.items_missing,
-      items_extra: result.items_extra,
-      discrepancies: result.discrepancies,
-      recommendations: result.recommendations,
-      price_analysis: result.price_analysis,
-      processing_time_ms: processingTimeMs,
-      tokens_used: tokensUsed,
-    }, 200, corsH);
-
+    return jsonResponse(
+      {
+        verification_id: verification!.id,
+        status: "completed",
+        result: result.overall_result,
+        confidence_score: result.confidence_score,
+        summary: result.summary,
+        total_items_checked: result.total_items_checked,
+        items_matched: result.items_matched,
+        items_mismatched: result.items_mismatched,
+        items_missing: result.items_missing,
+        items_extra: result.items_extra,
+        discrepancies: result.discrepancies,
+        recommendations: result.recommendations,
+        price_analysis: result.price_analysis,
+        processing_time_ms: processingTimeMs,
+        tokens_used: tokensUsed,
+      },
+      200,
+      corsH,
+    );
   } catch (err) {
     if (err instanceof Response) return err;
     console.error("verify-purchase-order error:", err);
     return errorResponse(
-      `Errore nella verifica: ${err instanceof Error ? err.message : "errore sconosciuto"}`,
+      `Errore nella verifica: ${
+        err instanceof Error ? err.message : "errore sconosciuto"
+      }`,
       500,
       corsH,
     );

@@ -1,11 +1,11 @@
 // MP05 — Chiamata diretta a OpenRouter con retry + timeout.
 // Il wrapper chiamante (index.ts) gestisce la fallback chain.
 
-import { makeAIError, type AIProviderError } from "./types.ts";
+import { type AIProviderError, makeAIError } from "./types.ts";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_TIMEOUT_MS = 25_000;
-const DEFAULT_RETRIES = 2;
+const DEFAULT_RETRIES = 1;
 
 interface OpenRouterParams {
   model: string;
@@ -45,13 +45,18 @@ export async function callOpenRouter(
   }
 
   const appName = Deno.env.get("OPENROUTER_APP_NAME") ?? "EdiliziaInCloud";
-  const siteUrl =
-    Deno.env.get("OPENROUTER_SITE_URL") ?? "https://ediliziaincloud.it";
+  const siteUrl = Deno.env.get("OPENROUTER_SITE_URL") ??
+    "https://ediliziaincloud.it";
 
-  const backoff = [500, 2000];
+  const maxRetries = readEnvInt(
+    "AI_PROVIDER_REQUEST_RETRIES",
+    DEFAULT_RETRIES,
+    0,
+    3,
+  );
   let lastError: AIProviderError | null = null;
 
-  for (let attempt = 0; attempt <= DEFAULT_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
     const startMs = Date.now();
@@ -84,14 +89,14 @@ export async function callOpenRouter(
           true,
           429,
         );
-        if (attempt < DEFAULT_RETRIES) {
-          await sleep(backoff[attempt] ?? 2000);
+        if (attempt < maxRetries) {
+          await sleep(getBackoffMs(attempt, resp.headers.get("retry-after")));
           continue;
         }
         throw lastError;
       }
 
-      if (resp.status >= 500) {
+      if ([500, 502, 503, 504].includes(resp.status)) {
         const body = await safeRead(resp);
         lastError = makeAIError(
           "unknown",
@@ -99,8 +104,8 @@ export async function callOpenRouter(
           true,
           resp.status,
         );
-        if (attempt < DEFAULT_RETRIES) {
-          await sleep(backoff[attempt] ?? 2000);
+        if (attempt < maxRetries) {
+          await sleep(getBackoffMs(attempt, resp.headers.get("retry-after")));
           continue;
         }
         throw lastError;
@@ -127,7 +132,12 @@ export async function callOpenRouter(
       if (!resp.ok) {
         const body = await safeRead(resp);
         if (/context.*exceeded|too large|too many tokens/i.test(body)) {
-          throw makeAIError("context_too_long", body.substring(0, 300), false, resp.status);
+          throw makeAIError(
+            "context_too_long",
+            body.substring(0, 300),
+            false,
+            resp.status,
+          );
         }
         throw makeAIError(
           "unknown",
@@ -155,7 +165,11 @@ export async function callOpenRouter(
 
       const choice = json.choices?.[0];
       if (!choice) {
-        throw makeAIError("unknown", "OpenRouter: no choices in response", false);
+        throw makeAIError(
+          "unknown",
+          "OpenRouter: no choices in response",
+          false,
+        );
       }
 
       const costHeader = resp.headers.get("x-or-cost");
@@ -187,10 +201,7 @@ export async function callOpenRouter(
           `Timeout dopo ${DEFAULT_TIMEOUT_MS}ms`,
           true,
         );
-        if (attempt < DEFAULT_RETRIES) {
-          await sleep(backoff[attempt] ?? 2000);
-          continue;
-        }
+        // Non ritentare i timeout: sotto carico aumentano code lente e costi.
         throw lastError;
       }
       lastError = makeAIError(
@@ -198,15 +209,16 @@ export async function callOpenRouter(
         String(asError.message ?? e),
         true,
       );
-      if (attempt < DEFAULT_RETRIES) {
-        await sleep(backoff[attempt] ?? 2000);
+      if (attempt < maxRetries) {
+        await sleep(getBackoffMs(attempt, null));
         continue;
       }
       throw lastError;
     }
   }
 
-  throw lastError ?? makeAIError("unknown", "Errore sconosciuto dopo retry", false);
+  throw lastError ??
+    makeAIError("unknown", "Errore sconosciuto dopo retry", false);
 }
 
 async function safeRead(resp: Response): Promise<string> {
@@ -219,6 +231,35 @@ async function safeRead(resp: Response): Promise<string> {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function readEnvInt(
+  name: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const raw = Number(Deno.env.get(name) ?? fallback);
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.min(Math.max(Math.floor(raw), min), max);
+}
+
+function parseRetryAfterMs(value: string | null): number | null {
+  if (!value) return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const dateMs = Date.parse(value);
+  if (Number.isFinite(dateMs)) return Math.max(0, dateMs - Date.now());
+  return null;
+}
+
+function getBackoffMs(attempt: number, retryAfter: string | null): number {
+  const retryAfterMs = parseRetryAfterMs(retryAfter);
+  if (retryAfterMs !== null) {
+    return Math.min(Math.max(retryAfterMs, 250), 8_000);
+  }
+  const jitter = crypto.getRandomValues(new Uint32Array(1))[0] % 250;
+  return (attempt + 1) * 750 + jitter;
 }
 
 function estimateCost(

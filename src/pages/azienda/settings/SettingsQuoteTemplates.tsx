@@ -26,6 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import {
   Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy, FileText, Eye,
   CheckCircle2, Palette, Wand2, FileImage, Scale, ScrollText, ArrowLeft, Save,
+  Search, Layers3, Link2, AlertCircle,
 } from "lucide-react";
 import { MergeTagInserter } from "@/components/quotes/MergeTagInserter";
 import { CanvaColorPicker } from "@/components/quotes/CanvaColorPicker";
@@ -187,14 +188,55 @@ type TemplateVisibilityKey =
   | "show_notes"
   | "show_page_numbers";
 
-function quoteTemplateKind(tmpl: Partial<QuoteTemplate>): QuoteTemplateKind {
+function getTemplateKind(tmpl: Partial<QuoteTemplate>): QuoteTemplateKind {
   return (tmpl.kind as QuoteTemplateKind | undefined) ?? "offerta";
 }
 
-function getReferencingOffers(tmpl: QuoteTemplate, templates: QuoteTemplate[]): QuoteTemplate[] {
-  if (quoteTemplateKind(tmpl) === "offerta") return [];
+function countLinkedBlocks(tmpl: Partial<QuoteTemplate>): number {
+  if (getTemplateKind(tmpl) !== "offerta") return 0;
+  return [
+    tmpl.linked_cover_id,
+    tmpl.linked_terms_id,
+    tmpl.linked_legal_id,
+    ...((tmpl.linked_product_ids ?? []) as string[]),
+    ...((tmpl.linked_section_ids ?? []) as string[]),
+  ].filter(Boolean).length;
+}
+
+function getLinkedBlockIds(templates: QuoteTemplate[]): Set<string> {
+  const ids = new Set<string>();
+  templates
+    .filter((t) => getTemplateKind(t) === "offerta")
+    .forEach((t) => {
+      [
+        t.linked_cover_id,
+        t.linked_terms_id,
+        t.linked_legal_id,
+        ...((t.linked_product_ids ?? []) as string[]),
+        ...((t.linked_section_ids ?? []) as string[]),
+      ].filter(Boolean).forEach((id) => ids.add(String(id)));
+    });
+  return ids;
+}
+
+function getTemplateUsageCount(tmpl: QuoteTemplate, templates: QuoteTemplate[]): number {
+  const kind = getTemplateKind(tmpl);
+  if (kind === "offerta") return countLinkedBlocks(tmpl);
   return templates.filter((t) =>
-    quoteTemplateKind(t) === "offerta" && (
+    getTemplateKind(t) === "offerta" && (
+      t.linked_cover_id === tmpl.id ||
+      t.linked_terms_id === tmpl.id ||
+      t.linked_legal_id === tmpl.id ||
+      (t.linked_product_ids ?? []).includes(tmpl.id) ||
+      (t.linked_section_ids ?? []).includes(tmpl.id)
+    ),
+  ).length;
+}
+
+function getReferencingOffers(tmpl: QuoteTemplate, templates: QuoteTemplate[]): QuoteTemplate[] {
+  if (getTemplateKind(tmpl) === "offerta") return [];
+  return templates.filter((t) =>
+    getTemplateKind(t) === "offerta" && (
       t.linked_cover_id === tmpl.id ||
       t.linked_terms_id === tmpl.id ||
       t.linked_legal_id === tmpl.id ||
@@ -202,6 +244,39 @@ function getReferencingOffers(tmpl: QuoteTemplate, templates: QuoteTemplate[]): 
       (t.linked_section_ids ?? []).includes(tmpl.id)
     ),
   );
+}
+
+function getTemplateIssue(tmpl: QuoteTemplate): string | null {
+  const kind = getTemplateKind(tmpl);
+  if (!tmpl.name?.trim()) return "Manca nome";
+  if (kind === "offerta") {
+    const hasTerms = !!tmpl.payment_terms_text?.trim() || !!tmpl.delivery_terms_text?.trim();
+    return countLinkedBlocks(tmpl) > 0 || hasTerms ? null : "Offerta senza blocchi";
+  }
+  if (kind === "copertina") {
+    return tmpl.cover_image_url || tmpl.cover_title?.trim() || tmpl.cover_subtitle?.trim() ? null : "Copertina vuota";
+  }
+  if (kind === "prodotto") {
+    return tmpl.product_image_url || tmpl.product_short_description?.trim() || tmpl.product_category?.trim() ? null : "Scheda prodotto vuota";
+  }
+  return (tmpl.body_html?.trim().length ?? 0) >= 20 ? null : "Testo troppo breve";
+}
+
+function getTemplateSearchText(tmpl: QuoteTemplate): string {
+  return [
+    tmpl.name,
+    tmpl.description,
+    KIND_META[getTemplateKind(tmpl)].label,
+    tmpl.body_html,
+    tmpl.product_category,
+    tmpl.product_short_description,
+    tmpl.product_long_description,
+    tmpl.cover_title,
+    tmpl.cover_subtitle,
+    tmpl.footer_text,
+    tmpl.payment_terms_text,
+    tmpl.delivery_terms_text,
+  ].filter(Boolean).join(" ").toLowerCase();
 }
 
 // ─── Sub-componente KindPreview (anteprima per blocchi non-offerta) ────────
@@ -487,6 +562,45 @@ function ProductTemplateEditor({ form, updateForm, productImageInputRef, product
   );
 }
 
+type OverviewTone = "blue" | "emerald" | "amber" | "red" | "slate";
+
+function TemplateOverviewCard({
+  icon,
+  label,
+  value,
+  helper,
+  tone = "slate",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  helper: string;
+  tone?: OverviewTone;
+}) {
+  const toneClass: Record<OverviewTone, string> = {
+    blue: "border-blue-200 bg-blue-50/70 text-blue-700",
+    emerald: "border-emerald-200 bg-emerald-50/70 text-emerald-700",
+    amber: "border-amber-200 bg-amber-50/70 text-amber-700",
+    red: "border-red-200 bg-red-50/70 text-red-700",
+    slate: "border-slate-200 bg-slate-50/70 text-slate-700",
+  };
+
+  return (
+    <Card className="overflow-hidden border-slate-200 shadow-sm">
+      <CardContent className="flex items-center gap-3 p-4">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${toneClass[tone]}`}>
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="text-2xl font-bold leading-tight text-slate-950">{value}</p>
+          <p className="truncate text-xs text-muted-foreground">{helper}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Sub-componente TemplateCard (cards per kind) ──────────────────────────
 interface TemplateCardProps {
   tmpl: QuoteTemplate;
@@ -500,7 +614,8 @@ interface TemplateCardProps {
 }
 
 function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templates, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
-  const kind = (tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta';
+  const kind = getTemplateKind(tmpl);
+  const issue = getTemplateIssue(tmpl);
 
   // Anteprima specifica per kind
   const renderPreview = () => {
@@ -557,22 +672,11 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
     return kindMeta.label;
   };
 
-  // Conteggio reverse: per blocchi (non-offerta), quante offerte le linkano?
-  const usedByCount = useMemo(() => {
-    if (kind === 'offerta') return 0;
-    return templates.filter((t) =>
-      ((t.kind as QuoteTemplateKind | undefined) ?? 'offerta') === 'offerta' && (
-        t.linked_cover_id === tmpl.id ||
-        t.linked_terms_id === tmpl.id ||
-        t.linked_legal_id === tmpl.id ||
-        (t.linked_product_ids ?? []).includes(tmpl.id) ||
-        (t.linked_section_ids ?? []).includes(tmpl.id)
-      ),
-    ).length;
-  }, [templates, tmpl.id, kind]);
+  const usageCount = useMemo(() => getTemplateUsageCount(tmpl, templates), [templates, tmpl]);
+  const usageLabel = kind === "offerta" ? `${usageCount} blocchi` : `${usageCount} offerte`;
 
   return (
-    <Card className={`relative overflow-hidden border ${kindMeta.borderColor} hover:shadow-md transition-shadow`}>
+    <Card className={`relative overflow-hidden border ${kindMeta.borderColor} transition-all hover:-translate-y-0.5 hover:shadow-md`}>
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -587,8 +691,17 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
           {tmpl.is_default && kind === 'offerta' && (
             <Badge variant="secondary" className="shrink-0"><Star className="h-3 w-3 mr-1" />Default</Badge>
           )}
-          {usedByCount > 0 && (
-            <Badge variant="outline" className="shrink-0 text-[10px]">{usedByCount} offerte</Badge>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant={issue ? "outline" : "secondary"} className={`h-5 text-[10px] ${issue ? "border-amber-200 bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>
+            {issue ? <AlertCircle className="mr-1 h-3 w-3" /> : <CheckCircle2 className="mr-1 h-3 w-3" />}
+            {issue ?? "Pronto"}
+          </Badge>
+          {usageCount > 0 && (
+            <Badge variant="outline" className="h-5 text-[10px]">
+              <Link2 className="mr-1 h-3 w-3" />
+              {usageLabel}
+            </Badge>
           )}
         </div>
         <div className="flex justify-center">{renderPreview()}</div>
@@ -628,6 +741,7 @@ export default function SettingsQuoteTemplates() {
   const [isDirty, setIsDirty] = useState(false);
   // Tab attiva nella libreria template (offerta | copertina | condizioni | ...)
   const [activeKind, setActiveKind] = useState<QuoteTemplateKind>('offerta');
+  const [librarySearch, setLibrarySearch] = useState("");
   // Dialog "Scegli che tipo di template creare"
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   // Kind correntemente in editing (deriva da form.kind, default offerta)
@@ -639,7 +753,7 @@ export default function SettingsQuoteTemplates() {
       offerta: 0, copertina: 0, condizioni: 0, legali: 0, prodotto: 0, sezione: 0,
     };
     for (const t of templates) {
-      const k = (t.kind as QuoteTemplateKind | undefined) ?? 'offerta';
+      const k = getTemplateKind(t);
       c[k] = (c[k] ?? 0) + 1;
     }
     return c;
@@ -655,10 +769,28 @@ export default function SettingsQuoteTemplates() {
     [deleteTarget, templates],
   );
 
-  // Template filtrati per kind attivo nella libreria
-  const filteredTemplates = useMemo(
-    () => templates.filter((t) => ((t.kind as QuoteTemplateKind | undefined) ?? 'offerta') === activeKind),
+  const offerTemplates = useMemo(() => templates.filter((t) => getTemplateKind(t) === "offerta"), [templates]);
+  const blockTemplates = useMemo(() => templates.filter((t) => getTemplateKind(t) !== "offerta"), [templates]);
+  const defaultOffer = useMemo(() => offerTemplates.find((t) => t.is_default), [offerTemplates]);
+  const linkedBlockIds = useMemo(() => getLinkedBlockIds(templates), [templates]);
+  const unusedBlocksCount = useMemo(
+    () => blockTemplates.filter((t) => !linkedBlockIds.has(t.id)).length,
+    [blockTemplates, linkedBlockIds],
+  );
+  const incompleteTemplatesCount = useMemo(
+    () => templates.filter((t) => getTemplateIssue(t)).length,
+    [templates],
+  );
+
+  const templatesForActiveKind = useMemo(
+    () => templates.filter((t) => getTemplateKind(t) === activeKind),
     [templates, activeKind],
+  );
+
+  const normalizedSearch = librarySearch.trim().toLowerCase();
+  const filteredTemplates = useMemo(
+    () => templatesForActiveKind.filter((t) => !normalizedSearch || getTemplateSearchText(t).includes(normalizedSearch)),
+    [templatesForActiveKind, normalizedSearch],
   );
 
   // Helper: lista template di un kind specifico (per i selettori del master Offerta)
@@ -668,7 +800,7 @@ export default function SettingsQuoteTemplates() {
     (k: QuoteTemplateKind) =>
       templates.filter(
         (t) =>
-          ((t.kind as QuoteTemplateKind | undefined) ?? 'offerta') === k &&
+          getTemplateKind(t) === k &&
           t.is_active !== false &&
           t.id !== editId,
       ),
@@ -739,6 +871,7 @@ export default function SettingsQuoteTemplates() {
     if (!confirmDiscardChanges()) return;
     setEditId(tmpl.id);
     setForm({ ...tmpl });
+    setActiveKind(getTemplateKind(tmpl));
     setIsDirty(false);
     setEditing(true);
   };
@@ -748,6 +881,7 @@ export default function SettingsQuoteTemplates() {
     const { id: _id, created_at: _createdAt, updated_at: _updatedAt, ...rest } = tmpl;
     setEditId(null);
     setForm({ ...rest, name: `${tmpl.name} (copia)`, is_default: false });
+    setActiveKind(getTemplateKind(tmpl));
     setIsDirty(true);
     setEditing(true);
   };
@@ -780,6 +914,7 @@ export default function SettingsQuoteTemplates() {
 
     try {
       const result = await upsertTemplate.mutateAsync(payload);
+      setActiveKind(getTemplateKind(payload));
       if (asDefault) {
         toast.success(editId ? "Template salvato come default" : "Template creato e impostato come default");
         setEditing(false);
@@ -926,8 +1061,8 @@ export default function SettingsQuoteTemplates() {
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold leading-tight">Libreria Template Preventivi</h1>
             <p className="text-sm text-muted-foreground">
-              Crea e gestisci blocchi riusabili: copertine, condizioni, schede prodotto, sezioni libere.
-              I template "Offerta" li compongono in un PDF unico.
+              Crea template master e blocchi riusabili per copertine, condizioni, prodotti e sezioni extra.
+              L'offerta finale li combina in un PDF unico e coerente.
             </p>
           </div>
         </div>
@@ -952,6 +1087,39 @@ export default function SettingsQuoteTemplates() {
           )}
         </div>
       </div>
+
+      {!editing && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <TemplateOverviewCard
+            icon={<FileText className="h-4 w-4" />}
+            label="Offerte master"
+            value={String(offerTemplates.length)}
+            helper={defaultOffer ? `Default: ${defaultOffer.name}` : "Nessun template default"}
+            tone={defaultOffer ? "blue" : "amber"}
+          />
+          <TemplateOverviewCard
+            icon={<Layers3 className="h-4 w-4" />}
+            label="Blocchi riusabili"
+            value={String(blockTemplates.length)}
+            helper="Copertine, condizioni, legali, prodotti e sezioni"
+            tone="slate"
+          />
+          <TemplateOverviewCard
+            icon={<Link2 className="h-4 w-4" />}
+            label="Blocchi collegati"
+            value={`${Math.max(blockTemplates.length - unusedBlocksCount, 0)}/${blockTemplates.length}`}
+            helper={unusedBlocksCount > 0 ? `${unusedBlocksCount} blocchi non usati` : "Tutti i blocchi sono collegati"}
+            tone={unusedBlocksCount > 0 ? "amber" : "emerald"}
+          />
+          <TemplateOverviewCard
+            icon={<AlertCircle className="h-4 w-4" />}
+            label="Da controllare"
+            value={String(incompleteTemplatesCount)}
+            helper={incompleteTemplatesCount > 0 ? "Template con contenuti mancanti" : "Libreria pronta all'uso"}
+            tone={incompleteTemplatesCount > 0 ? "red" : "emerald"}
+          />
+        </div>
+      )}
 
       {/* Tabs per kind (solo in modalità lista) */}
       {!editing && (
@@ -980,6 +1148,32 @@ export default function SettingsQuoteTemplates() {
         </div>
       )}
 
+      {!editing && (
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={librarySearch}
+                onChange={(e) => setLibrarySearch(e.target.value)}
+                className="pl-9"
+                placeholder={`Cerca in ${KIND_META[activeKind].label.toLowerCase()} per nome, testo, categoria o descrizione...`}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <Badge variant="outline" className="h-7">
+                {filteredTemplates.length}/{templatesForActiveKind.length} visibili
+              </Badge>
+              {normalizedSearch && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setLibrarySearch("")}>
+                  Pulisci ricerca
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {!editing ? (
         /* Template list filtrata per kind attivo */
         fetchError ? (
@@ -992,20 +1186,29 @@ export default function SettingsQuoteTemplates() {
             <div className="text-4xl">{KIND_META[activeKind].emoji}</div>
             <div>
               <p className={`font-semibold ${KIND_META[activeKind].color}`}>
-                Nessun {KIND_META[activeKind].label.toLowerCase()} ancora
+                {templatesForActiveKind.length === 0
+                  ? `Nessun ${KIND_META[activeKind].label.toLowerCase()} ancora`
+                  : "Nessun template trovato"}
               </p>
               <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-                {KIND_META[activeKind].description}
+                {templatesForActiveKind.length === 0
+                  ? KIND_META[activeKind].description
+                  : "Prova a cambiare ricerca o passa a un'altra categoria di template."}
               </p>
             </div>
-            {isAdmin && (
+            {isAdmin && templatesForActiveKind.length === 0 && (
               <Button onClick={() => handleNew(activeKind)} className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500">
                 <Plus className="h-4 w-4 mr-2" />Crea il primo
               </Button>
             )}
-            {isAdmin && (
+            {isAdmin && templatesForActiveKind.length === 0 && (
               <Button variant="outline" onClick={() => setCreateDialogOpen(true)} size="sm" className="ml-2">
                 Vedi tutti i tipi
+              </Button>
+            )}
+            {templatesForActiveKind.length > 0 && (
+              <Button variant="outline" onClick={() => setLibrarySearch("")} size="sm">
+                Pulisci ricerca
               </Button>
             )}
           </Card>
@@ -1151,7 +1354,7 @@ export default function SettingsQuoteTemplates() {
                 </div>
                 <div>
                   <Label>Descrizione (interna)</Label>
-                  <Input value={form.description ?? ''} onChange={e => updateForm({ description: e.target.value })} placeholder="A cosa serve questo template (es. ritrutturazioni, serramenti…)" />
+                  <Input value={form.description ?? ''} onChange={e => updateForm({ description: e.target.value })} placeholder="A cosa serve questo template (es. ristrutturazioni, serramenti…)" />
                 </div>
                 {formKind === 'offerta' && (
                   <div className="flex items-center gap-3">

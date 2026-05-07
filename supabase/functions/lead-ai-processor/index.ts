@@ -3,12 +3,31 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
-import { callOpenAI, type ChatMessage } from "../whatsapp-ai-processor/openai.ts";
+import {
+  callOpenAI,
+  type ChatMessage,
+} from "../whatsapp-ai-processor/openai.ts";
 import { InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
-import { checkBudget, consumeBudget, estimateCostEur } from "../whatsapp-ai-processor/budget.ts";
+import {
+  checkBudget,
+  consumeBudget,
+  estimateCostEur,
+} from "../whatsapp-ai-processor/budget.ts";
 import { logToolCall } from "../whatsapp-ai-processor/observability.ts";
 import { SYSTEM_PROMPT_LEAD } from "./prompts/system_lead.ts";
-import { TOOLS_LEAD, toOpenAISpec, findTool, type LeadCtx } from "./tools/registry.ts";
+import {
+  findTool,
+  type LeadCtx,
+  TOOLS_LEAD,
+  toOpenAISpec,
+} from "./tools/registry.ts";
+
+const MAX_TOOL_CALLS_PER_TURN = readEnvInt(
+  "WA_AI_MAX_TOOL_CALLS_PER_TURN",
+  4,
+  1,
+  12,
+);
 
 interface Request {
   message_id?: string;
@@ -17,8 +36,12 @@ interface Request {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -26,13 +49,21 @@ Deno.serve(async (req) => {
   );
 
   let body: Request;
-  try { body = await req.json() as Request; } catch { return json({ error: "invalid_json" }, 400); }
+  try {
+    body = await req.json() as Request;
+  } catch {
+    return json({ error: "invalid_json" }, 400);
+  }
 
-  if (!body.wa_number_id || !body.contact_id) return json({ error: "missing_fields" }, 400);
+  if (!body.wa_number_id || !body.contact_id) {
+    return json({ error: "missing_fields" }, 400);
+  }
 
   const { data: contact } = await supabase
     .from("marketing_contacts")
-    .select("id, company_id, nome, cognome, telefono, stato, qualificazione_json")
+    .select(
+      "id, company_id, nome, cognome, telefono, stato, qualificazione_json",
+    )
     .eq("id", body.contact_id)
     .maybeSingle();
 
@@ -51,7 +82,12 @@ Deno.serve(async (req) => {
 
   const budget = await checkBudget(supabase, contact.company_id);
   if (!budget.ok) {
-    await sendReply(body.wa_number_id, contact.company_id, contact.telefono ?? "", budget.user_message);
+    await sendReply(
+      body.wa_number_id,
+      contact.company_id,
+      contact.telefono ?? "",
+      budget.user_message,
+    );
     return json({ ok: true, skipped: "budget" }, 200);
   }
 
@@ -61,7 +97,10 @@ Deno.serve(async (req) => {
     contact_id: contact.id,
     telefono: contact.telefono ?? "",
     wa_number_id: body.wa_number_id,
-    qualificazione: (contact.qualificazione_json ?? {}) as Record<string, unknown>,
+    qualificazione: (contact.qualificazione_json ?? {}) as Record<
+      string,
+      unknown
+    >,
   };
 
   // Storia ultimi 8 turni
@@ -81,7 +120,9 @@ Deno.serve(async (req) => {
       content: h.content_text ?? "",
     }));
 
-  const qualSummary = `Qualificazione attuale: ${JSON.stringify(ctx.qualificazione)}`;
+  const qualSummary = `Qualificazione attuale: ${
+    JSON.stringify(ctx.qualificazione)
+  }`;
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM_PROMPT_LEAD + "\n\n" + qualSummary },
     ...historyFormatted,
@@ -103,8 +144,11 @@ Deno.serve(async (req) => {
         company_id: contact.company_id,
         wa_message_id: body.message_id ?? null,
         model: budget.model_override ? model : undefined,
-        messages: conv, tools: openaiTools, tool_choice: "auto",
-        temperature: 0.5, max_tokens: 500,
+        messages: conv,
+        tools: openaiTools,
+        tool_choice: "auto",
+        temperature: 0.5,
+        max_tokens: 500,
       });
       tokIn += resp.usage?.prompt_tokens ?? 0;
       tokOut += resp.usage?.completion_tokens ?? 0;
@@ -115,28 +159,61 @@ Deno.serve(async (req) => {
         break;
       }
 
-      const results = await Promise.all(
-        assistantMsg.tool_calls.map(async (tc) => {
-          const tool = findTool(tc.function.name);
-          if (!tool) return { tool_call_id: tc.id, result: { ok: false, error: "tool_not_found", user_message: "Non disponibile." } };
-          let args: Record<string, unknown> = {};
-          try { args = JSON.parse(tc.function.arguments); } catch { /* ignore */ }
-          const t0 = Date.now();
-          let result;
-          try { result = await tool.handler(ctx, args); }
-          catch (e) { result = { ok: false as const, error: String(e), user_message: "Errore interno." }; }
-          await logToolCall(supabase, {
-            company_id: contact.company_id,
-            wa_message_id: body.message_id ?? null,
-            tool_name: tc.function.name,
-            role_kind: "lead",
-            args, result,
-            duration_ms: Date.now() - t0,
-            model_used: model,
-          });
-          return { tool_call_id: tc.id, result };
-        }),
-      );
+      const toolCalls = assistantMsg.tool_calls;
+      const executableToolCalls = toolCalls.slice(0, MAX_TOOL_CALLS_PER_TURN);
+      const skippedToolCalls = toolCalls.slice(MAX_TOOL_CALLS_PER_TURN);
+      const results = [
+        ...(await Promise.all(
+          executableToolCalls.map(async (tc) => {
+            const tool = findTool(tc.function.name);
+            if (!tool) {
+              return {
+                tool_call_id: tc.id,
+                result: {
+                  ok: false,
+                  error: "tool_not_found",
+                  user_message: "Non disponibile.",
+                },
+              };
+            }
+            let args: Record<string, unknown> = {};
+            try {
+              args = JSON.parse(tc.function.arguments);
+            } catch { /* ignore */ }
+            const t0 = Date.now();
+            let result;
+            try {
+              result = await tool.handler(ctx, args);
+            } catch (e) {
+              result = {
+                ok: false as const,
+                error: String(e),
+                user_message: "Errore interno.",
+              };
+            }
+            await logToolCall(supabase, {
+              company_id: contact.company_id,
+              wa_message_id: body.message_id ?? null,
+              tool_name: tc.function.name,
+              role_kind: "lead",
+              args,
+              result,
+              duration_ms: Date.now() - t0,
+              model_used: model,
+            });
+            return { tool_call_id: tc.id, result };
+          }),
+        )),
+        ...skippedToolCalls.map((tc) => ({
+          tool_call_id: tc.id,
+          result: {
+            ok: false,
+            error: "tool_batch_limited",
+            user_message:
+              "Ho limitato alcune verifiche automatiche per mantenere stabile il sistema. Procedo con le informazioni principali.",
+          },
+        })),
+      ];
 
       conv.push(assistantMsg);
       for (const r of results) {
@@ -148,8 +225,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!finalText) finalText = "Grazie, le scriviamo a breve per organizzare un sopralluogo.";
-    await sendReply(body.wa_number_id, contact.company_id, contact.telefono ?? "", finalText);
+    if (!finalText) {
+      finalText =
+        "Grazie, le scriviamo a breve per organizzare un sopralluogo.";
+    }
+    await sendReply(
+      body.wa_number_id,
+      contact.company_id,
+      contact.telefono ?? "",
+      finalText,
+    );
 
     const cost = estimateCostEur(model, tokIn, tokOut);
     await consumeBudget(supabase, contact.company_id, cost);
@@ -159,11 +244,22 @@ Deno.serve(async (req) => {
     // MP05-FIX — Credit-aware error handling
     if (err instanceof InsufficientCreditsError) {
       try {
-        await sendReply(body.wa_number_id, contact.company_id, contact.telefono ?? "", err.user_message_it);
+        await sendReply(
+          body.wa_number_id,
+          contact.company_id,
+          contact.telefono ?? "",
+          err.user_message_it,
+        );
       } catch { /* silent */ }
       return json({ ok: false, reason: err.reason }, 402);
     }
-    console.error(JSON.stringify({ level: "error", fn: "lead-ai-processor", error: String(err) }));
+    console.error(
+      JSON.stringify({
+        level: "error",
+        fn: "lead-ai-processor",
+        error: String(err),
+      }),
+    );
     return json({ error: String(err) }, 500);
   }
 });
@@ -175,7 +271,23 @@ function json(payload: unknown, status = 200): Response {
   });
 }
 
-async function sendReply(waNumberId: string, companyId: string, to: string, text: string): Promise<void> {
+function readEnvInt(
+  name: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const raw = Number(Deno.env.get(name) ?? fallback);
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.min(Math.max(Math.floor(raw), min), max);
+}
+
+async function sendReply(
+  waNumberId: string,
+  companyId: string,
+  to: string,
+  text: string,
+): Promise<void> {
   const baseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   await fetch(`${baseUrl}/functions/v1/whatsapp-send`, {
@@ -184,6 +296,11 @@ async function sendReply(waNumberId: string, companyId: string, to: string, text
       "Content-Type": "application/json",
       "Authorization": `Bearer ${serviceKey}`,
     },
-    body: JSON.stringify({ wa_number_id: waNumberId, company_id: companyId, to, text }),
+    body: JSON.stringify({
+      wa_number_id: waNumberId,
+      company_id: companyId,
+      to,
+      text,
+    }),
   }).catch(() => {});
 }

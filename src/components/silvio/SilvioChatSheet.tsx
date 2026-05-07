@@ -53,6 +53,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
 import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
+import { AiModelTestDialog } from "@/components/silvio/AiModelTestDialog";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const MAX_ATTACHMENTS = 5;
@@ -1018,6 +1019,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
                 </div>
               </PopoverContent>
             </Popover>
+            <AiModelTestDialog />
             {/* Paperclip button */}
             <Button
               size="icon"

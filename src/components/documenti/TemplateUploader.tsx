@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,9 @@ import type { DocumentoTipo } from '@/types/fea';
 interface TemplateUploaderProps {
   onUpload: (file: File, nome: string, descrizione: string, tipo_doc: string) => void;
   isLoading?: boolean;
+  allowedTypes?: { value: DocumentoTipo; label: string }[];
+  defaultTipoDoc?: DocumentoTipo;
+  descriptionPlaceholder?: string;
 }
 
 const TIPI_DOC: { value: DocumentoTipo; label: string }[] = [
@@ -35,14 +38,28 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-export function TemplateUploader({ onUpload, isLoading }: TemplateUploaderProps) {
+export function TemplateUploader({
+  onUpload,
+  isLoading,
+  allowedTypes,
+  defaultTipoDoc,
+  descriptionPlaceholder = 'Descrizione opzionale del template...',
+}: TemplateUploaderProps) {
+  const typeOptions = useMemo(() => allowedTypes && allowedTypes.length > 0 ? allowedTypes : TIPI_DOC, [allowedTypes]);
   const [file, setFile] = useState<File | null>(null);
   const [nome, setNome] = useState('');
   const [descrizione, setDescrizione] = useState('');
-  const [tipoDoc, setTipoDoc] = useState<DocumentoTipo>('generico');
+  const [tipoDoc, setTipoDoc] = useState<DocumentoTipo>(defaultTipoDoc ?? typeOptions[0]?.value ?? 'generico');
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const nextDefault = defaultTipoDoc ?? typeOptions[0]?.value ?? 'generico';
+    if (!typeOptions.some((option) => option.value === tipoDoc)) {
+      setTipoDoc(nextDefault);
+    }
+  }, [defaultTipoDoc, tipoDoc, typeOptions]);
 
   const validateFile = (f: File): boolean => {
     const ext = f.name.split('.').pop()?.toLowerCase();
@@ -159,7 +176,7 @@ export function TemplateUploader({ onUpload, isLoading }: TemplateUploaderProps)
           id="template-desc"
           value={descrizione}
           onChange={(e) => setDescrizione(e.target.value)}
-          placeholder="Descrizione opzionale del template..."
+          placeholder={descriptionPlaceholder}
           className="w-full min-h-[80px] px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
         />
       </div>
@@ -172,7 +189,7 @@ export function TemplateUploader({ onUpload, isLoading }: TemplateUploaderProps)
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {TIPI_DOC.map((t) => (
+            {typeOptions.map((t) => (
               <SelectItem key={t.value} value={t.value}>
                 {t.label}
               </SelectItem>

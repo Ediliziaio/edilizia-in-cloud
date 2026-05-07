@@ -24,6 +24,24 @@ export function useBreadcrumb(): BreadcrumbResult {
   const { pathname, search } = useLocation();
 
   return useMemo(() => {
+    if (pathname === "/azienda/firma-elettronica-cantieri" || pathname.startsWith("/azienda/firma-elettronica-cantieri/")) {
+      return {
+        area: "Cantieri & Lavori",
+        areaIcon: null,
+        page: "Firma Elettronica",
+        pageUrl: "/azienda/firma-elettronica-cantieri",
+      };
+    }
+
+    if (pathname === "/azienda/firma-elettronica" || pathname.startsWith("/azienda/firma-elettronica/")) {
+      return {
+        area: "Marketing & Vendita",
+        areaIcon: null,
+        page: "Firma Elettronica",
+        pageUrl: "/azienda/firma-elettronica",
+      };
+    }
+
     // Settings pages — special case
     if (pathname.startsWith("/azienda/impostazioni")) {
       return {

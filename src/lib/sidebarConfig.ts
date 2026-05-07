@@ -115,7 +115,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
       { title: "Subappaltatori", url: "/azienda/subappaltatori", icon: HardHat, permissionKey: "canViewSubappaltatori" },
-      { title: "Firma Elettronica", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewOrders", featureKey: "firma_fea" },
+      { title: "Firma Elettronica", url: "/azienda/firma-elettronica-cantieri", icon: FileSignature, permissionKey: "canViewOrders", moduleKey: "orders", featureKey: "firma_fea" },
       // ─── Pianificazione ───
       // Assistenza ora aggrega tutto: ticket di supporto + interventi sul campo.
       // "Interventi" come voce separata è stata rimossa — accessibile via tab/filtro
@@ -176,7 +176,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Contatti CRM", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts" },
       { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities" },
       { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities" },
-      { title: "Firma Elettronica", url: "/azienda/marketing/firma-elettronica", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", featureKey: "firma_fea" },
+      { title: "Firma Elettronica", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", featureKey: "firma_fea" },
       { title: "Calendario CRM", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports" },

@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, ArrowRight, ChevronLeft, FileText } from 'lucide-react';
 import { TemplateUploader } from '@/components/documenti/TemplateUploader';
 import { TemplateFieldEditor } from '@/components/documenti/TemplateFieldEditor';
 import { useDocumentoTemplates } from '@/hooks/useDocumentoTemplates';
 import { useAuth } from '@/contexts/AuthContext';
+import type { DocumentoTipo } from '@/types/fea';
 
 type WizardStep = 1 | 2 | 3;
 
@@ -15,13 +16,50 @@ const STEPS = [
   { id: 3, label: 'Riepilogo' },
 ];
 
+const TEMPLATE_TYPES: Record<'marketing' | 'cantieri', { title: string; description: string; defaultType: DocumentoTipo; options: { value: DocumentoTipo; label: string }[] }> = {
+  marketing: {
+    title: 'Nuovo Template Commerciale',
+    description: 'Carica preventivi, accettazioni o contratti commerciali usati da Marketing & Vendite.',
+    defaultType: 'preventivo',
+    options: [
+      { value: 'preventivo', label: 'Preventivo' },
+      { value: 'accettazione', label: 'Accettazione preventivo' },
+      { value: 'contratto', label: 'Contratto commerciale' },
+    ],
+  },
+  cantieri: {
+    title: 'Nuovo Template Operativo',
+    description: 'Carica collaudi, DDT, SAL, varianti, verbali e contratti legati a clienti e commesse.',
+    defaultType: 'modulo',
+    options: [
+      { value: 'modulo', label: 'Modulo / Collaudo' },
+      { value: 'ddt', label: 'DDT' },
+      { value: 'sal', label: 'SAL' },
+      { value: 'verbale', label: 'Verbale' },
+      { value: 'variante', label: 'Variante' },
+      { value: 'contratto', label: 'Contratto operativo' },
+      { value: 'generico', label: 'Generico operativo' },
+    ],
+  },
+};
+
+function getSafeReturnTo(value: string | null, scope: 'marketing' | 'cantieri') {
+  if (value?.startsWith('/azienda/')) return value;
+  return scope === 'cantieri' ? '/azienda/firma-elettronica-cantieri' : '/azienda/firma-elettronica';
+}
+
 export default function NuovoTemplate() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { effectiveCompany } = useAuth();
   const { uploadTemplate } = useDocumentoTemplates();
-  const [step, setStep] = useState<WizardStep>(1);
-  const [templateId, setTemplateId] = useState<string | null>(null);
-  const [templateNome, setTemplateNome] = useState('');
+  const templateIdFromQuery = searchParams.get('templateId');
+  const [step, setStep] = useState<WizardStep>(templateIdFromQuery ? 2 : 1);
+  const [templateId, setTemplateId] = useState<string | null>(templateIdFromQuery);
+  const [templateNome, setTemplateNome] = useState(templateIdFromQuery ? 'selezionato' : '');
+  const scope = searchParams.get('scope') === 'cantieri' ? 'cantieri' : 'marketing';
+  const copy = TEMPLATE_TYPES[scope];
+  const returnTo = getSafeReturnTo(searchParams.get('returnTo'), scope);
 
   const handleUpload = async (
     file: File,
@@ -42,13 +80,16 @@ export default function NuovoTemplate() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate('/azienda/firma-elettronica')}
+          onClick={() => navigate(returnTo)}
           className="gap-1.5"
         >
           <ChevronLeft className="h-4 w-4" />
           Indietro
         </Button>
-        <h1 className="text-xl font-bold text-slate-800">Nuovo Template</h1>
+        <div>
+          <h1 className="text-xl font-bold text-slate-800">{copy.title}</h1>
+          <p className="text-sm text-slate-500">{copy.description}</p>
+        </div>
       </div>
 
       {/* Progress steps */}
@@ -84,6 +125,12 @@ export default function NuovoTemplate() {
             <TemplateUploader
               onUpload={handleUpload}
               isLoading={uploadTemplate.isPending}
+              allowedTypes={copy.options}
+              defaultTipoDoc={copy.defaultType}
+              descriptionPlaceholder={scope === 'cantieri'
+                ? 'Es. Modulo collaudo cliente, DDT consegna materiali, SAL o verbale sopralluogo...'
+                : 'Es. Preventivo standard, condizioni accettazione o contratto commerciale...'
+              }
             />
           </div>
         )}
@@ -125,7 +172,7 @@ export default function NuovoTemplate() {
             <div className="flex flex-col gap-3">
               <Button
                 className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"
-                onClick={() => navigate('/azienda/firma-elettronica')}
+                onClick={() => navigate(returnTo)}
               >
                 <FileText className="h-4 w-4" />
                 Vai ai documenti
