@@ -11,13 +11,12 @@
  *   - [link](url)
  *   - --- → divider
  *   - Tabelle markdown semplici (| col1 | col2 |)
- *   - Marker citation [S1] / [S2+] → chip blu (per MP-03)
+ *   - Marker citation [S1] / [S2+] → riferimento statico discreto (per MP-03)
  *
  * Le righe rimangono in flusso compatto adatto al bubble chat.
  * Sicurezza: no innerHTML grezzo. Solo React nodes.
  */
 import React from "react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export interface ChatMarkdownSource {
   id: string;          // "S1", "S2"
@@ -32,7 +31,7 @@ export interface ChatMarkdownSource {
 interface Props {
   content: string;
   className?: string;
-  /** Sources RAG: i marker [S1], [S2]... diventano chip con tooltip popolato. */
+  /** Sources RAG mantenute per compatibilita' dati, senza tooltip in chat. */
   sources?: ChatMarkdownSource[];
 }
 
@@ -233,7 +232,7 @@ function renderInline(text: string): React.ReactNode[] {
         out.push(tok);
       }
     } else if (/^\[S\d+\+?\]$/.test(tok)) {
-      // Citation marker MP-03 — chip cliccabile con Tooltip popolato dalle sources
+      // Citation marker MP-03: riferimento statico, senza popup fonte in chat.
       const id = tok.slice(1, -1).replace(/\+$/, "");
       out.push(<CitationChip key={`s-${key++}`} id={id} />);
     }
@@ -249,49 +248,16 @@ function parseTableRow(line: string): string[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// CitationChip: marker [S1] cliccabile con Tooltip che mostra snippet+sim.
-// Quando le sources NON sono fornite, fallback a chip statico stile-only.
+// CitationChip: marker [S1] statico e minimale.
+// Le sources restano nel payload ma non aprono piu' riquadri hover nella chat.
 // ─────────────────────────────────────────────────────────────────────────
 function CitationChip({ id }: { id: string }) {
-  const sources = React.useContext(SourcesCtx);
-  const src = sources?.find((s) => s.id === id);
-
-  if (!src) {
-    // Stile passivo: mostra solo il marker
-    return (
-      <span className="inline-flex items-center px-1.5 py-0 mx-0.5 rounded text-[10px] font-mono bg-blue-50 text-blue-700 border border-blue-200">
-        {id}
-      </span>
-    );
-  }
-
   return (
-    <Tooltip delayDuration={150}>
-      <TooltipTrigger asChild>
-        <span
-          className="inline-flex items-center px-1.5 py-0 mx-0.5 rounded text-[10px] font-mono bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 cursor-help"
-          tabIndex={0}
-        >
-          {id}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-sm bg-white text-slate-800 border-slate-200 shadow-xl p-2.5">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold text-slate-900">{src.title}</p>
-          <div className="flex items-center gap-2 text-[10px] text-slate-500">
-            <span className="px-1 py-0.5 rounded bg-slate-100">
-              {src.scope === "universal" ? `KB · ${src.area ?? "?"}` : `Azienda · ${src.source_type ?? "?"}`}
-            </span>
-            <span className="font-mono">sim {src.similarity.toFixed(2)}</span>
-          </div>
-          {src.snippet && (
-            <p className="text-[11px] leading-snug text-slate-700 mt-1.5 whitespace-pre-wrap">
-              {src.snippet.slice(0, 320)}
-              {src.snippet.length > 320 ? "…" : ""}
-            </p>
-          )}
-        </div>
-      </TooltipContent>
-    </Tooltip>
+    <span
+      className="inline-flex items-center px-1.5 py-0 mx-0.5 rounded text-[10px] font-mono bg-slate-100 text-slate-500 border border-slate-200 align-baseline"
+      aria-label={`Fonte ${id}`}
+    >
+      {id}
+    </span>
   );
 }

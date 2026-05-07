@@ -153,6 +153,53 @@ export interface SilvioTool {
   domain?: ToolDomain;
   /** Costo stimato EUR per esecuzione (per budgeting). Default 0. */
   estimatedCostEur?: number;
+  /** Indicazioni compatte per il modello su come interpretare l'output. */
+  resultContract?: string;
+}
+
+const DOMAIN_RESULT_CONTRACTS: Partial<Record<ToolDomain, string>> = {
+  kpi: "Interpreta KPI per periodo/perimetro; separa venduto, incassato, residuo, margine e anomalie.",
+  banking: "Non confondere fatturato e cassa: separa scaduti, incassi previsti, uscite, gap e scenario prudente.",
+  cantiere: "Distingui venduto, pianificato, eseguibile e incassabile; cita date, merce, squadra e blocchi.",
+  fattura: "Distingui bozza, invio, firma, fatturazione e incasso; indica imponibile, IVA, totale e scadenza.",
+  preventivi: "Valuta prezzo insieme a margine, acconto, costi variabili, tempi incasso e rischio sconto.",
+  crm: "Ordina clienti/opportunita per impatto operativo; non esporre nomi interni di persona/tool.",
+  hr: "Collega disponibilita persone, costo, competenze, sicurezza e sostenibilita economica.",
+  compliance: "Evidenzia evidenza, requisito, rischio, proprietario e scadenza; non dire tutto ok senza prove.",
+  filiera: "Distingui ordine, conferma fornitore, merce in arrivo, ricevuta e mancante; collega alla posa.",
+  anomalie: "Distingui chi registra da chi causa; riporta causa, impatto euro, ricorrenza e controllo preventivo.",
+  knowledge: "Usa come supporto, non sostituisce dati aziendali recenti; cita limiti e freschezza della fonte.",
+};
+
+function getRiskContract(risk: RiskLevel | undefined): string {
+  if (risk === "red") return "Azione red: non presentarla come eseguita; serve conferma/revisione umana.";
+  if (risk === "yellow") return "Azione yellow: se non pre-approvata, prepara proposta/bozza e chiedi conferma.";
+  return "Azione safe: puo leggere/calcolare; se mancano dati, non inventare.";
+}
+
+function enrichToolSchemaForLLM(tool: SilvioTool) {
+  const schema = tool.schema ?? {};
+  const originalDescription = String(schema?.function?.description ?? schema?.description ?? "").trim();
+  const compactContract = [
+    originalDescription,
+    `Contratto: ${tool.resultContract ?? DOMAIN_RESULT_CONTRACTS[tool.domain ?? "meta"] ?? "sintetizza dati in decisione operativa con perimetro, limiti e prossima azione."}`,
+    getRiskContract(tool.riskLevel),
+  ].filter(Boolean).join("\n");
+
+  if (schema?.function) {
+    return {
+      ...schema,
+      function: {
+        ...schema.function,
+        description: compactContract,
+      },
+    };
+  }
+
+  return {
+    ...schema,
+    description: compactContract,
+  };
 }
 
 // Helper per chiamare RPC e ritornare data | error
@@ -244,6 +291,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram", "voice"],
     riskLevel: "safe",
     domain: "cantiere",
+    resultContract: "Mostra calendario operativo per giorno: lavori/pose, merce in arrivo, sopralluoghi, blocchi e cosa preparare prima.",
   },
 
   get_revenue_forecast: {
@@ -273,6 +321,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
     riskLevel: "safe",
     domain: "kpi",
+    resultContract: "Rispondi come incassi previsti, non fatturato. Separa incassi futuri, scaduto escluso e qualita dati.",
   },
 
   calculate_revenue_needed_next_month: {
@@ -311,6 +360,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
     riskLevel: "safe",
     domain: "banking",
+    resultContract: "Dai target minimo certificabile e scenari: recupero crediti, nuovo venduto con acconto protetto, mix prudente. Evidenzia costi variabili e cassa libera.",
   },
 
   get_overdue_payments: {
@@ -330,6 +380,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
     riskLevel: "safe",
     domain: "fattura",
+    resultContract: "Ordina per priorita recupero; mostra cliente, rata, importo, giorni ritardo e prima azione consigliata.",
   },
 
   get_cashflow_status: {
@@ -3802,7 +3853,7 @@ export function getToolsForChannel(opts: {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function toolsToOpenAISpec(tools: SilvioTool[]): any[] {
-  return tools.map(t => t.schema);
+  return tools.map(enrichToolSchemaForLLM);
 }
 
 /**

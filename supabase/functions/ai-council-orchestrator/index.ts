@@ -18,7 +18,10 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { classifyQuery } from "../_shared/queryClassifier.ts";
-import { GENERAL_EXECUTION_PLAYBOOKS } from "../_shared/executionPlaybooks.ts";
+import {
+  GENERAL_EXECUTION_PLAYBOOKS,
+  TOOL_SELECTION_AND_RESULT_PLAYBOOK,
+} from "../_shared/executionPlaybooks.ts";
 
 interface CouncilRequest {
   query: string;
@@ -178,6 +181,7 @@ Deno.serve(async (req) => {
           "## Compito",
           "Componi una risposta unica come Silvio, senza mostrare la cucina interna:",
           GENERAL_EXECUTION_PLAYBOOKS,
+          TOOL_SELECTION_AND_RESULT_PLAYBOOK,
           "1. Rispondi DIRETTAMENTE alla domanda originale. Non aprire con 'dipende' se hai dati numerici utili: dai il minimo certificato e separa cosa manca.",
           "2. NON nominare consulenti/personas interne (es. CFO, Cliente Tutor, Silvio come fonte, Amministrazione). Usa 'dai dati aziendali' o 'dalla situazione attuale'.",
           "3. Sintetizza i punti chiave per area senza etichette interne e senza conflitti accademici inutili.",

@@ -120,6 +120,77 @@ function isCollectionPriorityQuestion(query: string): boolean {
   return hasCollectionAction && hasReceivableTarget && asksPriority;
 }
 
+function isOperationalScheduleQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const hasOperationalTarget = /\b(pose?|lavori|calendario|agenda|cantiere|cantieri|squadra|operai|subappaltatori|merce|materiali|magazzino|fornitori|arriv\w* merce|consegne?)\b/.test(q);
+  const asksTimingOrList = /\b(quando|quali|chi|lista|elenco|vedere|mostra|prossim\w*|settimana|mese|oggi|domani|scadenze?)\b/.test(q);
+  return hasOperationalTarget && asksTimingOrList;
+}
+
+function isSignatureDocumentQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const hasDocumentTarget = /\b(firma|firmare|firmati|firmato|fea|otp|contratto|contratti|collaudo|collaudi|ddt|documento|documenti|modulo|moduli|pdf)\b/.test(q);
+  const asksFlowOrStatus = /\b(crea|manda|invia|richiedi|stato|quali|lista|elenco|template|flusso|come|cliente)\b/.test(q);
+  return hasDocumentTarget && asksFlowOrStatus;
+}
+
+function isSalesPipelineQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const hasSalesTarget = /\b(preventiv\w*|offert\w*|proposta commerciale|pipeline|opportunit\w*|lead|trattativ\w*|contratti vinti|conversion\w*|sconto|prezzo)\b/.test(q);
+  const hasDecisionOrList = /\b(quali|quanto|chi|lista|elenco|miglior\w*|convert\w*|chiudere|priorit\w*|target|andamento)\b/.test(q);
+  return hasSalesTarget && hasDecisionOrList;
+}
+
+function isHiringDecisionQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const hasHiring = /\b(assumere|assunzione|assumo|contratto lavoro|nuovo operaio|capo squadra|responsabile cantiere|dipendente nuovo)\b/.test(q);
+  const asksDecision = /\b(posso|conviene|quanto costa|sostenibile|mi serve|rischio|quando)\b/.test(q);
+  return hasHiring && asksDecision;
+}
+
+function singleAreaClassification(area: Area, personaKey: string): QueryClassification {
+  return {
+    is_multi_area: false,
+    primary_area: area,
+    involved_areas: [area],
+    involved_personas: [isPersona(personaKey) ? personaKey : AREA_FALLBACK_PERSONA[area]],
+    decomposition: [],
+    synthesis_required: false,
+    estimated_complexity: "simple",
+  };
+}
+
+function hiringDecisionClassification(): QueryClassification {
+  return {
+    is_multi_area: true,
+    primary_area: "hr",
+    involved_areas: ["hr", "finance", "strategic"],
+    involved_personas: ["hr", "cfo", "assistente_imprenditore"],
+    decomposition: [
+      {
+        area: "hr",
+        persona_key: "hr",
+        sub_query: "Valuta fabbisogno persone, competenze, saturazione e vincoli contrattuali/sicurezza.",
+        why: "La domanda riguarda una possibile assunzione o nuova risorsa.",
+      },
+      {
+        area: "finance",
+        persona_key: "cfo",
+        sub_query: "Valuta sostenibilita economica, costo mensile, impatto su cassa e margini.",
+        why: "Ogni assunzione crea costo ricorrente e rischio di cassa.",
+      },
+      {
+        area: "strategic",
+        persona_key: "assistente_imprenditore",
+        sub_query: "Sintetizza opzioni alternative: assumere, subappaltare, straordinari, rinviare.",
+        why: "Serve una decisione imprenditoriale, non solo HR.",
+      },
+    ],
+    synthesis_required: true,
+    estimated_complexity: "medium",
+  };
+}
+
 function sanitizeClassification(
   parsed: Partial<QueryClassification>,
   fallback: QueryClassification,
@@ -212,6 +283,9 @@ assistente_imprenditore, brain
 4. "ciao Silvio" = single-area conversational
 5. Decomposition: max 4 sub-query
 6. NON inventare aree o personas non in lista
+7. Se una sola area puo rispondere con i tool disponibili, resta single-area anche se la risposta deve essere articolata.
+8. Domande su target venduto/incasso/cassa/margine sono finance single-area: il modello finale deve integrare costi variabili e incassi senza esporre consulenti.
+9. Domande su calendario, pose, merce, magazzino e cantieri sono operations single-area salvo richiesta esplicita di impatto economico.
 
 ## Output JSON obbligatorio
 {
@@ -253,15 +327,19 @@ export async function classifyQuery(opts: ClassifyOptions): Promise<QueryClassif
     isCashOrMarginDecisionQuestion(opts.query) ||
     isCollectionPriorityQuestion(opts.query)
   ) {
-    return {
-      is_multi_area: false,
-      primary_area: "finance",
-      involved_areas: ["finance"],
-      involved_personas: [isPersona(opts.currentPersona) ? opts.currentPersona : "silvio"],
-      decomposition: [],
-      synthesis_required: false,
-      estimated_complexity: "simple",
-    };
+    return singleAreaClassification("finance", opts.currentPersona);
+  }
+  if (isHiringDecisionQuestion(opts.query)) {
+    return hiringDecisionClassification();
+  }
+  if (isOperationalScheduleQuestion(opts.query)) {
+    return singleAreaClassification("operations", opts.currentPersona);
+  }
+  if (isSignatureDocumentQuestion(opts.query)) {
+    return singleAreaClassification("compliance", opts.currentPersona);
+  }
+  if (isSalesPipelineQuestion(opts.query)) {
+    return singleAreaClassification("sales", opts.currentPersona);
   }
 
   try {

@@ -36,7 +36,11 @@
 import { buildSystemPrompt, loadActivePreambolo } from "./preambolo.ts";
 import { CITATION_FORMAT_RULES } from "./citationValidator.ts";
 import { STRUCTURED_OUTPUT_SYSTEM_RULES, shouldUseStructured } from "./structuredOutput.ts";
-import { GENERAL_EXECUTION_PLAYBOOKS } from "./executionPlaybooks.ts";
+import {
+  GENERAL_EXECUTION_PLAYBOOKS,
+  TOOL_SELECTION_AND_RESULT_PLAYBOOK,
+  getPersonaExecutionPlaybook,
+} from "./executionPlaybooks.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
@@ -227,6 +231,8 @@ export async function buildPersonaPrompt(
       buildRuntimeContextBlock(),
       args.userContext ?? "",
       GENERAL_EXECUTION_PLAYBOOKS,
+      TOOL_SELECTION_AND_RESULT_PLAYBOOK,
+      getPersonaExecutionPlaybook(args.personaKey),
       args.memoryContext ?? "",
       args.ragContextBlock ?? "",
       citationRulesBlock,
@@ -265,6 +271,8 @@ export async function buildPersonaPrompt(
     buildRuntimeContextBlock(),
     args.userContext ?? "",
     GENERAL_EXECUTION_PLAYBOOKS,
+    TOOL_SELECTION_AND_RESULT_PLAYBOOK,
+    getPersonaExecutionPlaybook(args.personaKey),
     args.memoryContext ?? "",
     args.ragContextBlock ?? "",
     citationRulesBlock,
