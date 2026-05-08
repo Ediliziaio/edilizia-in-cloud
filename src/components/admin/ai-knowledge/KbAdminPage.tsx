@@ -12,11 +12,12 @@
 import { lazy, Suspense } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, FlaskConical, PlayCircle, AlertTriangle, Coins } from "lucide-react";
+import { FileText, FlaskConical, PlayCircle, AlertTriangle, Coins, Globe } from "lucide-react";
 import { KbQaTestsTab } from "./KbQaTestsTab";
 import { KbPlaygroundTab } from "./KbPlaygroundTab";
 import { KbQualityTab } from "./KbQualityTab";
 import { KbBudgetTab } from "./KbBudgetTab";
+import { KbExternalSourcesTab } from "./KbExternalSourcesTab";
 
 const AdminSettingsAIKnowledge = lazy(() => import("@/pages/admin/settings/AdminSettingsAIKnowledge"));
 
@@ -44,6 +45,10 @@ export function KbAdminPage() {
           <Coins className="h-4 w-4" />
           Budget
         </TabsTrigger>
+        <TabsTrigger value="external" className="gap-2">
+          <Globe className="h-4 w-4" />
+          Fonti esterne
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="docs">
@@ -66,6 +71,10 @@ export function KbAdminPage() {
 
       <TabsContent value="budget">
         <KbBudgetTab />
+      </TabsContent>
+
+      <TabsContent value="external">
+        <KbExternalSourcesTab />
       </TabsContent>
     </Tabs>
   );
