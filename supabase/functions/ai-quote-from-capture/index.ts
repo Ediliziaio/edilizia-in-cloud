@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from("preventivo_da_foto_runs")
-      .update({ status: "processing", updated_at: new Date().toISOString() })
+      .update({ status: "analyzing_images", updated_at: new Date().toISOString() })
       .eq("id", runId);
 
     // ─── STEP 1: Audio transcription ────────────────────────────────────────
@@ -304,7 +304,7 @@ Deno.serve(async (req) => {
       await (supabase as any)
         .from("preventivo_da_foto_runs")
         .update({
-          status: "error",
+          status: "failed",
           error_step: "extraction",
           error_message: (e as Error).message,
         })
@@ -355,7 +355,7 @@ Deno.serve(async (req) => {
     await (supabase as any)
       .from("preventivo_da_foto_runs")
       .update({
-        status: "review_required",
+        status: "draft_ready",
         extracted_customer_data: extraction.customer,
         extracted_products: extraction.products,
         extraction_confidence: extraction.global_confidence,
