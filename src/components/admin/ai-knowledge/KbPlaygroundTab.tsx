@@ -28,8 +28,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Search, Sparkles, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Search, Sparkles, AlertTriangle, CheckCircle2, Languages } from "lucide-react";
 
 interface SearchResult {
   chunk_id: string;
@@ -37,6 +39,7 @@ interface SearchResult {
   title: string;
   category: string | null;
   category_path: string | null;
+  language?: string | null;
   content_preview: string;
   similarity: number;
   hits_count: number;
@@ -45,35 +48,67 @@ interface SearchResult {
   valid_until: string | null;
   is_expired: boolean;
   embedding_model: string;
-  anti_patterns_count: number;
+  anti_patterns_count?: number;
+  matched_via_fallback?: boolean;
 }
+
+interface SearchMeta {
+  language: string | null;
+  embed_model: string;
+  embed_ms: number;
+  total_ms: number;
+}
+
+const LANGUAGE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "auto", label: "Auto (no filtro lingua)" },
+  { value: "it", label: "Italiano (it)" },
+  { value: "en", label: "English (en)" },
+  { value: "es", label: "Español (es)" },
+  { value: "fr", label: "Français (fr)" },
+  { value: "de", label: "Deutsch (de)" },
+  { value: "pt", label: "Português (pt)" },
+  { value: "ro", label: "Română (ro)" },
+];
 
 export function KbPlaygroundTab() {
   const [query, setQuery] = useState("");
   const [topK, setTopK] = useState(5);
+  const [language, setLanguage] = useState<string>("auto");
+  const [crossLangFallback, setCrossLangFallback] = useState<boolean>(false);
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
+  const [meta, setMeta] = useState<SearchMeta | null>(null);
 
   const searchMutation = useMutation({
     mutationFn: async () => {
       const t0 = Date.now();
-      // Invoca edge function dedicata che fa embedding + RPC vector search
+      const reqBody: Record<string, unknown> = { query, top_k: topK, min_similarity: 0.20 };
+      if (language !== "auto") {
+        reqBody.language = language;
+        reqBody.cross_lang_fallback = crossLangFallback;
+      }
       const { data, error } = await supabase.functions.invoke("kb-playground-query", {
-        body: { query, top_k: topK, min_similarity: 0.20 },
+        body: reqBody,
       });
       if (error) throw error;
       setDuration(Date.now() - t0);
-      return data as { results: SearchResult[] };
+      return data as { results: SearchResult[]; meta: SearchMeta };
     },
     onSuccess: (data) => {
       setResults(data.results ?? []);
+      setMeta(data.meta ?? null);
       if ((data.results ?? []).length === 0) {
         toast.info("Nessun risultato trovato — prova a riformulare o ridurre min_similarity");
+      } else if ((data.results ?? []).some(r => r.matched_via_fallback)) {
+        toast.info("Risultati cross-lingua via fallback", {
+          description: "Nessun match nella lingua scelta, mostrati i match più simili indipendentemente dalla lingua.",
+        });
       }
     },
     onError: (e) => {
       toast.error("Errore ricerca", { description: String(e) });
       setResults([]);
+      setMeta(null);
     },
   });
 
@@ -131,16 +166,59 @@ export function KbPlaygroundTab() {
               Premi <kbd className="px-1 py-0.5 rounded bg-muted text-[9px]">Enter</kbd> per cercare. Min query length: 3 caratteri.
             </p>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t">
+            <div>
+              <Label className="text-xs flex items-center gap-1.5">
+                <Languages className="h-3 w-3" /> Lingua query
+              </Label>
+              <Select value={language} onValueChange={setLanguage}>
+                <SelectTrigger className="mt-1 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LANGUAGE_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Lingue diverse da it/en usano <code>text-embedding-3-large</code> (multilingue).
+              </p>
+            </div>
+            <div className="sm:col-span-2 flex items-end">
+              <div className="flex items-center gap-2 pb-2">
+                <Switch
+                  id="cross-lang"
+                  checked={crossLangFallback}
+                  onCheckedChange={setCrossLangFallback}
+                  disabled={language === "auto"}
+                />
+                <Label htmlFor="cross-lang" className="text-xs cursor-pointer">
+                  Fallback cross-lingua
+                </Label>
+                <span className="text-[10px] text-muted-foreground">
+                  (se nessun match nella lingua scelta, prova senza filtro)
+                </span>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
       {/* Results */}
       {results && (
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center justify-between text-xs text-muted-foreground flex-wrap gap-2">
             <span>
               <strong>{results.length}</strong> risultati
               {duration !== null && ` · ${duration}ms`}
+              {meta?.embed_model && (
+                <> · embed: <code className="text-[10px]">{meta.embed_model}</code></>
+              )}
+              {meta?.language && (
+                <> · lang: <code className="text-[10px]">{meta.language}</code></>
+              )}
             </span>
             {results.length > 0 && (
               <span>
@@ -197,6 +275,12 @@ export function KbPlaygroundTab() {
                       <Badge variant="outline">📂 {r.category_path}</Badge>
                     )}
                     <Badge variant="outline">{r.embedding_model}</Badge>
+                    {r.language && <Badge variant="outline">🌐 {r.language}</Badge>}
+                    {r.matched_via_fallback && (
+                      <Badge variant="outline" className="border-amber-300 text-amber-700">
+                        cross-lang fallback
+                      </Badge>
+                    )}
                     <Badge variant="outline">{r.hits_count} hits</Badge>
                     {r.is_expired && (
                       <Badge variant="outline" className="border-rose-300 text-rose-700 bg-rose-50">
@@ -214,7 +298,7 @@ export function KbPlaygroundTab() {
                         Mai verificato
                       </Badge>
                     )}
-                    {r.anti_patterns_count > 0 && (
+                    {(r.anti_patterns_count ?? 0) > 0 && (
                       <Badge variant="outline" className="border-amber-300 text-amber-700">
                         ⚠ {r.anti_patterns_count} anti-pattern
                       </Badge>
