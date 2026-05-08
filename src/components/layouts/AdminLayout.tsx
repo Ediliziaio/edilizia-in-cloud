@@ -33,7 +33,6 @@ import {
   CalendarDays,
   Zap,
   MessageCircle,
-  Briefcase,
   LineChart,
   Ticket,
   FileText,
@@ -46,7 +45,6 @@ import {
   CheckSquare,
   MessagesSquare,
 } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useSidebarSections } from "@/hooks/useSidebarSections";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
@@ -86,23 +84,20 @@ interface AdminNavItem {
   subcategory?: string;
 }
 
-// Subcategorie Navigazione — ognuna con icona per riconoscimento immediato.
-// "Overview" rimossa: Dashboard è pinned in cima.
-// "Aziende" subcategory rimossa: l'item "Aziende" (lista clienti) è ora dentro
-// "Fatturato" perché concettualmente lista-clienti e fatturazione/piani vanno
-// insieme (chi paga + quanto + status pagamento).
-const adminSubcategories: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: "sa_revenue", label: "Fatturato", icon: LineChart },
-  { id: "sa_customer_success", label: "Customer Success", icon: LifeBuoy },
-  { id: "sa_prodotto", label: "Prodotto", icon: Blocks },
-  { id: "sa_operazioni", label: "Operazioni", icon: Settings2 },
-  { id: "sa_growth", label: "Growth", icon: TrendingUp },
+// Subcategorie Navigazione — solo label, niente icona (riduce rumore visivo).
+// Le icone restano sui singoli item dentro la subcategory.
+const adminSubcategories: Array<{ id: string; label: string }> = [
+  { id: "sa_revenue", label: "Fatturato" },
+  { id: "sa_customer_success", label: "Customer Success" },
+  { id: "sa_prodotto", label: "Prodotto" },
+  { id: "sa_operazioni", label: "Operazioni" },
+  { id: "sa_growth", label: "Growth" },
 ];
 
-const adminMarketingSubcategories: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: "sa_mkt_crm", label: "CRM", icon: Users },
-  { id: "sa_mkt_comunicazione", label: "Comunicazione", icon: Mail },
-  { id: "sa_mkt_automation", label: "Automazione & AI", icon: Bot },
+const adminMarketingSubcategories: Array<{ id: string; label: string }> = [
+  { id: "sa_mkt_crm", label: "CRM" },
+  { id: "sa_mkt_comunicazione", label: "Comunicazione" },
+  { id: "sa_mkt_automation", label: "Automazione & AI" },
 ];
 
 // Smart defaults: aperte le sezioni più usate quotidianamente.
@@ -543,144 +538,128 @@ function AdminMainSidebar() {
           </SidebarGroup>
         )}
 
-        {/* ─── Search globale sidebar ────────────────────────────────
-           Filtra le voci di tutto il menu per nome — risolve "non trovo
-           dove andare" tipico delle app con 25+ pagine. */}
-        <SidebarGroup className="py-1">
-          <div className="px-3">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" />
-              <Input
-                placeholder="Cerca nel menu..."
-                value={navSearch}
-                onChange={(e) => setNavSearch(e.target.value)}
-                className="pl-8 h-8 text-xs bg-muted/40 border-muted-foreground/10"
-              />
-            </div>
+        {/* ─── Search globale sidebar — stile minimal coerente ───────────
+           Filtra le voci di tutto il menu per nome. Stile borderless con
+           background trasparente per integrarsi con la sidebar. */}
+        <div className="px-3 py-1">
+          <div className="relative flex items-center">
+            <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground/50 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Cerca…"
+              value={navSearch}
+              onChange={(e) => setNavSearch(e.target.value)}
+              className="w-full h-7 pl-7 pr-2 text-xs bg-transparent border-0 outline-none placeholder:text-muted-foreground/50 focus:bg-muted/30 rounded-md transition-colors"
+            />
           </div>
-        </SidebarGroup>
+        </div>
 
-        {/* Navigazione — Group title leggibile, subcategorie con icona */}
+        {/* ─── NAVIGAZIONE — niente group title, subcategorie direttamente ───
+           Stile minimal Linear/Vercel: l'utente vede subito le subcategorie
+           senza un livello extra "NAVIGAZIONE" che non aggiunge informazione. */}
         {filteredNavItems.length > 0 && (
-          <Collapsible defaultOpen={true}>
-            <SidebarGroup className="pt-1">
-              <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground transition-colors group">
-                <span className="flex items-center gap-2">
-                  <Briefcase className="h-3.5 w-3.5" />
-                  Navigazione
-                </span>
-                <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <SidebarGroupContent>
-                  {adminSubcategories.map((sub) => {
-                    const items = filteredNavItems.filter((i) => i.subcategory === sub.id);
-                    if (items.length === 0) return null;
-                    // Badge aggregato: somma i count delle voci con badge urgente
-                    const aggregateBadge = items.reduce((sum, i) => {
-                      const b = getBadgeForNavItem(i.url, sidebarBadges);
-                      return sum + (b?.count ?? 0);
-                    }, 0);
-                    return (
-                      <SidebarSubcategory
-                        key={sub.id}
-                        label={sub.label}
-                        icon={sub.icon}
-                        badge={aggregateBadge}
-                        // Quando l'utente sta cercando, forza apertura per mostrare i match
-                        isOpen={isSearching || isOpen(sub.id)}
-                        onToggle={() => toggle(sub.id)}
-                      >
-                        <SidebarMenu>
-                          {items.map((item) => {
-                            const badge = getBadgeForNavItem(item.url, sidebarBadges);
-                            return (
-                              <SidebarMenuItem key={item.title}>
-                                <SidebarMenuButton asChild>
-                                  <NavLink
-                                    to={item.url}
-                                    end={item.url === "/admin"}
-                                    className={navLinkClass}
-                                    activeClassName={activeClass}
+          <SidebarGroup className="pt-1 pb-1">
+            <SidebarGroupContent>
+              {adminSubcategories.map((sub) => {
+                const items = filteredNavItems.filter((i) => i.subcategory === sub.id);
+                if (items.length === 0) return null;
+                const aggregateBadge = items.reduce((sum, i) => {
+                  const b = getBadgeForNavItem(i.url, sidebarBadges);
+                  return sum + (b?.count ?? 0);
+                }, 0);
+                return (
+                  <SidebarSubcategory
+                    key={sub.id}
+                    label={sub.label}
+                    badge={aggregateBadge}
+                    isOpen={isSearching || isOpen(sub.id)}
+                    onToggle={() => toggle(sub.id)}
+                  >
+                    <SidebarMenu>
+                      {items.map((item) => {
+                        const badge = getBadgeForNavItem(item.url, sidebarBadges);
+                        return (
+                          <SidebarMenuItem key={item.title}>
+                            <SidebarMenuButton asChild>
+                              <NavLink
+                                to={item.url}
+                                end={item.url === "/admin"}
+                                className={navLinkClass}
+                                activeClassName={activeClass}
+                              >
+                                <item.icon className="h-4 w-4" />
+                                <span className="flex-1">{item.title}</span>
+                                {badge && badge.count != null && badge.count > 0 && (
+                                  <span
+                                    className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-xs font-bold leading-none ${
+                                      badge.variant === "destructive"
+                                        ? "bg-destructive text-destructive-foreground"
+                                        : badge.variant === "warning"
+                                        ? "bg-orange-500 text-white dark:bg-orange-600"
+                                        : "bg-sidebar-primary/15 text-sidebar-primary"
+                                    }`}
                                   >
-                                    <item.icon className="h-4 w-4" />
-                                    <span className="flex-1">{item.title}</span>
-                                    {badge && badge.count != null && badge.count > 0 && (
-                                      <span
-                                        className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-xs font-bold leading-none ${
-                                          badge.variant === "destructive"
-                                            ? "bg-destructive text-destructive-foreground"
-                                            : badge.variant === "warning"
-                                            ? "bg-orange-500 text-white dark:bg-orange-600"
-                                            : "bg-sidebar-primary/15 text-sidebar-primary"
-                                        }`}
-                                      >
-                                        {badge.count > 99 ? "99+" : badge.count}
-                                      </span>
-                                    )}
-                                  </NavLink>
-                                </SidebarMenuButton>
-                              </SidebarMenuItem>
-                            );
-                          })}
-                        </SidebarMenu>
-                      </SidebarSubcategory>
-                    );
-                  })}
-                </SidebarGroupContent>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
+                                    {badge.count > 99 ? "99+" : badge.count}
+                                  </span>
+                                )}
+                              </NavLink>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </SidebarMenu>
+                  </SidebarSubcategory>
+                );
+              })}
+            </SidebarGroupContent>
+          </SidebarGroup>
         )}
 
-        {/* Marketing & Vendita — Group separato con margin top per chiarezza */}
+        {/* ─── MARKETING & VENDITA — separato da divider sottile ─────────
+           Niente group title verboso: divider + label discreto in alto */}
         {filteredMarketingItems.length > 0 && (
-          <Collapsible defaultOpen={isSearching}>
-            <SidebarGroup className="pt-2 mt-1 border-t border-border/40">
-              <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground transition-colors group">
-                <span className="flex items-center gap-2">
-                  <Megaphone className="h-3.5 w-3.5" />
-                  Marketing & Vendita
-                </span>
-                <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <SidebarGroupContent>
-                  {adminMarketingSubcategories.map((sub) => {
-                    const items = filteredMarketingItems.filter((i) => i.subcategory === sub.id);
-                    if (items.length === 0) return null;
-                    return (
-                      <SidebarSubcategory
-                        key={sub.id}
-                        label={sub.label}
-                        icon={sub.icon}
-                        isOpen={isSearching || isOpen(sub.id)}
-                        onToggle={() => toggle(sub.id)}
-                      >
-                        <SidebarMenu>
-                          {items.map((item) => (
-                            <SidebarMenuItem key={item.title}>
-                              <SidebarMenuButton asChild>
-                                <NavLink
-                                  to={item.url}
-                                  end={item.url === "/admin/marketing"}
-                                  className={navLinkClass}
-                                  activeClassName={activeClass}
-                                >
-                                  <item.icon className="h-4 w-4" />
-                                  <span>{item.title}</span>
-                                </NavLink>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          ))}
-                        </SidebarMenu>
-                      </SidebarSubcategory>
-                    );
-                  })}
-                </SidebarGroupContent>
-              </CollapsibleContent>
+          <>
+            <div className="px-3 my-1">
+              <div className="border-t border-border/40" />
+              <div className="pt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                Marketing & Vendita
+              </div>
+            </div>
+            <SidebarGroup className="pt-0 pb-1">
+              <SidebarGroupContent>
+                {adminMarketingSubcategories.map((sub) => {
+                  const items = filteredMarketingItems.filter((i) => i.subcategory === sub.id);
+                  if (items.length === 0) return null;
+                  return (
+                    <SidebarSubcategory
+                      key={sub.id}
+                      label={sub.label}
+                      isOpen={isSearching || isOpen(sub.id)}
+                      onToggle={() => toggle(sub.id)}
+                    >
+                      <SidebarMenu>
+                        {items.map((item) => (
+                          <SidebarMenuItem key={item.title}>
+                            <SidebarMenuButton asChild>
+                              <NavLink
+                                to={item.url}
+                                end={item.url === "/admin/marketing"}
+                                className={navLinkClass}
+                                activeClassName={activeClass}
+                              >
+                                <item.icon className="h-4 w-4" />
+                                <span>{item.title}</span>
+                              </NavLink>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                      </SidebarMenu>
+                    </SidebarSubcategory>
+                  );
+                })}
+              </SidebarGroupContent>
             </SidebarGroup>
-          </Collapsible>
+          </>
         )}
 
         {/* Empty search state */}
