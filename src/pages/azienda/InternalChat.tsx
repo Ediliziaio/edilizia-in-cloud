@@ -54,6 +54,9 @@ import { cn } from "@/lib/utils";
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🙏", "👏", "🔥", "✅", "😮"];
 const LUCIA_SENDER_ID = "00000000-0000-0000-0000-000000000001";
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
+// Silvio Superadmin: sender ID separato per distinguere i messaggi cross-tenant
+// del co-founder AI da quelli del Silvio cliente
+const SILVIO_ADMIN_SENDER_ID = "00000000-0000-0000-0000-000000000003";
 
 // Avatar color palette for consistent user colors
 const AVATAR_COLORS = [
@@ -658,11 +661,12 @@ function MessageBubble({
   onReaction: (emoji: string) => void; userId?: string;
   onAskFollowup?: (query: string) => void;
 }) {
-  // Detect AI bot type from sender_id (Silvio o Lucia hanno UUID sentinel)
+  // Detect AI bot type from sender_id (Silvio cliente, Silvio Superadmin, Lucia)
   const isSilvioMsg = msg.sender_id === SILVIO_SENDER_ID;
+  const isSilvioAdminMsg = msg.sender_id === SILVIO_ADMIN_SENDER_ID;
   const isLuciaMsg = msg.sender_id === LUCIA_SENDER_ID;
-  const isAIMsg = isLuciaMsg || isSilvioMsg || isLucia;
-  const aiBotName = isSilvioMsg ? "Silvio ✨" : "Lucia AI ✨";
+  const isAIMsg = isLuciaMsg || isSilvioMsg || isSilvioAdminMsg || isLucia;
+  const aiBotName = isSilvioAdminMsg ? "Silvio Superadmin 🚀" : isSilvioMsg ? "Silvio ✨" : "Lucia AI ✨";
   const replySender = replyMsg ? profileMap.get(replyMsg.sender_id) : undefined;
 
   return (
@@ -671,7 +675,11 @@ function MessageBubble({
       {!isMe && (
         <div className="w-8 shrink-0 self-end mr-1">
           {showAvatar && (
-            isSilvioMsg ? (
+            isSilvioAdminMsg ? (
+              <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 flex items-center justify-center ring-1 ring-blue-300/40 shadow-sm shadow-blue-300/30">
+                <Brain className="h-3.5 w-3.5 text-white" strokeWidth={2.4} />
+              </div>
+            ) : isSilvioMsg ? (
               <div className="h-7 w-7 rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 flex items-center justify-center ring-1 ring-orange-300/40 shadow-sm shadow-orange-300/30">
                 <Brain className="h-3.5 w-3.5 text-white" strokeWidth={2.4} />
               </div>
@@ -698,6 +706,8 @@ function MessageBubble({
             "rounded-lg px-3 py-1.5 shadow-sm relative",
             isMe
               ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-foreground rounded-tr-none"
+              : isSilvioAdminMsg
+                ? "bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200/50 dark:border-blue-800/30 rounded-tl-none"
               : isSilvioMsg
                 ? "bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/40 border border-orange-200/50 dark:border-orange-800/30 rounded-tl-none"
               : isAIMsg
@@ -709,11 +719,12 @@ function MessageBubble({
           {showAvatar && !isMe && (
             <p className={cn(
               "text-[12px] font-semibold mb-0.5",
-              isSilvioMsg ? "text-orange-600 dark:text-orange-400"
+              isSilvioAdminMsg ? "text-blue-600 dark:text-blue-400"
+                : isSilvioMsg ? "text-orange-600 dark:text-orange-400"
                 : isAIMsg ? "text-violet-600 dark:text-violet-400"
                 : `text-[${userColor(msg.sender_id).replace('bg-', '')}]`,
-            )} style={{ color: isSilvioMsg || isAIMsg ? undefined : getColorHex(msg.sender_id) }}>
-              {isSilvioMsg ? "Silvio" : isAIMsg ? aiBotName : profileName(sender)}
+            )} style={{ color: isSilvioAdminMsg || isSilvioMsg || isAIMsg ? undefined : getColorHex(msg.sender_id) }}>
+              {isSilvioAdminMsg ? "Silvio Superadmin" : isSilvioMsg ? "Silvio" : isAIMsg ? aiBotName : profileName(sender)}
             </p>
           )}
 
@@ -954,13 +965,16 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const selectedChannel = channels.find((c) => c.id === selectedChannelId);
   const isLuciaChannel = !!selectedChannel && selectedChannel.name.toLowerCase() === "lucia-ai";
   const isSilvioChannel = !!selectedChannel && selectedChannel.name.toLowerCase() === "silvio-ai";
-  const isAIChannel = isLuciaChannel || isSilvioChannel;
+  // Silvio Superadmin (admin team chat): edge function diversa, sender ID diverso
+  const isSilvioAdminChannel = !!selectedChannel && selectedChannel.name.toLowerCase() === "silvio-admin";
+  const isAIChannel = isLuciaChannel || isSilvioChannel || isSilvioAdminChannel;
   const { messages, isError: messagesError, refetch: retryMessages } = useChannelMessages(selectedChannelId, refetchUnread);
 
   const profileMap = useMemo(() => {
     const m = new Map(profiles.map((p) => [p.id, p]));
     m.set(LUCIA_SENDER_ID, { id: LUCIA_SENDER_ID, first_name: "Lucia", last_name: "AI", email: "lucia@ediliziacloud.internal" });
     m.set(SILVIO_SENDER_ID, { id: SILVIO_SENDER_ID, first_name: "Silvio", last_name: "AI", email: "silvio@ediliziacloud.internal" });
+    m.set(SILVIO_ADMIN_SENDER_ID, { id: SILVIO_ADMIN_SENDER_ID, first_name: "Silvio", last_name: "Superadmin", email: "silvio-admin@ediliziacloud.internal" });
     return m;
   }, [profiles]);
 
@@ -988,9 +1002,20 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     markChannelRead(channelId);
   }, [markChannelRead]);
 
-  // Auto-select first channel on desktop
+  // Auto-select first channel on desktop, OR deep-link via ?channel=<id>
   useEffect(() => {
-    if (!selectedChannelId && channels.length > 0 && window.innerWidth >= 768) {
+    if (selectedChannelId || channels.length === 0) return;
+    // Deep-link: ?channel=<uuid> (usato da SilvioAdminPage per aprire silvio-admin)
+    const params = new URLSearchParams(window.location.search);
+    const targetChannel = params.get("channel");
+    if (targetChannel) {
+      const found = channels.find((c) => c.id === targetChannel || c.name === targetChannel);
+      if (found) {
+        handleSelectChannel(found.id);
+        return;
+      }
+    }
+    if (window.innerWidth >= 768) {
       handleSelectChannel(channels[0].id);
     }
   }, [channels, selectedChannelId, handleSelectChannel]);
@@ -1092,7 +1117,10 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     await supabase.from("internal_chat_members").update({ last_read_at: new Date().toISOString() }).eq("channel_id", selectedChannelId).eq("user_id", userId);
     setLuciaTyping(true); // riusiamo lo stesso typing indicator
     try {
-      const res = await supabase.functions.invoke("silvio-chat", {
+      // Routing edge function: canale silvio-admin → silvio-admin-chat (cross-tenant
+      // tools per super_admin), altrimenti silvio-chat (assistente cliente).
+      const edgeFn = isSilvioAdminChannel ? "silvio-admin-chat" : "silvio-chat";
+      const res = await supabase.functions.invoke(edgeFn, {
         body: {
           channel_id: selectedChannelId,
           message: messageText.trim(),

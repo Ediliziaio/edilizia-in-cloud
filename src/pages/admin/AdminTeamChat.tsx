@@ -12,7 +12,7 @@
  * a garantire accesso al team interno).
  */
 import { useQuery } from "@tanstack/react-query";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
@@ -22,8 +22,35 @@ import { Card, CardContent } from "@/components/ui/card";
 // Lazy load: InternalChat è 2k+ LOC. Riduce bundle iniziale admin.
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 
+/**
+ * Auto-crea il canale silvio-admin per il super_admin corrente.
+ * Idempotente: se già esiste, ritorna l'id senza creare nulla.
+ */
+function useEnsureSilvioAdminChannel() {
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any).rpc("ensure_user_silvio_admin_channel");
+        if (cancelled) return;
+        if (error) {
+          console.warn("[AdminTeamChat] ensure_user_silvio_admin_channel:", error.message);
+        }
+      } catch (e) {
+        if (!cancelled) console.warn("[AdminTeamChat] silvio-admin channel:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+}
+
 export default function AdminTeamChat() {
   const { permissions } = useSuperAdminPermissions();
+  // Auto-crea canale silvio-admin alla prima visita (idempotente)
+  useEnsureSilvioAdminChannel();
 
   // Recupera l'id della "platform admin company" — il container logico
   // delle conversazioni del team super admin.

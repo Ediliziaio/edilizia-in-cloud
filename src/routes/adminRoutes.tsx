@@ -20,6 +20,8 @@ const AdminSettingsSuperAdmins = lazy(() => import("@/pages/admin/settings/Admin
 const AdminSettingsAuditLog = lazy(() => import("@/pages/admin/settings/AdminSettingsAuditLog"));
 const AdminSettingsEmail = lazy(() => import("@/pages/admin/settings/AdminSettingsEmail"));
 const AdminSettingsAI = lazy(() => import("@/pages/admin/settings/AdminSettingsAI"));
+// Silvio Superadmin (co-founder AI per Florin)
+const SilvioAdminPage = lazy(() => import("@/pages/admin/SilvioAdminPage"));
 const SubscriptionPlans = lazy(() => import("@/pages/admin/SubscriptionPlans"));
 const PlanDetail = lazy(() => import("@/pages/admin/PlanDetail"));
 const ReferralDashboard = lazy(() => import("@/pages/admin/ReferralDashboard"));
@@ -180,6 +182,8 @@ export function adminRoutes() {
         <Route path="impostazioni/audit" element={<RequireSuperAdmin><AdminSettingsAuditLog /></RequireSuperAdmin>} />
         <Route path="impostazioni/email" element={<RequireSuperAdmin><AdminSettingsEmail /></RequireSuperAdmin>} />
         <Route path="impostazioni/agenti-ai" element={<RequireSuperAdmin><AdminSettingsAI /></RequireSuperAdmin>} />
+        {/* Silvio Superadmin — co-founder AI di Florin (cross-tenant, super_admin only) */}
+        <Route path="silvio" element={<RequireSuperAdmin><SilvioAdminPage /></RequireSuperAdmin>} />
         <Route path="impostazioni/ip-allowlist" element={<RequireSuperAdmin><AdminSettingsIPAllowlist /></RequireSuperAdmin>} />
         <Route path="impostazioni/sicurezza" element={<RequireSuperAdmin><AdminSettingsSecurity /></RequireSuperAdmin>} />
         <Route path="impostazioni/feature-flags" element={<Navigate to="/admin/feature-flags" replace />} />

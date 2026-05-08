@@ -44,6 +44,7 @@ import {
   AlertTriangle,
   CheckSquare,
   MessagesSquare,
+  Sparkles,
 } from "lucide-react";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useSidebarSections } from "@/hooks/useSidebarSections";
@@ -533,6 +534,24 @@ function AdminMainSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
+                {/* Silvio Superadmin — visibile solo super_admin
+                    /admin/silvio è una scorciatoia che apre il canale silvio-admin
+                    dentro la chat team admin (no doppione UI). */}
+                <SidebarMenuItem key="top-silvio">
+                  <SidebarMenuButton asChild tooltip="Silvio (co-founder AI)">
+                    <NavLink
+                      to="/admin/silvio"
+                      className={navLinkClass}
+                      activeClassName={activeClass}
+                    >
+                      <Sparkles className="h-4 w-4 text-blue-600" />
+                      <span className="flex-1 font-medium">Silvio</span>
+                      <span className="ml-auto text-[9px] px-1 py-0 rounded bg-blue-100 text-blue-700 border border-blue-300 font-semibold uppercase">
+                        AI
+                      </span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
