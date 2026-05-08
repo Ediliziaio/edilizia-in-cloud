@@ -908,7 +908,15 @@ serve(async (req: Request) => {
     }
 
     // Tentativo 2: solo Sessione 1 (no AI Test Lab columns)
-    if (!insertedMsg && /column .* does not exist/i.test(insertError?.message ?? "")) {
+    // Fallback trigger: matcha sia errore Postgres native sia PostgREST PGRST204
+    const isMissingColumnError = (err: { message?: string; code?: string } | null): boolean => {
+      if (!err) return false;
+      if (err.code === 'PGRST204') return true; // PostgREST: schema cache miss
+      if (err.code === '42703') return true;     // Postgres: undefined_column
+      const msg = err.message ?? '';
+      return /column .* does not exist/i.test(msg) || /Could not find .* column/i.test(msg);
+    };
+    if (!insertedMsg && isMissingColumnError(insertError)) {
       console.warn("[silvio-chat] retrying INSERT senza AI Test Lab columns (migration last_* non applicata)");
       const { data, error } = await supabaseAdmin
         .from("internal_chat_messages")
@@ -924,7 +932,7 @@ serve(async (req: Request) => {
     }
 
     // Tentativo 3 (last-resort): solo campi base (no Sessione 1, no AI Test Lab)
-    if (!insertedMsg && /column .* does not exist/i.test(insertError?.message ?? "")) {
+    if (!insertedMsg && isMissingColumnError(insertError)) {
       console.warn("[silvio-chat] retrying INSERT con SOLO campi base (migration Sessione 1 non applicata)");
       const { data, error } = await supabaseAdmin
         .from("internal_chat_messages")
