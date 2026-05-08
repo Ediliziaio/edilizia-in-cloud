@@ -2,12 +2,21 @@
  * QuoteFromCaptureDialog — modale unificato 3 tab per generazione preventivo
  * da foto / audio / testo. Dopo l'estrazione AI mostra <CaptureReviewPanel>
  * per review e correzione utente, poi invoca apply_capture_review per persistere.
+ *
+ * Supporta:
+ *  - Foto multiple (jpg/png/webp/heic) fino a 10 file × 10MB
+ *  - PDF: ogni pagina viene renderizzata via pdfjs-dist a immagine JPEG e
+ *    aggiunta come foto singola (rispetta MAX_IMAGES totali)
+ *  - Audio fino a 3 min (transcript via silvio-transcribe-audio)
+ *  - Testo libero
+ *  - Vertical key auto-rilevato da company.vertical_key con override UI
  */
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Camera, Mic, FileText, Loader2, X, Upload, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useBusinessVertical, useAllBusinessVerticals } from "@/hooks/useBusinessVertical";
 import {
   Dialog,
   DialogContent,
@@ -19,13 +28,56 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CaptureReviewPanel } from "./CaptureReviewPanel";
 
 const MAX_AUDIO_SECONDS = 180; // 3 min
 const MAX_IMAGES = 10;
 const MAX_IMAGE_MB = 10;
+const MAX_PDF_MB = 25;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 const ALLOWED_IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|heic|heif)$/i;
+const PDF_EXT_REGEX = /\.pdf$/i;
+
+/**
+ * Renderizza un PDF (File) come array di File JPEG (uno per pagina).
+ * Usa pdfjs-dist con worker bundled da Vite.
+ */
+async function pdfToImageFiles(pdfFile: File, maxPages: number, scale = 1.5): Promise<File[]> {
+  const pdfjsLib = await import("pdfjs-dist");
+  // @ts-expect-error vite-resolved url import
+  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+
+  const buf = await pdfFile.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const out: File[] = [];
+  const pages = Math.min(pdf.numPages, maxPages);
+  for (let i = 1; i <= pages; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) continue;
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.85));
+    if (blob) {
+      const baseName = pdfFile.name.replace(PDF_EXT_REGEX, "");
+      out.push(new File([blob], `${baseName}-p${i}.jpg`, { type: "image/jpeg" }));
+    }
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+  return out;
+}
 
 function safeStorageName(name: string): string {
   const cleaned = name
@@ -48,11 +100,27 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
   const companyId = useEffectiveCompanyId();
   const [activeTab, setActiveTab] = useState<"foto" | "audio" | "testo">("foto");
 
+  // Vertical: auto-detect dalla company, override possibile via picker
+  const { data: companyVertical } = useBusinessVertical();
+  const { data: allVerticals } = useAllBusinessVerticals();
+  const verticalOptions = useMemo(
+    () => (allVerticals ?? []).filter((v) => v.enabled),
+    [allVerticals],
+  );
+
   // Stato form
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [textInput, setTextInput] = useState("");
   const [verticalKey, setVerticalKey] = useState("");
+  const [pdfProcessing, setPdfProcessing] = useState(false);
+
+  // Auto-set verticalKey dal profilo company quando disponibile
+  useEffect(() => {
+    if (!verticalKey && companyVertical?.vertical_key) {
+      setVerticalKey(companyVertical.vertical_key);
+    }
+  }, [companyVertical?.vertical_key, verticalKey]);
 
   // Audio recorder
   const [isRecording, setIsRecording] = useState(false);
@@ -207,31 +275,72 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
     setIsRecording(false);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    const availableSlots = Math.max(0, MAX_IMAGES - images.length);
-    if (availableSlots === 0) {
-      toast.warning(`Puoi caricare massimo ${MAX_IMAGES} foto`);
-      e.target.value = "";
-      return;
-    }
-    const valid = files
-      .filter((f) => f.type.startsWith("image/") || ALLOWED_IMAGE_TYPES.has(f.type) || ALLOWED_IMAGE_EXTENSIONS.test(f.name))
-      .filter((f) => f.size <= MAX_IMAGE_MB * 1024 * 1024)
-      .slice(0, availableSlots);
+    e.target.value = "";
 
-    if (valid.length === 0) {
-      toast.error("Carica immagini JPG, PNG, WEBP o HEIC sotto 8MB");
-      e.target.value = "";
-      return;
+    if (files.length === 0) return;
+
+    // Suddividi in immagini valide e PDF
+    const isImage = (f: File) =>
+      f.type.startsWith("image/") || ALLOWED_IMAGE_TYPES.has(f.type) || ALLOWED_IMAGE_EXTENSIONS.test(f.name);
+    const isPdf = (f: File) => f.type === "application/pdf" || PDF_EXT_REGEX.test(f.name);
+
+    const oversizedImages = files.filter((f) => isImage(f) && f.size > MAX_IMAGE_MB * 1024 * 1024);
+    const oversizedPdfs = files.filter((f) => isPdf(f) && f.size > MAX_PDF_MB * 1024 * 1024);
+    const invalidTypes = files.filter((f) => !isImage(f) && !isPdf(f));
+
+    if (oversizedImages.length > 0) {
+      toast.warning(`${oversizedImages.length} immagini scartate (>${MAX_IMAGE_MB}MB)`);
     }
-    if (valid.length < files.length) {
-      toast.warning("Alcune foto sono state escluse", {
-        description: `Max ${MAX_IMAGES} immagini, ${MAX_IMAGE_MB}MB ciascuna.`,
+    if (oversizedPdfs.length > 0) {
+      toast.warning(`${oversizedPdfs.length} PDF scartati (>${MAX_PDF_MB}MB)`);
+    }
+    if (invalidTypes.length > 0) {
+      toast.error(`Tipo file non supportato: ${invalidTypes.map((f) => f.name).join(", ")}`, {
+        description: "Accettati: JPG, PNG, WEBP, HEIC, PDF",
       });
     }
-    setImages((prev) => [...prev, ...valid]);
-    e.target.value = "";
+
+    const validImages = files.filter((f) => isImage(f) && f.size <= MAX_IMAGE_MB * 1024 * 1024);
+    const validPdfs = files.filter((f) => isPdf(f) && f.size <= MAX_PDF_MB * 1024 * 1024);
+
+    // Renderizza i PDF (multi-pagina) come immagini JPEG, una per pagina
+    let renderedFromPdf: File[] = [];
+    if (validPdfs.length > 0) {
+      setPdfProcessing(true);
+      try {
+        for (const pdf of validPdfs) {
+          const remainingSlots = Math.max(0, MAX_IMAGES - images.length - validImages.length - renderedFromPdf.length);
+          if (remainingSlots === 0) {
+            toast.warning(`Limite di ${MAX_IMAGES} pagine raggiunto, ${pdf.name} ignorato`);
+            break;
+          }
+          const pages = await pdfToImageFiles(pdf, remainingSlots);
+          renderedFromPdf = [...renderedFromPdf, ...pages];
+          toast.success(`${pdf.name}: ${pages.length} pagina/e estratta/e`);
+        }
+      } catch (err) {
+        toast.error("Errore lettura PDF", {
+          description: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        setPdfProcessing(false);
+      }
+    }
+
+    const availableSlots = Math.max(0, MAX_IMAGES - images.length);
+    const allNew = [...validImages, ...renderedFromPdf].slice(0, availableSlots);
+    if (allNew.length < validImages.length + renderedFromPdf.length) {
+      toast.warning(`Alcune pagine scartate (max ${MAX_IMAGES} totali)`);
+    }
+    if (allNew.length === 0 && validPdfs.length === 0 && validImages.length === 0) {
+      toast.error("Nessun file valido trovato");
+      return;
+    }
+    if (allNew.length > 0) {
+      setImages((prev) => [...prev, ...allNew]);
+    }
   };
 
   const submitCapture = async () => {
@@ -366,20 +475,29 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
 
             <TabsContent value="foto" className="space-y-3 pt-3">
               <p className="text-sm text-muted-foreground">
-                Foto di un foglio scritto a mano, scontrino, schizzo. Massimo {MAX_IMAGES} immagini.
+                Foto di un foglio scritto a mano, scontrino, schizzo, oppure PDF (multi-pagina).
+                Massimo {MAX_IMAGES} pagine totali.
               </p>
               <label className="block">
                 <input
                   type="file"
-                  accept="image/*"
-                  capture="environment"
+                  accept="image/*,application/pdf,.pdf"
                   multiple
                   onChange={handleImageUpload}
                   className="hidden"
+                  disabled={pdfProcessing}
                 />
-                <Button variant="outline" size="lg" className="w-full" asChild>
+                <Button variant="outline" size="lg" className="w-full" asChild disabled={pdfProcessing}>
                   <span>
-                    <Upload className="h-4 w-4 mr-2" /> Aggiungi foto ({images.length}/{MAX_IMAGES})
+                    {pdfProcessing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Elaborazione PDF…
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" /> Aggiungi foto o PDF ({images.length}/{MAX_IMAGES})
+                      </>
+                    )}
                   </span>
                 </Button>
               </label>
@@ -493,20 +611,26 @@ Ordine:
 
             <div>
               <label className="text-xs text-muted-foreground">
-                Settore (opzionale, migliora l'accuratezza)
+                Settore di lavoro (migliora il matching prodotti dal listino)
+                {companyVertical?.vertical?.short_label && verticalKey === companyVertical.vertical_key ? (
+                  <Badge variant="outline" className="ml-2 text-[10px] py-0">
+                    Auto: {companyVertical.vertical.short_label}
+                  </Badge>
+                ) : null}
               </label>
-              <select
-                value={verticalKey}
-                onChange={(e) => setVerticalKey(e.target.value)}
-                className="w-full h-9 rounded-md border bg-background px-3 text-sm"
-              >
-                <option value="">Auto</option>
-                <option value="serramentisti">Serramenti</option>
-                <option value="edili_generaliste">Edilizia generale</option>
-                <option value="bagnisti">Bagno / idraulica</option>
-                <option value="tettisti">Tetti / lattoneria</option>
-                <option value="facciatisti">Facciate / cappotti</option>
-              </select>
+              <Select value={verticalKey || "__auto__"} onValueChange={(v) => setVerticalKey(v === "__auto__" ? "" : v)}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Auto-rileva" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__auto__">Auto-rileva</SelectItem>
+                  {verticalOptions.map((v) => (
+                    <SelectItem key={v.vertical_key} value={v.vertical_key}>
+                      {v.display_name ?? v.short_label ?? v.vertical_key}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t">
