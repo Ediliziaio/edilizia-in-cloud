@@ -9,6 +9,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { generateEmbedding } from "../_shared/brainEmbed.ts";
+import { generateEmbeddingMultilang } from "../_shared/brainEmbedMultilang.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -43,13 +44,33 @@ Deno.serve(async (req) => {
       return jsonRes({ error: "Query troppo corta (min 3 char)" }, 400);
     }
 
-    // 1. Embed query
+    // Lingua: se passata, usa il wrapper multilang; altrimenti backward-compat
+    const language: string | null = typeof body.language === "string" && body.language.trim().length > 0
+      ? body.language.trim().toLowerCase().slice(0, 2)
+      : null;
+    const crossLangFallback: boolean = body.cross_lang_fallback === true;
+    const preferCohere: boolean = body.prefer_cohere === true;
+
+    // 1. Embed query (modello selezionato in base alla language)
     const t0 = Date.now();
-    const embedding = await generateEmbedding(query);
+    let embedding: number[];
+    let embedModel = "text-embedding-3-small";
+    if (language && language !== "it" && language !== "en") {
+      const r = await generateEmbeddingMultilang(query, { language, preferCohere });
+      embedding = r.embedding;
+      embedModel = r.model;
+    } else if (language === "en") {
+      const r = await generateEmbeddingMultilang(query, { language });
+      embedding = r.embedding;
+      embedModel = r.model;
+    } else {
+      embedding = await generateEmbedding(query);
+    }
     const embedMs = Date.now() - t0;
 
-    // 2. Vector search
-    const { data: results, error } = await supabase.rpc("kb_test_query", {
+    // 2. Vector search — multilang RPC se language passata, classica altrimenti
+    const rpcName = language ? "kb_test_query_multilang" : "kb_test_query";
+    const rpcArgs: Record<string, unknown> = {
       p_query: query,
       p_query_embedding: embedding,
       p_top_k: Math.min(Math.max(body.top_k ?? 5, 1), 20),
@@ -57,14 +78,21 @@ Deno.serve(async (req) => {
       p_category_path: body.category_path ?? null,
       p_company_id: body.company_id ?? null,
       p_include_expired: body.include_expired ?? false,
-    });
+    };
+    if (language) {
+      rpcArgs.p_language = language;
+      rpcArgs.p_cross_lang_fallback = crossLangFallback;
+    }
 
+    const { data: results, error } = await supabase.rpc(rpcName, rpcArgs);
     if (error) return jsonRes({ error: error.message }, 500);
 
     return jsonRes({
       results: results ?? [],
       meta: {
         query,
+        language,
+        embed_model: embedModel,
         embed_ms: embedMs,
         total_ms: Date.now() - t0,
         embedding_dim: embedding.length,
