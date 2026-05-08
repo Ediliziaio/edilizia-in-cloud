@@ -68,6 +68,17 @@ export interface ComputoVoceLocal extends ComputoVoceEstratta {
   _ricarico: number;
   _importoImpresa: number;
   _isIncluded: boolean;
+  // ── Match al listino aziendale (manual via picker o future auto-match) ──
+  /** Article template ID se la voce è abbinata a un articolo del listino. */
+  _matched_template_id?: string;
+  /** Family ID se la voce è abbinata a una famiglia (configuratore) del listino. */
+  _matched_family_id?: string;
+  /** Nome del prodotto del listino abbinato (display). */
+  _matched_name?: string;
+  /** Tipo di match: 'manual' (utente ha cliccato picker), 'auto' (pgvector), 'none'. */
+  _match_type?: "manual" | "auto" | "none";
+  /** Prezzo unitario suggerito dal listino (override del prezzo computo se l'utente vuole). */
+  _matched_unit_price?: number;
 }
 
 export interface ComputoConfig {

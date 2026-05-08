@@ -1,6 +1,12 @@
 /**
  * Tabella editabile per revisione voci estratte da computo metrico.
  * Raggruppa per capitolo, consente edit prezzo/ricarico con ricalcolo live.
+ *
+ * Stato match listino:
+ *  - Voci NON abbinate: badge ambra "Da abbinare" + bottone "Abbina dal listino"
+ *  - Voci abbinate manualmente: badge verde "→ <nome listino>" + bottone "Cambia"
+ *  - L'utente può anche lasciare voci senza abbinamento (sono lavorazioni
+ *    da computo metrico non necessariamente presenti nel listino aziendale)
  */
 import { useState, useMemo, useCallback } from "react";
 import { Input } from "@/components/ui/input";
@@ -11,6 +17,9 @@ import {
   ChevronDown,
   ChevronRight,
   Percent,
+  Search,
+  Link2,
+  Link2Off,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { ComputoVoceLocal } from "@/types/computo";
@@ -18,6 +27,8 @@ import type { ComputoVoceLocal } from "@/types/computo";
 interface Props {
   voci: ComputoVoceLocal[];
   onChange: (voci: ComputoVoceLocal[]) => void;
+  /** Apre il picker prodotto del listino. Riceve l'id voce + descrizione iniziale. */
+  onMatchClick?: (voceId: string, initialQuery: string) => void;
 }
 
 function ConfidenceBadge({ value }: { value: number }) {
@@ -28,7 +39,7 @@ function ConfidenceBadge({ value }: { value: number }) {
   return <Badge variant="outline" className="text-[9px] py-0 border-red-400 text-red-600">{(value * 100).toFixed(0)}%</Badge>;
 }
 
-export function ComputoPreviewEditor({ voci, onChange }: Props) {
+export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
   const [collapsedCaps, setCollapsedCaps] = useState<Set<string>>(new Set());
   const [expandedDesc, setExpandedDesc] = useState<Set<string>>(new Set());
   const [bulkRicarico, setBulkRicarico] = useState(15);
@@ -115,6 +126,33 @@ export function ComputoPreviewEditor({ voci, onChange }: Props) {
     });
   };
 
+  const clearMatch = useCallback(
+    (id: string) => {
+      onChange(
+        voci.map((v) =>
+          v.id === id
+            ? {
+                ...v,
+                _matched_template_id: undefined,
+                _matched_family_id: undefined,
+                _matched_name: undefined,
+                _match_type: "none",
+                _matched_unit_price: undefined,
+              }
+            : v,
+        ),
+      );
+    },
+    [voci, onChange],
+  );
+
+  // Stats abbinamento per il header
+  const matchStats = useMemo(() => {
+    const matched = voci.filter((v) => v._isIncluded && v._match_type === "manual").length;
+    const unmatched = voci.filter((v) => v._isIncluded && (!v._match_type || v._match_type === "none")).length;
+    return { matched, unmatched };
+  }, [voci]);
+
   return (
     <div className="space-y-1">
       {/* Bulk actions */}
@@ -125,6 +163,22 @@ export function ComputoPreviewEditor({ voci, onChange }: Props) {
         <Button variant="outline" size="sm" onClick={() => toggleAll(false)}>
           Deseleziona
         </Button>
+        {/* Stats abbinamento listino */}
+        {(matchStats.matched > 0 || matchStats.unmatched > 0) && onMatchClick ? (
+          <div className="flex items-center gap-2 text-[10px]">
+            {matchStats.matched > 0 ? (
+              <Badge variant="outline" className="border-emerald-300 text-emerald-700 bg-emerald-50">
+                <Link2 className="h-2.5 w-2.5 mr-0.5" />
+                {matchStats.matched} abbinate
+              </Badge>
+            ) : null}
+            {matchStats.unmatched > 0 ? (
+              <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50">
+                {matchStats.unmatched} da abbinare
+              </Badge>
+            ) : null}
+          </div>
+        ) : null}
         <div className="flex items-center gap-1 ml-auto">
           <Input
             type="number"
@@ -141,11 +195,18 @@ export function ComputoPreviewEditor({ voci, onChange }: Props) {
         </div>
       </div>
 
-      {/* Table header */}
-      <div className="grid grid-cols-[32px_60px_1fr_50px_70px_80px_80px_70px_80px_40px] gap-1 text-[10px] font-medium text-muted-foreground px-1 border-b pb-1">
+      {/* Table header — con colonna Listino se onMatchClick fornito */}
+      <div
+        className={`grid ${
+          onMatchClick
+            ? "grid-cols-[32px_60px_1fr_140px_50px_70px_80px_80px_70px_80px_40px]"
+            : "grid-cols-[32px_60px_1fr_50px_70px_80px_80px_70px_80px_40px]"
+        } gap-1 text-[10px] font-medium text-muted-foreground px-1 border-b pb-1`}
+      >
         <span></span>
         <span>Codice</span>
         <span>Descrizione</span>
+        {onMatchClick ? <span>Listino</span> : null}
         <span>U.M.</span>
         <span className="text-right">Q.tà</span>
         <span className="text-right text-slate-400">Pr. Computo</span>
@@ -195,10 +256,16 @@ export function ComputoPreviewEditor({ voci, onChange }: Props) {
 
             {/* Voci */}
             {!collapsed &&
-              capVoci.map((v) => (
+              capVoci.map((v) => {
+                const isMatched = v._match_type === "manual" && (v._matched_template_id || v._matched_family_id);
+                return (
                 <div
                   key={v.id}
-                  className={`grid grid-cols-[32px_60px_1fr_50px_70px_80px_80px_70px_80px_40px] gap-1 items-center text-xs px-1 py-1 border-b border-slate-100 ${
+                  className={`grid ${
+                    onMatchClick
+                      ? "grid-cols-[32px_60px_1fr_140px_50px_70px_80px_80px_70px_80px_40px]"
+                      : "grid-cols-[32px_60px_1fr_50px_70px_80px_80px_70px_80px_40px]"
+                  } gap-1 items-center text-xs px-1 py-1 border-b border-slate-100 ${
                     !v._isIncluded ? "opacity-40" : ""
                   }`}
                 >
@@ -231,6 +298,42 @@ export function ComputoPreviewEditor({ voci, onChange }: Props) {
                       ? v.descrizione_estesa || v.descrizione_breve
                       : v.descrizione_breve}
                   </div>
+
+                  {/* Colonna Listino — solo se onMatchClick fornito */}
+                  {onMatchClick ? (
+                    <div className="flex items-center gap-0.5">
+                      {isMatched ? (
+                        <>
+                          <button
+                            type="button"
+                            className="flex-1 min-w-0 text-left text-[10px] text-emerald-700 truncate hover:underline"
+                            title={v._matched_name ?? ""}
+                            onClick={() => onMatchClick(v.id, v.descrizione_breve)}
+                          >
+                            <Link2 className="inline h-2.5 w-2.5 mr-0.5" />
+                            {v._matched_name ?? "abbinato"}
+                          </button>
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-rose-600 p-0.5"
+                            title="Rimuovi abbinamento"
+                            onClick={() => clearMatch(v.id)}
+                          >
+                            <Link2Off className="h-3 w-3" />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="flex-1 text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 truncate"
+                          onClick={() => onMatchClick(v.id, v.descrizione_breve)}
+                        >
+                          <Search className="inline h-2.5 w-2.5 mr-0.5" />
+                          Abbina
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
 
                   {/* U.M. */}
                   <span className="text-[10px] text-muted-foreground">{v.unita_misura}</span>
@@ -283,7 +386,8 @@ export function ComputoPreviewEditor({ voci, onChange }: Props) {
                     <ConfidenceBadge value={v.confidence} />
                   </div>
                 </div>
-              ))}
+                );
+              })}
           </div>
         );
       })}

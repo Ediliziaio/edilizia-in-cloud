@@ -197,6 +197,10 @@ export function useComputoExtract() {
         prezzo_unitario: number;
         importo: number;
         sconto_percentuale: number;
+        // Match listino (opzionale, popolato dall'utente via picker)
+        matched_template_id?: string;
+        matched_family_id?: string;
+        matched_name?: string;
       }>;
       config: {
         contactId?: string;
@@ -232,6 +236,9 @@ export function useComputoExtract() {
       if (qErr) throw qErr;
 
       // 3. Create quote items
+      // Se la voce è abbinata manualmente al listino (via picker), popoliamo
+      // article_template_id o family_id così il preventivo mantiene il link
+      // al catalogo aziendale (utile per configuratore famiglie + report margini).
       const items = vociIncluse
         .filter((v) => v.is_included)
         .map((voce, index) => ({
@@ -240,7 +247,7 @@ export function useComputoExtract() {
           sort_order: index + 1,
           item_type: "product" as const,
           item_category: "prodotto" as const,
-          name: voce.descrizione_breve,
+          name: voce.matched_name ?? voce.descrizione_breve,
           description: voce.descrizione_estesa || "",
           unit_of_measure: voce.unita_misura || "cad",
           quantity: voce.quantita,
@@ -250,6 +257,9 @@ export function useComputoExtract() {
           vat_rate: 10,
           computo_voce_id: voce.id,
           codice_prezzario: voce.codice_prezzario || null,
+          // Link al listino se abbinato
+          article_template_id: voce.matched_template_id ?? null,
+          family_id: voce.matched_family_id ?? null,
           is_optional: false,
           mostra_nel_pdf: true,
         }));

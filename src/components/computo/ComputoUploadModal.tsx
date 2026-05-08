@@ -35,7 +35,9 @@ import {
 import { useComputoExtract } from "@/hooks/useComputoExtract";
 import { ComputoPreviewEditor } from "./ComputoPreviewEditor";
 import { AIProcessingStage } from "./AIProcessingStage";
+import { MatchProductPickerDialog } from "@/components/quotes/MatchProductPickerDialog";
 import type { ComputoVoceLocal } from "@/types/computo";
+import type { CatalogItem } from "@/types/catalogItem";
 
 interface Props {
   open: boolean;
@@ -104,14 +106,50 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
   // Voci locali per il preview editor
   const [vociLocali, setVociLocali] = useState<ComputoVoceLocal[]>([]);
 
+  // Stato del picker articoli del listino (per abbinamento manuale)
+  const [pickerVoceId, setPickerVoceId] = useState<string | null>(null);
+  const [pickerInitialQuery, setPickerInitialQuery] = useState("");
+
   const handleClose = () => {
     reset();
     setStep(1);
     setFile(null);
     setVociLocali([]);
+    setPickerVoceId(null);
     hasInitializedRef.current = false;
     onOpenChange(false);
   };
+
+  // Apre il picker per la voce selezionata
+  const handleMatchClick = useCallback((voceId: string, query: string) => {
+    setPickerVoceId(voceId);
+    setPickerInitialQuery(query);
+  }, []);
+
+  // Quando l'utente seleziona un articolo dal picker
+  const handleManualMatch = useCallback(
+    (item: CatalogItem) => {
+      if (!pickerVoceId) return;
+      const isFamily = item.source === "family";
+      setVociLocali((prev) =>
+        prev.map((v) =>
+          v.id === pickerVoceId
+            ? {
+                ...v,
+                _matched_template_id: isFamily ? undefined : item.id,
+                _matched_family_id: isFamily ? item.id : undefined,
+                _matched_name: item.nome,
+                _match_type: "manual",
+                _matched_unit_price: item.prezzo_base_vendita ?? undefined,
+              }
+            : v,
+        ),
+      );
+      toast.success(`Abbinato: ${item.nome}`);
+      setPickerVoceId(null);
+    },
+    [pickerVoceId],
+  );
 
   // ── Step 1: File selection ─────────────────────────────────────────────────
   const handleFileSelect = useCallback((f: File) => {
@@ -191,6 +229,10 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
         prezzo_unitario: v._prezzoImpresa,
         importo: v._importoImpresa,
         sconto_percentuale: v.sconto_percentuale || 0,
+        // Match listino — propaga a quote_items.article_template_id/family_id
+        matched_template_id: v._matched_template_id,
+        matched_family_id: v._matched_family_id,
+        matched_name: v._matched_name,
       }));
 
     generatePreventivo(
@@ -215,7 +257,13 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className={step === 4 ? "max-w-6xl max-h-[90vh] overflow-hidden flex flex-col" : "sm:max-w-lg"}>
+      <DialogContent
+        className={step === 4 ? "max-w-6xl max-h-[90vh] overflow-hidden flex flex-col" : "sm:max-w-lg"}
+        onInteractOutside={(e) => {
+          // Evita chiusura quando l'utente apre il Sheet del picker abbinamento
+          if (pickerVoceId !== null) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-orange-500" />
@@ -408,6 +456,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
               <ComputoPreviewEditor
                 voci={vociLocali}
                 onChange={setVociLocali}
+                onMatchClick={handleMatchClick}
               />
             </div>
 
@@ -446,6 +495,18 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
           </div>
         )}
       </DialogContent>
+
+      {/* Sheet picker articoli del listino — apertura laterale, non chiude il
+          dialog parent grazie a onInteractOutside={preventDefault} sul Sheet
+          + onInteractOutside conditional sul Dialog parent */}
+      <MatchProductPickerDialog
+        open={pickerVoceId !== null}
+        onOpenChange={(o) => {
+          if (!o) setPickerVoceId(null);
+        }}
+        initialQuery={pickerInitialQuery}
+        onSelect={handleManualMatch}
+      />
     </Dialog>
   );
 }
