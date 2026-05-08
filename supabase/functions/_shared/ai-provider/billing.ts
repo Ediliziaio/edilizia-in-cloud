@@ -118,6 +118,8 @@ export async function chargeAndLog(
     task_kind: TaskKind;
     model_used: string;
     cost_usd_real: number;
+    /** true se il costo è stato stimato localmente (header x-or-cost assente) */
+    cost_is_estimated?: boolean;
     tokens_prompt: number;
     tokens_completion: number;
     wa_message_id?: string | null;
@@ -135,6 +137,7 @@ export async function chargeAndLog(
       tokens_completion: params.tokens_completion,
       tokens_total: params.tokens_prompt + params.tokens_completion,
       cost_usd: params.cost_usd_real,
+      cost_is_estimated: params.cost_is_estimated ?? false,
       ok: true,
       credits_deducted: false,
       metadata: params.metadata ?? {},
@@ -152,7 +155,10 @@ export async function chargeAndLog(
       p_tokens_prompt: params.tokens_prompt,
       p_tokens_completion: params.tokens_completion,
       p_wa_message_id: params.wa_message_id ?? null,
-      p_metadata: params.metadata ?? {},
+        p_metadata: {
+        ...(params.metadata ?? {}),
+        cost_is_estimated: params.cost_is_estimated ?? false,
+      },
     },
   );
 

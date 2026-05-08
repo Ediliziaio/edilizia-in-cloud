@@ -128,11 +128,14 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
       );
 
       // 4. Post-call: scala crediti + log atomico (MP05-FIX)
+      // cost_is_estimated=true → costo stimato localmente (x-or-cost assente)
+      // cost_is_estimated=false → costo reale da OpenRouter
       await chargeAndLog(supabase, {
         company_id: req.company_id,
         task_kind: req.task_kind,
         model_used: result.model,
         cost_usd_real: result.cost_usd,
+        cost_is_estimated: result.cost_is_estimated,
         tokens_prompt: result.usage.prompt_tokens,
         tokens_completion: result.usage.completion_tokens,
         wa_message_id: req.wa_message_id,

@@ -80,9 +80,49 @@ interface Props {
   error: string | null;
   onRetry: () => void;
   onCancel?: () => void;
+  /** Fix 8: nodo React opzionale che sostituisce il bottone Annulla default
+   * (usato da ComputoUploadModal per inserire un AlertDialog di conferma). */
+  cancelButton?: React.ReactNode;
 }
 
-export function AIProcessingStage({ status, progress, error, onRetry, onCancel }: Props) {
+/** Fix 19: mappa errori tecnici → messaggi leggibili dall'utente */
+const ERROR_MESSAGES: Record<string, { title: string; hint: string }> = {
+  corrupted: {
+    title: "File danneggiato o non leggibile",
+    hint: "Prova a riesportare il PDF dall'applicazione originale (senza protezione).",
+  },
+  unsupported: {
+    title: "Formato non supportato",
+    hint: "Usa PDF, Excel (.xlsx) o XPWE. Immagini: JPG o PNG.",
+  },
+  timeout: {
+    title: "Tempo di elaborazione superato",
+    hint: "Il file potrebbe essere troppo grande o complesso. Prova con un file ridotto.",
+  },
+  no_text: {
+    title: "Testo non rilevato nel documento",
+    hint: "Il documento potrebbe essere solo immagini. Usa la modalità 'Da Foto'.",
+  },
+  empty: {
+    title: "Nessuna voce trovata nel documento",
+    hint: "Verifica che il file contenga un computo metrico con prezzi e quantità.",
+  },
+  rate_limit: {
+    title: "Troppi documenti in elaborazione",
+    hint: "Riprova tra qualche istante.",
+  },
+};
+
+function friendlyError(raw: string | null): { title: string; hint: string } {
+  if (!raw) return { title: "Errore sconosciuto", hint: "Riprova o contatta il supporto." };
+  const lower = raw.toLowerCase();
+  for (const [key, msg] of Object.entries(ERROR_MESSAGES)) {
+    if (lower.includes(key)) return msg;
+  }
+  return { title: "Errore durante l'estrazione", hint: raw };
+}
+
+export function AIProcessingStage({ status, progress, error, onRetry, onCancel, cancelButton }: Props) {
   const isFailed = status === "failed";
   const startedAtRef = useRef<number>(Date.now());
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -138,6 +178,9 @@ export function AIProcessingStage({ status, progress, error, onRetry, onCancel }
   const isOvertime = elapsedMs > ETA_BASELINE_MS;
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Fix 19: messaggio di errore leggibile
+  const errInfo = friendlyError(error);
+
   if (isFailed) {
     return (
       <div className="space-y-6 py-6">
@@ -149,13 +192,17 @@ export function AIProcessingStage({ status, progress, error, onRetry, onCancel }
           >
             <XCircle className="h-14 w-14 mx-auto text-red-500 mb-3" />
           </motion.div>
-          <p className="text-base font-semibold text-red-600">Estrazione fallita</p>
-          {error && (
-            <p className="text-xs text-muted-foreground mt-2 max-w-md mx-auto">{error}</p>
+          <p className="text-base font-semibold text-red-600">{errInfo.title}</p>
+          <p className="text-xs text-muted-foreground mt-2 max-w-md mx-auto">{errInfo.hint}</p>
+          {errInfo.hint !== error && error && (
+            <details className="mt-2 text-[10px] text-muted-foreground">
+              <summary className="cursor-pointer">Dettaglio tecnico</summary>
+              <p className="mt-1 font-mono break-all">{error}</p>
+            </details>
           )}
         </div>
         <div className="flex justify-center gap-2">
-          <Button variant="outline" onClick={onCancel}>Chiudi</Button>
+          {cancelButton ?? (onCancel ? <Button variant="outline" onClick={onCancel}>Chiudi</Button> : null)}
           <Button onClick={onRetry}>
             <RotateCw className="h-4 w-4 mr-1" /> Riprova
           </Button>
@@ -299,12 +346,16 @@ export function AIProcessingStage({ status, progress, error, onRetry, onCancel }
         </div>
         <div className="flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
           <span>{Math.round(progressPct)}%</span>
+          {/* Fix 11: ETA come range invece di valore puntuale */}
           <span>
             {elapsedSec}s trascorsi
-            {!isOvertime && (
+            {!isOvertime && etaRemainingSec > 10 && (
               <span className="text-orange-500 font-medium">
-                {" "}· ~{etaRemainingSec}s rimanenti
+                {" "}· ~{Math.ceil(etaRemainingSec / 10) * 10}–{Math.ceil(etaRemainingSec / 10) * 10 + 10}s rimanenti
               </span>
+            )}
+            {!isOvertime && etaRemainingSec <= 10 && etaRemainingSec > 0 && (
+              <span className="text-orange-500 font-medium">{" "}· quasi pronto…</span>
             )}
             {isOvertime && (
               <span className="text-amber-600 font-medium">
@@ -331,6 +382,17 @@ export function AIProcessingStage({ status, progress, error, onRetry, onCancel }
           </motion.p>
         </AnimatePresence>
       </div>
+
+      {/* Fix 8: pulsante annulla (con AlertDialog se cancelButton fornito) */}
+      {(cancelButton ?? onCancel) && (
+        <div className="flex justify-center pt-1">
+          {cancelButton ?? (
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onCancel}>
+              Annulla
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

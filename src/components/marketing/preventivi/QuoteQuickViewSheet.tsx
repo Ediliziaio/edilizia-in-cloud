@@ -160,7 +160,7 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
                       {quote.client_name || "Cliente non specificato"}
                     </div>
                   </div>
-                  <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
+                  <Badge variant="outline" className={`whitespace-nowrap ${statusCfg.className}`}>{statusCfg.label}</Badge>
                 </div>
                 <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />

@@ -9,6 +9,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { generateEmbedding } from "../_shared/brainEmbed.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -801,6 +802,121 @@ async function saveExtractedVoci(
   }
 }
 
+// ── STEP 7.5: Match voci al listino (alias + pgvector, best-effort) ───────────
+// Eseguito dopo saveExtractedVoci. Non fatale: se fallisce l'estrazione
+// va comunque in "review" e l'utente abbina manualmente.
+// Limit: prime 50 voci per budget embedding (computi > 50 voci sono rari).
+
+async function matchAndUpdateVoci(
+  computoId: string,
+  companyId: string,
+): Promise<{ matched: number; total: number }> {
+  const { data: savedVoci, error } = await sb
+    .from("computo_voci_estratte")
+    .select("id, descrizione_breve, codice_prezzario, ordine")
+    .eq("computo_upload_id", computoId)
+    .order("ordine")
+    .limit(50);
+
+  if (error || !savedVoci || savedVoci.length === 0) {
+    console.warn("[matchAndUpdateVoci] fetch failed or no voci:", error?.message);
+    return { matched: 0, total: 0 };
+  }
+
+  let matched = 0;
+
+  for (const voce of savedVoci) {
+    try {
+      // Build query text: descrizione + codice prezzario se presente
+      const queryText = [voce.descrizione_breve, voce.codice_prezzario]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      if (!queryText) continue;
+
+      // ── 1. Alias lookup O(1) ─────────────────────────────────────────────
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: aliasMatch } = await (sb as any).rpc(
+        "silvio_tool_match_product_alias",
+        { p_company_id: companyId, p_alias_text: queryText },
+      );
+
+      if ((aliasMatch as { match?: boolean } | null)?.match) {
+        const m = aliasMatch as {
+          article_template_id?: string;
+          family_id?: string;
+          tariffa_id?: string;
+          matched_name?: string;
+          confidence: number;
+        };
+        await sb.from("computo_voci_estratte").update({
+          matched_template_id: m.article_template_id ?? null,
+          matched_family_id: m.family_id ?? null,
+          matched_tariffa_id: m.tariffa_id ?? null,
+          matched_name: m.matched_name ?? null,
+          match_type: "alias",
+          match_confidence: m.confidence ?? 0.95,
+        }).eq("id", voce.id);
+        matched++;
+        continue;
+      }
+
+      // ── 2. pgvector fallback ─────────────────────────────────────────────
+      const embedding = await generateEmbedding(queryText);
+      const embeddingLiteral = `[${embedding.join(",")}]`;
+
+      // 2a. Famiglie (configuratore — più probabile per serramenti/edilizia)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: familyMatches } = await (sb as any).rpc("match_families_semantic", {
+        p_query_embedding: embeddingLiteral,
+        p_match_threshold: 0.5,
+        p_match_count: 1,
+        p_company_id: companyId,
+      });
+      const topFamily = (familyMatches as Array<{
+        id: string; nome?: string; name?: string; similarity: number;
+      }> | null)?.[0];
+
+      if (topFamily && topFamily.similarity > 0.6) {
+        await sb.from("computo_voci_estratte").update({
+          matched_family_id: topFamily.id,
+          matched_name: topFamily.nome ?? topFamily.name ?? null,
+          match_type: "vector",
+          match_confidence: topFamily.similarity,
+        }).eq("id", voce.id);
+        matched++;
+        continue;
+      }
+
+      // 2b. Articoli singoli
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: articleMatches } = await (sb as any).rpc("match_articles", {
+        p_query_embedding: embeddingLiteral,
+        p_match_threshold: 0.5,
+        p_match_count: 1,
+        p_company_id: companyId,
+      });
+      const topArticle = (articleMatches as Array<{
+        id: string; name?: string; similarity: number;
+      }> | null)?.[0];
+
+      if (topArticle && topArticle.similarity > 0.55) {
+        await sb.from("computo_voci_estratte").update({
+          matched_template_id: topArticle.id,
+          matched_name: topArticle.name ?? null,
+          match_type: "vector",
+          match_confidence: topArticle.similarity,
+        }).eq("id", voce.id);
+        matched++;
+      }
+    } catch (e: any) {
+      console.warn(`[matchAndUpdateVoci] skip ${voce.id}: ${e.message}`);
+    }
+  }
+
+  return { matched, total: savedVoci.length };
+}
+
 // ── Main Handler ─────────────────────────────────────────────────────────────
 
 serve(async (req) => {
@@ -913,6 +1029,16 @@ serve(async (req) => {
     // 7. Save extracted voci
     await saveExtractedVoci(computoUploadId, upload.company_id, result);
 
+    // 7.5. Match voci al listino aziendale (alias + pgvector, best-effort)
+    // Non blocca il flusso: se fallisce l'utente abbina manualmente in review.
+    let matchSummary = { matched: 0, total: 0 };
+    try {
+      matchSummary = await matchAndUpdateVoci(computoUploadId, upload.company_id);
+      console.log(`[computo-ai-extract] matched ${matchSummary.matched}/${matchSummary.total} voci`);
+    } catch (e: any) {
+      console.error("[computo-ai-extract] matchAndUpdateVoci (non-fatal):", e.message);
+    }
+
     // 8. Update upload with metadata
     await sb
       .from("computo_uploads")
@@ -936,6 +1062,7 @@ serve(async (req) => {
       capitoli_count: result.capitoli.length,
       confidence: calculateOverallConfidence(result),
       warnings: validation.warnings,
+      matched_count: matchSummary.matched,
     }, 200, cors);
   } catch (err: any) {
     // requireAuth throws a Response on 401

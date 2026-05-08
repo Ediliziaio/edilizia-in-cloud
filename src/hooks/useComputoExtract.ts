@@ -197,7 +197,7 @@ export function useComputoExtract() {
         prezzo_unitario: number;
         importo: number;
         sconto_percentuale: number;
-        // Match listino (opzionale, popolato dall'utente via picker)
+        // Match listino (opzionale, popolato da auto-match o picker utente)
         matched_template_id?: string;
         matched_family_id?: string;
         matched_name?: string;
@@ -212,85 +212,47 @@ export function useComputoExtract() {
 
       setStatus("generating");
 
-      // 1. Generate quote number
-      const { data: numData } = await supabase.rpc("generate_quote_number", {
-        p_company_id: companyId,
-      });
-      const quoteNumber = numData || `P-${Date.now()}`;
-
-      // 2. Create quote
-      const { data: quote, error: qErr } = await supabase
-        .from("quotes")
-        .insert({
-          company_id: companyId,
-          created_by: user.id,
-          quote_number: quoteNumber,
-          title: config.oggetto || computoUpload?.oggetto_lavori || "Da Computo Metrico",
-          status: "bozza",
-          source: "computo_ai",
-          computo_upload_id: computoId,
-          notes: config.note || `Generato da computo metrico: ${computoUpload?.file_name}`,
-        })
-        .select()
-        .single();
-      if (qErr) throw qErr;
-
-      // 3. Create quote items
-      // Se la voce è abbinata manualmente al listino (via picker), popoliamo
-      // article_template_id o family_id così il preventivo mantiene il link
-      // al catalogo aziendale (utile per configuratore famiglie + report margini).
+      // Usa RPC transazionale: crea quote + items in un unico transaction block.
+      // Elimina il rischio di quote orfani se items INSERT fallisce (Fix P0-#2).
       const items = vociIncluse
         .filter((v) => v.is_included)
         .map((voce, index) => ({
-          quote_id: quote.id,
-          company_id: companyId,
-          sort_order: index + 1,
-          item_type: "product" as const,
-          item_category: "prodotto" as const,
+          id: voce.id,                           // computo_voce_id
           name: voce.matched_name ?? voce.descrizione_breve,
-          description: voce.descrizione_estesa || "",
+          description: voce.descrizione_estesa || null,
           unit_of_measure: voce.unita_misura || "cad",
           quantity: voce.quantita,
           unit_price: voce.prezzo_unitario,
           line_total: voce.importo * (1 - (voce.sconto_percentuale || 0) / 100),
           discount_percent: voce.sconto_percentuale || 0,
-          vat_rate: 10,
-          computo_voce_id: voce.id,
           codice_prezzario: voce.codice_prezzario || null,
-          // Link al listino se abbinato
           article_template_id: voce.matched_template_id ?? null,
           family_id: voce.matched_family_id ?? null,
-          is_optional: false,
-          mostra_nel_pdf: true,
+          sort_order: index + 1,
         }));
 
-      if (items.length > 0) {
-        const { error: iErr } = await supabase.from("quote_items").insert(items);
-        if (iErr) throw iErr;
+      const { data: rpcResult, error: rpcErr } = await supabase.rpc(
+        "silvio_tool_apply_computo_review",
+        {
+          p_company_id: companyId,
+          p_computo_id: computoId,
+          p_items: items,
+          p_config: {
+            oggetto: config.oggetto || computoUpload?.oggetto_lavori || null,
+            contact_id: config.contactId || null,
+            note: config.note || null,
+          },
+        }
+      );
+
+      if (rpcErr) throw rpcErr;
+
+      const result = rpcResult as { ok: boolean; quote_id?: string; error?: string } | null;
+      if (!result?.ok) {
+        throw new Error(result?.error || "Generazione fallita lato server");
       }
 
-      // 4. Update totals
-      const subtotal = items.reduce((s, v) => s + (v.line_total || 0), 0);
-      const vatAmount = subtotal * 0.1;
-      await supabase
-        .from("quotes")
-        .update({
-          subtotal,
-          vat_amount: vatAmount,
-          total: subtotal + vatAmount,
-        })
-        .eq("id", quote.id);
-
-      // 5. Update computo upload
-      await supabase
-        .from("computo_uploads")
-        .update({
-          extraction_status: "completed",
-          quote_id: quote.id,
-        })
-        .eq("id", computoId);
-
-      return quote.id;
+      return result.quote_id!;
     },
     onSuccess: () => {
       setStatus("completed");

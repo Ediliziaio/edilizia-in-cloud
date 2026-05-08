@@ -333,8 +333,12 @@ Deno.serve(async (req) => {
       return jsonOk({ run_id: runId, error: "extraction_failed", message: (e as Error).message }, 500, cors);
     }
 
-    // ─── STEP 3: Match prodotti listino ─────────────────────────────────────
-    for (const p of extraction.products) {
+    // ─── STEP 3: Match prodotti listino (parallelo: max 5 concurrent) ─────────
+    const MATCH_CONCURRENCY = 5;
+
+    // Funzione per matchare un singolo prodotto (alias → vector → pricing)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const matchSingleProduct = async (p: any) => {
       try {
         // 3a. Prima cerco alias rapido
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -367,6 +371,13 @@ Deno.serve(async (req) => {
         extraction.avvertenze.push(`Match prodotto fallito: ${p.descrizione_grezza}`);
         console.error("match_failed", p.descrizione_grezza, e);
       }
+    };
+
+    // Processa in batch da MATCH_CONCURRENCY per evitare sovraccarico DB
+    for (let i = 0; i < extraction.products.length; i += MATCH_CONCURRENCY) {
+      await Promise.allSettled(
+        extraction.products.slice(i, i + MATCH_CONCURRENCY).map(matchSingleProduct),
+      );
     }
 
     summary.extraction = extraction;

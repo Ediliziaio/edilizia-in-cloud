@@ -14,12 +14,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   ChevronDown,
   ChevronRight,
   Percent,
   Search,
   Link2,
   Link2Off,
+  Sparkles,
+  MoveRight,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { ComputoVoceLocal } from "@/types/computo";
@@ -32,11 +40,42 @@ interface Props {
 }
 
 function ConfidenceBadge({ value }: { value: number }) {
-  if (value >= 0.9)
-    return <Badge variant="outline" className="text-[9px] py-0 border-green-400 text-green-600">{(value * 100).toFixed(0)}%</Badge>;
-  if (value >= 0.7)
-    return <Badge variant="outline" className="text-[9px] py-0 border-amber-400 text-amber-600">{(value * 100).toFixed(0)}%</Badge>;
-  return <Badge variant="outline" className="text-[9px] py-0 border-red-400 text-red-600">{(value * 100).toFixed(0)}%</Badge>;
+  const label = `${(value * 100).toFixed(0)}%`;
+  const colorClass =
+    value >= 0.9
+      ? "border-green-400 text-green-600"
+      : value >= 0.7
+        ? "border-amber-400 text-amber-600"
+        : "border-red-400 text-red-600";
+  const hint =
+    value >= 0.9
+      ? "Alta confidenza"
+      : value >= 0.7
+        ? "Confidenza media — verifica"
+        : "Bassa confidenza — verifica attentamente";
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="outline" className={`text-[9px] py-0 cursor-help ${colorClass}`}>
+            {label}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="left" className="text-xs">
+          {hint}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+/** Colore di sfondo riga basato sulla confidenza AI */
+function rowBg(v: ComputoVoceLocal): string {
+  if (!v._isIncluded) return "";
+  const conf = v.confidence ?? 1;
+  if (conf < 0.5) return "bg-red-50/60 dark:bg-red-950/10";
+  if (conf < 0.75) return "bg-amber-50/40 dark:bg-amber-950/10";
+  return "";
 }
 
 export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
@@ -148,10 +187,15 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
 
   // Stats abbinamento per il header
   const matchStats = useMemo(() => {
-    const matched = voci.filter((v) => v._isIncluded && v._match_type === "manual").length;
-    const unmatched = voci.filter((v) => v._isIncluded && (!v._match_type || v._match_type === "none")).length;
-    return { matched, unmatched };
+    const manual = voci.filter((v) => v._isIncluded && v._match_type === "manual" && (v._matched_template_id || v._matched_family_id)).length;
+    const auto = voci.filter((v) => v._isIncluded && (v._match_type === "vector" || v._match_type === "alias") && (v._matched_template_id || v._matched_family_id)).length;
+    const unmatched = voci.filter((v) => v._isIncluded && (!v._match_type || v._match_type === "none" || (!v._matched_template_id && !v._matched_family_id))).length;
+    return { manual, auto, unmatched };
   }, [voci]);
+
+  const gridCols = onMatchClick
+    ? "grid-cols-[32px_60px_1fr_140px_50px_70px_80px_80px_70px_80px_40px]"
+    : "grid-cols-[32px_60px_1fr_50px_70px_80px_80px_70px_80px_40px]";
 
   return (
     <div className="space-y-1">
@@ -164,12 +208,18 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
           Deseleziona
         </Button>
         {/* Stats abbinamento listino */}
-        {(matchStats.matched > 0 || matchStats.unmatched > 0) && onMatchClick ? (
+        {(matchStats.manual > 0 || matchStats.auto > 0 || matchStats.unmatched > 0) && onMatchClick ? (
           <div className="flex items-center gap-2 text-[10px]">
-            {matchStats.matched > 0 ? (
+            {matchStats.manual > 0 ? (
               <Badge variant="outline" className="border-emerald-300 text-emerald-700 bg-emerald-50">
                 <Link2 className="h-2.5 w-2.5 mr-0.5" />
-                {matchStats.matched} abbinate
+                {matchStats.manual} abbinate
+              </Badge>
+            ) : null}
+            {matchStats.auto > 0 ? (
+              <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50">
+                <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                {matchStats.auto} suggerite AI
               </Badge>
             ) : null}
             {matchStats.unmatched > 0 ? (
@@ -183,7 +233,7 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
           <Input
             type="number"
             value={bulkRicarico}
-            onChange={(e) => setBulkRicarico(Number(e.target.value))}
+            onChange={(e) => setBulkRicarico(Math.max(0, Math.min(200, Number(e.target.value))))}
             className="w-16 h-7 text-xs"
             min={0}
             max={200}
@@ -195,202 +245,243 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
         </div>
       </div>
 
-      {/* Table header — con colonna Listino se onMatchClick fornito */}
-      <div
-        className={`grid ${
-          onMatchClick
-            ? "grid-cols-[32px_60px_1fr_140px_50px_70px_80px_80px_70px_80px_40px]"
-            : "grid-cols-[32px_60px_1fr_50px_70px_80px_80px_70px_80px_40px]"
-        } gap-1 text-[10px] font-medium text-muted-foreground px-1 border-b pb-1`}
-      >
-        <span></span>
-        <span>Codice</span>
-        <span>Descrizione</span>
-        {onMatchClick ? <span>Listino</span> : null}
-        <span>U.M.</span>
-        <span className="text-right">Q.tà</span>
-        <span className="text-right text-slate-400">Pr. Computo</span>
-        <span className="text-right text-orange-500">Pr. Impresa</span>
-        <span className="text-right">Ric. %</span>
-        <span className="text-right text-orange-500">Importo</span>
-        <span className="text-center">AI</span>
-      </div>
+      {/* Fix 17: Legenda match — visibile solo se picker attivo */}
+      {onMatchClick && (matchStats.manual > 0 || matchStats.auto > 0) && (
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground pb-1">
+          <span className="font-medium">Legenda:</span>
+          <span className="flex items-center gap-0.5">
+            <Link2 className="h-2.5 w-2.5 text-emerald-600" />
+            <span className="text-emerald-700">Abbinamento manuale</span>
+          </span>
+          <MoveRight className="h-2.5 w-2.5" />
+          <span className="flex items-center gap-0.5">
+            <Sparkles className="h-2.5 w-2.5 text-blue-500" />
+            <span className="text-blue-700">Suggerito AI</span>
+          </span>
+        </div>
+      )}
 
-      {/* Capitoli + voci */}
-      {capitoli.map(([capNome, capVoci]) => {
-        const collapsed = collapsedCaps.has(capNome);
-        const totaleCapitolo = capVoci
-          .filter((v) => v._isIncluded)
-          .reduce((s, v) => s + v._importoImpresa, 0);
-
-        return (
-          <div key={capNome}>
-            {/* Capitolo header */}
-            <div
-              className="flex items-center gap-2 py-1.5 px-1 bg-slate-50 rounded cursor-pointer hover:bg-slate-100 group"
-              onClick={() => toggleCapitolo(capNome)}
-            >
-              {collapsed ? (
-                <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-              )}
-              <span className="text-xs font-semibold flex-1">{capNome}</span>
-              <span className="text-xs text-muted-foreground">{capVoci.length} voci</span>
-              <span className="text-xs font-semibold text-orange-600">
-                {formatCurrency(totaleCapitolo)}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 text-[10px] opacity-0 group-hover:opacity-100"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  applyBulkRicaricoToCapitolo(capNome);
-                }}
-              >
-                <Percent className="h-2.5 w-2.5 mr-0.5" />
-                {bulkRicarico}%
-              </Button>
-            </div>
-
-            {/* Voci */}
-            {!collapsed &&
-              capVoci.map((v) => {
-                const isMatched = v._match_type === "manual" && (v._matched_template_id || v._matched_family_id);
-                return (
-                <div
-                  key={v.id}
-                  className={`grid ${
-                    onMatchClick
-                      ? "grid-cols-[32px_60px_1fr_140px_50px_70px_80px_80px_70px_80px_40px]"
-                      : "grid-cols-[32px_60px_1fr_50px_70px_80px_80px_70px_80px_40px]"
-                  } gap-1 items-center text-xs px-1 py-1 border-b border-slate-100 ${
-                    !v._isIncluded ? "opacity-40" : ""
-                  }`}
-                >
-                  {/* Checkbox */}
-                  <Checkbox
-                    checked={v._isIncluded}
-                    onCheckedChange={(c) => updateVoce(v.id, { _isIncluded: !!c })}
-                    className="h-3.5 w-3.5"
-                  />
-
-                  {/* Codice */}
-                  <span className="text-[10px] text-muted-foreground truncate" title={v.codice_voce || ""}>
-                    {v.codice_voce}
-                  </span>
-
-                  {/* Descrizione */}
-                  <div
-                    className="truncate cursor-pointer hover:text-clip"
-                    title={v.descrizione_estesa || v.descrizione_breve}
-                    onClick={() =>
-                      setExpandedDesc((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(v.id)) next.delete(v.id);
-                        else next.add(v.id);
-                        return next;
-                      })
-                    }
-                  >
-                    {expandedDesc.has(v.id)
-                      ? v.descrizione_estesa || v.descrizione_breve
-                      : v.descrizione_breve}
-                  </div>
-
-                  {/* Colonna Listino — solo se onMatchClick fornito */}
-                  {onMatchClick ? (
-                    <div className="flex items-center gap-0.5">
-                      {isMatched ? (
-                        <>
-                          <button
-                            type="button"
-                            className="flex-1 min-w-0 text-left text-[10px] text-emerald-700 truncate hover:underline"
-                            title={v._matched_name ?? ""}
-                            onClick={() => onMatchClick(v.id, v.descrizione_breve)}
-                          >
-                            <Link2 className="inline h-2.5 w-2.5 mr-0.5" />
-                            {v._matched_name ?? "abbinato"}
-                          </button>
-                          <button
-                            type="button"
-                            className="text-muted-foreground hover:text-rose-600 p-0.5"
-                            title="Rimuovi abbinamento"
-                            onClick={() => clearMatch(v.id)}
-                          >
-                            <Link2Off className="h-3 w-3" />
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          className="flex-1 text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 truncate"
-                          onClick={() => onMatchClick(v.id, v.descrizione_breve)}
-                        >
-                          <Search className="inline h-2.5 w-2.5 mr-0.5" />
-                          Abbina
-                        </button>
-                      )}
-                    </div>
-                  ) : null}
-
-                  {/* U.M. */}
-                  <span className="text-[10px] text-muted-foreground">{v.unita_misura}</span>
-
-                  {/* Quantità (editable) */}
-                  <Input
-                    type="number"
-                    value={v.quantita}
-                    onChange={(e) =>
-                      updateVoce(v.id, { quantita: Number(e.target.value) })
-                    }
-                    className="h-6 text-[11px] text-right px-1"
-                    step="0.01"
-                  />
-
-                  {/* Prezzo computo (read-only) */}
-                  <span className="text-right text-[10px] text-slate-400">
-                    {formatCurrency(v.prezzo_unitario_computo)}
-                  </span>
-
-                  {/* Prezzo impresa (editable) */}
-                  <Input
-                    type="number"
-                    value={Math.round(v._prezzoImpresa * 100) / 100}
-                    onChange={(e) =>
-                      updateVoce(v.id, { _prezzoImpresa: Number(e.target.value) })
-                    }
-                    className="h-6 text-[11px] text-right px-1 border-orange-200 focus:border-orange-400"
-                    step="0.01"
-                  />
-
-                  {/* Ricarico % (editable) */}
-                  <Input
-                    type="number"
-                    value={Math.round(v._ricarico * 10) / 10}
-                    onChange={(e) =>
-                      updateVoce(v.id, { _ricarico: Number(e.target.value) })
-                    }
-                    className="h-6 text-[10px] text-right px-1"
-                    step="0.5"
-                  />
-
-                  {/* Importo impresa (calculated) */}
-                  <span className="text-right text-[11px] font-medium text-orange-600">
-                    {formatCurrency(v._importoImpresa)}
-                  </span>
-
-                  {/* Confidence */}
-                  <div className="flex justify-center">
-                    <ConfidenceBadge value={v.confidence} />
-                  </div>
-                </div>
-                );
-              })}
+      {/* Fix 1: Scroll orizzontale su mobile — min-w garantisce layout desktop intatto */}
+      <div className="overflow-x-auto -mx-1 px-1">
+        <div className="min-w-[780px]">
+          {/* Table header */}
+          <div
+            className={`grid ${gridCols} gap-1 text-[10px] font-medium text-muted-foreground px-1 border-b pb-1`}
+          >
+            <span></span>
+            <span>Codice</span>
+            <span>Descrizione</span>
+            {onMatchClick ? <span>Listino</span> : null}
+            <span>U.M.</span>
+            <span className="text-right">Q.tà</span>
+            <span className="text-right text-slate-400">Pr. Computo</span>
+            <span className="text-right text-orange-500">Pr. Impresa</span>
+            <span className="text-right">Ric. %</span>
+            <span className="text-right text-orange-500">Importo</span>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-center cursor-help">AI</span>
+                </TooltipTrigger>
+                <TooltipContent className="text-xs">
+                  Confidenza estrazione AI
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
-        );
-      })}
+
+          {/* Capitoli + voci */}
+          {capitoli.map(([capNome, capVoci]) => {
+            const collapsed = collapsedCaps.has(capNome);
+            const totaleCapitolo = capVoci
+              .filter((v) => v._isIncluded)
+              .reduce((s, v) => s + v._importoImpresa, 0);
+
+            return (
+              <div key={capNome}>
+                {/* Capitolo header */}
+                <div
+                  className="flex items-center gap-2 py-1.5 px-1 bg-slate-50 rounded cursor-pointer hover:bg-slate-100 group"
+                  onClick={() => toggleCapitolo(capNome)}
+                >
+                  {collapsed ? (
+                    <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                  )}
+                  <span className="text-xs font-semibold flex-1">{capNome}</span>
+                  <span className="text-xs text-muted-foreground">{capVoci.length} voci</span>
+                  <span className="text-xs font-semibold text-orange-600">
+                    {formatCurrency(totaleCapitolo)}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 text-[10px] opacity-0 group-hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      applyBulkRicaricoToCapitolo(capNome);
+                    }}
+                  >
+                    <Percent className="h-2.5 w-2.5 mr-0.5" />
+                    {bulkRicarico}%
+                  </Button>
+                </div>
+
+                {/* Voci */}
+                {!collapsed &&
+                  capVoci.map((v) => {
+                    const isMatched = !!v._match_type && v._match_type !== "none" &&
+                      (v._matched_template_id || v._matched_family_id);
+                    const isAutoMatch = isMatched && (v._match_type === "vector" || v._match_type === "alias");
+                    return (
+                    <div
+                      key={v.id}
+                      className={`grid ${gridCols} gap-1 items-center text-xs px-1 py-1 border-b border-slate-100 transition-colors ${
+                        !v._isIncluded ? "opacity-40" : rowBg(v)
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <Checkbox
+                        checked={v._isIncluded}
+                        onCheckedChange={(c) => updateVoce(v.id, { _isIncluded: !!c })}
+                        className="h-3.5 w-3.5"
+                        aria-label={`Includi voce: ${v.descrizione_breve}`}
+                      />
+
+                      {/* Codice */}
+                      <span className="text-[10px] text-muted-foreground truncate" title={v.codice_voce || ""}>
+                        {v.codice_voce}
+                      </span>
+
+                      {/* Descrizione */}
+                      <div
+                        className="truncate cursor-pointer hover:text-clip"
+                        title={v.descrizione_estesa || v.descrizione_breve}
+                        onClick={() =>
+                          setExpandedDesc((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(v.id)) next.delete(v.id);
+                            else next.add(v.id);
+                            return next;
+                          })
+                        }
+                      >
+                        {expandedDesc.has(v.id)
+                          ? v.descrizione_estesa || v.descrizione_breve
+                          : v.descrizione_breve}
+                      </div>
+
+                      {/* Colonna Listino */}
+                      {onMatchClick ? (
+                        <div className="flex items-center gap-0.5">
+                          {isMatched ? (
+                            <>
+                              <button
+                                type="button"
+                                className={`flex-1 min-w-0 text-left text-[10px] truncate hover:underline ${
+                                  isAutoMatch ? "text-blue-600" : "text-emerald-700"
+                                }`}
+                                title={`${v._matched_name ?? ""}${isAutoMatch ? " (suggerito AI)" : " (abbinato)"}`}
+                                onClick={() => onMatchClick(v.id, v.descrizione_breve)}
+                                aria-label={`Cambia abbinamento: ${v._matched_name}`}
+                              >
+                                {isAutoMatch ? (
+                                  <Sparkles className="inline h-2.5 w-2.5 mr-0.5 text-blue-400" />
+                                ) : (
+                                  <Link2 className="inline h-2.5 w-2.5 mr-0.5" />
+                                )}
+                                {v._matched_name ?? "abbinato"}
+                              </button>
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:text-rose-600 p-0.5"
+                                title="Rimuovi abbinamento"
+                                aria-label={`Rimuovi abbinamento per: ${v.descrizione_breve}`}
+                                onClick={() => clearMatch(v.id)}
+                              >
+                                <Link2Off className="h-3 w-3" />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              className="flex-1 text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 truncate"
+                              onClick={() => onMatchClick(v.id, v.descrizione_breve)}
+                              aria-label={`Abbina al listino: ${v.descrizione_breve}`}
+                            >
+                              <Search className="inline h-2.5 w-2.5 mr-0.5" />
+                              Abbina
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
+
+                      {/* U.M. */}
+                      <span className="text-[10px] text-muted-foreground">{v.unita_misura}</span>
+
+                      {/* Fix 13: step + min su quantità */}
+                      <Input
+                        type="number"
+                        value={v.quantita}
+                        onChange={(e) =>
+                          updateVoce(v.id, { quantita: Math.max(0, Number(e.target.value)) })
+                        }
+                        className="h-6 text-[11px] text-right px-1"
+                        step="0.01"
+                        min="0"
+                        aria-label="Quantità"
+                      />
+
+                      {/* Prezzo computo (read-only) */}
+                      <span className="text-right text-[10px] text-slate-400">
+                        {formatCurrency(v.prezzo_unitario_computo)}
+                      </span>
+
+                      {/* Fix 2: Prezzo impresa — min="0" blocca negativi */}
+                      <Input
+                        type="number"
+                        value={Math.round(v._prezzoImpresa * 100) / 100}
+                        onChange={(e) =>
+                          updateVoce(v.id, { _prezzoImpresa: Math.max(0, Number(e.target.value)) })
+                        }
+                        className="h-6 text-[11px] text-right px-1 border-orange-200 focus:border-orange-400"
+                        step="0.01"
+                        min="0"
+                        aria-label="Prezzo impresa"
+                      />
+
+                      {/* Fix 2: Ricarico — min="0" max="200" */}
+                      <Input
+                        type="number"
+                        value={Math.round(v._ricarico * 10) / 10}
+                        onChange={(e) =>
+                          updateVoce(v.id, { _ricarico: Math.max(0, Math.min(200, Number(e.target.value))) })
+                        }
+                        className="h-6 text-[10px] text-right px-1"
+                        step="0.5"
+                        min="0"
+                        max="200"
+                        aria-label="Ricarico %"
+                      />
+
+                      {/* Importo impresa (calculated) */}
+                      <span className="text-right text-[11px] font-medium text-orange-600">
+                        {formatCurrency(v._importoImpresa)}
+                      </span>
+
+                      {/* Fix 16: Confidence con tooltip */}
+                      <div className="flex justify-center">
+                        <ConfidenceBadge value={v.confidence} />
+                      </div>
+                    </div>
+                    );
+                  })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

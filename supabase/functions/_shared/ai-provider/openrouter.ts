@@ -27,6 +27,9 @@ export interface OpenRouterResult {
     total_tokens: number;
   };
   cost_usd: number;
+  /** true = costo stimato localmente (header x-or-cost assente).
+   *  false = costo reale fornito da OpenRouter. */
+  cost_is_estimated: boolean;
   finish_reason: string;
   latency_ms: number;
 }
@@ -158,10 +161,23 @@ export async function callOpenRouter(
         throw makeAIError("unknown", "OpenRouter: no choices in response", false);
       }
 
+      // Costo REALE da OpenRouter (header x-or-cost).
+      // Se assente → stima locale dai token (meno precisa).
       const costHeader = resp.headers.get("x-or-cost");
+      const costIsEstimated = !costHeader;
       const costUsd = costHeader
         ? Number(costHeader)
         : estimateCost(json.usage ?? null, params.model);
+
+      if (costIsEstimated) {
+        console.warn(JSON.stringify({
+          level: "warn",
+          fn: "callOpenRouter",
+          msg: "x-or-cost header assente — costo stimato localmente, potrebbe non rispecchiare il tuo piano OpenRouter",
+          model: params.model,
+          task_kind: metadata.task_kind,
+        }));
+      }
 
       return {
         content: choice.message?.content ?? null,
@@ -173,6 +189,7 @@ export async function callOpenRouter(
           total_tokens: json.usage?.total_tokens ?? 0,
         },
         cost_usd: isNaN(costUsd) ? 0 : costUsd,
+        cost_is_estimated: costIsEstimated,
         finish_reason: choice.finish_reason ?? "stop",
         latency_ms: latencyMs,
       };

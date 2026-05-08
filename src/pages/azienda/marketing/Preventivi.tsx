@@ -997,7 +997,7 @@ export default function Preventivi() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs text-muted-foreground">{q.quote_number}</span>
-                    <Badge variant={sc.variant} className="text-[10px] px-1.5 py-0">{sc.label}</Badge>
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 whitespace-nowrap ${sc.className}`}>{sc.label}</Badge>
                   </div>
                   <p className="text-sm font-medium truncate mt-0.5">{q.client_name || "—"}</p>
                   {q.title && <p className="text-xs text-muted-foreground truncate">{q.title}</p>}
@@ -1122,7 +1122,7 @@ export default function Preventivi() {
                     )}
                     {isColVisible("stato") && (
                       <TableCell>
-                        <Badge variant={sc.variant}>{sc.label}</Badge>
+                        <Badge variant="outline" className={`whitespace-nowrap ${sc.className}`}>{sc.label}</Badge>
                       </TableCell>
                     )}
                     {isColVisible("approvazione") && (

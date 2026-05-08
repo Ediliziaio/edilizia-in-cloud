@@ -12,8 +12,9 @@
  *   - Auto-suggestion iniziale: pre-compila search con descrizione voce
  *   - Empty state con call-to-action a creare articolo nel listino
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Package, X, Sparkles } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Sheet,
   SheetContent,
@@ -25,7 +26,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatCurrency } from "@/lib/formatters";
 import { useCatalogItems } from "@/hooks/useCatalogItems";
 import { useCatalogCategories } from "@/hooks/useCatalogCategories";
@@ -52,6 +52,9 @@ function formatPriceHint(item: CatalogItem): string {
 }
 
 export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = "", onSelect }: Props) {
+  // ── Scroll container ref per virtualizer ──────────────────────────────────
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   // ── Search ─────────────────────────────────────────────────────────────────
   const [searchRaw, setSearchRaw] = useState(initialQuery);
   const [searchDebounced, setSearchDebounced] = useState(initialQuery);
@@ -130,6 +133,33 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
     }
     return [...map.values()];
   }, [filteredItems, allCategorie]);
+
+  // Fix 5: Flatten grouped items into virtual rows:
+  //   { type: 'header', name, count } → 36px
+  //   { type: 'row', items: [item, item?] } → 88px (1-2 items per row)
+  // Fix 14: 1 column on mobile, 2 on sm+
+  const COLS = 2; // desktop columns; mobile uses 1 col via responsive grid
+  type VRow =
+    | { type: "header"; name: string; count: number }
+    | { type: "row"; items: CatalogItem[] };
+
+  const virtualRows = useMemo<VRow[]>(() => {
+    const rows: VRow[] = [];
+    for (const group of grouped) {
+      rows.push({ type: "header", name: group.categoria_nome, count: group.items.length });
+      for (let i = 0; i < group.items.length; i += COLS) {
+        rows.push({ type: "row", items: group.items.slice(i, i + COLS) });
+      }
+    }
+    return rows;
+  }, [grouped]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: virtualRows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (i) => (virtualRows[i]?.type === "header" ? 36 : 92),
+    overscan: 8,
+  });
 
   const handleSelect = (item: CatalogItem) => {
     onSelect(item);
@@ -283,36 +313,55 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
           </div>
         </div>
 
-        {/* ── LISTA RISULTATI ─────────────────────────────────────────── */}
-        <ScrollArea className="flex-1">
+        {/* Fix 5: virtualizzazione lista — Fix 14: 1-col mobile, 2-col sm+ */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
           <div className="px-6 py-3">
             {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <Skeleton key={i} className="h-20 w-full" />
                 ))}
               </div>
             ) : grouped.length === 0 ? (
-              <EmptyState hasQuery={!!searchDebounced.trim()} />
+              <EmptyState hasQuery={!!searchDebounced.trim()} query={searchDebounced} />
             ) : (
-              <div className="space-y-4">
-                {grouped.map((group) => (
-                  <div key={group.categoria_nome}>
-                    <div className="sticky top-0 bg-background/95 backdrop-blur-sm py-1 mb-1.5 z-10 flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground border-b">
-                      <span className="font-semibold">{group.categoria_nome}</span>
-                      <span className="opacity-60">· {group.items.length}</span>
+              <div
+                style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}
+              >
+                {rowVirtualizer.getVirtualItems().map((vItem) => {
+                  const row = virtualRows[vItem.index];
+                  return (
+                    <div
+                      key={vItem.key}
+                      data-index={vItem.index}
+                      ref={rowVirtualizer.measureElement}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${vItem.start}px)`,
+                      }}
+                    >
+                      {row.type === "header" ? (
+                        <div className="flex items-center gap-2 pt-3 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground border-b">
+                          <span className="font-semibold">{row.name}</span>
+                          <span className="opacity-60">· {row.count}</span>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 py-1">
+                          {row.items.map((item) => (
+                            <ProductCard key={`${item.source}-${item.id}`} item={item} onSelect={handleSelect} />
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {group.items.map((item) => (
-                        <ProductCard key={`${item.source}-${item.id}`} item={item} onSelect={handleSelect} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </SheetContent>
     </Sheet>
   );
@@ -407,13 +456,16 @@ function ProductCard({ item, onSelect }: ProductCardProps) {
   );
 }
 
-function EmptyState({ hasQuery }: { hasQuery: boolean }) {
+function EmptyState({ hasQuery, query }: { hasQuery: boolean; query?: string }) {
+  const trimmedQuery = query?.trim();
   return (
     <div className="rounded-md border border-dashed p-8 text-center">
       <Package className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
       <p className="text-sm text-muted-foreground">
         {hasQuery
-          ? "Nessun prodotto corrisponde ai filtri."
+          ? trimmedQuery
+            ? `Nessun prodotto trovato per "${trimmedQuery}".`
+            : "Nessun prodotto corrisponde ai filtri."
           : "Inizia a digitare o seleziona una categoria."}
       </p>
       {hasQuery ? (
@@ -424,7 +476,9 @@ function EmptyState({ hasQuery }: { hasQuery: boolean }) {
           className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
         >
           <Sparkles className="h-3 w-3" />
-          Apri il listino e crea questo prodotto
+          {trimmedQuery
+            ? `Crea "${trimmedQuery}" nel listino`
+            : "Apri il listino e crea questo prodotto"}
         </a>
       ) : null}
     </div>

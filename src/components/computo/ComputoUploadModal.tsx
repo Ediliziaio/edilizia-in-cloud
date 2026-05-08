@@ -14,6 +14,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +42,7 @@ import {
   Sparkles,
   Upload,
   Image as ImageIcon,
+  AlertTriangle,
 } from "lucide-react";
 import { useComputoExtract } from "@/hooks/useComputoExtract";
 import { ComputoPreviewEditor } from "./ComputoPreviewEditor";
@@ -131,24 +143,33 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
     (item: CatalogItem) => {
       if (!pickerVoceId) return;
       const isFamily = item.source === "family";
+      const ric = applyRicarico ? ricarico : 0;
       setVociLocali((prev) =>
-        prev.map((v) =>
-          v.id === pickerVoceId
-            ? {
-                ...v,
-                _matched_template_id: isFamily ? undefined : item.id,
-                _matched_family_id: isFamily ? item.id : undefined,
-                _matched_name: item.nome,
-                _match_type: "manual",
-                _matched_unit_price: item.prezzo_base_vendita ?? undefined,
-              }
-            : v,
-        ),
+        prev.map((v) => {
+          if (v.id !== pickerVoceId) return v;
+          // Applica il prezzo dal listino (con eventuale ricarico) se disponibile,
+          // altrimenti mantieni il prezzo computo già calcolato.
+          const newPrezzo =
+            item.prezzo_base_vendita != null
+              ? item.prezzo_base_vendita * (1 + ric / 100)
+              : v._prezzoImpresa;
+          return {
+            ...v,
+            _matched_template_id: isFamily ? undefined : item.id,
+            _matched_family_id: isFamily ? item.id : undefined,
+            _matched_name: item.nome,
+            _match_type: "manual",
+            _matched_unit_price: item.prezzo_base_vendita ?? undefined,
+            // Fix: aggiorna anche prezzo/importo impresa con il valore dal listino
+            _prezzoImpresa: newPrezzo,
+            _importoImpresa: v.quantita * newPrezzo,
+          };
+        }),
       );
       toast.success(`Abbinato: ${item.nome}`);
       setPickerVoceId(null);
     },
-    [pickerVoceId],
+    [pickerVoceId, ricarico, applyRicarico],
   );
 
   // ── Step 1: File selection ─────────────────────────────────────────────────
@@ -188,14 +209,15 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
     if (status === "review" && step === 3 && !hasInitializedRef.current) {
       hasInitializedRef.current = true;
       if (voci.length === 0) {
-        // 0 voci con status review = doc riconosciuto ma vuoto.
-        // L'errore vero arriva di solito via status "failed" + extraction_error;
-        // qui copriamo solo il caso edge in cui l'AI ritorna struttura vuota
-        // senza emettere failed.
-        toast.error(
-          "Nessuna voce di lavorazione estratta. Se il file non è un computo metrico, " +
-          "prova la sezione 'Importa documento' per DDT/fatture/contratti."
-        );
+        // Fix 12: 0 voci — mostra errore con 3 azioni chiare invece di toast generico
+        toast.error("Nessuna voce trovata nel documento", {
+          description: "L'AI non ha rilevato voci di lavorazione. Prova a usare 'Da Foto' se il file non è un computo strutturato.",
+          action: {
+            label: "Ricomincia",
+            onClick: () => { reset(); setStep(1); setFile(null); },
+          },
+          duration: 8000,
+        });
         return;
       }
       const ric = applyRicarico ? ricarico : 0;
@@ -206,6 +228,11 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
           _ricarico: ric,
           _importoImpresa: v.quantita * v.prezzo_unitario_computo * (1 + ric / 100),
           _isIncluded: v.is_included,
+          // Pre-popola da auto-match server-side (alias/vector)
+          _matched_template_id: v.matched_template_id ?? undefined,
+          _matched_family_id: v.matched_family_id ?? undefined,
+          _matched_name: v.matched_name ?? undefined,
+          _match_type: (v.match_type as ComputoVoceLocal["_match_type"]) ?? undefined,
         }))
       );
       setStep(4);
@@ -272,6 +299,33 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
             {step === 3 && "Estrazione AI in corso..."}
             {step === 4 && "Revisione Voci Estratte"}
           </DialogTitle>
+          {/* Fix 6: Indicatore step */}
+          <div className="flex items-center gap-1 pt-1">
+            {[
+              { n: 1, label: "File" },
+              { n: 2, label: "Config" },
+              { n: 3, label: "AI" },
+              { n: 4, label: "Revisione" },
+            ].map(({ n, label }, idx, arr) => (
+              <div key={n} className="flex items-center gap-1">
+                <div
+                  className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
+                    step === n
+                      ? "bg-orange-500 text-white"
+                      : step > n
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30"
+                        : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <span>{step > n ? "✓" : n}</span>
+                  <span className="hidden sm:inline">{label}</span>
+                </div>
+                {idx < arr.length - 1 && (
+                  <div className={`h-px w-4 ${step > n ? "bg-emerald-300" : "bg-border"}`} />
+                )}
+              </div>
+            ))}
+          </div>
           {step === 1 && isFotoMode && (
             <p className="text-sm text-muted-foreground">
               Scatta o carica la foto di un preventivo scritto a mano / stampato.
@@ -399,7 +453,32 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
             progress={progress}
             error={error}
             onRetry={() => { reset(); setStep(1); setFile(null); }}
-            onCancel={handleClose}
+            /* Fix 8: wrap cancel in AlertDialog per evitare perdita accidentale */
+            onCancel={undefined}
+            cancelButton={
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-muted-foreground">
+                    Annulla
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Interrompere l'estrazione?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      L'analisi AI è in corso. Annullando ora, i file caricati verranno
+                      eliminati e dovrai ricominciare dall'inizio.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Continua l'estrazione</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleClose} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Sì, annulla
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            }
           />
         )}
 
@@ -461,35 +540,54 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between pt-3 border-t mt-3">
-              <div className="text-sm">
-                <span className="text-muted-foreground">Totale impresa: </span>
-                <strong className="text-orange-600">
-                  {new Intl.NumberFormat("it-IT", {
-                    style: "currency",
-                    currency: "EUR",
-                  }).format(
-                    vociLocali
-                      .filter((v) => v._isIncluded)
-                      .reduce((s, v) => s + v._importoImpresa, 0)
-                  )}
-                </strong>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={handleClose}>
-                  Annulla
-                </Button>
-                <Button
-                  onClick={handleGenerate}
-                  disabled={isGenerating || vociLocali.filter((v) => v._isIncluded).length === 0}
-                >
-                  {isGenerating ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4 mr-1" />
-                  )}
-                  Genera Preventivo
-                </Button>
+            <div className="space-y-2 pt-3 border-t mt-3">
+              {/* Warning: voci incluse con quantità = 0 */}
+              {vociLocali.some((v) => v._isIncluded && (v.quantita ?? 0) <= 0) && (
+                <div className="border border-amber-300 bg-amber-50 dark:bg-amber-950/20 rounded-md p-2 text-xs flex items-start gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <span className="text-amber-800 dark:text-amber-300">
+                    {vociLocali.filter((v) => v._isIncluded && (v.quantita ?? 0) <= 0).length}{" "}
+                    {vociLocali.filter((v) => v._isIncluded && (v.quantita ?? 0) <= 0).length === 1
+                      ? "voce inclusa ha quantità 0"
+                      : "voci incluse hanno quantità 0"}
+                    . Correggi o escludile prima di generare il preventivo.
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Totale impresa: </span>
+                  <strong className="text-orange-600">
+                    {new Intl.NumberFormat("it-IT", {
+                      style: "currency",
+                      currency: "EUR",
+                    }).format(
+                      vociLocali
+                        .filter((v) => v._isIncluded)
+                        .reduce((s, v) => s + v._importoImpresa, 0)
+                    )}
+                  </strong>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleClose}>
+                    Annulla
+                  </Button>
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={
+                      isGenerating ||
+                      vociLocali.filter((v) => v._isIncluded).length === 0 ||
+                      vociLocali.some((v) => v._isIncluded && (v.quantita ?? 0) <= 0)
+                    }
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4 mr-1" />
+                    )}
+                    Genera Preventivo
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

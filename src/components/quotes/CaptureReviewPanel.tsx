@@ -8,7 +8,7 @@
  *   - rimuovere voci sbagliate, aggiungerne nuove
  *   - confermare → silvio_tool_apply_capture_review
  */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle2,
@@ -100,6 +100,12 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
   const [contactStrategy, setContactStrategy] = useState<ContactStrategy>("auto");
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Fix 7: errori di validazione inline per campi cliente
+  const [customerErrors, setCustomerErrors] = useState<Partial<Record<keyof ExtractedCustomer, string>>>({});
+
+  // Fix 21: autocomplete contatto — mostra dropdown con candidati mentre l'utente digita il nome
+  const [showNomeSuggestions, setShowNomeSuggestions] = useState(false);
+  const nomeInputRef = useRef<HTMLInputElement>(null);
 
   // Manual product matching
   const [pickerOpenForIndex, setPickerOpenForIndex] = useState<number | null>(null);
@@ -250,8 +256,38 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
     );
   };
 
+  // Fix 10: undo delete con toast
   const removeProduct = (idx: number) => {
+    const removed = products[idx];
     setProducts((prev) => prev.filter((_, i) => i !== idx));
+    toast(`Voce rimossa`, {
+      description: removed.name ?? removed.descrizione_grezza,
+      action: {
+        label: "Annulla",
+        onClick: () =>
+          setProducts((prev) => {
+            const next = [...prev];
+            next.splice(idx, 0, removed);
+            return next;
+          }),
+      },
+      duration: 5000,
+    });
+  };
+
+  // Fix 7: valida un campo del form cliente on-blur
+  const validateCustomerField = (field: keyof ExtractedCustomer, value: string) => {
+    let error = "";
+    if (field === "email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      error = "Email non valida";
+    }
+    if (field === "cf" && value && value.length !== 16) {
+      error = "Codice fiscale deve essere 16 caratteri";
+    }
+    if (field === "piva" && value && !/^\d{11}$/.test(value)) {
+      error = "P.IVA deve essere 11 cifre";
+    }
+    setCustomerErrors((prev) => ({ ...prev, [field]: error || undefined }));
   };
 
   const addProduct = () => {
@@ -268,6 +304,53 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
       },
     ]);
   };
+
+  // Fix 21: compila il form dal candidato selezionato nel dropdown autocomplete
+  const fillFromCandidate = (c: ContactCandidate) => {
+    setCustomer((prev) => ({
+      ...prev,
+      nome: c.first_name ?? prev.nome ?? "",
+      cognome: c.last_name ?? prev.cognome ?? "",
+      email: c.email ?? prev.email ?? "",
+      telefono: c.phone ?? prev.telefono ?? "",
+      azienda: c.company_name ?? prev.azienda ?? "",
+      citta: c.city ?? prev.citta ?? "",
+    }));
+    setSelectedContactId(c.id);
+    setContactStrategy("use_existing");
+    setShowNomeSuggestions(false);
+    toast.success(`Contatto selezionato: ${c.first_name ?? ""} ${c.last_name ?? ""}`.trim());
+  };
+
+  // Rimuove in blocco tutte le voci non abbinate al listino
+  const handleRemoveUnmatched = () => {
+    const unmatched = products.filter(
+      (p) =>
+        !p.match_type ||
+        p.match_type === "none" ||
+        (!p.matched_template_id && !p.matched_family_id && !p.matched_tariffa_id),
+    );
+    if (unmatched.length === 0) return;
+    const ok = window.confirm(
+      `Rimuovere ${unmatched.length} ${unmatched.length === 1 ? "voce non abbinata" : "voci non abbinate"}?`,
+    );
+    if (!ok) return;
+    setProducts((prev) =>
+      prev.filter(
+        (p) =>
+          p.match_type &&
+          p.match_type !== "none" &&
+          (p.matched_template_id || p.matched_family_id || p.matched_tariffa_id),
+      ),
+    );
+  };
+
+  // Recovery mode: confidenza bassa o avvertenze esplicite
+  const isRecoveryMode =
+    confidence < 0.5 ||
+    avvertenze.some((a) =>
+      a.toLowerCase().includes("recovery") || a.toLowerCase().includes("parziale"),
+    );
 
   const handleApply = async () => {
     if (!companyId) return;
@@ -337,8 +420,18 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
         updated: `✓ Cliente aggiornato (${result.updated_contact_fields?.length ?? 0} campi)`,
         skipped: "✓ Cliente: nessuna azione",
       };
+      // Fix 15: toast con CTA per il prossimo step (invia / PDF)
       toast.success(`Preventivo creato (${result.items_count} voci)`, {
         description: actionLabel[result.contact_action ?? ""] ?? "",
+        action: result.quote_id
+          ? {
+              label: "Apri preventivo",
+              onClick: () => {
+                window.location.href = `/azienda/marketing/preventivi/${result.quote_id}`;
+              },
+            }
+          : undefined,
+        duration: 6000,
       });
 
       if (result.quote_id) {
@@ -407,6 +500,22 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
           </ul>
         </div>
       ) : null}
+
+      {/* Recovery mode banner — visibile quando la confidenza è bassa (< 50%) */}
+      {isRecoveryMode && (
+        <div className="rounded-md border border-rose-300 bg-rose-50 dark:bg-rose-950/20 p-3 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+          <div className="text-xs">
+            <p className="font-semibold text-rose-900 dark:text-rose-200">
+              Estrazione parziale — confidenza bassa ({(confidence * 100).toFixed(0)}%)
+            </p>
+            <p className="mt-0.5 text-rose-800 dark:text-rose-300">
+              L'AI ha operato con confidenza ridotta. Verifica attentamente ogni voce e
+              abbina al listino prima di creare il preventivo.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* CLIENTE */}
       <Card>
@@ -501,30 +610,73 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
             </div>
           ) : null}
 
-          {/* Form cliente */}
+          {/* Fix 7: Form cliente con asterischi sui campi chiave + validazione inline */}
+          {/* Fix 21: Nome con autocomplete dropdown dai candidati contatto */}
           <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs">Nome</Label>
+            <div className="relative">
+              <Label className="text-xs">Nome <span className="text-red-500">*</span></Label>
               <Input
+                ref={nomeInputRef}
                 value={customer.nome ?? ""}
-                onChange={(e) => setCustomer((c) => ({ ...c, nome: e.target.value }))}
+                onChange={(e) => {
+                  setCustomer((c) => ({ ...c, nome: e.target.value }));
+                  setShowNomeSuggestions(true);
+                }}
+                onFocus={() => setShowNomeSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowNomeSuggestions(false), 180)}
                 className="h-8"
+                placeholder="Mario"
+                autoComplete="off"
               />
+              {showNomeSuggestions && contactCandidates.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-50 mt-0.5 border rounded-md bg-background shadow-lg max-h-44 overflow-y-auto">
+                  <p className="px-2 pt-1.5 pb-0.5 text-[9px] font-medium text-muted-foreground uppercase tracking-wide">
+                    Contatti trovati
+                  </p>
+                  {contactCandidates.slice(0, 6).map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="w-full text-left px-2 py-1.5 text-xs hover:bg-muted/60 flex items-start gap-2 border-t first:border-0"
+                      onMouseDown={(e) => {
+                        e.preventDefault(); // impedisce blur prima del click
+                        fillFromCandidate(c);
+                      }}
+                    >
+                      <UserCheck className="h-3 w-3 mt-0.5 shrink-0 text-emerald-600" />
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">
+                          {c.first_name} {c.last_name}
+                          {c.company_name ? ` — ${c.company_name}` : ""}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground truncate">
+                          {[c.email, c.phone, c.city].filter(Boolean).join(" · ")}
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 shrink-0 ml-auto">
+                        {(c.match_confidence * 100).toFixed(0)}%
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
-              <Label className="text-xs">Cognome</Label>
+              <Label className="text-xs">Cognome <span className="text-red-500">*</span></Label>
               <Input
                 value={customer.cognome ?? ""}
                 onChange={(e) => setCustomer((c) => ({ ...c, cognome: e.target.value }))}
                 className="h-8"
+                placeholder="Rossi"
               />
             </div>
             <div>
-              <Label className="text-xs">Telefono</Label>
+              <Label className="text-xs">Telefono <span className="text-red-500">*</span></Label>
               <Input
                 value={customer.telefono ?? ""}
                 onChange={(e) => setCustomer((c) => ({ ...c, telefono: e.target.value }))}
                 className="h-8"
+                placeholder="339 1234567"
               />
             </div>
             <div>
@@ -532,8 +684,13 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
               <Input
                 value={customer.email ?? ""}
                 onChange={(e) => setCustomer((c) => ({ ...c, email: e.target.value }))}
-                className="h-8"
+                onBlur={(e) => validateCustomerField("email", e.target.value)}
+                className={`h-8 ${customerErrors.email ? "border-red-400" : ""}`}
+                placeholder="mario@example.com"
               />
+              {customerErrors.email && (
+                <p className="text-[10px] text-red-500 mt-0.5">{customerErrors.email}</p>
+              )}
             </div>
             <div className="col-span-2">
               <Label className="text-xs">Azienda</Label>
@@ -586,16 +743,24 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
               <Input
                 value={customer.cf ?? ""}
                 onChange={(e) => setCustomer((c) => ({ ...c, cf: e.target.value.toUpperCase() }))}
-                className="h-8 font-mono"
+                onBlur={(e) => validateCustomerField("cf", e.target.value)}
+                className={`h-8 font-mono ${customerErrors.cf ? "border-red-400" : ""}`}
               />
+              {customerErrors.cf && (
+                <p className="text-[10px] text-red-500 mt-0.5">{customerErrors.cf}</p>
+              )}
             </div>
             <div>
               <Label className="text-xs">P.IVA</Label>
               <Input
                 value={customer.piva ?? ""}
                 onChange={(e) => setCustomer((c) => ({ ...c, piva: e.target.value }))}
-                className="h-8 font-mono"
+                onBlur={(e) => validateCustomerField("piva", e.target.value)}
+                className={`h-8 font-mono ${customerErrors.piva ? "border-red-400" : ""}`}
               />
+              {customerErrors.piva && (
+                <p className="text-[10px] text-red-500 mt-0.5">{customerErrors.piva}</p>
+              )}
             </div>
           </div>
         </CardContent>
@@ -608,9 +773,27 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
             <span className="flex items-center gap-2">
               <Package className="h-4 w-4" /> Voci preventivo
             </span>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={addProduct}>
-              <Plus className="h-3 w-3 mr-1" /> Aggiungi voce
-            </Button>
+            <div className="flex items-center gap-1.5">
+              {products.some(
+                (p) =>
+                  !p.match_type ||
+                  p.match_type === "none" ||
+                  (!p.matched_template_id && !p.matched_family_id && !p.matched_tariffa_id),
+              ) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-[10px] px-2 text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                  onClick={handleRemoveUnmatched}
+                  title="Rimuovi tutte le voci non abbinate al listino"
+                >
+                  Rimuovi non abbinati
+                </Button>
+              )}
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={addProduct}>
+                <Plus className="h-3 w-3 mr-1" /> Aggiungi voce
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">

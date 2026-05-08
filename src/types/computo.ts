@@ -60,6 +60,14 @@ export interface ComputoVoceEstratta {
   is_modified: boolean;
   ordine: number;
   created_at: string;
+  // ── Match al listino (popolato da edge function con pgvector/alias) ──────────
+  matched_template_id: string | null;
+  matched_family_id: string | null;
+  matched_tariffa_id: string | null;
+  matched_name: string | null;
+  /** 'alias'=match deterministico, 'vector'=pgvector similarity, 'manual'=utente, 'none'=nessun match */
+  match_type: string | null;
+  match_confidence: number | null;
 }
 
 /** Local state for the preview editor (non-persisted changes) */
@@ -75,8 +83,8 @@ export interface ComputoVoceLocal extends ComputoVoceEstratta {
   _matched_family_id?: string;
   /** Nome del prodotto del listino abbinato (display). */
   _matched_name?: string;
-  /** Tipo di match: 'manual' (utente ha cliccato picker), 'auto' (pgvector), 'none'. */
-  _match_type?: "manual" | "auto" | "none";
+  /** Tipo di match: 'manual' (utente), 'vector'/'alias' (AI auto), 'none'. */
+  _match_type?: "manual" | "vector" | "alias" | "none";
   /** Prezzo unitario suggerito dal listino (override del prezzo computo se l'utente vuole). */
   _matched_unit_price?: number;
 }

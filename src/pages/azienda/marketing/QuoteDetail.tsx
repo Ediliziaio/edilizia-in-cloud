@@ -165,7 +165,7 @@ export default function QuoteDetail() {
         title={quote.title || "Preventivo"}
         subtitle={quote.client_name || undefined}
         icon={<FileCheck className="h-5 w-5" />}
-        stato={<Badge variant={sc.variant}>{sc.label}</Badge>}
+        stato={<Badge variant="outline" className={`whitespace-nowrap ${sc.className}`}>{sc.label}</Badge>}
         actions={
           <>
             <Button

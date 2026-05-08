@@ -12,7 +12,8 @@
  *  - Vertical key auto-rilevato da company.vertical_key con override UI
  */
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Camera, Mic, FileText, Loader2, X, Upload, Sparkles } from "lucide-react";
+import { Camera, Mic, FileText, Loader2, X, Upload, Sparkles, RefreshCw, AlertTriangle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -49,7 +50,12 @@ const PDF_EXT_REGEX = /\.pdf$/i;
  * Renderizza un PDF (File) come array di File JPEG (uno per pagina).
  * Usa pdfjs-dist con worker bundled da Vite.
  */
-async function pdfToImageFiles(pdfFile: File, maxPages: number, scale = 1.5): Promise<File[]> {
+async function pdfToImageFiles(
+  pdfFile: File,
+  maxPages: number,
+  scale = 1.5,
+  onProgress?: (current: number, total: number) => void,
+): Promise<{ files: File[]; totalPages: number }> {
   const pdfjsLib = await import("pdfjs-dist");
   // @ts-expect-error vite-resolved url import
   const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
@@ -57,9 +63,11 @@ async function pdfToImageFiles(pdfFile: File, maxPages: number, scale = 1.5): Pr
 
   const buf = await pdfFile.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const totalPages = pdf.numPages;
   const out: File[] = [];
-  const pages = Math.min(pdf.numPages, maxPages);
+  const pages = Math.min(totalPages, maxPages);
   for (let i = 1; i <= pages; i++) {
+    onProgress?.(i, pages);
     const page = await pdf.getPage(i);
     const viewport = page.getViewport({ scale });
     const canvas = document.createElement("canvas");
@@ -76,7 +84,7 @@ async function pdfToImageFiles(pdfFile: File, maxPages: number, scale = 1.5): Pr
     canvas.width = 0;
     canvas.height = 0;
   }
-  return out;
+  return { files: out, totalPages };
 }
 
 function safeStorageName(name: string): string {
@@ -114,6 +122,10 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
   const [textInput, setTextInput] = useState("");
   const [verticalKey, setVerticalKey] = useState("");
   const [pdfProcessing, setPdfProcessing] = useState(false);
+  // Fix 3: progresso pagina corrente durante rendering PDF
+  const [pdfProgress, setPdfProgress] = useState<{ current: number; total: number; fileName: string } | null>(null);
+  // Fix 4: pagine scartate per limite superato — banner persistente
+  const [pdfDroppedInfo, setPdfDroppedInfo] = useState<{ dropped: number; imported: number; total: number; fileName: string } | null>(null);
 
   // Auto-set verticalKey dal profilo company quando disponibile
   useEffect(() => {
@@ -151,10 +163,33 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
   const [runId, setRunId] = useState<string | null>(null);
   const [progressMsg, setProgressMsg] = useState("");
 
-  // Reset al close
+  // Tracking file caricati su storage — per cleanup se l'utente cancella
+  const uploadedPathsRef = useRef<string[]>([]);
+  const runSuccessRef = useRef(false);
+
+  const cleanupUploadedFiles = useCallback(() => {
+    const paths = uploadedPathsRef.current;
+    if (paths.length === 0) return;
+    // Fire-and-forget: errori di cleanup non bloccano l'UI
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).storage
+      .from("documenti-smart")
+      .remove(paths)
+      .catch((e: Error) => console.warn("[capture-cleanup] storage remove failed:", e.message));
+    uploadedPathsRef.current = [];
+  }, []);
+
+  // Reset al close (+ cleanup storage se non c'è stato un preventivo creato)
   useEffect(() => {
     if (!open) {
       cleanupRecorder();
+      // Elimina file caricati su storage solo se il preventivo NON è stato creato
+      if (!runSuccessRef.current) {
+        cleanupUploadedFiles();
+      }
+      // Reset flags per prossima apertura
+      runSuccessRef.current = false;
+      uploadedPathsRef.current = [];
       setImages([]);
       setImagePreviewUrls((prev) => {
         prev.forEach((url) => URL.revokeObjectURL(url));
@@ -170,8 +205,10 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
       setPhase("input");
       setRunId(null);
       setProgressMsg("");
+      setPdfProgress(null);
+      setPdfDroppedInfo(null);
     }
-  }, [open, cleanupRecorder]);
+  }, [open, cleanupRecorder, cleanupUploadedFiles]);
 
   useEffect(() => {
     const urls = images.map((img) => URL.createObjectURL(img));
@@ -275,6 +312,15 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
     setIsRecording(false);
   };
 
+  // Warning toast a 15 secondi dal limite registrazione audio
+  useEffect(() => {
+    if (isRecording && recordingSeconds === MAX_AUDIO_SECONDS - 15) {
+      toast.warning("Registrazione quasi al limite", {
+        description: "15 secondi rimanenti. La registrazione si fermerà automaticamente.",
+      });
+    }
+  }, [recordingSeconds, isRecording]);
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
@@ -290,15 +336,14 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
     const oversizedPdfs = files.filter((f) => isPdf(f) && f.size > MAX_PDF_MB * 1024 * 1024);
     const invalidTypes = files.filter((f) => !isImage(f) && !isPdf(f));
 
-    if (oversizedImages.length > 0) {
-      toast.warning(`${oversizedImages.length} immagini scartate (>${MAX_IMAGE_MB}MB)`);
-    }
-    if (oversizedPdfs.length > 0) {
-      toast.warning(`${oversizedPdfs.length} PDF scartati (>${MAX_PDF_MB}MB)`);
-    }
-    if (invalidTypes.length > 0) {
-      toast.error(`Tipo file non supportato: ${invalidTypes.map((f) => f.name).join(", ")}`, {
-        description: "Accettati: JPG, PNG, WEBP, HEIC, PDF",
+    // Fix 9: batch tutti gli errori in un unico toast invece di 3 separati
+    const warnings: string[] = [];
+    if (oversizedImages.length > 0) warnings.push(`${oversizedImages.length} immagini troppo grandi (>${MAX_IMAGE_MB}MB)`);
+    if (oversizedPdfs.length > 0) warnings.push(`${oversizedPdfs.length} PDF troppo grandi (>${MAX_PDF_MB}MB)`);
+    if (invalidTypes.length > 0) warnings.push(`${invalidTypes.length} tipo/i non supportato/i`);
+    if (warnings.length > 0) {
+      toast.warning("Alcuni file non importati", {
+        description: warnings.join(" · ") + " — Accettati: JPG, PNG, WEBP, HEIC, PDF",
       });
     }
 
@@ -309,6 +354,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
     let renderedFromPdf: File[] = [];
     if (validPdfs.length > 0) {
       setPdfProcessing(true);
+      setPdfDroppedInfo(null);
       try {
         for (const pdf of validPdfs) {
           const remainingSlots = Math.max(0, MAX_IMAGES - images.length - validImages.length - renderedFromPdf.length);
@@ -316,9 +362,17 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
             toast.warning(`Limite di ${MAX_IMAGES} pagine raggiunto, ${pdf.name} ignorato`);
             break;
           }
-          const pages = await pdfToImageFiles(pdf, remainingSlots);
+          // Fix 3: progress callback aggiorna stato per skeleton
+          const { files: pages, totalPages } = await pdfToImageFiles(pdf, remainingSlots, 1.5, (current, total) => {
+            setPdfProgress({ current, total, fileName: pdf.name });
+          });
           renderedFromPdf = [...renderedFromPdf, ...pages];
-          toast.success(`${pdf.name}: ${pages.length} pagina/e estratta/e`);
+
+          // Fix 4: rileva pagine scartate (totalPages > remainingSlots)
+          const dropped = Math.max(0, totalPages - pages.length);
+          if (dropped > 0) {
+            setPdfDroppedInfo({ dropped, imported: pages.length, total: totalPages, fileName: pdf.name });
+          }
         }
       } catch (err) {
         toast.error("Errore lettura PDF", {
@@ -326,6 +380,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
         });
       } finally {
         setPdfProcessing(false);
+        setPdfProgress(null);
       }
     }
 
@@ -362,6 +417,9 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
     try {
       const imagePaths: string[] = [];
       let audioPath: string | undefined;
+      // Reset tracking per questa sessione di upload
+      uploadedPathsRef.current = [];
+      runSuccessRef.current = false;
 
       // Upload foto
       if (images.length > 0) {
@@ -378,6 +436,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
             return;
           }
           imagePaths.push(path);
+          uploadedPathsRef.current.push(path);  // tracking per cleanup
         }
       }
 
@@ -395,6 +454,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
           return;
         }
         audioPath = path;
+        uploadedPathsRef.current.push(path);  // tracking per cleanup
       }
 
       // Determina capture_mode
@@ -436,6 +496,55 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
         description: e instanceof Error ? e.message : String(e),
       });
       setPhase("input");
+    }
+  };
+
+  // Riprova l'estrazione AI senza re-uploadare i file — usa i path già caricati
+  const retryExtraction = async () => {
+    if (!companyId) return;
+    setPhase("processing");
+    setProgressMsg("Nuova estrazione AI in corso…");
+    try {
+      const storedPaths = uploadedPathsRef.current;
+      const imagePaths = storedPaths.filter((p) => !p.includes("-audio."));
+      const audioPath = storedPaths.find((p) => p.includes("-audio."));
+
+      const captureMode: "foto" | "audio" | "testo" | "mixed" =
+        imagePaths.length > 0 && audioPath
+          ? "mixed"
+          : audioPath
+            ? "audio"
+            : imagePaths.length > 0
+              ? "foto"
+              : "testo";
+
+      const { data, error } = await supabase.functions.invoke("ai-quote-from-capture", {
+        body: {
+          capture_mode: captureMode,
+          image_paths: imagePaths.length > 0 ? imagePaths : undefined,
+          audio_path: audioPath,
+          description: textInput.trim() || undefined,
+          vertical_key: verticalKey || undefined,
+          company_id: companyId,
+        },
+      });
+
+      if (error || !data?.run_id) {
+        toast.error("Riprova fallita", {
+          description: error?.message ?? data?.error ?? "Risposta non valida",
+        });
+        // Mostra di nuovo la review con il run precedente (runId invariato)
+        setPhase("review");
+        return;
+      }
+
+      setRunId(data.run_id);
+      setPhase("review");
+    } catch (e) {
+      toast.error("Errore nella ripetizione", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+      setPhase("review");
     }
   };
 
@@ -508,27 +617,57 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                   </span>
                 </Button>
               </label>
-              {images.length > 0 ? (
+              {/* Fix 3: progress PDF + skeleton cards */}
+              {pdfProcessing && pdfProgress && (
+                <p className="text-xs text-muted-foreground animate-pulse">
+                  Elaborazione pagina {pdfProgress.current}/{pdfProgress.total} di {pdfProgress.fileName}…
+                </p>
+              )}
+              {(images.length > 0 || pdfProcessing) ? (
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                   {images.map((img, i) => (
                     <div key={i} className="relative border rounded-md overflow-hidden">
                       <img
                         src={imagePreviewUrls[i]}
-                        alt={`Foto ${i + 1}`}
+                        alt={`Foto ${i + 1} di ${images.length}`}
                         className="w-full h-24 object-cover"
                       />
                       <button
                         type="button"
                         onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
                         className="absolute top-1 right-1 bg-background/80 rounded-full p-0.5 hover:bg-destructive hover:text-destructive-foreground"
-                        aria-label="Rimuovi"
+                        aria-label={`Rimuovi foto ${i + 1}`}
                       >
                         <X className="h-3 w-3" />
                       </button>
                     </div>
                   ))}
+                  {/* Fix 3: skeleton per pagine in elaborazione */}
+                  {pdfProcessing && pdfProgress &&
+                    Array.from({ length: Math.min(pdfProgress.total - (pdfProgress.current - 1), MAX_IMAGES - images.length) }).map((_, i) => (
+                      <Skeleton key={`skel-${i}`} className="h-24 w-full rounded-md" />
+                    ))
+                  }
                 </div>
               ) : null}
+              {/* Fix 4: banner persistente pagine scartate */}
+              {pdfDroppedInfo && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-2 text-xs flex items-start gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <span className="flex-1 text-amber-800 dark:text-amber-300">
+                    <strong>{pdfDroppedInfo.fileName}</strong>: importate {pdfDroppedInfo.imported}/{pdfDroppedInfo.total} pagine.{" "}
+                    {pdfDroppedInfo.dropped} pagina/e non importata/e (limite {MAX_IMAGES} totali).
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPdfDroppedInfo(null)}
+                    className="text-amber-600 hover:text-amber-900"
+                    aria-label="Chiudi avviso"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
               <div>
                 <label className="text-xs text-muted-foreground">
                   Note aggiuntive (opzionali)
@@ -566,13 +705,27 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                   </>
                 ) : isRecording ? (
                   <>
-                    <div className="flex items-center justify-center gap-2 text-destructive">
+                    {/* Fix 20: timer grande + ring amber quando quasi al limite */}
+                    <div className={`inline-flex flex-col items-center gap-1 p-3 rounded-full border-2 transition-all ${
+                      recordingSeconds >= MAX_AUDIO_SECONDS - 15
+                        ? "border-amber-400 bg-amber-50/50 animate-pulse"
+                        : "border-destructive/40"
+                    }`}>
                       <span className="h-3 w-3 rounded-full bg-destructive animate-pulse" />
-                      <span className="font-mono">{formatTime(recordingSeconds)}</span>
+                      <span className="font-mono text-2xl tabular-nums font-bold text-destructive">
+                        {formatTime(recordingSeconds)}
+                      </span>
+                      {recordingSeconds >= MAX_AUDIO_SECONDS - 15 && (
+                        <span className="text-[10px] text-amber-600 font-medium">
+                          {MAX_AUDIO_SECONDS - recordingSeconds}s rimanenti
+                        </span>
+                      )}
                     </div>
-                    <Button variant="destructive" size="lg" onClick={stopRecording}>
-                      Stop registrazione
-                    </Button>
+                    <div>
+                      <Button variant="destructive" size="lg" onClick={stopRecording}>
+                        Stop registrazione
+                      </Button>
+                    </div>
                   </>
                 ) : (
                   <Button size="lg" onClick={startRecording}>
@@ -662,14 +815,37 @@ Ordine:
             </p>
           </div>
         ) : phase === "review" && runId ? (
-          <CaptureReviewPanel
-            runId={runId}
-            onCancel={() => setPhase("input")}
-            onApplied={(quoteId) => {
-              onQuoteCreated?.(quoteId);
-              onOpenChange(false);
-            }}
-          />
+          <>
+            {/* Barra azioni review: info + pulsante riprova estrazione */}
+            <div className="flex items-center justify-between pb-2 mb-1 border-b">
+              <span className="text-xs text-muted-foreground">
+                Verifica i dati estratti e correggi se necessario
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-[11px] gap-1.5 text-muted-foreground hover:text-foreground"
+                onClick={retryExtraction}
+                title="Rielabora le stesse foto/audio con una nuova analisi AI"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Riprova estrazione
+              </Button>
+            </div>
+            <CaptureReviewPanel
+              runId={runId}
+              onCancel={() => {
+                // Torna a input ma NON cancella i file già caricati
+                // (l'utente potrebbe voler ri-elaborare con gli stessi file)
+                setPhase("input");
+              }}
+              onApplied={(quoteId) => {
+                runSuccessRef.current = true;  // segna successo → no cleanup su close
+                onQuoteCreated?.(quoteId);
+                onOpenChange(false);
+              }}
+            />
+          </>
         ) : null}
       </DialogContent>
     </Dialog>
