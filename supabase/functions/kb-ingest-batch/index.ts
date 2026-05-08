@@ -18,7 +18,7 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
-import { estimateEmbeddingUsage, logPlatformAiCall } from "../_shared/directAiLedger.ts";
+import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,18 +92,23 @@ Deno.serve(async (req) => {
     const embDurationMs = Date.now() - startEmb;
     const estimated = estimateEmbeddingUsage(texts);
     const tokens = providerTokens || estimated.tokens;
-    await logPlatformAiCall({
+    const costUsd = providerTokens
+      ? Math.max(0.000001, (tokens / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
+      : estimated.costUsd;
+    await chargeAndLogDirect({
       supabase: adminClient,
-      operationKey: "kb_ingest_batch_embedding",
-      provider: "openai",
-      modelUsed: EMBEDDING_MODEL,
-      userId,
-      tokensIn: tokens,
-      costRealUsd: providerTokens
-        ? Math.max(0.000001, (tokens / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
-        : estimated.costUsd,
-      durationMs: embDurationMs,
-      metadata: { chunks: chunks.length },
+      company_id: null,
+      task_kind: "embedding_kb",
+      model_used: `openai/${EMBEDDING_MODEL}`,
+      cost_usd_real: costUsd,
+      cost_is_estimated: !providerTokens,
+      tokens_prompt: tokens,
+      metadata: {
+        user_id: userId,
+        chunks: chunks.length,
+        duration_ms: embDurationMs,
+        operation: "kb_ingest_batch_embedding",
+      },
     });
 
     // Upsert each

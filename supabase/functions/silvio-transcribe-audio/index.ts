@@ -19,11 +19,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
-import {
-  buildStableAiIdempotencyKey,
-  chargeDirectAiCall,
-  estimateWhisperCostUsd,
-} from "../_shared/directAiLedger.ts";
+import { chargeAndLogDirect, estimateWhisperCostUsd } from "../_shared/ai-provider/directApi.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 const MAX_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
@@ -91,30 +87,21 @@ serve(async (req: Request) => {
     const result = await res.json();
     const text = result?.text ?? "";
     const durationAudio = result?.duration ?? null;
-    const idempotencyKey = await buildStableAiIdempotencyKey("silvio_whisper", [
-      companyId,
-      userId,
-      audioFile.name || "audio",
-      audioFile.size,
-      durationAudio ?? null,
-      audioHash,
-    ]);
 
-    const charge = await chargeDirectAiCall({
+    const charge = await chargeAndLogDirect({
       supabase: supabaseAdmin,
-      idempotencyKey,
-      companyId,
-      userId,
-      taskKey: "audio_transcription",
-      tierKey: "t2_vision",
-      modelUsed: `openai/${WHISPER_MODEL}`,
-      personaKey: "silvio",
-      costRealUsd: estimateWhisperCostUsd(durationAudio),
-      durationMs,
+      company_id: companyId,
+      task_kind: "audio_transcription",
+      model_used: `openai/${WHISPER_MODEL}`,
+      cost_usd_real: estimateWhisperCostUsd(durationAudio),
+      cost_is_estimated: true,
       metadata: {
+        user_id: userId,
+        persona_key: "silvio",
         audio_seconds: durationAudio,
         file_size_bytes: audioFile.size,
         audio_sha256: audioHash,
+        duration_ms: durationMs,
       },
     });
 
@@ -123,7 +110,7 @@ serve(async (req: Request) => {
       duration_seconds: durationAudio,
       model: WHISPER_MODEL,
       duration_ms: durationMs,
-      ledger_id: charge.ledger_id ?? null,
+      ledger_id: charge.usage_log_id ?? null,
     }, 200, corsHeaders);
   } catch (err) {
     if (err instanceof Response) return err;

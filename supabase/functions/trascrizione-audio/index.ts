@@ -1,10 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
-import {
-  buildStableAiIdempotencyKey,
-  chargeDirectAiCall,
-  estimateWhisperCostUsd,
-} from "../_shared/directAiLedger.ts";
+import { chargeAndLogDirect, estimateWhisperCostUsd } from "../_shared/ai-provider/directApi.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 async function blobSha256(blob: Blob): Promise<string> {
@@ -65,34 +61,24 @@ Deno.serve(async (req) => {
 
     const data = await openaiRes.json();
     const audioDuration = Number(data.duration ?? hintedDuration ?? 0) || null;
-    const idempotencyKey = await buildStableAiIdempotencyKey("audio_transcription", [
-      companyId,
-      userId,
-      language,
-      audioBlob.size,
-      audioDuration ?? hintedDuration ?? null,
-      audioHash,
-    ]);
-    const charge = await chargeDirectAiCall({
+    const charge = await chargeAndLogDirect({
       supabase: supabaseAdmin,
-      idempotencyKey,
-      companyId,
-      userId,
-      taskKey: "audio_transcription",
-      tierKey: "t2_vision",
-      modelUsed: "openai/whisper-1",
-      personaKey: null,
-      costRealUsd: estimateWhisperCostUsd(audioDuration),
-      durationMs,
+      company_id: companyId,
+      task_kind: "audio_transcription",
+      model_used: "openai/whisper-1",
+      cost_usd_real: estimateWhisperCostUsd(audioDuration),
+      cost_is_estimated: true,
       metadata: {
+        user_id: userId,
         audio_seconds: audioDuration,
         file_size_bytes: audioBlob.size,
         language,
         audio_sha256: audioHash,
+        duration_ms: durationMs,
       },
     });
 
-    return jsonResponse({ testo: data.text, duration_seconds: audioDuration, ledger_id: charge.ledger_id ?? null });
+    return jsonResponse({ testo: data.text, duration_seconds: audioDuration, ledger_id: charge.usage_log_id ?? null });
   } catch (err) {
     return errorResponse(err instanceof Error ? err.message : String(err));
   }

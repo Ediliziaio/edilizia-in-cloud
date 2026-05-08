@@ -27,7 +27,8 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildSystemPrompt } from "../_shared/preambolo.ts";
-import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
+import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -179,28 +180,23 @@ Deno.serve(async (req) => {
           const { embedding, tokens: providerTokens } = await generateQueryEmbedding(OPENAI_KEY, queryText);
           const embeddingUsage = estimateEmbeddingUsage(queryText);
           const tokensIn = providerTokens || embeddingUsage.tokens;
-          await chargeDirectAiCall({
+          const costUsd = providerTokens
+            ? Math.max(0.000001, (tokensIn / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
+            : embeddingUsage.costUsd;
+          await chargeAndLogDirect({
             supabase: supabaseAdmin,
-            idempotencyKey: await buildStableAiIdempotencyKey("playbook_rag_embedding", [
-              company_id,
-              userId,
-              playbook.id,
-              queryText,
-              playbook.kb_context_areas,
-            ]),
-            companyId: company_id,
-            userId,
-            taskKey: "playbook_rag_embedding",
-            tierKey: "t1_economic",
-            modelUsed: EMBEDDING_MODEL,
-            tokensIn,
-            costRealUsd: providerTokens
-              ? Math.max(0.000001, (tokensIn / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
-              : embeddingUsage.costUsd,
+            company_id,
+            task_kind: "chat_routine",
+            model_used: `openai/${EMBEDDING_MODEL}`,
+            cost_usd_real: costUsd,
+            cost_is_estimated: !providerTokens,
+            tokens_prompt: tokensIn,
             metadata: {
+              user_id: userId,
               playbook_id: playbook.id,
               trigger_type: trigger_type ?? null,
               persona_key,
+              stage: "playbook_rag_embedding",
             },
           });
           const { data: chunks } = await supabaseAdmin.rpc("match_brain", {

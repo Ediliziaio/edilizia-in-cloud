@@ -20,7 +20,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
-import { chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
+import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIM = 1536;
@@ -198,22 +198,19 @@ async function embedAndUpdate<T extends { id: string }>(
       }
       const estimated = estimateEmbeddingUsage(texts);
       const tokens = providerTokens || estimated.tokens;
-      const firstId = batch[0]?.id ?? "none";
-      const lastId = batch[batch.length - 1]?.id ?? "none";
-      await chargeDirectAiCall({
+      const costUsd = providerTokens
+        ? Math.max(0.000001, (tokens / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
+        : estimated.costUsd;
+      await chargeAndLogDirect({
         supabase: admin,
-        idempotencyKey: `catalogo_embeddings_${companyId}_${tableName}_${i}_${batch.length}_${firstId}_${lastId}`,
-        companyId,
-        userId,
-        taskKey: "catalogo_embeddings",
-        tierKey: "t1_economic",
-        modelUsed: EMBEDDING_MODEL,
-        tokensIn: tokens,
-        tokensOut: 0,
-        costRealUsd: providerTokens
-          ? Math.max(0.000001, (tokens / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
-          : estimated.costUsd,
+        company_id: companyId,
+        task_kind: "embedding_catalog",
+        model_used: `openai/${EMBEDDING_MODEL}`,
+        cost_usd_real: costUsd,
+        cost_is_estimated: !providerTokens,
+        tokens_prompt: tokens,
         metadata: {
+          user_id: userId,
           table: tableName,
           rows: batch.length,
           mode: "catalogo_embedding_batch",

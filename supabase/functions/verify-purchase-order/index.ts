@@ -12,7 +12,8 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
-import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateTokenCostUsd } from "../_shared/directAiLedger.ts";
+import { chargeAndLogDirect, estimateTokenCostUsd } from "../_shared/ai-provider/directApi.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -526,26 +527,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
       purchase_order_data: poDataForPrompt,
     }]);
 
-    await chargeDirectAiCall({
+    await chargeAndLogDirect({
       supabase: supabaseAdmin,
-      idempotencyKey: chargeIdempotencyKey,
-      companyId,
-      userId,
-      taskKey: "purchase_order_verification",
-      tierKey: "t3_balanced",
-      modelUsed: AI_MODEL,
-      tokensIn: inputTokens,
-      tokensOut: outputTokens,
-      costRealUsd: estimateTokenCostUsd({
+      company_id: companyId,
+      task_kind: "vision_po",
+      model_used: `anthropic/${AI_MODEL}`,
+      cost_usd_real: estimateTokenCostUsd({
         provider: "anthropic",
+        model: AI_MODEL,
         inputTokens,
         outputTokens,
         fallbackCostUsd: 0.01,
       }),
+      cost_is_estimated: true,
+      tokens_prompt: inputTokens,
+      tokens_completion: outputTokens,
       metadata: {
+        user_id: userId,
         purchase_order_id,
         order_id: effectiveOrderId ?? null,
         verification_mode,
+        idempotency_key: chargeIdempotencyKey,
       },
     });
 

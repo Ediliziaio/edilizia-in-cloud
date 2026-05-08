@@ -1,6 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
-import { logPlatformAiCall } from "../_shared/directAiLedger.ts";
+import { chargeAndLogDirect, estimateDallECostUsd } from "../_shared/ai-provider/directApi.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 Deno.serve(async (req) => {
@@ -64,15 +64,23 @@ Deno.serve(async (req) => {
       throw new Error("No image returned from OpenAI");
     }
 
-    await logPlatformAiCall({
+    await chargeAndLogDirect({
       supabase: supabaseAdmin,
-      operationKey: "generate_landing_image",
-      provider: "openai",
-      modelUsed: "dall-e-3",
-      userId,
-      costRealUsd: Number(Deno.env.get("AI_DALLE3_STANDARD_1024_USD") ?? "0.04"),
-      durationMs: Date.now() - startedAt,
-      metadata: { size: "1024x1024", quality: "standard" },
+      company_id: null,
+      task_kind: "image_landing",
+      model_used: "openai/dall-e-3",
+      cost_usd_real: Number(
+        Deno.env.get("AI_DALLE3_STANDARD_1024_USD")
+          ?? estimateDallECostUsd({ model: "dall-e-3", size: "1024x1024", quality: "standard" }),
+      ),
+      cost_is_estimated: true,
+      metadata: {
+        user_id: userId,
+        size: "1024x1024",
+        quality: "standard",
+        duration_ms: Date.now() - startedAt,
+        operation: "generate_landing_image",
+      },
     });
 
     return jsonResponse({ imageUrl });

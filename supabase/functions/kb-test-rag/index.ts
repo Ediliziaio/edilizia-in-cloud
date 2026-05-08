@@ -10,7 +10,7 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
-import { estimateEmbeddingUsage, logPlatformAiCall } from "../_shared/directAiLedger.ts";
+import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
 import { fetchWithRetryAndTimeout } from "../_shared/fetchWithTimeout.ts";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
@@ -69,18 +69,24 @@ Deno.serve(async (req) => {
         const { embedding: queryEmb, tokens: providerTokens } = await embed(OPENAI_KEY, q.query);
         const estimated = estimateEmbeddingUsage(q.query);
         const tokens = providerTokens || estimated.tokens;
-        await logPlatformAiCall({
+        const costUsd = providerTokens
+          ? Math.max(0.000001, (tokens / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
+          : estimated.costUsd;
+        await chargeAndLogDirect({
           supabase: adminClient,
-          operationKey: "kb_test_rag_embedding",
-          provider: "openai",
-          modelUsed: EMBEDDING_MODEL,
-          userId,
-          tokensIn: tokens,
-          costRealUsd: providerTokens
-            ? Math.max(0.000001, (tokens / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
-            : estimated.costUsd,
-          durationMs: Date.now() - startedAt,
-          metadata: { query_id: q.id, top_k: topK },
+          company_id: null,
+          task_kind: "embedding_test",
+          model_used: `openai/${EMBEDDING_MODEL}`,
+          cost_usd_real: costUsd,
+          cost_is_estimated: !providerTokens,
+          tokens_prompt: tokens,
+          metadata: {
+            user_id: userId,
+            query_id: q.id,
+            top_k: topK,
+            duration_ms: Date.now() - startedAt,
+            operation: "kb_test_rag_embedding",
+          },
         });
         const { data: hits, error } = await adminClient.rpc("match_brain", {
           p_company_id: null,

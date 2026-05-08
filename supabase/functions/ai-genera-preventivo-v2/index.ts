@@ -4,7 +4,8 @@ import { getSystemPromptForVertical } from "../_shared/ai-prompts/index.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
-import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
+import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 // ── Shape dei record DB usati dall'edge function ───────────────────────────
 // Tipi minimali per sostituire `any` senza legarsi alle generated types (che
@@ -188,28 +189,23 @@ Deno.serve(async (req) => {
             const embeddingUsage = estimateEmbeddingUsage(embeddingInput);
             const providerTokens = Number(embedData?.usage?.total_tokens ?? 0);
             const tokensIn = providerTokens || embeddingUsage.tokens;
-            await chargeDirectAiCall({
+            const costUsd = providerTokens
+              ? Math.max(0.000001, (tokensIn / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
+              : embeddingUsage.costUsd;
+            await chargeAndLogDirect({
               supabase: supabaseAdmin,
-              idempotencyKey: await buildStableAiIdempotencyKey("preventivo_genera_embedding", [
-                company_id,
-                userId,
-                input_mode ?? "testo",
-                tipo_lavoro ?? null,
-                embeddingInput,
-              ]),
-              companyId: company_id,
-              userId,
-              taskKey: "preventivo_genera_embedding",
-              tierKey: "t1_economic",
-              modelUsed: "text-embedding-3-small",
-              tokensIn,
-              costRealUsd: providerTokens
-                ? Math.max(0.000001, (tokensIn / 1_000_000) * Number(Deno.env.get("AI_EMBEDDING_3_SMALL_USD_PER_1M_TOKENS") ?? "0.02"))
-                : embeddingUsage.costUsd,
+              company_id,
+              task_kind: "vision_quote",
+              model_used: "openai/text-embedding-3-small",
+              cost_usd_real: costUsd,
+              cost_is_estimated: !providerTokens,
+              tokens_prompt: tokensIn,
               metadata: {
+                user_id: userId,
                 input_mode: input_mode ?? "testo",
                 tipo_lavoro: tipo_lavoro ?? null,
                 retrieval: "listino_semantic",
+                stage: "preventivo_genera_embedding",
               },
             });
             const embeddingStr = JSON.stringify(queryEmbedding);

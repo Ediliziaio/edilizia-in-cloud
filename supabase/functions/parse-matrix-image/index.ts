@@ -50,7 +50,7 @@
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
-import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateTokenCostUsd } from "../_shared/directAiLedger.ts";
+import { chargeAndLogDirect, estimateTokenCostUsd } from "../_shared/ai-provider/directApi.ts";
 
 // ── Limiti difensivi ────────────────────────────────────────────────────────
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -525,35 +525,28 @@ Deno.serve(async (req: Request) => {
 
     const inputTokens = Number(usage?.input_tokens ?? 0);
     const outputTokens = Number(usage?.output_tokens ?? 0);
-    const imageFingerprint = `${image_base64.length}:${image_base64.slice(0, 2048)}:${image_base64.slice(-2048)}`;
-    await chargeDirectAiCall({
+    const costUsd = estimateTokenCostUsd({
+      provider: chosen.id,
+      model: chosen.model,
+      inputTokens,
+      outputTokens,
+      fallbackCostUsd: chosen.id === "anthropic" ? 0.025 : chosen.id === "openai" ? 0.02 : 0.01,
+    });
+    await chargeAndLogDirect({
       supabase: supabaseAdmin,
-      idempotencyKey: await buildStableAiIdempotencyKey("parse_matrix_image", [
-        companyId,
-        userId,
-        chosen.id,
-        chosen.model,
-        mime_type,
-        hint ?? null,
-        imageFingerprint,
-      ]),
-      companyId,
-      userId,
-      taskKey: "parse_matrix_image",
-      tierKey: "t2_vision",
-      modelUsed: chosen.model,
-      tokensIn: inputTokens,
-      tokensOut: outputTokens,
-      costRealUsd: estimateTokenCostUsd({
-        provider: chosen.id,
-        inputTokens,
-        outputTokens,
-        fallbackCostUsd: chosen.id === "anthropic" ? 0.025 : chosen.id === "openai" ? 0.02 : 0.01,
-      }),
+      company_id: companyId,
+      task_kind: "vision_matrix",
+      model_used: `${chosen.id}/${chosen.model}`,
+      cost_usd_real: costUsd,
+      cost_is_estimated: true,
+      tokens_prompt: inputTokens,
+      tokens_completion: outputTokens,
       metadata: {
+        user_id: userId,
         provider: chosen.id,
         mime_type,
         estimated_image_bytes: estimatedBytes,
+        hint: hint ?? null,
       },
     });
 

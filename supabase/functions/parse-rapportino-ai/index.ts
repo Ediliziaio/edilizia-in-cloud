@@ -8,11 +8,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { requireCompanyAccess } from "../_shared/auth.ts";
-import {
-  buildStableAiIdempotencyKey,
-  chargeDirectAiCall,
-  estimateWhisperCostUsd,
-} from "../_shared/directAiLedger.ts";
+import { chargeAndLogDirect, estimateWhisperCostUsd } from "../_shared/ai-provider/directApi.ts";
+import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -294,20 +291,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
     trascrizione = "";
   }
   if (trascrizione) {
-    await chargeDirectAiCall({
+    await chargeAndLogDirect({
       supabase: supabaseAdmin,
-      idempotencyKey: `rapportino_whisper_${user.id}_${payload.audio_path}`,
-      companyId,
-      userId: user.id,
-      taskKey: "rapportino_audio_transcription",
-      tierKey: "t2_vision",
-      modelUsed: "openai/whisper-1",
-      personaKey: "capocantiere",
-      costRealUsd: estimateWhisperCostUsd(payload.duration_sec),
+      company_id: companyId,
+      task_kind: "parse_rapportino",
+      model_used: "openai/whisper-1",
+      cost_usd_real: estimateWhisperCostUsd(payload.duration_sec),
+      cost_is_estimated: true,
       metadata: {
+        user_id: user.id,
+        persona_key: "capocantiere",
         audio_path: payload.audio_path,
         audio_seconds: payload.duration_sec,
         file_size_bytes: audioBytes.byteLength,
+        operation: "rapportino_audio_transcription",
       },
     });
   }
