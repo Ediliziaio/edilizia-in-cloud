@@ -414,10 +414,17 @@ serve(async (req: Request) => {
     // per evitare di iniettare le regole STRUCTURED_OUTPUT_SYSTEM_RULES nel prompt
     // (altrimenti il modello produce JSON anche se il parser lo bypassa).
     const WEAK_MODEL_PATTERNS: RegExp[] = [
-      /ministral-3b/i, /ministral-8b/i,
+      // Mistral family (Ministral 3B/8B + Mistral Medium 3.x)
+      // Mistral Medium 3.x produce JSON wrappato in fence ``` malformato →
+      // utente vede raw markdown con asterischi non renderizzati.
       /\bministral\b/i, /\bministral-/i,           // catch-all Ministral family
+      /^mistralai\/mistral-medium/i,                // Mistral Medium 3, 3.5, ...
+      /^mistralai\/mistral-(?:tiny|small)/i,        // varianti piccole
+      /^mistralai\/.*-7b/i,                         // Mistral 7B family
+      // Param-size based patterns
       /-3b\b/i, /-7b\b/i, /-8b\b/i, /-1\.5b\b/i, /-0\.5b\b/i, /-2b\b/i,
       /-3b[-_]/i, /-7b[-_]/i, /-8b[-_]/i,           // versioned variants like 8b-2512
+      // Specific provider families
       /gemma-2-(?:2b|9b)/i, /gemma-3-(?:1b|4b)/i,
       /^liquid\//i, /^inflection\//i,
       /llama-3(?:\.0|\.1|\.2)?-(?:1b|3b|8b)/i,

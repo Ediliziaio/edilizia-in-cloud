@@ -186,21 +186,35 @@ export function parseStructuredResponse(raw: string): StructuredAiResponse | nul
  */
 function recoverFromMalformedJson(jsonSlice: string, fullText: string): StructuredAiResponse | null {
   // 1) Tenta di estrarre "answer": "..." (gestisce escape \" e newline)
-  const answerMatch = /"answer"\s*:\s*"((?:[^"\\]|\\.)*)"(?:\s*[,}])/s.exec(jsonSlice);
-  if (answerMatch) {
-    const answerRaw = answerMatch[1]
+  // Pattern strict: chiede chiusura formale con [, }]
+  const answerStrict = /"answer"\s*:\s*"((?:[^"\\]|\\.)*)"(?:\s*[,}])/s.exec(jsonSlice);
+  let answerRaw: string | null = null;
+  if (answerStrict) {
+    answerRaw = answerStrict[1];
+  } else {
+    // Pattern tollerante: per Mistral Medium che produce stringhe con newline
+    // non escapati. Cerca "answer": " ... fino al prossimo \"\s*[,}] oppure
+    // fino alla fine del testo.
+    const answerLoose = /"answer"\s*:\s*"([\s\S]*?)(?:"\s*(?:[,}]|$)|$)/s.exec(jsonSlice);
+    if (answerLoose && answerLoose[1].length > 0) {
+      answerRaw = answerLoose[1];
+    }
+  }
+
+  if (answerRaw) {
+    const cleanAnswer = answerRaw
       .replace(/\\n/g, "\n")
       .replace(/\\"/g, '"')
       .replace(/\\\\/g, "\\")
       .replace(/\\t/g, "\t")
       .trim();
-    if (answerRaw.length > 0) {
+    if (cleanAnswer.length > 0) {
       const thinkingMatch = /"thinking"\s*:\s*"((?:[^"\\]|\\.)*)"/s.exec(jsonSlice);
       const confMatch = /"confidence"\s*:\s*"(high|medium|low)"/i.exec(jsonSlice);
       return {
         thinking: thinkingMatch ? thinkingMatch[1].slice(0, 2000) : "",
         confidence: (confMatch?.[1]?.toLowerCase() as "high" | "medium" | "low") ?? "low",
-        answer: answerRaw,
+        answer: cleanAnswer,
       };
     }
   }
@@ -209,15 +223,21 @@ function recoverFromMalformedJson(jsonSlice: string, fullText: string): Structur
   // ha vomitato il template senza completarlo. Strip del wrapper JSON e ritorna
   // il testo grezzo come fallback (meglio del JSON crudo).
   if (/"thinking"\s*:/.test(jsonSlice)) {
-    // Rimuovi blocco "thinking": "..." (anche non chiuso) — best effort
     let stripped = fullText
-      .replace(/^[\s{]*"thinking"\s*:\s*"[\s\S]*?(?:"\s*[,}]|$)/m, "")
+      // Rimuove fence ``` e ```json apertura/chiusura ovunque
+      .replace(/```(?:json|markdown)?\s*\n?/gi, "")
+      .replace(/\n?```\s*/g, "")
+      // Rimuove blocco "thinking": "...", anche se contiene newline non escapati
+      .replace(/^[\s{]*"thinking"\s*:\s*"[\s\S]*?(?:"\s*[,}\n]|$)/m, "")
+      // Rimuove altri campi metadata
       .replace(/^[\s{,]*"(?:confidence|uncertainty_reasons|citations|no_rag_prefix|followup_suggestions|requires_human_review|propose_action_id)"\s*:\s*[^,}]*[,}]?/gm, "")
+      // Rimuove parentesi graffe orfane
       .replace(/^\s*[{}]\s*$/gm, "")
-      .replace(/^```(?:json)?\s*$/gm, "")
       .trim();
     // Rimuovi trailing virgole/quote orfane
     stripped = stripped.replace(/^["',\s]+/, "").replace(/["',\s]+$/, "").trim();
+    // Rimuovi residuo "answer": " all'inizio se è rimasto
+    stripped = stripped.replace(/^"answer"\s*:\s*"/i, "").trim();
     if (stripped.length > 20) {
       return {
         thinking: "",
