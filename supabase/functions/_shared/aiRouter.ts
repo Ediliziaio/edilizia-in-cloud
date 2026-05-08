@@ -417,10 +417,13 @@ async function callOpenRouter(
   if (params.tool_choice) body.tool_choice = params.tool_choice;
   if (responseFormat) body.response_format = responseFormat;
 
-  // FIX 2 (C1): timeout 30s su fetch OpenRouter — evita hang infinito che
-  // blocca la edge function fino al timeout Vercel/Supabase (è 25-60s default).
+  // FIX 2 (C1): timeout 30s default, 50s per modelli "slow" (cold-start elevati).
+  // Edge Function Supabase ha un cap ~150s totale, quindi teniamo margine ampio
+  // per il resto del processing (DB writes, charge ledger, ecc.).
   // Usiamo AbortSignal.timeout (Deno >= 1.30 + Edge Functions Supabase).
-  const FETCH_TIMEOUT_MS = 30_000;
+  const SLOW_MODEL_PROVIDERS = ["moonshotai", "deepseek", "x-ai", "meta-llama", "qwen", "thudm", "z-ai"];
+  const isSlowModel = SLOW_MODEL_PROVIDERS.some((p) => model.startsWith(`${p}/`));
+  const FETCH_TIMEOUT_MS = isSlowModel ? 50_000 : 30_000;
   let res: Response;
   try {
     res = await fetch(OPENROUTER_URL, {

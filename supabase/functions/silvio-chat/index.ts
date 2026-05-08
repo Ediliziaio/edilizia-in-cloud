@@ -708,6 +708,17 @@ serve(async (req: Request) => {
       finalContent = councilSynthesis;
     }
 
+    // AI Test Lab — modelli che NON supportano tool calling stabile.
+    // Per questi disabilitiamo tools[] e tool_choice → testing puro chat.
+    // Provider noti per supporto tools instabile/assente: Moonshot Kimi,
+    // DeepSeek, Llama, Qwen, THUDM. Anthropic/OpenAI/Google supportano nativamente.
+    const PROVIDERS_NO_TOOLS = ["moonshotai", "deepseek", "meta-llama", "qwen", "thudm", "z-ai"];
+    const effectiveModel = aiTestLabForceModel ?? persona.recommended_model ?? "";
+    const skipToolsForModel = PROVIDERS_NO_TOOLS.some((p) => effectiveModel.startsWith(`${p}/`));
+    if (skipToolsForModel && toolSchemas.length > 0) {
+      console.log(`[silvio-chat] AI Test Lab: tools disabilitati per ${effectiveModel} (provider tool-calling instabile)`);
+    }
+
     while (!finalContent && iteration < MAX_TOOL_ITERATIONS) {
       iteration++;
       const idempotencyKey = `${idempotencyBase}_iter${iteration}`;
@@ -722,13 +733,14 @@ serve(async (req: Request) => {
           params: {
             temperature: 0.3,
             max_tokens: 2500,
-            tools: toolSchemas,
-            tool_choice: "auto",
+            // Skip tools per modelli non supportati (Kimi/DeepSeek/Llama/...)
+            tools: skipToolsForModel ? [] : toolSchemas,
+            tool_choice: skipToolsForModel ? undefined : "auto",
           },
           // MP-04: structured output (json_schema strict) per tier balanced/premium.
-          // Se tier non supporta, il modello segue STRUCTURED_OUTPUT_SYSTEM_RULES iniettato nel prompt.
           // Disabilitato durante tool calls (json_schema entra in conflitto con tool_choice=auto).
-          responseFormat: useStructured && toolSchemas.length === 0
+          // Disabilitato anche per modelli non Anthropic/OpenAI (json_schema strict instabile).
+          responseFormat: useStructured && toolSchemas.length === 0 && !skipToolsForModel
             ? { type: "json_schema", json_schema: { name: "AiResponse", schema: AI_RESPONSE_SCHEMA, strict: true } }
             : undefined,
           companyId,
@@ -742,9 +754,13 @@ serve(async (req: Request) => {
       } catch (aiErr) {
         const errMsg = aiErr instanceof Error ? aiErr.message : String(aiErr);
         console.error("[silvio-chat] aiRouter iter", iteration, "error:", errMsg);
+        // Messaggio utente-friendly + suggerimento per AI Test Lab
+        const userFriendlyMsg = aiTestLabForceModel
+          ? `⚠️ Il modello **${aiTestLabForceModel}** ha avuto un problema:\n\n\`${errMsg.slice(0, 200)}\`\n\n💡 Prova un altro modello dal selettore (Claude/GPT-4 sono i più stabili) o riformula la domanda.`
+          : `⚠️ C'è stato un problema tecnico: ${errMsg.slice(0, 300)}`;
         await supabaseAdmin.from("internal_chat_messages").insert({
           channel_id: channelId, sender_id: SILVIO_SENDER_ID, company_id: companyId,
-          content: `⚠️ C'è stato un problema tecnico: ${errMsg.slice(0, 300)}`,
+          content: userFriendlyMsg,
           message_type: "text",
         });
         return jsonResponse({ ok: false, error: errMsg }, 200, corsHeaders);
