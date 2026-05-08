@@ -32,6 +32,14 @@ export interface RagSource {
   similarity: number;
   snippet: string;
   doc_id?: string;       // ai_brain_documents.id (per audit/trace)
+  /** Chunk ID univoco breve — l'LLM lo cita come [chunk:abc12345] */
+  chunk_id?: string;
+  /** Last verified date — l'LLM avvisa se obsoleto */
+  last_verified_at?: string;
+  /** Validity end — l'LLM avvisa se scaduto */
+  valid_until?: string;
+  /** Anti-pattern rules che l'LLM deve rispettare */
+  anti_patterns?: Array<{ if_query_contains?: string[]; do_not_say?: string[]; reason?: string }>;
 }
 
 export interface RagInjectionResult {

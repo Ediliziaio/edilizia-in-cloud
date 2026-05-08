@@ -122,7 +122,8 @@ export async function contentHash(text: string): Promise<string> {
 }
 
 /**
- * Splitting semplice: split per newline, max 2000 char per chunk.
+ * Splitting semplice (LEGACY): split per newline, max 2000 char per chunk.
+ * Mantenuto per retrocompatibilità — preferire chunkTextSliding per nuovo codice.
  */
 export function chunkText(text: string, maxChars = 2000): string[] {
   const cleaned = (text ?? "").trim();
@@ -143,7 +144,6 @@ export function chunkText(text: string, maxChars = 2000): string[] {
   }
   if (buf.trim()) chunks.push(buf.trim());
 
-  // Se un chunk supera comunque maxChars (riga lunga), spezza ulteriormente
   return chunks.flatMap(c => {
     if (c.length <= maxChars) return c;
     const subs: string[] = [];
@@ -152,6 +152,89 @@ export function chunkText(text: string, maxChars = 2000): string[] {
     }
     return subs;
   });
+}
+
+/**
+ * SLIDING-WINDOW chunking con overlap — strategia raccomandata.
+ *
+ * Vantaggi vs chunkText legacy:
+ *   - Overlap (default 50 token / ~200 char) preserva il contesto a cavallo
+ *     dei chunk → l'embedding dei chunk vicini "vede" anche un po' del
+ *     chunk adiacente, migliorando il recall del vector search per concetti
+ *     che attraversano boundaries naturali.
+ *   - Split su sentence boundaries (. ! ? \n\n) per coesione semantica
+ *   - Target token-aware (default 500 token = ~2000 char con tokenizer GPT)
+ *
+ * Parametri di default ottimizzati per text-embedding-3-small (1536 dim):
+ *   - chunkChars 2000 (~500 token)
+ *   - overlapChars 200 (~50 token)
+ *   - splitOn boundary regex /[.!?]\s+|\n{2,}/g
+ */
+export function chunkTextSliding(
+  text: string,
+  options: { chunkChars?: number; overlapChars?: number } = {}
+): Array<{ content: string; index: number; total: number }> {
+  const cleaned = (text ?? "").trim();
+  if (cleaned.length === 0) return [];
+
+  const chunkChars = options.chunkChars ?? 2000;
+  const overlapChars = options.overlapChars ?? 200;
+
+  if (cleaned.length <= chunkChars) {
+    return [{ content: cleaned, index: 0, total: 1 }];
+  }
+
+  // 1. Split su sentence boundaries — tieni i delimiter
+  const sentences: string[] = [];
+  let lastEnd = 0;
+  const boundaryRe = /[.!?](?:\s+|$)|\n{2,}/g;
+  let m: RegExpExecArray | null;
+  while ((m = boundaryRe.exec(cleaned)) !== null) {
+    sentences.push(cleaned.slice(lastEnd, m.index + m[0].length));
+    lastEnd = m.index + m[0].length;
+  }
+  if (lastEnd < cleaned.length) {
+    sentences.push(cleaned.slice(lastEnd));
+  }
+
+  // 2. Aggrega frasi fino al limite chunkChars
+  const rawChunks: string[] = [];
+  let buf = "";
+  for (const s of sentences) {
+    if (buf.length + s.length > chunkChars && buf.length > 0) {
+      rawChunks.push(buf.trim());
+      buf = s;
+    } else {
+      buf += s;
+    }
+    // Se una singola frase supera chunkChars (raro), spezzala hard
+    while (buf.length > chunkChars * 1.5) {
+      rawChunks.push(buf.slice(0, chunkChars).trim());
+      buf = buf.slice(chunkChars);
+    }
+  }
+  if (buf.trim()) rawChunks.push(buf.trim());
+
+  // 3. Applica overlap: ogni chunk include la coda del precedente
+  if (rawChunks.length === 1 || overlapChars <= 0) {
+    return rawChunks.map((c, i) => ({ content: c, index: i, total: rawChunks.length }));
+  }
+
+  const overlapped: string[] = [rawChunks[0]];
+  for (let i = 1; i < rawChunks.length; i++) {
+    const prev = rawChunks[i - 1];
+    const tail = prev.slice(Math.max(0, prev.length - overlapChars));
+    // Trova un boundary di parola per non spezzare a metà
+    const cutAt = tail.search(/\s/);
+    const cleanTail = cutAt > 0 ? tail.slice(cutAt + 1) : tail;
+    overlapped.push((cleanTail + " " + rawChunks[i]).trim());
+  }
+
+  return overlapped.map((c, i) => ({
+    content: c,
+    index: i,
+    total: overlapped.length,
+  }));
 }
 
 export const BRAIN_EMBED_MODEL = EMBED_MODEL;

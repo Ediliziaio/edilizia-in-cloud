@@ -23,7 +23,10 @@ const PlatformSettingsPage = lazy(() => import("@/modules/ai-agents/pages/Platfo
 const AdminSettingsAIRouter = lazy(() => import("@/pages/admin/settings/AdminSettingsAIRouter"));
 const AdminSettingsAIPricing = lazy(() => import("@/pages/admin/settings/AdminSettingsAIPricing"));
 const AdminSettingsAIPersonas = lazy(() => import("@/pages/admin/settings/AdminSettingsAIPersonas"));
-const AdminSettingsAIKnowledge = lazy(() => import("@/pages/admin/settings/AdminSettingsAIKnowledge"));
+// KB con sub-tabs: Documenti | Q&A Tests | Playground | Qualità | Budget
+const KbAdminPage = lazy(() =>
+  import("@/components/admin/ai-knowledge/KbAdminPage").then((m) => ({ default: m.KbAdminPage }))
+);
 const AdminSettingsAIMemory = lazy(() => import("@/pages/admin/settings/AdminSettingsAIMemory"));
 const AdminSettingsAIActions = lazy(() => import("@/pages/admin/settings/AdminSettingsAIActions"));
 
@@ -145,7 +148,7 @@ export default function AdminSettingsAI() {
             </TabsList>
             <TabsContent value="knowledge">
               <Suspense fallback={fallback}>
-                <AdminSettingsAIKnowledge />
+                <KbAdminPage />
               </Suspense>
             </TabsContent>
             <TabsContent value="memory">

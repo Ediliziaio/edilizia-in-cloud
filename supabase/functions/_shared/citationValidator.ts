@@ -22,6 +22,10 @@ export interface CitationValidationResult {
   citationsAvailable: string[];      // ["S1", "S2", "S3", "S4", "S5", "S6"]
   citationsMissing: boolean;         // true se RAG fornita ma 0 citation
   invalidCitations: string[];        // [Sx] citati ma non esistenti
+  /** Chunk IDs citati con formato [chunk:abc12345] — più preciso di [S1] */
+  chunkIdsUsed: string[];
+  /** Chunk IDs citati ma non presenti nelle source */
+  chunkIdsInvalid: string[];
   missingFontiSection: boolean;      // ha citato ma manca "## Fonti"
   noRagPrefix: boolean;              // "[no-rag]" all'inizio
   cleanedResponse: string;           // response con Fonti normalizzata (mode enforce)
@@ -30,6 +34,8 @@ export interface CitationValidationResult {
 
 const INITIAL_MARKER_RE = /\[S(\d+)\]/g;
 const TOOL_MARKER_RE = /\[S(\d+)\+\]/g;
+// Formato chunk_id: [chunk:abc12345] (8 char alphanumerici)
+const CHUNK_ID_MARKER_RE = /\[chunk:([a-zA-Z0-9]{6,32})\]/g;
 const FONTI_SECTION_RE = /\n#{1,3}\s+Fonti\s*[\s\S]*$/i;
 
 export function validateCitations(
@@ -42,6 +48,8 @@ export function validateCitations(
     citationsAvailable: sources.map((s) => s.id),
     citationsMissing: false,
     invalidCitations: [],
+    chunkIdsUsed: [],
+    chunkIdsInvalid: [],
     missingFontiSection: false,
     noRagPrefix: false,
     cleanedResponse: response,
@@ -66,12 +74,31 @@ export function validateCitations(
     toolUsed.add(`S${m[1]}+`);
   }
 
+  // Chunk ID markers — più precisi di [Sx]: l'LLM cita il chunk esatto
+  const chunkIdsUsedSet = new Set<string>();
+  CHUNK_ID_MARKER_RE.lastIndex = 0;
+  while ((m = CHUNK_ID_MARKER_RE.exec(text)) !== null) {
+    chunkIdsUsedSet.add(m[1]);
+  }
+  const chunkIdsAvailable = new Set(
+    sources.map((s) => s.chunk_id).filter((id): id is string => Boolean(id))
+  );
+  const chunkIdsInvalid = Array.from(chunkIdsUsedSet).filter(
+    (id) => !chunkIdsAvailable.has(id)
+  );
+
   const usedArr = Array.from(used).sort();
   const invalid = usedArr.filter((s) => !available.includes(s));
   const noRag = text.trimStart().startsWith("[no-rag]");
   const hasFontiSection = FONTI_SECTION_RE.test(text);
-  const missingFonti = (used.size > 0 || toolUsed.size > 0) && !hasFontiSection;
-  const citationsMissing = !noRag && sources.length > 0 && used.size === 0 && toolUsed.size === 0;
+  const missingFonti =
+    (used.size > 0 || toolUsed.size > 0 || chunkIdsUsedSet.size > 0) && !hasFontiSection;
+  const citationsMissing =
+    !noRag &&
+    sources.length > 0 &&
+    used.size === 0 &&
+    toolUsed.size === 0 &&
+    chunkIdsUsedSet.size === 0;
 
   let cleanedResponse = text;
   if (mode === "enforce" && used.size > 0) {
@@ -99,6 +126,8 @@ export function validateCitations(
     citationsAvailable: available,
     citationsMissing,
     invalidCitations: invalid,
+    chunkIdsUsed: Array.from(chunkIdsUsedSet),
+    chunkIdsInvalid,
     missingFontiSection: missingFonti,
     noRagPrefix: noRag,
     cleanedResponse,
