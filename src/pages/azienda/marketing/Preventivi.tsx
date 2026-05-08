@@ -138,6 +138,7 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
+import { QuoteFromCaptureDialog } from "@/components/quotes/QuoteFromCaptureDialog";
 import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentImportModal";
 import { ModuliVendutaTab } from "@/components/marketing/preventivi/moduli/ModuliVendutaTab";
 import {
@@ -706,7 +707,8 @@ export default function Preventivi() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
                   <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
-                  Foto / PDF (AI)
+                  Foto, schizzi o audio (AI)
+                  <span className="ml-auto text-[10px] text-orange-600">Smart</span>
                 </DropdownMenuItem>
                 {filtered.length > 0 && (
                   <>
@@ -1352,12 +1354,13 @@ export default function Preventivi() {
         onComplete={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
       />
 
-      {/* Modal Foto/PDF — AI vision estrae preventivo da foto cartaceo o PDF */}
-      <ComputoUploadModal
+      {/* Modal Foto/Audio/Testo — AI moderna ai-quote-from-capture
+          Multi-foto (10), audio (3min), testo libero.
+          Pipeline: vision → matching pgvector listino → review interattivo */}
+      <QuoteFromCaptureDialog
         open={showFotoModal}
         onOpenChange={setShowFotoModal}
-        intent="foto"
-        onComplete={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
+        onQuoteCreated={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
       />
 
       {/* Smart Document Router — AI classifica e smista al modulo giusto */}

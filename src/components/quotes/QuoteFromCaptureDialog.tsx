@@ -22,8 +22,8 @@ import { Badge } from "@/components/ui/badge";
 import { CaptureReviewPanel } from "./CaptureReviewPanel";
 
 const MAX_AUDIO_SECONDS = 180; // 3 min
-const MAX_IMAGES = 5;
-const MAX_IMAGE_MB = 8;
+const MAX_IMAGES = 10;
+const MAX_IMAGE_MB = 10;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 const ALLOWED_IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|heic|heif)$/i;
 
