@@ -447,7 +447,14 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl w-[96vw] max-h-[94vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-3xl w-[96vw] max-h-[94vh] overflow-y-auto"
+        onInteractOutside={(e) => {
+          // Evita che il dialog si chiuda quando l'utente clicca su un Sheet
+          // figlio (es. picker abbina al listino).
+          e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />

@@ -12,12 +12,12 @@
 import { useEffect, useState } from "react";
 import { Search, Package } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -71,18 +71,22 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl w-[96vw] max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-2xl flex flex-col gap-0"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
             <Package className="h-5 w-5 text-primary" />
             Abbina dal listino
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             Cerca un articolo o una famiglia nel tuo listino aziendale. Cliccando lo abbini alla
             voce del preventivo: nome, prezzo unitario e id verranno aggiornati.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         <div className="sticky top-0 bg-background pt-1 pb-2 z-10">
           <div className="relative">
@@ -159,8 +163,8 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
             </div>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
