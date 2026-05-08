@@ -644,7 +644,10 @@ Ordine:
               <Button variant="ghost" onClick={() => onOpenChange(false)}>
                 Annulla
               </Button>
-              <Button onClick={submitCapture} disabled={!companyId}>
+              <Button
+                onClick={submitCapture}
+                disabled={!companyId || phase !== "input" || pdfProcessing}
+              >
                 <Sparkles className="h-4 w-4 mr-2" />
                 Estrai con AI
               </Button>

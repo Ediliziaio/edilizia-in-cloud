@@ -769,7 +769,26 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                   size="icon"
                   variant="ghost"
                   className="h-8 w-8 text-destructive shrink-0"
-                  onClick={() => removeProduct(i)}
+                  onClick={() => {
+                    // Conferma solo se la voce ha contenuto utile (misure
+                    // compilate o prezzo > 0 o nome editato): evita perdita
+                    // di dati per click accidentale.
+                    const hasUserData =
+                      (p.misure?.x ?? 0) > 0 ||
+                      (p.misure?.y ?? 0) > 0 ||
+                      (p.unit_price ?? 0) > 0 ||
+                      !!p.matched_template_id ||
+                      !!p.matched_family_id ||
+                      (p.name && p.name !== p.descrizione_grezza);
+                    if (hasUserData) {
+                      const ok = window.confirm(
+                        `Rimuovere "${p.name ?? p.descrizione_grezza}"?\n\nLe misure, il prezzo e l'abbinamento al listino verranno persi.`,
+                      );
+                      if (!ok) return;
+                    }
+                    removeProduct(i);
+                  }}
+                  title="Rimuovi voce"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -822,6 +841,29 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
         </div>
       </div>
 
+      {/* WARNING: voci con prezzo 0 — bloccato il submit per evitare di
+          inviare al cliente un preventivo con voci a 0€. */}
+      {(() => {
+        const zeroPriceCount = products.filter(
+          (p) => (p.unit_price ?? 0) === 0,
+        ).length;
+        if (zeroPriceCount === 0) return null;
+        return (
+          <div className="border border-amber-300 bg-amber-50 dark:bg-amber-950/20 rounded-md p-2.5 text-xs flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-medium text-amber-800 dark:text-amber-300">
+                {zeroPriceCount} {zeroPriceCount === 1 ? "voce ha prezzo a 0 €" : "voci hanno prezzo a 0 €"}
+              </div>
+              <div className="text-amber-700 dark:text-amber-400">
+                Imposta un prezzo unitario o abbina al listino prima di creare
+                il preventivo.
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* AZIONI */}
       <div className="flex gap-2 pt-2 border-t">
         <Button variant="ghost" onClick={onCancel} disabled={saving}>
@@ -829,7 +871,14 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
         </Button>
         <Button
           onClick={handleApply}
-          disabled={saving || products.length === 0 || (contactStrategy === "use_existing" && !selectedContactId)}
+          disabled={
+            saving ||
+            products.length === 0 ||
+            (contactStrategy === "use_existing" && !selectedContactId) ||
+            // Block submit se almeno una voce ha prezzo 0 — evita preventivi
+            // a 0 € che andrebbero al cliente con totale errato.
+            products.some((p) => (p.unit_price ?? 0) === 0)
+          }
           className="flex-1"
         >
           {saving ? (

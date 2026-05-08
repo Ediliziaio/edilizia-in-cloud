@@ -81,6 +81,14 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
   // ── Data ──────────────────────────────────────────────────────────────────
   const { data: macros = [] } = useCatalogMacrocategories();
   const { data: allCategorie = [] } = useCatalogCategories();
+  // Performance: nascondiamo i risultati finché l'utente non ha attivato
+  // almeno un filtro (search o categoria). Riduce noise iniziale + carica
+  // mentale quando il listino ha 500+ articoli.
+  const hasFilter =
+    !!searchDebounced.trim() ||
+    !!categoriaId ||
+    !!macroId ||
+    sourceFilter !== "all";
   const { items: allItems, isLoading } = useCatalogItems({
     categoriaId: categoriaId ?? undefined,
     search: searchDebounced,
@@ -94,6 +102,9 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
 
   // Items filtrati per source + macrocategoria (extra filter client-side)
   const filteredItems = useMemo(() => {
+    // Nascondi risultati se l'utente non ha ancora attivato filtri:
+    // riduce noise iniziale (lista da 500+ articoli senza orientamento).
+    if (!hasFilter) return [];
     let items = allItems;
     if (sourceFilter !== "all") {
       items = items.filter((i) => i.source === sourceFilter);
@@ -104,7 +115,7 @@ export function MatchProductPickerDialog({ open, onOpenChange, initialQuery = ""
       items = items.filter((i) => i.categoria_id && allowedCatIds.has(i.categoria_id));
     }
     return items;
-  }, [allItems, sourceFilter, macroId, categoriaId, visibleCategorie]);
+  }, [allItems, sourceFilter, macroId, categoriaId, visibleCategorie, hasFilter]);
 
   // Raggruppa risultati per categoria (per header sticky)
   const grouped = useMemo(() => {

@@ -156,6 +156,39 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: authHeader } } },
   );
 
+  /**
+   * Helper UPDATE su preventivo_da_foto_runs con error logging esplicito.
+   *
+   * Risolve P0: il client supabase NON solleva eccezione né ritorna errore al
+   * caller se l'UPDATE è rifiutato silenziosamente (check constraint, RLS,
+   * network). Questo ha già causato un incidente (status='processing' rifiutato
+   * dal check constraint, run resta orfano in 'pending', UI vede 0 voci).
+   *
+   * Ora ogni UPDATE è seguito da .select().single() che forza la lettura del
+   * record aggiornato: se la condizione WHERE non matcha o la modifica è
+   * rifiutata, error viene popolato e loggato nei console.error dell'edge.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async function updateRun(runId: string, patch: Record<string, any>): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("preventivo_da_foto_runs")
+      .update(patch)
+      .eq("id", runId)
+      .select("id")
+      .single();
+    if (error) {
+      console.error(
+        `[ai-quote-from-capture] updateRun(${runId}) failed:`,
+        error.message,
+        "patch keys:",
+        Object.keys(patch),
+      );
+      return false;
+    }
+    return true;
+  }
+
   // Resolve user / company
   const { data: { user } } = await supaWithAuth.auth.getUser();
   if (!user) return jsonOk({ error: "unauthorized" }, 401, cors);
@@ -216,11 +249,7 @@ Deno.serve(async (req) => {
     }
     summary.run_id = runId;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
-      .from("preventivo_da_foto_runs")
-      .update({ status: "analyzing_images", updated_at: new Date().toISOString() })
-      .eq("id", runId);
+    await updateRun(runId, { status: "analyzing_images", updated_at: new Date().toISOString() });
 
     // ─── STEP 1: Audio transcription ────────────────────────────────────────
     let transcript = body.description ?? "";
@@ -258,11 +287,7 @@ Deno.serve(async (req) => {
 
     // Salva trascrizione
     if (transcript) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("preventivo_da_foto_runs")
-        .update({ audio_transcript: transcript, updated_at: new Date().toISOString() })
-        .eq("id", runId);
+      await updateRun(runId, { audio_transcript: transcript, updated_at: new Date().toISOString() });
     }
 
     // ─── STEP 2: Estrazione strutturata via AI ──────────────────────────────
@@ -300,15 +325,11 @@ Deno.serve(async (req) => {
         global_confidence: computeGlobalConfidence(parsed),
       };
     } catch (e) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("preventivo_da_foto_runs")
-        .update({
-          status: "failed",
-          error_step: "extraction",
-          error_message: (e as Error).message,
-        })
-        .eq("id", runId);
+      await updateRun(runId, {
+        status: "failed",
+        error_step: "extraction",
+        error_message: (e as Error).message,
+      });
       return jsonOk({ run_id: runId, error: "extraction_failed", message: (e as Error).message }, 500, cors);
     }
 
@@ -351,18 +372,24 @@ Deno.serve(async (req) => {
     summary.extraction = extraction;
 
     // ─── STEP 4: Salva estratto sul run (UI review legge da qui) ────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
-      .from("preventivo_da_foto_runs")
-      .update({
-        status: "draft_ready",
-        extracted_customer_data: extraction.customer,
-        extracted_products: extraction.products,
-        extraction_confidence: extraction.global_confidence,
-        vision_results: { extraction, raw_transcript: transcript },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", runId);
+    // CRITICAL: se questo UPDATE fallisce, l'utente vede review panel vuoto.
+    // updateRun logga errore + ritorna false → segnaliamo error al client.
+    const persistOk = await updateRun(runId, {
+      status: "draft_ready",
+      extracted_customer_data: extraction.customer,
+      extracted_products: extraction.products,
+      extraction_confidence: extraction.global_confidence,
+      vision_results: { extraction, raw_transcript: transcript },
+      updated_at: new Date().toISOString(),
+    });
+    if (!persistOk) {
+      summary.errors.push("persist_extraction_failed");
+      return jsonOk(
+        { ...summary, error: "persist_failed", run_id: runId },
+        500,
+        cors,
+      );
+    }
 
     summary.duration_ms = Date.now() - t0;
     return jsonOk(summary, 200, cors);
@@ -422,18 +449,87 @@ function parseExtractionJson(rawContent: string): {
   avvertenze?: string[];
   cantiere?: { indirizzo?: string; descrizione?: string };
 } {
-  // Strippa markdown fence se presente
+  // Strippa markdown fence (anche multipli — Mistral Medium li annida)
   let text = rawContent.trim();
-  if (text.startsWith("```")) {
-    text = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
-  }
+  text = text.replace(/```(?:json|markdown)?\s*\n?/gi, "").replace(/\n?```\s*/g, "").trim();
   // Trova il primo { e l'ultimo }
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start >= 0 && end > start) {
     text = text.slice(start, end + 1);
   }
-  return JSON.parse(text);
+  try {
+    return JSON.parse(text);
+  } catch (parseErr) {
+    // Fallback: tenta a recuperare il `products` array con regex tollerante.
+    // Tipico problema: AI ritorna JSON con newline non escapati nelle stringhe
+    // descrizione/note → JSON.parse fallisce ma noi possiamo comunque estrarre
+    // i dati strutturati. Meglio mostrare voci recuperate che 'extraction_failed'.
+    console.warn("[ai-quote-from-capture] parseExtractionJson primary failed:", (parseErr as Error).message);
+    return recoverFromMalformedExtractJson(text);
+  }
+}
+
+/**
+ * Best-effort recovery quando JSON.parse fallisce su risposte AI malformate.
+ * Estrae products via regex su pattern `{ "descrizione_grezza": "...", ... }`
+ * e customer via regex sui campi atomici.
+ *
+ * Filosofia: meglio voci parziali da correggere in review che 'extraction_failed'
+ * che costringe l'utente a riuploadare tutto.
+ */
+function recoverFromMalformedExtractJson(text: string): {
+  customer?: ExtractedCustomer;
+  products?: ExtractedProductRaw[];
+  note?: string;
+  avvertenze?: string[];
+  cantiere?: { indirizzo?: string; descrizione?: string };
+} {
+  const products: ExtractedProductRaw[] = [];
+  // Match ogni oggetto product: cerca "descrizione_grezza":"<text>" + opzionali quantita/misure
+  const productPattern = /"descrizione_grezza"\s*:\s*"((?:[^"\\]|\\.)*)"[\s\S]*?(?="descrizione_grezza"|$)/gs;
+  let m: RegExpExecArray | null;
+  while ((m = productPattern.exec(text)) !== null) {
+    const block = m[0];
+    const desc = m[1].replace(/\\n/g, " ").replace(/\\"/g, '"').trim();
+    const qty = /"quantita"\s*:\s*([\d.]+)/.exec(block)?.[1];
+    const um = /"unita_misura"\s*:\s*"([^"]+)"/.exec(block)?.[1];
+    const x = /"x"\s*:\s*([\d.]+)/.exec(block)?.[1];
+    const y = /"y"\s*:\s*([\d.]+)/.exec(block)?.[1];
+    products.push({
+      descrizione_grezza: desc,
+      quantita: qty ? parseFloat(qty) : 1,
+      unita_misura: um ?? "pz",
+      misure: (x || y) ? { x: x ? parseInt(x) : undefined, y: y ? parseInt(y) : undefined, unit: "mm" } : undefined,
+    });
+  }
+
+  // Customer atomic fields
+  const grab = (key: string) => new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`).exec(text)?.[1];
+  const customer: ExtractedCustomer | undefined = grab("nome") || grab("cognome") || grab("telefono") || grab("email")
+    ? {
+        nome: grab("nome"),
+        cognome: grab("cognome"),
+        azienda: grab("azienda"),
+        telefono: grab("telefono"),
+        email: grab("email"),
+        indirizzo: grab("indirizzo"),
+        citta: grab("citta"),
+        provincia: grab("provincia"),
+        cap: grab("cap"),
+        cf: grab("cf"),
+        piva: grab("piva"),
+        confidence: 0.4, // recovery → confidence ridotta
+      }
+    : undefined;
+
+  return {
+    customer,
+    products,
+    note: grab("note"),
+    avvertenze: ["Estrazione in modalità recovery: alcuni dati possono essere incompleti."],
+    cantiere: grab("indirizzo") ? { indirizzo: grab("indirizzo") } : undefined,
+  };
 }
 
 function computeGlobalConfidence(parsed: {
