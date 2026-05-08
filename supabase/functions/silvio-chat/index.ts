@@ -864,27 +864,83 @@ serve(async (req: Request) => {
       last_generation_id: (lastResult.rawResponse as { id?: string } | undefined)?.id ?? null,
     } : {};
 
-    const { data: insertedMsg } = await supabaseAdmin
-      .from("internal_chat_messages")
-      .insert({
-        channel_id: channelId,
-        sender_id: SILVIO_SENDER_ID,
-        company_id: companyId,
-        content: finalContent,
-        message_type: "text",
-        rag_sources: ragSources.length > 0 ? ragSources : null,
-        rag_min_similarity: ragSources.length > 0 ? ragMinSimilarity : null,
-        ai_confidence: structured?.confidence ?? null,
-        ai_requires_human_review: structured?.requires_human_review ?? null,
-        followup_suggestions:
-          structured?.followup_suggestions && structured.followup_suggestions.length > 0
-            ? structured.followup_suggestions.slice(0, 3)
-            : null,
-        council_data: councilData,
-        ...aiRunMeta,
-      })
-      .select()
-      .single();
+    // ── INSERT TOLLERANTE — schema-resilient ──────────────────────────────
+    // Strategia: prova con TUTTI i campi nuovi (AI Test Lab `last_*`). Se la
+    // migration non è applicata, fallback automatico al subset minimo (back-compat).
+    // Critico: senza questo fallback, `column does not exist` blocca l'INSERT
+    // della risposta AI → chat resta senza messaggio (bug segnalato dall'utente).
+    const baseInsert = {
+      channel_id: channelId,
+      sender_id: SILVIO_SENDER_ID,
+      company_id: companyId,
+      content: finalContent,
+      message_type: "text",
+    };
+    const sessionOneFields = {
+      rag_sources: ragSources.length > 0 ? ragSources : null,
+      rag_min_similarity: ragSources.length > 0 ? ragMinSimilarity : null,
+      ai_confidence: structured?.confidence ?? null,
+      ai_requires_human_review: structured?.requires_human_review ?? null,
+      followup_suggestions:
+        structured?.followup_suggestions && structured.followup_suggestions.length > 0
+          ? structured.followup_suggestions.slice(0, 3)
+          : null,
+      council_data: councilData,
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let insertedMsg: any = null;
+    let insertError: { message?: string; code?: string } | null = null;
+
+    // Tentativo 1: full payload (Sessione 1 + AI Test Lab columns)
+    {
+      const { data, error } = await supabaseAdmin
+        .from("internal_chat_messages")
+        .insert({ ...baseInsert, ...sessionOneFields, ...aiRunMeta })
+        .select()
+        .single();
+      if (!error) {
+        insertedMsg = data;
+      } else {
+        insertError = error as { message?: string; code?: string };
+        console.warn("[silvio-chat] INSERT step 1 failed:", error.message);
+      }
+    }
+
+    // Tentativo 2: solo Sessione 1 (no AI Test Lab columns)
+    if (!insertedMsg && /column .* does not exist/i.test(insertError?.message ?? "")) {
+      console.warn("[silvio-chat] retrying INSERT senza AI Test Lab columns (migration last_* non applicata)");
+      const { data, error } = await supabaseAdmin
+        .from("internal_chat_messages")
+        .insert({ ...baseInsert, ...sessionOneFields })
+        .select()
+        .single();
+      if (!error) {
+        insertedMsg = data;
+      } else {
+        insertError = error as { message?: string; code?: string };
+        console.warn("[silvio-chat] INSERT step 2 failed:", error.message);
+      }
+    }
+
+    // Tentativo 3 (last-resort): solo campi base (no Sessione 1, no AI Test Lab)
+    if (!insertedMsg && /column .* does not exist/i.test(insertError?.message ?? "")) {
+      console.warn("[silvio-chat] retrying INSERT con SOLO campi base (migration Sessione 1 non applicata)");
+      const { data, error } = await supabaseAdmin
+        .from("internal_chat_messages")
+        .insert(baseInsert)
+        .select()
+        .single();
+      if (!error) {
+        insertedMsg = data;
+      } else {
+        console.error("[silvio-chat] INSERT FALLITO ANCHE BASE:", error.message);
+      }
+    }
+
+    if (!insertedMsg) {
+      console.error("[silvio-chat] CRITICAL: messaggio AI NON salvato in chat:", insertError);
+    }
 
     // ── 11) FIX 8 (C4): Decision Log per AI Act compliance ─────────────────
     // Inserisce un record in silvio_decision_log per ogni interazione chat,
