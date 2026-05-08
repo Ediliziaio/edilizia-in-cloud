@@ -710,6 +710,18 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
         },
       });
       if (res.error) throw new Error(`Silvio: ${res.error.message}`);
+      // AI Test Lab — toast warning se aiRouter ha fatto fallback automatico.
+      if (aiSelector.showSelector && aiSelector.selectedModel) {
+        const usato = (res.data as { model_used?: string } | null)?.model_used;
+        if (usato && usato !== aiSelector.selectedModel) {
+          const richiestoLabel = aiSelector.selectedModel.split('/').pop() ?? aiSelector.selectedModel;
+          const usatoLabel = usato.split('/').pop() ?? usato;
+          toast.warning(
+            `⚠️ Fallback: ${richiestoLabel} non disponibile, risposta da ${usatoLabel}`,
+            { duration: 6000 },
+          );
+        }
+      }
       qc.invalidateQueries({ queryKey: ["internal-chat-messages", channelId] });
     },
     onSuccess: () => {

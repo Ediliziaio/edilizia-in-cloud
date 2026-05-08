@@ -1110,6 +1110,19 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
         }
         throw new Error(errBody?.error ?? errBody?.message ?? res.error.message ?? "Errore Silvio");
       }
+      // AI Test Lab — toast warning se aiRouter ha fatto fallback automatico.
+      // Funziona anche senza migration AI_TEST_LAB-2 (legge da response, non DB).
+      if (aiSelector.showSelector && aiSelector.selectedModel) {
+        const usato = (res.data as { model_used?: string } | null)?.model_used;
+        if (usato && usato !== aiSelector.selectedModel) {
+          const richiestoLabel = aiSelector.selectedModel.split('/').pop() ?? aiSelector.selectedModel;
+          const usatoLabel = usato.split('/').pop() ?? usato;
+          toast.warning(
+            `⚠️ Fallback automatico: ${richiestoLabel} non disponibile, risposta da ${usatoLabel}`,
+            { duration: 6000 },
+          );
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
       queryClient.invalidateQueries({ queryKey: ["internal-chat-last-messages"] });
       refetchUnread();

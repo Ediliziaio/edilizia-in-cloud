@@ -910,7 +910,16 @@ export async function aiRouterComplete(
       }
       const errMsg = (e as Error).message ?? String(e);
       attempts.push({ model, error: errMsg });
-      console.warn(`[aiRouter] task=${opts.taskKey} model=${model} attempt ${i+1}/${modelsToTry.length} failed:`, errMsg);
+      // Log esteso per AI Test Lab demo — utile per diagnosticare modelli che falliscono
+      // (es. Gemini 3.1 preview, Kimi reasoning, modelli nuovi non supportati)
+      const isDemo = opts.companyId === AI_TEST_LAB_DEMO_COMPANY_ID;
+      console.warn(
+        `[aiRouter] task=${opts.taskKey} model=${model} attempt ${i+1}/${modelsToTry.length} FAILED:`,
+        errMsg.slice(0, 500),
+      );
+      if (isDemo) {
+        console.warn(`[aiRouter][AI-TEST-LAB] modello richiesto fallito: ${model} | errore: ${errMsg.slice(0, 300)}`);
+      }
       // Continua con il prossimo fallback
     }
   }
