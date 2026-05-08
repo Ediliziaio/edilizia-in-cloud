@@ -405,25 +405,52 @@ async function callOpenRouter(
   durationMs: number;
 }> {
   const start = Date.now();
+
+  // ── Reasoning models detection (Kimi K2.6, Kimi Thinking, o1/o3/o4) ──
+  // Questi modelli fanno "chain-of-thought" interno prima di rispondere.
+  // Se non disabilitato, l'attesa è 30-120s. Per testing chat normale,
+  // forziamo reasoning_effort: "minimal" per ottenere risposta rapida.
+  // (Pattern coerente con OpenAI Responses API + OpenRouter reasoning param.)
+  const REASONING_MODELS = [
+    /^moonshotai\/kimi-k2\.6/,
+    /^moonshotai\/kimi-k2-thinking/,
+    /^openai\/o[1-9]/,
+    /\/.*-thinking/i,
+    /\/.*-reasoning/i,
+  ];
+  const isReasoningModel = REASONING_MODELS.some((re) => re.test(model));
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body: Record<string, any> = {
     model,
     messages,
-    temperature: params.temperature ?? 0.3,
     max_tokens: params.max_tokens ?? 2000,
   };
+  // Reasoning models OpenAI (o1/o3/o4) NON accettano temperature → skip
+  // Altri reasoning models tipo Kimi accettano temperature ma è ignorata
+  if (!model.startsWith("openai/o")) {
+    body.temperature = params.temperature ?? 0.3;
+  }
   if (params.top_p != null) body.top_p = params.top_p;
   if (params.tools) body.tools = params.tools;
   if (params.tool_choice) body.tool_choice = params.tool_choice;
   if (responseFormat) body.response_format = responseFormat;
 
-  // FIX 2 (C1): timeout 30s default, 50s per modelli "slow" (cold-start elevati).
-  // Edge Function Supabase ha un cap ~150s totale, quindi teniamo margine ampio
-  // per il resto del processing (DB writes, charge ledger, ecc.).
-  // Usiamo AbortSignal.timeout (Deno >= 1.30 + Edge Functions Supabase).
-  const SLOW_MODEL_PROVIDERS = ["moonshotai", "deepseek", "x-ai", "meta-llama", "qwen", "thudm", "z-ai"];
+  // FIX BUG KIMI K2.6: disabilita reasoning effort per ridurre latenza.
+  // OpenRouter accetta `reasoning: { effort: "minimal"|"low"|"medium"|"high" }`
+  // o `reasoning: { exclude: true }`. Per Kimi K2.6/Thinking → effort=low.
+  if (isReasoningModel) {
+    body.reasoning = { effort: "low" };
+  }
+
+  // FIX 2 (C1): timeout differenziato.
+  // - 30s default (Anthropic/OpenAI/Google standard)
+  // - 50s per slow models non-reasoning (DeepSeek, Llama)
+  // - 120s per reasoning models (Kimi K2.6 thinking, o1/o3 OpenAI)
+  // Edge Function Supabase ha cap ~150s totale → 120s lascia margine.
+  const SLOW_MODEL_PROVIDERS = ["deepseek", "x-ai", "meta-llama", "qwen", "thudm", "z-ai"];
   const isSlowModel = SLOW_MODEL_PROVIDERS.some((p) => model.startsWith(`${p}/`));
-  const FETCH_TIMEOUT_MS = isSlowModel ? 50_000 : 30_000;
+  const FETCH_TIMEOUT_MS = isReasoningModel ? 120_000 : (isSlowModel ? 50_000 : 30_000);
   let res: Response;
   try {
     res = await fetch(OPENROUTER_URL, {

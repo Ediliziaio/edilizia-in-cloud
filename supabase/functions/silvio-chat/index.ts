@@ -708,15 +708,19 @@ serve(async (req: Request) => {
       finalContent = councilSynthesis;
     }
 
-    // AI Test Lab — modelli che NON supportano tool calling stabile.
-    // Per questi disabilitiamo tools[] e tool_choice → testing puro chat.
-    // Provider noti per supporto tools instabile/assente: Moonshot Kimi,
-    // DeepSeek, Llama, Qwen, THUDM. Anthropic/OpenAI/Google supportano nativamente.
-    const PROVIDERS_NO_TOOLS = ["moonshotai", "deepseek", "meta-llama", "qwen", "thudm", "z-ai"];
+    // AI Test Lab — verifica supporto tools per il modello selezionato.
+    // Da OpenRouter `/api/v1/models` la maggior parte dei modelli moderni
+    // (Kimi K2.x, Anthropic, OpenAI, Google, DeepSeek, Llama 3.3+) supporta
+    // nativamente `tools` + `tool_choice`. Disabilitiamo SOLO per modelli
+    // legacy noti per tool-calling instabile.
+    const PROVIDERS_NO_TOOLS_REGEX: RegExp[] = [
+      /^meta-llama\/llama-(2|3\.0|3\.1)/,  // Llama 2 + 3.0/3.1 vecchi (tools instabili)
+      /^thudm\/glm-4-9b/,                   // GLM-4 vecchio
+    ];
     const effectiveModel = aiTestLabForceModel ?? persona.recommended_model ?? "";
-    const skipToolsForModel = PROVIDERS_NO_TOOLS.some((p) => effectiveModel.startsWith(`${p}/`));
+    const skipToolsForModel = PROVIDERS_NO_TOOLS_REGEX.some((re) => re.test(effectiveModel));
     if (skipToolsForModel && toolSchemas.length > 0) {
-      console.log(`[silvio-chat] AI Test Lab: tools disabilitati per ${effectiveModel} (provider tool-calling instabile)`);
+      console.log(`[silvio-chat] AI Test Lab: tools disabilitati per ${effectiveModel} (legacy)`);
     }
 
     while (!finalContent && iteration < MAX_TOOL_ITERATIONS) {
