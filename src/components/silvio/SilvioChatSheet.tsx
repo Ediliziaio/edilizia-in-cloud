@@ -712,13 +712,24 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
       if (res.error) throw new Error(`Silvio: ${res.error.message}`);
       // AI Test Lab — toast warning se aiRouter ha fatto fallback automatico.
       if (aiSelector.showSelector && aiSelector.selectedModel) {
-        const usato = (res.data as { model_used?: string } | null)?.model_used;
+        const data = res.data as {
+          model_used?: string;
+          failed_attempts?: Array<{ model: string; error: string }>;
+        } | null;
+        const usato = data?.model_used;
         if (usato && usato !== aiSelector.selectedModel) {
           const richiestoLabel = aiSelector.selectedModel.split('/').pop() ?? aiSelector.selectedModel;
           const usatoLabel = usato.split('/').pop() ?? usato;
+          // Estrai la causa reale del fallimento (se disponibile)
+          const failedAttempt = data?.failed_attempts?.find(
+            (a) => a.model === aiSelector.selectedModel,
+          );
+          const reason = failedAttempt?.error
+            ? ` — ${failedAttempt.error.slice(0, 100)}`
+            : '';
           toast.warning(
-            `⚠️ Fallback: ${richiestoLabel} non disponibile, risposta da ${usatoLabel}`,
-            { duration: 6000 },
+            `⚠️ Fallback: ${richiestoLabel} non disponibile, risposta da ${usatoLabel}${reason}`,
+            { duration: 9000 },
           );
         }
       }

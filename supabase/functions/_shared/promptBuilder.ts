@@ -68,6 +68,13 @@ export interface BuildPersonaPromptArgs {
   companyId?: string | null;
   /** User id usato dalla RPC ai_get_prompt_variant per fallback bucket */
   userId?: string | null;
+  /**
+   * AI Test Lab — quando il demo user forza un modello debole (es. Ministral 3B/8B,
+   * Llama 8B, Gemma 2B), disabilita lo structured output a livello di system prompt.
+   * Senza questo flag il blocco STRUCTURED_OUTPUT_SYSTEM_RULES viene comunque
+   * iniettato nel prompt → il modello produce JSON crudo visibile all'utente.
+   */
+  disableStructuredOutput?: boolean;
 }
 
 export interface BuildEnrichedSystemPromptArgs extends BuildPersonaPromptArgs {
@@ -224,7 +231,8 @@ export async function buildPersonaPrompt(
   if (runtimeVariant?.prompt) {
     const ragCount = args.ragSourcesCount ?? 0;
     const citationRulesBlock = ragCount > 0 ? CITATION_FORMAT_RULES : "";
-    const useStructured = shouldUseStructured(args.recommendedTierKey ?? null);
+    const useStructured = !args.disableStructuredOutput
+      && shouldUseStructured(args.recommendedTierKey ?? null);
     const structuredRulesBlock = useStructured ? STRUCTURED_OUTPUT_SYSTEM_RULES : "";
     const personaWithContext = [
       runtimeVariant.prompt,
@@ -262,7 +270,10 @@ export async function buildPersonaPrompt(
   const citationRulesBlock = ragCount > 0 ? CITATION_FORMAT_RULES : "";
 
   // ── 3) Structured output (tier balanced/premium) ──────────────────────
-  const useStructured = shouldUseStructured(args.recommendedTierKey ?? null);
+  // AI Test Lab: se il demo user forza un modello debole (Ministral, Gemma 2B,
+  // Llama 8B, etc.), bypassiamo lo structured output a livello di prompt.
+  const useStructured = !args.disableStructuredOutput
+    && shouldUseStructured(args.recommendedTierKey ?? null);
   const structuredRulesBlock = useStructured ? STRUCTURED_OUTPUT_SYSTEM_RULES : "";
 
   // ── 4) Compose persona-with-context ───────────────────────────────────

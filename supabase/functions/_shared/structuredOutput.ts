@@ -160,13 +160,72 @@ export function parseStructuredResponse(raw: string): StructuredAiResponse | nul
   // Estrai dal primo { all'ultimo }
   const first = s.indexOf("{");
   const last = s.lastIndexOf("}");
-  if (first < 0 || last <= first) return null;
-  s = s.substring(first, last + 1);
-  try {
-    const parsed = JSON.parse(s);
-    if (typeof parsed?.answer !== "string" || !parsed.answer) return null;
-    return parsed as StructuredAiResponse;
-  } catch {
+  if (first < 0 || last <= first) {
+    // Nessun JSON trovato → ritorna null (chiamante mostra raw)
     return null;
   }
+  const jsonSlice = s.substring(first, last + 1);
+  try {
+    const parsed = JSON.parse(jsonSlice);
+    if (typeof parsed?.answer !== "string" || !parsed.answer) {
+      return null;
+    }
+    return parsed as StructuredAiResponse;
+  } catch {
+    // Fallback regex: modelli piccoli (Ministral 3B, Llama 3 8B) producono
+    // JSON malformato (stringhe non chiuse, virgole mancanti). Per non
+    // mostrare MAI JSON crudo all'utente, proviamo a estrarre i campi via regex.
+    return recoverFromMalformedJson(jsonSlice, s);
+  }
+}
+
+/**
+ * Recovery best-effort per JSON malformato.
+ * Estrae `answer` (e altri campi opzionali) via regex tollerante.
+ * Se nemmeno questo funziona → strip del wrapper "thinking" e ritorna prosa.
+ */
+function recoverFromMalformedJson(jsonSlice: string, fullText: string): StructuredAiResponse | null {
+  // 1) Tenta di estrarre "answer": "..." (gestisce escape \" e newline)
+  const answerMatch = /"answer"\s*:\s*"((?:[^"\\]|\\.)*)"(?:\s*[,}])/s.exec(jsonSlice);
+  if (answerMatch) {
+    const answerRaw = answerMatch[1]
+      .replace(/\\n/g, "\n")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\")
+      .replace(/\\t/g, "\t")
+      .trim();
+    if (answerRaw.length > 0) {
+      const thinkingMatch = /"thinking"\s*:\s*"((?:[^"\\]|\\.)*)"/s.exec(jsonSlice);
+      const confMatch = /"confidence"\s*:\s*"(high|medium|low)"/i.exec(jsonSlice);
+      return {
+        thinking: thinkingMatch ? thinkingMatch[1].slice(0, 2000) : "",
+        confidence: (confMatch?.[1]?.toLowerCase() as "high" | "medium" | "low") ?? "low",
+        answer: answerRaw,
+      };
+    }
+  }
+
+  // 2) Nessun answer estraibile MA il JSON parla di "thinking" → modello debole
+  // ha vomitato il template senza completarlo. Strip del wrapper JSON e ritorna
+  // il testo grezzo come fallback (meglio del JSON crudo).
+  if (/"thinking"\s*:/.test(jsonSlice)) {
+    // Rimuovi blocco "thinking": "..." (anche non chiuso) — best effort
+    let stripped = fullText
+      .replace(/^[\s{]*"thinking"\s*:\s*"[\s\S]*?(?:"\s*[,}]|$)/m, "")
+      .replace(/^[\s{,]*"(?:confidence|uncertainty_reasons|citations|no_rag_prefix|followup_suggestions|requires_human_review|propose_action_id)"\s*:\s*[^,}]*[,}]?/gm, "")
+      .replace(/^\s*[{}]\s*$/gm, "")
+      .replace(/^```(?:json)?\s*$/gm, "")
+      .trim();
+    // Rimuovi trailing virgole/quote orfane
+    stripped = stripped.replace(/^["',\s]+/, "").replace(/["',\s]+$/, "").trim();
+    if (stripped.length > 20) {
+      return {
+        thinking: "",
+        confidence: "low",
+        answer: stripped,
+      };
+    }
+  }
+
+  return null;
 }

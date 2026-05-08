@@ -1113,13 +1113,23 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
       // AI Test Lab — toast warning se aiRouter ha fatto fallback automatico.
       // Funziona anche senza migration AI_TEST_LAB-2 (legge da response, non DB).
       if (aiSelector.showSelector && aiSelector.selectedModel) {
-        const usato = (res.data as { model_used?: string } | null)?.model_used;
+        const data = res.data as {
+          model_used?: string;
+          failed_attempts?: Array<{ model: string; error: string }>;
+        } | null;
+        const usato = data?.model_used;
         if (usato && usato !== aiSelector.selectedModel) {
           const richiestoLabel = aiSelector.selectedModel.split('/').pop() ?? aiSelector.selectedModel;
           const usatoLabel = usato.split('/').pop() ?? usato;
+          const failedAttempt = data?.failed_attempts?.find(
+            (a) => a.model === aiSelector.selectedModel,
+          );
+          const reason = failedAttempt?.error
+            ? ` — ${failedAttempt.error.slice(0, 100)}`
+            : '';
           toast.warning(
-            `⚠️ Fallback automatico: ${richiestoLabel} non disponibile, risposta da ${usatoLabel}`,
-            { duration: 6000 },
+            `⚠️ Fallback automatico: ${richiestoLabel} non disponibile, risposta da ${usatoLabel}${reason}`,
+            { duration: 9000 },
           );
         }
       }

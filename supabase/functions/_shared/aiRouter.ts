@@ -108,6 +108,8 @@ export interface AiRouterCompleteResult {
   chargeSkipped?: boolean;
   /** Reason del precheck failure se chargeSkipped */
   prechargeReason?: string;
+  /** Tentativi falliti precedenti al successo (per AI Test Lab diagnostic). */
+  failedAttempts?: Array<{ model: string; error: string }>;
 }
 
 /** Errore custom con metadati per debug. */
@@ -406,47 +408,86 @@ async function callOpenRouter(
 }> {
   const start = Date.now();
 
-  // ── Reasoning models detection (Kimi K2.6, Kimi Thinking, o1/o3/o4) ──
+  // ── Reasoning models detection ──
   // Questi modelli fanno "chain-of-thought" interno prima di rispondere.
-  // Se non disabilitato, l'attesa è 30-120s. Per testing chat normale,
-  // forziamo reasoning_effort: "minimal" per ottenere risposta rapida.
-  // (Pattern coerente con OpenAI Responses API + OpenRouter reasoning param.)
+  // Se non disabilitato, l'attesa è 30-120s e il budget max_tokens viene
+  // mangiato dal reasoning → content="". Per testing chat normale, forziamo
+  // reasoning_effort: "low" (o "minimal" per OpenAI) per ottenere risposta rapida.
   const REASONING_MODELS = [
+    // Moonshot Kimi (K2.6 / K2-thinking)
     /^moonshotai\/kimi-k2\.6/,
     /^moonshotai\/kimi-k2-thinking/,
+    // OpenAI o-series (o1, o3, o4 incluse mini/preview)
     /^openai\/o[1-9]/,
+    // OpenAI GPT-5 family — TUTTI tranne le varianti -chat (che sono fast non-reasoning)
+    /^openai\/gpt-5(?!\.[0-9]+-chat)(?!-chat)(?:[\b-]|$)/i,
+    /^openai\/gpt-5\.[0-9]+(?!-chat)/i,
+    // Anthropic extended thinking (Sonnet/Opus 4+ con :thinking)
+    /^anthropic\/.*-thinking/i,
+    /^anthropic\/claude-(?:opus|sonnet)-4(?:\.5)?:thinking/i,
+    // DeepSeek R1 reasoning family
+    /^deepseek\/deepseek-r1/i,
+    /^deepseek\/.*-reasoner/i,
+    // Qwen QwQ + Qwen3 thinking
+    /^qwen\/qwq/i,
+    /^qwen\/qwen3.*-thinking/i,
+    // xAI Grok thinking
+    /^x-ai\/grok-(?:3|4).*-(?:thinking|reasoning|mini)/i,
+    /^x-ai\/grok.*-thinking/i,
+    // Google Gemini thinking variants
+    /^google\/gemini-.*-thinking/i,
+    // Z.AI GLM thinking
+    /^z-ai\/glm-.*-thinking/i,
+    // Catch-all suffix patterns
     /\/.*-thinking/i,
     /\/.*-reasoning/i,
+    /\/.*-reasoner/i,
   ];
   const isReasoningModel = REASONING_MODELS.some((re) => re.test(model));
+
+  // ── Modelli che NON accettano temperature custom ──
+  // OpenAI o-series + GPT-5 reasoning richiedono temperature=1 (default) o assenza.
+  // Inviare temperature=0.3 ritorna 400 "Unsupported value: temperature".
+  const SKIP_TEMPERATURE_PATTERNS = [
+    /^openai\/o[1-9]/,             // o1, o3, o4
+    /^openai\/gpt-5(?!\.[0-9]+-chat)(?!-chat)(?:[\b-]|$)/i,  // gpt-5, gpt-5-mini, gpt-5-pro, gpt-5-nano (NON -chat)
+    /^openai\/gpt-5\.[0-9]+(?!-chat)/i,   // gpt-5.1 NON -chat
+  ];
+  const skipTemperature = SKIP_TEMPERATURE_PATTERNS.some((re) => re.test(model));
+
+  // ── Reasoning models: bump max_tokens per evitare content="" ──
+  // Il reasoning interno consuma 1000-3000 token DEL budget max_tokens.
+  // Se max_tokens=2000 e reasoning ne usa 1800 → content="" → fallback inutile.
+  // Per reasoning models alziamo a 6000 per lasciare ≥3000 per la risposta.
+  const effectiveMaxTokens = params.max_tokens
+    ?? (isReasoningModel ? 6000 : 2000);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body: Record<string, any> = {
     model,
     messages,
-    max_tokens: params.max_tokens ?? 2000,
+    max_tokens: effectiveMaxTokens,
   };
-  // Reasoning models OpenAI (o1/o3/o4) NON accettano temperature → skip
-  // Altri reasoning models tipo Kimi accettano temperature ma è ignorata
-  if (!model.startsWith("openai/o")) {
+  if (!skipTemperature) {
     body.temperature = params.temperature ?? 0.3;
   }
-  if (params.top_p != null) body.top_p = params.top_p;
+  if (params.top_p != null && !skipTemperature) body.top_p = params.top_p;
   if (params.tools) body.tools = params.tools;
   if (params.tool_choice) body.tool_choice = params.tool_choice;
   if (responseFormat) body.response_format = responseFormat;
 
-  // FIX BUG KIMI K2.6: disabilita reasoning effort per ridurre latenza.
-  // OpenRouter accetta `reasoning: { effort: "minimal"|"low"|"medium"|"high" }`
-  // o `reasoning: { exclude: true }`. Per Kimi K2.6/Thinking → effort=low.
+  // ── Reasoning effort low → riduce latenza + libera budget per content ──
+  // OpenRouter accetta `reasoning: { effort: "minimal"|"low"|"medium"|"high" }`.
+  // OpenAI o-series + gpt-5 supportano "minimal"; gli altri partono da "low".
   if (isReasoningModel) {
-    body.reasoning = { effort: "low" };
+    const isOpenAIReasoner = /^openai\/(?:o[1-9]|gpt-5)/i.test(model);
+    body.reasoning = { effort: isOpenAIReasoner ? "minimal" : "low" };
   }
 
   // FIX 2 (C1): timeout differenziato.
   // - 30s default (Anthropic/OpenAI/Google standard)
   // - 50s per slow models non-reasoning (DeepSeek, Llama)
-  // - 120s per reasoning models (Kimi K2.6 thinking, o1/o3 OpenAI)
+  // - 120s per reasoning models (Kimi K2.6 thinking, o1/o3, GPT-5)
   // Edge Function Supabase ha cap ~150s totale → 120s lascia margine.
   const SLOW_MODEL_PROVIDERS = ["deepseek", "x-ai", "meta-llama", "qwen", "thudm", "z-ai"];
   const isSlowModel = SLOW_MODEL_PROVIDERS.some((p) => model.startsWith(`${p}/`));
@@ -740,6 +781,18 @@ export async function aiRouterComplete(
       const choice = data.choices?.[0];
       if (!choice) throw new Error("No choices in response");
       const content = choice.message?.content ?? "";
+      // ── Empty content guard ──
+      // Reasoning models possono ritornare 200 OK con content="" se il budget
+      // max_tokens è stato consumato dal reasoning interno (specie GPT-5/o3).
+      // Se non c'è né content né tool_calls, è un fallimento → trigger fallback.
+      const hasToolCalls = Array.isArray(choice.message?.tool_calls)
+        && choice.message.tool_calls.length > 0;
+      if (!content.trim() && !hasToolCalls) {
+        const finishReason = choice.finish_reason ?? "unknown";
+        throw new Error(
+          `Empty content from model (finish_reason=${finishReason}, completion_tokens=${data.usage?.completion_tokens ?? 0}). Likely reasoning budget exhausted.`,
+        );
+      }
       const usage = data.usage ?? {};
       const promptTokens = usage.prompt_tokens ?? 0;
       const completionTokens = usage.completion_tokens ?? 0;
@@ -903,6 +956,7 @@ export async function aiRouterComplete(
         durationMs,
         ledgerId,
         chargeSkipped,
+        failedAttempts: attempts.length > 0 ? [...attempts] : undefined,
       };
     } catch (e) {
       if (e instanceof AiRouterBillingError) {

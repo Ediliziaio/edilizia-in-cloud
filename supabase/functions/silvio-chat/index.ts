@@ -407,6 +407,28 @@ serve(async (req: Request) => {
       console.warn("[silvio-chat] pre-RAG failed (graceful):", e instanceof Error ? e.message : e);
     }
 
+    // ── AI Test Lab — disabilita structured output per modelli deboli ──
+    // Ministral 3B/7B/8B, Llama 3 8B, Gemma 2B/7B, Qwen 0.5B/1.5B etc. non riescono
+    // a rispettare schema JSON strict → output malformato → utente vede JSON crudo.
+    // CRITICAL: il flag deve essere calcolato PRIMA di buildEnrichedSystemPrompt
+    // per evitare di iniettare le regole STRUCTURED_OUTPUT_SYSTEM_RULES nel prompt
+    // (altrimenti il modello produce JSON anche se il parser lo bypassa).
+    const WEAK_MODEL_PATTERNS: RegExp[] = [
+      /ministral-3b/i, /ministral-8b/i,
+      /\bministral\b/i, /\bministral-/i,           // catch-all Ministral family
+      /-3b\b/i, /-7b\b/i, /-8b\b/i, /-1\.5b\b/i, /-0\.5b\b/i, /-2b\b/i,
+      /-3b[-_]/i, /-7b[-_]/i, /-8b[-_]/i,           // versioned variants like 8b-2512
+      /gemma-2-(?:2b|9b)/i, /gemma-3-(?:1b|4b)/i,
+      /^liquid\//i, /^inflection\//i,
+      /llama-3(?:\.0|\.1|\.2)?-(?:1b|3b|8b)/i,
+      /qwen-?2\.?5?-(?:0\.5b|1\.5b|3b|7b)/i,
+    ];
+    const isWeakForcedModel = !!aiTestLabForceModel
+      && WEAK_MODEL_PATTERNS.some((re) => re.test(aiTestLabForceModel!));
+    if (isWeakForcedModel) {
+      console.log(`[silvio-chat] AI Test Lab — modello debole forzato (${aiTestLabForceModel}): structured output DISABILITATO`);
+    }
+
     // ── MP-02: promptBuilder centralizzato ───────────────────────────────
     // Unifica persona, preambolo, memoria, RAG, citation rules, structured
     // output e prompt A/B senza duplicare logica nelle singole edge function.
@@ -423,6 +445,8 @@ serve(async (req: Request) => {
       sessionId: channelId,
       companyId,
       userId,
+      // Passa il flag cosi STRUCTURED_OUTPUT_SYSTEM_RULES non finisce nel prompt
+      disableStructuredOutput: isWeakForcedModel,
     });
     const enrichedSystemPrompt = builtPrompt.systemPrompt;
     const preamboloVersion = builtPrompt.preamboloVersion;
@@ -1116,6 +1140,18 @@ serve(async (req: Request) => {
       console.warn("[silvio-chat] memory trigger error (non bloccante):", memErr instanceof Error ? memErr.message : String(memErr));
     }
 
+    // ── AI Test Lab — espone i tentativi falliti per diagnostica fallback ──
+    // Solo per demo company: utile per capire PERCHÉ un modello forzato è fallito
+    // (es. "OpenRouter 400: Unsupported value: temperature" su GPT-5).
+    const isDemoCompany = companyId === '778a2c76-1253-49f2-a5e8-283363ac3e29';
+    const failedAttemptsForDiag = (isDemoCompany && lastResult?.failedAttempts)
+      ? lastResult.failedAttempts.map((a) => ({
+          model: a.model,
+          // Tronca a 200 char per non bloatare la response
+          error: a.error.slice(0, 200),
+        }))
+      : undefined;
+
     return jsonResponse({
       ok: true,
       reply: finalContent,
@@ -1123,10 +1159,13 @@ serve(async (req: Request) => {
       iterations: iteration,
       tool_calls: toolCallsLog,
       model_used: lastResult?.modelUsed,
+      requested_model: aiTestLabForceModel ?? null,
       tokens_in: lastResult?.promptTokens,
       tokens_out: lastResult?.completionTokens,
       cost_billed_eur: lastResult?.costBilledEur,
       ledger_id: lastResult?.ledgerId,
+      // Diagnostic AI Test Lab — solo demo company
+      failed_attempts: failedAttemptsForDiag,
     }, 200, corsHeaders);
 
   } catch (err) {

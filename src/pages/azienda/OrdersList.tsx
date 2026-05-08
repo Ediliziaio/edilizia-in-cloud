@@ -238,7 +238,13 @@ function OrdersListInner() {
           .or("financing_amount.is.null,financing_amount.eq.0,financing_paid.eq.true");
       }
       if (debouncedSearch) {
-        query = query.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
+        // Sanitize: PostgREST `.or()` interpreta virgole/parentesi come separatori → safer escape
+        const safe = debouncedSearch.replace(/[(),]/g, " ").trim();
+        if (safe) {
+          query = query.or(
+            `description.ilike.%${safe}%,order_code.ilike.%${safe}%,client_name.ilike.%${safe}%`
+          );
+        }
       }
       if (statusFilter === "__da_completare__") {
         // Sentinel "Da completare": esclude ordini in Assistenza e Completati
