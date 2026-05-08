@@ -6,7 +6,7 @@
  * I dati vengono dalla riga `ai_test_runs` corrispondente al messaggio
  * (matched per `openrouter_generation_id` o per `created_at` close enough).
  */
-import { Clock, DollarSign, Star } from 'lucide-react';
+import { Clock, DollarSign, Star, AlertTriangle } from 'lucide-react';
 import { ProviderIcon } from '@/components/ai/ProviderIcon';
 import { formatCost, formatLatency } from '@/lib/ai/openrouter-models';
 import { parseProvider, PROVIDER_LABELS } from '@/lib/ai/models.config';
@@ -19,6 +19,8 @@ export interface AIRunMeta {
   input_tokens?: number | null;
   output_tokens?: number | null;
   user_rating?: number | null;
+  /** Modello richiesto dall'utente nel selettore. Se diverso da model_id → fallback. */
+  requested_model_id?: string | null;
 }
 
 interface Props {
@@ -36,13 +38,32 @@ export function AIRunFooter({ meta, compact = false, className, onRate }: Props)
   const labelTail = meta.model_id.split('/').slice(1).join('/').replace(/-/g, ' ');
   const modelLabel = labelTail.replace(/\b\w/g, (c) => c.toUpperCase());
 
+  // Detection fallback automatico: se l'utente ha richiesto un modello via
+  // selettore UI ma aiRouter ha usato un fallback, evidenziamo la differenza.
+  const isFallback =
+    !!meta.requested_model_id && meta.requested_model_id !== meta.model_id;
+  const requestedTail = meta.requested_model_id
+    ? meta.requested_model_id.split('/').slice(1).join('/').replace(/-/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+    : null;
+
   return (
     <div
       className={cn(
-        'mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-slate-400',
+        'mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px]',
+        isFallback ? 'text-amber-700' : 'text-slate-400',
         className,
       )}
     >
+      {isFallback && requestedTail && (
+        <span
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 font-semibold"
+          title={`Hai richiesto ${meta.requested_model_id} ma è fallito → fallback automatico a ${meta.model_id}`}
+        >
+          <AlertTriangle className="h-2.5 w-2.5" />
+          Fallback: {requestedTail} non disponibile
+        </span>
+      )}
       <span className="inline-flex items-center gap-0.5" title="Tempo di risposta">
         <Clock className="h-2.5 w-2.5" />
         {formatLatency(meta.latency_ms)}

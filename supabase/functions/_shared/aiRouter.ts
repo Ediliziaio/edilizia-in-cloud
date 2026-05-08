@@ -598,6 +598,11 @@ export async function aiRouterComplete(
     }
   }
 
+  // Quando forceModel è impostato (sistema o demo user), il modello scelto va
+  // come primary. I fallback restano disponibili: se il modello sceltofallisce,
+  // proviamo gli altri. La trasparenza è garantita lato UI: il footer
+  // AIRunFooter mostra `last_model_id` (modello effettivamente usato) e
+  // l'app evidenzia mismatch tra "richiesto" e "usato".
   const config = effectiveForceModel
     ? {
         ...baseConfig,

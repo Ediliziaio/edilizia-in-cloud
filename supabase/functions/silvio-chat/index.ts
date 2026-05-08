@@ -865,10 +865,9 @@ serve(async (req: Request) => {
     } : {};
 
     // ── INSERT TOLLERANTE — schema-resilient ──────────────────────────────
-    // Strategia: prova con TUTTI i campi nuovi (AI Test Lab `last_*`). Se la
-    // migration non è applicata, fallback automatico al subset minimo (back-compat).
-    // Critico: senza questo fallback, `column does not exist` blocca l'INSERT
-    // della risposta AI → chat resta senza messaggio (bug segnalato dall'utente).
+    // Strategia: prova con TUTTI i campi nuovi (AI Test Lab `last_*` +
+    // `requested_model_id`). Se la migration non è applicata, fallback al
+    // subset minimo. Garantisce che il messaggio AI venga sempre salvato.
     const baseInsert = {
       channel_id: channelId,
       sender_id: SILVIO_SENDER_ID,
@@ -876,6 +875,12 @@ serve(async (req: Request) => {
       content: finalContent,
       message_type: "text",
     };
+    // Modello richiesto dall'utente nel selettore UI — popolato solo se demo
+    // e body.model è valido. Se la response usa un altro modello (fallback),
+    // l'UI mostra warning visivo "⚠️ Fallback automatico".
+    const requestedModelMeta = aiTestLabForceModel
+      ? { requested_model_id: aiTestLabForceModel }
+      : {};
     const sessionOneFields = {
       rag_sources: ragSources.length > 0 ? ragSources : null,
       rag_min_similarity: ragSources.length > 0 ? ragMinSimilarity : null,
@@ -896,7 +901,7 @@ serve(async (req: Request) => {
     {
       const { data, error } = await supabaseAdmin
         .from("internal_chat_messages")
-        .insert({ ...baseInsert, ...sessionOneFields, ...aiRunMeta })
+        .insert({ ...baseInsert, ...sessionOneFields, ...aiRunMeta, ...requestedModelMeta })
         .select()
         .single();
       if (!error) {

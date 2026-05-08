@@ -121,6 +121,7 @@ interface Message {
   last_input_tokens?: number | null;
   last_output_tokens?: number | null;
   last_generation_id?: string | null;
+  requested_model_id?: string | null;
 }
 
 interface Profile {
@@ -816,6 +817,7 @@ function MessageBubble({
                 cost_usd: msg.last_cost_usd,
                 input_tokens: msg.last_input_tokens,
                 output_tokens: msg.last_output_tokens,
+                requested_model_id: msg.requested_model_id,
               }}
             />
           )}

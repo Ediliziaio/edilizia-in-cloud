@@ -116,6 +116,8 @@ interface SilvioMessage {
   last_input_tokens?: number | null;
   last_output_tokens?: number | null;
   last_generation_id?: string | null;
+  /** Modello richiesto dall'utente nel selettore. Se ≠ last_model_id → fallback. */
+  requested_model_id?: string | null;
 }
 
 /**
@@ -1358,6 +1360,7 @@ function MessageBubble({
             cost_usd: message.last_cost_usd,
             input_tokens: message.last_input_tokens,
             output_tokens: message.last_output_tokens,
+            requested_model_id: message.requested_model_id,
           }} />
         )}
       </div>
