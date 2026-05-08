@@ -75,19 +75,34 @@ const AI_TEST_LAB_DEMO_COMPANY_ID = "778a2c76-1253-49f2-a5e8-283363ac3e29";
 const AI_TEST_LAB_DEMO_USER_EMAIL = "demo@azienda.srl";
 
 // Whitelist regex — coerente con frontend OPENROUTER_ALLOWED_PATTERNS (models.config.ts)
+// Catch-all per provider: tutti i modelli del provider sono accettati.
 const AI_TEST_LAB_ALLOWED_PATTERNS: RegExp[] = [
-  /^moonshotai\/kimi-/,
-  /^anthropic\/claude-(sonnet|haiku|opus)-(3|4)(\.5|\.6|\.7)?/,
-  /^openai\/gpt-(4o|4\.1|4-turbo)/,
-  /^openai\/o[1-4]-(mini|preview)?/,
-  /^google\/gemini-(2\.5|2\.0|1\.5)-(flash|pro)/,
-  /^deepseek\/deepseek-(v3|r1|chat)/,
-  /^x-ai\/grok-[2-9]/,
-  /^meta-llama\/llama-(3\.3|3\.1|4)/,
-  /^mistralai\/(mistral|mixtral|ministral)/,
+  /^moonshotai\//,
+  /^anthropic\//,
+  /^openai\//,
+  /^google\/(gemini|gemma)/,
+  /^deepseek\//,
+  /^x-ai\//,
+  /^meta-llama\//,
+  /^mistralai\//,
+  /^cohere\//,
+  /^qwen\//,
+  /^perplexity\//,
+  /^nvidia\//,
+  /^microsoft\//,
+  /^amazon\/nova/,
+  /^liquid\//,
+  /^inflection\//,
+  /^thudm\//,
+  /^z-ai\//,
+];
+const AI_TEST_LAB_EXCLUDE_PATTERNS: RegExp[] = [
+  /:free$/i,
+  /-vision$/i,
 ];
 function isAITestLabModelAllowed(modelId?: string | null): boolean {
   if (!modelId) return false;
+  if (AI_TEST_LAB_EXCLUDE_PATTERNS.some((re) => re.test(modelId))) return false;
   return AI_TEST_LAB_ALLOWED_PATTERNS.some((re) => re.test(modelId));
 }
 

@@ -13,6 +13,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import {
   OPENROUTER_ALLOWED_PATTERNS,
+  OPENROUTER_EXCLUDE_PATTERNS,
   parseProvider,
   modelPriority,
   PROVIDER_LABELS,
@@ -64,6 +65,8 @@ const ESTIMATED_OUTPUT_TOKENS = 800;
 let _cache: { data: AIModelMeta[]; fetchedAt: number } | null = null;
 
 function isAllowed(id: string, type: ModelType): boolean {
+  // Esclusioni first
+  if (OPENROUTER_EXCLUDE_PATTERNS.some((re) => re.test(id))) return false;
   return OPENROUTER_ALLOWED_PATTERNS.some((p) => p.type === type && p.pattern.test(id));
 }
 
@@ -144,6 +147,10 @@ function sortModels(models: AIModelMeta[]): AIModelMeta[] {
 
 /**
  * Fetcher principale. Cache in-memory 30 min.
+ *
+ * Strategia FIX 8/5: API OpenRouter PRIMA (lista live + completa), DB
+ * `ai_model_catalog` come FALLBACK solo se API down. Prima era invertito e
+ * la cache DB con poche righe (5 modelli) limitava la UI a 5 modelli statici.
  */
 export async function fetchAvailableModels(opts?: { forceRefresh?: boolean }): Promise<AIModelMeta[]> {
   const now = Date.now();
@@ -151,7 +158,27 @@ export async function fetchAvailableModels(opts?: { forceRefresh?: boolean }): P
     return _cache.data;
   }
 
-  // 1) Prova ai_model_catalog (locale)
+  // 1) Prova API pubblica OpenRouter (live, niente auth needed per /models)
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/models');
+    if (res.ok) {
+      const json = await res.json() as { data?: OpenRouterApiModel[] };
+      const apiModels = (json.data ?? [])
+        .map(fromApiModel)
+        .filter((m): m is AIModelMeta => m !== null);
+      if (apiModels.length > 0) {
+        const sorted = sortModels(apiModels);
+        _cache = { data: sorted, fetchedAt: now };
+        return sorted;
+      }
+    } else {
+      console.warn(`[openrouter-models] API ${res.status}, fallback to DB`);
+    }
+  } catch (e) {
+    console.warn('[openrouter-models] API fetch failed, fallback to DB:', e);
+  }
+
+  // 2) Fallback ai_model_catalog (locale, sincronizzato da edge sync-openrouter-catalog)
   try {
     const { data, error } = await supabase
       .from('ai_model_catalog')
@@ -170,25 +197,12 @@ export async function fetchAvailableModels(opts?: { forceRefresh?: boolean }): P
       }
     }
   } catch (e) {
-    console.warn('[openrouter-models] ai_model_catalog read failed, fallback to API:', e);
+    console.warn('[openrouter-models] DB fallback failed:', e);
   }
 
-  // 2) Fallback API pubblica OpenRouter
-  try {
-    const res = await fetch('https://openrouter.ai/api/v1/models');
-    if (!res.ok) throw new Error(`OpenRouter API ${res.status}`);
-    const json = await res.json() as { data?: OpenRouterApiModel[] };
-    const apiModels = (json.data ?? [])
-      .map(fromApiModel)
-      .filter((m): m is AIModelMeta => m !== null);
-    const sorted = sortModels(apiModels);
-    _cache = { data: sorted, fetchedAt: now };
-    return sorted;
-  } catch (e) {
-    console.error('[openrouter-models] API fetch failed:', e);
-    // Last-ditch fallback: array vuoto (UI nasconde il selettore)
-    return [];
-  }
+  // Last-ditch: array vuoto (UI nasconde il selettore)
+  console.error('[openrouter-models] both API and DB returned no models');
+  return [];
 }
 
 /** Per testing/debug: invalida la cache. */
