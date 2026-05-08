@@ -58,7 +58,6 @@ const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCred
 const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/SettingsQuoteMaterials"));
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
 const SettingsFirmaElettronica = lazy(() => import("@/pages/azienda/settings/SettingsFirmaElettronica"));
-const SettingsOperationalDocumentTemplates = lazy(() => import("@/pages/azienda/settings/SettingsOperationalDocumentTemplates"));
 const SettingsTariffe = lazy(() => import("@/pages/azienda/settings/SettingsTariffe"));
 const ListinoManutenzione = lazy(() => import("@/pages/azienda/settings/ListinoManutenzione"));
 const SettingsFinanziamenti = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamenti"));
@@ -599,7 +598,6 @@ export function companyRoutes() {
           <Route path="qr-codici" element={withCompanyPermission("canViewSettingsOrders", <SettingsQrCodici />)} />
           <Route path="categorie-costi" element={withCompanyPermission("canViewCosts", <SettingsCostCategories />)} />
           <Route path="automazioni-finanza" element={withCompanyPermission("canViewCosts", <SettingsFinanceAutomation />)} />
-          <Route path="template-documenti-operativi" element={withCompanyPermission("canViewSettingsOrders", <SettingsOperationalDocumentTemplates />)} />
           <Route path="tag" element={withCompanyPermission("canViewSettingsCustomization", <SettingsTags />)} />
           <Route path="campi-personalizzati" element={withCompanyPermission("canViewSettingsCustomization", <SettingsCustomFields />)} />
           <Route path="sequenze" element={withCompanyPermission("canViewSettingsCustomization", <SettingsPipelines />)} />
@@ -645,9 +643,8 @@ export function companyRoutes() {
         <Route path="contabilita-fiscale" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nella contabilità fiscale"><ContabilitaFiscale /></ErrorBoundary>)} />
         <Route path="archivio-sostitutivo" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nell'archivio sostitutivo"><ArchivioSostitutivo /></ErrorBoundary>)} />
 
-        {/* FEA — archivio firma per marketing e cantieri (gated: firma_fea). Le firme partono dai documenti sorgente, qui si controllano stati e audit. */}
-        <Route path="firma-elettronica" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub scope="marketing" /></FeatureRoute>)} />
-        <Route path="firma-elettronica-cantieri" element={withCompanyPermission("canViewOrders", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub scope="cantieri" /></FeatureRoute>)} />
+        {/* FEA — Firma Elettronica Avanzata + Documenti (gated: firma_fea) */}
+        <Route path="firma-elettronica" element={withCompanyPermission("canViewOrders", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
         <Route path="firma-elettronica/nuovo-template" element={withCompanyPermission("canEditSettingsCustomization", <FeatureRoute featureKey="firma_fea"><NuovoTemplate /></FeatureRoute>)} />
       </Route>
     </>

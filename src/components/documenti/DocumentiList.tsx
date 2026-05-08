@@ -9,9 +9,6 @@ import type { DocumentoTemplate, DocumentoTipo } from '@/types/fea';
 
 interface DocumentiListProps {
   onSelect?: (template: DocumentoTemplate) => void;
-  scope?: 'marketing' | 'cantieri';
-  emptyTitle?: string;
-  emptyDescription?: string;
 }
 
 const tipoBadgeColor: Record<DocumentoTipo, string> = {
@@ -26,23 +23,8 @@ const tipoBadgeColor: Record<DocumentoTipo, string> = {
   variante: 'bg-pink-100 text-pink-700',
 };
 
-const MARKETING_TYPES: DocumentoTipo[] = ['preventivo', 'accettazione', 'contratto'];
-const CANTIERI_TYPES: DocumentoTipo[] = ['contratto', 'verbale', 'modulo', 'sal', 'ddt', 'variante', 'generico'];
-
-function filterByScope(templates: DocumentoTemplate[], scope?: DocumentiListProps['scope']) {
-  if (!scope) return templates;
-  const allowed = scope === 'marketing' ? MARKETING_TYPES : CANTIERI_TYPES;
-  return templates.filter((template) => allowed.includes(template.tipo_doc));
-}
-
-export function DocumentiList({
-  onSelect,
-  scope,
-  emptyTitle = 'Nessun template ancora',
-  emptyDescription = 'Carica il tuo primo template PDF o DOCX',
-}: DocumentiListProps) {
+export function DocumentiList({ onSelect }: DocumentiListProps) {
   const { templates, isLoading, deleteTemplate } = useDocumentoTemplates();
-  const visibleTemplates = filterByScope(templates, scope);
 
   if (isLoading) {
     return (
@@ -53,19 +35,19 @@ export function DocumentiList({
     );
   }
 
-  if (visibleTemplates.length === 0) {
+  if (templates.length === 0) {
     return (
       <div className="text-center py-12 space-y-3">
         <FileText className="h-12 w-12 text-slate-300 mx-auto" />
-        <p className="text-slate-500 font-medium">{emptyTitle}</p>
-        <p className="text-slate-400 text-sm">{emptyDescription}</p>
+        <p className="text-slate-500 font-medium">Nessun template ancora</p>
+        <p className="text-slate-400 text-sm">Carica il tuo primo template PDF o DOCX</p>
       </div>
     );
   }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {visibleTemplates.map((template) => (
+      {templates.map((template) => (
         <Card key={template.id} className="hover:shadow-md transition-shadow">
           <CardContent className="p-4 space-y-3">
             <div className="flex items-start gap-3">

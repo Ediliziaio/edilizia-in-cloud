@@ -5,7 +5,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
 import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
-import { AiModelTestDialog } from "@/components/silvio/AiModelTestDialog";
 import { SILVIO_SKILLS, SILVIO_SKILL_CATEGORY_LABELS } from "@/lib/silvio-skills";
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { useAutoSizeTextarea } from "@/hooks/useAutoSizeTextarea";
@@ -478,10 +477,7 @@ function useInternalChat(companyIdOverride?: string) {
     refetchUnread,
     lastMessages,
     internalProfileIds,
-    // I profili servono per nomi/avatar, ma non devono bloccare l'apertura
-    // della chat o del laboratorio AI: se la RPC profili è lenta, mostriamo
-    // fallback e lasciamo Silvio utilizzabile.
-    isLoading: membershipsLoading || channelsLoading || membersLoading,
+    isLoading: membershipsLoading || channelsLoading || membersLoading || profilesLoading,
     isError: membershipsError || channelsError || membersError || profilesError,
     refetchChatData: () => {
       refetchMemberships();
@@ -1543,9 +1539,6 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
             <span className="font-semibold text-[15px]">Chat</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="hidden sm:block">
-              <AiModelTestDialog />
-            </div>
             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400"
               onClick={() => setCreateDmOpen(true)} title="Nuovo messaggio interno">
               <UserPlus className="h-5 w-5" />
@@ -1693,9 +1686,6 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               <p className="text-[14px] text-[#8696a0] leading-relaxed">
                 Invia e ricevi messaggi dal tuo team. Crea gruppi di lavoro e comunica in tempo reale.
               </p>
-              <div className="mt-5 flex justify-center">
-                <AiModelTestDialog />
-              </div>
             </div>
           </div>
         ) : (
@@ -1755,12 +1745,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                {isSilvioChannel && (
-                  <div className="hidden sm:block">
-                    <AiModelTestDialog />
-                  </div>
-                )}
+              <div className="flex items-center gap-0.5">
                 <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400"
                   onClick={() => { setShowSearch((s) => !s); setMsgSearch(""); }}>
                   <Search className="h-5 w-5" />
@@ -2011,11 +1996,6 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     </div>
                   </PopoverContent>
                 </Popover>
-              )}
-              {isSilvioChannel && (
-                <div className="sm:hidden">
-                  <AiModelTestDialog />
-                </div>
               )}
               {/* Emoji picker stile WhatsApp — append all'inizio cursore textarea */}
               <EmojiPicker

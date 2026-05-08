@@ -33,15 +33,7 @@ const salvaDatoDef: Omit<LeadTool, "handler"> = {
     properties: {
       campo: {
         type: "string",
-        enum: [
-          "nome",
-          "cognome",
-          "servizio",
-          "budget",
-          "tempistica",
-          "zona",
-          "email",
-        ],
+        enum: ["nome", "cognome", "servizio", "budget", "tempistica", "zona", "email"],
       },
       valore: { type: "string" },
     },
@@ -58,10 +50,7 @@ async function salvaDato(
     return { ok: false, error: "missing", user_message: "Dato mancante." };
   }
 
-  const patch: Record<string, unknown> = {
-    ...ctx.qualificazione,
-    [args.campo]: args.valore,
-  };
+  const patch: Record<string, unknown> = { ...ctx.qualificazione, [args.campo]: args.valore };
 
   const updatePayload: Record<string, unknown> = { qualificazione_json: patch };
   if (args.campo === "nome") updatePayload.nome = args.valore;
@@ -72,13 +61,7 @@ async function salvaDato(
     .update(updatePayload)
     .eq("id", ctx.contact_id);
 
-  if (error) {
-    return {
-      ok: false,
-      error: error.message,
-      user_message: "Errore salvando.",
-    };
-  }
+  if (error) return { ok: false, error: error.message, user_message: "Errore salvando." };
 
   ctx.qualificazione = patch;
   return {
@@ -100,18 +83,13 @@ const verificaDef: Omit<LeadTool, "handler"> = {
 async function verifica(ctx: LeadCtx): Promise<ToolResult> {
   const q = ctx.qualificazione;
   const required = ["nome", "servizio", "budget", "tempistica", "zona"];
-  const presenti = required.filter((k) =>
-    typeof q[k] === "string" && (q[k] as string).length > 0
-  );
+  const presenti = required.filter((k) => typeof q[k] === "string" && (q[k] as string).length > 0);
   const completezza = (presenti.length / required.length) * 100;
 
   if (completezza < 100) {
     return {
       ok: true,
-      data: {
-        completa: false,
-        mancanti: required.filter((k) => !presenti.includes(k)),
-      },
+      data: { completa: false, mancanti: required.filter((k) => !presenti.includes(k)) },
       user_message: undefined,
     };
   }
@@ -119,11 +97,7 @@ async function verifica(ctx: LeadCtx): Promise<ToolResult> {
   // Score: 100% completezza + bonus budget >10k, urgenza alta = tempistica <3 mesi
   let score = 60;
   const budget = String(q.budget ?? "").toLowerCase();
-  if (
-    /1[0-9]k|20k|30k|40k|50k|60k|70k|80k|90k|100k|10000|20000|30000|50000/.test(
-      budget,
-    )
-  ) {
+  if (/1[0-9]k|20k|30k|40k|50k|60k|70k|80k|90k|100k|10000|20000|30000|50000/.test(budget)) {
     score += 15;
   }
   const temp = String(q.tempistica ?? "").toLowerCase();
@@ -155,7 +129,6 @@ const handoffDef: Omit<LeadTool, "handler"> = {
 
 async function handoff(ctx: LeadCtx): Promise<ToolResult> {
   const q = ctx.qualificazione;
-  const leadScore = Number(q.score ?? 0);
   const descrizione = [
     `Nuovo lead qualificato da WhatsApp.`,
     `Nome: ${q.nome ?? "—"} ${q.cognome ?? ""}`,
@@ -164,7 +137,7 @@ async function handoff(ctx: LeadCtx): Promise<ToolResult> {
     `Tempistica: ${q.tempistica ?? "—"}`,
     `Zona: ${q.zona ?? "—"}`,
     `Telefono: ${ctx.telefono}`,
-    `Score: ${Number.isFinite(leadScore) ? leadScore : "—"}`,
+    `Score: ${q.score ?? "—"}`,
   ].join("\n");
 
   const { data: t, error } = await ctx.supabase
@@ -174,20 +147,14 @@ async function handoff(ctx: LeadCtx): Promise<ToolResult> {
       contact_id: ctx.contact_id,
       titolo: `Lead qualificato: ${q.servizio ?? "generico"}`,
       descrizione,
-      urgenza: leadScore >= 75 ? "alta" : "media",
+      urgenza: (q.score ?? 0) >= 75 ? "alta" : "media",
       categoria: "richiesta_info",
       source: "whatsapp_lead",
     })
     .select("id")
     .single();
 
-  if (error) {
-    return {
-      ok: false,
-      error: error.message,
-      user_message: "Errore nel passaggio al commerciale.",
-    };
-  }
+  if (error) return { ok: false, error: error.message, user_message: "Errore nel passaggio al commerciale." };
 
   await ctx.supabase
     .from("marketing_contacts")
@@ -197,8 +164,7 @@ async function handoff(ctx: LeadCtx): Promise<ToolResult> {
   return {
     ok: true,
     data: { ticket_id: t.id },
-    user_message:
-      "Perfetto, il titolare la richiamerà entro 24h per organizzare un sopralluogo. A presto!",
+    user_message: "Perfetto, il titolare la richiamerà entro 24h per organizzare un sopralluogo. A presto!",
   };
 }
 
@@ -211,14 +177,8 @@ const proponiAppuntamentoDef: Omit<LeadTool, "handler"> = {
   parameters: {
     type: "object",
     properties: {
-      data_proposta: {
-        type: "string",
-        description: "Data YYYY-MM-DD o 'settimana prossima'",
-      },
-      ora_proposta: {
-        type: "string",
-        description: "HH:MM o 'mattina/pomeriggio'",
-      },
+      data_proposta: { type: "string", description: "Data YYYY-MM-DD o 'settimana prossima'" },
+      ora_proposta: { type: "string", description: "HH:MM o 'mattina/pomeriggio'" },
     },
     additionalProperties: false,
   },
@@ -252,15 +212,12 @@ async function proponiAppuntamento(
     .select("id")
     .single();
 
-  if (error) {
-    return { ok: false, error: error.message, user_message: "Errore." };
-  }
+  if (error) return { ok: false, error: error.message, user_message: "Errore." };
 
   return {
     ok: true,
     data: { ticket_id: t.id },
-    user_message:
-      "Ok, abbiamo segnato. Il titolare le conferma a breve il sopralluogo.",
+    user_message: "Ok, abbiamo segnato. Il titolare le conferma a breve il sopralluogo.",
   };
 }
 
@@ -268,20 +225,13 @@ export const TOOLS_LEAD: LeadTool[] = [
   { ...salvaDatoDef, handler: salvaDato as LeadTool["handler"] },
   { ...verificaDef, handler: verifica as LeadTool["handler"] },
   { ...handoffDef, handler: handoff as LeadTool["handler"] },
-  {
-    ...proponiAppuntamentoDef,
-    handler: proponiAppuntamento as LeadTool["handler"],
-  },
+  { ...proponiAppuntamentoDef, handler: proponiAppuntamento as LeadTool["handler"] },
 ];
 
 export function toOpenAISpec(tools: LeadTool[]) {
   return tools.map((t) => ({
     type: "function" as const,
-    function: {
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters,
-    },
+    function: { name: t.name, description: t.description, parameters: t.parameters },
   }));
 }
 

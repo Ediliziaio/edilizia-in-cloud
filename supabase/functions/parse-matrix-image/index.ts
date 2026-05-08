@@ -50,17 +50,10 @@
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
-import {
-  buildStableAiIdempotencyKey,
-  chargeDirectAiCall,
-  estimateTokenCostUsd,
-} from "../_shared/directAiLedger.ts";
+import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateTokenCostUsd } from "../_shared/directAiLedger.ts";
 
 // ── Limiti difensivi ────────────────────────────────────────────────────────
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
-const RATE_WINDOW_SECONDS = 60;
-const COMPANY_RATE_PER_MINUTE = 20;
-const USER_RATE_PER_MINUTE = 8;
 const ALLOWED_MIME = new Set([
   "image/png",
   "image/jpeg",
@@ -77,76 +70,6 @@ interface ProviderConfig {
   apiKey: string;
   model: string;
   displayName: string;
-}
-
-async function checkRateLimit(
-  // deno-lint-ignore no-explicit-any
-  supabaseAdmin: any,
-  functionName: string,
-  callerId: string,
-  maxCalls: number,
-): Promise<{ allowed: boolean; retry_after_seconds?: number }> {
-  const { data, error } = await supabaseAdmin.rpc(
-    "check_ai_router_rate_limit",
-    {
-      p_function_name: functionName,
-      p_caller_id: callerId,
-      p_max_calls: maxCalls,
-      p_window_seconds: RATE_WINDOW_SECONDS,
-    },
-  );
-  if (error) {
-    if (Deno.env.get("DIRECT_AI_RATE_LIMIT_FAIL_OPEN") === "false") {
-      throw error;
-    }
-    console.warn("[parse-matrix-image] rate limit fail-open:", error.message);
-    return { allowed: true };
-  }
-  return {
-    allowed: data?.allowed !== false,
-    retry_after_seconds: Number(data?.retry_after_seconds ?? 0) || undefined,
-  };
-}
-
-async function enforceDirectAiRateLimits(
-  // deno-lint-ignore no-explicit-any
-  supabaseAdmin: any,
-  companyId: string,
-  userId: string,
-): Promise<
-  { allowed: true } | { allowed: false; retry_after_seconds?: number }
-> {
-  if (Deno.env.get("DIRECT_AI_RATE_LIMIT_ENABLED") === "false") {
-    return { allowed: true };
-  }
-  for (
-    const check of [
-      {
-        functionName: "direct_ai:parse_matrix_image:company",
-        callerId: companyId,
-        maxCalls: COMPANY_RATE_PER_MINUTE,
-      },
-      {
-        functionName: "direct_ai:parse_matrix_image:user",
-        callerId: userId,
-        maxCalls: USER_RATE_PER_MINUTE,
-      },
-    ]
-  ) {
-    const result = await checkRateLimit(
-      supabaseAdmin,
-      check.functionName,
-      check.callerId,
-      check.maxCalls,
-    );
-    if (!result.allowed) {
-      return {
-        allowed: false,
-        retry_after_seconds: result.retry_after_seconds,
-      };
-    }
-  }
-  return { allowed: true };
 }
 
 function getAvailableProviders(): ProviderConfig[] {
@@ -167,8 +90,7 @@ function getAvailableProviders(): ProviderConfig[] {
     providers.push({
       id: "anthropic",
       apiKey: anthropicKey,
-      model: Deno.env.get("PARSE_MATRIX_ANTHROPIC_MODEL") ??
-        "claude-sonnet-4-20250514",
+      model: Deno.env.get("PARSE_MATRIX_ANTHROPIC_MODEL") ?? "claude-sonnet-4-20250514",
       displayName: "Anthropic Claude Sonnet 4",
     });
   }
@@ -187,13 +109,11 @@ function getAvailableProviders(): ProviderConfig[] {
 }
 
 // ── Prompt condiviso — istruzioni in italiano per evitare output in EN ──────
-const SYSTEM_PROMPT =
-  `Sei un esperto analista di listini prezzi per serramentistica italiana.
+const SYSTEM_PROMPT = `Sei un esperto analista di listini prezzi per serramentistica italiana.
 L'utente ti mostra un'IMMAGINE di una tabella matrice larghezza × altezza (L × H) di un listino fornitore.
 Il tuo unico output è un oggetto JSON valido.`;
 
-const USER_PROMPT =
-  `Analizza questa matrice di prezzi L × H e restituisci ESCLUSIVAMENTE un oggetto JSON con questa struttura:
+const USER_PROMPT = `Analizza questa matrice di prezzi L × H e restituisci ESCLUSIVAMENTE un oggetto JSON con questa struttura:
 
 {
   "xValues": [<numeri delle LARGHEZZE nella riga di intestazione, in mm, ordinati crescenti>],
@@ -225,9 +145,7 @@ interface ParsedMatrix {
 }
 
 /** Parse + sanitize della risposta raw del modello. */
-function parseAndValidate(
-  raw: string,
-): { data: ParsedMatrix; warnings: string[] } {
+function parseAndValidate(raw: string): { data: ParsedMatrix; warnings: string[] } {
   const warnings: string[] = [];
 
   // Cerca il primo { e l'ultimo } — gestisce preamboli accidentali del modello.
@@ -282,9 +200,7 @@ function parseAndValidate(
     const x = Math.round(Number(cell.x));
     const y = Math.round(Number(cell.y));
     const value = Number(cell.value);
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(value)) {
-      continue;
-    }
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(value)) continue;
     if (x <= 0 || y <= 0 || value <= 0) continue;
     if (!xSet.has(x)) {
       warnings.push(`Cella con x=${x} non presente in xValues — ignorata`);
@@ -303,13 +219,12 @@ function parseAndValidate(
     cells.push({ x, y, value });
   }
 
-  if (cells.length === 0) {
-    throw new Error("Nessuna cella valida nella risposta");
-  }
+  if (cells.length === 0) throw new Error("Nessuna cella valida nella risposta");
 
-  const notes = typeof obj.notes === "string" && obj.notes.trim().length > 0
-    ? obj.notes.trim().slice(0, 400)
-    : undefined;
+  const notes =
+    typeof obj.notes === "string" && obj.notes.trim().length > 0
+      ? obj.notes.trim().slice(0, 400)
+      : undefined;
 
   return { data: { xValues, yValues, cells, notes }, warnings };
 }
@@ -320,9 +235,7 @@ async function callOpenAI(
   imageBase64: string,
   mimeType: string,
   hint?: string,
-): Promise<
-  { raw: string; usage?: { input_tokens?: number; output_tokens?: number } }
-> {
+): Promise<{ raw: string; usage?: { input_tokens?: number; output_tokens?: number } }> {
   const body = {
     model: cfg.model,
     messages: [
@@ -330,19 +243,8 @@ async function callOpenAI(
       {
         role: "user",
         content: [
-          {
-            type: "text",
-            text: hint
-              ? `${USER_PROMPT}\n\nContesto aggiuntivo: ${hint}`
-              : USER_PROMPT,
-          },
-          {
-            type: "image_url",
-            image_url: {
-              url: `data:${mimeType};base64,${imageBase64}`,
-              detail: "high",
-            },
-          },
+          { type: "text", text: hint ? `${USER_PROMPT}\n\nContesto aggiuntivo: ${hint}` : USER_PROMPT },
+          { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}`, detail: "high" } },
         ],
       },
     ],
@@ -371,9 +273,9 @@ async function callOpenAI(
     const raw = data.choices?.[0]?.message?.content ?? "";
     const usage = data.usage
       ? {
-        input_tokens: data.usage.prompt_tokens,
-        output_tokens: data.usage.completion_tokens,
-      }
+          input_tokens: data.usage.prompt_tokens,
+          output_tokens: data.usage.completion_tokens,
+        }
       : undefined;
     return { raw, usage };
   } finally {
@@ -387,9 +289,7 @@ async function callAnthropic(
   imageBase64: string,
   mimeType: string,
   hint?: string,
-): Promise<
-  { raw: string; usage?: { input_tokens?: number; output_tokens?: number } }
-> {
+): Promise<{ raw: string; usage?: { input_tokens?: number; output_tokens?: number } }> {
   const body = {
     model: cfg.model,
     max_tokens: 4096,
@@ -403,12 +303,7 @@ async function callAnthropic(
             type: "image",
             source: { type: "base64", media_type: mimeType, data: imageBase64 },
           },
-          {
-            type: "text",
-            text: hint
-              ? `${USER_PROMPT}\n\nContesto aggiuntivo: ${hint}`
-              : USER_PROMPT,
-          },
+          { type: "text", text: hint ? `${USER_PROMPT}\n\nContesto aggiuntivo: ${hint}` : USER_PROMPT },
         ],
       },
     ],
@@ -438,9 +333,9 @@ async function callAnthropic(
       .join("\n");
     const usage = data.usage
       ? {
-        input_tokens: data.usage.input_tokens,
-        output_tokens: data.usage.output_tokens,
-      }
+          input_tokens: data.usage.input_tokens,
+          output_tokens: data.usage.output_tokens,
+        }
       : undefined;
     return { raw, usage };
   } finally {
@@ -454,21 +349,13 @@ async function callGemini(
   imageBase64: string,
   mimeType: string,
   hint?: string,
-): Promise<
-  { raw: string; usage?: { input_tokens?: number; output_tokens?: number } }
-> {
+): Promise<{ raw: string; usage?: { input_tokens?: number; output_tokens?: number } }> {
   const body = {
     contents: [
       {
         role: "user",
         parts: [
-          {
-            text: `${SYSTEM_PROMPT}\n\n${
-              hint
-                ? `${USER_PROMPT}\n\nContesto aggiuntivo: ${hint}`
-                : USER_PROMPT
-            }`,
-          },
+          { text: `${SYSTEM_PROMPT}\n\n${hint ? `${USER_PROMPT}\n\nContesto aggiuntivo: ${hint}` : USER_PROMPT}` },
           { inline_data: { mime_type: mimeType, data: imageBase64 } },
         ],
       },
@@ -480,8 +367,7 @@ async function callGemini(
     },
   };
 
-  const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent?key=${cfg.apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent?key=${cfg.apiKey}`;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 120_000);
   try {
@@ -499,9 +385,9 @@ async function callGemini(
     const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     const usage = data.usageMetadata
       ? {
-        input_tokens: data.usageMetadata.promptTokenCount,
-        output_tokens: data.usageMetadata.candidatesTokenCount,
-      }
+          input_tokens: data.usageMetadata.promptTokenCount,
+          output_tokens: data.usageMetadata.candidatesTokenCount,
+        }
       : undefined;
     return { raw, usage };
   } finally {
@@ -517,17 +403,10 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: corsH });
   }
   if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        code: "method_not_allowed",
-        error: "POST only",
-      }),
-      {
-        status: 405,
-        headers: { ...corsH, "Content-Type": "application/json" },
-      },
-    );
+    return new Response(JSON.stringify({ ok: false, code: "method_not_allowed", error: "POST only" }), {
+      status: 405,
+      headers: { ...corsH, "Content-Type": "application/json" },
+    });
   }
 
   try {
@@ -549,9 +428,7 @@ Deno.serve(async (req: Request) => {
       company_id?: string;
     };
 
-    let companyId = typeof company_id === "string" && company_id.trim()
-      ? company_id.trim()
-      : "";
+    let companyId = typeof company_id === "string" && company_id.trim() ? company_id.trim() : "";
     if (!companyId) {
       const { data: profile } = await supabaseAdmin
         .from("profiles")
@@ -564,15 +441,8 @@ Deno.serve(async (req: Request) => {
 
     if (!image_base64 || typeof image_base64 !== "string") {
       return new Response(
-        JSON.stringify({
-          ok: false,
-          code: "validation_error",
-          error: "image_base64 mancante",
-        }),
-        {
-          status: 400,
-          headers: { ...corsH, "Content-Type": "application/json" },
-        },
+        JSON.stringify({ ok: false, code: "validation_error", error: "image_base64 mancante" }),
+        { status: 400, headers: { ...corsH, "Content-Type": "application/json" } },
       );
     }
     if (!mime_type || !ALLOWED_MIME.has(mime_type)) {
@@ -580,14 +450,9 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           ok: false,
           code: "validation_error",
-          error: `mime_type non supportato. Usa: ${
-            Array.from(ALLOWED_MIME).join(", ")
-          }`,
+          error: `mime_type non supportato. Usa: ${Array.from(ALLOWED_MIME).join(", ")}`,
         }),
-        {
-          status: 400,
-          headers: { ...corsH, "Content-Type": "application/json" },
-        },
+        { status: 400, headers: { ...corsH, "Content-Type": "application/json" } },
       );
     }
     // Stima dimensione byte: base64 ≈ 3/4 del size raw
@@ -597,14 +462,9 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           ok: false,
           code: "payload_too_large",
-          error: `Immagine troppo grande (${
-            Math.round(estimatedBytes / 1024 / 1024)
-          } MB, max ${MAX_IMAGE_BYTES / 1024 / 1024} MB)`,
+          error: `Immagine troppo grande (${Math.round(estimatedBytes / 1024 / 1024)} MB, max ${MAX_IMAGE_BYTES / 1024 / 1024} MB)`,
         }),
-        {
-          status: 413,
-          headers: { ...corsH, "Content-Type": "application/json" },
-        },
+        { status: 413, headers: { ...corsH, "Content-Type": "application/json" } },
       );
     }
 
@@ -618,10 +478,7 @@ Deno.serve(async (req: Request) => {
           error:
             "Nessun provider AI configurato. Imposta OPENAI_API_KEY, ANTHROPIC_API_KEY o GEMINI_API_KEY nei secrets della Edge Function.",
         }),
-        {
-          status: 503,
-          headers: { ...corsH, "Content-Type": "application/json" },
-        },
+        { status: 503, headers: { ...corsH, "Content-Type": "application/json" } },
       );
     }
 
@@ -633,51 +490,25 @@ Deno.serve(async (req: Request) => {
           JSON.stringify({
             ok: false,
             code: "provider_unconfigured",
-            error:
-              `Provider "${requestedProvider}" non configurato. Disponibili: ${
-                available.map((p) => p.id).join(", ")
-              }`,
+            error: `Provider "${requestedProvider}" non configurato. Disponibili: ${available.map((p) => p.id).join(", ")}`,
           }),
-          {
-            status: 503,
-            headers: { ...corsH, "Content-Type": "application/json" },
-          },
+          { status: 503, headers: { ...corsH, "Content-Type": "application/json" } },
         );
       }
     } else {
       chosen = available[0]; // priorità: OpenAI → Anthropic → Gemini
     }
 
-    const rateLimit = await enforceDirectAiRateLimits(
-      supabaseAdmin,
-      companyId,
-      userId,
-    );
-    if (!rateLimit.allowed) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          code: "rate_limited",
-          error: "Troppi test OCR AI in questo momento. Riprova tra poco.",
-          retry_after_seconds: rateLimit.retry_after_seconds ??
-            RATE_WINDOW_SECONDS,
-        }),
-        {
-          status: 429,
-          headers: { ...corsH, "Content-Type": "application/json" },
-        },
-      );
-    }
-
     // Call provider
     let rawText = "";
     let usage: { input_tokens?: number; output_tokens?: number } | undefined;
     try {
-      const result = chosen.id === "openai"
-        ? await callOpenAI(chosen, image_base64, mime_type, hint)
-        : chosen.id === "anthropic"
-        ? await callAnthropic(chosen, image_base64, mime_type, hint)
-        : await callGemini(chosen, image_base64, mime_type, hint);
+      const result =
+        chosen.id === "openai"
+          ? await callOpenAI(chosen, image_base64, mime_type, hint)
+          : chosen.id === "anthropic"
+            ? await callAnthropic(chosen, image_base64, mime_type, hint)
+            : await callGemini(chosen, image_base64, mime_type, hint);
       rawText = result.raw;
       usage = result.usage;
     } catch (err) {
@@ -686,22 +517,15 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           ok: false,
           code: "provider_error",
-          error: `Errore provider ${chosen.displayName}: ${
-            String(err).slice(0, 500)
-          }`,
+          error: `Errore provider ${chosen.displayName}: ${String(err).slice(0, 500)}`,
         }),
-        {
-          status: 502,
-          headers: { ...corsH, "Content-Type": "application/json" },
-        },
+        { status: 502, headers: { ...corsH, "Content-Type": "application/json" } },
       );
     }
 
     const inputTokens = Number(usage?.input_tokens ?? 0);
     const outputTokens = Number(usage?.output_tokens ?? 0);
-    const imageFingerprint = `${image_base64.length}:${
-      image_base64.slice(0, 2048)
-    }:${image_base64.slice(-2048)}`;
+    const imageFingerprint = `${image_base64.length}:${image_base64.slice(0, 2048)}:${image_base64.slice(-2048)}`;
     await chargeDirectAiCall({
       supabase: supabaseAdmin,
       idempotencyKey: await buildStableAiIdempotencyKey("parse_matrix_image", [
@@ -724,11 +548,7 @@ Deno.serve(async (req: Request) => {
         provider: chosen.id,
         inputTokens,
         outputTokens,
-        fallbackCostUsd: chosen.id === "anthropic"
-          ? 0.025
-          : chosen.id === "openai"
-          ? 0.02
-          : 0.01,
+        fallbackCostUsd: chosen.id === "anthropic" ? 0.025 : chosen.id === "openai" ? 0.02 : 0.01,
       }),
       metadata: {
         provider: chosen.id,
@@ -749,18 +569,12 @@ Deno.serve(async (req: Request) => {
           error: `Risposta AI non parsabile: ${String(err).slice(0, 300)}`,
           raw_preview: rawText.slice(0, 500),
         }),
-        {
-          status: 422,
-          headers: { ...corsH, "Content-Type": "application/json" },
-        },
+        { status: 422, headers: { ...corsH, "Content-Type": "application/json" } },
       );
     }
 
     if (parsed.data.notes) {
-      parsed.warnings = [
-        `Note modello: ${parsed.data.notes}`,
-        ...parsed.warnings,
-      ];
+      parsed.warnings = [`Note modello: ${parsed.data.notes}`, ...parsed.warnings];
     }
 
     return new Response(
@@ -776,24 +590,14 @@ Deno.serve(async (req: Request) => {
         warnings: parsed.warnings,
         usage,
       }),
-      {
-        status: 200,
-        headers: { ...corsH, "Content-Type": "application/json" },
-      },
+      { status: 200, headers: { ...corsH, "Content-Type": "application/json" } },
     );
   } catch (err) {
     if (err instanceof Response) return err;
     console.error("[parse-matrix-image] unhandled:", err);
     return new Response(
-      JSON.stringify({
-        ok: false,
-        code: "internal_error",
-        error: String(err).slice(0, 300),
-      }),
-      {
-        status: 500,
-        headers: { ...corsH, "Content-Type": "application/json" },
-      },
+      JSON.stringify({ ok: false, code: "internal_error", error: String(err).slice(0, 300) }),
+      { status: 500, headers: { ...corsH, "Content-Type": "application/json" } },
     );
   }
 });

@@ -5,31 +5,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
-import {
-  callOpenAI,
-  type ChatMessage,
-} from "../whatsapp-ai-processor/openai.ts";
+import { callOpenAI, type ChatMessage } from "../whatsapp-ai-processor/openai.ts";
 import { InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
-import {
-  checkBudget,
-  consumeBudget,
-  estimateCostEur,
-} from "../whatsapp-ai-processor/budget.ts";
+import { checkBudget, consumeBudget, estimateCostEur } from "../whatsapp-ai-processor/budget.ts";
 import { logToolCall } from "../whatsapp-ai-processor/observability.ts";
 import { SYSTEM_PROMPT_ASSISTENZA } from "./prompts/system_assistenza.ts";
-import {
-  type AssistenzaCtx,
-  findTool,
-  TOOLS_ASSISTENZA,
-  toOpenAISpec,
-} from "./tools/registry.ts";
-
-const MAX_TOOL_CALLS_PER_TURN = readEnvInt(
-  "WA_AI_MAX_TOOL_CALLS_PER_TURN",
-  4,
-  1,
-  12,
-);
+import { TOOLS_ASSISTENZA, toOpenAISpec, findTool, type AssistenzaCtx } from "./tools/registry.ts";
 
 interface Request {
   message_id?: string;
@@ -41,12 +22,8 @@ interface Request {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -93,12 +70,7 @@ Deno.serve(async (req) => {
   // Budget
   const budget = await checkBudget(supabase, contact.company_id);
   if (!budget.ok) {
-    await sendReply(
-      body.wa_number_id,
-      contact.company_id,
-      phone,
-      budget.user_message,
-    );
+    await sendReply(body.wa_number_id, contact.company_id, phone, budget.user_message);
     return json({ ok: true, skipped: "budget" }, 200);
   }
 
@@ -106,12 +78,7 @@ Deno.serve(async (req) => {
     supabase,
     company_id: contact.company_id,
     contact_id: contact.id,
-    contact: {
-      nome: contact.nome,
-      cognome: contact.cognome,
-      stato: contact.stato,
-      tipo: contact.tipo,
-    },
+    contact: { nome: contact.nome, cognome: contact.cognome, stato: contact.stato, tipo: contact.tipo },
     phone,
     wa_number_id: body.wa_number_id,
     wa_message_id: body.message_id ?? null,
@@ -171,61 +138,37 @@ Deno.serve(async (req) => {
         break;
       }
 
-      const toolCalls = assistantMsg.tool_calls;
-      const executableToolCalls = toolCalls.slice(0, MAX_TOOL_CALLS_PER_TURN);
-      const skippedToolCalls = toolCalls.slice(MAX_TOOL_CALLS_PER_TURN);
-      const results = [
-        ...(await Promise.all(
-          executableToolCalls.map(async (tc) => {
-            const tool = findTool(tc.function.name);
-            if (!tool) {
-              return {
-                tool_call_id: tc.id,
-                result: {
-                  ok: false,
-                  error: "tool_not_found",
-                  user_message: "Non disponibile.",
-                },
-              };
-            }
-            let args: Record<string, unknown> = {};
-            try {
-              args = JSON.parse(tc.function.arguments);
-            } catch { /* ignore */ }
-            const t0 = Date.now();
-            let result;
-            try {
-              result = await tool.handler(ctx, args);
-            } catch (e) {
-              result = {
-                ok: false as const,
-                error: String(e),
-                user_message: "Errore interno.",
-              };
-            }
-            await logToolCall(supabase, {
-              company_id: contact.company_id,
-              wa_message_id: body.message_id ?? null,
-              tool_name: tc.function.name,
-              role_kind: "cliente",
-              args,
-              result,
-              duration_ms: Date.now() - t0,
-              model_used: model,
-            });
-            return { tool_call_id: tc.id, result };
-          }),
-        )),
-        ...skippedToolCalls.map((tc) => ({
-          tool_call_id: tc.id,
-          result: {
-            ok: false,
-            error: "tool_batch_limited",
-            user_message:
-              "Ho limitato alcune verifiche automatiche per mantenere stabile il sistema. Procedo con le informazioni principali.",
-          },
-        })),
-      ];
+      const results = await Promise.all(
+        assistantMsg.tool_calls.map(async (tc) => {
+          const tool = findTool(tc.function.name);
+          if (!tool) {
+            return {
+              tool_call_id: tc.id,
+              result: { ok: false, error: "tool_not_found", user_message: "Non disponibile." },
+            };
+          }
+          let args: Record<string, unknown> = {};
+          try { args = JSON.parse(tc.function.arguments); } catch { /* ignore */ }
+          const t0 = Date.now();
+          let result;
+          try {
+            result = await tool.handler(ctx, args);
+          } catch (e) {
+            result = { ok: false as const, error: String(e), user_message: "Errore interno." };
+          }
+          await logToolCall(supabase, {
+            company_id: contact.company_id,
+            wa_message_id: body.message_id ?? null,
+            tool_name: tc.function.name,
+            role_kind: "cliente",
+            args,
+            result,
+            duration_ms: Date.now() - t0,
+            model_used: model,
+          });
+          return { tool_call_id: tc.id, result };
+        }),
+      );
 
       conv.push(assistantMsg);
       for (const r of results) {
@@ -237,10 +180,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!finalText) {
-      finalText =
-        "Grazie per averci scritto. Il nostro team le risponderà a breve.";
-    }
+    if (!finalText) finalText = "Grazie per averci scritto. Il nostro team le risponderà a breve.";
     await sendReply(body.wa_number_id, contact.company_id, phone, finalText);
 
     const cost = estimateCostEur(model, tokIn, tokOut);
@@ -251,28 +191,17 @@ Deno.serve(async (req) => {
     // MP05-FIX — Credit-aware error handling
     if (err instanceof InsufficientCreditsError) {
       try {
-        await sendReply(
-          body.wa_number_id,
-          contact.company_id,
-          phone,
-          err.user_message_it,
-        );
+        await sendReply(body.wa_number_id, contact.company_id, phone, err.user_message_it);
       } catch { /* silent */ }
       return json({ ok: false, reason: err.reason }, 402);
     }
     console.error(JSON.stringify({
-      level: "error",
-      fn: "assistenza-ai-processor",
-      msg: "uncaught",
-      error: String(err),
+      level: "error", fn: "assistenza-ai-processor",
+      msg: "uncaught", error: String(err),
     }));
     try {
-      await sendReply(
-        body.wa_number_id,
-        contact.company_id,
-        phone,
-        "Ho avuto un problema. Ti richiameremo a breve.",
-      );
+      await sendReply(body.wa_number_id, contact.company_id, phone,
+        "Ho avuto un problema. Ti richiameremo a breve.");
     } catch { /* nada */ }
     return json({ error: String(err) }, 500);
   }
@@ -283,17 +212,6 @@ function json(payload: unknown, status = 200): Response {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-function readEnvInt(
-  name: string,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  const raw = Number(Deno.env.get(name) ?? fallback);
-  if (!Number.isFinite(raw)) return fallback;
-  return Math.min(Math.max(Math.floor(raw), min), max);
 }
 
 async function sendReply(
@@ -310,11 +228,6 @@ async function sendReply(
       "Content-Type": "application/json",
       "Authorization": `Bearer ${serviceKey}`,
     },
-    body: JSON.stringify({
-      wa_number_id: waNumberId,
-      company_id: companyId,
-      to,
-      text,
-    }),
+    body: JSON.stringify({ wa_number_id: waNumberId, company_id: companyId, to, text }),
   }).catch(() => {});
 }

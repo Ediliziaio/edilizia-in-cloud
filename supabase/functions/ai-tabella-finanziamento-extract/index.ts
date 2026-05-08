@@ -28,11 +28,7 @@
  * Pattern derivato da ai-listino-extract (Sprint C — Catalogo Esteso).
  */
 
-import {
-  errorResponse,
-  getCorsHeaders,
-  jsonResponse,
-} from "../_shared/headers.ts";
+import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
@@ -51,57 +47,19 @@ interface ExtractPayload {
 const GPT4O_INPUT_PER_1M = 2.5;
 const GPT4O_OUTPUT_PER_1M = 10.0;
 const USD_TO_EUR_CENTS = 92;
-const DEFAULT_CHUNK_CONCURRENCY = 2;
-
-function readEnvInt(
-  name: string,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  const raw = Deno.env.get(name);
-  const parsed = raw ? Number(raw) : NaN;
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(max, Math.max(min, Math.round(parsed)));
-}
-
-async function runLimited<T, R>(
-  items: T[],
-  concurrency: number,
-  worker: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let cursor = 0;
-  const workerCount = Math.max(1, Math.min(concurrency, items.length));
-  await Promise.all(
-    Array.from({ length: workerCount }, async () => {
-      while (cursor < items.length) {
-        const current = cursor++;
-        results[current] = await worker(items[current], current);
-      }
-    }),
-  );
-  return results;
-}
 
 function estimateCostCents(tokensIn: number, tokensOut: number): number {
-  const usd = (tokensIn / 1_000_000) * GPT4O_INPUT_PER_1M +
-    (tokensOut / 1_000_000) * GPT4O_OUTPUT_PER_1M;
+  const usd = (tokensIn / 1_000_000) * GPT4O_INPUT_PER_1M + (tokensOut / 1_000_000) * GPT4O_OUTPUT_PER_1M;
   const eurCents = usd * USD_TO_EUR_CENTS;
   return Math.round(eurCents * 10000) / 10000;
 }
 
 // deno-lint-ignore no-explicit-any
-async function downloadPdfBase64(
-  supabaseAdmin: any,
-  storagePath: string,
-): Promise<string> {
+async function downloadPdfBase64(supabaseAdmin: any, storagePath: string): Promise<string> {
   const { data, error } = await supabaseAdmin.storage
     .from("finanziamenti-tabelle")
     .download(storagePath);
-  if (error || !data) {
-    throw new Error(`Download storage error: ${error?.message ?? "empty"}`);
-  }
+  if (error || !data) throw new Error(`Download storage error: ${error?.message ?? "empty"}`);
   const buf = new Uint8Array(await data.arrayBuffer());
   let bin = "";
   // Chunk per evitare stack overflow su file grandi
@@ -112,8 +70,7 @@ async function downloadPdfBase64(
   return btoa(bin);
 }
 
-const SYSTEM_PROMPT =
-  `Sei un assistente esperto nell'estrazione di dati strutturati da TABELLE FINANZIARIE PDF di finanziarie italiane (Fiditalia, Findomestic, Compass, Agos, Cofidis, Deutsche Bank, BNL, Banca Sella, Younited, Santander, IBL, ecc.).
+const SYSTEM_PROMPT = `Sei un assistente esperto nell'estrazione di dati strutturati da TABELLE FINANZIARIE PDF di finanziarie italiane (Fiditalia, Findomestic, Compass, Agos, Cofidis, Deutsche Bank, BNL, Banca Sella, Younited, Santander, IBL, ecc.).
 
 TASK: leggi il PDF e ritorna un JSON con TUTTE le righe importo×durata della tabella in FORMATO COMPATTO (array of arrays) per minimizzare i token.
 
@@ -167,49 +124,33 @@ async function callOpenAIChunk(
   sourceKey?: string,
 ): Promise<{
   rows: unknown[];
-  detected: {
-    finanziaria: string | null;
-    prodotto: string | null;
-    condizione: string | null;
-    tan_base: number | null;
-  } | null;
+  detected: { finanziaria: string | null; prodotto: string | null; condizione: string | null; tan_base: number | null } | null;
   confidence: number;
   tokensIn: number;
   tokensOut: number;
 }> {
-  const userTextParts = [
-    "Estrai le righe della tabella finanziaria da questo PDF. Ritorna SOLO JSON valido.",
-  ];
+  const userTextParts = ["Estrai le righe della tabella finanziaria da questo PDF. Ritorna SOLO JSON valido."];
   if (range) {
     userTextParts.push(
       `RANGE OBBLIGATORIO: include SOLO righe con importo_erogato STRETTAMENTE > ${range.min} € e <= ${range.max} € (${range.label}). Tutte le durate per ciascun importo.`,
     );
   }
-  if (hint?.finanziaria) {
-    userTextParts.push(`Finanziaria attesa: ${hint.finanziaria}`);
-  }
-  if (hint?.nome_prodotto) {
-    userTextParts.push(`Prodotto atteso: ${hint.nome_prodotto}`);
-  }
-  if (hint?.subtariffa_default) {
-    userTextParts.push(`Subtariffa default: ${hint.subtariffa_default}`);
-  }
+  if (hint?.finanziaria) userTextParts.push(`Finanziaria attesa: ${hint.finanziaria}`);
+  if (hint?.nome_prodotto) userTextParts.push(`Prodotto atteso: ${hint.nome_prodotto}`);
+  if (hint?.subtariffa_default) userTextParts.push(`Subtariffa default: ${hint.subtariffa_default}`);
 
   // Migrato ad aiRouter — task tabella_finanziamento_extract (gpt-4o-mini, ~85% saving vs gpt-4o)
   let content = "{}";
   let tokensIn = 0, tokensOut = 0;
   try {
     const { aiRouterComplete } = await import("../_shared/aiRouter.ts");
-    const idempotencyKey = await buildStableAiIdempotencyKey(
-      "tabella_finanziamento_extract",
-      [
-        companyId ?? null,
-        userId ?? null,
-        sourceKey ?? filename,
-        range?.label ?? "all",
-        hint ?? null,
-      ],
-    );
+    const idempotencyKey = await buildStableAiIdempotencyKey("tabella_finanziamento_extract", [
+      companyId ?? null,
+      userId ?? null,
+      sourceKey ?? filename,
+      range?.label ?? "all",
+      hint ?? null,
+    ]);
     const result = await aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: supabaseAdmin as any,
@@ -221,22 +162,11 @@ async function callOpenAIChunk(
           role: "user",
           content: [
             { type: "text", text: userTextParts.join("\n") },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:application/pdf;base64,${pdfBase64}`,
-                detail: "high",
-              },
-            },
+            { type: "image_url", image_url: { url: `data:application/pdf;base64,${pdfBase64}`, detail: "high" } },
           ] as any,
         },
       ],
-      params: {
-        temperature: 0.1,
-        max_tokens: 16000,
-        request_timeout_ms: 120_000,
-        request_retries: 0,
-      },
+      params: { temperature: 0.1, max_tokens: 16000 },
       responseFormat: { type: "json_object" },
       companyId: companyId ?? null,
       userId: userId ?? null,
@@ -246,9 +176,7 @@ async function callOpenAIChunk(
     tokensIn = result.promptTokens;
     tokensOut = result.completionTokens;
   } catch (err) {
-    throw new Error(
-      `AI Router error: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    throw new Error(`AI Router error: ${err instanceof Error ? err.message : String(err)}`);
   }
   let parsed: Record<string, unknown> = {};
   try {
@@ -276,58 +204,27 @@ async function callOpenAI(
   sourceKey?: string,
 ): Promise<{
   rows: Array<Record<string, unknown>>;
-  detected: {
-    finanziaria: string | null;
-    prodotto: string | null;
-    condizione: string | null;
-    tan_base: number | null;
-  } | null;
+  detected: { finanziaria: string | null; prodotto: string | null; condizione: string | null; tan_base: number | null } | null;
   confidence: number;
   tokensIn: number;
   tokensOut: number;
 }> {
-  // Strategia: range separati per evitare il limite di output.
-  // La concorrenza è limitata: con molti utenti simultanei evita raffiche
-  // moltiplicate verso il router AI/OpenRouter.
-  const chunkConcurrency = readEnvInt(
-    "AI_TABELLA_FINANZIAMENTO_CHUNK_CONCURRENCY",
-    DEFAULT_CHUNK_CONCURRENCY,
-    1,
-    4,
-  );
-  const results = await runLimited(
-    CHUNK_RANGES,
-    chunkConcurrency,
-    (range) =>
-      callOpenAIChunk(
-        pdfBase64,
-        filename,
-        range,
-        hint,
-        supabaseAdmin,
-        companyId,
-        userId,
-        sourceKey,
-      ).then((result) => ({
+  // Strategia: chiamate parallele su 4 range di importo per evitare il limite
+  // di 16k token output di gpt-4o. Ogni range estrae solo le sue righe.
+  const results = await Promise.all(
+    CHUNK_RANGES.map((range) =>
+      callOpenAIChunk(pdfBase64, filename, range, hint, supabaseAdmin, companyId, userId, sourceKey).then((result) => ({
         ...result,
         failed: false,
       })).catch((err) => {
         console.error(`[chunk ${range.label}] ${err}`);
-        return {
-          rows: [],
-          detected: null,
-          confidence: 0,
-          tokensIn: 0,
-          tokensOut: 0,
-          failed: true,
-        };
+        return { rows: [], detected: null, confidence: 0, tokensIn: 0, tokensOut: 0, failed: true };
       }),
+    ),
   );
   const successfulChunks = results.filter((r) => !r.failed).length;
   if (successfulChunks === 0) {
-    throw new Error(
-      "AI Router non ha restituito nessun chunk valido per la tabella finanziaria",
-    );
+    throw new Error("AI Router non ha restituito nessun chunk valido per la tabella finanziaria");
   }
 
   // Aggrega: rows concatenati, detected dal primo che lo trova, confidence media
@@ -348,11 +245,7 @@ async function callOpenAI(
     tokensOut += r.tokensOut;
   }
   const confidence = confCount > 0 ? confSum / confCount : 0;
-  const parsed: Record<string, unknown> = {
-    rows: allRows,
-    detected,
-    confidence,
-  };
+  const parsed: Record<string, unknown> = { rows: allRows, detected, confidence };
 
   // Trasforma array of arrays in array of objects.
   // Ordine canonico delle 15 colonne (corrispondente al SYSTEM_PROMPT).
@@ -429,26 +322,16 @@ async function logAiUsage(
 }
 
 // deno-lint-ignore no-explicit-any
-async function resolveCompanyId(
-  supabaseAdmin: any,
-  userId: string,
-): Promise<string | null> {
-  const { data } = await supabaseAdmin.from("profiles").select("company_id").eq(
-    "id",
-    userId,
-  ).maybeSingle();
+async function resolveCompanyId(supabaseAdmin: any, userId: string): Promise<string | null> {
+  const { data } = await supabaseAdmin.from("profiles").select("company_id").eq("id", userId).maybeSingle();
   return ((data as { company_id: string | null } | null)?.company_id) ?? null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
-  }
-  if (req.method !== "POST") {
-    return errorResponse("Method not allowed", 405, corsHeaders);
-  }
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  if (req.method !== "POST") return errorResponse("Method not allowed", 405, corsHeaders);
 
   let companyId: string | null = null;
   let userId: string | null = null;
@@ -462,24 +345,16 @@ Deno.serve(async (req: Request) => {
     supabaseAdmin = auth.supabaseAdmin;
 
     companyId = await resolveCompanyId(supabaseAdmin, userId);
-    if (!companyId) {
-      return errorResponse("Nessuna azienda associata", 400, corsHeaders);
-    }
+    if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
     const payload = (await req.json().catch(() => ({}))) as ExtractPayload;
     storagePath = payload.storage_path?.trim() ?? "";
-    if (!storagePath) {
-      return errorResponse("storage_path mancante", 400, corsHeaders);
-    }
+    if (!storagePath) return errorResponse("storage_path mancante", 400, corsHeaders);
 
     // Verifica che il path sia nella cartella della company (RLS-friendly check)
     if (!storagePath.startsWith(`${companyId}/`)) {
-      return errorResponse(
-        "storage_path fuori dalla cartella company",
-        403,
-        corsHeaders,
-      );
+      return errorResponse("storage_path fuori dalla cartella company", 403, corsHeaders);
     }
 
     // Download PDF
@@ -492,34 +367,22 @@ Deno.serve(async (req: Request) => {
 
     // Call OpenAI
     const filename = storagePath.split("/").pop() ?? "tabella.pdf";
-    const { rows, detected, confidence, tokensIn, tokensOut } =
-      await callOpenAI(
-        pdfBase64,
-        filename,
-        payload.hint,
-        supabaseAdmin,
-        companyId,
-        userId,
-        storagePath,
-      );
-    const costCents = estimateCostCents(tokensIn, tokensOut);
-
-    await logAiUsage(
+    const { rows, detected, confidence, tokensIn, tokensOut } = await callOpenAI(
+      pdfBase64,
+      filename,
+      payload.hint,
       supabaseAdmin,
       companyId,
       userId,
-      tokensIn,
-      tokensOut,
-      costCents,
       storagePath,
-      "success",
-      undefined,
-      {
-        rows_count: rows.length,
-        confidence,
-        detected,
-      },
     );
+    const costCents = estimateCostCents(tokensIn, tokensOut);
+
+    await logAiUsage(supabaseAdmin, companyId, userId, tokensIn, tokensOut, costCents, storagePath, "success", undefined, {
+      rows_count: rows.length,
+      confidence,
+      detected,
+    });
 
     return jsonResponse(
       {
@@ -538,17 +401,7 @@ Deno.serve(async (req: Request) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[ai-tabella-finanziamento-extract] ERROR:", msg);
     if (userId && supabaseAdmin) {
-      await logAiUsage(
-        supabaseAdmin,
-        companyId,
-        userId,
-        0,
-        0,
-        0,
-        storagePath,
-        "error",
-        msg,
-      );
+      await logAiUsage(supabaseAdmin, companyId, userId, 0, 0, 0, storagePath, "error", msg);
     }
     return errorResponse(msg, 500, corsHeaders);
   }

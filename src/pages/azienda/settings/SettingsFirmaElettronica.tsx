@@ -225,7 +225,7 @@ export default function SettingsFirmaElettronica() {
               type="button"
               variant="outline"
               className="w-full justify-between"
-              onClick={() => navigate("/azienda/firma-elettronica-cantieri")}
+              onClick={() => navigate("/azienda/firma-elettronica")}
             >
               Moduli e firme operative
               <ArrowRight className="h-4 w-4" />
@@ -246,7 +246,7 @@ export default function SettingsFirmaElettronica() {
               type="button"
               variant="outline"
               className="w-full justify-between"
-              onClick={() => navigate("/azienda/firma-elettronica-cantieri")}
+              onClick={() => navigate("/azienda/firma-elettronica")}
             >
               Apri archivio
               <ArrowRight className="h-4 w-4" />

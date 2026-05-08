@@ -11,16 +11,8 @@
 import { aiRouterComplete } from "./aiRouter.ts";
 
 export type Area =
-  | "finance"
-  | "operations"
-  | "sales"
-  | "marketing"
-  | "hr"
-  | "compliance"
-  | "client"
-  | "fiscal"
-  | "tech"
-  | "strategic";
+  | "finance" | "operations" | "sales" | "marketing"
+  | "hr" | "compliance" | "client" | "fiscal" | "tech" | "strategic";
 
 export interface QueryClassification {
   is_multi_area: boolean;
@@ -59,8 +51,7 @@ const PERSONA_TO_AREA: Record<string, Area> = {
   brain: "strategic",
 };
 
-const VALID_PERSONAS = new Set(Object.keys(PERSONA_TO_AREA));
-const VALID_AREAS = new Set<Area>([
+const VALID_AREAS: Area[] = [
   "finance",
   "operations",
   "sales",
@@ -71,10 +62,201 @@ const VALID_AREAS = new Set<Area>([
   "fiscal",
   "tech",
   "strategic",
-]);
+];
 
-const CLASSIFIER_PROMPT =
-  `Sei un classificatore di intent multi-area per un sistema AI di gestione di imprese edili italiane.
+const AREA_FALLBACK_PERSONA: Record<Area, string> = {
+  finance: "cfo",
+  operations: "pm_cantiere",
+  sales: "sales",
+  marketing: "direttore_marketing",
+  hr: "hr",
+  compliance: "compliance",
+  client: "assistente_cliente",
+  fiscal: "commercialista",
+  tech: "tecnico",
+  strategic: "assistente_imprenditore",
+};
+
+const VALID_PERSONAS = new Set(Object.keys(PERSONA_TO_AREA));
+const VALID_AREA_SET = new Set<Area>(VALID_AREAS);
+
+function isArea(value: unknown): value is Area {
+  return typeof value === "string" && VALID_AREA_SET.has(value as Area);
+}
+
+function isPersona(value: unknown): value is string {
+  return typeof value === "string" && VALID_PERSONAS.has(value);
+}
+
+function unique<T>(items: T[]): T[] {
+  return Array.from(new Set(items));
+}
+
+function isRevenueTargetQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const asksRevenueTarget = /\b(fattur\w*|fatture|incass\w*|vend\w*|venduto|ordini nuovi|nuove commesse|nuovi clienti|fare di fatturato)\b/.test(q)
+    && /\b(quanto|quanti|quale importo|che importo|target|obiettivo)\b/.test(q);
+  const hasCashNeed = /\b(costi fissi|stipendi|personale|fornitori|saldi dei clienti|crediti|rate scadute|cassa|cashflow|liquidita|liquidità|pareggio|break even|gap di cassa)\b/.test(q);
+  const hasForwardPeriod = /\b(mese prossimo|prossimo mese|mese dopo|prossimi 30 giorni|30 giorni|settimana prossima|prossima settimana|prossimo periodo)\b/.test(q);
+  const asksCashCoverage = /\b(quanto|quanti|quale importo|che importo)\b/.test(q) && hasCashNeed && hasForwardPeriod;
+
+  return (asksRevenueTarget && hasCashNeed && hasForwardPeriod) || asksCashCoverage;
+}
+
+function isCashOrMarginDecisionQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const hasEconomics = /\b(cassa|cashflow|liquidita|liquidità|margine|marginalita|marginalità|incass\w*|fattur\w*|venduto|acconto|fornitori|materiali|merce|manodopera|subappaltatori|costi variabili|iva)\b/.test(q);
+  const asksDecision = /\b(quanto|posso|conviene|rischio|rischioso|avviare|partire|accettare|scontare|prezzo|coprire|pagare|chiedere|minimo|simula|scenario)\b/.test(q);
+
+  return hasEconomics && asksDecision;
+}
+
+function isCollectionPriorityQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const hasCollectionAction = /\b(sollecit\w*|recuper\w*|incass\w*|chiam\w*|scriv\w*|promemoria|reminder|messa in mora|chi mi deve pagare|chi deve pagare)\b/.test(q);
+  const hasReceivableTarget = /\b(clienti|cliente|crediti|rate|saldo|saldi|acconti|pagamenti|scadut\w*|ritardo|insolut\w*)\b/.test(q);
+  const asksPriority = /\b(quali|chi|prima|priorit\w*|urgente|subito|ordine|elenco|lista)\b/.test(q);
+
+  return hasCollectionAction && hasReceivableTarget && asksPriority;
+}
+
+function isOperationalScheduleQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const hasOperationalTarget = /\b(pose?|lavori|calendario|agenda|cantiere|cantieri|squadra|operai|subappaltatori|merce|materiali|magazzino|fornitori|arriv\w* merce|consegne?)\b/.test(q);
+  const asksTimingOrList = /\b(quando|quali|chi|lista|elenco|vedere|mostra|prossim\w*|settimana|mese|oggi|domani|scadenze?)\b/.test(q);
+  return hasOperationalTarget && asksTimingOrList;
+}
+
+function isSignatureDocumentQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const hasDocumentTarget = /\b(firma|firmare|firmati|firmato|fea|otp|contratto|contratti|collaudo|collaudi|ddt|documento|documenti|modulo|moduli|pdf)\b/.test(q);
+  const asksFlowOrStatus = /\b(crea|manda|invia|richiedi|stato|quali|lista|elenco|template|flusso|come|cliente)\b/.test(q);
+  return hasDocumentTarget && asksFlowOrStatus;
+}
+
+function isSalesPipelineQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const hasSalesTarget = /\b(preventiv\w*|offert\w*|proposta commerciale|pipeline|opportunit\w*|lead|trattativ\w*|contratti vinti|conversion\w*|sconto|prezzo)\b/.test(q);
+  const hasDecisionOrList = /\b(quali|quanto|chi|lista|elenco|miglior\w*|convert\w*|chiudere|priorit\w*|target|andamento)\b/.test(q);
+  return hasSalesTarget && hasDecisionOrList;
+}
+
+function isHiringDecisionQuestion(query: string): boolean {
+  const q = query.toLowerCase();
+  const hasHiring = /\b(assumere|assunzione|assumo|contratto lavoro|nuovo operaio|capo squadra|responsabile cantiere|dipendente nuovo)\b/.test(q);
+  const asksDecision = /\b(posso|conviene|quanto costa|sostenibile|mi serve|rischio|quando)\b/.test(q);
+  return hasHiring && asksDecision;
+}
+
+function singleAreaClassification(area: Area, personaKey: string): QueryClassification {
+  return {
+    is_multi_area: false,
+    primary_area: area,
+    involved_areas: [area],
+    involved_personas: [isPersona(personaKey) ? personaKey : AREA_FALLBACK_PERSONA[area]],
+    decomposition: [],
+    synthesis_required: false,
+    estimated_complexity: "simple",
+  };
+}
+
+function hiringDecisionClassification(): QueryClassification {
+  return {
+    is_multi_area: true,
+    primary_area: "hr",
+    involved_areas: ["hr", "finance", "strategic"],
+    involved_personas: ["hr", "cfo", "assistente_imprenditore"],
+    decomposition: [
+      {
+        area: "hr",
+        persona_key: "hr",
+        sub_query: "Valuta fabbisogno persone, competenze, saturazione e vincoli contrattuali/sicurezza.",
+        why: "La domanda riguarda una possibile assunzione o nuova risorsa.",
+      },
+      {
+        area: "finance",
+        persona_key: "cfo",
+        sub_query: "Valuta sostenibilita economica, costo mensile, impatto su cassa e margini.",
+        why: "Ogni assunzione crea costo ricorrente e rischio di cassa.",
+      },
+      {
+        area: "strategic",
+        persona_key: "assistente_imprenditore",
+        sub_query: "Sintetizza opzioni alternative: assumere, subappaltare, straordinari, rinviare.",
+        why: "Serve una decisione imprenditoriale, non solo HR.",
+      },
+    ],
+    synthesis_required: true,
+    estimated_complexity: "medium",
+  };
+}
+
+function sanitizeClassification(
+  parsed: Partial<QueryClassification>,
+  fallback: QueryClassification,
+  originalQuery: string,
+): QueryClassification {
+  const primaryArea = isArea(parsed.primary_area) ? parsed.primary_area : fallback.primary_area;
+  const parsedPersonas = Array.isArray(parsed.involved_personas)
+    ? parsed.involved_personas.filter(isPersona)
+    : [];
+  const parsedAreas = Array.isArray(parsed.involved_areas)
+    ? parsed.involved_areas.filter(isArea)
+    : [];
+
+  const involvedPersonas = unique(parsedPersonas.length > 0 ? parsedPersonas : fallback.involved_personas).slice(0, 4);
+  const areasFromPersonas = involvedPersonas
+    .map((persona) => PERSONA_TO_AREA[persona])
+    .filter((area): area is Area => Boolean(area));
+  const involvedAreas = unique(
+    [...parsedAreas, ...areasFromPersonas, primaryArea].filter(isArea),
+  ).slice(0, 4);
+
+  const rawDecomposition = Array.isArray(parsed.decomposition) ? parsed.decomposition : [];
+  const decomposition = rawDecomposition
+    .slice(0, 4)
+    .map((item) => {
+      const record = (item ?? {}) as Record<string, unknown>;
+      const area = isArea(record.area) ? record.area : primaryArea;
+      const personaKey = isPersona(record.persona_key)
+        ? record.persona_key
+        : AREA_FALLBACK_PERSONA[area];
+      return {
+        area: PERSONA_TO_AREA[personaKey] ?? area,
+        persona_key: personaKey,
+        sub_query: typeof record.sub_query === "string" && record.sub_query.trim()
+          ? record.sub_query.trim().slice(0, 1000)
+          : originalQuery.slice(0, 1000),
+        why: typeof record.why === "string" && record.why.trim()
+          ? record.why.trim().slice(0, 500)
+          : "Area coinvolta nella richiesta multi-consulente.",
+      };
+    })
+    .filter((item) => isPersona(item.persona_key));
+
+  const complexity = parsed.estimated_complexity === "complex" || parsed.estimated_complexity === "medium"
+    ? parsed.estimated_complexity
+    : "simple";
+  const multiArea = parsed.is_multi_area === true && decomposition.length > 1;
+  const finalPersonas = multiArea
+    ? unique(decomposition.map((item) => item.persona_key)).slice(0, 4)
+    : involvedPersonas;
+  const finalAreas = multiArea
+    ? unique(decomposition.map((item) => item.area)).slice(0, 4)
+    : involvedAreas;
+
+  return {
+    is_multi_area: multiArea,
+    primary_area: primaryArea,
+    involved_areas: finalAreas.length > 0 ? finalAreas : fallback.involved_areas,
+    involved_personas: finalPersonas.length > 0 ? finalPersonas : fallback.involved_personas,
+    decomposition: multiArea ? decomposition : [],
+    synthesis_required: multiArea && parsed.synthesis_required === true,
+    estimated_complexity: multiArea ? complexity : "simple",
+  };
+}
+
+const CLASSIFIER_PROMPT = `Sei un classificatore di intent multi-area per un sistema AI di gestione di imprese edili italiane.
 
 ## Aree disponibili
 - finance (cashflow, margini, banca, finanziamenti)
@@ -101,6 +283,9 @@ assistente_imprenditore, brain
 4. "ciao Silvio" = single-area conversational
 5. Decomposition: max 4 sub-query
 6. NON inventare aree o personas non in lista
+7. Se una sola area puo rispondere con i tool disponibili, resta single-area anche se la risposta deve essere articolata.
+8. Domande su target venduto/incasso/cassa/margine sono finance single-area: il modello finale deve integrare costi variabili e incassi senza esporre consulenti.
+9. Domande su calendario, pose, merce, magazzino e cantieri sono operations single-area salvo richiesta esplicita di impatto economico.
 
 ## Output JSON obbligatorio
 {
@@ -124,9 +309,7 @@ export interface ClassifyOptions {
   userId?: string | null;
 }
 
-export async function classifyQuery(
-  opts: ClassifyOptions,
-): Promise<QueryClassification> {
+export async function classifyQuery(opts: ClassifyOptions): Promise<QueryClassification> {
   const fallback: QueryClassification = {
     is_multi_area: false,
     primary_area: PERSONA_TO_AREA[opts.currentPersona] ?? "strategic",
@@ -139,6 +322,25 @@ export async function classifyQuery(
 
   if (Deno.env.get("COUNCIL_ENABLED") === "false") return fallback;
   if (!opts.query || opts.query.trim().length < 10) return fallback;
+  if (
+    isRevenueTargetQuestion(opts.query) ||
+    isCashOrMarginDecisionQuestion(opts.query) ||
+    isCollectionPriorityQuestion(opts.query)
+  ) {
+    return singleAreaClassification("finance", opts.currentPersona);
+  }
+  if (isHiringDecisionQuestion(opts.query)) {
+    return hiringDecisionClassification();
+  }
+  if (isOperationalScheduleQuestion(opts.query)) {
+    return singleAreaClassification("operations", opts.currentPersona);
+  }
+  if (isSignatureDocumentQuestion(opts.query)) {
+    return singleAreaClassification("compliance", opts.currentPersona);
+  }
+  if (isSalesPipelineQuestion(opts.query)) {
+    return singleAreaClassification("sales", opts.currentPersona);
+  }
 
   try {
     const r = await aiRouterComplete({
@@ -148,8 +350,7 @@ export async function classifyQuery(
         { role: "system", content: CLASSIFIER_PROMPT },
         {
           role: "user",
-          content:
-            `Query utente:\n${opts.query}\n\nPersona corrente: ${opts.currentPersona}\n\nClassifica.`,
+          content: `Query utente:\n${opts.query}\n\nPersona corrente: ${opts.currentPersona}\n\nClassifica.`,
         },
       ],
       params: { temperature: 0.1, max_tokens: 1500 },
@@ -158,61 +359,15 @@ export async function classifyQuery(
       userId: opts.userId ?? null,
     });
 
-    const raw = (r.content ?? "").replace(/^```(?:json)?\s*/i, "").replace(
-      /```\s*$/i,
-      "",
-    ).trim();
+    const raw = (r.content ?? "").replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
     const first = raw.indexOf("{");
     const last = raw.lastIndexOf("}");
     if (first < 0 || last <= first) return fallback;
 
-    const parsed = JSON.parse(raw.substring(first, last + 1)) as Partial<
-      QueryClassification
-    >;
-    const primaryArea = isValidArea(parsed.primary_area)
-      ? parsed.primary_area
-      : fallback.primary_area;
-    const involvedAreas = Array.isArray(parsed.involved_areas)
-      ? Array.from(new Set(parsed.involved_areas.filter(isValidArea)))
-      : fallback.involved_areas;
-    const involvedPersonas = Array.isArray(parsed.involved_personas)
-      ? Array.from(new Set(parsed.involved_personas.filter(isValidPersona)))
-      : fallback.involved_personas;
-    const decomposition = Array.isArray(parsed.decomposition)
-      ? parsed.decomposition
-        .filter((d) => isValidArea(d?.area) && isValidPersona(d?.persona_key))
-        .slice(0, 4)
-      : [];
-
-    return {
-      is_multi_area: parsed.is_multi_area === true && decomposition.length > 1,
-      primary_area: primaryArea,
-      involved_areas: involvedAreas.length > 0
-        ? involvedAreas
-        : fallback.involved_areas,
-      involved_personas: involvedPersonas.length > 0
-        ? involvedPersonas
-        : fallback.involved_personas,
-      decomposition,
-      synthesis_required: parsed.synthesis_required === true &&
-        decomposition.length > 1,
-      estimated_complexity:
-        (parsed.estimated_complexity as "simple" | "medium" | "complex") ??
-          "simple",
-    };
+    const parsed = JSON.parse(raw.substring(first, last + 1)) as Partial<QueryClassification>;
+    return sanitizeClassification(parsed, fallback, opts.query);
   } catch (e) {
-    console.warn(
-      "[queryClassifier] failed (fallback to single-area):",
-      e instanceof Error ? e.message : e,
-    );
+    console.warn("[queryClassifier] failed (fallback to single-area):", e instanceof Error ? e.message : e);
     return fallback;
   }
-}
-
-function isValidArea(value: unknown): value is Area {
-  return typeof value === "string" && VALID_AREAS.has(value as Area);
-}
-
-function isValidPersona(value: unknown): value is string {
-  return typeof value === "string" && VALID_PERSONAS.has(value);
 }

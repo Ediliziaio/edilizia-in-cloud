@@ -157,26 +157,6 @@ export function parseStructuredResponse(raw: string): StructuredAiResponse | nul
   if (!raw) return null;
   let s = raw.trim();
   s = s.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
-  // Alcuni provider ritornano il JSON come inline code o come stringa JSON
-  // escaped: `"{ \"thinking\": ... }"`. Normalizziamo prima del parse.
-  s = s.replace(/^`+/, "").replace(/`+$/, "").trim();
-  if (
-    (s.startsWith('"') && s.endsWith('"')) ||
-    (s.startsWith("'") && s.endsWith("'"))
-  ) {
-    try {
-      const maybeInner = JSON.parse(s);
-      if (typeof maybeInner === "string") s = maybeInner.trim();
-    } catch {
-      // non era una stringa JSON valida: prosegui con estrazione { ... }
-    }
-  }
-  if (s.startsWith("{\\\"") || s.includes("\\\"answer\\\"")) {
-    s = s
-      .replace(/\\"/g, '"')
-      .replace(/\\n/g, "\n")
-      .replace(/\\t/g, "\t");
-  }
   // Estrai dal primo { all'ultimo }
   const first = s.indexOf("{");
   const last = s.lastIndexOf("}");

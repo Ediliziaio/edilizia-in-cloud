@@ -32,12 +32,6 @@ import type { ToolCtx } from "./tools/shared/types.ts";
 
 const OPENAI_MODEL_DEFAULT = Deno.env.get("OPENAI_MODEL_DEFAULT") ?? "gpt-4o";
 const MAX_ITERATIONS = 3;
-const MAX_TOOL_CALLS_PER_TURN = readEnvInt(
-  "WA_AI_MAX_TOOL_CALLS_PER_TURN",
-  4,
-  1,
-  12,
-);
 
 interface ProcessRequest {
   message_id: string;
@@ -79,14 +73,8 @@ Deno.serve(async (req) => {
     return json({ error: "message_not_found" }, 404);
   }
 
-  if (
-    msg.processing_status &&
-    !["received", "processing"].includes(msg.processing_status)
-  ) {
-    return json(
-      { skip: "already_processed", status: msg.processing_status },
-      200,
-    );
+  if (msg.processing_status && !["received", "processing"].includes(msg.processing_status)) {
+    return json({ skip: "already_processed", status: msg.processing_status }, 200);
   }
 
   // Lock ottimistico
@@ -98,11 +86,7 @@ Deno.serve(async (req) => {
 
   try {
     // Identity (inline, no inter-function fetch)
-    const identity = await resolveIdentity(
-      supabase,
-      msg.from_phone,
-      msg.company_id,
-    );
+    const identity = await resolveIdentity(supabase, msg.from_phone, msg.company_id);
     if (!identity.matched) {
       await sendReply(msg, STR.operaio.unknown_user);
       return markDone(supabase, body.message_id, "processed");
@@ -119,36 +103,19 @@ Deno.serve(async (req) => {
     let userContent = msg.content_text ?? "";
     if (msg.message_type === "audio" && msg.media_storage_path) {
       try {
-        const transcript = await transcribeAudio(
-          supabase,
-          msg.media_storage_path,
-        );
+        const transcript = await transcribeAudio(supabase, msg.media_storage_path);
         userContent = `[Audio trascritto]: ${transcript}`;
       } catch (e) {
-        console.error(
-          JSON.stringify({
-            level: "error",
-            fn: "transcribe",
-            error: String(e),
-          }),
-        );
+        console.error(JSON.stringify({ level: "error", fn: "transcribe", error: String(e) }));
         userContent = "[Audio non trascrivibile]";
       }
     } else if (msg.message_type === "image" && msg.media_url) {
       try {
         const hint = /ddt/i.test(userContent) ? "ddt" : "generic";
-        const analysis = await analyzeImage(
-          msg.media_url,
-          hint as "ddt" | "generic",
-        );
-        userContent =
-          `[Immagine — analisi]: ${analysis}\n\nTesto dell'utente: ${
-            msg.content_text ?? "(nessuno)"
-          }`;
+        const analysis = await analyzeImage(msg.media_url, hint as "ddt" | "generic");
+        userContent = `[Immagine — analisi]: ${analysis}\n\nTesto dell'utente: ${msg.content_text ?? "(nessuno)"}`;
       } catch (e) {
-        console.error(
-          JSON.stringify({ level: "error", fn: "analyze", error: String(e) }),
-        );
+        console.error(JSON.stringify({ level: "error", fn: "analyze", error: String(e) }));
         userContent = "[Immagine — analisi non disponibile]";
       }
     }
@@ -231,9 +198,10 @@ Deno.serve(async (req) => {
     // MP05 — routing per task_kind. Titolare/admin → modello premium per
     // ragionamento/tool calling complesso. Operaio/default → modello economico
     // (deepseek/haiku) configurato in ai_model_config.
-    const taskKind = identity.kind === "titolare" || identity.kind === "admin"
-      ? ("bot_operativo_titolare" as const)
-      : ("bot_operativo_operaio" as const);
+    const taskKind =
+      identity.kind === "titolare" || identity.kind === "admin"
+        ? ("bot_operativo_titolare" as const)
+        : ("bot_operativo_operaio" as const);
     const conv: ChatMessage[] = [...messages];
     let finalText: string | null = null;
     let totalTokensIn = 0;
@@ -263,90 +231,76 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // Esegui tool con guardrail: ogni tool call riceve comunque una risposta,
-      // ma non permettiamo a un singolo messaggio di saturare DB/API.
-      const toolCalls = assistantMsg.tool_calls;
-      const executableToolCalls = toolCalls.slice(0, MAX_TOOL_CALLS_PER_TURN);
-      const skippedToolCalls = toolCalls.slice(MAX_TOOL_CALLS_PER_TURN);
-      const results = [
-        ...(await Promise.all(
-          executableToolCalls.map(async (tc) => {
-            const tool = findTool(tc.function.name);
-            if (!tool) {
-              return {
-                tool_call_id: tc.id,
-                result: {
-                  ok: false,
-                  error: "tool_not_found",
-                  user_message: STR.shared.tool_unavailable,
-                },
-              };
-            }
-            // Re-check grants
-            const hasGrants = tool.requires_grants.every((g) =>
-              identity.role_grants.includes(g)
-            );
-            if (!hasGrants) {
-              return {
-                tool_call_id: tc.id,
-                result: {
-                  ok: false,
-                  error: "forbidden",
-                  user_message: STR.shared.tool_unavailable,
-                },
-              };
-            }
+      // Esegui tool in parallelo
+      const results = await Promise.all(
+        assistantMsg.tool_calls.map(async (tc) => {
+          const tool = findTool(tc.function.name);
+          if (!tool) {
+            return {
+              tool_call_id: tc.id,
+              result: {
+                ok: false,
+                error: "tool_not_found",
+                user_message: STR.shared.tool_unavailable,
+              },
+            };
+          }
+          // Re-check grants
+          const hasGrants = tool.requires_grants.every((g) =>
+            identity.role_grants.includes(g)
+          );
+          if (!hasGrants) {
+            return {
+              tool_call_id: tc.id,
+              result: {
+                ok: false,
+                error: "forbidden",
+                user_message: STR.shared.tool_unavailable,
+              },
+            };
+          }
 
-            let args: Record<string, unknown> = {};
-            try {
-              args = JSON.parse(tc.function.arguments);
-            } catch {
-              return {
-                tool_call_id: tc.id,
-                result: {
-                  ok: false,
-                  error: "invalid_args",
-                  user_message: STR.shared.generic_error,
-                },
-              };
-            }
-
-            const t0 = Date.now();
-            let result;
-            try {
-              result = await tool.handler(toolCtx, args);
-            } catch (e) {
-              result = {
-                ok: false as const,
-                error: String(e),
+          let args: Record<string, unknown> = {};
+          try {
+            args = JSON.parse(tc.function.arguments);
+          } catch {
+            return {
+              tool_call_id: tc.id,
+              result: {
+                ok: false,
+                error: "invalid_args",
                 user_message: STR.shared.generic_error,
-              };
-            }
-            const dur = Date.now() - t0;
+              },
+            };
+          }
 
-            await logToolCall(supabase, {
-              company_id: msg.company_id,
-              wa_message_id: msg.id,
-              tool_name: tc.function.name,
-              role_kind: identity.kind,
-              args,
-              result,
-              duration_ms: dur,
-              model_used: model,
-            });
+          const t0 = Date.now();
+          let result;
+          try {
+            result = await tool.handler(toolCtx, args);
+          } catch (e) {
+            result = {
+              ok: false as const,
+              error: String(e),
+              user_message: STR.shared.generic_error,
+            };
+          }
+          const dur = Date.now() - t0;
 
-            return { tool_call_id: tc.id, result };
-          }),
-        )),
-        ...skippedToolCalls.map((tc) => ({
-          tool_call_id: tc.id,
-          result: {
-            ok: false,
-            error: "tool_batch_limited",
-            user_message: STR.shared.tool_unavailable,
-          },
-        })),
-      ];
+          await logToolCall(supabase, {
+            company_id: msg.company_id,
+            wa_message_id: msg.id,
+            tool_name: tc.function.name,
+            role_kind: identity.kind,
+            args,
+            result,
+            duration_ms: dur,
+            model_used: model,
+          });
+
+          return { tool_call_id: tc.id, result };
+        }),
+      );
 
       conv.push(assistantMsg);
       for (const r of results) {
@@ -407,17 +361,6 @@ function json(payload: unknown, status = 200): Response {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-function readEnvInt(
-  name: string,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  const raw = Number(Deno.env.get(name) ?? fallback);
-  if (!Number.isFinite(raw)) return fallback;
-  return Math.min(Math.max(Math.floor(raw), min), max);
 }
 
 async function markDone(

@@ -308,7 +308,7 @@ serve(async (req: Request) => {
       "# REGOLE FORMATO",
       "- Numeri sempre formato italiano: € 1.234,56",
       "- Date sempre dd/mm/yyyy",
-      "- Risposte brevi solo per domande semplici. Per analisi economiche, cashflow, commesse, preventivi, personale o decisioni operative, non tagliare: separa risposta, dati certi, ipotesi, scenari e azioni prioritarie.",
+      "- Risposte concise (max 250 parole) salvo richiesta esplicita di approfondimento",
     ].join("\n");
 
     // ── MP-02: memoryContextPrompt — long-term memory cross-persona ────

@@ -15,20 +15,13 @@
  *   { multi_area, classification, sub_outputs?, synthesis?, cost_guard }
  */
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
-import {
-  errorResponse,
-  getCorsHeaders,
-  jsonResponse,
-} from "../_shared/headers.ts";
+import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { classifyQuery } from "../_shared/queryClassifier.ts";
 import {
   GENERAL_EXECUTION_PLAYBOOKS,
   TOOL_SELECTION_AND_RESULT_PLAYBOOK,
 } from "../_shared/executionPlaybooks.ts";
-
-const DEFAULT_COUNCIL_SUBCALL_CONCURRENCY = 2;
-const DEFAULT_COUNCIL_SUBCALL_TIMEOUT_MS = 45_000;
 
 interface CouncilRequest {
   query: string;
@@ -65,11 +58,7 @@ Deno.serve(async (req) => {
     const maxPersonas = Math.max(1, Math.min(body.max_personas ?? 4, 6));
 
     if (!query || !current_persona || !company_id) {
-      return errorResponse(
-        "query, current_persona, company_id required",
-        400,
-        cors,
-      );
+      return errorResponse("query, current_persona, company_id required", 400, cors);
     }
     await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
@@ -84,10 +73,7 @@ Deno.serve(async (req) => {
 
     // 2. Cost guard: limita decomposition
     if (classification.decomposition.length > maxPersonas) {
-      classification.decomposition = classification.decomposition.slice(
-        0,
-        maxPersonas,
-      );
+      classification.decomposition = classification.decomposition.slice(0, maxPersonas);
     }
 
     // Cost guard giornaliero: alert se > 50 calls/giorno per company
@@ -98,20 +84,15 @@ Deno.serve(async (req) => {
         .eq("company_id", company_id)
         .gte("created_at", new Date(Date.now() - 24 * 3600_000).toISOString());
       if ((count ?? 0) > 50) {
-        console.warn(
-          `[council] cost guard: company ${company_id} ha già fatto ${count} council call in 24h`,
-        );
+        console.warn(`[council] cost guard: company ${company_id} ha già fatto ${count} council call in 24h`);
       }
     } catch { /* non bloccante */ }
 
     // 3. Single-area → ritorna early
-    if (
-      !classification.is_multi_area || classification.decomposition.length === 0
-    ) {
+    if (!classification.is_multi_area || classification.decomposition.length === 0) {
       try {
         await supabaseAdmin.from("ai_council_usage_log").insert({
-          company_id,
-          user_id: userId,
+          company_id, user_id: userId,
           query_preview: query.slice(0, 500),
           current_persona,
           is_multi_area: false,
@@ -124,65 +105,35 @@ Deno.serve(async (req) => {
         });
       } catch { /* non bloccante */ }
 
-      return jsonResponse(
-        {
-          multi_area: false,
-          classification,
-          recommended_persona: current_persona,
-        },
-        200,
-        cors,
-      );
+      return jsonResponse({
+        multi_area: false,
+        classification,
+        recommended_persona: current_persona,
+      }, 200, cors);
     }
 
-    // 4. Multi-area: invoca ai-orchestrator con concorrenza limitata.
-    // Prima era Promise.allSettled su tutte le persone: con 100 aziende poteva
-    // moltiplicare rapidamente sub-call AI + tool. Manteniamo il Council, ma
-    // lo rendiamo prevedibile sotto carico.
+    // 4. Multi-area: invoca ai-orchestrator in parallelo per ogni decomposition
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const authHeader = req.headers.get("Authorization") ?? "";
     const apiKeyHeader = req.headers.get("apikey") ?? "";
-    const subcallConcurrency = readEnvInt(
-      "COUNCIL_SUBCALL_CONCURRENCY",
-      DEFAULT_COUNCIL_SUBCALL_CONCURRENCY,
-      1,
-      4,
-    );
-    const subcallTimeoutMs = readEnvInt(
-      "COUNCIL_SUBCALL_TIMEOUT_MS",
-      DEFAULT_COUNCIL_SUBCALL_TIMEOUT_MS,
-      10_000,
-      90_000,
-    );
 
-    const subResults = await runLimited(
-      classification.decomposition,
-      subcallConcurrency,
-      async (d) => {
+    const subResults = await Promise.allSettled(
+      classification.decomposition.map(async (d) => {
         const start = Date.now();
-        const subRes = await fetchWithTimeout(
-          `${SUPABASE_URL}/functions/v1/ai-orchestrator`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": authHeader,
-              "apikey": apiKeyHeader,
-            },
-            body: JSON.stringify({
-              personaKey: d.persona_key,
-              message: d.sub_query,
-              historyLimit: 5,
-            }),
+        const subRes = await fetch(`${SUPABASE_URL}/functions/v1/ai-orchestrator`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": authHeader,
+            "apikey": apiKeyHeader,
           },
-          subcallTimeoutMs,
-        );
+          body: JSON.stringify({
+            personaKey: d.persona_key,
+            message: d.sub_query,
+            historyLimit: 5,
+          }),
+        });
         const data = await subRes.json();
-        if (!subRes.ok) {
-          throw new Error(
-            data?.error ?? data?.message ?? `ai-orchestrator ${subRes.status}`,
-          );
-        }
         return {
           area: d.area,
           persona_key: d.persona_key,
@@ -193,20 +144,15 @@ Deno.serve(async (req) => {
           confidence: data?.confidence ?? null,
           duration_ms: Date.now() - start,
         } as SubOutput;
-      },
+      }),
     );
 
     const subOutputs: SubOutput[] = subResults.map((s, i) => {
       if (s.status === "fulfilled") return s.value;
       const d = classification.decomposition[i];
       return {
-        area: d.area,
-        persona_key: d.persona_key,
-        sub_query: d.sub_query,
-        why: d.why,
-        response: null,
-        rag_sources: [],
-        confidence: null,
+        area: d.area, persona_key: d.persona_key, sub_query: d.sub_query, why: d.why,
+        response: null, rag_sources: [], confidence: null,
         error: String(s.reason),
       };
     });
@@ -229,7 +175,7 @@ Deno.serve(async (req) => {
               `Risposta: ${s.response ?? "(errore: " + (s.error ?? "?") + ")"}`,
               s.confidence ? `Confidenza: ${s.confidence}` : "",
               "",
-            ].join("\n")
+            ].join("\n"),
           ),
           "",
           "## Compito",
@@ -244,20 +190,17 @@ Deno.serve(async (req) => {
           "6. Per domande tipo 'quanto devo fatturare/vendere/incassare', presenta scenari operativi: recupero crediti scaduti, nuove commesse solo con acconto protetto, piano misto. Non dare un solo numero come verita assoluta.",
           "7. Se nei dati compaiono data_quality.warnings, non nasconderli: spiega quali dati mancano e abbassa la certezza della risposta.",
           "8. Se nei dati compare priorita_recupero, usa quell'ordine per le azioni.",
-          "9. Ricorda sempre: fatturato/venduto NON equivale a incassato; nuova vendita aiuta la cassa solo se l'acconto entra nel periodo e copre costi variabili iniziali.",
-          "10. Quando parli di quanto fatturare, considera incassi previsti, saldi clienti, costi fissi, costi variabili delle commesse, merce/manodopera, margini attesi e tempi di incasso.",
-          "11. Identifica conflitti tra dati se ce ne sono, senza nominare i consulenti.",
-          "12. Suggerisci 2-3 azioni concrete da fare ORA, ordinate per priorità.",
-          "13. Stile imprenditore-a-imprenditore (no sociologismi, no gergo tecnico inutile).",
+          "9. Suggerisci 1-2 azioni concrete da fare ORA.",
+          "10. Stile imprenditore-a-imprenditore (no sociologismi).",
           "",
-          "Output: prosa markdown completa e operativa. Non tagliare dati decisivi per stare breve: se la domanda e' economica o cross-area, usa numeri, ipotesi, scenari e azioni in ordine di priorita'.",
+          "Output: prosa markdown, max 350 parole.",
         ].join("\n");
 
         const synthesisRes = await aiRouterComplete({
           supabase: supabaseAdmin,
           taskKey: "council_synthesis",
           messages: [{ role: "user", content: synthesisPrompt }],
-          params: { temperature: 0.45, max_tokens: 4200 },
+          params: { temperature: 0.5, max_tokens: 2000 },
           companyId: company_id,
           userId,
           personaKey: "silvio",
@@ -265,18 +208,14 @@ Deno.serve(async (req) => {
         synthesisText = synthesisRes.content ?? null;
         synthesisCost = synthesisRes.costBilledEur ?? 0;
       } catch (e) {
-        console.warn(
-          "[council] synthesis failed:",
-          e instanceof Error ? e.message : e,
-        );
+        console.warn("[council] synthesis failed:", e instanceof Error ? e.message : e);
       }
     }
 
     // 6. Log
     try {
       await supabaseAdmin.from("ai_council_usage_log").insert({
-        company_id,
-        user_id: userId,
+        company_id, user_id: userId,
         query_preview: query.slice(0, 500),
         current_persona,
         is_multi_area: true,
@@ -294,79 +233,15 @@ Deno.serve(async (req) => {
       });
     } catch { /* non bloccante */ }
 
-    return jsonResponse(
-      {
-        multi_area: true,
-        classification,
-        sub_outputs: subOutputs,
-        synthesis: synthesisText,
-        total_duration_ms: Date.now() - t0,
-      },
-      200,
-      cors,
-    );
+    return jsonResponse({
+      multi_area: true,
+      classification,
+      sub_outputs: subOutputs,
+      synthesis: synthesisText,
+      total_duration_ms: Date.now() - t0,
+    }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;
-    return errorResponse(
-      err instanceof Error ? err.message : String(err),
-      500,
-      getCorsHeaders(req),
-    );
+    return errorResponse(err instanceof Error ? err.message : String(err), 500, getCorsHeaders(req));
   }
 });
-
-async function runLimited<T, R>(
-  items: T[],
-  concurrency: number,
-  worker: (item: T, index: number) => Promise<R>,
-): Promise<Array<PromiseSettledResult<R>>> {
-  const results: Array<PromiseSettledResult<R>> = new Array(items.length);
-  let nextIndex = 0;
-
-  async function runWorker(): Promise<void> {
-    while (nextIndex < items.length) {
-      const currentIndex = nextIndex++;
-      try {
-        results[currentIndex] = {
-          status: "fulfilled",
-          value: await worker(items[currentIndex], currentIndex),
-        };
-      } catch (e) {
-        results[currentIndex] = {
-          status: "rejected",
-          reason: e,
-        };
-      }
-    }
-  }
-
-  await Promise.all(
-    Array.from(
-      { length: Math.min(concurrency, items.length) },
-      () => runWorker(),
-    ),
-  );
-  return results;
-}
-
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
-  return await fetch(url, {
-    ...init,
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-}
-
-function readEnvInt(
-  name: string,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  const raw = Number(Deno.env.get(name) ?? fallback);
-  if (!Number.isFinite(raw)) return fallback;
-  return Math.min(Math.max(Math.floor(raw), min), max);
-}
