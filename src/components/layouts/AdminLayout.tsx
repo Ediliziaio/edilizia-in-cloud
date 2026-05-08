@@ -86,26 +86,29 @@ interface AdminNavItem {
   subcategory?: string;
 }
 
-const adminSubcategories = [
-  { id: "sa_overview", label: "Overview" },
-  { id: "sa_clienti", label: "Aziende" },
-  { id: "sa_customer_success", label: "Customer Success" },
-  { id: "sa_revenue", label: "Revenue" },
-  { id: "sa_prodotto", label: "Prodotto" },
-  { id: "sa_operazioni", label: "Operazioni" },
-  { id: "sa_growth", label: "Growth" },
+// Subcategorie Navigazione — ognuna con icona per riconoscimento immediato.
+// "Overview" rimossa: Dashboard ora è pinned in cima accanto ad Attività/Chat.
+const adminSubcategories: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+  { id: "sa_clienti", label: "Aziende", icon: Building },
+  { id: "sa_customer_success", label: "Customer Success", icon: LifeBuoy },
+  { id: "sa_revenue", label: "Revenue", icon: LineChart },
+  { id: "sa_prodotto", label: "Prodotto", icon: Blocks },
+  { id: "sa_operazioni", label: "Operazioni", icon: Settings2 },
+  { id: "sa_growth", label: "Growth", icon: TrendingUp },
 ];
 
-const adminMarketingSubcategories = [
-  { id: "sa_mkt_crm", label: "CRM" },
-  { id: "sa_mkt_comunicazione", label: "Comunicazione" },
-  { id: "sa_mkt_automation", label: "Automazione & AI" },
+const adminMarketingSubcategories: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+  { id: "sa_mkt_crm", label: "CRM", icon: Users },
+  { id: "sa_mkt_comunicazione", label: "Comunicazione", icon: Mail },
+  { id: "sa_mkt_automation", label: "Automazione & AI", icon: Bot },
 ];
 
+// Smart defaults: aperte le sezioni più usate quotidianamente.
+// Aziende sempre visibile (lista clienti = use-case primario)
+// Customer Success per gestire lifecycle, ticket, onboarding
 const ADMIN_SIDEBAR_DEFAULTS: Record<string, boolean> = {
-  sa_overview: false,
-  sa_clienti: false,
-  sa_customer_success: false,
+  sa_clienti: true,
+  sa_customer_success: true,
   sa_revenue: false,
   sa_prodotto: false,
   sa_operazioni: false,
@@ -116,7 +119,7 @@ const ADMIN_SIDEBAR_DEFAULTS: Record<string, boolean> = {
 };
 
 const allNavItems: AdminNavItem[] = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard, permission: "can_view_platform_stats", subcategory: "sa_overview" },
+  // Dashboard rimosso da qui — ora è pinned in cima accanto ad Attività/Chat
   { title: "Aziende", url: "/admin/aziende", icon: Building, permission: "can_manage_companies", subcategory: "sa_clienti" },
   { title: "CS Dashboard", url: "/admin/cs-dashboard", icon: TrendingUp, permission: "can_impersonate", subcategory: "sa_customer_success" },
   { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare, permission: "can_manage_tickets", subcategory: "sa_customer_success" },
@@ -298,6 +301,9 @@ function AdminMainSidebar() {
   const [companySearch, setCompanySearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
+  // Search globale che filtra tutte le voci del menu — quando attiva forza
+  // tutte le subcategorie aperte per mostrare i match
+  const [navSearch, setNavSearch] = useState("");
 
   const allAdminNavItems = [...allNavItems, ...adminMarketingNavItems];
   const { toggle, isOpen } = useSidebarSections({
@@ -313,13 +319,20 @@ function AdminMainSidebar() {
     debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
   };
 
+  const matchesSearch = (title: string) => {
+    if (!navSearch) return true;
+    return title.toLowerCase().includes(navSearch.toLowerCase());
+  };
+
   const filteredNavItems = allNavItems.filter(
-    (item) => permissions[item.permission]
+    (item) => permissions[item.permission] && matchesSearch(item.title)
   );
 
   const filteredMarketingItems = adminMarketingNavItems.filter(
-    (item) => permissions[item.permission]
+    (item) => permissions[item.permission] && matchesSearch(item.title)
   );
+
+  const isSearching = navSearch.trim().length > 0;
 
   const { data: companies = [] } = useQuery({
     queryKey: ["admin-sidebar-companies", debouncedSearch],
@@ -383,16 +396,19 @@ function AdminMainSidebar() {
           )}
         </div>
         {permissions.can_manage_companies && (
-          <div className="px-3 pb-3">
+          <div className="px-3 pb-2">
             <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
               <PopoverTrigger asChild>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  className="w-full justify-between text-muted-foreground font-normal h-9"
+                  className="w-full justify-between font-normal h-8 px-2 text-muted-foreground hover:text-foreground hover:bg-muted/60 group"
                 >
-                  <span className="truncate text-sm">Accedi come azienda...</span>
-                  <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                  <span className="flex items-center gap-2 min-w-0">
+                    <Building className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate text-xs">Accedi come azienda</span>
+                  </span>
+                  <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-40 group-hover:opacity-70 transition-opacity" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-72 p-0" align="start" sideOffset={8}>
@@ -446,17 +462,31 @@ function AdminMainSidebar() {
         )}
       </div>
       <SidebarContent className="flex flex-col">
-        {/* ─── Cruscotto top section ────────────────────────────
-           Replica delle voci "Attività" e "Chat" dalla sidebar Azienda.
-           Sempre visibili in cima per accesso rapido alle 2 azioni quotidiane
-           del super admin: gestire i task CS e rispondere alle conversazioni
-           di supporto. Badge contestuali con tonalità per urgenza:
-           - Attività: rosso se overdue, arancio se due-today, blu altrimenti
-           - Chat:     rosso se >10 ticket aperti, blu altrimenti */}
+        {/* ─── Cruscotto top — accesso rapido alle 3 voci quotidiane ────────
+           Dashboard / Attività / Chat sempre visibili in cima.
+           Dashboard prima → "home" mentale dell'utente
+           Attività → task CS gestione clienti (badge urgenza)
+           Chat     → conversazioni team interno
+           Search bar globale sotto per saltare a qualsiasi pagina */}
         {(permissions.can_manage_companies || permissions.can_manage_tickets) && (
-          <SidebarGroup className="pt-3 pb-1">
+          <SidebarGroup className="pt-3 pb-2">
             <SidebarGroupContent>
               <SidebarMenu>
+                {permissions.can_view_platform_stats && (
+                  <SidebarMenuItem key="top-dashboard">
+                    <SidebarMenuButton asChild tooltip="Dashboard">
+                      <NavLink
+                        to="/admin"
+                        end
+                        className={navLinkClass}
+                        activeClassName={activeClass}
+                      >
+                        <LayoutDashboard className="h-4 w-4" />
+                        <span className="flex-1 font-medium">Dashboard</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 {permissions.can_manage_companies && (() => {
                   const badge = getBadgeForNavItem("/admin/cs-tasks", sidebarBadges);
                   return (
@@ -492,103 +522,125 @@ function AdminMainSidebar() {
                     </SidebarMenuItem>
                   );
                 })()}
-                {permissions.can_manage_companies && (() => {
-                  // Chat = team chat interna del super admin (replica /azienda/chat)
-                  // NB: il badge "ticket aperti" lascialo su /admin/ticket (Assistenza),
-                  // qui non è applicabile.
-                  return (
-                    <SidebarMenuItem key="top-chat">
-                      <SidebarMenuButton asChild tooltip="Chat team">
-                        <NavLink
-                          to="/admin/chat"
-                          className={navLinkClass}
-                          activeClassName={activeClass}
-                        >
-                          <MessagesSquare className="h-4 w-4" />
-                          <span className="flex-1 font-medium">Chat</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })()}
+                {permissions.can_manage_companies && (
+                  <SidebarMenuItem key="top-chat">
+                    <SidebarMenuButton asChild tooltip="Chat team">
+                      <NavLink
+                        to="/admin/chat"
+                        className={navLinkClass}
+                        activeClassName={activeClass}
+                      >
+                        <MessagesSquare className="h-4 w-4" />
+                        <span className="flex-1 font-medium">Chat</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
 
-        {/* Navigazione */}
-        <Collapsible defaultOpen={true}>
-          <SidebarGroup>
-            <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
-              <span className="flex items-center gap-2">
-                <Briefcase className="h-3.5 w-3.5" />
-                Navigazione
-              </span>
-              <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                {adminSubcategories.map((sub) => {
-                  const items = filteredNavItems.filter((i) => i.subcategory === sub.id);
-                  if (items.length === 0) return null;
-                  return (
-                    <SidebarSubcategory
-                      key={sub.id}
-                      label={sub.label}
-                      isOpen={isOpen(sub.id)}
-                      onToggle={() => toggle(sub.id)}
-                    >
-                      <SidebarMenu className="divide-y divide-dashed divide-border/40">
-                        {items.map((item) => {
-                          const badge = getBadgeForNavItem(item.url, sidebarBadges);
-                          return (
-                            <SidebarMenuItem key={item.title}>
-                              <SidebarMenuButton asChild>
-                                <NavLink 
-                                  to={item.url} 
-                                  end={item.url === "/admin"}
-                                  className={navLinkClass}
-                                  activeClassName={activeClass}
-                                >
-                                  <item.icon className="h-4 w-4" />
-                                  <span className="flex-1">{item.title}</span>
-                                  {badge && badge.count != null && badge.count > 0 && (
-                                    <span
-                                      className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-xs font-bold leading-none ${
-                                        badge.variant === "destructive"
-                                          ? "bg-destructive text-destructive-foreground"
-                                          : badge.variant === "warning"
-                                          ? "bg-orange-500 text-white dark:bg-orange-600"
-                                          : "bg-sidebar-primary/15 text-sidebar-primary"
-                                      }`}
-                                    >
-                                      {badge.count > 99 ? "99+" : badge.count}
-                                    </span>
-                                  )}
-                                </NavLink>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          );
-                        })}
-                      </SidebarMenu>
-                    </SidebarSubcategory>
-                  );
-                })}
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </SidebarGroup>
-        </Collapsible>
+        {/* ─── Search globale sidebar ────────────────────────────────
+           Filtra le voci di tutto il menu per nome — risolve "non trovo
+           dove andare" tipico delle app con 25+ pagine. */}
+        <SidebarGroup className="py-1">
+          <div className="px-3">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" />
+              <Input
+                placeholder="Cerca nel menu..."
+                value={navSearch}
+                onChange={(e) => setNavSearch(e.target.value)}
+                className="pl-8 h-8 text-xs bg-muted/40 border-muted-foreground/10"
+              />
+            </div>
+          </div>
+        </SidebarGroup>
 
-        {/* Marketing & Vendita */}
+        {/* Navigazione — Group title leggibile, subcategorie con icona */}
+        {filteredNavItems.length > 0 && (
+          <Collapsible defaultOpen={true}>
+            <SidebarGroup className="pt-1">
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground transition-colors group">
+                <span className="flex items-center gap-2">
+                  <Briefcase className="h-3.5 w-3.5" />
+                  Navigazione
+                </span>
+                <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  {adminSubcategories.map((sub) => {
+                    const items = filteredNavItems.filter((i) => i.subcategory === sub.id);
+                    if (items.length === 0) return null;
+                    // Badge aggregato: somma i count delle voci con badge urgente
+                    const aggregateBadge = items.reduce((sum, i) => {
+                      const b = getBadgeForNavItem(i.url, sidebarBadges);
+                      return sum + (b?.count ?? 0);
+                    }, 0);
+                    return (
+                      <SidebarSubcategory
+                        key={sub.id}
+                        label={sub.label}
+                        icon={sub.icon}
+                        badge={aggregateBadge}
+                        // Quando l'utente sta cercando, forza apertura per mostrare i match
+                        isOpen={isSearching || isOpen(sub.id)}
+                        onToggle={() => toggle(sub.id)}
+                      >
+                        <SidebarMenu>
+                          {items.map((item) => {
+                            const badge = getBadgeForNavItem(item.url, sidebarBadges);
+                            return (
+                              <SidebarMenuItem key={item.title}>
+                                <SidebarMenuButton asChild>
+                                  <NavLink
+                                    to={item.url}
+                                    end={item.url === "/admin"}
+                                    className={navLinkClass}
+                                    activeClassName={activeClass}
+                                  >
+                                    <item.icon className="h-4 w-4" />
+                                    <span className="flex-1">{item.title}</span>
+                                    {badge && badge.count != null && badge.count > 0 && (
+                                      <span
+                                        className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-xs font-bold leading-none ${
+                                          badge.variant === "destructive"
+                                            ? "bg-destructive text-destructive-foreground"
+                                            : badge.variant === "warning"
+                                            ? "bg-orange-500 text-white dark:bg-orange-600"
+                                            : "bg-sidebar-primary/15 text-sidebar-primary"
+                                        }`}
+                                      >
+                                        {badge.count > 99 ? "99+" : badge.count}
+                                      </span>
+                                    )}
+                                  </NavLink>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            );
+                          })}
+                        </SidebarMenu>
+                      </SidebarSubcategory>
+                    );
+                  })}
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        )}
+
+        {/* Marketing & Vendita — Group separato con margin top per chiarezza */}
         {filteredMarketingItems.length > 0 && (
-          <Collapsible defaultOpen={false}>
-            <SidebarGroup className="pt-0">
-              <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
+          <Collapsible defaultOpen={isSearching}>
+            <SidebarGroup className="pt-2 mt-1 border-t border-border/40">
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground transition-colors group">
                 <span className="flex items-center gap-2">
                   <Megaphone className="h-3.5 w-3.5" />
                   Marketing & Vendita
                 </span>
-                <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+                <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <SidebarGroupContent>
@@ -599,10 +651,11 @@ function AdminMainSidebar() {
                       <SidebarSubcategory
                         key={sub.id}
                         label={sub.label}
-                        isOpen={isOpen(sub.id)}
+                        icon={sub.icon}
+                        isOpen={isSearching || isOpen(sub.id)}
                         onToggle={() => toggle(sub.id)}
                       >
-                        <SidebarMenu className="divide-y divide-dashed divide-border/40">
+                        <SidebarMenu>
                           {items.map((item) => (
                             <SidebarMenuItem key={item.title}>
                               <SidebarMenuButton asChild>
@@ -626,6 +679,22 @@ function AdminMainSidebar() {
               </CollapsibleContent>
             </SidebarGroup>
           </Collapsible>
+        )}
+
+        {/* Empty search state */}
+        {isSearching && filteredNavItems.length === 0 && filteredMarketingItems.length === 0 && (
+          <div className="px-4 py-6 text-center">
+            <p className="text-xs text-muted-foreground">
+              Nessuna voce trovata per <span className="font-medium">"{navSearch}"</span>
+            </p>
+            <button
+              type="button"
+              onClick={() => setNavSearch("")}
+              className="text-xs text-sidebar-primary hover:underline mt-1"
+            >
+              Cancella ricerca
+            </button>
+          </div>
         )}
 
         <div className="mt-auto border-t">
