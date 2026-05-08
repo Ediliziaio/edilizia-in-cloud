@@ -8,6 +8,9 @@ import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components
 import { SILVIO_SKILLS, SILVIO_SKILL_CATEGORY_LABELS } from "@/lib/silvio-skills";
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { useAutoSizeTextarea } from "@/hooks/useAutoSizeTextarea";
+import { AIModelSelector } from "@/components/ai/AIModelSelector";
+import { AIRunFooter } from "@/components/ai/AIRunFooter";
+import { useAIModelSelector } from "@/lib/ai/use-ai-model-selector";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -110,6 +113,14 @@ interface Message {
   ai_requires_human_review?: boolean | null;
   followup_suggestions?: string[] | null;
   council_data?: AiMeta["council_data"] | null;
+  // AI Test Lab — run metadata (modello, costo, latenza)
+  last_model_id?: string | null;
+  last_provider?: string | null;
+  last_cost_usd?: number | null;
+  last_latency_ms?: number | null;
+  last_input_tokens?: number | null;
+  last_output_tokens?: number | null;
+  last_generation_id?: string | null;
 }
 
 interface Profile {
@@ -796,6 +807,18 @@ function MessageBubble({
               onAskFollowup={onAskFollowup}
             />
           )}
+          {/* AI Test Lab — footer ⏱ tempo · 🟠 modello · $costo (solo demo) */}
+          {isAIMsg && msg.last_model_id && (
+            <AIRunFooter
+              meta={{
+                model_id: msg.last_model_id,
+                latency_ms: msg.last_latency_ms,
+                cost_usd: msg.last_cost_usd,
+                input_tokens: msg.last_input_tokens,
+                output_tokens: msg.last_output_tokens,
+              }}
+            />
+          )}
 
           {/* Time + check marks */}
           <span className={cn(
@@ -909,6 +932,8 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const [newMsg, setNewMsg] = useState("");
   // Textarea auto-grow stile WhatsApp: cresce fino a 5 righe poi scrolla internamente
   const newMsgTextareaRef = useAutoSizeTextarea(newMsg, { maxRows: 5 });
+  // AI Test Lab — selettore modello (visibile solo Demo Azienda + utente demo)
+  const aiSelector = useAIModelSelector('silvio_chat', 'text');
   const [silvioSkillsOpen, setSilvioSkillsOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [luciaTyping, setLuciaTyping] = useState(false);
@@ -1066,7 +1091,12 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     setLuciaTyping(true); // riusiamo lo stesso typing indicator
     try {
       const res = await supabase.functions.invoke("silvio-chat", {
-        body: { channel_id: selectedChannelId, message: messageText.trim() },
+        body: {
+          channel_id: selectedChannelId,
+          message: messageText.trim(),
+          // AI Test Lab — passa il modello selezionato SOLO se demo (server gating).
+          ...(aiSelector.showSelector ? { model: aiSelector.selectedModel } : {}),
+        },
       });
       if (res.error) {
         let errBody: FunctionErrorBody | null = null;
@@ -1086,7 +1116,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     } finally {
       setLuciaTyping(false);
     }
-  }, [selectedChannelId, companyId, userId, channels, queryClient, refetchUnread]);
+  }, [selectedChannelId, companyId, userId, channels, queryClient, refetchUnread, aiSelector.showSelector, aiSelector.selectedModel]);
 
   // Create group channel
   const [channelName, setChannelName] = useState("");
@@ -1921,6 +1951,21 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   </span>
                   {typingUsers.join(", ")} {typingUsers.length === 1 ? "sta" : "stanno"} scrivendo…
                 </p>
+              </div>
+            )}
+
+            {/* AI Test Lab — model selector bar (sopra compose, solo Silvio + demo) */}
+            {isSilvioChannel && aiSelector.showSelector && aiSelector.availableModels.length > 0 && (
+              <div className="border-t bg-orange-50/30 px-3 py-1.5 flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wide text-orange-700 font-semibold">AI Test Lab:</span>
+                <AIModelSelector
+                  models={aiSelector.availableModels}
+                  selectedModel={aiSelector.selectedModel}
+                  onSelect={aiSelector.setSelectedModel}
+                  loading={aiSelector.loading}
+                  onRefresh={aiSelector.refresh}
+                  showCost
+                />
               </div>
             )}
 

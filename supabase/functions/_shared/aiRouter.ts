@@ -141,6 +141,110 @@ interface RouterConfig {
 }
 
 /** Carica config router per un task — sempre safe (default fallback). */
+// ─── AI Test Lab — Demo Azienda gating helpers ──────────────────────────────
+// I tracciamenti granulari + override modelli sono attivi SOLO per la company
+// demo. Tutto il resto del codebase non è toccato.
+const AI_TEST_LAB_DEMO_COMPANY_ID = '778a2c76-1253-49f2-a5e8-283363ac3e29';
+
+/** Legge l'override modello settato dall'utente demo dalla tabella
+ *  `ai_demo_default_models` (per cron/trigger background che non passano forceModel). */
+async function loadDemoDefaultModel(
+  supabase: SupabaseClient,
+  companyId: string | null | undefined,
+  taskKey: string,
+): Promise<string | null> {
+  if (companyId !== AI_TEST_LAB_DEMO_COMPANY_ID) return null;
+  try {
+    const { data } = await supabase
+      .from('ai_demo_default_models')
+      .select('model_id')
+      .eq('company_id', companyId)
+      .eq('task_key', taskKey)
+      .maybeSingle();
+    return (data as { model_id?: string } | null)?.model_id ?? null;
+  } catch (e) {
+    console.warn('[aiRouter] loadDemoDefaultModel skip:', e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/** Scrive una riga su `ai_test_runs` per la company demo.
+ *  Best-effort: ogni errore è loggato ma non blocca la chiamata AI. */
+async function writeTestRun(
+  supabase: SupabaseClient,
+  args: {
+    companyId: string | null | undefined;
+    userId: string | null | undefined;
+    feature: string;
+    taskKey: string;
+    personaKey?: string | null;
+    modelId: string;
+    forcedByUser: boolean;
+    inputTokens: number;
+    outputTokens: number;
+    costUsd: number;
+    latencyMs: number;
+    generationId?: string | null;
+    promptExcerpt?: string | null;
+    responseExcerpt?: string | null;
+    error?: string | null;
+  },
+): Promise<void> {
+  if (args.companyId !== AI_TEST_LAB_DEMO_COMPANY_ID) return;
+  try {
+    const provider = args.modelId.split('/')[0] ?? 'unknown';
+    await supabase.from('ai_test_runs').insert({
+      company_id: args.companyId,
+      user_id: args.userId ?? null,
+      feature: args.feature,
+      task_key: args.taskKey,
+      persona_key: args.personaKey ?? null,
+      model_id: args.modelId,
+      provider,
+      forced_by_user: args.forcedByUser,
+      input_tokens: args.inputTokens,
+      output_tokens: args.outputTokens,
+      cost_usd: args.costUsd,
+      latency_ms: args.latencyMs,
+      openrouter_generation_id: args.generationId ?? null,
+      prompt_excerpt: args.promptExcerpt?.slice(0, 300) ?? null,
+      response_excerpt: args.responseExcerpt?.slice(0, 300) ?? null,
+      error: args.error ?? null,
+    });
+  } catch (e) {
+    console.warn('[aiRouter] ai_test_runs insert skip:', e instanceof Error ? e.message : e);
+  }
+}
+
+/** Verifica quota giornaliera per evitare bill-shock sulla demo. */
+async function checkDemoDailyQuota(
+  supabase: SupabaseClient,
+  companyId: string | null | undefined,
+): Promise<{ ok: boolean; remaining?: number; cap?: number }> {
+  if (companyId !== AI_TEST_LAB_DEMO_COMPANY_ID) return { ok: true };
+  try {
+    const { data: quotaRow } = await supabase
+      .from('ai_test_quota')
+      .select('daily_calls_cap')
+      .eq('company_id', companyId)
+      .maybeSingle();
+    const cap = Number((quotaRow as { daily_calls_cap?: number } | null)?.daily_calls_cap ?? 200);
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await supabase
+      .from('ai_test_runs')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .gte('created_at', since);
+    const used = count ?? 0;
+    if (used >= cap) {
+      return { ok: false, remaining: 0, cap };
+    }
+    return { ok: true, remaining: cap - used, cap };
+  } catch {
+    return { ok: true };
+  }
+}
+
 async function loadConfig(supabase: SupabaseClient, taskKey: string): Promise<RouterConfig> {
   const { data, error } = await supabase.rpc("get_ai_router_config", { p_task_key: taskKey });
   if (error || !data) {
@@ -436,12 +540,40 @@ export async function aiRouterComplete(
   }
 
   const baseConfig = await loadConfig(opts.supabase, opts.taskKey);
-  const config = opts.forceModel
+
+  // ── AI Test Lab — Demo Azienda override automatico ─────────────────────
+  // Se la chiamata viene dalla demo company E non ha già un forceModel
+  // esplicito, leggi `ai_demo_default_models` per task_key (impostato
+  // dall'utente demo nella dashboard AI Test Lab). Permette ai cron/trigger
+  // di rispettare la scelta dell'utente senza modificare ogni edge function.
+  let effectiveForceModel = opts.forceModel;
+  let isDemoForced = !!opts.forceModel && opts.companyId === AI_TEST_LAB_DEMO_COMPANY_ID;
+  if (!effectiveForceModel && opts.companyId === AI_TEST_LAB_DEMO_COMPANY_ID) {
+    const demoOverride = await loadDemoDefaultModel(opts.supabase, opts.companyId, opts.taskKey);
+    if (demoOverride) {
+      effectiveForceModel = demoOverride;
+      isDemoForced = false; // override silenzioso da preferenza, non scelto in chat
+    }
+  }
+
+  // ── AI Test Lab — Quota di sicurezza giornaliera (demo only) ───────────
+  if (opts.companyId === AI_TEST_LAB_DEMO_COMPANY_ID) {
+    const quota = await checkDemoDailyQuota(opts.supabase, opts.companyId);
+    if (!quota.ok) {
+      throw new AiRouterError(
+        `AI Test Lab quota giornaliera raggiunta (${quota.cap} chiamate/24h). Riprova domani o aumenta cap in ai_test_quota.`,
+        opts.taskKey,
+        [],
+      );
+    }
+  }
+
+  const config = effectiveForceModel
     ? {
         ...baseConfig,
-        primary_model: opts.forceModel,
+        primary_model: effectiveForceModel,
         fallback_models: [baseConfig.primary_model, ...baseConfig.fallback_models]
-          .filter((model, index, arr) => model && model !== opts.forceModel && arr.indexOf(model) === index),
+          .filter((model, index, arr) => model && model !== effectiveForceModel && arr.indexOf(model) === index),
         is_default: baseConfig.is_default,
       }
     : baseConfig;
@@ -703,6 +835,27 @@ export async function aiRouterComplete(
           console.warn("[aiRouter] skipped ledger insert (non-blocking):", skipInsErr);
         }
       }
+
+      // ── AI Test Lab — scrittura granulare per Demo Azienda ────────────
+      // Best-effort: ogni errore qui non blocca il return della risposta.
+      await writeTestRun(opts.supabase, {
+        companyId: opts.companyId,
+        userId: opts.userId,
+        feature: opts.taskKey, // feature == taskKey by default; UI può sovrascrivere
+        taskKey: opts.taskKey,
+        personaKey: opts.personaKey,
+        modelId: model,
+        forcedByUser: isDemoForced,
+        inputTokens: promptTokens,
+        outputTokens: completionTokens,
+        costUsd,
+        latencyMs: durationMs,
+        generationId: (data as { id?: string })?.id ?? null,
+        promptExcerpt: typeof opts.messages?.[opts.messages.length - 1]?.content === 'string'
+          ? (opts.messages[opts.messages.length - 1].content as string)
+          : null,
+        responseExcerpt: typeof content === 'string' ? content : null,
+      });
 
       return {
         content,

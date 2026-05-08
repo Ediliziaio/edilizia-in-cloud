@@ -57,6 +57,7 @@ const SettingsFinanceAutomation = lazy(() => import("@/pages/azienda/settings/Se
 const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
 const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/SettingsQuoteMaterials"));
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
+const AITestLab = lazy(() => import("@/pages/azienda/settings/AITestLab"));
 const SettingsFirmaElettronica = lazy(() => import("@/pages/azienda/settings/SettingsFirmaElettronica"));
 const SettingsTariffe = lazy(() => import("@/pages/azienda/settings/SettingsTariffe"));
 const ListinoManutenzione = lazy(() => import("@/pages/azienda/settings/ListinoManutenzione"));
@@ -629,6 +630,8 @@ export function companyRoutes() {
           <Route path="branding" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBranding />)} />
           <Route path="materiali-preventivi" element={withCompanyPermission("canViewSettingsCustomization", <SettingsQuoteMaterials />)} />
           <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsCustomization", <SettingsQuoteTemplates />)} />
+          {/* AI Test Lab — gated all'interno della pagina (auto-redirect se non autorizzato) */}
+          <Route path="ai-test-lab" element={<AITestLab />} />
           <Route path="firma-elettronica" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFirmaElettronica />)} />
           <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <SettingsBilling />)} />
           <Route path="fatturazione-nativa" element={withCompanyPermission("canViewBilling", <ImpostazioniFatturazione />)} />

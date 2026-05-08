@@ -48,6 +48,9 @@ import {
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
+import { AIModelSelector } from "@/components/ai/AIModelSelector";
+import { AIRunFooter } from "@/components/ai/AIRunFooter";
+import { useAIModelSelector } from "@/lib/ai/use-ai-model-selector";
 import { useAutoSizeTextarea } from "@/hooks/useAutoSizeTextarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -105,6 +108,14 @@ interface SilvioMessage {
   ai_requires_human_review?: boolean | null;
   followup_suggestions?: string[] | null;
   council_data?: AiMeta["council_data"] | null;
+  // AI Test Lab — run metadata (modello, costo, latenza)
+  last_model_id?: string | null;
+  last_provider?: string | null;
+  last_cost_usd?: number | null;
+  last_latency_ms?: number | null;
+  last_input_tokens?: number | null;
+  last_output_tokens?: number | null;
+  last_generation_id?: string | null;
 }
 
 /**
@@ -239,6 +250,8 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   const [draft, setDraft] = useState("");
   // Textarea auto-grow stile WhatsApp: 1 → 5 righe, poi scroll interno
   const draftTextareaRef = useAutoSizeTextarea(draft, { maxRows: 5 });
+  // AI Test Lab — selettore modello (visibile solo per Demo Azienda + utente demo)
+  const aiSelector = useAIModelSelector('silvio_chat', 'text');
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
@@ -689,6 +702,9 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
             file_name: a.file.name,
             kind: a.kind,
           })),
+          // AI Test Lab — passa il modello selezionato SOLO se demo
+          // (server-side è comunque gated, double safety).
+          ...(aiSelector.showSelector ? { model: aiSelector.selectedModel } : {}),
         },
       });
       if (res.error) throw new Error(`Silvio: ${res.error.message}`);
@@ -931,6 +947,20 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
 
         {/* Input footer */}
         <div className="border-t bg-white p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)]" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
+          {/* AI Test Lab — selettore modello (visibile solo Demo Azienda) */}
+          {aiSelector.showSelector && aiSelector.availableModels.length > 0 && (
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">AI Test Lab:</span>
+              <AIModelSelector
+                models={aiSelector.availableModels}
+                selectedModel={aiSelector.selectedModel}
+                onSelect={aiSelector.setSelectedModel}
+                loading={aiSelector.loading}
+                onRefresh={aiSelector.refresh}
+                showCost
+              />
+            </div>
+          )}
           <div className="flex gap-2 items-end">
             {/* Hidden file input */}
             <input
@@ -1319,6 +1349,16 @@ function MessageBubble({
             }}
             onAskFollowup={onAskFollowup}
           />
+        )}
+        {/* AI Test Lab — footer ⏱ tempo · 🟠 modello · $costo (solo demo) */}
+        {isSilvio && !isStillTyping && message.last_model_id && (
+          <AIRunFooter meta={{
+            model_id: message.last_model_id,
+            latency_ms: message.last_latency_ms,
+            cost_usd: message.last_cost_usd,
+            input_tokens: message.last_input_tokens,
+            output_tokens: message.last_output_tokens,
+          }} />
         )}
       </div>
       {isMe && (

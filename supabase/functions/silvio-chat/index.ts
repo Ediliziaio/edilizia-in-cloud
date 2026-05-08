@@ -63,6 +63,32 @@ interface ChatPayload {
   channel_id: string;
   message: string;
   attachments?: ChatAttachment[];
+  /**
+   * AI Test Lab — modello scelto dall'utente demo nel selettore UI.
+   * Validato server-side via isModelAllowed regex; ignorato se non demo.
+   */
+  model?: string;
+}
+
+// AI Test Lab — gating server-side
+const AI_TEST_LAB_DEMO_COMPANY_ID = "778a2c76-1253-49f2-a5e8-283363ac3e29";
+const AI_TEST_LAB_DEMO_USER_EMAIL = "demo@azienda.srl";
+
+// Whitelist regex — coerente con frontend OPENROUTER_ALLOWED_PATTERNS (models.config.ts)
+const AI_TEST_LAB_ALLOWED_PATTERNS: RegExp[] = [
+  /^moonshotai\/kimi-/,
+  /^anthropic\/claude-(sonnet|haiku|opus)-(3|4)(\.5|\.6|\.7)?/,
+  /^openai\/gpt-(4o|4\.1|4-turbo)/,
+  /^openai\/o[1-4]-(mini|preview)?/,
+  /^google\/gemini-(2\.5|2\.0|1\.5)-(flash|pro)/,
+  /^deepseek\/deepseek-(v3|r1|chat)/,
+  /^x-ai\/grok-[2-9]/,
+  /^meta-llama\/llama-(3\.3|3\.1|4)/,
+  /^mistralai\/(mistral|mixtral|ministral)/,
+];
+function isAITestLabModelAllowed(modelId?: string | null): boolean {
+  if (!modelId) return false;
+  return AI_TEST_LAB_ALLOWED_PATTERNS.some((re) => re.test(modelId));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +148,10 @@ serve(async (req: Request) => {
     const userMessage = body?.message?.trim() ?? "";
     const attachments: ChatAttachment[] = Array.isArray(body?.attachments) ? body.attachments : [];
 
+    // ── AI Test Lab — accept body.model SOLO per Demo Azienda + utente demo ──
+    // Per tutti gli altri tenant il campo viene ignorato (sicurezza server-side).
+    let aiTestLabForceModel: string | undefined = undefined;
+
     if (!channelId) return errorResponse("channel_id mancante", 400, corsHeaders);
     // userMessage può essere vuoto se ci sono allegati (es. solo foto)
     if (!userMessage && attachments.length === 0) {
@@ -150,6 +180,25 @@ serve(async (req: Request) => {
 
     const companyId: string = channel.company_id;
     await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
+
+    // ── AI Test Lab — server-side gating del body.model ───────────────────
+    // Resolve user email per la conferma; ignora il param se NON demo.
+    if (companyId === AI_TEST_LAB_DEMO_COMPANY_ID && body?.model) {
+      try {
+        const { data: u } = await supabaseAdmin.auth.admin.getUserById(userId);
+        const userEmail = (u as { user?: { email?: string } } | null)?.user?.email?.toLowerCase();
+        if (
+          userEmail === AI_TEST_LAB_DEMO_USER_EMAIL &&
+          isAITestLabModelAllowed(body.model)
+        ) {
+          aiTestLabForceModel = body.model;
+        } else {
+          console.warn("[silvio-chat] AI Test Lab: model param ignorato (non demo user o modello non in whitelist)");
+        }
+      } catch (e) {
+        console.warn("[silvio-chat] AI Test Lab gating skip:", e instanceof Error ? e.message : e);
+      }
+    }
 
     for (const a of attachments) {
       if (!isAuthorizedSilvioUploadPath(a.storage_path, companyId, userId)) {
@@ -671,7 +720,8 @@ serve(async (req: Request) => {
           userId,
           personaKey: PERSONA_KEY,
           idempotencyKey,
-          forceModel: persona.recommended_model ?? undefined,
+          // AI Test Lab override (demo only) > persona.recommended_model > config primary
+          forceModel: aiTestLabForceModel ?? persona.recommended_model ?? undefined,
         });
         lastResult = result;
       } catch (aiErr) {
@@ -768,6 +818,17 @@ serve(async (req: Request) => {
     // ── 10) Salva risposta nella chat ───────────────────────────────────
     // Sessione 1 — Persist MP-01 (rag_sources), MP-04 (confidence/review/followup)
     // e MP-09 (council_data) per rendering UI con citation tooltip + badge + chip.
+    // ── AI Test Lab metadata: persist run info (model, cost, latency, tokens)
+    const aiRunMeta = lastResult ? {
+      last_model_id: lastResult.modelUsed,
+      last_provider: lastResult.modelUsed.split('/')[0] ?? null,
+      last_cost_usd: lastResult.costUsd,
+      last_latency_ms: lastResult.durationMs,
+      last_input_tokens: lastResult.promptTokens,
+      last_output_tokens: lastResult.completionTokens,
+      last_generation_id: (lastResult.rawResponse as { id?: string } | undefined)?.id ?? null,
+    } : {};
+
     const { data: insertedMsg } = await supabaseAdmin
       .from("internal_chat_messages")
       .insert({
@@ -785,6 +846,7 @@ serve(async (req: Request) => {
             ? structured.followup_suggestions.slice(0, 3)
             : null,
         council_data: councilData,
+        ...aiRunMeta,
       })
       .select()
       .single();
