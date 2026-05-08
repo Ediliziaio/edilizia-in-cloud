@@ -87,11 +87,13 @@ interface AdminNavItem {
 }
 
 // Subcategorie Navigazione — ognuna con icona per riconoscimento immediato.
-// "Overview" rimossa: Dashboard ora è pinned in cima accanto ad Attività/Chat.
+// "Overview" rimossa: Dashboard è pinned in cima.
+// "Aziende" subcategory rimossa: l'item "Aziende" (lista clienti) è ora dentro
+// "Fatturato" perché concettualmente lista-clienti e fatturazione/piani vanno
+// insieme (chi paga + quanto + status pagamento).
 const adminSubcategories: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: "sa_clienti", label: "Aziende", icon: Building },
+  { id: "sa_revenue", label: "Fatturato", icon: LineChart },
   { id: "sa_customer_success", label: "Customer Success", icon: LifeBuoy },
-  { id: "sa_revenue", label: "Revenue", icon: LineChart },
   { id: "sa_prodotto", label: "Prodotto", icon: Blocks },
   { id: "sa_operazioni", label: "Operazioni", icon: Settings2 },
   { id: "sa_growth", label: "Growth", icon: TrendingUp },
@@ -104,12 +106,11 @@ const adminMarketingSubcategories: Array<{ id: string; label: string; icon: Reac
 ];
 
 // Smart defaults: aperte le sezioni più usate quotidianamente.
-// Aziende sempre visibile (lista clienti = use-case primario)
+// Fatturato (= lista aziende + revenue + piani) sempre aperto: use-case primario
 // Customer Success per gestire lifecycle, ticket, onboarding
 const ADMIN_SIDEBAR_DEFAULTS: Record<string, boolean> = {
-  sa_clienti: true,
+  sa_revenue: true,
   sa_customer_success: true,
-  sa_revenue: false,
   sa_prodotto: false,
   sa_operazioni: false,
   sa_growth: false,
@@ -119,23 +120,24 @@ const ADMIN_SIDEBAR_DEFAULTS: Record<string, boolean> = {
 };
 
 const allNavItems: AdminNavItem[] = [
-  // Dashboard rimosso da qui — ora è pinned in cima accanto ad Attività/Chat
-  { title: "Aziende", url: "/admin/aziende", icon: Building, permission: "can_manage_companies", subcategory: "sa_clienti" },
-  { title: "CS Dashboard", url: "/admin/cs-dashboard", icon: TrendingUp, permission: "can_impersonate", subcategory: "sa_customer_success" },
-  { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare, permission: "can_manage_tickets", subcategory: "sa_customer_success" },
-  { title: "Lifecycle", url: "/admin/lifecycle", icon: LifeBuoy, permission: "can_manage_companies", subcategory: "sa_customer_success" },
-  // ⚠️ "Task CS" rimosso: la gestione task è ora un tab dentro "Attività" (top sidebar)
-  //    per evitare doppione. Il link /admin/cs-tasks redirige al tab.
-  { title: "Onboarding", url: "/admin/customer-success", icon: ListChecks, permission: "can_manage_companies", subcategory: "sa_customer_success" },
-  { title: "Playbook", url: "/admin/playbooks", icon: BookOpen, permission: "can_manage_companies", subcategory: "sa_customer_success" },
+  // Dashboard rimosso da qui — pinned in cima accanto ad Attività/Chat
+  // ─── FATTURATO (sa_revenue) — lista clienti + revenue + piani uniti ───
+  // Aziende è l'item primario perché è la lista dei clienti/paganti
+  { title: "Aziende", url: "/admin/aziende", icon: Building, permission: "can_manage_companies", subcategory: "sa_revenue" },
   { title: "Revenue", url: "/admin/revenue", icon: LineChart, permission: "billing_read", subcategory: "sa_revenue" },
   { title: "Piani", url: "/admin/piani", icon: CreditCard, permission: "can_manage_plans", subcategory: "sa_revenue" },
   { title: "Fatture", url: "/admin/fatture", icon: FileText, permission: "billing_read", subcategory: "sa_revenue" },
   { title: "Promo", url: "/admin/promo-codes", icon: Ticket, permission: "billing_write", subcategory: "sa_revenue" },
   { title: "Dunning", url: "/admin/dunning", icon: Settings2, permission: "billing_write", subcategory: "sa_revenue" },
-  // Monitor AI: spostato da Impostazioni → sezione Revenue nella sidebar
-  // principale per maggiore visibilità (costi AI sono parte della financial view)
+  // Monitor AI nella sezione Fatturato per visibilità costi AI
   { title: "Monitor AI", url: "/admin/ai-usage", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
+  // ─── CUSTOMER SUCCESS ───────────────────────────────────────────────
+  { title: "CS Dashboard", url: "/admin/cs-dashboard", icon: TrendingUp, permission: "can_impersonate", subcategory: "sa_customer_success" },
+  { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare, permission: "can_manage_tickets", subcategory: "sa_customer_success" },
+  { title: "Lifecycle", url: "/admin/lifecycle", icon: LifeBuoy, permission: "can_manage_companies", subcategory: "sa_customer_success" },
+  // ⚠️ "Task CS" rimosso: la gestione task è ora un tab dentro "Attività" (top sidebar)
+  { title: "Onboarding", url: "/admin/customer-success", icon: ListChecks, permission: "can_manage_companies", subcategory: "sa_customer_success" },
+  { title: "Playbook", url: "/admin/playbooks", icon: BookOpen, permission: "can_manage_companies", subcategory: "sa_customer_success" },
   { title: "Feature Flags", url: "/admin/feature-flags", icon: Blocks, permission: "can_manage_companies", subcategory: "sa_prodotto" },
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats", subcategory: "sa_prodotto" },
   { title: "Sync Logs", url: "/admin/sync-logs", icon: RefreshCw, permission: "can_view_platform_stats", subcategory: "sa_operazioni" },
