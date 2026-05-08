@@ -21,6 +21,8 @@ import {
   UserCheck,
   UserPlus,
   Search,
+  Link2,
+  Link2Off,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +32,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { MatchProductPickerDialog } from "./MatchProductPickerDialog";
+import type { CatalogItem } from "@/types/catalogItem";
 
 interface ExtractedCustomer {
   nome?: string;
@@ -96,6 +100,54 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
   const [contactStrategy, setContactStrategy] = useState<ContactStrategy>("auto");
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Manual product matching
+  const [pickerOpenForIndex, setPickerOpenForIndex] = useState<number | null>(null);
+
+  // Abbina manualmente una voce a un articolo/famiglia del listino.
+  // Aggiorna matched_*, match_type='manual', confidence=1, prezzo dal listino.
+  const handleManualMatch = (index: number, item: CatalogItem) => {
+    setProducts((prev) =>
+      prev.map((p, i) => {
+        if (i !== index) return p;
+        const isFamily = item.source === "family";
+        return {
+          ...p,
+          matched_template_id: isFamily ? undefined : item.id,
+          matched_family_id: isFamily ? item.id : undefined,
+          matched_tariffa_id: undefined,
+          matched_name: item.nome,
+          match_type: "manual",
+          match_confidence: 1,
+          unit_price: item.prezzo_base_vendita ?? p.unit_price ?? 0,
+          unit_price_source: "template",
+          unit_of_measure: item.unit_of_measure ?? p.unit_of_measure ?? "pz",
+          // Aggiorna name solo se l'utente non l'aveva già modificato manualmente
+          name: p.name && p.name !== p.descrizione_grezza ? p.name : item.nome,
+        };
+      }),
+    );
+    toast.success(`Abbinato: ${item.nome}`);
+  };
+
+  // Rimuove l'abbinamento (utile se l'utente vuole rifare il match)
+  const handleClearMatch = (index: number) => {
+    setProducts((prev) =>
+      prev.map((p, i) => {
+        if (i !== index) return p;
+        return {
+          ...p,
+          matched_template_id: undefined,
+          matched_family_id: undefined,
+          matched_tariffa_id: undefined,
+          matched_name: undefined,
+          match_type: "none",
+          match_confidence: 0,
+          unit_price_source: undefined,
+        };
+      }),
+    );
+  };
 
   // Carica run + estratto
   const { data: runData, isLoading } = useQuery({
@@ -562,12 +614,35 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {products.map((p, i) => (
-            <div key={i} className="border rounded-md p-2 space-y-2">
+          {products.map((p, i) => {
+            const isUnmatched = !p.match_type || p.match_type === "none" ||
+              (!p.matched_template_id && !p.matched_family_id && !p.matched_tariffa_id);
+            const isLowConfidence = !isUnmatched && p.match_type !== "manual" && (p.match_confidence ?? 0) < 0.55;
+            return (
+            <div
+              key={i}
+              className={`border rounded-md p-2 space-y-2 ${
+                isUnmatched
+                  ? "border-amber-300 bg-amber-50/50 dark:bg-amber-950/10"
+                  : isLowConfidence
+                    ? "border-amber-200"
+                    : ""
+              }`}
+            >
               <div className="flex items-start gap-2">
                 <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-2">
-                    {p.match_type && p.match_type !== "manual" ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {isUnmatched ? (
+                      <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700 bg-amber-50">
+                        <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+                        Da abbinare al listino
+                      </Badge>
+                    ) : p.match_type === "manual" ? (
+                      <Badge variant="outline" className="text-[9px] border-emerald-300 text-emerald-700 bg-emerald-50">
+                        <Link2 className="h-2.5 w-2.5 mr-0.5" />
+                        Abbinato manualmente
+                      </Badge>
+                    ) : (
                       <Badge
                         variant="outline"
                         className={`text-[9px] ${
@@ -578,13 +653,13 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                               : "border-rose-300 text-rose-700"
                         }`}
                       >
-                        {p.match_type} {(p.match_confidence ?? 0) > 0
+                        AI: {p.match_type} {(p.match_confidence ?? 0) > 0
                           ? `${((p.match_confidence ?? 0) * 100).toFixed(0)}%`
                           : ""}
                       </Badge>
-                    ) : null}
+                    )}
                     {p.matched_name ? (
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-[10px] text-muted-foreground truncate max-w-[180px]">
                         → {p.matched_name}
                       </span>
                     ) : null}
@@ -593,6 +668,30 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                         prezzo: {p.unit_price_source}
                       </Badge>
                     ) : null}
+                    <div className="ml-auto flex items-center gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isUnmatched ? "default" : "outline"}
+                        className="h-6 text-[10px] px-2"
+                        onClick={() => setPickerOpenForIndex(i)}
+                      >
+                        <Search className="h-3 w-3 mr-1" />
+                        {isUnmatched ? "Abbina dal listino" : "Cambia"}
+                      </Button>
+                      {!isUnmatched ? (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          title="Rimuovi abbinamento"
+                          onClick={() => handleClearMatch(i)}
+                        >
+                          <Link2Off className="h-3 w-3" />
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                   <Input
                     value={p.name ?? p.descrizione_grezza}
@@ -676,7 +775,8 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                 </Button>
               </div>
             </div>
-          ))}
+            );
+          })}
           {products.length === 0 ? (
             <p className="text-xs text-center text-muted-foreground py-4">
               Nessuna voce. Clicca "Aggiungi voce" per crearne una manualmente.
@@ -684,6 +784,27 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* DIALOG: Picker manuale articoli/famiglie dal listino */}
+      <MatchProductPickerDialog
+        open={pickerOpenForIndex !== null}
+        onOpenChange={(o) => {
+          if (!o) setPickerOpenForIndex(null);
+        }}
+        initialQuery={
+          pickerOpenForIndex !== null
+            ? products[pickerOpenForIndex]?.name ??
+              products[pickerOpenForIndex]?.descrizione_grezza ??
+              ""
+            : ""
+        }
+        onSelect={(item) => {
+          if (pickerOpenForIndex !== null) {
+            handleManualMatch(pickerOpenForIndex, item);
+            setPickerOpenForIndex(null);
+          }
+        }}
+      />
 
       {/* TOTALI */}
       <div className="border rounded-md p-3 bg-muted/30 space-y-1 text-sm">
