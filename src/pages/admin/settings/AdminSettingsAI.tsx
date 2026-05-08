@@ -33,8 +33,9 @@ const AdminSettingsAIActions = lazy(() => import("@/pages/admin/settings/AdminSe
  *
  * Struttura:
  *   Routing & Models   → AI Router | Le 18 Personas
- *   Economics          → Pricing & Margini | Memoria Silvio
- *   Content            → Knowledge Base | Voci ElevenLabs
+ *   Content            → Knowledge Base | Memoria Silvio | Voci ElevenLabs
+ *                        (Memoria = contesto per-azienda, KB = universale)
+ *   Economics          → Pricing & Margini
  *   Governance         → Permessi azioni | Configurazione legacy (deprecated)
  *
  * I sub-componenti restano invariati per garantire che tutto continui
@@ -108,47 +109,34 @@ export default function AdminSettingsAI() {
           </Tabs>
         </TabsContent>
 
-        {/* ─── ECONOMICS ─────────────────────────────────────────────── */}
+        {/* ─── ECONOMICS — solo Pricing, niente sub-tab nidificate ────── */}
         <TabsContent value="economics" className="space-y-3">
           <CategoryDescription
             title="Economics"
-            description="Pricing & margini sui task AI, memoria contestuale per azienda usata da Silvio per ridurre i token."
+            description="Pricing & margini sui task AI: markup per modello, sconti per azienda, monitoraggio costi reali OpenRouter."
           />
-          <Tabs defaultValue="pricing" className="space-y-3">
-            <TabsList>
-              <TabsTrigger value="pricing" className="gap-2">
-                <DollarSign className="h-4 w-4" />
-                Pricing & Margini
-              </TabsTrigger>
-              <TabsTrigger value="memory" className="gap-2">
-                <Brain className="h-4 w-4" />
-                Memoria Silvio
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="pricing">
-              <Suspense fallback={fallback}>
-                <AdminSettingsAIPricing />
-              </Suspense>
-            </TabsContent>
-            <TabsContent value="memory">
-              <Suspense fallback={fallback}>
-                <AdminSettingsAIMemory />
-              </Suspense>
-            </TabsContent>
-          </Tabs>
+          <Suspense fallback={fallback}>
+            <AdminSettingsAIPricing />
+          </Suspense>
         </TabsContent>
 
-        {/* ─── CONTENT ───────────────────────────────────────────────── */}
+        {/* ─── CONTENT — Knowledge + Memoria + Voci ──────────────────── */}
         <TabsContent value="content" className="space-y-3">
           <CategoryDescription
             title="Content"
-            description="Knowledge base universale (RAG) e voci sintetizzate ElevenLabs per gli agenti vocali."
+            description="Contesto che l'AI usa per rispondere: knowledge base universale (RAG), memoria contestuale per-azienda, voci sintetizzate ElevenLabs."
           />
           <Tabs defaultValue="knowledge" className="space-y-3">
             <TabsList>
               <TabsTrigger value="knowledge" className="gap-2">
                 <BookOpen className="h-4 w-4" />
                 Knowledge Base
+                <span className="ml-1 text-[9px] text-muted-foreground">universale</span>
+              </TabsTrigger>
+              <TabsTrigger value="memory" className="gap-2">
+                <Brain className="h-4 w-4" />
+                Memoria Silvio
+                <span className="ml-1 text-[9px] text-muted-foreground">per-azienda</span>
               </TabsTrigger>
               <TabsTrigger value="voices" className="gap-2">
                 <Mic className="h-4 w-4" />
@@ -158,6 +146,11 @@ export default function AdminSettingsAI() {
             <TabsContent value="knowledge">
               <Suspense fallback={fallback}>
                 <AdminSettingsAIKnowledge />
+              </Suspense>
+            </TabsContent>
+            <TabsContent value="memory">
+              <Suspense fallback={fallback}>
+                <AdminSettingsAIMemory />
               </Suspense>
             </TabsContent>
             <TabsContent value="voices">
