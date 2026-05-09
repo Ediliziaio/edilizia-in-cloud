@@ -1258,7 +1258,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
 
   // ─── Silvio prefill from sessionStorage (cross-page redirect with prompt) ───
   useEffect(() => {
-    if (!isSilvioChannel || !selectedChannelId) return;
+    if ((!isSilvioChannel && !isSilvioAdminChannel) || !selectedChannelId) return;
     let prefill = "";
     try { prefill = sessionStorage.getItem("silvio_prefill_message") ?? ""; } catch { /* ignore */ }
     if (prefill && prefill.length > 5) {
@@ -1266,7 +1266,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
       // Auto-send dopo il selectedChannelId è attivo
       setTimeout(() => sendToSilvio(prefill), 500);
     }
-  }, [isSilvioChannel, selectedChannelId, sendToSilvio]);
+  }, [isSilvioChannel, isSilvioAdminChannel, selectedChannelId, sendToSilvio]);
 
   // ─── Auto-select Silvio channel su navigazione con prefill ───
   useEffect(() => {
@@ -1432,14 +1432,16 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
   const handleSend = useCallback(() => {
     if (!newMsg.trim()) return;
     if (sendMutation.isPending || luciaTyping || isAttaching) return;
-    if (isSilvioChannel) {
+    // Silvio cliente E Silvio Admin → entrambi usano sendToSilvio
+    // (la function già routa a silvio-chat vs silvio-admin-chat in base al canale)
+    if (isSilvioChannel || isSilvioAdminChannel) {
       const msg = newMsg.trim();
       setNewMsg(""); setReplyTo(null);
       sendToSilvio(msg);
     } else {
       sendMutation.mutate();
     }
-  }, [newMsg, isSilvioChannel, sendToSilvio, sendMutation, luciaTyping, isAttaching]);
+  }, [newMsg, isSilvioChannel, isSilvioAdminChannel, sendToSilvio, sendMutation, luciaTyping, isAttaching]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -1951,7 +1953,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                           onDelete={isMe ? () => setMessageToDelete(msg) : undefined}
                           onReaction={(emoji) => toggleReaction(msg.id, emoji, msg.reactions)}
                           userId={userId}
-                          onAskFollowup={isSilvioChannel ? sendToSilvio : undefined}
+                          onAskFollowup={(isSilvioChannel || isSilvioAdminChannel) ? sendToSilvio : undefined}
                         />
                       </React.Fragment>
                     );
@@ -1967,7 +1969,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                             <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "300ms" }} />
                           </div>
                           <span className="text-xs text-violet-500">
-                            {isSilvioChannel ? "Silvio sta pensando..." : "Lucia sta pensando..."}
+                            {(isSilvioChannel || isSilvioAdminChannel) ? "Silvio sta pensando..." : "Lucia sta pensando..."}
                           </span>
                         </div>
                       </div>
