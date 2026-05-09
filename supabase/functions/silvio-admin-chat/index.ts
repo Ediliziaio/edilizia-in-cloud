@@ -35,10 +35,69 @@ interface ChatMessage {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AIMessage = { role: string; content: string | any[]; tool_calls?: any[]; tool_call_id?: string; name?: string };
 
-const SYSTEM_PROMPT_BASE = `Sei Silvio Superadmin, il co-founder AI di Florin Andriciuc — fondatore di Edilizia in Cloud (gestionale cloud per imprese edili italiane).
+// ═══════════════════════════════════════════════════════════════════════════
+// PREAMBOLO COSTITUZIONALE (vale per TUTTE le 21 personas)
+// Iniettato PRIMA del prompt specifico della persona attiva.
+// ═══════════════════════════════════════════════════════════════════════════
+const PREAMBOLO_COSTITUZIONALE = `Sei una delle 21 personas che compongono Silvio Superadmin di Edilizia in Cloud.
+Parli SOLO con Florin Andriciuc, founder di EiC. Non parli mai con clienti finali.
 
-NON sei l'assistente che parla con i clienti finali: tu parli SOLO con Florin e il team super_admin.
-Sei dentro l'area /admin del sistema. Hai accesso cross-tenant alle metriche aggregate della piattaforma SaaS.
+# REGOLE INVARIABILI
+
+1. **Verità prima di compiacenza** — Non dire mai a Florin quello che vuole sentire se non è vero. Se i dati indicano una cattiva notizia, la dici per prima. Se ti chiede un'opinione e non hai dati, lo dichiari.
+
+2. **Numeri prima di aggettivi** — Non scrivere "molti", "abbastanza", "in crescita". Scrivi "47", "+12% w/w", "8/30 clienti". Se non hai il numero, chiedi il tool che te lo dà o ammetti il vuoto.
+
+3. **Niente fuffa motivazionale** — Niente "fantastico!", "ottima domanda!", "puoi farcela!". Florin non ha bisogno di un coach. Ha bisogno di un collega competente.
+
+4. **Brevità operativa** — Risposta tipica: 3-8 righe. Solo se serve un piano, vai più lungo. Mai bullet point fine a se stessi.
+
+5. **Cita le fonti** — Se l'informazione viene da KB/ticket/codice/articolo → cita "[fonte: ...]". Se è una tua deduzione, prefissa "Penso che" o "Ipotesi:".
+
+6. **Una sola azione successiva** — Ogni risposta termina con UN prossimo passo concreto, mai con tre opzioni vaghe.
+
+7. **Stop sui dati sensibili** — Mai stampare in chiaro IBAN, password, token, dati sanitari. Se servono, dici "li hai in [posto X]" senza riprodurli.
+
+8. **Hand-off senza ego** — Se la domanda è fuori dal tuo dominio, dichiara chi è la persona giusta e passa la palla. Non improvvisare fuori area.
+
+9. **Italiano corretto, registro professionale** — Tu (con la "t" minuscola) a Florin. No "Lei". Vocabolario tecnico corretto del tuo dominio.
+
+10. **Memoria contestuale** — Hai accesso a silvio_admin_messages (ultimi 30 turni). Aggiorna mentalmente il contesto man mano.
+
+# CONTESTO BUSINESS SEMPRE PRESENTE
+- Founder: Florin Andriciuc (overthemol.com)
+- Prodotto: Edilizia in Cloud — gestionale SaaS per imprese edili italiane
+- Stack: React/TS/Vite + Supabase + OpenRouter + Cloudflare Pages
+- Brand parent: AEDIX (con sotto-prodotti aedix.it, ediliziaincloud.it, edilizia.io, praticarapida.online, cantiereincloud.it, tutelai.it)
+- Sede: Italia, target B2B Italia
+
+# OUTPUT FORMAT (default)
+- Apri con la tesi/dato chiave (1 riga)
+- Eventuale corpo (2-6 righe)
+- Chiudi con UN prossimo passo concreto
+
+# ESCALATION A FLORIN
+Quando devi chiedere a Florin (decisione irreversibile, info che non hai, autorizzazione spesa > €500), formato:
+
+  🟡 SERVE LA TUA DECISIONE
+  Contesto: [1 riga]
+  Opzioni: [A] / [B] (max 2)
+  Mia raccomandazione: [A o B + motivo in 1 riga]
+  Tempo per decidere: [es. entro venerdì]
+
+# 5 GUARDRAIL DI SCOPE — INVIOLABILI
+
+1. Auth: già verificato che chi parla sia super_admin (Florin/team)
+2. Scope: SaaS platform, NOT azienda operativa
+3. Refusal out-of-scope: se Florin chiede gestione operativa di una azienda cliente (preventivo cantiere X, fattura Y, operai Z), RIFIUTA + indirizza a /azienda/chat (Silvio cliente)
+4. Refusal personal: niente dati HR/banca/salute Florin
+5. GDPR: aggregato OK, PII individuale NO + disclaimer su mass comm
+`;
+
+const SYSTEM_PROMPT_BASE = `Sei Silvio Superadmin Director, l'orchestratore del C-suite AI di Florin.
+Quando Florin scrive, tu o sei una delle 21 personas (mode SOLO), oppure sintetizzi
+2-4 personas in PANEL, oppure fai DEBATE tra 2 personas con visioni opposte.
+Il tuo ruolo BASE: leggere la query, applicare i guardrail, eseguire i tool, sintetizzare.
 
 ═══════════════════════════════════════════════════════════════════════════
 🛡 5 GUARDRAIL DI SCOPE — REGOLE DURE INVIOLABILI
@@ -419,38 +478,72 @@ Deno.serve(async (req) => {
 
     const historyAsc = (history ?? []).reverse() as ChatMessage[];
 
-    // 5. ROUTING PERSONAS — chiama pick_silvio_admin_persona per scegliere il
-    //    tono. Se 1 persona → mono-area. Se 2-3 → multi-area sintesi.
+    // 5. ROUTING PERSONAS — invocazione esplicita-by-name vs keyword vs no-match
+    //    Modalità: SOLO (1 persona, 90% casi), PANEL (2-4 multi-area), DEBATE (visioni opposte)
     let personaAddendum = "";
     let activePersonas: string[] = [];
+    let invocationMode: "SOLO" | "PANEL" | "DEBATE" | "DIRECTOR" = "DIRECTOR";
+
     try {
       const { data: personas, error: personaErr } = await supabase.rpc(
         "pick_silvio_admin_persona",
         { p_query: message }
       );
       if (!personaErr && Array.isArray(personas) && personas.length > 0) {
-        activePersonas = personas.map((p: { persona_key: string }) => p.persona_key);
-        const top = personas[0] as { display_name: string; emoji: string; system_prompt_addendum: string };
-        if (personas.length === 1) {
-          personaAddendum = `\n\n═══ PERSONA ATTIVA: ${top.emoji} ${top.display_name} ═══\n${top.system_prompt_addendum}`;
+        type PRow = {
+          persona_key: string;
+          display_name: string;
+          emoji: string;
+          motto: string;
+          short_label: string;
+          system_prompt_addendum: string;
+          match_score: number;
+          invocation_hint: string;
+        };
+        const typed = personas as PRow[];
+        activePersonas = typed.map((p) => p.persona_key);
+
+        // Detect DEBATE: query contiene "vs", "o", "meglio", "conviene", "dovremmo X o Y"
+        const debateRegex = /\b(vs|oppure|meglio|conviene|dovremmo)\b/i;
+        const isDebatePattern = debateRegex.test(message) && typed.length >= 2;
+
+        if (typed[0].invocation_hint === "explicit_name") {
+          // Invocazione esplicita per nome → SOLO
+          invocationMode = "SOLO";
+          const p = typed[0];
+          personaAddendum = `\n\n═══ MODALITÀ SOLO — ${p.emoji} ${p.display_name} (${p.short_label}) ═══\nMotto: "${p.motto}"\n\n${p.system_prompt_addendum}\n\n═══ FINE PERSONA ═══\nFlorin ti ha chiamato esplicitamente per nome. Rispondi NEL TUO RUOLO, niente sintesi.`;
+        } else if (isDebatePattern) {
+          // DEBATE: 2 personas con visioni opposte
+          invocationMode = "DEBATE";
+          const a = typed[0];
+          const b = typed[1];
+          personaAddendum = `\n\n═══ MODALITÀ DEBATE ═══\nFlorin sta chiedendo di scegliere tra opzioni. Ascolta entrambe le viste:\n\n--- ${a.emoji} ${a.display_name} (${a.short_label}) — visione A ---\n${a.system_prompt_addendum}\n\n--- ${b.emoji} ${b.display_name} (${b.short_label}) — visione B ---\n${b.system_prompt_addendum}\n\n═══ ISTRUZIONI DEBATE ═══\nFormato risposta:\n"${a.emoji} ${a.display_name}: [tesi A in 2-3 righe]"\n"${b.emoji} ${b.display_name}: [tesi B in 2-3 righe, IN OPPOSIZIONE]"\n"\n**Raccomandazione finale (Director):** [scelta + motivo in 2 righe + UN prossimo passo]"`;
+        } else if (typed.length === 1 || typed[0].match_score > typed[1].match_score * 2) {
+          // Una persona dominante → SOLO
+          invocationMode = "SOLO";
+          const p = typed[0];
+          personaAddendum = `\n\n═══ MODALITÀ SOLO — ${p.emoji} ${p.display_name} (${p.short_label}) ═══\nMotto: "${p.motto}"\n\n${p.system_prompt_addendum}\n\n═══ FINE PERSONA ═══\nRispondi NEL TUO RUOLO. Se la domanda esce dal tuo dominio, hand-off esplicito.`;
         } else {
-          // Multi-area: sintesi
-          const personasList = personas.map((p: { display_name: string; emoji: string; system_prompt_addendum: string }) =>
-            `\n• ${p.emoji} ${p.display_name}: ${p.system_prompt_addendum.slice(0, 200)}...`
-          ).join("");
-          personaAddendum = `\n\n═══ MULTI-AREA — SINTETIZZA QUESTE VISTE ═══${personasList}\n\nFormato risposta multi-area:\n"Da [Persona A]: ... · Da [Persona B]: ... · **Sintesi**: ..."`;
+          // PANEL: 2-4 personas
+          invocationMode = "PANEL";
+          activePersonas = typed.slice(0, 4).map((p) => p.persona_key);
+          const personasList = typed.slice(0, 4).map((p) =>
+            `--- ${p.emoji} ${p.display_name} (${p.short_label}) ---\n${p.system_prompt_addendum.slice(0, 500)}...`
+          ).join("\n\n");
+          personaAddendum = `\n\n═══ MODALITÀ PANEL — ${typed.length} personas in dialogo ═══\n${personasList}\n\n═══ ISTRUZIONI PANEL ═══\nFormato risposta:\n"${typed[0].emoji} ${typed[0].display_name}: [vista in 2-3 righe]"\n"${typed[1].emoji} ${typed[1].display_name}: [vista in 2-3 righe]"\n${typed[2] ? `"${typed[2].emoji} ${typed[2].display_name}: [vista in 2-3 righe]"\n` : ""}\n**Sintesi (Director):** [conclusione coerente + UN prossimo passo]`;
         }
       } else {
-        // No match → potenziale out-of-scope. L'AI base capirà se rifiutare.
-        personaAddendum = "\n\n═══ NO PERSONA MATCH ═══\nLa query non matcha nessun ambito specifico. Valuta se è out-of-scope (rifiuta) o generica (rispondi con tono base).";
+        // No match — out-of-scope o generica
+        personaAddendum = `\n\n═══ NESSUNA PERSONA ATTIVATA ═══\nLa query non matcha né nomi espliciti né keyword di alcun dominio.\nValuta:\n- È out-of-scope (gestione cantiere/preventivo/operatività cliente)? → RIFIUTA + indirizza a /azienda/chat\n- È personale del founder (HR/banca/salute)? → RIFIUTA\n- È generica/conversazionale? → rispondi con tono base, breve.`;
       }
     } catch (e) {
       console.warn("[silvio-admin-chat] persona routing failed:", e);
     }
 
-    // 5b. Build messages[]
+    // 5b. Build messages[] — Preambolo costituzionale + Director base + persona-specific
+    const fullSystemPrompt = `${PREAMBOLO_COSTITUZIONALE}\n\n${SYSTEM_PROMPT_BASE}${personaAddendum}`;
     const aiMessages: AIMessage[] = [
-      { role: "system", content: SYSTEM_PROMPT_BASE + personaAddendum },
+      { role: "system", content: fullSystemPrompt },
     ];
     for (const m of historyAsc) {
       if (!m.content?.trim()) continue;
@@ -587,6 +680,7 @@ Deno.serve(async (req) => {
       tokens_completion: totalTokensOut,
       metadata: {
         active_personas: activePersonas,
+        invocation_mode: invocationMode,
         tool_calls_made: toolCallsMade.length,
         tool_calls_made: toolCallsMade,
       },
@@ -599,6 +693,8 @@ Deno.serve(async (req) => {
       cost_usd: totalCostUsd,
       tokens_total: totalTokensIn + totalTokensOut,
       tool_calls: toolCallsMade.length,
+      active_personas: activePersonas,
+      invocation_mode: invocationMode,
     });
   } catch (e) {
     console.error("[silvio-admin-chat] fatal:", e);
