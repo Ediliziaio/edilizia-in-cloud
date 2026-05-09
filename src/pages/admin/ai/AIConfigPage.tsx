@@ -1,16 +1,28 @@
 /**
  * AIConfigPage — Configurazione AI (sostituisce vecchia /admin/impostazioni/agenti-ai)
  *
- * 5 tab: Routing · Personas · Knowledge · Pricing · Governance
+ * 7 tab: Routing · Personas · Knowledge · Pricing · Governance · Voci · Chatbot Pubblico
  *
  * Refactor Strategia C — consolida tutto ciò che è "configurazione" del sistema AI
  * in un'unica pagina. La vecchia route fa redirect qui.
  */
 import { lazy, Suspense } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Settings, Users, BookOpen, Coins, ShieldAlert, Mic, MessageCircle } from "lucide-react";
+import {
+  Settings,
+  Users,
+  BookOpen,
+  Coins,
+  ShieldAlert,
+  Mic,
+  MessageCircle,
+  Sliders,
+  Activity,
+  Bot,
+} from "lucide-react";
+import { AIPageHeader } from "@/components/admin/ai-shared/AIPageHeader";
+import { AITabsList } from "@/components/admin/ai-shared/AITabsList";
+import { SectionAlert, SectionIntro } from "@/components/admin/ai-shared/SectionIntro";
 
 const AdminSettingsAIRouter = lazy(() => import("@/pages/admin/settings/AdminSettingsAIRouter"));
 const AdminSettingsAIPersonas = lazy(() => import("@/pages/admin/settings/AdminSettingsAIPersonas"));
@@ -28,166 +40,191 @@ const PublicChatbotSettings = lazy(() =>
 );
 
 const fallback = (
-  <div className="space-y-3 p-6">
-    <Skeleton className="h-8 w-1/3" />
+  <div className="space-y-3 py-4">
+    <Skeleton className="h-10 w-1/3" />
     <Skeleton className="h-32 w-full" />
     <Skeleton className="h-64 w-full" />
   </div>
 );
 
+const TABS = [
+  { value: "routing", label: "Routing", icon: Sliders },
+  { value: "personas", label: "Personas", icon: Users },
+  { value: "knowledge", label: "Knowledge", icon: BookOpen },
+  { value: "pricing", label: "Pricing", icon: Coins },
+  { value: "governance", label: "Governance", icon: ShieldAlert },
+  { value: "voices", label: "Voci TTS", icon: Mic },
+  { value: "public-chat", label: "Chatbot Pubblico", icon: MessageCircle },
+];
+
 export default function AIConfigPage() {
   return (
-    <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center gap-3">
-        <Settings className="h-8 w-8 text-orange-500" />
-        <div>
-          <h1 className="text-2xl font-bold">AI · Configurazione</h1>
-          <p className="text-sm text-muted-foreground">
-            Routing modelli, personas, knowledge base, pricing e governance
-          </p>
-        </div>
-      </div>
+    <div className="p-4 md:p-6 max-w-screen-2xl mx-auto">
+      <AIPageHeader
+        icon={Settings}
+        title="AI · Configurazione"
+        subtitle="Configurazione"
+        description="Imposta come il sistema AI ragiona, parla, costa e si comporta. Routing modelli, personas, knowledge base, pricing e governance — il setup che rende tutto il resto operativo."
+        quickLinks={[
+          { label: "Monitor live", to: "/admin/ai-monitor", icon: Activity },
+          { label: "Operate (azioni)", to: "/admin/ai-operate", icon: Bot },
+        ]}
+      />
 
-      <Tabs defaultValue="routing" className="space-y-4">
-        <TabsList className="h-auto flex-wrap justify-start">
-          <TabsTrigger value="routing" className="gap-2">
-            <Settings className="h-4 w-4" />
-            Routing & Models
-          </TabsTrigger>
-          <TabsTrigger value="personas" className="gap-2">
-            <Users className="h-4 w-4" />
-            Personas
-          </TabsTrigger>
-          <TabsTrigger value="knowledge" className="gap-2">
-            <BookOpen className="h-4 w-4" />
-            Knowledge Base
-          </TabsTrigger>
-          <TabsTrigger value="pricing" className="gap-2">
-            <Coins className="h-4 w-4" />
-            Pricing & Margini
-          </TabsTrigger>
-          <TabsTrigger value="governance" className="gap-2">
-            <ShieldAlert className="h-4 w-4" />
-            Governance
-          </TabsTrigger>
-          <TabsTrigger value="voices" className="gap-2">
-            <Mic className="h-4 w-4" />
-            Voci TTS
-          </TabsTrigger>
-          <TabsTrigger value="public-chat" className="gap-2">
-            <MessageCircle className="h-4 w-4" />
-            Chatbot Pubblico
-          </TabsTrigger>
-        </TabsList>
+      <AITabsList
+        defaultValue="routing"
+        tabs={TABS}
+        contents={{
+          routing: (
+            <>
+              <SectionAlert.info
+                title="Routing & Models"
+                description="Mappa task AI → modello primario + fallback chain via OpenRouter. Cambia qui se vuoi che 'preventivo_genera' usi Claude Sonnet invece di GPT-4o."
+                bullets={[
+                  "Ogni task_key ha 1 modello primario + N fallback in caso di errore",
+                  "Modifiche immediate (no deploy richiesto)",
+                  "Stima costi mensili basata su usage storico",
+                ]}
+                related={[
+                  { label: "Costi reali", to: "/admin/ai-monitor?tab=usage" },
+                  { label: "Test modelli A/B", to: "/admin/ai-monitor?tab=test-lab" },
+                ]}
+              />
+              <Suspense fallback={fallback}>
+                <AdminSettingsAIRouter />
+              </Suspense>
+            </>
+          ),
 
-        <TabsContent value="routing">
-          <Suspense fallback={fallback}>
-            <AdminSettingsAIRouter />
-          </Suspense>
-        </TabsContent>
+          personas: (
+            <>
+              <SectionAlert.warning
+                title="Personas Cliente"
+                description="Le 18+ personas che le aziende clienti vedono nella loro chat AI: sales, finance, hr, compliance, ecc. Sistema prompt, tier, allowed_tools."
+                bullets={[
+                  "Le Personas C-suite Admin (Beatrice CFO, Marco CMO, ...) vivono altrove",
+                  "Modifiche al system prompt sono immediate e applicate a TUTTI i clienti",
+                ]}
+                related={[
+                  { label: "Personas Admin (C-suite)", to: "/admin/ai-operate?tab=personas" },
+                ]}
+              />
+              <Suspense fallback={fallback}>
+                <AdminSettingsAIPersonas />
+              </Suspense>
+            </>
+          ),
 
-        <TabsContent value="personas">
-          <Card>
-            <CardContent className="p-4 space-y-2">
-              <p className="text-sm text-muted-foreground">
-                <strong>Personas Cliente</strong> — usate dalle aziende clienti nelle loro chat AI (sales, finance, hr, ecc.).
-                Le <strong>Personas C-suite Admin</strong> (Beatrice, Marco, Sofia...) si gestiscono nella pagina{" "}
-                <a href="/admin/ai-operate?tab=memory" className="text-primary underline">AI Operate → Memoria</a>.
-              </p>
-            </CardContent>
-          </Card>
-          <Suspense fallback={fallback}>
-            <AdminSettingsAIPersonas />
-          </Suspense>
-        </TabsContent>
+          knowledge: (
+            <>
+              <SectionAlert.info
+                title="Knowledge Base universale"
+                description="Documenti, Q&A test, playground, qualità chunks, budget embeddings, fonti esterne. La 'memoria' che le AI consultano via RAG quando rispondono."
+                bullets={[
+                  "Ogni chunk ha embedding semantico (text-embedding-3-small)",
+                  "Q&A tests = regression tests automatici sul KB (ground truth)",
+                  "Playground = simula query e vedi i top-K chunks recuperati",
+                ]}
+                related={[
+                  { label: "Self-learning loop", to: "/admin/ai-operate?tab=learning" },
+                ]}
+              />
+              <Suspense fallback={fallback}>
+                <KbAdminPage />
+              </Suspense>
+            </>
+          ),
 
-        <TabsContent value="knowledge">
-          <Suspense fallback={fallback}>
-            <KbAdminPage />
-          </Suspense>
-        </TabsContent>
+          pricing: (
+            <>
+              <SectionAlert.info
+                title="Pricing & Margini"
+                description="Da costo wholesale OpenRouter al prezzo retail customer. Tier (economic/balanced/premium), markup %, override per azienda."
+                bullets={[
+                  "Markup di default applicato a tutti i task del tier",
+                  "Override per azienda specifica (es. cliente strategico con sconto)",
+                  "Dashboard margini real-time: revenue vs cost giornaliero",
+                ]}
+                related={[
+                  { label: "Costi & Ricavi live", to: "/admin/ai-monitor?tab=usage" },
+                ]}
+              />
+              <Suspense fallback={fallback}>
+                <AdminSettingsAIPricing />
+              </Suspense>
+            </>
+          ),
 
-        <TabsContent value="pricing">
-          <Suspense fallback={fallback}>
-            <AdminSettingsAIPricing />
-          </Suspense>
-        </TabsContent>
+          governance: (
+            <div className="space-y-4">
+              <SectionIntro
+                icon={ShieldAlert}
+                tone="warning"
+                title="⚖️ Gerarchia 3 livelli (priorità decrescente)"
+                description="Quando l'AI prova a eseguire un'azione, vengono valutati i seguenti gate in ordine. Se uno blocca, gli altri non contano."
+                bullets={[
+                  "1. silvio_automation_policies (AI Operate → Policies) → globale platform-level. mode=blocked → STOP a tutti, sempre.",
+                  "2. ai_company_action_permissions (qui sotto) → permessi per-azienda. Si applica solo se la policy globale lo consente.",
+                  "3. plan_ai_budgets → budget mensile AI. Se esaurito, esecuzione negata.",
+                  "Esempio: cancel_subscription è policy=blocked di default → nessun cliente può cancellarla via AI, neanche se gli desti auto_execute qui.",
+                ]}
+                related={[
+                  { label: "Policy globali platform", to: "/admin/ai-operate?tab=policies" },
+                ]}
+              />
+              <Suspense fallback={fallback}>
+                <AdminSettingsAIActions />
+              </Suspense>
+              <SectionAlert.info
+                title="Memoria sistema/azienda"
+                description="ai_brain_facts — fatti generici che il chatbot Silvio ricorda nelle conversazioni con un'azienda specifica."
+                bullets={[
+                  "Diversa dalla Memoria Personas Admin (per-persona, in AI Operate)",
+                  "Tipicamente popolata automaticamente da silvio-memory-extract cron",
+                ]}
+                related={[
+                  { label: "Memoria Personas Admin", to: "/admin/ai-operate?tab=memory" },
+                ]}
+              />
+              <Suspense fallback={fallback}>
+                <AdminSettingsAIMemory />
+              </Suspense>
+            </div>
+          ),
 
-        <TabsContent value="governance">
-          <div className="space-y-4">
-            <Card className="border-amber-200 bg-amber-50 dark:bg-amber-900/10">
-              <CardContent className="p-4 text-sm space-y-2">
-                <p className="font-medium text-amber-900 dark:text-amber-200">
-                  ⚖️ Gerarchia di valutazione policy AI (priorità decrescente)
-                </p>
-                <ol className="list-decimal pl-5 space-y-1 text-xs text-amber-800 dark:text-amber-300">
-                  <li>
-                    <strong>silvio_automation_policies</strong> (
-                    <a href="/admin/ai-operate?tab=policies" className="underline">
-                      AI Operate → Policies
-                    </a>
-                    ) — <strong>policy globali platform-level</strong>:
-                    se mode=<code>blocked</code> per un'azione, NESSUNA azienda può eseguirla,
-                    indipendentemente dai suoi permessi specifici (override hard).
-                  </li>
-                  <li>
-                    <strong>ai_company_action_permissions</strong> (questa pagina) — <strong>permessi
-                    per-azienda</strong>: definisce per ogni coppia (azione × azienda) la modalità
-                    (auto/propose/require_confirmation/disabled). Si applica SOLO se la policy
-                    globale non è <code>blocked</code>.
-                  </li>
-                  <li>
-                    <strong>plan_ai_budgets</strong> — <strong>budget mensili AI</strong>:
-                    se l'azienda ha esaurito il budget, l'esecuzione è negata anche se i due livelli
-                    sopra la consentono.
-                  </li>
-                </ol>
-                <p className="text-xs text-amber-800 dark:text-amber-300 pt-1 border-t border-amber-300/30">
-                  <strong>Esempio:</strong> per <code>cancel_subscription</code>, la policy globale
-                  è <code>blocked</code> (seed sicuro) → nessun cliente può cancellarla via AI anche
-                  se il super_admin gli desse <code>auto_execute</code> qui.
-                </p>
-              </CardContent>
-            </Card>
-            <Suspense fallback={fallback}>
-              <AdminSettingsAIActions />
-            </Suspense>
-            <Card>
-              <CardContent className="p-4 text-sm text-muted-foreground border-l-4 border-blue-300">
-                <strong>Memoria sistema/azienda</strong>:{" "}
-                <code>ai_brain_facts</code> — fatti generici della company che il chatbot Silvio
-                ricorda nelle conversazioni. Diversa dalla{" "}
-                <a href="/admin/ai-operate?tab=memory" className="underline">
-                  Memoria Personas
-                </a>{" "}
-                (per-persona admin, in AI Operate).
-              </CardContent>
-            </Card>
-            <Suspense fallback={fallback}>
-              <AdminSettingsAIMemory />
-            </Suspense>
-          </div>
-        </TabsContent>
+          voices: (
+            <>
+              <SectionAlert.info
+                title="Voci ElevenLabs (TTS)"
+                description="Sintesi vocale per assistenti AI in modalità voice (chiamate outbound, vocaletti). Mappa voice_id → persona/scenario."
+                related={[
+                  { label: "Routing modelli (incluso STT/TTS)", to: "/admin/ai-config?tab=routing" },
+                ]}
+              />
+              <Suspense fallback={fallback}>
+                <ElevenLabsVoiceConfig />
+              </Suspense>
+            </>
+          ),
 
-        <TabsContent value="voices">
-          <Suspense fallback={fallback}>
-            <ElevenLabsVoiceConfig />
-          </Suspense>
-        </TabsContent>
-
-        <TabsContent value="public-chat">
-          <Card>
-            <CardContent className="p-4 text-sm text-muted-foreground">
-              Configura il chatbot pubblico embedabile sul tuo sito web. Cattura lead e
-              genera marketing_contacts automaticamente. <br />
-              <strong>Edge function:</strong> <code>public-chat-widget</code> (no auth, CORS).
-            </CardContent>
-          </Card>
-          <Suspense fallback={fallback}>
-            <PublicChatbotSettings />
-          </Suspense>
-        </TabsContent>
-      </Tabs>
+          "public-chat": (
+            <>
+              <SectionAlert.success
+                title="Chatbot Pubblico (lead capture)"
+                description="Widget embeddable per il sito web. Cattura lead anonimi → AI qualifica raccolta nome+email/telefono → crea automaticamente marketing_contact con source='public_chatbot'."
+                bullets={[
+                  "Snippet HTML pronto da copiare nel sito (sotto)",
+                  "Edge function: public-chat-widget (no auth, CORS aperto)",
+                  "Widget montato live anche su questa app (FAB in basso a destra)",
+                ]}
+              />
+              <Suspense fallback={fallback}>
+                <PublicChatbotSettings />
+              </Suspense>
+            </>
+          ),
+        }}
+      />
     </div>
   );
 }
