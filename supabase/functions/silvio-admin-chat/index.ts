@@ -579,7 +579,20 @@ Deno.serve(async (req) => {
           // → adotta tono di QUELLA persona MA risponde sempre come Silvio
           invocationMode = "SOLO";
           const p = typed[0];
-          personaAddendum = `\n\n═══ ATTIVA INTERIORMENTE: ${p.emoji} ${p.short_label} (motto: "${p.motto}") ═══\n${p.system_prompt_addendum}\n\n═══ ISTRUZIONI VOCE ═══\nFlorin ha chiesto esplicitamente questa expertise. Adotta il TONO + il FRAMEWORK di pensiero, ma firmi sempre come Silvio (UNA voce sola). Florin sa che internamente stai pensando come ${p.short_label}, non serve che lo dichiari.`;
+
+          // Inietta memorie persona-specific (Sprint D)
+          const { data: memories } = await supabase.rpc("get_persona_memory", {
+            p_persona_key: p.persona_key,
+            p_limit: 8,
+          });
+          const memoryBlock = (memories && Array.isArray(memories) && memories.length > 0)
+            ? `\n\n═══ MEMORIE STORICHE ${p.short_label} ═══\n` +
+              (memories as Array<{ memory_type: string; content: string }>).map((m, i) =>
+                `${i + 1}. [${m.memory_type}] ${m.content}`
+              ).join("\n")
+            : "";
+
+          personaAddendum = `\n\n═══ ATTIVA INTERIORMENTE: ${p.emoji} ${p.short_label} (motto: "${p.motto}") ═══\n${p.system_prompt_addendum}${memoryBlock}\n\n═══ ISTRUZIONI VOCE ═══\nFlorin ha chiesto esplicitamente questa expertise. Adotta il TONO + il FRAMEWORK di pensiero, ma firmi sempre come Silvio (UNA voce sola). Florin sa che internamente stai pensando come ${p.short_label}, non serve che lo dichiari.`;
         } else if (isDebatePattern && typed.length >= 2) {
           // DEBATE interiore: pesa 2 viste opposte → output UNA risposta sintetica
           invocationMode = "DEBATE";

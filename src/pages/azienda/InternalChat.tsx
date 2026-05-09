@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
 import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
+import { SilvioRatingButtons } from "@/components/silvio/SilvioRatingButtons";
 import { SILVIO_SKILLS, SILVIO_SKILL_CATEGORY_LABELS } from "@/lib/silvio-skills";
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { useAutoSizeTextarea } from "@/hooks/useAutoSizeTextarea";
@@ -830,6 +831,10 @@ function MessageBubble({
                 requested_model_id: msg.requested_model_id,
               }}
             />
+          )}
+          {/* Rating UI 👍/👎 — solo per messaggi Silvio Admin (super_admin feedback loop) */}
+          {isSilvioAdminMsg && (
+            <SilvioRatingButtons messageId={msg.id} />
           )}
 
           {/* Time + check marks */}
