@@ -2,7 +2,6 @@
  * LearningTab — self-improvement log + force run
  * Estratto da SilvioAdminHub.tsx (refactor monolite → sub-component).
  */
-import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +10,20 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Zap } from "lucide-react";
+
+interface LearningLog {
+  id: string;
+  run_at: string;
+  period_start: string;
+  period_end: string;
+  runs_analyzed: number;
+  gold_added: number;
+  avoid_added: number;
+  promoted_to_memory: number;
+  duration_ms: number;
+  ok: boolean;
+  errors: unknown;
+}
 
 export function LearningTab() {
   const queryClient = useQueryClient();

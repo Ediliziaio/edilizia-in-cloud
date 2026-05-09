@@ -16,6 +16,41 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Brain, Pencil, Plus, Save, Trash2, XCircle } from "lucide-react";
 
+interface PersonaOption {
+  persona_key: string;
+  display_name: string;
+  emoji: string;
+}
+
+interface PersonaMemory {
+  id: string;
+  persona_key: string;
+  memory_type: "fact" | "preference" | "decision" | "pattern" | "avoid";
+  content: string;
+  source: string | null;
+  confidence: number | null;
+  enabled: boolean;
+  hits_count: number;
+  last_used_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+const MEMORY_TYPE_BADGE: Record<PersonaMemory["memory_type"], string> = {
+  fact: "bg-sky-100 text-sky-700",
+  preference: "bg-violet-100 text-violet-700",
+  decision: "bg-amber-100 text-amber-700",
+  pattern: "bg-emerald-100 text-emerald-700",
+  avoid: "bg-rose-100 text-rose-700",
+};
+const MEMORY_TYPE_LABEL: Record<PersonaMemory["memory_type"], string> = {
+  fact: "📌 Fatto",
+  preference: "💭 Preferenza",
+  decision: "🎯 Decisione",
+  pattern: "✅ Pattern",
+  avoid: "❌ Evita",
+};
+
 export function MemoryTab() {
   const queryClient = useQueryClient();
   const [selectedPersona, setSelectedPersona] = useState<string>("all");
@@ -386,21 +421,5 @@ function MemoryCard({
       </CardContent>
     </Card>
   );
-}
-
-// ─── LEARNING TAB ──────────────────────────────────────────────────────────
-
-interface LearningLog {
-  id: string;
-  run_at: string;
-  period_start: string;
-  period_end: string;
-  runs_analyzed: number;
-  gold_added: number;
-  avoid_added: number;
-  promoted_to_memory: number;
-  duration_ms: number;
-  ok: boolean;
-  errors: unknown;
 }
 
