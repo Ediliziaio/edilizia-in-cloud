@@ -550,7 +550,8 @@ function ChatListItem({
 }) {
   const channelNameLower = channel.name.toLowerCase();
   const isLucia = channelNameLower === "lucia-ai";
-  const isSilvio = channelNameLower === "silvio-ai";
+  // Silvio cliente E Silvio Superadmin → stesso rendering visivo
+  const isSilvio = channelNameLower === "silvio-ai" || channelNameLower === "silvio-admin";
   const isAI = isLucia || isSilvio;
   const isDm = !!channel.is_dm;
 
@@ -571,6 +572,7 @@ function ChatListItem({
         lastMsg.sender_id === userId ? "Tu: "
         : lastMsg.sender_id === LUCIA_SENDER_ID ? "Lucia: "
         : lastMsg.sender_id === SILVIO_SENDER_ID ? "Silvio: "
+        : lastMsg.sender_id === SILVIO_ADMIN_SENDER_ID ? "Silvio: "
         : `${lastMsgSender?.first_name ?? ""}: `
       )
       + lastMsg.content.slice(0, 50) + (lastMsg.content.length > 50 ? "…" : "")
@@ -1592,11 +1594,14 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
     return otherId ? profileMap.get(otherId) : undefined;
   }, [userId, profileMap]);
 
-  const chatDisplayName = selectedChannel?.name?.toLowerCase() === "silvio-ai"
-    ? "Silvio AI"
-    : selectedChannel?.is_dm
-      ? profileName(getDmProfile(selectedChannel))
-      : selectedChannel?.name ?? "";
+  // Silvio cliente E Silvio Superadmin → display "Silvio AI" (stesso a vista)
+  const chatDisplayName =
+    selectedChannel?.name?.toLowerCase() === "silvio-ai" ||
+    selectedChannel?.name?.toLowerCase() === "silvio-admin"
+      ? "Silvio AI"
+      : selectedChannel?.is_dm
+        ? profileName(getDmProfile(selectedChannel))
+        : selectedChannel?.name ?? "";
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
@@ -1784,8 +1789,8 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   onClick={() => setShowMobile(false)}>
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
-                {/* Avatar — Silvio (brain orange), Lucia (bot violet), DM, group */}
-                {isSilvioChannel ? (
+                {/* Avatar — Silvio cliente o Admin (brain orange), Lucia (bot violet), DM, group */}
+                {(isSilvioChannel || isSilvioAdminChannel) ? (
                   <div className="h-10 w-10 rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 flex items-center justify-center shrink-0 ring-1 ring-orange-300/40 shadow-sm shadow-orange-300/30">
                     <Brain className="h-5 w-5 text-white" strokeWidth={2.4} />
                   </div>

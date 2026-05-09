@@ -534,13 +534,14 @@ function AdminMainSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
-                {/* Silvio — stesso identico al Silvio cliente (colori arancione)
-                    Sotto al cofano è cross-tenant ma visivamente è "Silvio" come
-                    quello dell'azienda — Florin lo riconosce subito. */}
+                {/* Silvio — link DIRETTO alla chat (no landing intermedia).
+                    Stessa UX di /azienda/chat dove l'utente vede il canale
+                    Silvio già selezionato e può scrivere subito.
+                    Per la dashboard briefing → /admin/silvio (button dentro chat). */}
                 <SidebarMenuItem key="top-silvio">
                   <SidebarMenuButton asChild tooltip="Silvio (co-founder AI)">
                     <NavLink
-                      to="/admin/silvio"
+                      to="/admin/chat?channel=silvio-admin"
                       className={navLinkClass}
                       activeClassName={activeClass}
                     >
