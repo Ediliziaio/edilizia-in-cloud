@@ -44,7 +44,6 @@ import {
   AlertTriangle,
   CheckSquare,
   MessagesSquare,
-  Sparkles,
 } from "lucide-react";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useSidebarSections } from "@/hooks/useSidebarSections";
@@ -534,25 +533,9 @@ function AdminMainSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
-                {/* Silvio — link DIRETTO alla chat (no landing intermedia).
-                    Stessa UX di /azienda/chat dove l'utente vede il canale
-                    Silvio già selezionato e può scrivere subito.
-                    Per la dashboard briefing → /admin/silvio (button dentro chat). */}
-                <SidebarMenuItem key="top-silvio">
-                  <SidebarMenuButton asChild tooltip="Silvio (co-founder AI)">
-                    <NavLink
-                      to="/admin/chat?channel=silvio-admin"
-                      className={navLinkClass}
-                      activeClassName={activeClass}
-                    >
-                      <Sparkles className="h-4 w-4 text-orange-500" />
-                      <span className="flex-1 font-medium">Silvio</span>
-                      <span className="ml-auto text-[9px] px-1 py-0 rounded bg-orange-100 text-orange-700 border border-orange-300 font-semibold uppercase">
-                        AI
-                      </span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {/* Silvio rimosso dalla sidebar: ora vive come canale dentro
+                    /admin/chat (visibile e accessibile come per le aziende).
+                    Il link sidebar separato era ridondante. */}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

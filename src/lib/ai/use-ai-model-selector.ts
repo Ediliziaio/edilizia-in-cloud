@@ -1,9 +1,11 @@
 /**
  * useAIModelSelector — hook gated per il selettore modello AI Test Lab.
  *
- * Gating rigoroso:
- *  - Visibile SOLO se effectiveCompany.id == DEMO_COMPANY_ID
- *    AND user.email == DEMO_USER_EMAIL
+ * Gating:
+ *  - Visibile SE:
+ *      (a) effectiveCompany.id == DEMO_COMPANY_ID AND user.email == DEMO_USER_EMAIL
+ *      OR
+ *      (b) user role == 'super_admin' (Florin & team piattaforma)
  *
  * Per tutti gli altri utenti/aziende: showSelector=false, availableModels=[]
  * → la UI nasconde il dropdown, le edge function ignorano body.model.
@@ -74,14 +76,18 @@ export function useAIModelSelector(
   feature: AIFeature,
   type: ModelType = 'text',
 ): UseAIModelSelectorResult {
-  const { user, effectiveCompany } = useAuth();
+  const { user, effectiveCompany, role } = useAuth();
 
-  const showSelector = useMemo(
-    () =>
+  const showSelector = useMemo(() => {
+    // Demo Azienda gating (storico per Test Lab clienti)
+    const isDemoUser =
       effectiveCompany?.id === DEMO_COMPANY_ID &&
-      user?.email?.toLowerCase() === DEMO_USER_EMAIL,
-    [effectiveCompany?.id, user?.email],
-  );
+      user?.email?.toLowerCase() === DEMO_USER_EMAIL;
+    // Super admin: Florin & team piattaforma vedono il selettore in OGNI feature
+    // (Silvio Superadmin, briefing, ecc.) — utile per testare modelli su scala
+    const isSuperAdmin = role === 'super_admin';
+    return isDemoUser || isSuperAdmin;
+  }, [effectiveCompany?.id, user?.email, role]);
 
   const [allModels, setAllModels] = useState<AIModelMeta[]>([]);
   const [loading, setLoading] = useState(false);
