@@ -60,14 +60,16 @@ BEGIN
     RETURN v_channel_id;
   END IF;
 
-  -- Crea il canale DM personale
+  -- Crea il canale DM personale.
+  -- Stile visivo IDENTICO a Silvio cliente (✨, descrizione "Silvio") — la
+  -- differenza vive solo nel sender_id e nell'edge function chiamata.
   INSERT INTO public.internal_chat_channels (
     company_id, name, description, type, is_system, is_dm, channel_emoji,
     dm_user_ids, created_by
   ) VALUES (
     v_platform_company, 'silvio-admin',
-    'Silvio Superadmin — il tuo co-founder AI. Revenue, lead, churn, ticket, prodotto, operations cross-tenant.',
-    'dm', true, true, '🚀',
+    'Silvio — il tuo co-founder AI. Conosce revenue, lead, churn, ticket e prodotto cross-tenant.',
+    'dm', true, true, '✨',
     ARRAY[v_user_id, v_silvio_admin_id], v_user_id
   )
   RETURNING id INTO v_channel_id;

@@ -661,12 +661,14 @@ function MessageBubble({
   onReaction: (emoji: string) => void; userId?: string;
   onAskFollowup?: (query: string) => void;
 }) {
-  // Detect AI bot type from sender_id (Silvio cliente, Silvio Superadmin, Lucia)
+  // Detect AI bot type from sender_id.
+  // Silvio cliente e Silvio Superadmin sono visivamente IDENTICI (stesso "Silvio")
+  // — la differenza vive solo nel sender_id (e nell'edge function chiamata).
   const isSilvioMsg = msg.sender_id === SILVIO_SENDER_ID;
   const isSilvioAdminMsg = msg.sender_id === SILVIO_ADMIN_SENDER_ID;
   const isLuciaMsg = msg.sender_id === LUCIA_SENDER_ID;
   const isAIMsg = isLuciaMsg || isSilvioMsg || isSilvioAdminMsg || isLucia;
-  const aiBotName = isSilvioAdminMsg ? "Silvio Superadmin 🚀" : isSilvioMsg ? "Silvio ✨" : "Lucia AI ✨";
+  const aiBotName = (isSilvioMsg || isSilvioAdminMsg) ? "Silvio ✨" : "Lucia AI ✨";
   const replySender = replyMsg ? profileMap.get(replyMsg.sender_id) : undefined;
 
   return (
@@ -675,11 +677,9 @@ function MessageBubble({
       {!isMe && (
         <div className="w-8 shrink-0 self-end mr-1">
           {showAvatar && (
-            isSilvioAdminMsg ? (
-              <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 flex items-center justify-center ring-1 ring-blue-300/40 shadow-sm shadow-blue-300/30">
-                <Brain className="h-3.5 w-3.5 text-white" strokeWidth={2.4} />
-              </div>
-            ) : isSilvioMsg ? (
+            (isSilvioMsg || isSilvioAdminMsg) ? (
+              // Silvio (cliente o Admin): stesso avatar arancione — visivamente identico
+              // La differenza vive solo nel sender_id e nell'edge function chiamata
               <div className="h-7 w-7 rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 flex items-center justify-center ring-1 ring-orange-300/40 shadow-sm shadow-orange-300/30">
                 <Brain className="h-3.5 w-3.5 text-white" strokeWidth={2.4} />
               </div>
@@ -706,9 +706,7 @@ function MessageBubble({
             "rounded-lg px-3 py-1.5 shadow-sm relative",
             isMe
               ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-foreground rounded-tr-none"
-              : isSilvioAdminMsg
-                ? "bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200/50 dark:border-blue-800/30 rounded-tl-none"
-              : isSilvioMsg
+              : (isSilvioMsg || isSilvioAdminMsg)
                 ? "bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/40 border border-orange-200/50 dark:border-orange-800/30 rounded-tl-none"
               : isAIMsg
                 ? "bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 border border-violet-200/50 dark:border-violet-800/30 rounded-tl-none"
@@ -719,12 +717,11 @@ function MessageBubble({
           {showAvatar && !isMe && (
             <p className={cn(
               "text-[12px] font-semibold mb-0.5",
-              isSilvioAdminMsg ? "text-blue-600 dark:text-blue-400"
-                : isSilvioMsg ? "text-orange-600 dark:text-orange-400"
+              (isSilvioMsg || isSilvioAdminMsg) ? "text-orange-600 dark:text-orange-400"
                 : isAIMsg ? "text-violet-600 dark:text-violet-400"
                 : `text-[${userColor(msg.sender_id).replace('bg-', '')}]`,
-            )} style={{ color: isSilvioAdminMsg || isSilvioMsg || isAIMsg ? undefined : getColorHex(msg.sender_id) }}>
-              {isSilvioAdminMsg ? "Silvio Superadmin" : isSilvioMsg ? "Silvio" : isAIMsg ? aiBotName : profileName(sender)}
+            )} style={{ color: isSilvioMsg || isSilvioAdminMsg || isAIMsg ? undefined : getColorHex(msg.sender_id) }}>
+              {(isSilvioMsg || isSilvioAdminMsg) ? "Silvio" : isAIMsg ? aiBotName : profileName(sender)}
             </p>
           )}
 
@@ -974,7 +971,8 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     const m = new Map(profiles.map((p) => [p.id, p]));
     m.set(LUCIA_SENDER_ID, { id: LUCIA_SENDER_ID, first_name: "Lucia", last_name: "AI", email: "lucia@ediliziacloud.internal" });
     m.set(SILVIO_SENDER_ID, { id: SILVIO_SENDER_ID, first_name: "Silvio", last_name: "AI", email: "silvio@ediliziacloud.internal" });
-    m.set(SILVIO_ADMIN_SENDER_ID, { id: SILVIO_ADMIN_SENDER_ID, first_name: "Silvio", last_name: "Superadmin", email: "silvio-admin@ediliziacloud.internal" });
+    // Silvio Superadmin: stesso nome "Silvio" (visivamente identico al cliente)
+    m.set(SILVIO_ADMIN_SENDER_ID, { id: SILVIO_ADMIN_SENDER_ID, first_name: "Silvio", last_name: "AI", email: "silvio-admin@ediliziacloud.internal" });
     return m;
   }, [profiles]);
 

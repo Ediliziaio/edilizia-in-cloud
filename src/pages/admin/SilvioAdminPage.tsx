@@ -104,16 +104,16 @@ export default function SilvioAdminPage() {
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto p-4">
-      {/* HEADER */}
+      {/* HEADER — stesso stile arancione di Silvio cliente */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 flex items-center justify-center text-white shrink-0">
+          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 flex items-center justify-center text-white shrink-0 ring-1 ring-orange-300/40 shadow-sm shadow-orange-300/30">
             <Sparkles className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Silvio Superadmin</h1>
+            <h1 className="text-2xl font-bold">Silvio</h1>
             <p className="text-xs text-muted-foreground">
-              Co-founder AI di Florin · cross-tenant · 5 tool Revenue attivi
+              Co-founder AI · cross-tenant · 5 tool Revenue attivi
             </p>
           </div>
         </div>
@@ -140,7 +140,7 @@ export default function SilvioAdminPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center justify-between gap-2">
             <span className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-600" />
+              <Calendar className="h-5 w-5 text-orange-500" />
               Briefing di oggi
               <span className="text-xs font-normal text-muted-foreground">
                 · {format(new Date(), "EEEE d MMMM yyyy", { locale: it })}
@@ -190,7 +190,7 @@ export default function SilvioAdminPage() {
             </>
           ) : (
             <div className="text-center py-8">
-              <Loader2 className={`h-6 w-6 mx-auto mb-2 ${generateMutation.isPending ? "animate-spin text-blue-600" : "text-muted-foreground/30"}`} />
+              <Loader2 className={`h-6 w-6 mx-auto mb-2 ${generateMutation.isPending ? "animate-spin text-orange-500" : "text-muted-foreground/30"}`} />
               <p className="text-sm text-muted-foreground">
                 Briefing non ancora generato per oggi.
               </p>
@@ -206,7 +206,7 @@ export default function SilvioAdminPage() {
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
-            <MessageCircle className="h-5 w-5 text-blue-600 shrink-0" />
+            <MessageCircle className="h-5 w-5 text-orange-500 shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-medium">Chiedi a Silvio</p>
               <p className="text-xs text-muted-foreground">
