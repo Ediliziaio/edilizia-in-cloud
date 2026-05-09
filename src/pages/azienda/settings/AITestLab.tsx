@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Beaker, Star, Clock, DollarSign, AlertTriangle, ArrowLeft, Trophy, RefreshCw, Loader2 } from 'lucide-react';
+import { Beaker, Star, AlertTriangle, Trophy, RefreshCw, Loader2 } from 'lucide-react';
 import { ProviderIcon } from '@/components/ai/ProviderIcon';
 import { formatCost, formatLatency } from '@/lib/ai/openrouter-models';
 import { DEMO_COMPANY_ID, DEMO_USER_EMAIL } from '@/lib/ai/models.config';

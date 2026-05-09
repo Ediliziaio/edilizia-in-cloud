@@ -13,7 +13,8 @@ const INTERNAL_CRON_SECRET = Deno.env.get("INTERNAL_CRON_SECRET");
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-cron-secret, x-internal-cron-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -50,7 +51,11 @@ interface ChiefOutput {
     owner_agent_key?: string;
     priority?: "P0" | "P1" | "P2";
   }>;
-  decisions_needed?: Array<{ title?: string; context?: string; recommendation?: string }>;
+  decisions_needed?: Array<{
+    title?: string;
+    context?: string;
+    recommendation?: string;
+  }>;
   risks?: Array<{ title?: string; severity?: string; content?: string }>;
   experiments?: Array<{
     title?: string;
@@ -79,14 +84,21 @@ function parseBearer(req: Request): string | null {
   return match?.[1] ?? null;
 }
 
-async function requireCronOrSuperAdmin(req: Request, supabase: SupabaseAdminClient): Promise<string> {
-  const cronSecret = req.headers.get("x-cron-secret");
-  if (INTERNAL_CRON_SECRET && cronSecret === INTERNAL_CRON_SECRET) return "cron";
+async function requireCronOrSuperAdmin(
+  req: Request,
+  supabase: SupabaseAdminClient,
+): Promise<string> {
+  const cronSecret =
+    req.headers.get("x-internal-cron-secret") ??
+    req.headers.get("x-cron-secret");
+  if (INTERNAL_CRON_SECRET && cronSecret === INTERNAL_CRON_SECRET)
+    return "cron";
 
   const token = parseBearer(req);
   if (!token) throw new Error("Missing bearer token");
 
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  const { data: userData, error: userError } =
+    await supabase.auth.getUser(token);
   if (userError || !userData?.user?.id) throw new Error("Unauthorized");
 
   const userId = userData.user.id;
@@ -115,12 +127,19 @@ function clampConfidence(value: unknown): number | null {
   return Math.max(0, Math.min(1, n));
 }
 
-function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
-  return allowed.includes(value as T) ? value as T : fallback;
+function oneOf<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  return allowed.includes(value as T) ? (value as T) : fallback;
 }
 
 function stripCodeFences(content: string): string {
-  return content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  return content
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
 }
 
 function parseJsonObject<T>(content: string, fallback: T): T {
@@ -138,13 +157,21 @@ function parseJsonObject<T>(content: string, fallback: T): T {
   }
 }
 
-async function safeRpc(supabase: SupabaseAdminClient, rpc: string, args: Record<string, unknown>) {
+async function safeRpc(
+  supabase: SupabaseAdminClient,
+  rpc: string,
+  args: Record<string, unknown>,
+) {
   try {
     const { data, error } = await supabase.rpc(rpc, args);
     if (error) return { ok: false, error: error.message, data: null };
     return { ok: true, error: null, data };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error), data: null };
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      data: null,
+    };
   }
 }
 
@@ -152,13 +179,20 @@ function evaluateRule(rule: MonitorRule, metricValue: number | null): boolean {
   if (metricValue === null) return false;
   const threshold = asNumber(rule.threshold_value);
   switch (rule.condition_operator) {
-    case "gt": return metricValue > threshold;
-    case "gte": return metricValue >= threshold;
-    case "lt": return metricValue < threshold;
-    case "lte": return metricValue <= threshold;
-    case "eq": return metricValue === threshold;
-    case "neq": return metricValue !== threshold;
-    default: return false;
+    case "gt":
+      return metricValue > threshold;
+    case "gte":
+      return metricValue >= threshold;
+    case "lt":
+      return metricValue < threshold;
+    case "lte":
+      return metricValue <= threshold;
+    case "eq":
+      return metricValue === threshold;
+    case "neq":
+      return metricValue !== threshold;
+    default:
+      return false;
   }
 }
 
@@ -170,35 +204,52 @@ function inCooldown(rule: MonitorRule): boolean {
 }
 
 async function buildSnapshot(supabase: SupabaseAdminClient) {
-  const [mrr, unpaid, forecast, aiCost, tickets, ticketClusters, leads, waitingMissions, objectives, monitorRules] =
-    await Promise.all([
-      safeRpc(supabase, "silvio_get_mrr_breakdown", { p_period: "30d" }),
-      safeRpc(supabase, "silvio_get_unpaid_customers", { p_limit: 10 }),
-      safeRpc(supabase, "silvio_get_revenue_forecast", { p_months_ahead: 3 }),
-      safeRpc(supabase, "silvio_get_ai_costs_summary", { p_period: "mtd" }),
-      safeRpc(supabase, "silvio_list_tickets", { p_status: "open", p_priority: "all", p_limit: 20 }),
-      safeRpc(supabase, "silvio_cluster_tickets", { p_period: "30d", p_min_cluster: 3 }),
-      safeRpc(supabase, "silvio_list_leads", {
-        p_score_min: 70,
-        p_days_since_contact: 2,
-        p_status: "all",
-        p_limit: 20,
-      }),
-      supabase
-        .from("silvio_agent_missions")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "waiting_approval"),
-      supabase
-        .from("silvio_strategic_objectives")
-        .select("*")
-        .eq("enabled", true)
-        .order("priority", { ascending: true }),
-      supabase
-        .from("silvio_monitor_rules")
-        .select("*")
-        .eq("enabled", true)
-        .order("severity", { ascending: false }),
-    ]);
+  const [
+    mrr,
+    unpaid,
+    forecast,
+    aiCost,
+    tickets,
+    ticketClusters,
+    leads,
+    waitingMissions,
+    objectives,
+    monitorRules,
+  ] = await Promise.all([
+    safeRpc(supabase, "silvio_get_mrr_breakdown", { p_period: "30d" }),
+    safeRpc(supabase, "silvio_get_unpaid_customers", { p_limit: 10 }),
+    safeRpc(supabase, "silvio_get_revenue_forecast", { p_months_ahead: 3 }),
+    safeRpc(supabase, "silvio_get_ai_costs_summary", { p_period: "mtd" }),
+    safeRpc(supabase, "silvio_list_tickets", {
+      p_status: "open",
+      p_priority: "all",
+      p_limit: 20,
+    }),
+    safeRpc(supabase, "silvio_cluster_tickets", {
+      p_period: "30d",
+      p_min_cluster: 3,
+    }),
+    safeRpc(supabase, "silvio_list_leads", {
+      p_score_min: 70,
+      p_days_since_contact: 2,
+      p_status: "all",
+      p_limit: 20,
+    }),
+    supabase
+      .from("silvio_agent_missions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "waiting_approval"),
+    supabase
+      .from("silvio_strategic_objectives")
+      .select("*")
+      .eq("enabled", true)
+      .order("priority", { ascending: true }),
+    supabase
+      .from("silvio_monitor_rules")
+      .select("*")
+      .eq("enabled", true)
+      .order("severity", { ascending: false }),
+  ]);
 
   const mrrData = mrr.data ?? {};
   const unpaidData = unpaid.data ?? {};
@@ -209,19 +260,38 @@ async function buildSnapshot(supabase: SupabaseAdminClient) {
   const metrics = {
     mrr_eur: asNumber((mrrData as Record<string, unknown>).mrr_eur),
     arr_eur: asNumber((mrrData as Record<string, unknown>).arr_eur),
-    companies_paying: asNumber((mrrData as Record<string, unknown>).companies_paying),
-    companies_trial: asNumber((mrrData as Record<string, unknown>).companies_trial),
-    companies_unpaid: asNumber((mrrData as Record<string, unknown>).companies_unpaid)
-      || asNumber((unpaidData as Record<string, unknown>).count),
-    ai_cost_mtd_eur: asNumber((aiCostData as Record<string, unknown>).total_cost_real_eur),
-    open_tickets_total: asNumber((ticketsData as Record<string, unknown>).total_open),
-    hot_leads_returned: asNumber((leadsData as Record<string, unknown>).returned),
+    companies_paying: asNumber(
+      (mrrData as Record<string, unknown>).companies_paying,
+    ),
+    companies_trial: asNumber(
+      (mrrData as Record<string, unknown>).companies_trial,
+    ),
+    companies_unpaid:
+      asNumber((mrrData as Record<string, unknown>).companies_unpaid) ||
+      asNumber((unpaidData as Record<string, unknown>).count),
+    ai_cost_mtd_eur: asNumber(
+      (aiCostData as Record<string, unknown>).total_cost_real_eur,
+    ),
+    open_tickets_total: asNumber(
+      (ticketsData as Record<string, unknown>).total_open,
+    ),
+    hot_leads_returned: asNumber(
+      (leadsData as Record<string, unknown>).returned,
+    ),
     agent_missions_waiting_approval: asNumber(waitingMissions.count),
   };
 
   return {
     metrics,
-    rpc: { mrr, unpaid, forecast, ai_cost: aiCost, tickets, ticket_clusters: ticketClusters, leads },
+    rpc: {
+      mrr,
+      unpaid,
+      forecast,
+      ai_cost: aiCost,
+      tickets,
+      ticket_clusters: ticketClusters,
+      leads,
+    },
     objectives: objectives.data ?? [],
     monitor_rules: (monitorRules.data ?? []) as MonitorRule[],
     generated_at: new Date().toISOString(),
@@ -241,7 +311,10 @@ async function updateObjectiveCurrentValues(
         if (!(metricKey in metrics)) return Promise.resolve();
         return supabase
           .from("silvio_strategic_objectives")
-          .update({ current_value: metrics[metricKey], updated_at: new Date().toISOString() })
+          .update({
+            current_value: metrics[metricKey],
+            updated_at: new Date().toISOString(),
+          })
           .eq("objective_key", objective.objective_key);
       }),
   );
@@ -255,14 +328,15 @@ async function evaluateMonitors(
   const events: Array<Record<string, unknown>> = [];
 
   for (const rule of snapshot.monitor_rules) {
-    const metricValue = rule.metric_key in metrics ? metrics[rule.metric_key] : null;
+    const metricValue =
+      rule.metric_key in metrics ? metrics[rule.metric_key] : null;
     if (!evaluateRule(rule, metricValue) || inCooldown(rule)) continue;
 
     const { count } = await supabase
       .from("silvio_monitor_events")
       .select("id", { count: "exact", head: true })
       .eq("rule_key", rule.rule_key)
-      .eq("status", "open");
+      .in("status", ["open", "acknowledged"]);
     if ((count ?? 0) > 0) continue;
 
     const row = {
@@ -279,14 +353,24 @@ async function evaluateMonitors(
     events.push(row);
   }
 
+  const insertedEvents: Array<Record<string, unknown>> = [];
   if (events.length > 0) {
-    await supabase.from("silvio_monitor_events").insert(events);
+    for (const event of events) {
+      const { error } = await supabase
+        .from("silvio_monitor_events")
+        .insert(event);
+      if (error) {
+        if (error.code === "23505") continue;
+        throw error;
+      }
+      insertedEvents.push(event);
+    }
     await Promise.allSettled(
-      events.map((event) =>
+      insertedEvents.map((event) =>
         supabase
           .from("silvio_monitor_rules")
           .update({ last_triggered_at: new Date().toISOString() })
-          .eq("rule_key", event.rule_key)
+          .eq("rule_key", event.rule_key),
       ),
     );
   }
@@ -294,11 +378,11 @@ async function evaluateMonitors(
   const { data: openEvents } = await supabase
     .from("silvio_monitor_events")
     .select("*")
-    .eq("status", "open")
+    .in("status", ["open", "acknowledged"])
     .order("created_at", { ascending: false })
     .limit(20);
 
-  return { triggered: events, open_events: openEvents ?? [] };
+  return { triggered: insertedEvents, open_events: openEvents ?? [] };
 }
 
 function chiefSystemPrompt(): string {
@@ -324,7 +408,10 @@ Schema:
 }`;
 }
 
-function fallbackBrief(snapshot: Awaited<ReturnType<typeof buildSnapshot>>, monitorData: Awaited<ReturnType<typeof evaluateMonitors>>): ChiefOutput {
+function fallbackBrief(
+  snapshot: Awaited<ReturnType<typeof buildSnapshot>>,
+  monitorData: Awaited<ReturnType<typeof evaluateMonitors>>,
+): ChiefOutput {
   const metrics = snapshot.metrics;
   return {
     summary_md: [
@@ -351,7 +438,8 @@ function fallbackBrief(snapshot: Awaited<ReturnType<typeof buildSnapshot>>, moni
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
-  if (req.method !== "POST") return jsonResponse({ ok: false, error: "POST only" }, 405);
+  if (req.method !== "POST")
+    return jsonResponse({ ok: false, error: "POST only" }, 405);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -371,7 +459,12 @@ Deno.serve(async (req) => {
         .eq("for_date", forDate)
         .maybeSingle();
       if (existing) {
-        return jsonResponse({ ok: true, skipped: true, reason: "already_exists", brief_id: existing.id });
+        return jsonResponse({
+          ok: true,
+          skipped: true,
+          reason: "already_exists",
+          brief_id: existing.id,
+        });
       }
     }
 
@@ -413,14 +506,21 @@ ${JSON.stringify(promptSnapshot, null, 2)}`,
         ],
       });
 
-      chiefOutput = parseJsonObject<ChiefOutput>(result.content, fallbackBrief(snapshot, monitorData));
+      chiefOutput = parseJsonObject<ChiefOutput>(
+        result.content,
+        fallbackBrief(snapshot, monitorData),
+      );
       modelUsed = result.modelUsed;
       costUsd = result.costUsd;
     } catch (error) {
       chiefOutput = fallbackBrief(snapshot, monitorData);
       chiefOutput.risks = [
         ...(chiefOutput.risks ?? []),
-        { title: "AI synthesis failed", severity: "medium", content: error instanceof Error ? error.message : String(error) },
+        {
+          title: "AI synthesis failed",
+          severity: "medium",
+          content: error instanceof Error ? error.message : String(error),
+        },
       ];
     }
 
@@ -428,28 +528,44 @@ ${JSON.stringify(promptSnapshot, null, 2)}`,
       .from("silvio_agent_registry")
       .select("agent_key")
       .eq("enabled", true);
-    const validAgentKeys = new Set((agentRows ?? []).map((row: { agent_key: string }) => row.agent_key));
+    const validAgentKeys = new Set(
+      (agentRows ?? []).map((row: { agent_key: string }) => row.agent_key),
+    );
     const validObjectiveKeys = new Set(
       (snapshot.objectives as Array<Record<string, unknown>>)
         .map((objective) => String(objective.objective_key ?? ""))
         .filter(Boolean),
     );
 
-    const experiments = generateExperiments ? (chiefOutput.experiments ?? []).slice(0, 5) : [];
+    const experiments = generateExperiments
+      ? (chiefOutput.experiments ?? []).slice(0, 5)
+      : [];
     const experimentRows = experiments
       .filter((experiment) => experiment.title && experiment.hypothesis)
       .map((experiment) => ({
         title: String(experiment.title).slice(0, 220),
         hypothesis: String(experiment.hypothesis).slice(0, 1200),
-        objective_key: experiment.objective_key && validObjectiveKeys.has(experiment.objective_key)
-          ? experiment.objective_key
-          : null,
-        owner_agent_key: experiment.owner_agent_key && validAgentKeys.has(experiment.owner_agent_key)
-          ? experiment.owner_agent_key
-          : null,
+        objective_key:
+          experiment.objective_key &&
+          validObjectiveKeys.has(experiment.objective_key)
+            ? experiment.objective_key
+            : null,
+        owner_agent_key:
+          experiment.owner_agent_key &&
+          validAgentKeys.has(experiment.owner_agent_key)
+            ? experiment.owner_agent_key
+            : null,
         priority: oneOf(experiment.priority, ["P0", "P1", "P2"] as const, "P1"),
-        expected_impact: oneOf(experiment.expected_impact, ["low", "medium", "high"] as const, "medium"),
-        effort: oneOf(experiment.effort, ["low", "medium", "high"] as const, "medium"),
+        expected_impact: oneOf(
+          experiment.expected_impact,
+          ["low", "medium", "high"] as const,
+          "medium",
+        ),
+        effort: oneOf(
+          experiment.effort,
+          ["low", "medium", "high"] as const,
+          "medium",
+        ),
         confidence: clampConfidence(experiment.confidence),
         metric_name: experiment.metric_name ?? null,
         metadata: { source: "silvio-chief-of-staff", for_date: forDate },
@@ -459,9 +575,16 @@ ${JSON.stringify(promptSnapshot, null, 2)}`,
       const { data: recent } = await supabase
         .from("silvio_growth_experiments")
         .select("title")
-        .gte("created_at", new Date(Date.now() - 14 * 24 * 3600_000).toISOString());
-      const existingTitles = new Set((recent ?? []).map((row: { title: string }) => row.title.toLowerCase()));
-      const uniqueRows = experimentRows.filter((row) => !existingTitles.has(row.title.toLowerCase()));
+        .gte(
+          "created_at",
+          new Date(Date.now() - 14 * 24 * 3600_000).toISOString(),
+        );
+      const existingTitles = new Set(
+        (recent ?? []).map((row: { title: string }) => row.title.toLowerCase()),
+      );
+      const uniqueRows = experimentRows.filter(
+        (row) => !existingTitles.has(row.title.toLowerCase()),
+      );
       if (uniqueRows.length > 0) {
         await supabase.from("silvio_growth_experiments").insert(uniqueRows);
       }
@@ -501,7 +624,11 @@ ${JSON.stringify(promptSnapshot, null, 2)}`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const status = /Unauthorized|Missing bearer/.test(message) ? 401 : /Forbidden/.test(message) ? 403 : 500;
+    const status = /Unauthorized|Missing bearer/.test(message)
+      ? 401
+      : /Forbidden/.test(message)
+        ? 403
+        : 500;
     return jsonResponse({ ok: false, error: message }, status);
   }
 });

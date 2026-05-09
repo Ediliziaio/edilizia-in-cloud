@@ -14,13 +14,36 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  CheckCircle2, XCircle, Pencil, Inbox, ListTodo, Settings, Sparkles, Clock,
-  RefreshCw, AlertTriangle, Brain, Plus, Trash2, Save, Zap, Network,
-  PlayCircle, Target, FileText, Activity, FlaskConical, TrendingUp,
+  CheckCircle2,
+  XCircle,
+  Pencil,
+  Inbox,
+  ListTodo,
+  Settings,
+  Sparkles,
+  Clock,
+  RefreshCw,
+  AlertTriangle,
+  Brain,
+  Plus,
+  Trash2,
+  Save,
+  Zap,
+  Network,
+  PlayCircle,
+  Target,
+  FileText,
+  Activity,
+  FlaskConical,
+  TrendingUp,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -63,7 +86,12 @@ interface AgentRegistry {
   agent_key: string;
   display_name: string;
   mission: string;
-  operating_mode: "coordination" | "planning" | "analysis" | "execution" | "verification";
+  operating_mode:
+    | "coordination"
+    | "planning"
+    | "analysis"
+    | "execution"
+    | "verification";
   persona_keys: string[];
   allowed_tools: string[];
   model_tier_key: string;
@@ -90,6 +118,7 @@ interface AgentMissionSummary {
   last_error: string | null;
   created_at: string;
   completed_at: string | null;
+  review_requested_at?: string | null;
   tasks_count: number;
   completed_tasks_count: number;
   failed_tasks_count: number;
@@ -132,7 +161,13 @@ interface AgentToolPermission {
 interface AgentMemoryItem {
   id: string;
   agent_key: string;
-  memory_type: "fact" | "preference" | "decision" | "pattern" | "avoid" | "playbook";
+  memory_type:
+    | "fact"
+    | "preference"
+    | "decision"
+    | "pattern"
+    | "avoid"
+    | "playbook";
   content: string;
   source: string | null;
   confidence: number | null;
@@ -204,13 +239,54 @@ interface GrowthExperiment {
   hypothesis: string;
   objective_key: string | null;
   owner_agent_key: string | null;
-  status: "suggested" | "approved" | "running" | "completed" | "rejected" | "archived";
+  status:
+    | "suggested"
+    | "approved"
+    | "running"
+    | "completed"
+    | "rejected"
+    | "archived";
   priority: "P0" | "P1" | "P2";
   expected_impact: "low" | "medium" | "high";
   effort: "low" | "medium" | "high";
   confidence: number | null;
   metric_name: string | null;
   created_at: string;
+}
+
+interface AgentPerformance {
+  agent_key: string;
+  display_name: string;
+  risk_level: "low" | "medium" | "high" | "critical";
+  enabled: boolean;
+  tasks_total: number;
+  tasks_completed: number;
+  tasks_failed: number;
+  avg_tokens: number;
+  avg_seconds: number;
+  missions_touched: number;
+  qa_blocked_count: number;
+  approval_required_count: number;
+}
+
+interface AgentMissionHealth {
+  active_missions: number;
+  waiting_approval_missions: number;
+  failed_missions_7d: number;
+  missions_7d: number;
+  avg_completed_seconds_7d: number;
+  total_cost_usd_7d: number;
+  total_tokens_7d: number;
+}
+
+interface AgentToolHealth {
+  tool_name: string;
+  total_calls_7d: number;
+  failed_calls_7d: number;
+  blocked_calls_7d: number;
+  avg_duration_ms: number;
+  p95_duration_ms: number;
+  last_error_message: string | null;
 }
 
 const MODE_COLORS: Record<Policy["mode"], string> = {
@@ -253,6 +329,21 @@ const AGENT_RISK_COLORS: Record<AgentRegistry["risk_level"], string> = {
   high: "bg-orange-50 text-orange-700 border-orange-200",
   critical: "bg-rose-50 text-rose-700 border-rose-200",
 };
+
+function inferAgentsForMetric(metricKey?: string | null): string[] {
+  const key = (metricKey ?? "").toLowerCase();
+  const agents = new Set<string>(["planner_agent"]);
+  if (/mrr|arr|cost|unpaid|revenue|cash|pricing/.test(key))
+    agents.add("finance_agent");
+  if (/lead|conversion|campaign|ads|seo|funnel/.test(key))
+    agents.add("growth_agent");
+  if (/ticket|support|churn|customer/.test(key))
+    agents.add("customer_success_agent");
+  if (/ai|bug|stability|technical|product/.test(key))
+    agents.add("product_tech_agent");
+  agents.add("qa_compliance_agent");
+  return [...agents].slice(0, 5);
+}
 
 export default function SilvioAdminHub() {
   return (
@@ -344,17 +435,28 @@ function ApprovalsTab() {
   });
 
   const resolveMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "approved" | "rejected" }) => {
-      const { error } = await supabase.rpc("silvio_admin_resolve_approval" as never, {
-        p_approval_id: id,
-        p_status: status,
-        p_modified_payload: null,
-        p_resolution_note: null,
-      } as never);
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "approved" | "rejected";
+    }) => {
+      const { error } = await supabase.rpc(
+        "silvio_admin_resolve_approval" as never,
+        {
+          p_approval_id: id,
+          p_status: status,
+          p_modified_payload: null,
+          p_resolution_note: null,
+        } as never,
+      );
       if (error) throw error;
     },
     onSuccess: (_, { status }) => {
-      toast.success(status === "approved" ? "Approvata: in esecuzione" : "Rifiutata");
+      toast.success(
+        status === "approved" ? "Approvata: in esecuzione" : "Rifiutata",
+      );
       queryClient.invalidateQueries({ queryKey: ["silvio-pending-approvals"] });
       queryClient.invalidateQueries({ queryKey: ["silvio-action-queue"] });
     },
@@ -367,8 +469,15 @@ function ApprovalsTab() {
         <p className="text-sm text-muted-foreground">
           {data?.length ?? 0} azioni in attesa di approvazione
         </p>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetch()}
+          disabled={isFetching}
+        >
+          <RefreshCw
+            className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`}
+          />
           Aggiorna
         </Button>
       </div>
@@ -392,7 +501,9 @@ function ApprovalsTab() {
                   Approvazione richiesta
                 </span>
                 <Badge variant="outline" className="font-mono text-[10px]">
-                  {format(new Date(a.created_at), "dd MMM HH:mm", { locale: it })}
+                  {format(new Date(a.created_at), "dd MMM HH:mm", {
+                    locale: it,
+                  })}
                 </Badge>
               </CardTitle>
             </CardHeader>
@@ -405,7 +516,11 @@ function ApprovalsTab() {
                   size="sm"
                   className="bg-emerald-600 hover:bg-emerald-700"
                   onClick={() => {
-                    if (window.confirm("Approvare questa azione e metterla in esecuzione?")) {
+                    if (
+                      window.confirm(
+                        "Approvare questa azione e metterla in esecuzione?",
+                      )
+                    ) {
                       resolveMutation.mutate({ id: a.id, status: "approved" });
                     }
                   }}
@@ -418,7 +533,11 @@ function ApprovalsTab() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    if (window.confirm("Rifiutare questa azione Silvio? Non verra eseguita.")) {
+                    if (
+                      window.confirm(
+                        "Rifiutare questa azione Silvio? Non verra eseguita.",
+                      )
+                    ) {
                       resolveMutation.mutate({ id: a.id, status: "rejected" });
                     }
                   }}
@@ -429,7 +548,8 @@ function ApprovalsTab() {
                 </Button>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                Scade: {format(new Date(a.expires_at), "dd MMM HH:mm", { locale: it })}
+                Scade:{" "}
+                {format(new Date(a.expires_at), "dd MMM HH:mm", { locale: it })}
               </p>
             </CardContent>
           </Card>
@@ -463,25 +583,32 @@ function QueueTab() {
 
   const cancelMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc("silvio_admin_update_queue_action" as never, {
-        p_action_id: id,
-        p_operation: "cancel",
-      } as never);
+      const { error } = await supabase.rpc(
+        "silvio_admin_update_queue_action" as never,
+        {
+          p_action_id: id,
+          p_operation: "cancel",
+        } as never,
+      );
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Azione cancellata");
       queryClient.invalidateQueries({ queryKey: ["silvio-action-queue"] });
     },
-    onError: (e) => toast.error("Errore cancellazione", { description: String(e) }),
+    onError: (e) =>
+      toast.error("Errore cancellazione", { description: String(e) }),
   });
 
   const retryMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc("silvio_admin_update_queue_action" as never, {
-        p_action_id: id,
-        p_operation: "retry",
-      } as never);
+      const { error } = await supabase.rpc(
+        "silvio_admin_update_queue_action" as never,
+        {
+          p_action_id: id,
+          p_operation: "retry",
+        } as never,
+      );
       if (error) throw error;
     },
     onSuccess: () => {
@@ -501,15 +628,24 @@ function QueueTab() {
           <SelectContent>
             <SelectItem value="all">Tutti</SelectItem>
             <SelectItem value="queued">In coda</SelectItem>
-            <SelectItem value="awaiting_approval">In attesa approval</SelectItem>
+            <SelectItem value="awaiting_approval">
+              In attesa approval
+            </SelectItem>
             <SelectItem value="running">In esecuzione</SelectItem>
             <SelectItem value="done">Completate</SelectItem>
             <SelectItem value="failed">Fallite</SelectItem>
             <SelectItem value="cancelled">Cancellate</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetch()}
+          disabled={isFetching}
+        >
+          <RefreshCw
+            className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`}
+          />
           Aggiorna
         </Button>
       </div>
@@ -541,15 +677,28 @@ function QueueTab() {
                 <tbody>
                   {data.map((a) => (
                     <tr key={a.id} className="border-t hover:bg-muted/20">
-                      <td className="px-3 py-2 font-mono text-xs">{a.action_type}</td>
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {a.action_type}
+                      </td>
                       <td className="px-3 py-2">
-                        <Badge variant="outline" className={`text-[10px] ${STATUS_COLORS[a.status] ?? ""}`}>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${STATUS_COLORS[a.status] ?? ""}`}
+                        >
                           {a.status}
                         </Badge>
                       </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{a.initiated_by}</td>
-                      <td className="px-3 py-2 text-right font-mono text-xs">{a.attempts}/{a.max_attempts}</td>
-                      <td className="px-3 py-2 text-xs">{format(new Date(a.scheduled_for), "dd/MM HH:mm:ss", { locale: it })}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                        {a.initiated_by}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-xs">
+                        {a.attempts}/{a.max_attempts}
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        {format(new Date(a.scheduled_for), "dd/MM HH:mm:ss", {
+                          locale: it,
+                        })}
+                      </td>
                       <td className="px-3 py-2">
                         <div className="flex gap-1 justify-end">
                           {a.status === "failed" && (
@@ -558,20 +707,31 @@ function QueueTab() {
                               variant="ghost"
                               className="h-7 text-xs"
                               onClick={() => {
-                                if (window.confirm("Rimettere in coda questa azione fallita?")) retryMutation.mutate(a.id);
+                                if (
+                                  window.confirm(
+                                    "Rimettere in coda questa azione fallita?",
+                                  )
+                                )
+                                  retryMutation.mutate(a.id);
                               }}
                               disabled={retryMutation.isPending}
                             >
                               Retry
                             </Button>
                           )}
-                          {(a.status === "queued" || a.status === "awaiting_approval") && (
+                          {(a.status === "queued" ||
+                            a.status === "awaiting_approval") && (
                             <Button
                               size="sm"
                               variant="ghost"
                               className="h-7 text-xs text-rose-600"
                               onClick={() => {
-                                if (window.confirm("Cancellare questa azione dalla coda Silvio?")) cancelMutation.mutate(a.id);
+                                if (
+                                  window.confirm(
+                                    "Cancellare questa azione dalla coda Silvio?",
+                                  )
+                                )
+                                  cancelMutation.mutate(a.id);
                               }}
                               disabled={cancelMutation.isPending}
                             >
@@ -609,7 +769,13 @@ function PoliciesTab() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ action_type, mode }: { action_type: string; mode: Policy["mode"] }) => {
+    mutationFn: async ({
+      action_type,
+      mode,
+    }: {
+      action_type: string;
+      mode: Policy["mode"];
+    }) => {
       const { error } = await supabase
         .from("silvio_automation_policies")
         .update({ mode })
@@ -618,7 +784,9 @@ function PoliciesTab() {
     },
     onSuccess: () => {
       toast.success("Policy aggiornata");
-      queryClient.invalidateQueries({ queryKey: ["silvio-automation-policies"] });
+      queryClient.invalidateQueries({
+        queryKey: ["silvio-automation-policies"],
+      });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -626,8 +794,10 @@ function PoliciesTab() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        🟢 <strong>Auto</strong>: Silvio agisce subito · 🟡 <strong>Auto+Notify</strong>: agisce + notifica con annulla 5min ·
-        🔴 <strong>Approval</strong>: prepara bozza + attende OK · ⛔ <strong>Bloccato</strong>: solo Florin manualmente
+        🟢 <strong>Auto</strong>: Silvio agisce subito · 🟡{" "}
+        <strong>Auto+Notify</strong>: agisce + notifica con annulla 5min · 🔴{" "}
+        <strong>Approval</strong>: prepara bozza + attende OK · ⛔{" "}
+        <strong>Bloccato</strong>: solo Florin manualmente
       </p>
 
       {isLoading ? (
@@ -647,21 +817,37 @@ function PoliciesTab() {
                 </thead>
                 <tbody>
                   {data.map((p) => (
-                    <tr key={p.action_type} className="border-t hover:bg-muted/20">
-                      <td className="px-3 py-2 font-mono text-xs">{p.action_type}</td>
+                    <tr
+                      key={p.action_type}
+                      className="border-t hover:bg-muted/20"
+                    >
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {p.action_type}
+                      </td>
                       <td className="px-3 py-2">{p.display_label}</td>
                       <td className="px-3 py-2">
                         <Select
                           value={p.mode}
-                          onValueChange={(v) => updateMutation.mutate({ action_type: p.action_type, mode: v as Policy["mode"] })}
+                          onValueChange={(v) =>
+                            updateMutation.mutate({
+                              action_type: p.action_type,
+                              mode: v as Policy["mode"],
+                            })
+                          }
                         >
-                          <SelectTrigger className={`h-8 w-44 text-xs ${MODE_COLORS[p.mode]}`}>
+                          <SelectTrigger
+                            className={`h-8 w-44 text-xs ${MODE_COLORS[p.mode]}`}
+                          >
                             <SelectValue>{MODE_LABELS[p.mode]}</SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="auto">🟢 Auto</SelectItem>
-                            <SelectItem value="auto_notify">🟡 Auto+Notify</SelectItem>
-                            <SelectItem value="approval_required">🔴 Approval</SelectItem>
+                            <SelectItem value="auto_notify">
+                              🟡 Auto+Notify
+                            </SelectItem>
+                            <SelectItem value="approval_required">
+                              🔴 Approval
+                            </SelectItem>
                             <SelectItem value="blocked">⛔ Bloccato</SelectItem>
                           </SelectContent>
                         </Select>
@@ -743,47 +929,81 @@ function ChiefOfStaffTab() {
 
   const runChiefMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("silvio-chief-of-staff", {
-        body: { force: true, generate_experiments: true },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "silvio-chief-of-staff",
+        {
+          body: { force: true, generate_experiments: true },
+        },
+      );
       if (error) throw error;
-      return data as { next_action?: string; monitor_events_triggered?: number; experiments_suggested?: number };
+      return data as {
+        next_action?: string;
+        monitor_events_triggered?: number;
+        experiments_suggested?: number;
+      };
     },
     onSuccess: (data) => {
       toast.success("Chief of Staff aggiornato", {
-        description: data?.next_action ?? "Brief, monitor ed esperimenti aggiornati",
+        description:
+          data?.next_action ?? "Brief, monitor ed esperimenti aggiornati",
       });
       queryClient.invalidateQueries({ queryKey: ["silvio-chief-briefs"] });
-      queryClient.invalidateQueries({ queryKey: ["silvio-strategic-objectives"] });
+      queryClient.invalidateQueries({
+        queryKey: ["silvio-strategic-objectives"],
+      });
       queryClient.invalidateQueries({ queryKey: ["silvio-monitor-events"] });
-      queryClient.invalidateQueries({ queryKey: ["silvio-growth-experiments"] });
+      queryClient.invalidateQueries({
+        queryKey: ["silvio-growth-experiments"],
+      });
     },
-    onError: (e) => toast.error("Errore Chief of Staff", { description: String(e) }),
+    onError: (e) =>
+      toast.error("Errore Chief of Staff", { description: String(e) }),
   });
 
   const updateExperimentMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: GrowthExperiment["status"] }) => {
-      const { error } = await supabase.rpc("silvio_update_experiment_status" as never, {
-        p_experiment_id: id,
-        p_status: status,
-        p_result_summary: null,
-      } as never);
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: GrowthExperiment["status"];
+    }) => {
+      const { error } = await supabase.rpc(
+        "silvio_update_experiment_status" as never,
+        {
+          p_experiment_id: id,
+          p_status: status,
+          p_result_summary: null,
+        } as never,
+      );
       if (error) throw error;
     },
     onSuccess: (_, { status }) => {
       toast.success(`Esperimento ${status}`);
-      queryClient.invalidateQueries({ queryKey: ["silvio-growth-experiments"] });
+      queryClient.invalidateQueries({
+        queryKey: ["silvio-growth-experiments"],
+      });
     },
-    onError: (e) => toast.error("Errore esperimento", { description: String(e) }),
+    onError: (e) =>
+      toast.error("Errore esperimento", { description: String(e) }),
   });
 
   const updateMonitorMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: MonitorEvent["status"] }) => {
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: MonitorEvent["status"];
+    }) => {
       const { error } = await supabase
         .from("silvio_monitor_events" as never)
         .update({
           status,
-          resolved_at: status === "resolved" || status === "dismissed" ? new Date().toISOString() : null,
+          resolved_at:
+            status === "resolved" || status === "dismissed"
+              ? new Date().toISOString()
+              : null,
         } as never)
         .eq("id" as never, id as never);
       if (error) throw error;
@@ -795,18 +1015,65 @@ function ChiefOfStaffTab() {
     onError: (e) => toast.error("Errore monitor", { description: String(e) }),
   });
 
+  const launchChiefMissionMutation = useMutation({
+    mutationFn: async ({
+      title,
+      objective,
+      selected_agents,
+    }: {
+      title: string;
+      objective: string;
+      selected_agents: string[];
+    }) => {
+      const { data, error } = await supabase.functions.invoke(
+        "silvio-agent-orchestrator",
+        {
+          body: {
+            title,
+            objective,
+            mode: "panel",
+            priority: "high",
+            selected_agents,
+          },
+        },
+      );
+      if (error) throw error;
+      return data as {
+        mission_id?: string;
+        accepted?: boolean;
+        next_action?: string;
+      };
+    },
+    onSuccess: (data) => {
+      toast.success("Missione Silvio avviata", {
+        description:
+          data?.next_action ??
+          "Gli agenti stanno lavorando sul punto operativo.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["silvio-agent-missions"] });
+    },
+    onError: (e) =>
+      toast.error("Errore avvio missione", { description: String(e) }),
+  });
+
   const briefs = briefsQuery.data ?? [];
   const latestBrief = briefs[0];
   const objectives = objectivesQuery.data ?? [];
   const monitorEvents = monitorEventsQuery.data ?? [];
   const experiments = experimentsQuery.data ?? [];
-  const metrics = (latestBrief?.snapshot?.metrics ?? {}) as Record<string, unknown>;
+  const metrics = (latestBrief?.snapshot?.metrics ?? {}) as Record<
+    string,
+    unknown
+  >;
 
   const metricCards = [
     { label: "MRR", value: `EUR ${Number(metrics.mrr_eur ?? 0).toFixed(0)}` },
     { label: "Paying", value: String(metrics.companies_paying ?? 0) },
     { label: "Unpaid", value: String(metrics.companies_unpaid ?? 0) },
-    { label: "AI MTD", value: `EUR ${Number(metrics.ai_cost_mtd_eur ?? 0).toFixed(2)}` },
+    {
+      label: "AI MTD",
+      value: `EUR ${Number(metrics.ai_cost_mtd_eur ?? 0).toFixed(2)}`,
+    },
     { label: "Ticket", value: String(metrics.open_tickets_total ?? 0) },
     { label: "Hot lead", value: String(metrics.hot_leads_returned ?? 0) },
   ];
@@ -828,8 +1095,12 @@ function ChiefOfStaffTab() {
                   disabled={runChiefMutation.isPending}
                   className="min-h-10 bg-violet-600 hover:bg-violet-700"
                 >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${runChiefMutation.isPending ? "animate-spin" : ""}`} />
-                  {runChiefMutation.isPending ? "Analisi in corso..." : "Rigenera ora"}
+                  <RefreshCw
+                    className={`h-4 w-4 mr-2 ${runChiefMutation.isPending ? "animate-spin" : ""}`}
+                  />
+                  {runChiefMutation.isPending
+                    ? "Analisi in corso..."
+                    : "Rigenera ora"}
                 </Button>
               </div>
             </CardHeader>
@@ -838,21 +1109,31 @@ function ChiefOfStaffTab() {
                 <Skeleton className="h-40" />
               ) : !latestBrief ? (
                 <div className="py-10 text-center text-sm text-muted-foreground">
-                  Nessun brief P2 ancora generato. Avvia il Chief of Staff per creare il primo.
+                  Nessun brief P2 ancora generato. Avvia il Chief of Staff per
+                  creare il primo.
                 </div>
               ) : (
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
                     {metricCards.map((metric) => (
-                      <div key={metric.label} className="rounded-md border bg-muted/30 p-2">
-                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{metric.label}</div>
-                        <div className="text-sm font-semibold">{metric.value}</div>
+                      <div
+                        key={metric.label}
+                        className="rounded-md border bg-muted/30 p-2"
+                      >
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {metric.label}
+                        </div>
+                        <div className="text-sm font-semibold">
+                          {metric.value}
+                        </div>
                       </div>
                     ))}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <Badge variant="outline" className="text-[10px]">
-                      {format(new Date(latestBrief.for_date), "dd MMM yyyy", { locale: it })}
+                      {format(new Date(latestBrief.for_date), "dd MMM yyyy", {
+                        locale: it,
+                      })}
                     </Badge>
                     {latestBrief.generated_by && (
                       <Badge variant="secondary" className="text-[10px]">
@@ -860,7 +1141,8 @@ function ChiefOfStaffTab() {
                       </Badge>
                     )}
                     <span className="text-[10px] text-muted-foreground">
-                      cost ${Number(latestBrief.generation_cost_usd ?? 0).toFixed(4)}
+                      cost $
+                      {Number(latestBrief.generation_cost_usd ?? 0).toFixed(4)}
                     </span>
                   </div>
                   <div className="rounded-md bg-muted/40 p-3 text-sm whitespace-pre-wrap break-words">
@@ -887,21 +1169,41 @@ function ChiefOfStaffTab() {
               {objectivesQuery.isLoading ? (
                 <Skeleton className="h-32" />
               ) : objectives.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nessun obiettivo attivo.</p>
+                <p className="text-sm text-muted-foreground">
+                  Nessun obiettivo attivo.
+                </p>
               ) : (
                 objectives.map((objective) => (
-                  <div key={objective.objective_key} className="rounded-md border p-3 space-y-1">
+                  <div
+                    key={objective.objective_key}
+                    className="rounded-md border p-3 space-y-1"
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{objective.title}</p>
-                        <p className="text-[11px] text-muted-foreground font-mono">{objective.objective_key}</p>
+                        <p className="text-sm font-medium truncate">
+                          {objective.title}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground font-mono">
+                          {objective.objective_key}
+                        </p>
                       </div>
-                      <Badge variant="outline" className="text-[10px]">{objective.priority}</Badge>
+                      <Badge variant="outline" className="text-[10px]">
+                        {objective.priority}
+                      </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">{objective.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {objective.description}
+                    </p>
                     <div className="flex gap-2 flex-wrap text-[10px] text-muted-foreground">
-                      {objective.owner_agent_key && <span>{objective.owner_agent_key}</span>}
-                      {objective.target_metric && <span>{objective.target_metric}: {objective.current_value ?? "n/d"}</span>}
+                      {objective.owner_agent_key && (
+                        <span>{objective.owner_agent_key}</span>
+                      )}
+                      {objective.target_metric && (
+                        <span>
+                          {objective.target_metric}:{" "}
+                          {objective.current_value ?? "n/d"}
+                        </span>
+                      )}
                       <span>{objective.cadence}</span>
                     </div>
                   </div>
@@ -928,13 +1230,17 @@ function ChiefOfStaffTab() {
                 </div>
               ) : (
                 monitorEvents.map((event) => (
-                  <div key={event.id} className="rounded-md border p-3 space-y-2">
+                  <div
+                    key={event.id}
+                    className="rounded-md border p-3 space-y-2"
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium">{event.title}</p>
                       <Badge
                         variant="outline"
                         className={`text-[10px] ${
-                          event.severity === "critical" || event.severity === "high"
+                          event.severity === "critical" ||
+                          event.severity === "high"
                             ? "bg-rose-50 text-rose-700 border-rose-200"
                             : "bg-amber-50 text-amber-700 border-amber-200"
                         }`}
@@ -942,10 +1248,13 @@ function ChiefOfStaffTab() {
                         {event.severity}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">{event.summary}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {event.summary}
+                    </p>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] text-muted-foreground">
-                        {event.metric_key}: {event.metric_value ?? "n/d"} / soglia {event.threshold_value ?? "n/d"}
+                        {event.metric_key}: {event.metric_value ?? "n/d"} /
+                        soglia {event.threshold_value ?? "n/d"}
                       </span>
                       <div className="flex gap-1">
                         <Button
@@ -953,7 +1262,12 @@ function ChiefOfStaffTab() {
                           variant="ghost"
                           className="h-7 text-xs"
                           disabled={updateMonitorMutation.isPending}
-                          onClick={() => updateMonitorMutation.mutate({ id: event.id, status: "acknowledged" })}
+                          onClick={() =>
+                            updateMonitorMutation.mutate({
+                              id: event.id,
+                              status: "acknowledged",
+                            })
+                          }
                         >
                           Visto
                         </Button>
@@ -962,9 +1276,36 @@ function ChiefOfStaffTab() {
                           variant="ghost"
                           className="h-7 text-xs text-emerald-700"
                           disabled={updateMonitorMutation.isPending}
-                          onClick={() => updateMonitorMutation.mutate({ id: event.id, status: "resolved" })}
+                          onClick={() =>
+                            updateMonitorMutation.mutate({
+                              id: event.id,
+                              status: "resolved",
+                            })
+                          }
                         >
                           Risolto
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={launchChiefMissionMutation.isPending}
+                          onClick={() =>
+                            launchChiefMissionMutation.mutate({
+                              title: `Monitor: ${event.title}`,
+                              selected_agents: inferAgentsForMetric(
+                                event.metric_key,
+                              ),
+                              objective: [
+                                `Analizza e risolvi questo monitor Chief of Staff: ${event.title}.`,
+                                `Sintesi: ${event.summary}.`,
+                                `Metrica: ${event.metric_key}=${event.metric_value ?? "n/d"}, soglia=${event.threshold_value ?? "n/d"}.`,
+                                "Produci cause probabili, rischi, piano P0/P1/P2 e prossima azione verificabile.",
+                              ].join("\n"),
+                            })
+                          }
+                        >
+                          Missione
                         </Button>
                       </div>
                     </div>
@@ -990,12 +1331,20 @@ function ChiefOfStaffTab() {
                 </div>
               ) : (
                 experiments.map((experiment) => (
-                  <div key={experiment.id} className="rounded-md border p-3 space-y-2">
+                  <div
+                    key={experiment.id}
+                    className="rounded-md border p-3 space-y-2"
+                  >
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="outline" className="text-[10px]">{experiment.priority}</Badge>
-                      <Badge variant="secondary" className="text-[10px]">{experiment.status}</Badge>
+                      <Badge variant="outline" className="text-[10px]">
+                        {experiment.priority}
+                      </Badge>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {experiment.status}
+                      </Badge>
                       <span className="text-[10px] text-muted-foreground">
-                        impatto {experiment.expected_impact} · effort {experiment.effort}
+                        impatto {experiment.expected_impact} · effort{" "}
+                        {experiment.effort}
                       </span>
                     </div>
                     <p className="text-sm font-medium">{experiment.title}</p>
@@ -1004,7 +1353,8 @@ function ChiefOfStaffTab() {
                     </p>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] text-muted-foreground">
-                        {experiment.owner_agent_key ?? "owner n/d"} · {experiment.metric_name ?? "metrica n/d"}
+                        {experiment.owner_agent_key ?? "owner n/d"} ·{" "}
+                        {experiment.metric_name ?? "metrica n/d"}
                       </span>
                       {experiment.status === "suggested" && (
                         <div className="flex gap-1">
@@ -1013,7 +1363,12 @@ function ChiefOfStaffTab() {
                             variant="ghost"
                             className="h-7 text-xs text-rose-600"
                             disabled={updateExperimentMutation.isPending}
-                            onClick={() => updateExperimentMutation.mutate({ id: experiment.id, status: "rejected" })}
+                            onClick={() =>
+                              updateExperimentMutation.mutate({
+                                id: experiment.id,
+                                status: "rejected",
+                              })
+                            }
                           >
                             Rifiuta
                           </Button>
@@ -1021,7 +1376,12 @@ function ChiefOfStaffTab() {
                             size="sm"
                             className="h-7 text-xs bg-blue-600 hover:bg-blue-700"
                             disabled={updateExperimentMutation.isPending}
-                            onClick={() => updateExperimentMutation.mutate({ id: experiment.id, status: "approved" })}
+                            onClick={() =>
+                              updateExperimentMutation.mutate({
+                                id: experiment.id,
+                                status: "approved",
+                              })
+                            }
                           >
                             Approva
                           </Button>
@@ -1032,9 +1392,42 @@ function ChiefOfStaffTab() {
                           size="sm"
                           className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
                           disabled={updateExperimentMutation.isPending}
-                          onClick={() => updateExperimentMutation.mutate({ id: experiment.id, status: "running" })}
+                          onClick={() =>
+                            updateExperimentMutation.mutate({
+                              id: experiment.id,
+                              status: "running",
+                            })
+                          }
                         >
                           Avvia
+                        </Button>
+                      )}
+                      {["suggested", "approved", "running"].includes(
+                        experiment.status,
+                      ) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={launchChiefMissionMutation.isPending}
+                          onClick={() =>
+                            launchChiefMissionMutation.mutate({
+                              title: `Esperimento: ${experiment.title}`,
+                              selected_agents: inferAgentsForMetric(
+                                experiment.metric_name ??
+                                  experiment.objective_key,
+                              ),
+                              objective: [
+                                `Trasforma questo esperimento Chief of Staff in un piano operativo multi-agente: ${experiment.title}.`,
+                                `Ipotesi: ${experiment.hypothesis}`,
+                                `Obiettivo: ${experiment.objective_key ?? "n/d"}; metrica: ${experiment.metric_name ?? "n/d"}.`,
+                                `Impatto atteso: ${experiment.expected_impact}; effort: ${experiment.effort}; confidenza: ${experiment.confidence ?? "n/d"}.`,
+                                "Produci step eseguibili, owner, metriche di successo e rischi prima dell'esecuzione.",
+                              ].join("\n"),
+                            })
+                          }
+                        >
+                          Missione
                         </Button>
                       )}
                     </div>
@@ -1097,6 +1490,47 @@ function AgentsMissionTab() {
     },
   });
 
+  const performanceQuery = useQuery({
+    queryKey: ["silvio-agent-performance"],
+    refetchInterval: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_silvio_agent_performance" as never)
+        .select("*")
+        .order("tasks_failed" as never, { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return (data ?? []) as AgentPerformance[];
+    },
+  });
+
+  const missionHealthQuery = useQuery({
+    queryKey: ["silvio-agent-mission-health"],
+    refetchInterval: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_silvio_agent_mission_health" as never)
+        .select("*")
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as AgentMissionHealth | null;
+    },
+  });
+
+  const toolHealthQuery = useQuery({
+    queryKey: ["silvio-agent-tool-health"],
+    refetchInterval: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_silvio_agent_tool_health" as never)
+        .select("*")
+        .order("failed_calls_7d" as never, { ascending: false })
+        .limit(6);
+      if (error) throw error;
+      return (data ?? []) as AgentToolHealth[];
+    },
+  });
+
   const missionsQuery = useQuery({
     queryKey: ["silvio-agent-missions"],
     refetchInterval: 15_000,
@@ -1112,12 +1546,18 @@ function AgentsMissionTab() {
   });
 
   const missions = missionsQuery.data ?? [];
-  const activeMission = missions.find((mission) => mission.id === activeMissionId) ?? missions[0] ?? null;
+  const activeMission =
+    missions.find((mission) => mission.id === activeMissionId) ??
+    missions[0] ??
+    null;
 
   const tasksQuery = useQuery({
     queryKey: ["silvio-agent-tasks", activeMission?.id],
     enabled: Boolean(activeMission?.id),
-    refetchInterval: activeMission?.status === "running" ? 5_000 : false,
+    refetchInterval:
+      activeMission && ["planning", "running"].includes(activeMission.status)
+        ? 5_000
+        : false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("silvio_agent_tasks" as never)
@@ -1132,7 +1572,10 @@ function AgentsMissionTab() {
   const blackboardQuery = useQuery({
     queryKey: ["silvio-agent-blackboard", activeMission?.id],
     enabled: Boolean(activeMission?.id),
-    refetchInterval: activeMission?.status === "running" ? 5_000 : false,
+    refetchInterval:
+      activeMission && ["planning", "running"].includes(activeMission.status)
+        ? 5_000
+        : false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("silvio_agent_blackboard" as never)
@@ -1167,16 +1610,31 @@ function AgentsMissionTab() {
         mode,
         selected_agents: selectedAgents.length > 0 ? selectedAgents : undefined,
       };
-      const { data, error } = await supabase.functions.invoke("silvio-agent-orchestrator", {
-        body: payload,
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "silvio-agent-orchestrator",
+        {
+          body: payload,
+        },
+      );
       if (error) throw error;
-      return data as { mission_id?: string; next_action?: string };
+      return data as {
+        mission_id?: string;
+        next_action?: string;
+        accepted?: boolean;
+        status?: string;
+      };
     },
     onSuccess: (data) => {
-      toast.success("Missione multi-agente completata", {
-        description: data?.next_action ?? "Sintesi disponibile nel Silvio Hub",
-      });
+      toast.success(
+        data?.accepted
+          ? "Missione multi-agente avviata"
+          : "Missione multi-agente completata",
+        {
+          description:
+            data?.next_action ??
+            "Gli agenti lavorano in background. La sintesi comparira appena pronta.",
+        },
+      );
       if (data?.mission_id) setActiveMissionId(data.mission_id);
       setObjective("");
       setTitle("");
@@ -1184,28 +1642,49 @@ function AgentsMissionTab() {
       queryClient.invalidateQueries({ queryKey: ["silvio-agent-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["silvio-agent-blackboard"] });
     },
-    onError: (e) => toast.error("Missione non completata", { description: String(e) }),
+    onError: (e) =>
+      toast.error("Missione non completata", { description: String(e) }),
   });
 
   const resolveMissionMutation = useMutation({
-    mutationFn: async ({ missionId, resolution }: { missionId: string; resolution: "approved" | "rejected" }) => {
-      const { error } = await supabase.rpc("silvio_agent_resolve_mission" as never, {
-        p_mission_id: missionId,
-        p_resolution: resolution,
-        p_note: null,
-      } as never);
+    mutationFn: async ({
+      missionId,
+      resolution,
+    }: {
+      missionId: string;
+      resolution: "approved" | "rejected";
+    }) => {
+      const { error } = await supabase.rpc(
+        "silvio_agent_resolve_mission" as never,
+        {
+          p_mission_id: missionId,
+          p_resolution: resolution,
+          p_note: null,
+        } as never,
+      );
       if (error) throw error;
     },
     onSuccess: (_, { resolution }) => {
-      toast.success(resolution === "approved" ? "Missione approvata" : "Missione archiviata");
+      toast.success(
+        resolution === "approved"
+          ? "Missione approvata"
+          : "Missione archiviata",
+      );
       queryClient.invalidateQueries({ queryKey: ["silvio-agent-missions"] });
       queryClient.invalidateQueries({ queryKey: ["silvio-agent-evaluations"] });
     },
-    onError: (e) => toast.error("Errore revisione missione", { description: String(e) }),
+    onError: (e) =>
+      toast.error("Errore revisione missione", { description: String(e) }),
   });
 
   const updateMemoryMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "active" | "rejected" }) => {
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "active" | "rejected";
+    }) => {
       const { error } = await supabase
         .from("silvio_agent_memory" as never)
         .update({
@@ -1217,27 +1696,54 @@ function AgentsMissionTab() {
       if (error) throw error;
     },
     onSuccess: (_, { status }) => {
-      toast.success(status === "active" ? "Memoria agente attivata" : "Memoria agente rifiutata");
-      queryClient.invalidateQueries({ queryKey: ["silvio-agent-memory-latest"] });
+      toast.success(
+        status === "active"
+          ? "Memoria agente attivata"
+          : "Memoria agente rifiutata",
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["silvio-agent-memory-latest"],
+      });
     },
-    onError: (e) => toast.error("Errore memoria agente", { description: String(e) }),
+    onError: (e) =>
+      toast.error("Errore memoria agente", { description: String(e) }),
   });
 
-  const agents = (agentsQuery.data ?? []).filter((agent) => agent.agent_key !== "silvio_coordinator");
+  const agents = (agentsQuery.data ?? []).filter(
+    (agent) => agent.agent_key !== "silvio_coordinator",
+  );
   const enabledAgents = agents.filter((agent) => agent.enabled);
   const tasks = tasksQuery.data ?? [];
   const blackboard = blackboardQuery.data ?? [];
   const evaluations = evaluationsQuery.data ?? [];
   const latestEvaluation = evaluations[0];
   const memoryItems = memoryQuery.data ?? [];
-  const toolsByAgent = (toolPermissionsQuery.data ?? []).reduce<Record<string, AgentToolPermission[]>>((acc, permission) => {
-    acc[permission.agent_key] = [...(acc[permission.agent_key] ?? []), permission];
+  const missionHealth = missionHealthQuery.data;
+  const performanceRows = performanceQuery.data ?? [];
+  const toolHealthRows = toolHealthQuery.data ?? [];
+  const fragileAgents = performanceRows
+    .filter((agent) => agent.tasks_total > 0)
+    .sort(
+      (a, b) =>
+        b.tasks_failed +
+        b.approval_required_count -
+        (a.tasks_failed + a.approval_required_count),
+    )
+    .slice(0, 4);
+  const toolsByAgent = (toolPermissionsQuery.data ?? []).reduce<
+    Record<string, AgentToolPermission[]>
+  >((acc, permission) => {
+    acc[permission.agent_key] = [
+      ...(acc[permission.agent_key] ?? []),
+      permission,
+    ];
     return acc;
   }, {});
 
   const toggleAgent = (agentKey: string) => {
     setSelectedAgents((current) => {
-      if (current.includes(agentKey)) return current.filter((key) => key !== agentKey);
+      if (current.includes(agentKey))
+        return current.filter((key) => key !== agentKey);
       if (current.length >= 5) {
         toast.info("Massimo 5 agenti per missione");
         return current;
@@ -1268,8 +1774,15 @@ function AgentsMissionTab() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Modalita</label>
-                <Select value={mode} onValueChange={(value) => setMode(value as AgentMissionSummary["mode"])}>
+                <label className="text-xs text-muted-foreground">
+                  Modalita
+                </label>
+                <Select
+                  value={mode}
+                  onValueChange={(value) =>
+                    setMode(value as AgentMissionSummary["mode"])
+                  }
+                >
                   <SelectTrigger className="min-h-11">
                     <SelectValue />
                   </SelectTrigger>
@@ -1277,14 +1790,18 @@ function AgentsMissionTab() {
                     <SelectItem value="panel">Panel</SelectItem>
                     <SelectItem value="debate">Debate</SelectItem>
                     <SelectItem value="chain">Chain</SelectItem>
-                    <SelectItem value="supervised_execution">Supervised</SelectItem>
+                    <SelectItem value="supervised_execution">
+                      Supervised
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Obiettivo operativo</label>
+              <label className="text-xs text-muted-foreground">
+                Obiettivo operativo
+              </label>
               <Textarea
                 value={objective}
                 onChange={(event) => setObjective(event.target.value)}
@@ -1321,15 +1838,20 @@ function AgentsMissionTab() {
                           : "border-border bg-background hover:bg-muted/50"
                       }`}
                     >
-                      <span className="font-medium block">{agent.display_name}</span>
-                      <span className="text-[10px] text-muted-foreground">{agent.operating_mode}</span>
+                      <span className="font-medium block">
+                        {agent.display_name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {agent.operating_mode}
+                      </span>
                     </button>
                   );
                 })}
               </div>
               {selectedAgents.length === 0 && (
                 <p className="text-[11px] text-muted-foreground">
-                  Nessuna selezione manuale: Silvio sceglie planner, QA e gli agenti piu pertinenti.
+                  Nessuna selezione manuale: Silvio sceglie planner, QA e gli
+                  agenti piu pertinenti.
                 </p>
               )}
             </div>
@@ -1337,13 +1859,127 @@ function AgentsMissionTab() {
             <div className="flex justify-end">
               <Button
                 onClick={() => launchMutation.mutate()}
-                disabled={launchMutation.isPending || objective.trim().length < 10}
+                disabled={
+                  launchMutation.isPending || objective.trim().length < 10
+                }
                 className="min-h-11 bg-orange-600 hover:bg-orange-700"
               >
-                <PlayCircle className={`h-4 w-4 mr-2 ${launchMutation.isPending ? "animate-pulse" : ""}`} />
-                {launchMutation.isPending ? "Agenti al lavoro..." : "Avvia missione"}
+                <PlayCircle
+                  className={`h-4 w-4 mr-2 ${launchMutation.isPending ? "animate-pulse" : ""}`}
+                />
+                {launchMutation.isPending
+                  ? "Avvio missione..."
+                  : "Avvia missione"}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Activity className="h-4 w-4 text-violet-500" />
+              Osservabilità agenti
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {missionHealthQuery.isLoading ||
+            performanceQuery.isLoading ||
+            toolHealthQuery.isLoading ? (
+              <Skeleton className="h-32" />
+            ) : (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="rounded-md border bg-muted/30 p-2">
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Attive
+                    </div>
+                    <div className="text-sm font-semibold">
+                      {missionHealth?.active_missions ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-md border bg-muted/30 p-2">
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Review
+                    </div>
+                    <div className="text-sm font-semibold">
+                      {missionHealth?.waiting_approval_missions ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-md border bg-muted/30 p-2">
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Fail 7g
+                    </div>
+                    <div className="text-sm font-semibold">
+                      {missionHealth?.failed_missions_7d ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-md border bg-muted/30 p-2">
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Costo 7g
+                    </div>
+                    <div className="text-sm font-semibold">
+                      $
+                      {Number(missionHealth?.total_cost_usd_7d ?? 0).toFixed(3)}
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="rounded-md border p-3 space-y-2">
+                    <p className="text-xs font-medium">
+                      Agenti da tenere d'occhio
+                    </p>
+                    {fragileAgents.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Nessun segnale critico negli agenti.
+                      </p>
+                    ) : (
+                      fragileAgents.map((agent) => (
+                        <div
+                          key={agent.agent_key}
+                          className="flex items-center justify-between gap-2 text-xs"
+                        >
+                          <span className="truncate">{agent.display_name}</span>
+                          <span className="text-muted-foreground shrink-0">
+                            fail {agent.tasks_failed} · review{" "}
+                            {agent.approval_required_count}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="rounded-md border p-3 space-y-2">
+                    <p className="text-xs font-medium">Tool health 7g</p>
+                    {toolHealthRows.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Nessuna chiamata tool recente.
+                      </p>
+                    ) : (
+                      toolHealthRows.slice(0, 4).map((tool) => (
+                        <div
+                          key={tool.tool_name}
+                          className="flex items-center justify-between gap-2 text-xs"
+                        >
+                          <span className="truncate font-mono">
+                            {tool.tool_name}
+                          </span>
+                          <span
+                            className={
+                              tool.failed_calls_7d > 0
+                                ? "text-rose-600 shrink-0"
+                                : "text-muted-foreground shrink-0"
+                            }
+                          >
+                            fail {tool.failed_calls_7d} · p95{" "}
+                            {Number(tool.p95_duration_ms ?? 0).toFixed(0)}ms
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -1359,27 +1995,48 @@ function AgentsMissionTab() {
                 <CardContent className="p-3 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{agent.display_name}</p>
-                      <p className="text-[11px] text-muted-foreground font-mono">{agent.agent_key}</p>
+                      <p className="font-medium text-sm truncate">
+                        {agent.display_name}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground font-mono">
+                        {agent.agent_key}
+                      </p>
                     </div>
-                    <Badge variant="outline" className={`text-[10px] ${AGENT_RISK_COLORS[agent.risk_level]}`}>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${AGENT_RISK_COLORS[agent.risk_level]}`}
+                    >
                       {agent.risk_level}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-3">{agent.mission}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-3">
+                    {agent.mission}
+                  </p>
                   <div className="flex flex-wrap gap-1">
-                    {(toolsByAgent[agent.agent_key] ?? []).slice(0, 4).map((permission) => (
-                      <Badge key={permission.tool_key} variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
-                        {permission.tool_key}
-                      </Badge>
-                    ))}
+                    {(toolsByAgent[agent.agent_key] ?? [])
+                      .slice(0, 4)
+                      .map((permission) => (
+                        <Badge
+                          key={permission.tool_key}
+                          variant="outline"
+                          className="text-[10px] bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          {permission.tool_key}
+                        </Badge>
+                      ))}
                     {(toolsByAgent[agent.agent_key] ?? []).length === 0 && (
-                      <span className="text-[10px] text-muted-foreground">Nessun tool attivo</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        Nessun tool attivo
+                      </span>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {agent.persona_keys.slice(0, 4).map((persona) => (
-                      <Badge key={persona} variant="secondary" className="text-[10px]">
+                      <Badge
+                        key={persona}
+                        variant="secondary"
+                        className="text-[10px]"
+                      >
                         {persona}
                       </Badge>
                     ))}
@@ -1402,11 +2059,15 @@ function AgentsMissionTab() {
               <Skeleton className="h-24" />
             ) : memoryItems.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Nessuna memoria agente ancora. Le missioni generano suggerimenti da approvare.
+                Nessuna memoria agente ancora. Le missioni generano suggerimenti
+                da approvare.
               </p>
             ) : (
               memoryItems.map((memory) => (
-                <div key={memory.id} className="rounded-md border p-2 space-y-2">
+                <div
+                  key={memory.id}
+                  className="rounded-md border p-2 space-y-2"
+                >
                   <div className="flex items-center gap-2 flex-wrap">
                     <Badge variant="outline" className="text-[10px] font-mono">
                       {memory.agent_key}
@@ -1437,7 +2098,12 @@ function AgentsMissionTab() {
                         variant="ghost"
                         className="h-8 text-xs text-rose-600"
                         disabled={updateMemoryMutation.isPending}
-                        onClick={() => updateMemoryMutation.mutate({ id: memory.id, status: "rejected" })}
+                        onClick={() =>
+                          updateMemoryMutation.mutate({
+                            id: memory.id,
+                            status: "rejected",
+                          })
+                        }
                       >
                         Rifiuta
                       </Button>
@@ -1445,7 +2111,12 @@ function AgentsMissionTab() {
                         size="sm"
                         className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
                         disabled={updateMemoryMutation.isPending}
-                        onClick={() => updateMemoryMutation.mutate({ id: memory.id, status: "active" })}
+                        onClick={() =>
+                          updateMemoryMutation.mutate({
+                            id: memory.id,
+                            status: "active",
+                          })
+                        }
                       >
                         Attiva
                       </Button>
@@ -1468,7 +2139,9 @@ function AgentsMissionTab() {
           </CardHeader>
           <CardContent className="p-0">
             {missionsQuery.isLoading ? (
-              <div className="p-3"><Skeleton className="h-32" /></div>
+              <div className="p-3">
+                <Skeleton className="h-32" />
+              </div>
             ) : missions.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground">
                 Nessuna missione ancora avviata.
@@ -1485,16 +2158,34 @@ function AgentsMissionTab() {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium truncate">{mission.title}</p>
-                      <Badge variant="outline" className={`text-[10px] shrink-0 ${AGENT_STATUS_COLORS[mission.status] ?? ""}`}>
+                      <p className="text-sm font-medium truncate">
+                        {mission.title}
+                      </p>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] shrink-0 ${AGENT_STATUS_COLORS[mission.status] ?? ""}`}
+                      >
                         {mission.status}
                       </Badge>
                     </div>
-                    <p className="text-[11px] text-muted-foreground line-clamp-2 mt-1">{mission.objective}</p>
+                    <p className="text-[11px] text-muted-foreground line-clamp-2 mt-1">
+                      {mission.objective}
+                    </p>
                     <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
-                      <span>{format(new Date(mission.created_at), "dd MMM HH:mm", { locale: it })}</span>
-                      <span>{mission.completed_tasks_count}/{mission.tasks_count} task</span>
-                      {mission.risks_count > 0 && <span className="text-rose-600">{mission.risks_count} rischi</span>}
+                      <span>
+                        {format(new Date(mission.created_at), "dd MMM HH:mm", {
+                          locale: it,
+                        })}
+                      </span>
+                      <span>
+                        {mission.completed_tasks_count}/{mission.tasks_count}{" "}
+                        task
+                      </span>
+                      {mission.risks_count > 0 && (
+                        <span className="text-rose-600">
+                          {mission.risks_count} rischi
+                        </span>
+                      )}
                     </div>
                   </button>
                 ))}
@@ -1519,67 +2210,88 @@ function AgentsMissionTab() {
               <>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className={`text-[10px] ${AGENT_STATUS_COLORS[activeMission.status] ?? ""}`}>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${AGENT_STATUS_COLORS[activeMission.status] ?? ""}`}
+                    >
                       {activeMission.status}
                     </Badge>
                     <Badge variant="secondary" className="text-[10px]">
                       {activeMission.mode}
                     </Badge>
-                  {activeMission.confidence !== null && (
-                    <Badge variant="outline" className="text-[10px]">
-                      conf {(activeMission.confidence * 100).toFixed(0)}%
-                    </Badge>
-                  )}
-                </div>
-                {latestEvaluation && (
-                  <div className="rounded-md border bg-muted/30 p-2 text-xs space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] ${latestEvaluation.verdict === "pass" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}
-                      >
-                        QA {latestEvaluation.verdict}
+                    {activeMission.confidence !== null && (
+                      <Badge variant="outline" className="text-[10px]">
+                        conf {(activeMission.confidence * 100).toFixed(0)}%
                       </Badge>
-                      <span className="text-muted-foreground">
-                        rischio hallucination: {latestEvaluation.hallucination_risk}
-                      </span>
-                      {latestEvaluation.needs_human_approval && (
-                        <span className="text-amber-700 font-medium">review umana richiesta</span>
-                      )}
-                    </div>
-                    {latestEvaluation.notes && (
-                      <p className="text-muted-foreground whitespace-pre-wrap break-words">{latestEvaluation.notes}</p>
                     )}
                   </div>
-                )}
-                {activeMission.status === "waiting_approval" && (
-                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 space-y-2">
-                    <p className="text-sm text-amber-800">
-                      Silvio ha completato l'analisi ma chiede validazione prima di considerarla chiusa.
-                    </p>
-                    <div className="flex gap-2 justify-end">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={resolveMissionMutation.isPending}
-                        onClick={() => resolveMissionMutation.mutate({ missionId: activeMission.id, resolution: "rejected" })}
-                      >
-                        <XCircle className="h-4 w-4 mr-1" />
-                        Archivia
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700"
-                        disabled={resolveMissionMutation.isPending}
-                        onClick={() => resolveMissionMutation.mutate({ missionId: activeMission.id, resolution: "approved" })}
-                      >
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        Approva sintesi
-                      </Button>
+                  {latestEvaluation && (
+                    <div className="rounded-md border bg-muted/30 p-2 text-xs space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${latestEvaluation.verdict === "pass" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}
+                        >
+                          QA {latestEvaluation.verdict}
+                        </Badge>
+                        <span className="text-muted-foreground">
+                          rischio hallucination:{" "}
+                          {latestEvaluation.hallucination_risk}
+                        </span>
+                        {latestEvaluation.needs_human_approval && (
+                          <span className="text-amber-700 font-medium">
+                            review umana richiesta
+                          </span>
+                        )}
+                      </div>
+                      {latestEvaluation.notes && (
+                        <p className="text-muted-foreground whitespace-pre-wrap break-words">
+                          {latestEvaluation.notes}
+                        </p>
+                      )}
                     </div>
-                  </div>
-                )}
-                  <h3 className="font-semibold text-sm">{activeMission.title}</h3>
+                  )}
+                  {activeMission.status === "waiting_approval" && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 space-y-2">
+                      <p className="text-sm text-amber-800">
+                        Silvio ha completato l'analisi ma chiede validazione
+                        prima di considerarla chiusa.
+                      </p>
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={resolveMissionMutation.isPending}
+                          onClick={() =>
+                            resolveMissionMutation.mutate({
+                              missionId: activeMission.id,
+                              resolution: "rejected",
+                            })
+                          }
+                        >
+                          <XCircle className="h-4 w-4 mr-1" />
+                          Archivia
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700"
+                          disabled={resolveMissionMutation.isPending}
+                          onClick={() =>
+                            resolveMissionMutation.mutate({
+                              missionId: activeMission.id,
+                              resolution: "approved",
+                            })
+                          }
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          Approva sintesi
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  <h3 className="font-semibold text-sm">
+                    {activeMission.title}
+                  </h3>
                   {activeMission.summary_md ? (
                     <div className="rounded-md bg-muted/40 p-3 text-sm whitespace-pre-wrap break-words">
                       {activeMission.summary_md}
@@ -1593,24 +2305,37 @@ function AgentsMissionTab() {
                   )}
                   {activeMission.next_action && (
                     <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                      <strong>Prossimo passo:</strong> {activeMission.next_action}
+                      <strong>Prossimo passo:</strong>{" "}
+                      {activeMission.next_action}
                     </div>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">Task agenti</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Task agenti
+                  </p>
                   {tasksQuery.isLoading ? (
                     <Skeleton className="h-24" />
                   ) : tasks.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Nessun task generato.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Nessun task generato.
+                    </p>
                   ) : (
                     <div className="space-y-2">
                       {tasks.map((task) => (
-                        <div key={task.id} className="rounded-md border p-2 space-y-1">
+                        <div
+                          key={task.id}
+                          className="rounded-md border p-2 space-y-1"
+                        >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-mono">{task.agent_key}</span>
-                            <Badge variant="outline" className={`text-[10px] ${AGENT_STATUS_COLORS[task.status] ?? ""}`}>
+                            <span className="text-xs font-mono">
+                              {task.agent_key}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] ${AGENT_STATUS_COLORS[task.status] ?? ""}`}
+                            >
                               {task.status}
                             </Badge>
                           </div>
@@ -1620,7 +2345,9 @@ function AgentsMissionTab() {
                             </p>
                           )}
                           {task.error_message && (
-                            <p className="text-xs text-rose-600 break-words">{task.error_message}</p>
+                            <p className="text-xs text-rose-600 break-words">
+                              {task.error_message}
+                            </p>
                           )}
                         </div>
                       ))}
@@ -1629,21 +2356,30 @@ function AgentsMissionTab() {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">Blackboard</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Blackboard
+                  </p>
                   {blackboardQuery.isLoading ? (
                     <Skeleton className="h-24" />
                   ) : blackboard.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Nessun elemento nel blackboard.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Nessun elemento nel blackboard.
+                    </p>
                   ) : (
                     <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
                       {blackboard.map((entry) => (
-                        <div key={entry.id} className="rounded-md bg-muted/30 p-2">
+                        <div
+                          key={entry.id}
+                          className="rounded-md bg-muted/30 p-2"
+                        >
                           <div className="flex items-center gap-2 flex-wrap">
                             <Badge variant="outline" className="text-[10px]">
                               {entry.entry_type}
                             </Badge>
                             {entry.agent_key && (
-                              <span className="text-[10px] text-muted-foreground font-mono">{entry.agent_key}</span>
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                {entry.agent_key}
+                              </span>
                             )}
                             {entry.confidence !== null && (
                               <span className="text-[10px] text-muted-foreground">
@@ -1651,7 +2387,9 @@ function AgentsMissionTab() {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs font-medium mt-1">{entry.title}</p>
+                          <p className="text-xs font-medium mt-1">
+                            {entry.title}
+                          </p>
                           <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
                             {entry.content}
                           </p>
@@ -1744,17 +2482,16 @@ function MemoryTab() {
 
   const addMutation = useMutation({
     mutationFn: async () => {
-      if (!newPersonaKey || !newContent.trim()) throw new Error("Compila tutti i campi");
-      const { error } = await supabase
-        .from("silvio_persona_memory")
-        .insert({
-          persona_key: newPersonaKey,
-          memory_type: newType,
-          content: newContent.trim(),
-          source: "florin_explicit",
-          confidence: 1.0,
-          enabled: true,
-        });
+      if (!newPersonaKey || !newContent.trim())
+        throw new Error("Compila tutti i campi");
+      const { error } = await supabase.from("silvio_persona_memory").insert({
+        persona_key: newPersonaKey,
+        memory_type: newType,
+        content: newContent.trim(),
+        source: "florin_explicit",
+        confidence: 1.0,
+        enabled: true,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1846,7 +2583,9 @@ function MemoryTab() {
           <CardContent className="p-4 space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Persona</label>
+                <label className="text-xs text-muted-foreground mb-1 block">
+                  Persona
+                </label>
                 <Select value={newPersonaKey} onValueChange={setNewPersonaKey}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleziona persona…" />
@@ -1861,8 +2600,15 @@ function MemoryTab() {
                 </Select>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Tipo</label>
-                <Select value={newType} onValueChange={(v) => setNewType(v as PersonaMemory["memory_type"])}>
+                <label className="text-xs text-muted-foreground mb-1 block">
+                  Tipo
+                </label>
+                <Select
+                  value={newType}
+                  onValueChange={(v) =>
+                    setNewType(v as PersonaMemory["memory_type"])
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -1877,7 +2623,9 @@ function MemoryTab() {
               </div>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Contenuto</label>
+              <label className="text-xs text-muted-foreground mb-1 block">
+                Contenuto
+              </label>
               <Textarea
                 placeholder="Es: ARPU Pro = €127/mese. Lead industriali rispondono meglio a linguaggio tecnico."
                 value={newContent}
@@ -1899,7 +2647,9 @@ function MemoryTab() {
               <Button
                 size="sm"
                 onClick={() => addMutation.mutate()}
-                disabled={addMutation.isPending || !newPersonaKey || !newContent.trim()}
+                disabled={
+                  addMutation.isPending || !newPersonaKey || !newContent.trim()
+                }
                 className="bg-orange-600 hover:bg-orange-700"
               >
                 <Save className="h-4 w-4 mr-1" />
@@ -1916,7 +2666,8 @@ function MemoryTab() {
         <Card>
           <CardContent className="p-12 text-center text-sm text-muted-foreground">
             <Brain className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-            Nessuna memoria. Aggiungi la prima per arricchire le risposte di Silvio.
+            Nessuna memoria. Aggiungi la prima per arricchire le risposte di
+            Silvio.
           </CardContent>
         </Card>
       ) : (
@@ -1926,8 +2677,12 @@ function MemoryTab() {
               key={m.id}
               memory={m}
               personas={personas}
-              onToggle={(enabled) => toggleMutation.mutate({ id: m.id, enabled })}
-              onUpdate={(content) => updateMutation.mutate({ id: m.id, content })}
+              onToggle={(enabled) =>
+                toggleMutation.mutate({ id: m.id, enabled })
+              }
+              onUpdate={(content) =>
+                updateMutation.mutate({ id: m.id, content })
+              }
               onDelete={() => deleteMutation.mutate(m.id)}
             />
           ))}
@@ -1961,9 +2716,14 @@ function MemoryCard({
           <div className="flex-1 min-w-0 space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className="text-[10px]">
-                {persona ? `${persona.emoji} ${persona.display_name}` : memory.persona_key}
+                {persona
+                  ? `${persona.emoji} ${persona.display_name}`
+                  : memory.persona_key}
               </Badge>
-              <Badge variant="outline" className={`text-[10px] ${MEMORY_TYPE_BADGE[memory.memory_type]}`}>
+              <Badge
+                variant="outline"
+                className={`text-[10px] ${MEMORY_TYPE_BADGE[memory.memory_type]}`}
+              >
                 {MEMORY_TYPE_LABEL[memory.memory_type]}
               </Badge>
               {memory.source && (
@@ -1985,7 +2745,9 @@ function MemoryCard({
                 className="text-sm"
               />
             ) : (
-              <p className="text-sm whitespace-pre-wrap break-words">{memory.content}</p>
+              <p className="text-sm whitespace-pre-wrap break-words">
+                {memory.content}
+              </p>
             )}
           </div>
           <div className="flex flex-col gap-1 shrink-0">
@@ -2089,21 +2851,31 @@ function LearningTab() {
 
   const runMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("silvio-self-improvement", {
-        body: { source: "manual_hub", days: 7 },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "silvio-self-improvement",
+        {
+          body: { source: "manual_hub", days: 7 },
+        },
+      );
       if (error) throw error;
       return data;
     },
     onSuccess: (data) => {
-      const d = data as { gold_added?: number; avoid_added?: number; promoted_to_memory?: number };
+      const d = data as {
+        gold_added?: number;
+        avoid_added?: number;
+        promoted_to_memory?: number;
+      };
       toast.success(
         `Self-improvement completato — +${d?.gold_added ?? 0} gold, +${d?.avoid_added ?? 0} avoid, ${d?.promoted_to_memory ?? 0} promossi a memoria`,
       );
-      queryClient.invalidateQueries({ queryKey: ["silvio-self-improvement-log"] });
+      queryClient.invalidateQueries({
+        queryKey: ["silvio-self-improvement-log"],
+      });
       queryClient.invalidateQueries({ queryKey: ["silvio-persona-memory"] });
     },
-    onError: (e) => toast.error("Errore self-improvement", { description: String(e) }),
+    onError: (e) =>
+      toast.error("Errore self-improvement", { description: String(e) }),
   });
 
   const logs = logsQuery.data ?? [];
@@ -2120,26 +2892,43 @@ function LearningTab() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Cron settimanale (Domenica 03:00 UTC): analizza le risposte rated 👍/👎 degli ultimi 7gg,
-            aggiunge gold standard e avoid pattern alla KB, promuove pattern usati a memoria persona.
+            Cron settimanale (Domenica 03:00 UTC): analizza le risposte rated
+            👍/👎 degli ultimi 7gg, aggiunge gold standard e avoid pattern alla
+            KB, promuove pattern usati a memoria persona.
           </p>
           {last && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
               <div className="p-2 rounded bg-emerald-50 border border-emerald-200">
-                <div className="text-[10px] text-muted-foreground">Gold last run</div>
-                <div className="font-bold text-emerald-700">+{last.gold_added}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  Gold last run
+                </div>
+                <div className="font-bold text-emerald-700">
+                  +{last.gold_added}
+                </div>
               </div>
               <div className="p-2 rounded bg-rose-50 border border-rose-200">
-                <div className="text-[10px] text-muted-foreground">Avoid last run</div>
-                <div className="font-bold text-rose-700">+{last.avoid_added}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  Avoid last run
+                </div>
+                <div className="font-bold text-rose-700">
+                  +{last.avoid_added}
+                </div>
               </div>
               <div className="p-2 rounded bg-violet-50 border border-violet-200">
-                <div className="text-[10px] text-muted-foreground">Promossi a memoria</div>
-                <div className="font-bold text-violet-700">{last.promoted_to_memory}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  Promossi a memoria
+                </div>
+                <div className="font-bold text-violet-700">
+                  {last.promoted_to_memory}
+                </div>
               </div>
               <div className="p-2 rounded bg-sky-50 border border-sky-200">
-                <div className="text-[10px] text-muted-foreground">Run analizzati</div>
-                <div className="font-bold text-sky-700">{last.runs_analyzed}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  Run analizzati
+                </div>
+                <div className="font-bold text-sky-700">
+                  {last.runs_analyzed}
+                </div>
               </div>
             </div>
           )}
@@ -2150,7 +2939,9 @@ function LearningTab() {
               disabled={runMutation.isPending}
               className="bg-orange-600 hover:bg-orange-700"
             >
-              <Zap className={`h-4 w-4 mr-1 ${runMutation.isPending ? "animate-pulse" : ""}`} />
+              <Zap
+                className={`h-4 w-4 mr-1 ${runMutation.isPending ? "animate-pulse" : ""}`}
+              />
               {runMutation.isPending ? "In esecuzione…" : "Esegui ora"}
             </Button>
           </div>
@@ -2166,7 +2957,8 @@ function LearningTab() {
             <Skeleton className="h-32" />
           ) : logs.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
-              Nessuna run effettuata. Premi "Esegui ora" o aspetta il cron settimanale.
+              Nessuna run effettuata. Premi "Esegui ora" o aspetta il cron
+              settimanale.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -2186,17 +2978,30 @@ function LearningTab() {
                   {logs.map((l) => (
                     <tr key={l.id} className="border-t hover:bg-muted/20">
                       <td className="px-3 py-2 text-xs">
-                        {format(new Date(l.run_at), "dd MMM yyyy HH:mm", { locale: it })}
+                        {format(new Date(l.run_at), "dd MMM yyyy HH:mm", {
+                          locale: it,
+                        })}
                       </td>
-                      <td className="px-3 py-2 text-right font-mono text-xs">{l.runs_analyzed}</td>
-                      <td className="px-3 py-2 text-right font-mono text-xs text-emerald-700">+{l.gold_added}</td>
-                      <td className="px-3 py-2 text-right font-mono text-xs text-rose-700">+{l.avoid_added}</td>
-                      <td className="px-3 py-2 text-right font-mono text-xs text-violet-700">{l.promoted_to_memory}</td>
+                      <td className="px-3 py-2 text-right font-mono text-xs">
+                        {l.runs_analyzed}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-xs text-emerald-700">
+                        +{l.gold_added}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-xs text-rose-700">
+                        +{l.avoid_added}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-xs text-violet-700">
+                        {l.promoted_to_memory}
+                      </td>
                       <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
                         {(l.duration_ms / 1000).toFixed(1)}s
                       </td>
                       <td className="px-3 py-2">
-                        <Badge variant="outline" className={`text-[10px] ${l.ok ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${l.ok ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}
+                        >
                           {l.ok ? "✓ ok" : "✗ errors"}
                         </Badge>
                       </td>

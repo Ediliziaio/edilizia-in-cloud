@@ -18,7 +18,6 @@ import {
   Blocks,
   Search,
   ChevronsUpDown,
-  ChevronDown,
   RefreshCw,
   LifeBuoy,
   Megaphone,

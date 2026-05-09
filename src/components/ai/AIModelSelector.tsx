@@ -16,7 +16,6 @@
 import { useState } from 'react';
 import { ChevronDown, Check, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatCost, type AIModelMeta } from '@/lib/ai/openrouter-models';
