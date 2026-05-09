@@ -123,12 +123,13 @@ const allNavItems: AdminNavItem[] = [
   { title: "Fatture", url: "/admin/fatture", icon: FileText, permission: "billing_read", subcategory: "sa_revenue" },
   { title: "Promo", url: "/admin/promo-codes", icon: Ticket, permission: "billing_write", subcategory: "sa_revenue" },
   { title: "Dunning", url: "/admin/dunning", icon: Settings2, permission: "billing_write", subcategory: "sa_revenue" },
-  // Monitor AI nella sezione Fatturato per visibilità costi AI
-  { title: "Monitor AI", url: "/admin/ai-usage", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
-  // AI Test Lab — confronto modelli AI (visibile solo super_admin via RequireSuperAdmin)
-  { title: "AI Test Lab", url: "/admin/ai-test-lab", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
-  // Silvio Hub — approvazioni + queue + policies outbound automation
-  { title: "Silvio Hub", url: "/admin/silvio-hub", icon: Bot, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
+  // ─── AI MANAGEMENT (refactor Strategia C: 3 pagine consolidate) ───────
+  // Config: routing modelli, personas, KB, pricing, governance
+  { title: "AI · Config", url: "/admin/ai-config", icon: Settings2, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
+  // Monitor: usage, costs, test lab, health
+  { title: "AI · Monitor", url: "/admin/ai-monitor", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
+  // Operate: approvals, queue, policies, missions, chief, memory, learning
+  { title: "AI · Operate", url: "/admin/ai-operate", icon: Bot, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
   // ─── CUSTOMER SUCCESS ───────────────────────────────────────────────
   { title: "CS Dashboard", url: "/admin/cs-dashboard", icon: TrendingUp, permission: "can_impersonate", subcategory: "sa_customer_success" },
   { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare, permission: "can_manage_tickets", subcategory: "sa_customer_success" },

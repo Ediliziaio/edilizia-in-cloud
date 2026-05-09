@@ -22,11 +22,17 @@ const AdminSettingsEmail = lazy(() => import("@/pages/admin/settings/AdminSettin
 const AdminSettingsAI = lazy(() => import("@/pages/admin/settings/AdminSettingsAI"));
 // Silvio Superadmin (co-founder AI per Florin)
 const SilvioAdminPage = lazy(() => import("@/pages/admin/SilvioAdminPage"));
-// AI Test Lab (confronto costi/latency/quality per modello)
+// AI Test Lab (confronto costi/latency/quality per modello) — usato come tab dentro AIMonitorPage
 const AdminAITestLab = lazy(() => import("@/pages/admin/AdminAITestLab"));
-// Silvio Hub (approvazioni + queue + policies)
+// Silvio Hub (approvazioni + queue + policies) — usato come tab dentro AIOperatePage
 const SilvioAdminHub = lazy(() => import("@/pages/admin/SilvioAdminHub"));
 const SilvioApprovalsPage = lazy(() => import("@/pages/admin/SilvioApprovalsPage"));
+// ============================================================================
+// REFACTOR Strategia C: nuove 3 pagine AI consolidate
+// ============================================================================
+const AIConfigPage = lazy(() => import("@/pages/admin/ai/AIConfigPage"));
+const AIMonitorPage = lazy(() => import("@/pages/admin/ai/AIMonitorPage"));
+const AIOperatePage = lazy(() => import("@/pages/admin/ai/AIOperatePage"));
 const SubscriptionPlans = lazy(() => import("@/pages/admin/SubscriptionPlans"));
 const PlanDetail = lazy(() => import("@/pages/admin/PlanDetail"));
 const ReferralDashboard = lazy(() => import("@/pages/admin/ReferralDashboard"));
@@ -186,14 +192,28 @@ export function adminRoutes() {
         <Route path="impostazioni/super-admin" element={<RequireSuperAdmin><AdminSettingsSuperAdmins /></RequireSuperAdmin>} />
         <Route path="impostazioni/audit" element={<RequireSuperAdmin><AdminSettingsAuditLog /></RequireSuperAdmin>} />
         <Route path="impostazioni/email" element={<RequireSuperAdmin><AdminSettingsEmail /></RequireSuperAdmin>} />
-        <Route path="impostazioni/agenti-ai" element={<RequireSuperAdmin><AdminSettingsAI /></RequireSuperAdmin>} />
-        {/* Silvio Superadmin — co-founder AI di Florin (cross-tenant, super_admin only) */}
+        {/* ============================================================
+            REFACTOR Strategia C — 3 pagine AI consolidate (nuove)
+            ============================================================ */}
+        <Route path="ai-config" element={<RequireSuperAdmin><AIConfigPage /></RequireSuperAdmin>} />
+        <Route path="ai-monitor" element={<RequireSuperAdmin><AIMonitorPage /></RequireSuperAdmin>} />
+        <Route path="ai-operate" element={<RequireSuperAdmin><AIOperatePage /></RequireSuperAdmin>} />
+
+        {/* Redirect dalle VECCHIE route → nuove pagine (backward-compat bookmark) */}
+        <Route path="impostazioni/agenti-ai" element={<Navigate to="/admin/ai-config" replace />} />
+        <Route path="ai-test-lab" element={<Navigate to="/admin/ai-monitor?tab=test-lab" replace />} />
+        <Route path="silvio-hub" element={<Navigate to="/admin/ai-operate" replace />} />
+        <Route path="silvio/approvazioni" element={<Navigate to="/admin/ai-operate?tab=approvals" replace />} />
+
+        {/* Silvio Admin chat (entry point chat dedicata, separata) */}
         <Route path="silvio" element={<RequireSuperAdmin><SilvioAdminPage /></RequireSuperAdmin>} />
-        {/* AI Test Lab — confronto modelli AI per super_admin */}
-        <Route path="ai-test-lab" element={<RequireSuperAdmin><AdminAITestLab /></RequireSuperAdmin>} />
-        {/* Silvio Hub — approvazioni + queue + policies (Sprint A outbound engine) */}
-        <Route path="silvio-hub" element={<RequireSuperAdmin><SilvioAdminHub /></RequireSuperAdmin>} />
-        <Route path="silvio/approvazioni" element={<RequireSuperAdmin><SilvioApprovalsPage /></RequireSuperAdmin>} />
+
+        {/* Vecchie pagine ancora montate ma raggiungibili solo via redirect sopra
+            (rimangono disponibili come component se servono) */}
+        <Route path="legacy/silvio-hub" element={<RequireSuperAdmin><SilvioAdminHub /></RequireSuperAdmin>} />
+        <Route path="legacy/agenti-ai" element={<RequireSuperAdmin><AdminSettingsAI /></RequireSuperAdmin>} />
+        <Route path="legacy/silvio-approvazioni" element={<RequireSuperAdmin><SilvioApprovalsPage /></RequireSuperAdmin>} />
+        <Route path="legacy/ai-test-lab" element={<RequireSuperAdmin><AdminAITestLab /></RequireSuperAdmin>} />
         <Route path="impostazioni/ip-allowlist" element={<RequireSuperAdmin><AdminSettingsIPAllowlist /></RequireSuperAdmin>} />
         <Route path="impostazioni/sicurezza" element={<RequireSuperAdmin><AdminSettingsSecurity /></RequireSuperAdmin>} />
         <Route path="impostazioni/feature-flags" element={<Navigate to="/admin/feature-flags" replace />} />
@@ -202,10 +222,11 @@ export function adminRoutes() {
         <Route path="impostazioni/webhooks" element={<RequireSuperAdmin><AdminSettingsWebhooks /></RequireSuperAdmin>} />
         <Route path="impostazioni/webhook-logs" element={<RequireSuperAdmin><AdminSettingsWebhookLogs /></RequireSuperAdmin>} />
         <Route path="impostazioni/banking-overview" element={<RequireSuperAdmin><AdminSettingsBankingOverview /></RequireSuperAdmin>} />
-        {/* Monitor AI: nuova route nella sidebar principale.
-            Vecchio path /admin/impostazioni/ai-usage redirige per backward compat. */}
-        <Route path="ai-usage" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminSettingsAIUsage /></RequireAdminPermission>} />
-        <Route path="impostazioni/ai-usage" element={<Navigate to="/admin/ai-usage" replace />} />
+        {/* Vecchia route ai-usage → redirect alla nuova AI Monitor con tab Usage */}
+        <Route path="ai-usage" element={<Navigate to="/admin/ai-monitor?tab=usage" replace />} />
+        <Route path="impostazioni/ai-usage" element={<Navigate to="/admin/ai-monitor?tab=usage" replace />} />
+        {/* Legacy route della pagina AIUsage standalone, raggiungibile solo via redirect */}
+        <Route path="legacy/ai-usage" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminSettingsAIUsage /></RequireAdminPermission>} />
         <Route path="piani" element={<RequireSuperAdmin><SubscriptionPlans /></RequireSuperAdmin>} />
         <Route path="piani/:id" element={<RequireSuperAdmin><PlanDetail /></RequireSuperAdmin>} />
         <Route path="referral" element={<RequireSuperAdmin><ReferralDashboard /></RequireSuperAdmin>} />
