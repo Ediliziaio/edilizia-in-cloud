@@ -7,7 +7,6 @@ import {
   Mic,
   Settings,
   Zap,
-  DollarSign,
   Users,
   BookOpen,
   Brain,
@@ -35,7 +34,7 @@ const AdminSettingsAIActions = lazy(() => import("@/pages/admin/settings/AdminSe
  * la cognitive load (8 tab piatte → 4 gruppi + sub-tab per gruppo).
  *
  * Struttura:
- *   Routing & Models   → AI Router | Le 18 Personas
+   *   Routing & Models   → AI Router | 18 Personas Cliente
  *   Content            → Knowledge Base | Memoria Silvio | Voci ElevenLabs
  *                        (Memoria = contesto per-azienda, KB = universale)
  *   Economics          → Pricing & Margini
@@ -54,7 +53,7 @@ export default function AdminSettingsAI() {
       <div>
         <h1 className="text-2xl font-bold">Agenti AI</h1>
         <p className="text-muted-foreground">
-          Router cost-optimized via OpenRouter, pricing & margini, le 18 personas, voci vocali
+            Router cost-optimized via OpenRouter, pricing & margini, 18 personas cliente, voci vocali
         </p>
       </div>
 
@@ -86,7 +85,7 @@ export default function AdminSettingsAI() {
         <TabsContent value="routing" className="space-y-3">
           <CategoryDescription
             title="Routing & Models"
-            description="Configura quali modelli AI vengono usati per ogni task e personalizza le 18 personas con il loro system prompt."
+              description="Configura i modelli AI per ogni task e personalizza le 18 personas cliente. Le 21 personas interne di Silvio Superadmin restano governate dal Silvio Hub."
           />
           <Tabs defaultValue="router" className="space-y-3">
             <TabsList>
@@ -96,7 +95,7 @@ export default function AdminSettingsAI() {
               </TabsTrigger>
               <TabsTrigger value="personas" className="gap-2">
                 <Users className="h-4 w-4" />
-                Le 18 Personas
+                  18 Personas Cliente
               </TabsTrigger>
             </TabsList>
             <TabsContent value="router">

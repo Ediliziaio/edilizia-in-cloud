@@ -362,7 +362,7 @@ UPDATE public.silvio_admin_personas SET debate_opponent = 'davide'     WHERE per
 UPDATE public.silvio_admin_personas SET debate_opponent = 'matteo'     WHERE persona_key = 'davide';
 UPDATE public.silvio_admin_personas SET debate_opponent = 'ferrari'    WHERE persona_key = 'eleonora';  -- Compliance pratica vs Legale formale
 UPDATE public.silvio_admin_personas SET debate_opponent = 'eleonora'   WHERE persona_key = 'ferrari';
-UPDATE public.silvio_admin_personas SET debate_opponent = 'gabriese'   WHERE persona_key = 'tommaso';   -- Outbound paid vs BD organico
+UPDATE public.silvio_admin_personas SET debate_opponent = 'gabriele'   WHERE persona_key = 'tommaso';   -- Outbound paid vs BD organico
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- 6) RPC pick_silvio_admin_persona — aggiornata per ritornare anche

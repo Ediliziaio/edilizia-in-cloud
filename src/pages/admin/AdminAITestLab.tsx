@@ -21,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Coins, Zap, Star, FlaskConical, TrendingUp, RefreshCw, Brain, Database,
@@ -66,15 +66,6 @@ const PROVIDER_COLORS: Record<string, string> = {
   mistralai: "bg-rose-100 text-rose-700 border-rose-300",
 };
 
-function periodToInterval(p: Period): string {
-  switch (p) {
-    case "24h": return "24 hours";
-    case "7d":  return "7 days";
-    case "30d": return "30 days";
-    case "90d": return "90 days";
-  }
-}
-
 const fmtUSD = (v: number, decimals = 4) =>
   `$${Number(v).toFixed(decimals)}`;
 
@@ -89,7 +80,6 @@ export default function AdminAITestLab() {
     queryKey: ["admin-ai-test-lab-stats", period, feature],
     refetchInterval: 60_000,
     queryFn: async () => {
-      const interval = periodToInterval(period);
       // Aggregazione client-side: prendiamo righe grezze + group by model+feature
       // (per dataset piccoli funziona; se cresce molto, si può creare RPC dedicato)
       const since = new Date(Date.now() - parsePeriodMs(period)).toISOString();
@@ -383,14 +373,23 @@ function KbIngestButton() {
     },
   });
 
+  const handleIngest = () => {
+    const confirmed = window.confirm(
+      "Reimportare MEGA_CERVELLO? L'operazione sostituisce i chunk esistenti, puo durare diversi minuti e va lanciata solo dopo aver aggiornato il file sorgente."
+    );
+    if (!confirmed) return;
+    ingestMutation.mutate();
+  };
+
   return (
     <div className="flex flex-col items-end gap-1">
       <Button
         variant="default"
         size="sm"
-        onClick={() => ingestMutation.mutate()}
+        onClick={handleIngest}
         disabled={ingestMutation.isPending}
         className="bg-violet-600 hover:bg-violet-700"
+        title="Reimporta la knowledge base operativa di Silvio"
       >
         {ingestMutation.isPending ? (
           <Brain className="h-4 w-4 mr-2 animate-pulse" />

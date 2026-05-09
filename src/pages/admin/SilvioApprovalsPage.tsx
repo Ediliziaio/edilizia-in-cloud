@@ -4,9 +4,8 @@
  * Letto da `silvio_pending_approvals` con status='awaiting'.
  * Per ogni card: Approva / Modifica / Rifiuta (+ countdown expires_at).
  *
- * V1: in fase outbound non ancora attiva (nessuna azione genera approvals).
- *     La pagina è già pronta: appena la coda outbound si popolerà, le card
- *     appariranno qui senza altre modifiche.
+ * Le risoluzioni passano da RPC transazionali: approval card e action queue
+ * vengono aggiornate insieme, con audit log e guardia super_admin.
  */
 
 import { useState } from "react";
@@ -94,34 +93,16 @@ export default function SilvioApprovalsPage() {
     },
   });
 
-  const approveMutation = useMutation({
-    mutationFn: async ({ id, modifiedPayload }: { id: string; modifiedPayload?: unknown }) => {
-      const updates: Record<string, unknown> = {
-        status: modifiedPayload ? "modified" : "approved",
-        resolved_at: new Date().toISOString(),
-      };
-      if (modifiedPayload) updates.modified_payload = modifiedPayload;
-
-      const { error } = await supabase
-        .from("silvio_pending_approvals")
-        .update(updates)
-        .eq("id", id)
-        .eq("status", "awaiting");
-      if (error) throw error;
-
-      // Aggiorna anche la coda azione
-      const approval = approvals?.find((a) => a.id === id);
-      if (approval) {
-        await supabase
-          .from("silvio_action_queue")
-          .update({
-            status: "queued",
-            approved_at: new Date().toISOString(),
-            scheduled_for: new Date().toISOString(),
-          })
-          .eq("id", approval.action_id);
-      }
-    },
+    const approveMutation = useMutation({
+      mutationFn: async ({ id, modifiedPayload }: { id: string; modifiedPayload?: unknown }) => {
+        const { error } = await supabase.rpc("silvio_admin_resolve_approval" as never, {
+          p_approval_id: id,
+          p_status: modifiedPayload ? "modified" : "approved",
+          p_modified_payload: modifiedPayload ?? null,
+          p_resolution_note: null,
+        } as never);
+        if (error) throw error;
+      },
     onSuccess: () => {
       toast.success("Approvato — Silvio eseguirà l'azione");
       queryClient.invalidateQueries({ queryKey: ["silvio-pending-approvals"] });
@@ -130,25 +111,15 @@ export default function SilvioApprovalsPage() {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: async ({ id, note }: { id: string; note?: string }) => {
-      const { error } = await supabase
-        .from("silvio_pending_approvals")
-        .update({
-          status: "rejected",
-          resolved_at: new Date().toISOString(),
-          resolution_note: note ?? null,
-        })
-        .eq("id", id);
-      if (error) throw error;
-
-      const approval = approvals?.find((a) => a.id === id);
-      if (approval) {
-        await supabase
-          .from("silvio_action_queue")
-          .update({ status: "cancelled" })
-          .eq("id", approval.action_id);
-      }
-    },
+      mutationFn: async ({ id, note }: { id: string; note?: string }) => {
+        const { error } = await supabase.rpc("silvio_admin_resolve_approval" as never, {
+          p_approval_id: id,
+          p_status: "rejected",
+          p_modified_payload: null,
+          p_resolution_note: note ?? null,
+        } as never);
+        if (error) throw error;
+      },
     onSuccess: () => {
       toast.info("Rifiutato — l'azione non sarà eseguita");
       queryClient.invalidateQueries({ queryKey: ["silvio-pending-approvals"] });
@@ -279,7 +250,6 @@ export default function SilvioApprovalsPage() {
       {/* Modal modifica */}
       {editingApproval && (
         <EditApprovalDialog
-          approval={editingApproval}
           queueItem={actionQueueMap?.get(editingApproval.action_id)}
           onClose={() => setEditingApproval(null)}
           onSaved={(modifiedPayload) => {
@@ -346,14 +316,16 @@ function ApprovalCard({
           </details>
         )}
 
-        {/* Actions */}
-        <div className="flex gap-2 flex-wrap">
-          <Button
-            size="sm"
-            onClick={onApprove}
-            disabled={isLoading}
-            className="bg-emerald-600 hover:bg-emerald-700"
-          >
+          {/* Actions */}
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              size="sm"
+              onClick={() => {
+                if (window.confirm("Approvare questa azione e metterla in coda di esecuzione?")) onApprove();
+              }}
+              disabled={isLoading}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
             <Check className="h-4 w-4 mr-1.5" />
             Approva
           </Button>
@@ -361,13 +333,15 @@ function ApprovalCard({
             <Pencil className="h-4 w-4 mr-1.5" />
             Modifica
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onReject()}
-            disabled={isLoading}
-            className="border-rose-300 text-rose-700 hover:bg-rose-50"
-          >
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (window.confirm("Rifiutare questa azione? Non verra eseguita.")) onReject();
+              }}
+              disabled={isLoading}
+              className="border-rose-300 text-rose-700 hover:bg-rose-50"
+            >
             <X className="h-4 w-4 mr-1.5" />
             Rifiuta
           </Button>
@@ -378,9 +352,8 @@ function ApprovalCard({
 }
 
 function EditApprovalDialog({
-  approval, queueItem, onClose, onSaved,
+  queueItem, onClose, onSaved,
 }: {
-  approval: PendingApproval;
   queueItem: ActionQueueItem | undefined;
   onClose: () => void;
   onSaved: (modifiedPayload: unknown) => void;

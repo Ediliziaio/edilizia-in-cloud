@@ -1,8 +1,8 @@
 /**
- * AdminSettingsAIPersonas — Coordinatore SuperAdmin per le 18 personas AI.
+ * AdminSettingsAIPersonas — Coordinatore SuperAdmin per le 18 personas AI cliente.
  *
  * Sezioni:
- *   1. Guida visiva delle 18 personas raggruppate per categoria
+ *   1. Guida visiva delle 18 personas cliente raggruppate per categoria
  *   2. Editor system prompt + tier modello + tool whitelist
  *   3. Mapping ruoli applicativi che possono accedervi
  *
@@ -173,9 +173,9 @@ export default function AdminSettingsAIPersonas() {
       <Alert>
         <Sparkles className="h-4 w-4" />
         <AlertDescription>
-          <strong>Le 18 Personas AI</strong> sono "esperti" virtuali che le aziende possono interpellare.
-          Ogni persona ha un <em>system prompt</em> amplificato, un tier modello consigliato e una whitelist di ruoli che possono accedervi.
-          Modifica i prompt qui per affinare il comportamento di ogni esperto.
+            <strong>Le 18 Personas AI cliente</strong> sono "esperti" virtuali che le aziende possono interpellare.
+            Ogni persona ha un <em>system prompt</em> amplificato, un tier modello consigliato e una whitelist di ruoli che possono accedervi.
+            Modifica qui i prompt customer-facing. Le 21 personas interne di Silvio Superadmin sono un sistema separato.
         </AlertDescription>
       </Alert>
 

@@ -21,10 +21,11 @@ import { generateEmbedding, contentHash } from "../_shared/brainEmbed.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const INTERNAL_CRON_SECRET = Deno.env.get("INTERNAL_CRON_SECRET");
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
 interface RatedRun {
@@ -45,6 +46,38 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
+
+  const cronSecret = req.headers.get("x-cron-secret");
+  const isCronCall = Boolean(INTERNAL_CRON_SECRET && cronSecret === INTERNAL_CRON_SECRET);
+  let triggeredBy = "cron";
+
+  if (!isCronCall) {
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const token = authHeader.replace("Bearer ", "");
+    const userRes = await supabase.auth.getUser(token);
+    const userId = userRes.data?.user?.id;
+    if (!userId) {
+      return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...CORS, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: roleData, error: roleErr } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "super_admin")
+      .maybeSingle();
+
+    if (roleErr || !roleData) {
+      return new Response(JSON.stringify({ ok: false, error: "Solo super_admin" }), {
+        status: 403,
+        headers: { ...CORS, "Content-Type": "application/json" },
+      });
+    }
+    triggeredBy = `manual:${userId}`;
+  }
 
   let body: { source?: string; days?: number } = {};
   try {
@@ -112,7 +145,7 @@ Deno.serve(async (req) => {
           model_id: run.model_id,
           rating: 5,
           hits_count: 0,
-          created_via: body.source ?? "manual",
+          created_via: body.source ?? triggeredBy,
         },
       });
       if (insErr) {
@@ -159,7 +192,7 @@ Deno.serve(async (req) => {
           model_id: run.model_id,
           rating: 1,
           hits_count: 0,
-          created_via: body.source ?? "manual",
+          created_via: body.source ?? triggeredBy,
         },
       });
       if (insErr) {
@@ -214,6 +247,7 @@ Deno.serve(async (req) => {
       promoted_to_memory: promoted,
       errors_count: errors.length,
       duration_ms: durationMs,
+      triggered_by: triggeredBy,
     }),
     { headers: { ...CORS, "Content-Type": "application/json" } },
   );

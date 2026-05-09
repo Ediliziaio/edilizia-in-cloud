@@ -133,11 +133,11 @@ KPI, regole ferree. Ma firmi sempre come Silvio.
    Su decisioni che impattano clienti (es. mass email): SEMPRE disclaimer GDPR.
 
 ═══════════════════════════════════════════════════════════════════════════
-🎭 LE TUE 15 PERSONAS — adotta il tono giusto per la query
+🎭 LE TUE 21 PERSONAS — adotta il tono giusto per la query
 ═══════════════════════════════════════════════════════════════════════════
 
 Sei un router universale che adotta il TONO della persona più adatta al topic.
-Le 15 personas (con ambito): vedi system prompt addendum iniettato runtime.
+Le 21 personas (con ambito): vedi system prompt addendum iniettato runtime.
 
 Persona-driven response:
 - Se la query tocca UNA area (es. solo MRR) → adotta tono di quella persona (es. CFO)
@@ -196,11 +196,13 @@ Area LEAD (4):
 USA i tool ogni volta che ti chiedono dati specifici. NON inventare numeri.
 
 ═══════════════════════════════════════════════════════════════════════════
-⏰ AZIONI OUTBOUND (Sprint 3)
+⏰ AZIONI OUTBOUND E GOVERNANCE
 ═══════════════════════════════════════════════════════════════════════════
 
-In V1 base prepari SOLO bozze. Quando Florin dice "manda" o "crea workflow":
-risponde "Sprint 3 in costruzione — per ora preparo la bozza, l'invio reale arriva presto."`;
+Per azioni che inviano comunicazioni, spostano denaro, cambiano stato clienti o creano effetti esterni:
+- non eseguire mai senza conferma esplicita;
+- se manca un tool operativo, prepara una bozza pronta da approvare;
+- quando esiste una action queue/approval, usa sempre quella come passaggio di sicurezza.`;
 
 // Tool definitions (OpenAI function calling format)
 const TOOLS = [
@@ -494,8 +496,48 @@ async function executeTool(
   return data;
 }
 
+async function buildPersonaMemoryBlock(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  personaKeys: string[],
+  limitPerPersona: number
+): Promise<string> {
+  const uniqueKeys = [...new Set(personaKeys.filter(Boolean))].slice(0, 4);
+  if (uniqueKeys.length === 0) return "";
+
+  const blocks: string[] = [];
+  for (const personaKey of uniqueKeys) {
+    try {
+      const { data: memories, error } = await supabase.rpc("get_persona_memory", {
+        p_persona_key: personaKey,
+        p_limit: limitPerPersona,
+      });
+      if (error || !Array.isArray(memories) || memories.length === 0) continue;
+
+      const lines = (memories as Array<{ memory_type?: string; content?: string }>)
+        .filter((m) => typeof m.content === "string" && m.content.trim().length > 0)
+        .slice(0, limitPerPersona)
+        .map((m, i) => {
+          const content = String(m.content).replace(/\s+/g, " ").slice(0, 500);
+          return `${i + 1}. [${m.memory_type ?? "memory"}] ${content}`;
+        });
+
+      if (lines.length > 0) {
+        blocks.push(`--- ${personaKey} ---\n${lines.join("\n")}`);
+      }
+    } catch (e) {
+      console.warn("[silvio-admin-chat] persona memory failed:", personaKey, e);
+    }
+  }
+
+  return blocks.length > 0
+    ? `\n\n═══ MEMORIE STORICHE PERSONA-SPECIFIC ═══\n${blocks.join("\n\n")}\n`
+    : "";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  const requestStartedAt = Date.now();
 
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
@@ -580,19 +622,7 @@ Deno.serve(async (req) => {
           invocationMode = "SOLO";
           const p = typed[0];
 
-          // Inietta memorie persona-specific (Sprint D)
-          const { data: memories } = await supabase.rpc("get_persona_memory", {
-            p_persona_key: p.persona_key,
-            p_limit: 8,
-          });
-          const memoryBlock = (memories && Array.isArray(memories) && memories.length > 0)
-            ? `\n\n═══ MEMORIE STORICHE ${p.short_label} ═══\n` +
-              (memories as Array<{ memory_type: string; content: string }>).map((m, i) =>
-                `${i + 1}. [${m.memory_type}] ${m.content}`
-              ).join("\n")
-            : "";
-
-          personaAddendum = `\n\n═══ ATTIVA INTERIORMENTE: ${p.emoji} ${p.short_label} (motto: "${p.motto}") ═══\n${p.system_prompt_addendum}${memoryBlock}\n\n═══ ISTRUZIONI VOCE ═══\nFlorin ha chiesto esplicitamente questa expertise. Adotta il TONO + il FRAMEWORK di pensiero, ma firmi sempre come Silvio (UNA voce sola). Florin sa che internamente stai pensando come ${p.short_label}, non serve che lo dichiari.`;
+          personaAddendum = `\n\n═══ ATTIVA INTERIORMENTE: ${p.emoji} ${p.short_label} (motto: "${p.motto}") ═══\n${p.system_prompt_addendum}\n\n═══ ISTRUZIONI VOCE ═══\nFlorin ha chiesto esplicitamente questa expertise. Adotta il TONO + il FRAMEWORK di pensiero, ma firmi sempre come Silvio (UNA voce sola). Florin sa che internamente stai pensando come ${p.short_label}, non serve che lo dichiari.`;
         } else if (isDebatePattern && typed.length >= 2) {
           // DEBATE interiore: pesa 2 viste opposte → output UNA risposta sintetica
           invocationMode = "DEBATE";
@@ -619,6 +649,15 @@ Deno.serve(async (req) => {
       }
     } catch (e) {
       console.warn("[silvio-admin-chat] persona routing failed:", e);
+    }
+
+    const personaMemoryBlock = await buildPersonaMemoryBlock(
+      supabase,
+      activePersonas,
+      invocationMode === "SOLO" ? 8 : 4
+    );
+    if (personaMemoryBlock) {
+      personaAddendum += personaMemoryBlock;
     }
 
     // 5b. Build messages[] — Preambolo costituzionale + Director base + persona-specific
@@ -782,7 +821,7 @@ Deno.serve(async (req) => {
         input_tokens: totalTokensIn,
         output_tokens: totalTokensOut,
         cost_usd: totalCostUsd,
-        latency_ms: aiDuration,
+        latency_ms: Date.now() - requestStartedAt,
         prompt_excerpt: message.slice(0, 200),
         response_excerpt: finalContent.slice(0, 200),
         // openrouter_generation_id non disponibile direttamente da aiRouterComplete

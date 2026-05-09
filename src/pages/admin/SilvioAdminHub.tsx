@@ -158,40 +158,18 @@ function ApprovalsTab() {
 
   const resolveMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: "approved" | "rejected" }) => {
-      // Approve → l'action_queue viene auto-processed dal runner.
-      // Reject → l'action_queue.status diventa cancelled.
-      const { data: approval } = await supabase
-        .from("silvio_pending_approvals")
-        .select("action_id")
-        .eq("id", id)
-        .single();
-      if (!approval) throw new Error("Approval non trovata");
-
-      // Update approval
-      await supabase
-        .from("silvio_pending_approvals")
-        .update({
-          status,
-          resolved_at: new Date().toISOString(),
-        })
-        .eq("id", id);
-
-      // Update underlying action
-      if (status === "approved") {
-        await supabase
-          .from("silvio_action_queue")
-          .update({ status: "queued", scheduled_for: new Date().toISOString() })
-          .eq("id", approval.action_id);
-      } else {
-        await supabase
-          .from("silvio_action_queue")
-          .update({ status: "cancelled" })
-          .eq("id", approval.action_id);
-      }
+      const { error } = await supabase.rpc("silvio_admin_resolve_approval" as never, {
+        p_approval_id: id,
+        p_status: status,
+        p_modified_payload: null,
+        p_resolution_note: null,
+      } as never);
+      if (error) throw error;
     },
     onSuccess: (_, { status }) => {
       toast.success(status === "approved" ? "Approvata: in esecuzione" : "Rifiutata");
       queryClient.invalidateQueries({ queryKey: ["silvio-pending-approvals"] });
+      queryClient.invalidateQueries({ queryKey: ["silvio-action-queue"] });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
@@ -239,7 +217,11 @@ function ApprovalsTab() {
                 <Button
                   size="sm"
                   className="bg-emerald-600 hover:bg-emerald-700"
-                  onClick={() => resolveMutation.mutate({ id: a.id, status: "approved" })}
+                  onClick={() => {
+                    if (window.confirm("Approvare questa azione e metterla in esecuzione?")) {
+                      resolveMutation.mutate({ id: a.id, status: "approved" });
+                    }
+                  }}
                   disabled={resolveMutation.isPending}
                 >
                   <CheckCircle2 className="h-4 w-4 mr-1" />
@@ -248,7 +230,11 @@ function ApprovalsTab() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => resolveMutation.mutate({ id: a.id, status: "rejected" })}
+                  onClick={() => {
+                    if (window.confirm("Rifiutare questa azione Silvio? Non verra eseguita.")) {
+                      resolveMutation.mutate({ id: a.id, status: "rejected" });
+                    }
+                  }}
                   disabled={resolveMutation.isPending}
                 >
                   <XCircle className="h-4 w-4 mr-1" />
@@ -290,30 +276,32 @@ function QueueTab() {
 
   const cancelMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("silvio_action_queue")
-        .update({ status: "cancelled" })
-        .eq("id", id);
+      const { error } = await supabase.rpc("silvio_admin_update_queue_action" as never, {
+        p_action_id: id,
+        p_operation: "cancel",
+      } as never);
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Azione cancellata");
       queryClient.invalidateQueries({ queryKey: ["silvio-action-queue"] });
     },
+    onError: (e) => toast.error("Errore cancellazione", { description: String(e) }),
   });
 
   const retryMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("silvio_action_queue")
-        .update({ status: "queued", scheduled_for: new Date().toISOString(), attempts: 0 })
-        .eq("id", id);
+      const { error } = await supabase.rpc("silvio_admin_update_queue_action" as never, {
+        p_action_id: id,
+        p_operation: "retry",
+      } as never);
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Re-enqueued");
       queryClient.invalidateQueries({ queryKey: ["silvio-action-queue"] });
     },
+    onError: (e) => toast.error("Errore retry", { description: String(e) }),
   });
 
   return (
@@ -378,12 +366,28 @@ function QueueTab() {
                       <td className="px-3 py-2">
                         <div className="flex gap-1 justify-end">
                           {a.status === "failed" && (
-                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => retryMutation.mutate(a.id)}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                if (window.confirm("Rimettere in coda questa azione fallita?")) retryMutation.mutate(a.id);
+                              }}
+                              disabled={retryMutation.isPending}
+                            >
                               Retry
                             </Button>
                           )}
                           {(a.status === "queued" || a.status === "awaiting_approval") && (
-                            <Button size="sm" variant="ghost" className="h-7 text-xs text-rose-600" onClick={() => cancelMutation.mutate(a.id)}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs text-rose-600"
+                              onClick={() => {
+                                if (window.confirm("Cancellare questa azione dalla coda Silvio?")) cancelMutation.mutate(a.id);
+                              }}
+                              disabled={cancelMutation.isPending}
+                            >
                               Cancella
                             </Button>
                           )}

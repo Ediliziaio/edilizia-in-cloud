@@ -135,6 +135,14 @@ export default function AdminSettingsAIMemory() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const handleGlobalExtraction = () => {
+    const confirmed = window.confirm(
+      "Avviare l'estrazione globale della memoria Silvio su tutte le aziende? Operazione costosa: puo generare chiamate AI, durare diversi minuti e aggiornare fatti usati nei prompt."
+    );
+    if (!confirmed) return;
+    extractMut.mutate();
+  };
+
   const deleteFactMut = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("ai_brain_facts" as never).delete().eq("id", id);
@@ -172,12 +180,13 @@ export default function AdminSettingsAIMemory() {
             </SelectContent>
           </Select>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => extractMut.mutate()}
-          disabled={extractMut.isPending}
-          className="gap-2"
-        >
+          <Button
+            variant="outline"
+            onClick={handleGlobalExtraction}
+            disabled={extractMut.isPending}
+            className="gap-2"
+            title="Esegue l'estrazione memoria su tutte le aziende"
+          >
           <RefreshCw className={cn("h-4 w-4", extractMut.isPending && "animate-spin")} />
           {extractMut.isPending ? "Estraggo…" : "Trigger extraction globale"}
         </Button>
