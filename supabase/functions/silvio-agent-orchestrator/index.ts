@@ -21,6 +21,10 @@ const MAX_PARALLEL_AGENTS = 5;
 const QA_AGENT_KEY = "qa_compliance_agent";
 const COORDINATOR_AGENT_KEY = "silvio_coordinator";
 
+// Supabase Edge Functions use the generated JS client dynamically here.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseAdminClient = any;
+
 interface MissionRequest {
   title?: string;
   objective: string;
@@ -145,7 +149,7 @@ function parseBearer(req: Request): string | null {
   return match?.[1] ?? null;
 }
 
-async function requireSuperAdmin(req: Request, supabase: any): Promise<string> {
+async function requireSuperAdmin(req: Request, supabase: SupabaseAdminClient): Promise<string> {
   const token = parseBearer(req);
   if (!token) throw new Error("Missing bearer token");
 
@@ -228,7 +232,7 @@ function trimJsonForPrompt(value: unknown, maxLength = 6000): string {
   return `${text.slice(0, maxLength)}\n... [troncato per budget token]`;
 }
 
-async function loadAgentMemory(supabase: any, agentKey: string): Promise<string> {
+async function loadAgentMemory(supabase: SupabaseAdminClient, agentKey: string): Promise<string> {
   const { data, error } = await supabase
     .from("silvio_agent_memory")
     .select("id,memory_type,content,confidence,hits_count")
@@ -287,7 +291,7 @@ async function executeKnowledgeSearch(agent: AgentRegistry, objective: string, t
 }
 
 async function executeAgentTools(
-  supabase: any,
+  supabase: SupabaseAdminClient,
   missionId: string,
   taskId: string,
   agent: AgentRegistry,
@@ -491,7 +495,7 @@ function outputToMarkdown(agent: AgentRegistry, output: WorkerOutput): string {
 }
 
 async function insertBlackboardItems(
-  supabase: any,
+  supabase: SupabaseAdminClient,
   missionId: string,
   taskId: string,
   agentKey: string,
@@ -529,7 +533,7 @@ async function insertBlackboardItems(
 }
 
 async function storeMemorySuggestions(
-  supabase: any,
+  supabase: SupabaseAdminClient,
   missionId: string,
   agentKey: string,
   output: WorkerOutput,
@@ -570,7 +574,7 @@ async function storeMemorySuggestions(
   }
 }
 
-async function loadBlackboard(supabase: any, missionId: string): Promise<Record<string, unknown>[]> {
+async function loadBlackboard(supabase: SupabaseAdminClient, missionId: string): Promise<Record<string, unknown>[]> {
   const { data } = await supabase
     .from("silvio_agent_blackboard")
     .select("entry_type,title,content,confidence,agent_key,visibility,created_at")
