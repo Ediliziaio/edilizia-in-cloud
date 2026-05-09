@@ -128,6 +128,8 @@ const allNavItems: AdminNavItem[] = [
   { title: "Monitor AI", url: "/admin/ai-usage", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
   // AI Test Lab — confronto modelli AI (visibile solo super_admin via RequireSuperAdmin)
   { title: "AI Test Lab", url: "/admin/ai-test-lab", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
+  // Silvio Hub — approvazioni + queue + policies outbound automation
+  { title: "Silvio Hub", url: "/admin/silvio-hub", icon: Bot, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
   // ─── CUSTOMER SUCCESS ───────────────────────────────────────────────
   { title: "CS Dashboard", url: "/admin/cs-dashboard", icon: TrendingUp, permission: "can_impersonate", subcategory: "sa_customer_success" },
   { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare, permission: "can_manage_tickets", subcategory: "sa_customer_success" },

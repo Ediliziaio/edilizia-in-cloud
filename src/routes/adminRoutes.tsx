@@ -24,6 +24,8 @@ const AdminSettingsAI = lazy(() => import("@/pages/admin/settings/AdminSettingsA
 const SilvioAdminPage = lazy(() => import("@/pages/admin/SilvioAdminPage"));
 // AI Test Lab (confronto costi/latency/quality per modello)
 const AdminAITestLab = lazy(() => import("@/pages/admin/AdminAITestLab"));
+// Silvio Hub (approvazioni + queue + policies)
+const SilvioAdminHub = lazy(() => import("@/pages/admin/SilvioAdminHub"));
 const SilvioApprovalsPage = lazy(() => import("@/pages/admin/SilvioApprovalsPage"));
 const SubscriptionPlans = lazy(() => import("@/pages/admin/SubscriptionPlans"));
 const PlanDetail = lazy(() => import("@/pages/admin/PlanDetail"));
@@ -189,6 +191,8 @@ export function adminRoutes() {
         <Route path="silvio" element={<RequireSuperAdmin><SilvioAdminPage /></RequireSuperAdmin>} />
         {/* AI Test Lab — confronto modelli AI per super_admin */}
         <Route path="ai-test-lab" element={<RequireSuperAdmin><AdminAITestLab /></RequireSuperAdmin>} />
+        {/* Silvio Hub — approvazioni + queue + policies (Sprint A outbound engine) */}
+        <Route path="silvio-hub" element={<RequireSuperAdmin><SilvioAdminHub /></RequireSuperAdmin>} />
         <Route path="silvio/approvazioni" element={<RequireSuperAdmin><SilvioApprovalsPage /></RequireSuperAdmin>} />
         <Route path="impostazioni/ip-allowlist" element={<RequireSuperAdmin><AdminSettingsIPAllowlist /></RequireSuperAdmin>} />
         <Route path="impostazioni/sicurezza" element={<RequireSuperAdmin><AdminSettingsSecurity /></RequireSuperAdmin>} />
