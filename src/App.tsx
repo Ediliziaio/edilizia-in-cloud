@@ -74,6 +74,9 @@ const NpsSurvey = lazy(() => import("@/pages/feedback/NpsSurvey"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 const PublicChatWidgetPage = lazy(() => import("@/pages/widget/PublicChatWidgetPage"));
+const SiteChatWidget = lazy(() =>
+  import("@/components/public-chat/SiteChatWidget").then((m) => ({ default: m.SiteChatWidget })),
+);
 const DynamicQrRedirect = lazy(() => import("@/pages/public/DynamicQrRedirect"));
 const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
@@ -431,6 +434,10 @@ const App = () => (
               {/* Catch-all — also handles city landing pages (React Router v7 does not match mid-segment params) */}
               <Route path="*" element={<CityOrNotFound />} />
             </Routes>
+            {/* Public chat widget — appare in basso a destra su pagine pubbliche
+                (login, landing); auto-nascosto per utenti autenticati che hanno
+                già la chat Silvio interna. Usa VITE_PUBLIC_CHAT_TOKEN env var. */}
+            <SiteChatWidget />
           </Suspense>
           </BillingModeProvider>
         </AuthProvider>

@@ -1,6 +1,6 @@
 import {
   User, Shield, Users, Server, Mail, Bell,
-  ScrollText, Bot, Globe, Zap, Plug, Landmark,
+  ScrollText, Globe, Zap, Plug, Landmark,
   Webhook, Activity,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -87,15 +87,12 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         url: "/admin/impostazioni/banking-overview",
         permission: "can_manage_admins",
       },
-      {
-        id: "agenti-ai",
-        label: "Agenti AI",
-        description: "Configurazione modelli, agenti e voci ElevenLabs",
-        icon: Bot,
-        url: "/admin/impostazioni/agenti-ai",
-      },
-      // NB: "Monitor AI" è stato spostato nella sidebar principale (Revenue)
-      // per maggiore visibilità — non vive più qui sotto Impostazioni.
+      // NB: "Agenti AI", "Monitor AI", "AI Test Lab", "Silvio Hub" sono state
+      // consolidate in 3 pagine sulla sidebar principale (Revenue):
+      //   /admin/ai-config   (Routing/Personas/KB/Pricing/Governance/Voci/Chatbot)
+      //   /admin/ai-monitor  (Usage/TestLab/Health)
+      //   /admin/ai-operate  (Approvals/Queue/Policies/Agents/Chief/Personas/Memory/Learning)
+      // I vecchi link redirezionano automaticamente. Vedi adminRoutes.tsx.
     ],
   },
   {
