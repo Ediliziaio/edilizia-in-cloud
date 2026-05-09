@@ -10,7 +10,7 @@ import { lazy, Suspense } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Settings, Users, BookOpen, Coins, ShieldAlert, Mic } from "lucide-react";
+import { Settings, Users, BookOpen, Coins, ShieldAlert, Mic, MessageCircle } from "lucide-react";
 
 const AdminSettingsAIRouter = lazy(() => import("@/pages/admin/settings/AdminSettingsAIRouter"));
 const AdminSettingsAIPersonas = lazy(() => import("@/pages/admin/settings/AdminSettingsAIPersonas"));
@@ -21,6 +21,11 @@ const AdminSettingsAIPricing = lazy(() => import("@/pages/admin/settings/AdminSe
 const AdminSettingsAIActions = lazy(() => import("@/pages/admin/settings/AdminSettingsAIActions"));
 const AdminSettingsAIMemory = lazy(() => import("@/pages/admin/settings/AdminSettingsAIMemory"));
 const ElevenLabsVoiceConfig = lazy(() => import("@/components/admin/settings/ElevenLabsVoiceConfig"));
+const PublicChatbotSettings = lazy(() =>
+  import("@/components/admin/public-chat/PublicChatbotSettings").then((m) => ({
+    default: m.PublicChatbotSettings,
+  })),
+);
 
 const fallback = (
   <div className="space-y-3 p-6">
@@ -68,6 +73,10 @@ export default function AIConfigPage() {
           <TabsTrigger value="voices" className="gap-2">
             <Mic className="h-4 w-4" />
             Voci TTS
+          </TabsTrigger>
+          <TabsTrigger value="public-chat" className="gap-2">
+            <MessageCircle className="h-4 w-4" />
+            Chatbot Pubblico
           </TabsTrigger>
         </TabsList>
 
@@ -123,6 +132,19 @@ export default function AIConfigPage() {
         <TabsContent value="voices">
           <Suspense fallback={fallback}>
             <ElevenLabsVoiceConfig />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="public-chat">
+          <Card>
+            <CardContent className="p-4 text-sm text-muted-foreground">
+              Configura il chatbot pubblico embedabile sul tuo sito web. Cattura lead e
+              genera marketing_contacts automaticamente. <br />
+              <strong>Edge function:</strong> <code>public-chat-widget</code> (no auth, CORS).
+            </CardContent>
+          </Card>
+          <Suspense fallback={fallback}>
+            <PublicChatbotSettings />
           </Suspense>
         </TabsContent>
       </Tabs>
