@@ -99,6 +99,18 @@ export function PublicChatWidget({
 
   const apiUrl = `${apiBase}/functions/v1/public-chat-widget`;
 
+  // Notifica parent (embed iframe) eventi open/close per ridimensionare
+  useEffect(() => {
+    try {
+      window.parent.postMessage(
+        { source: "eic-public-chat", event: open ? "open" : "close" },
+        "*",
+      );
+    } catch {
+      /* not in iframe or cross-origin block */
+    }
+  }, [open]);
+
   const initSession = useCallback(async () => {
     if (sessionId) return;
     setInitLoading(true);

@@ -1,3 +1,14 @@
+/**
+ * ⚠️ DEPRECATED — non utilizzato dalle nuove 3 pagine AI consolidate
+ * (AIConfigPage / AIMonitorPage / AIOperatePage).
+ *
+ * Mantenuto solo per backward-compat su `/admin/legacy/agenti-ai` finché
+ * tutti i settings storici (LLM/TTS/Telnyx/domain-whitelist) non sono migrati
+ * verso AI Router (in /admin/ai-config tab Routing & Models) e
+ * Pricing & Margini (in /admin/ai-config tab Pricing).
+ *
+ * Da eliminare quando la migrazione è completa.
+ */
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

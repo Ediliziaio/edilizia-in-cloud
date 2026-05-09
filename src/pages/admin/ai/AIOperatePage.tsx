@@ -22,6 +22,7 @@ import {
   Activity,
   Brain,
   Zap,
+  Users,
 } from "lucide-react";
 import { ApprovalsTab } from "@/components/admin/silvio-hub/ApprovalsTab";
 import { QueueTab } from "@/components/admin/silvio-hub/QueueTab";
@@ -30,6 +31,7 @@ import { AgentsMissionTab } from "@/components/admin/silvio-hub/AgentsMissionTab
 import { ChiefOfStaffTab } from "@/components/admin/silvio-hub/ChiefOfStaffTab";
 import { MemoryTab } from "@/components/admin/silvio-hub/MemoryTab";
 import { LearningTab } from "@/components/admin/silvio-hub/LearningTab";
+import { AdminPersonasTab } from "@/components/admin/silvio-hub/AdminPersonasTab";
 
 export default function AIOperatePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -83,6 +85,10 @@ export default function AIOperatePage() {
             <Activity className="h-4 w-4" />
             Chief
           </TabsTrigger>
+          <TabsTrigger value="personas" className="gap-2">
+            <Users className="h-4 w-4" />
+            Personas Admin
+          </TabsTrigger>
           <TabsTrigger value="memory" className="gap-2">
             <Brain className="h-4 w-4" />
             Memoria
@@ -107,6 +113,9 @@ export default function AIOperatePage() {
         </TabsContent>
         <TabsContent value="chief">
           <ChiefOfStaffTab />
+        </TabsContent>
+        <TabsContent value="personas">
+          <AdminPersonasTab />
         </TabsContent>
         <TabsContent value="memory">
           <MemoryTab />

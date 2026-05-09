@@ -134,16 +134,21 @@ export function PublicChatbotSettings() {
     toast.success(`${label} copiato`);
   };
 
+  // L'embed.js è servito dallo stesso dominio dell'app EiC (Lovable deploy).
+  // Si auto-deriva l'host dalla src dello script in runtime.
+  const appHost =
+    typeof window !== "undefined"
+      ? `${window.location.protocol}//${window.location.host}`
+      : "https://app.ediliziaincloud.com";
+
   const embedSnippet = settings
     ? `<!-- Edilizia in Cloud — Public Chat Widget -->
-<div id="eic-public-chat"></div>
-<script type="module">
-  import { mount } from 'https://unpkg.com/@eic/public-chat-widget@latest';
-  mount({
-    target: '#eic-public-chat',
-    widgetToken: '${settings.public_widget_token}',
-  });
-</script>`
+<script
+  src="${appHost}/embed.js"
+  data-token="${settings.public_widget_token}"
+  data-position="bottom-right"
+  defer
+></script>`
     : "";
 
   if (settingsQuery.isLoading) {

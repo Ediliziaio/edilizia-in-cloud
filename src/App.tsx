@@ -73,6 +73,7 @@ const AccettaPreventivo = lazy(() => import("@/pages/public/AccettaPreventivo"))
 const NpsSurvey = lazy(() => import("@/pages/feedback/NpsSurvey"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
+const PublicChatWidgetPage = lazy(() => import("@/pages/widget/PublicChatWidgetPage"));
 const DynamicQrRedirect = lazy(() => import("@/pages/public/DynamicQrRedirect"));
 const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
@@ -395,6 +396,8 @@ const App = () => (
               <Route path="/cambia-password" element={<ChangePassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/prenota/:slug" element={<PublicBooking />} />
+              {/* Widget chatbot pubblico embeddable (usato da public/embed.js dentro iframe) */}
+              <Route path="/widget" element={<PublicChatWidgetPage />} />
               <Route path="/qr/:token" element={<DynamicQrRedirect />} />
               <Route path="/offerta/:token" element={<QuoteSignPage />} />
               <Route path="/firma/:token" element={<SignaturePage />} />

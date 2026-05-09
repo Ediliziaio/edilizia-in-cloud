@@ -115,14 +115,54 @@ export default function AIConfigPage() {
 
         <TabsContent value="governance">
           <div className="space-y-4">
-            <Card>
-              <CardContent className="p-4 text-sm text-muted-foreground">
-                Permessi azioni AI rischiose per ogni azienda + soglie automation.
+            <Card className="border-amber-200 bg-amber-50 dark:bg-amber-900/10">
+              <CardContent className="p-4 text-sm space-y-2">
+                <p className="font-medium text-amber-900 dark:text-amber-200">
+                  ⚖️ Gerarchia di valutazione policy AI (priorità decrescente)
+                </p>
+                <ol className="list-decimal pl-5 space-y-1 text-xs text-amber-800 dark:text-amber-300">
+                  <li>
+                    <strong>silvio_automation_policies</strong> (
+                    <a href="/admin/ai-operate?tab=policies" className="underline">
+                      AI Operate → Policies
+                    </a>
+                    ) — <strong>policy globali platform-level</strong>:
+                    se mode=<code>blocked</code> per un'azione, NESSUNA azienda può eseguirla,
+                    indipendentemente dai suoi permessi specifici (override hard).
+                  </li>
+                  <li>
+                    <strong>ai_company_action_permissions</strong> (questa pagina) — <strong>permessi
+                    per-azienda</strong>: definisce per ogni coppia (azione × azienda) la modalità
+                    (auto/propose/require_confirmation/disabled). Si applica SOLO se la policy
+                    globale non è <code>blocked</code>.
+                  </li>
+                  <li>
+                    <strong>plan_ai_budgets</strong> — <strong>budget mensili AI</strong>:
+                    se l'azienda ha esaurito il budget, l'esecuzione è negata anche se i due livelli
+                    sopra la consentono.
+                  </li>
+                </ol>
+                <p className="text-xs text-amber-800 dark:text-amber-300 pt-1 border-t border-amber-300/30">
+                  <strong>Esempio:</strong> per <code>cancel_subscription</code>, la policy globale
+                  è <code>blocked</code> (seed sicuro) → nessun cliente può cancellarla via AI anche
+                  se il super_admin gli desse <code>auto_execute</code> qui.
+                </p>
               </CardContent>
             </Card>
             <Suspense fallback={fallback}>
               <AdminSettingsAIActions />
             </Suspense>
+            <Card>
+              <CardContent className="p-4 text-sm text-muted-foreground border-l-4 border-blue-300">
+                <strong>Memoria sistema/azienda</strong>:{" "}
+                <code>ai_brain_facts</code> — fatti generici della company che il chatbot Silvio
+                ricorda nelle conversazioni. Diversa dalla{" "}
+                <a href="/admin/ai-operate?tab=memory" className="underline">
+                  Memoria Personas
+                </a>{" "}
+                (per-persona admin, in AI Operate).
+              </CardContent>
+            </Card>
             <Suspense fallback={fallback}>
               <AdminSettingsAIMemory />
             </Suspense>
