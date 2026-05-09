@@ -3,7 +3,7 @@
  * approval, queue, policy, agenti, memoria e self-learning.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -148,6 +148,7 @@ interface BlackboardEntry {
   content: string;
   confidence: number | null;
   visibility: string;
+  evidence?: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -329,6 +330,278 @@ const AGENT_RISK_COLORS: Record<AgentRegistry["risk_level"], string> = {
   high: "bg-orange-50 text-orange-700 border-orange-200",
   critical: "bg-rose-50 text-rose-700 border-rose-200",
 };
+
+const MAX_AGENTI_PER_MISSIONE = 5;
+
+const AGENT_EXPERTISE: Record<string, string> = {
+  planner_agent: "priorita, piano e trade-off",
+  growth_agent: "SEO, ads, funnel e conversione",
+  sales_agent: "pipeline, CRM, demo e follow-up",
+  finance_agent: "MRR, costi, margini, pricing e cassa",
+  product_tech_agent: "bug, UX, performance e architettura",
+  customer_success_agent: "ticket, churn, onboarding e retention",
+  qa_compliance_agent: "prove, rischi, GDPR e qualita output",
+};
+
+const AGENT_STATUS_LABELS: Record<string, string> = {
+  draft: "Bozza",
+  planning: "Pianificazione",
+  queued: "In coda",
+  running: "In lavoro",
+  completed: "Completata",
+  failed: "Fallita",
+  skipped: "Saltata",
+  waiting_approval: "Review richiesta",
+  cancelled: "Annullata",
+};
+
+const TASK_STATUS_LABELS: Record<string, string> = {
+  queued: "in coda",
+  running: "sta lavorando",
+  completed: "completato",
+  failed: "errore",
+  skipped: "saltato",
+};
+
+const MISSION_TEMPLATES: Array<{
+  id: string;
+  label: string;
+  title: string;
+  objective: string;
+  mode: AgentMissionSummary["mode"];
+  agents: string[];
+}> = [
+  {
+    id: "mrr",
+    label: "MRR + cassa",
+    title: "Analisi MRR e cassa",
+    objective:
+      "Analizza MRR, unpaid, forecast e costi AI. Evidenzia P0/P1/P2, rischi e una sola prossima azione concreta.",
+    mode: "panel",
+    agents: ["planner_agent", "finance_agent", "sales_agent", "qa_compliance_agent"],
+  },
+  {
+    id: "growth",
+    label: "SEO / Ads",
+    title: "Piano crescita SEO e Ads",
+    objective:
+      "Analizza opportunita SEO, Meta Ads, funnel e conversione per Edilizia in Cloud. Produci priorita operative con evidenze e rischi.",
+    mode: "panel",
+    agents: ["planner_agent", "growth_agent", "sales_agent", "qa_compliance_agent"],
+  },
+  {
+    id: "ux",
+    label: "Bug / UX",
+    title: "Audit bug e UX",
+    objective:
+      "Trova criticita UX, bug, performance e punti di blocco nel flusso indicato. Dammi P0/P1/P2, prove richieste e prossimo fix.",
+    mode: "panel",
+    agents: ["planner_agent", "product_tech_agent", "customer_success_agent", "qa_compliance_agent"],
+  },
+  {
+    id: "sales",
+    label: "Sales OS",
+    title: "Audit pipeline vendite",
+    objective:
+      "Analizza pipeline, CRM, follow-up, lead quality e opportunita. Evidenzia cosa blocca la crescita e la prossima azione commerciale.",
+    mode: "panel",
+    agents: ["planner_agent", "sales_agent", "growth_agent", "finance_agent", "qa_compliance_agent"],
+  },
+  {
+    id: "compliance",
+    label: "GDPR / AI Act",
+    title: "Review compliance AI",
+    objective:
+      "Verifica rischi GDPR, AI Act, sicurezza, permessi e uso dati nel sistema AI. Blocca raccomandazioni senza prove.",
+    mode: "panel",
+    agents: ["planner_agent", "product_tech_agent", "qa_compliance_agent"],
+  },
+];
+
+function inferAgentKeysForObjective(
+  objective: string,
+  availableAgents: AgentRegistry[],
+): string[] {
+  const text = objective.toLowerCase();
+  const wanted = new Set<string>(["planner_agent"]);
+
+  if (/(seo|ads|marketing|funnel|contenut|lead|campagn|conversion)/i.test(text))
+    wanted.add("growth_agent");
+  if (/(vendit|pipeline|crm|follow|demo|opportun|commercial)/i.test(text))
+    wanted.add("sales_agent");
+  if (/(mrr|ricav|costi|margini|pricing|cassa|fattur|budget|roi)/i.test(text))
+    wanted.add("finance_agent");
+  if (/(bug|ux|deploy|performance|codice|prodotto|feature|tecnic|architettur)/i.test(text))
+    wanted.add("product_tech_agent");
+  if (/(churn|ticket|support|onboarding|cliente|retention|adozione)/i.test(text))
+    wanted.add("customer_success_agent");
+  wanted.add("qa_compliance_agent");
+
+  const ordered = availableAgents
+    .filter((agent) => wanted.has(agent.agent_key))
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((agent) => agent.agent_key)
+    .slice(0, MAX_AGENTI_PER_MISSIONE);
+
+  if (ordered.length <= 1) {
+    return availableAgents
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((agent) => agent.agent_key)
+      .slice(0, MAX_AGENTI_PER_MISSIONE);
+  }
+
+  return ordered;
+}
+
+function getMissionPhase(
+  mission: AgentMissionSummary,
+  tasks: AgentTask[],
+): { label: string; description: string; tone: string } {
+  if (mission.status === "waiting_approval") {
+    return {
+      label: "Review umana richiesta",
+      description:
+        "Gli agenti hanno finito. Silvio ha trovato rischi o prove deboli e aspetta una tua validazione.",
+      tone: "border-amber-200 bg-amber-50 text-amber-800",
+    };
+  }
+  if (mission.status === "completed") {
+    return {
+      label: "Sintesi pronta",
+      description: "Missione chiusa: sintesi e prossimo passo sono disponibili.",
+      tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    };
+  }
+  if (mission.status === "failed") {
+    return {
+      label: "Errore missione",
+      description:
+        mission.last_error ?? "La missione si e fermata: apri i task per vedere il punto di rottura.",
+      tone: "border-rose-200 bg-rose-50 text-rose-800",
+    };
+  }
+
+  const runningTask = tasks.find((task) => task.status === "running");
+  if (runningTask) {
+    return {
+      label: `${runningTask.agent_key} sta lavorando`,
+      description: "Sta leggendo tool, memoria e blackboard per produrre il contributo.",
+      tone: "border-violet-200 bg-violet-50 text-violet-800",
+    };
+  }
+
+  return {
+    label: AGENT_STATUS_LABELS[mission.status] ?? mission.status,
+    description: "La missione e in preparazione o in coda per gli agenti.",
+    tone: "border-blue-200 bg-blue-50 text-blue-800",
+  };
+}
+
+function extractObjectiveMetricSignals(objective: string): string[] {
+  const text = objective.replace(/P[0-2]/gi, " ");
+  const matches = [
+    ...text.matchAll(
+      /(?:€|\$)\s?\d[\d.,]*|\b\d+(?:[.,]\d+)?\s?%|\b\d+(?:[.,]\d+)?\s?(?:clienti|utenti|lead|ticket|aziende|demo|trial|fatture|email|messaggi)\b/gi,
+    ),
+  ].map((match) => match[0].trim());
+  return [...new Set(matches)].slice(0, 6);
+}
+
+function buildMissionReadiness(objective: string, agentCount: number) {
+  const trimmed = objective.trim();
+  const metricSignals = extractObjectiveMetricSignals(trimmed);
+  const hasEvidenceCue =
+    /(fonte|dato|dati|tool|supabase|database|report|screenshot|log|analytics|search console|meta|crm|query|tabella)/i.test(
+      trimmed,
+    );
+  const hasOutputCue =
+    /(p0|p1|p2|evidenz|risch|owner|metrica|metriche|test|criterio|go\/no-go|prossim|azione|scadenz)/i.test(
+      trimmed,
+    );
+  const blockers: string[] = [];
+  const warnings: string[] = [];
+  const strengths: string[] = [];
+
+  if (trimmed.length < 10) blockers.push("Scrivi un obiettivo operativo.");
+  if (agentCount === 0) blockers.push("Nessun agente pronto per questa missione.");
+  if (trimmed.length >= 80) strengths.push("Contesto sufficiente per evitare risposte generiche.");
+  if (hasOutputCue) {
+    strengths.push("Output atteso chiaro: priorita, rischi o prossima azione.");
+  } else {
+    warnings.push("Aggiungi output atteso: P0/P1/P2, owner, metrica o test.");
+  }
+  if (metricSignals.length > 0 && !hasEvidenceCue) {
+    warnings.push("Hai citato numeri: aggiungi fonte o chiedi agli agenti di verificarli.");
+  }
+  if (!/(verifica|valid|misura|test|prova|evidenz)/i.test(trimmed)) {
+    warnings.push("Aggiungi un criterio di verifica per ridurre allucinazioni.");
+  }
+
+  const score = Math.max(
+    0,
+    Math.min(100, 55 + strengths.length * 12 - blockers.length * 35 - warnings.length * 12),
+  );
+
+  return {
+    blockers,
+    warnings,
+    strengths,
+    metricSignals,
+    score,
+    label:
+      score >= 80
+        ? "Pronto"
+        : score >= 60
+          ? "Buono con rischi"
+          : "Da precisare",
+  };
+}
+
+function readObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function getMissionEvidenceGate(blackboard: BlackboardEntry[]) {
+  for (const entry of blackboard) {
+    const evidence = readObject(entry.evidence);
+    const gate = readObject(evidence?.evidence_gate);
+    if (!gate) continue;
+    return {
+      hasCredibleEvidence: gate.has_credible_evidence === true,
+      unsupportedClaims: Array.isArray(gate.unsupported_claims)
+        ? gate.unsupported_claims.map(String).filter(Boolean)
+        : [],
+    };
+  }
+  return null;
+}
+
+function getMissionActionGate(blackboard: BlackboardEntry[]) {
+  for (const entry of blackboard) {
+    const evidence = readObject(entry.evidence);
+    const gate = readObject(evidence?.action_gate);
+    if (!gate) continue;
+    return {
+      rewritten: gate.rewritten === true,
+      originalNextAction:
+        typeof gate.original_next_action === "string"
+          ? gate.original_next_action
+          : null,
+    };
+  }
+  return null;
+}
+
+function blackboardEntryToMemoryType(
+  entryType: string,
+): AgentMemoryItem["memory_type"] {
+  if (entryType === "fact") return "fact";
+  if (entryType === "decision") return "decision";
+  if (entryType === "risk") return "avoid";
+  if (entryType === "recommendation") return "pattern";
+  return "pattern";
+}
 
 function inferAgentsForMetric(metricKey?: string | null): string[] {
   const key = (metricKey ?? "").toLowerCase();
@@ -1452,6 +1725,13 @@ function AgentsMissionTab() {
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
 
+  type LaunchMissionInput = {
+    title?: string;
+    objective?: string;
+    mode?: AgentMissionSummary["mode"];
+    selected_agents?: string[];
+  };
+
   const agentsQuery = useQuery({
     queryKey: ["silvio-agent-registry"],
     queryFn: async () => {
@@ -1603,12 +1883,17 @@ function AgentsMissionTab() {
   });
 
   const launchMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (input?: LaunchMissionInput) => {
+      const missionTitle = input?.title ?? title;
+      const missionObjective = input?.objective ?? objective;
+      const missionMode = input?.mode ?? mode;
+      const missionAgents = input?.selected_agents ?? selectedAgents;
       const payload = {
-        title: title.trim() || undefined,
-        objective: objective.trim(),
-        mode,
-        selected_agents: selectedAgents.length > 0 ? selectedAgents : undefined,
+        title: missionTitle.trim() || undefined,
+        objective: missionObjective.trim(),
+        mode: missionMode,
+        max_agents: MAX_AGENTI_PER_MISSIONE,
+        selected_agents: missionAgents.length > 0 ? missionAgents : undefined,
       };
       const { data, error } = await supabase.functions.invoke(
         "silvio-agent-orchestrator",
@@ -1638,12 +1923,18 @@ function AgentsMissionTab() {
       if (data?.mission_id) setActiveMissionId(data.mission_id);
       setObjective("");
       setTitle("");
+      setSelectedAgents([]);
       queryClient.invalidateQueries({ queryKey: ["silvio-agent-missions"] });
       queryClient.invalidateQueries({ queryKey: ["silvio-agent-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["silvio-agent-blackboard"] });
     },
     onError: (e) =>
-      toast.error("Missione non completata", { description: String(e) }),
+      toast.error("Missione non avviata", {
+        description:
+          e instanceof Error
+            ? e.message
+            : "Controlla permessi, obiettivo e connessione Supabase.",
+      }),
   });
 
   const resolveMissionMutation = useMutation({
@@ -1709,6 +2000,37 @@ function AgentsMissionTab() {
       toast.error("Errore memoria agente", { description: String(e) }),
   });
 
+  const saveBlackboardMemoryMutation = useMutation({
+    mutationFn: async (entry: BlackboardEntry) => {
+      const memoryType = blackboardEntryToMemoryType(entry.entry_type);
+      const agentKey = entry.agent_key ?? "planner_agent";
+      const content = `${entry.title}: ${entry.content}`.trim().slice(0, 900);
+      const { error } = await supabase
+        .from("silvio_agent_memory" as never)
+        .insert({
+          agent_key: agentKey,
+          memory_type: memoryType,
+          content,
+          source: "blackboard_manual_save",
+          source_mission_id: entry.mission_id,
+          confidence: entry.confidence ?? 0.75,
+          memory_status: "active",
+          enabled: true,
+        } as never);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Memoria agente salvata");
+      queryClient.invalidateQueries({
+        queryKey: ["silvio-agent-memory-latest"],
+      });
+    },
+    onError: (e) =>
+      toast.error("Memoria non salvata", {
+        description: e instanceof Error ? e.message : String(e),
+      }),
+  });
+
   const agents = (agentsQuery.data ?? []).filter(
     (agent) => agent.agent_key !== "silvio_coordinator",
   );
@@ -1739,12 +2061,87 @@ function AgentsMissionTab() {
     ];
     return acc;
   }, {});
+  const routingAgentKeys = useMemo(() => {
+    if (selectedAgents.length > 0) return selectedAgents;
+    return inferAgentKeysForObjective(objective, enabledAgents);
+  }, [enabledAgents, objective, selectedAgents]);
+  const routingAgents = routingAgentKeys
+    .map((agentKey) =>
+      enabledAgents.find((agent) => agent.agent_key === agentKey),
+    )
+    .filter((agent): agent is AgentRegistry => Boolean(agent));
+  const routingModeLabel =
+    selectedAgents.length > 0 ? "Selezione manuale" : "Routing automatico";
+  const missionReadiness = useMemo(
+    () => buildMissionReadiness(objective, routingAgents.length),
+    [objective, routingAgents.length],
+  );
+  const canLaunchMission =
+    missionReadiness.blockers.length === 0 && !launchMutation.isPending;
+  const missionProgress =
+    activeMission && activeMission.tasks_count > 0
+      ? Math.round(
+          (activeMission.completed_tasks_count / activeMission.tasks_count) *
+            100,
+        )
+      : 0;
+  const missionPhase =
+    activeMission !== null ? getMissionPhase(activeMission, tasks) : null;
+  const evidenceStats = {
+    facts: blackboard.filter((entry) => entry.entry_type === "fact").length,
+    insights: blackboard.filter((entry) => entry.entry_type === "insight")
+      .length,
+    risks: blackboard.filter((entry) => entry.entry_type === "risk").length,
+    actions: blackboard.filter(
+      (entry) => entry.entry_type === "recommendation",
+    ).length,
+  };
+  const missionEvidenceGate = getMissionEvidenceGate(blackboard);
+  const missionActionGate = getMissionActionGate(blackboard);
+
+  const applyTemplate = (template: (typeof MISSION_TEMPLATES)[number]) => {
+    setTitle(template.title);
+    setObjective(template.objective);
+    setMode(template.mode);
+    setSelectedAgents(template.agents);
+  };
+
+  const handleMissionAsBase = (mission: AgentMissionSummary) => {
+    setTitle(`Copia: ${mission.title}`);
+    setObjective(mission.objective);
+    setMode(mission.mode);
+    setSelectedAgents(
+      mission.selected_agents
+        .filter((agentKey) => agentKey !== "silvio_coordinator")
+        .slice(0, MAX_AGENTI_PER_MISSIONE),
+    );
+    toast.success("Missione caricata nel composer");
+  };
+
+  const rerunMissionWithMoreEvidence = (mission: AgentMissionSummary) => {
+    const agentKeys = mission.selected_agents
+      .filter((agentKey) => agentKey !== "silvio_coordinator")
+      .slice(0, MAX_AGENTI_PER_MISSIONE);
+    launchMutation.mutate({
+      title: `Verifica prove: ${mission.title}`.slice(0, 120),
+      mode: mission.mode,
+      selected_agents: agentKeys,
+      objective: [
+        "Rilancia questa missione concentrandoti SOLO su prove, rischi e punti deboli della sintesi precedente.",
+        `Obiettivo originale: ${mission.objective}`,
+        mission.summary_md
+          ? `Sintesi precedente da verificare:\n${mission.summary_md.slice(0, 1800)}`
+          : "Sintesi precedente non disponibile.",
+        "Output richiesto: evidenze verificate, assunzioni da non trattare come fatti, P0/P1/P2 e una sola prossima azione. Se mancano dati, chiedi il dato preciso.",
+      ].join("\n\n"),
+    });
+  };
 
   const toggleAgent = (agentKey: string) => {
     setSelectedAgents((current) => {
       if (current.includes(agentKey))
         return current.filter((key) => key !== agentKey);
-      if (current.length >= 5) {
+      if (current.length >= MAX_AGENTI_PER_MISSIONE) {
         toast.info("Massimo 5 agenti per missione");
         return current;
       }
@@ -1763,6 +2160,29 @@ function AgentsMissionTab() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Template rapidi
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Selezionano gia agenti e obiettivo
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2">
+                {MISSION_TEMPLATES.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => applyTemplate(template)}
+                    className="min-h-11 rounded-md border bg-background px-3 py-2 text-left text-xs font-medium transition hover:border-orange-300 hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
+                  >
+                    {template.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_180px] gap-3">
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Titolo</label>
@@ -1809,11 +2229,75 @@ function AgentsMissionTab() {
                 rows={5}
                 className="min-h-[132px] text-base md:text-sm"
               />
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <span
+                  className={
+                    objective.trim().length < 10
+                      ? "text-amber-700"
+                      : "text-muted-foreground"
+                  }
+                >
+                  {objective.trim().length < 10
+                    ? "Scrivi almeno 10 caratteri per avviare."
+                    : "Obiettivo valido: gli agenti avranno un contesto operativo."}
+                </span>
+                <span className="text-muted-foreground">
+                  {objective.trim().length} caratteri
+                </span>
+              </div>
+              <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium">Qualita prompt</span>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ${
+                      missionReadiness.score >= 80
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : missionReadiness.score >= 60
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-rose-50 text-rose-700 border-rose-200"
+                    }`}
+                  >
+                    {missionReadiness.label} · {missionReadiness.score}%
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                  {missionReadiness.strengths.slice(0, 2).map((item) => (
+                    <div key={item} className="flex items-start gap-1.5 text-emerald-700">
+                      <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                  {missionReadiness.blockers.map((item) => (
+                    <div key={item} className="flex items-start gap-1.5 text-rose-700">
+                      <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                  {missionReadiness.warnings.slice(0, 3).map((item) => (
+                    <div key={item} className="flex items-start gap-1.5 text-amber-700">
+                      <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+                {missionReadiness.metricSignals.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {missionReadiness.metricSignals.map((signal) => (
+                      <Badge key={signal} variant="secondary" className="text-[10px]">
+                        numero da verificare: {signal}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-muted-foreground">Agenti</span>
+                <span className="text-xs text-muted-foreground">
+                  Agenti ({routingAgents.length}/{MAX_AGENTI_PER_MISSIONE})
+                </span>
                 <Button
                   type="button"
                   variant="ghost"
@@ -1848,28 +2332,75 @@ function AgentsMissionTab() {
                   );
                 })}
               </div>
-              {selectedAgents.length === 0 && (
-                <p className="text-[11px] text-muted-foreground">
-                  Nessuna selezione manuale: Silvio sceglie planner, QA e gli
-                  agenti piu pertinenti.
-                </p>
-              )}
+              <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium">
+                    Preview routing: {routingModeLabel}
+                  </span>
+                  <Badge variant="outline" className="text-[10px]">
+                    QA sempre incluso
+                  </Badge>
+                </div>
+                {routingAgents.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Scrivi un obiettivo o scegli un template per vedere gli
+                    agenti coinvolti.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {routingAgents.map((agent) => (
+                      <Badge
+                        key={agent.agent_key}
+                        variant="outline"
+                        className="bg-white text-[10px]"
+                      >
+                        {agent.display_name}:{" "}
+                        {AGENT_EXPERTISE[agent.agent_key] ?? agent.operating_mode}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                {enabledAgents.length > MAX_AGENTI_PER_MISSIONE && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Limite sicurezza: massimo {MAX_AGENTI_PER_MISSIONE} agenti
+                    paralleli. Per audit completi crea due missioni coordinate.
+                  </p>
+                )}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] text-muted-foreground">
+                  <span className="rounded border bg-white px-2 py-1">
+                    Evidenze prima
+                  </span>
+                  <span className="rounded border bg-white px-2 py-1">
+                    Ipotesi marcate
+                  </span>
+                  <span className="rounded border bg-white px-2 py-1">
+                    P0/P1/P2
+                  </span>
+                  <span className="rounded border bg-white px-2 py-1">
+                    Una next action
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <p className="text-[11px] text-muted-foreground">
+                La sintesi finale mostrera evidenze, rischi e una sola prossima
+                azione. Se le prove sono deboli andra in review.
+              </p>
               <Button
                 onClick={() => launchMutation.mutate()}
-                disabled={
-                  launchMutation.isPending || objective.trim().length < 10
-                }
-                className="min-h-11 bg-orange-600 hover:bg-orange-700"
+                disabled={!canLaunchMission}
+                className="min-h-11 bg-orange-600 hover:bg-orange-700 sm:min-w-[180px]"
               >
                 <PlayCircle
                   className={`h-4 w-4 mr-2 ${launchMutation.isPending ? "animate-pulse" : ""}`}
                 />
                 {launchMutation.isPending
                   ? "Avvio missione..."
-                  : "Avvia missione"}
+                  : missionReadiness.blockers.length > 0
+                    ? "Completa il prompt"
+                    : `Avvia con ${routingAgents.length || 0} agenti`}
               </Button>
             </div>
           </CardContent>
@@ -2165,7 +2696,7 @@ function AgentsMissionTab() {
                         variant="outline"
                         className={`text-[10px] shrink-0 ${AGENT_STATUS_COLORS[mission.status] ?? ""}`}
                       >
-                        {mission.status}
+                        {AGENT_STATUS_LABELS[mission.status] ?? mission.status}
                       </Badge>
                     </div>
                     <p className="text-[11px] text-muted-foreground line-clamp-2 mt-1">
@@ -2214,7 +2745,8 @@ function AgentsMissionTab() {
                       variant="outline"
                       className={`text-[10px] ${AGENT_STATUS_COLORS[activeMission.status] ?? ""}`}
                     >
-                      {activeMission.status}
+                      {AGENT_STATUS_LABELS[activeMission.status] ??
+                        activeMission.status}
                     </Badge>
                     <Badge variant="secondary" className="text-[10px]">
                       {activeMission.mode}
@@ -2225,6 +2757,33 @@ function AgentsMissionTab() {
                       </Badge>
                     )}
                   </div>
+                  {missionPhase && (
+                    <div
+                      className={`rounded-md border p-3 text-sm ${missionPhase.tone}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium">{missionPhase.label}</p>
+                          <p className="text-xs opacity-90">
+                            {missionPhase.description}
+                          </p>
+                        </div>
+                        {activeMission.tasks_count > 0 && (
+                          <span className="text-xs font-semibold shrink-0">
+                            {missionProgress}%
+                          </span>
+                        )}
+                      </div>
+                      {activeMission.tasks_count > 0 && (
+                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/70">
+                          <div
+                            className="h-full rounded-full bg-current transition-all"
+                            style={{ width: `${missionProgress}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {latestEvaluation && (
                     <div className="rounded-md border bg-muted/30 p-2 text-xs space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -2251,11 +2810,68 @@ function AgentsMissionTab() {
                       )}
                     </div>
                   )}
+                  {(missionEvidenceGate || missionActionGate) && (
+                    <div className="rounded-md border bg-muted/20 p-3 text-xs space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {missionEvidenceGate && (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${
+                              missionEvidenceGate.hasCredibleEvidence
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-amber-50 text-amber-700 border-amber-200"
+                            }`}
+                          >
+                            Evidence gate{" "}
+                            {missionEvidenceGate.hasCredibleEvidence
+                              ? "ok"
+                              : "prove deboli"}
+                          </Badge>
+                        )}
+                        {missionActionGate?.rewritten && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-violet-50 text-violet-700 border-violet-200"
+                          >
+                            Next action resa operativa
+                          </Badge>
+                        )}
+                      </div>
+                      {missionEvidenceGate &&
+                        missionEvidenceGate.unsupportedClaims.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="font-medium text-amber-800">
+                              Numeri non verificati marcati dalla QA:
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {missionEvidenceGate.unsupportedClaims
+                                .slice(0, 6)
+                                .map((claim) => (
+                                  <Badge
+                                    key={claim}
+                                    variant="secondary"
+                                    className="text-[10px]"
+                                  >
+                                    {claim}
+                                  </Badge>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+                      {missionActionGate?.originalNextAction && (
+                        <p className="text-muted-foreground">
+                          Azione originale troppo generica:{" "}
+                          {missionActionGate.originalNextAction}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {activeMission.status === "waiting_approval" && (
                     <div className="rounded-md border border-amber-200 bg-amber-50 p-3 space-y-2">
                       <p className="text-sm text-amber-800">
-                        Silvio ha completato l'analisi ma chiede validazione
-                        prima di considerarla chiusa.
+                        Non e un errore: Silvio ha completato l'analisi, ma ha
+                        rilevato rischi, assunzioni o prove insufficienti. Puoi
+                        approvarla come decisione valida oppure archiviarla.
                       </p>
                       <div className="flex gap-2 justify-end">
                         <Button
@@ -2292,6 +2908,75 @@ function AgentsMissionTab() {
                   <h3 className="font-semibold text-sm">
                     {activeMission.title}
                   </h3>
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between rounded-md border bg-muted/20 p-2">
+                    <p className="text-xs text-muted-foreground">
+                      Puoi riusare questa missione come prompt base o rilanciarla
+                      per chiedere piu prove agli stessi agenti.
+                    </p>
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => handleMissionAsBase(activeMission)}
+                      >
+                        <Pencil className="h-3.5 w-3.5 mr-1" />
+                        Usa come base
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs bg-violet-600 hover:bg-violet-700"
+                        disabled={
+                          launchMutation.isPending ||
+                          !["completed", "waiting_approval", "failed"].includes(
+                            activeMission.status,
+                          )
+                        }
+                        onClick={() => rerunMissionWithMoreEvidence(activeMission)}
+                      >
+                        <RefreshCw
+                          className={`h-3.5 w-3.5 mr-1 ${
+                            launchMutation.isPending ? "animate-spin" : ""
+                          }`}
+                        />
+                        Rilancia prove
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="rounded-md border bg-muted/30 p-2">
+                      <p className="text-[10px] uppercase text-muted-foreground">
+                        Fatti
+                      </p>
+                      <p className="text-sm font-semibold">
+                        {evidenceStats.facts}
+                      </p>
+                    </div>
+                    <div className="rounded-md border bg-muted/30 p-2">
+                      <p className="text-[10px] uppercase text-muted-foreground">
+                        Insight
+                      </p>
+                      <p className="text-sm font-semibold">
+                        {evidenceStats.insights}
+                      </p>
+                    </div>
+                    <div className="rounded-md border bg-muted/30 p-2">
+                      <p className="text-[10px] uppercase text-muted-foreground">
+                        Rischi
+                      </p>
+                      <p className="text-sm font-semibold">
+                        {evidenceStats.risks}
+                      </p>
+                    </div>
+                    <div className="rounded-md border bg-muted/30 p-2">
+                      <p className="text-[10px] uppercase text-muted-foreground">
+                        Azioni
+                      </p>
+                      <p className="text-sm font-semibold">
+                        {evidenceStats.actions}
+                      </p>
+                    </div>
+                  </div>
                   {activeMission.summary_md ? (
                     <div className="rounded-md bg-muted/40 p-3 text-sm whitespace-pre-wrap break-words">
                       {activeMission.summary_md}
@@ -2336,7 +3021,7 @@ function AgentsMissionTab() {
                               variant="outline"
                               className={`text-[10px] ${AGENT_STATUS_COLORS[task.status] ?? ""}`}
                             >
-                              {task.status}
+                              {TASK_STATUS_LABELS[task.status] ?? task.status}
                             </Badge>
                           </div>
                           {task.output_md && (
@@ -2372,19 +3057,37 @@ function AgentsMissionTab() {
                           key={entry.id}
                           className="rounded-md bg-muted/30 p-2"
                         >
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge variant="outline" className="text-[10px]">
-                              {entry.entry_type}
-                            </Badge>
-                            {entry.agent_key && (
-                              <span className="text-[10px] text-muted-foreground font-mono">
-                                {entry.agent_key}
-                              </span>
-                            )}
-                            {entry.confidence !== null && (
-                              <span className="text-[10px] text-muted-foreground">
-                                {(entry.confidence * 100).toFixed(0)}%
-                              </span>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <Badge variant="outline" className="text-[10px]">
+                                {entry.entry_type}
+                              </Badge>
+                              {entry.agent_key && (
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  {entry.agent_key}
+                                </span>
+                              )}
+                              {entry.confidence !== null && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {(entry.confidence * 100).toFixed(0)}%
+                                </span>
+                              )}
+                            </div>
+                            {["fact", "insight", "risk", "recommendation", "decision"].includes(
+                              entry.entry_type,
+                            ) && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 shrink-0 px-2 text-[10px]"
+                                disabled={saveBlackboardMemoryMutation.isPending}
+                                onClick={() =>
+                                  saveBlackboardMemoryMutation.mutate(entry)
+                                }
+                              >
+                                <Save className="h-3 w-3 mr-1" />
+                                Memoria
+                              </Button>
                             )}
                           </div>
                           <p className="text-xs font-medium mt-1">

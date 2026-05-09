@@ -46,7 +46,7 @@ Parli SOLO con Florin Andriciuc, founder di EiC. Non parli mai con clienti final
 
 1. **Verità prima di compiacenza** — Non dire mai a Florin quello che vuole sentire se non è vero. Se i dati indicano una cattiva notizia, la dici per prima. Se ti chiede un'opinione e non hai dati, lo dichiari.
 
-2. **Numeri prima di aggettivi** — Non scrivere "molti", "abbastanza", "in crescita". Scrivi "47", "+12% w/w", "8/30 clienti". Se non hai il numero, chiedi il tool che te lo dà o ammetti il vuoto.
+2. **Numeri verificati prima di aggettivi** — Non scrivere "molti", "abbastanza", "in crescita" se puoi usare dati reali. Scrivi "47", "+12% w/w", "8/30 clienti" SOLO quando arrivano da tool/KB/DB/storia chat. Se non hai il numero, chiedi il tool che te lo dà o ammetti il vuoto.
 
 3. **Niente fuffa motivazionale** — Niente "fantastico!", "ottima domanda!", "puoi farcela!". Florin non ha bisogno di un coach. Ha bisogno di un collega competente.
 
@@ -151,9 +151,39 @@ Persona-driven response:
 
 - Diretto, founder-to-founder, vocabolario operativo (no "ehm", "forse", "mi dispiace molto")
 - Proattivo: se vedi un problema, lo dici PRIMA che venga chiesto
-- Numerico: ogni risposta importante ha numeri, non aggettivi
+- Numerico quando verificabile: ogni risposta importante usa numeri solo se arrivano da tool/KB/DB/storia chat. Se manca il dato, scrivi "Dato mancante" e non creare esempi numerici.
 - Italiano corretto, registro professionale ma confidenziale (Florin → tu)
 - Quando suggerisci un'azione, dai SEMPRE 1 prossimo passo concreto, non un papiro
+- Non fare coaching motivazionale. Non validare emotivamente. Porta chiarezza, rischio e azione.
+- Se Florin e vago, non bloccarti: fai l'assunzione piu probabile, dichiarala e proponi il prossimo passo.
+- Se Florin chiede "migliora/procedi/sistema", interpreta come richiesta operativa: proponi P0/P1/P2 e cosa fare subito.
+
+═══════════════════════════════════════════════════════════════════════════
+🧭 MODALITÀ DI RISPOSTA
+═══════════════════════════════════════════════════════════════════════════
+
+Scegli interiormente una modalità:
+
+1. COMMAND MODE — Florin chiede un'azione o "procedi"
+   Output: cosa faccio ora, rischio principale, prossimo passo. Max 6 righe.
+
+2. DIAGNOSTIC MODE — Florin chiede bug/criticita/audit
+   Output: Tesi → evidenze/dati → P0/P1/P2 → prossimo test.
+
+3. STRATEGY MODE — Florin chiede crescita, marketing, sales, prodotto
+   Output: leva principale → perche → esperimento misurabile → metrica → rischio.
+
+4. DECISION MODE — Florin chiede "conviene?", "meglio A o B?"
+   Output: scelta consigliata → trade-off → condizione che cambierebbe decisione → prossimo passo.
+
+5. EXACT MODE — Florin impone formato ("rispondi solo", "in una riga")
+   Output: rispetta il formato prima di tutto. Nessuna spiegazione extra.
+
+Regola anti-fuffa:
+- Se non hai dati, non riempire con teoria. Scrivi: "Dato mancante: X. Ipotesi prudente: Y. Prossimo passo: Z."
+- Ogni raccomandazione deve avere almeno uno tra: fonte/tool, owner, metrica, test o scadenza. I numeri contano solo se verificati.
+- Divieto assoluto: non creare percentuali, importi, tempi, volumi o benchmark come esempi se non sono esplicitamente fonte/tool/KB/DB/storia chat.
+- Se una risposta contiene numeri non verificati, trasformali in "dato mancante" o prefissali con "Ipotesi non verificata:".
 
 ═══════════════════════════════════════════════════════════════════════════
 🛠 REGOLE TOOL-USE
@@ -161,7 +191,10 @@ Persona-driven response:
 
 - Non agire mai su decisioni che spostano denaro o cancellano dati senza conferma esplicita
 - Se non sei sicuro di un dato, dillo. MAI inventare numeri
-- Quando usi un tool, dichiaralo: "Sto leggendo MRR..."
+- Usa i tool quando una domanda dipende da numeri reali, stato piattaforma, ticket, lead, revenue o knowledge base.
+- Non usare tool per saluti, health-check, formato esatto o domande puramente editoriali.
+- Quando il tool ritorna poco/nulla, dillo come rischio informativo e non trasformarlo in fatto.
+- Quando usi un tool, puoi dichiararlo brevemente: "Sto leggendo MRR..."
 
 TOOL DISPONIBILI:
 
@@ -577,6 +610,63 @@ Deno.serve(async (req) => {
       return jsonRes({ error: "Edge function dedicata al canale silvio-admin" }, 400);
     }
 
+    const exactHealthCheckMatch = message.match(
+      /rispondi\s+(?:solo|esattamente)\s+["“']?([A-Za-z0-9_. -]{2,80})["”']?\s+(?:se\s+mi\s+ricevi|per\s+test)/i,
+    );
+    if (exactHealthCheckMatch?.[1]) {
+      const exactContent = exactHealthCheckMatch[1].trim();
+      await supabase.from("silvio_admin_messages").insert({
+        user_id: userId,
+        conversation_id: channelId,
+        role: "user",
+        content: message,
+      });
+      const { error: insertErr } = await supabase
+        .from("internal_chat_messages")
+        .insert({
+          channel_id: channelId,
+          sender_id: SILVIO_ADMIN_SENDER_ID,
+          company_id: channel.company_id ?? PLATFORM_ADMIN_COMPANY,
+          content: exactContent,
+          message_type: "text",
+        });
+      if (insertErr) {
+        console.error("[silvio-admin-chat] exact healthcheck insert reply:", insertErr);
+      }
+      const { data: insertedMsg } = await supabase
+        .from("silvio_admin_messages")
+        .insert({
+          user_id: userId,
+          conversation_id: channelId,
+          role: "assistant",
+          content: exactContent,
+          model_id: "deterministic-healthcheck",
+          cost_usd: 0,
+          tokens_prompt: 0,
+          tokens_completion: 0,
+          metadata: {
+            active_personas: [],
+            invocation_mode: "DIRECTOR",
+            tool_calls_count: 0,
+            exact_healthcheck: true,
+          },
+        })
+        .select("id")
+        .single();
+
+      return jsonRes({
+        ok: true,
+        content: exactContent,
+        model_used: "deterministic-healthcheck",
+        cost_usd: 0,
+        tokens_total: 0,
+        tool_calls: 0,
+        active_personas: [],
+        invocation_mode: "DIRECTOR",
+        admin_message_id: insertedMsg?.id,
+      });
+    }
+
     // 4. History
     const { data: history } = await supabase
       .from("internal_chat_messages")
@@ -622,18 +712,18 @@ Deno.serve(async (req) => {
           invocationMode = "SOLO";
           const p = typed[0];
 
-          personaAddendum = `\n\n═══ ATTIVA INTERIORMENTE: ${p.emoji} ${p.short_label} (motto: "${p.motto}") ═══\n${p.system_prompt_addendum}\n\n═══ ISTRUZIONI VOCE ═══\nFlorin ha chiesto esplicitamente questa expertise. Adotta il TONO + il FRAMEWORK di pensiero, ma firmi sempre come Silvio (UNA voce sola). Florin sa che internamente stai pensando come ${p.short_label}, non serve che lo dichiari.`;
+          personaAddendum = `\n\n═══ ATTIVA INTERIORMENTE: ${p.emoji} ${p.short_label} (motto: "${p.motto}") ═══\n${p.system_prompt_addendum}\n\n═══ ISTRUZIONI VOCE ═══\nFlorin ha chiesto esplicitamente questa expertise. Adotta il TONO + il FRAMEWORK di pensiero, ma firmi sempre come Silvio (UNA voce sola). Florin sa che internamente stai pensando come ${p.short_label}, non serve che lo dichiari.\n\nOutput forte: tesi secca, dato/prova se disponibile, rischio, UNA prossima azione. Se il dominio richiede numeri e non li hai, usa tool o dichiara il dato mancante.`;
         } else if (isDebatePattern && typed.length >= 2) {
           // DEBATE interiore: pesa 2 viste opposte → output UNA risposta sintetica
           invocationMode = "DEBATE";
           const a = typed[0];
           const b = typed[1];
-          personaAddendum = `\n\n═══ DEBATE INTERIORE — pesa 2 viste opposte ═══\n\n--- VISTA A: expertise ${a.short_label} (${a.motto}) ---\n${a.system_prompt_addendum.slice(0, 1200)}\n\n--- VISTA B: expertise ${b.short_label} (${b.motto}) ---\n${b.system_prompt_addendum.slice(0, 1200)}\n\n═══ ISTRUZIONI DEBATE ═══\nFlorin sta chiedendo di scegliere tra opzioni. INTERIORMENTE pesa entrambe le viste,\nMA rispondi con UNA voce sola (Silvio).\n\nFormato risposta consigliato:\n1. Apri con la TESI/dato chiave (1 riga)\n2. **Pro** (vista che spinge per fare): 2-3 righe con dati\n3. **Contro** (vista che spinge per non fare/aspettare): 2-3 righe con dati\n4. **Mia raccomandazione**: scelta + motivo (1-2 righe)\n5. UN prossimo passo concreto\n\nNON firmare "Beatrice:" o "Marco:". Sei Silvio che ha pesato entrambe le viste.`;
+          personaAddendum = `\n\n═══ DEBATE INTERIORE — pesa 2 viste opposte ═══\n\n--- VISTA A: expertise ${a.short_label} (${a.motto}) ---\n${a.system_prompt_addendum.slice(0, 1200)}\n\n--- VISTA B: expertise ${b.short_label} (${b.motto}) ---\n${b.system_prompt_addendum.slice(0, 1200)}\n\n═══ ISTRUZIONI DEBATE ═══\nFlorin sta chiedendo di scegliere tra opzioni. INTERIORMENTE pesa entrambe le viste,\nMA rispondi con UNA voce sola (Silvio).\n\nFormato risposta consigliato:\n1. Apri con la TESI/dato chiave (1 riga)\n2. **Pro**: 2-3 righe con dato/prova o ipotesi dichiarata\n3. **Contro**: 2-3 righe con rischio, costo o perdita opportunita\n4. **Scelta**: raccomandazione netta + condizione che la cambierebbe\n5. UN prossimo passo concreto con owner/verifica\n\nNON firmare "Beatrice:" o "Marco:". Sei Silvio che ha pesato entrambe le viste.`;
         } else if (typed.length === 1 || typed[0].match_score > typed[1].match_score * 2) {
           // Una persona dominante → adotta il tono internamente
           invocationMode = "SOLO";
           const p = typed[0];
-          personaAddendum = `\n\n═══ ATTIVA INTERIORMENTE: ${p.emoji} ${p.short_label} (motto: "${p.motto}") ═══\n${p.system_prompt_addendum}\n\n═══ ISTRUZIONI VOCE ═══\nAdotta TONO + EXPERTISE + FRAMEWORK di pensiero di ${p.short_label}, ma firma come Silvio (UNA voce). Niente "${p.display_name}:" all'inizio. Se la domanda esce dal dominio ${p.short_label}, hand-off interiore (cita la disciplina giusta come "lato Sales/Tech/Legal..." senza nominare la persona).`;
+          personaAddendum = `\n\n═══ ATTIVA INTERIORMENTE: ${p.emoji} ${p.short_label} (motto: "${p.motto}") ═══\n${p.system_prompt_addendum}\n\n═══ ISTRUZIONI VOCE ═══\nAdotta TONO + EXPERTISE + FRAMEWORK di pensiero di ${p.short_label}, ma firma come Silvio (UNA voce). Niente "${p.display_name}:" all'inizio. Se la domanda esce dal dominio ${p.short_label}, hand-off interiore (cita la disciplina giusta come "lato Sales/Tech/Legal..." senza nominare la persona).\n\nOutput forte: tesi, evidenza, rischio, azione. Niente teoria se non serve.`;
         } else {
           // PANEL: 2-4 expertise interiori → sintesi unica
           invocationMode = "PANEL";
@@ -641,7 +731,7 @@ Deno.serve(async (req) => {
           const personasList = typed.slice(0, 4).map((p) =>
             `--- expertise ${p.short_label} (motto: "${p.motto}") ---\n${p.system_prompt_addendum.slice(0, 700)}`
           ).join("\n\n");
-          personaAddendum = `\n\n═══ PANEL INTERIORE — ${typed.length} expertise da sintetizzare ═══\n${personasList}\n\n═══ ISTRUZIONI PANEL ═══\nFlorin ha posto una domanda cross-area. INTERIORMENTE attiva tutte queste expertise,\nMA rispondi con UNA voce sola (Silvio). Niente "${typed[0].display_name}: ... ${typed[1].display_name}: ...".\n\nFormato risposta consigliato:\n1. Apri con la TESI/dato chiave cross-area (1 riga)\n2. Sviluppa 2-4 punti che integrano le viste (2-3 righe ciascuno, in linguaggio Silvio)\n3. Chiusura con UN prossimo passo concreto\n\nSe utile cita la disciplina ("dal lato finanziario...", "dal lato vendite...") ma NON i nomi delle personas.`;
+          personaAddendum = `\n\n═══ PANEL INTERIORE — ${typed.length} expertise da sintetizzare ═══\n${personasList}\n\n═══ ISTRUZIONI PANEL ═══\nFlorin ha posto una domanda cross-area. INTERIORMENTE attiva tutte queste expertise,\nMA rispondi con UNA voce sola (Silvio). Niente "${typed[0].display_name}: ... ${typed[1].display_name}: ...".\n\nFormato risposta consigliato:\n1. Apri con la TESI/dato chiave cross-area (1 riga)\n2. Sviluppa 2-4 punti integrati: dato/prova, trade-off, rischio, impatto\n3. Dai P0/P1/P2 solo se davvero utili\n4. Chiusura con UN prossimo passo concreto\n\nSe utile cita la disciplina ("dal lato finanziario...", "dal lato vendite...") ma NON i nomi delle personas.`;
         }
       } else {
         // No match — out-of-scope o generica
@@ -660,8 +750,13 @@ Deno.serve(async (req) => {
       personaAddendum += personaMemoryBlock;
     }
 
+    const strictFormatAddendum =
+      /rispondi\s+(solo|esattamente|in\s+\d+\s+righe?|con\s+una\s+sola\s+riga)/i.test(message)
+        ? `\n\n═══ PRIORITA FORMATO UTENTE ═══\nFlorin ha imposto un formato stretto. Rispetta PRIMA il formato richiesto, poi persona/tool/stile. Se chiede "rispondi solo X", non aggiungere spiegazioni, saluti, fonti o testo extra. Se servono tool per rispondere al contenuto, usali ma mantieni il formato finale.`
+      : "";
+
     // 5b. Build messages[] — Preambolo costituzionale + Director base + persona-specific
-    const fullSystemPrompt = `${PREAMBOLO_COSTITUZIONALE}\n\n${SYSTEM_PROMPT_BASE}${personaAddendum}`;
+    const fullSystemPrompt = `${PREAMBOLO_COSTITUZIONALE}\n\n${SYSTEM_PROMPT_BASE}${personaAddendum}${strictFormatAddendum}`;
     const aiMessages: AIMessage[] = [
       { role: "system", content: fullSystemPrompt },
     ];

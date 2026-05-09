@@ -15,6 +15,7 @@ import { queryKeys } from "@/lib/queryKeys";
  * ritentabile piuttosto che spinner infinito.
  */
 const AUTH_CRITICAL_FETCH_TIMEOUT_MS = 20_000;
+const AUTH_INITIAL_SESSION_WATCHDOG_MS = 12_000;
 const WARMUP_FETCH_TIMEOUT_MS = 8_000;
 
 interface AuthContextType extends AuthState {
@@ -576,6 +577,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // fragility with zero behavioral change.
     const hash = window.location.hash;
     const isCrossSubdomainHandoff = !!(hash && hash.includes('_at='));
+    const handoffParams = isCrossSubdomainHandoff
+      ? new URLSearchParams(hash.slice(1))
+      : null;
+    const handoffAccessToken = handoffParams?.get('_at') ?? null;
+    const handoffRefreshToken = handoffParams?.get('_rt') ?? null;
+    const hasValidCrossSubdomainHandoff = Boolean(handoffAccessToken && handoffRefreshToken);
+    let authSettled = false;
+    const authBootstrapWatchdog = window.setTimeout(() => {
+      if (authSettled) return;
+      authGenRef.current++;
+      logger.warn("[auth] INITIAL_SESSION watchdog: sblocco spinner e ritorno a stato non autenticato");
+      setState(prev => prev.isLoading
+        ? {
+            user: null,
+            profile: null,
+            role: null,
+            company: null,
+            isLoading: false,
+          }
+        : prev
+      );
+    }, AUTH_INITIAL_SESSION_WATCHDOG_MS);
+    const settleAuthBootstrap = () => {
+      authSettled = true;
+      window.clearTimeout(authBootstrapWatchdog);
+    };
 
     // Set up auth state listener BEFORE checking initial session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -591,6 +618,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
+          settleAuthBootstrap();
           // Claim a generation slot. Any concurrent or previous fetch whose
           // generation no longer matches will be silently discarded.
           const myGen = ++authGenRef.current;
@@ -692,6 +720,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }).catch(() => {});
           }
         } else if (event === "TOKEN_REFRESHED" && session?.user) {
+          settleAuthBootstrap();
           // Access token renewed in the background.
           // If the role was already resolved (happy path), just update the User object
           // to hold the fresh JWT — no DB queries needed (role/company don't change on refresh).
@@ -727,10 +756,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // fires with session=null BEFORE setSession() completes.  If we set user:null here
           // ProtectedRoute would redirect to /login instantly (blank page flash).
           // Guard: keep isLoading:true and wait for the SIGNED_IN that setSession() will fire.
-          if (event === "INITIAL_SESSION" && isCrossSubdomainHandoff) {
+          if (event === "INITIAL_SESSION" && hasValidCrossSubdomainHandoff) {
             logger.info("INITIAL_SESSION null during cross-subdomain handoff — keeping isLoading:true, waiting for SIGNED_IN");
             return;
           }
+          settleAuthBootstrap();
           // INITIAL_SESSION with no user means no valid session in storage —
           // stop the spinner immediately instead of waiting for refreshAuth().
           // SIGNED_OUT invalidates any in-flight SIGNED_IN fetch.
@@ -771,12 +801,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // (isCrossSubdomainHandoff + hash already derived above, before listener registration.)
 
     if (isCrossSubdomainHandoff) {
-      const params = new URLSearchParams(hash.slice(1));
-      const at = params.get('_at');
-      const rt = params.get('_rt');
-      const it = params.get('_it');
-      const ic = params.get('_ic');
-      const pr = params.get('_pr'); // optional profile relay
+      const at = handoffAccessToken;
+      const rt = handoffRefreshToken;
+      const it = handoffParams?.get('_it');
+      const ic = handoffParams?.get('_ic');
+      const pr = handoffParams?.get('_pr'); // optional profile relay
 
       if (at && rt) {
         // Clear hash immediately — tokens must not linger in browser history
@@ -844,6 +873,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .catch(() => refreshAuth());
 
         return () => {
+          window.clearTimeout(authBootstrapWatchdog);
           window.removeEventListener("unhandledrejection", handleUnhandledAuthError);
           subscription.unsubscribe();
         };
@@ -859,6 +889,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       // Invalidate any in-flight fetch so setState is never called after unmount.
+      window.clearTimeout(authBootstrapWatchdog);
       window.removeEventListener("unhandledrejection", handleUnhandledAuthError);
       authGenRef.current++;
       subscription.unsubscribe();

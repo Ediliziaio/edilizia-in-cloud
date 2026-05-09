@@ -242,6 +242,153 @@ function parseJsonObject<T>(content: string, fallback: T): T {
   }
 }
 
+function normalizeSearchText(value: unknown): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractEvidenceSources(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.flatMap(extractEvidenceSources);
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const direct = [
+      record.source,
+      record.tool,
+      record.tool_key,
+      record.rpc,
+      record.rpc_name,
+    ]
+      .filter(Boolean)
+      .map((item) => normalizeSearchText(item));
+    const nested = Object.values(record).flatMap(extractEvidenceSources);
+    return [...direct, ...nested];
+  }
+  return [];
+}
+
+function isCredibleEvidenceSource(source: string): boolean {
+  const normalized = normalizeSearchText(source);
+  if (!normalized || normalized.includes("|")) return false;
+  if (
+    [
+      "tool",
+      "database",
+      "db",
+      "rpc",
+      "knowledge",
+      "kb",
+      "memory",
+      "blackboard",
+      "reasoning",
+    ].includes(normalized)
+  ) {
+    return false;
+  }
+  return /^(tool:|database:|db:|rpc:|knowledge:|kb:|search_knowledge|silvio-kb-search|get_|list_|cluster_|silvio_get_|silvio_list_|silvio_cluster_)/i
+    .test(normalized);
+}
+
+function buildCredibleEvidenceCorpus(
+  blackboard: Record<string, unknown>[],
+): { corpus: string; hasCredibleEvidence: boolean } {
+  const credibleEntries = blackboard.filter((entry) => {
+    const sources = extractEvidenceSources(entry.evidence);
+    return sources.some(isCredibleEvidenceSource);
+  });
+  return {
+    corpus: normalizeSearchText(JSON.stringify(credibleEntries)),
+    hasCredibleEvidence: credibleEntries.length > 0,
+  };
+}
+
+function uniqueStrings(items: string[]): string[] {
+  return [...new Set(items.map((item) => item.trim()).filter(Boolean))];
+}
+
+function extractMetricClaims(markdown: string): string[] {
+  const text = markdown.replace(/P[0-2]/g, " ");
+  const patterns = [
+    /(?:€|\$)\s?\d[\d.,]*(?:\s?(?:k|m|eur|usd))?/gi,
+    /\b\d+(?:[.,]\d+)?\s?%/gi,
+    /\b\d+(?:[.,]\d+)?\s?(?:clienti|utenti|lead|ticket|aziende|demo|trial|fatture|email|messaggi)\b/gi,
+    /\b(?:MRR|ARR|ARPU|CAC|LTV|churn|conversione|tasso|abbandono|retention|payback)[^.\n;:]{0,80}?\d[\d.,]*\s?%?/gi,
+    /\b(?:tempo medio|p95|latenza|durata media|load time)[^.\n;:]{0,80}?\d[\d.,]*\s?(?:ms|s|sec|secondi|minuti)?/gi,
+  ];
+  return uniqueStrings(patterns.flatMap((pattern) => text.match(pattern) ?? []));
+}
+
+function claimNumbers(claim: string): string[] {
+  return claim.match(/\d+(?:[.,]\d+)*/g) ?? [];
+}
+
+function isMetricClaimSupported(claim: string, corpus: string): boolean {
+  if (!corpus) return false;
+  const normalizedClaim = normalizeSearchText(claim);
+  if (corpus.includes(normalizedClaim)) return true;
+  const numbers = claimNumbers(claim);
+  return numbers.length > 0 &&
+    numbers.every((number) => corpus.includes(number));
+}
+
+function markUnsupportedClaims(
+  summary: string,
+  unsupportedClaims: string[],
+): string {
+  let marked = summary;
+  for (const claim of unsupportedClaims) {
+    marked = marked.replaceAll(claim, `${claim} [NON VERIFICATO]`);
+  }
+  return marked;
+}
+
+function forceHypothesisThesis(summary: string): string {
+  if (/### Tesi\s*\n\s*(Ipotesi|Rischio):/i.test(summary)) return summary;
+  if (/### Tesi\s*\n/i.test(summary)) {
+    return summary.replace(/(### Tesi\s*\n)/i, "$1Ipotesi: ");
+  }
+  return `### Tesi\nIpotesi: evidenze forti insufficienti per una conclusione definitiva.\n\n${summary}`;
+}
+
+function validateSynthesisEvidence(
+  synthesis: SynthesisOutput,
+  blackboard: Record<string, unknown>[],
+): {
+  hasCredibleEvidence: boolean;
+  unsupportedClaims: string[];
+  summaryMd: string;
+} {
+  const summaryMd = synthesis.summary_md ?? "";
+  const { corpus, hasCredibleEvidence } =
+    buildCredibleEvidenceCorpus(blackboard);
+  const unsupportedClaims = extractMetricClaims(summaryMd).filter(
+    (claim) => !isMetricClaimSupported(claim, corpus),
+  );
+  let guardedSummary = markUnsupportedClaims(summaryMd, unsupportedClaims);
+  if (!hasCredibleEvidence) {
+    guardedSummary = forceHypothesisThesis(guardedSummary);
+  }
+  return {
+    hasCredibleEvidence,
+    unsupportedClaims,
+    summaryMd: guardedSummary,
+  };
+}
+
+function isWeakNextAction(action: unknown): boolean {
+  const normalized = normalizeSearchText(action);
+  if (normalized.length < 24) return true;
+  return /\b(organizzare|pianificare|fare|fissare|schedulare|condurre|avviare|valutare|monitorare|approfondire)\b.*\b(incontro|meeting|riunione|call|intervista|interviste|analisi|approfondimento)\b/i
+    .test(normalized);
+}
+
+function buildOperationalNextAction(mission: MissionRow): string {
+  const objective = normalizeObjective(mission.objective).slice(0, 180);
+  return `Compilare una scheda operativa per "${objective}" con evidenza mancante, P0 proposto, owner, test di verifica e criterio go/no-go.`;
+}
+
 function compactAgent(agent: AgentRegistry) {
   return {
     agent_key: agent.agent_key,
@@ -529,28 +676,143 @@ function selectAgents(
   return selected;
 }
 
+function agentOperatingBrief(agentKey: string): string {
+  const briefs: Record<string, string> = {
+    planner_agent:
+      "Pensa come COO: traduci caos in piano. Chiarisci obiettivo reale, dipendenze, sequenza P0/P1/P2, trade-off, decisioni irreversibili e blocchi. Non entrare nei dettagli specialistici se un altro agente e piu adatto.",
+    growth_agent:
+      "Pensa come Head of Growth B2B SaaS: valuta ICP, canali, SEO, ads, funnel, conversione, messaggio, CAC payback e velocita esperimenti. Ogni raccomandazione deve collegarsi a una metrica o esperimento misurabile.",
+    sales_agent:
+      "Pensa come Sales Director: pipeline, qualifica lead, demo, follow-up, objection handling, forecast commerciale e disciplina CRM. Non proporre sconti senza impatto su margine, LTV e precedenti commerciali.",
+    finance_agent:
+      "Pensa come CFO SaaS: MRR, ARR, ARPU, churn, cash, unpaid, margine, pricing, ROI e runway operativo. I numeri dei tool vincono sempre su intuizioni o memoria.",
+    product_tech_agent:
+      "Pensa come Product+Engineering Lead: bug, UX, performance, architettura, rischio regressioni, osservabilita, debt e effort tecnico. Proponi fix piccoli, reversibili e verificabili.",
+    customer_success_agent:
+      "Pensa come Customer Success Lead: ticket, onboarding, activation, retention, churn risk, time-to-value, adozione e valore percepito. Collega ogni rischio a impatto cliente e prossimo gesto di cura.",
+    qa_compliance_agent:
+      "Pensa come QA Lead + DPO: verifica prove, permessi, GDPR/AI Act, hallucination risk, azioni non autorizzate, sicurezza dati e auditabilita. Blocca output senza evidenze sufficienti.",
+  };
+  return briefs[agentKey] ??
+    "Resta nel tuo dominio specialistico e non duplicare il lavoro degli altri agenti.";
+}
+
+function agentScorecard(agentKey: string): string {
+  const scorecards: Record<string, string> = {
+    planner_agent: [
+      "Domande guida:",
+      "- Qual e il problema vero dietro la richiesta?",
+      "- Cosa blocca il risultato oggi: dati, persone, prodotto, go-to-market o soldi?",
+      "- Quale sequenza P0/P1/P2 riduce rischio e aumenta velocita?",
+      "Output eccellente: piano breve, owner suggerito, trade-off chiaro, decisione richiesta se serve.",
+      "Blocca se: stai solo riassumendo gli altri o proponi un piano senza ordine esecutivo.",
+    ].join("\n"),
+    growth_agent: [
+      "Domande guida:",
+      "- Quale leva sposta pipeline o domanda qualificata entro 7-30 giorni?",
+      "- Quale ipotesi possiamo testare con costo basso e metrica chiara?",
+      "- Il messaggio e abbastanza specifico per imprese edili italiane?",
+      "Output eccellente: esperimento, audience, hook, metrica di successo, rischio CAC.",
+      "Blocca se: proponi marketing generico, contenuti senza keyword/intento o ads senza misurazione.",
+    ].join("\n"),
+    sales_agent: [
+      "Domande guida:",
+      "- Dove perde velocita la pipeline: lead, demo, proposta, follow-up o chiusura?",
+      "- Quale azione aumenta close rate senza bruciare margine?",
+      "- Quale dato CRM manca per decidere?",
+      "Output eccellente: azione commerciale, segmento, script/criterio, metrica di conversione.",
+      "Blocca se: proponi sconti o follow-up generici senza impatto su margine/LTV.",
+    ].join("\n"),
+    finance_agent: [
+      "Domande guida:",
+      "- Qual e l'impatto su MRR, cash, margine, CAC payback o runway?",
+      "- Quale numero e verificato e quale e assunto?",
+      "- Cosa non fare per evitare danni economici?",
+      "Output eccellente: numeri, sensitivita, rischio economico, soglia decisionale.",
+      "Blocca se: parli di crescita senza MRR/costi/margine o inventi stime.",
+    ].join("\n"),
+    product_tech_agent: [
+      "Domande guida:",
+      "- Qual e il bug/attrito che blocca il flusso utente?",
+      "- Quale fix e piu piccolo, reversibile e testabile?",
+      "- Quale regressione puo nascere?",
+      "Output eccellente: causa probabile, file/area, fix P0/P1/P2, test di verifica.",
+      "Blocca se: proponi rewrite ampi, feature nuove non richieste o fix senza test.",
+    ].join("\n"),
+    customer_success_agent: [
+      "Domande guida:",
+      "- Cosa sta vivendo il cliente/utente in quel punto?",
+      "- Quale frizione genera ticket, churn o mancata adozione?",
+      "- Quale messaggio/CTA riduce incertezza subito?",
+      "Output eccellente: rischio cliente, microcopy/azione CS, metrica di adozione o ticket.",
+      "Blocca se: parli solo di sentiment senza legarlo ad adozione, retention o supporto.",
+    ].join("\n"),
+    qa_compliance_agent: [
+      "Domande guida:",
+      "- Quali affermazioni non hanno evidenza?",
+      "- C'e PII, GDPR/AI Act, permesso o azione esterna da approvare?",
+      "- Quale test minimo prova che la raccomandazione e vera?",
+      "Output eccellente: pass/needs_revision implicito, rischi, missing evidence, test gate.",
+      "Blocca se: la missione contiene numeri non verificati, azioni non autorizzate o dati sensibili.",
+    ].join("\n"),
+  };
+  return scorecards[agentKey] ??
+    "Valuta qualita, rischio, evidenza, impatto e prossima azione concreta.";
+}
+
+function missionModeBrief(mode: MissionRow["mode"]): string {
+  const briefs: Record<string, string> = {
+    solo:
+      "SOLO: produci un contributo profondo nel tuo dominio; evita cross-area non necessarie.",
+    panel:
+      "PANEL: lavora in parallelo; aggiungi una vista distinta, non ripetere gli altri.",
+    debate:
+      "DEBATE: cerca tensioni e controargomenti; evidenzia cosa cambierebbe la decisione.",
+    chain:
+      "CHAIN: considera il blackboard come input precedente; costruisci sopra senza duplicare.",
+    supervised_execution:
+      "SUPERVISED_EXECUTION: resta proposal-only; nessuna azione esterna senza approvazione umana.",
+  };
+  return briefs[mode] ?? briefs.panel;
+}
+
 function workerSystemPrompt(agent: AgentRegistry): string {
   return `Sei ${agent.display_name}, un agente interno di Silvio Superadmin.
 Missione agente: ${agent.mission}
 Personas di riferimento: ${agent.persona_keys.join(", ") || "nessuna"}
 Modalita operativa: ${agent.operating_mode}
 Livello rischio: ${agent.risk_level}
+Brief operativo specifico:
+${agentOperatingBrief(agent.agent_key)}
 
-Regole:
+Scorecard del tuo ruolo:
+${agentScorecard(agent.agent_key)}
+
+Principi non negoziabili:
 - Rispondi solo in italiano.
+- Scrivi come dirigente operativo, non come chatbot: niente premesse, niente compiacenza, niente motivazione.
 - Non eseguire azioni esterne e non promettere deploy, invii, cancellazioni o modifiche non richieste.
-- Usa prima i dati reali dei tool quando sono presenti. Non inventare numeri: se mancano dati, marca l'ipotesi come rischio o domanda.
+- Gerarchia prove: tool reali > blackboard > memoria agente > ipotesi. Non inventare numeri.
+	- Ogni fatto deve avere evidence.source specifico (es. "tool:get_mrr_breakdown", "database:vista_mrr", "kb:sezione_1") oppure deve essere spostato in risks/questions.
+- Divieto assoluto: non creare percentuali, volumi, tempi medi, tassi, benchmark o esempi numerici se non arrivano da tool/blackboard con fonte. Se vuoi indicare un ordine di grandezza, scrivi "dato non disponibile".
+- Se non hai evidenze, la thesis deve iniziare con "Ipotesi:" o "Rischio:" e non deve presentare la situazione come fatto.
 - Se un tool fallisce, segnala il buco informativo e lavora in modalita prudente.
 - Scrivi output concreto, utilizzabile dal coordinatore Silvio.
+- Evita raccomandazioni vaghe tipo "organizzare una riunione", "monitorare", "approfondire" se non specifichi chi, cosa, dato da verificare e output atteso.
+- Massimo 3 raccomandazioni. Ogni raccomandazione deve avere priority, effort, impact e confidence.
+- Priorita: P0 = blocca revenue/sicurezza/flusso core; P1 = migliora conversione/stabilita; P2 = polish/scaling.
+- Confidence 0.85+ solo con tool/evidenza chiara; 0.60-0.80 con ragionamento plausibile; sotto 0.60 deve diventare domanda/rischio.
+- Se non ci sono dati reali dai tool, facts deve essere [] oppure contenere solo fatti esplicitamente presenti in memoria/blackboard con fonte.
+- Se non hai abbastanza prove, dillo come rischio e chiedi il dato mancante.
 - Il formato deve essere JSON valido, senza markdown fuori dal JSON.
 
 Schema obbligatorio:
 {
-  "thesis": "tesi principale in una frase",
-  "facts": [{"title":"...","content":"...","confidence":0.0,"evidence":{}}],
-  "insights": [{"title":"...","content":"...","confidence":0.0,"evidence":{}}],
+  "thesis": "tesi principale in una frase, massimo 180 caratteri",
+	  "facts": [{"title":"...","content":"...","confidence":0.0,"evidence":{"source":"tool:<tool_key>|database:<view>|kb:<section>|memory:<id>","id":"...","tool_key":"..."}}],
+	  "insights": [{"title":"...","content":"...","confidence":0.0,"evidence":{"source":"tool:<tool_key>|blackboard:<entry_id>|memory:<id>|reasoning"}}],
   "risks": [{"title":"...","content":"...","confidence":0.0,"evidence":{}}],
-  "recommendations": [{"title":"...","content":"...","priority":"P0|P1|P2","effort":"low|medium|high","impact":"low|medium|high","confidence":0.0}],
+  "recommendations": [{"title":"...","content":"azione concreta, owner suggerito, verifica attesa","priority":"P0|P1|P2","effort":"low|medium|high","impact":"low|medium|high","confidence":0.0,"evidence":{"source":"..."}}],
   "questions": [{"title":"...","content":"...","confidence":0.0}],
   "next_action": "una sola prossima azione concreta"
   }`;
@@ -567,6 +829,9 @@ function workerUserPrompt(
 ${mission.objective}
 
 Modalita missione: ${mission.mode}
+Regola modalita:
+${missionModeBrief(mission.mode)}
+
 Agente incaricato: ${agent.display_name}
 
 Memoria attiva agente:
@@ -578,7 +843,15 @@ ${toolContext.length > 0 ? trimJsonForPrompt(toolContext) : "Nessun tool read-on
 Blackboard disponibile finora:
 ${JSON.stringify(blackboard.slice(-20), null, 2)}
 
-Produci il tuo contributo specializzato. Se il dato non e verificato, segnalo come rischio/domanda, non come fatto.`;
+Istruzioni di qualita:
+- Produci solo contributi nel tuo dominio specialistico.
+- Se un altro agente e piu adatto, segnala handoff nel campo questions.
+- Non ripetere il blackboard: aggiungi valore, contraddizioni, priorita o rischio.
+- Se il dato non e verificato, segnalo come rischio/domanda, non come fatto.
+- Cerca esplicitamente: una tesi forte, massimo 5 fatti, massimo 5 insight, massimo 4 rischi, massimo 3 raccomandazioni.
+- Ogni raccomandazione deve contenere: owner suggerito, cosa fare, verifica attesa, metrica o prova.
+- Chiudi con una next_action eseguibile in meno di 30 minuti quando possibile.
+- Se l'obiettivo e troppo ampio, restringilo alla leva piu impattante del tuo dominio.`;
 }
 
 function outputToMarkdown(agent: AgentRegistry, output: WorkerOutput): string {
@@ -722,7 +995,7 @@ async function loadBlackboard(
   const { data } = await supabase
     .from("silvio_agent_blackboard")
     .select(
-      "entry_type,title,content,confidence,agent_key,visibility,created_at",
+      "entry_type,title,content,confidence,agent_key,visibility,evidence,created_at",
     )
     .eq("mission_id", missionId)
     .order("created_at", { ascending: true })
@@ -732,20 +1005,51 @@ async function loadBlackboard(
 
 function synthesisSystemPrompt(): string {
   return `Sei Silvio Coordinator, il volto unico che parla a Florin.
-Sintetizzi contributi di agenti interni senza mostrare il dialogo interno.
+Sei il Chief of Staff operativo: trasformi contributi grezzi degli agenti in decisioni, priorita e prossime mosse.
+Non mostri il dialogo interno e non fai "riassunti scolastici": tagli rumore, pesi prove, scegli.
 
 Regole:
 - Italiano operativo, diretto, professionale.
-- Tesi iniziale chiara.
-- Evidenzia P0/P1/P2 se emergono priorita.
-- Se mancano prove, dichiaralo.
-- Imposta needs_approval=true se raccomandi azioni esterne, modifiche dati, budget/spesa, invii massivi, decisioni GDPR/AI Act o se le prove sono deboli.
+- Apri con tesi iniziale chiara, non con introduzioni.
+- Separa sempre: evidenze verificate, rischi/assunzioni, azioni P0/P1/P2.
+- Se mancano prove, dichiaralo nel summary e metti needs_approval=true.
+- Se una raccomandazione e generica ("fare meeting", "monitorare", "approfondire"), riscrivila come azione concreta con output atteso oppure scartala.
+- Vietato usare meeting, call, intervista o "approfondire" come next_action finale: la prossima azione deve produrre un artefatto verificabile (checklist, patch, query, report, test, decision memo).
+- Imposta needs_approval=true se raccomandi azioni esterne, modifiche dati, budget/spesa, invii massivi, decisioni GDPR/AI Act, cambi architetturali o se le prove sono deboli.
+- Non dire "tutto ok" se QA segnala rischi, missing_evidence o task falliti.
+- Tratta gli output degli agenti come contributi non verificati finche non hanno evidence.source credibile.
+	- Divieto assoluto: non includere percentuali, tassi, tempi medi, volumi, ricavi, costi o benchmark se non sono presenti nel blackboard con evidence.source specifico tipo tool:<tool_key>, database:<view>, rpc:<name>, kb:<section>. Se un agente li ha scritti senza fonte, spostali in Rischi/assunzioni come "numero non verificato" oppure scartali.
+- Se non ci sono evidenze forti, la sezione Evidenze deve dire "Nessuna evidenza quantitativa verificata nei tool disponibili".
+- Se non ci sono evidenze forti, la Tesi deve essere formulata come ipotesi o rischio, non come fatto accertato.
+- Se gli agenti sono in conflitto, esplicita il trade-off e scegli la posizione piu prudente/utile.
+- Dai priorita a cio che muove revenue, sicurezza, stabilita prodotto o riduce churn. Il resto va P2 o viene scartato.
+- Ogni P0/P1/P2 deve contenere: azione, owner suggerito, prova/metrica di verifica.
+- Confidence massima 0.65 se non ci sono fatti/tool con evidence verificabile nel blackboard.
+- Se serve approvazione, scrivi chiaramente cosa Florin deve decidere e cosa succede se non decide.
 - Chiudi con UNA prossima azione concreta.
 - Output solo JSON valido.
 
+Formato summary_md obbligatorio:
+### Tesi
+[1 frase secca]
+
+### Evidenze
+- [dato/prova/source oppure "nessuna evidenza forte"]
+
+### Priorita
+- P0: [azione concreta, owner, verifica]
+- P1: [...]
+- P2: [...]
+
+### Rischi / assunzioni
+- [...]
+
+### Decisione richiesta
+[solo se serve; altrimenti "Nessuna decisione irreversibile ora"]
+
 Schema:
 {
-  "summary_md": "sintesi markdown compatta, pronta da leggere",
+  "summary_md": "markdown compatto con sezioni: Tesi, Evidenze, P0/P1/P2, Rischi/assunzioni, Decisione richiesta se serve",
   "next_action": "una sola prossima azione concreta",
   "confidence": 0.0,
   "needs_approval": false,
@@ -811,7 +1115,7 @@ Deno.serve(async (req) => {
           selected_agents: selectedAgents.map(compactAgent),
           force_model: body.force_model ?? null,
           background_processing: true,
-          orchestrator_version: "2026-05-p0-p1-async-hardening",
+          orchestrator_version: "2026-05-prompt-evidence-action-gates",
         },
       })
       .select("*")
@@ -1068,6 +1372,59 @@ Produci sintesi unica di Silvio.`,
           };
         }
 
+        const evidenceGate = validateSynthesisEvidence(synthesis, blackboard);
+        const gateRisks = [
+          ...(!evidenceGate.hasCredibleEvidence
+            ? ["Nessuna evidenza forte da tool/database nel blackboard."]
+            : []),
+          ...(evidenceGate.unsupportedClaims.length > 0
+            ? [
+                `Numeri o metriche non supportati da evidenza: ${evidenceGate.unsupportedClaims
+                  .slice(0, 5)
+                  .join(", ")}`,
+              ]
+            : []),
+        ];
+        synthesis = {
+          ...synthesis,
+          summary_md: [
+            evidenceGate.summaryMd,
+            evidenceGate.unsupportedClaims.length > 0
+              ? [
+                  "",
+                  "### Evidence gate",
+                  ...evidenceGate.unsupportedClaims.slice(0, 5).map(
+                    (claim) => `- Numero non verificato marcato: ${claim}`,
+                  ),
+                ].join("\n")
+              : "",
+          ]
+            .join("\n")
+            .trim(),
+          risks: uniqueStrings([...(synthesis.risks ?? []), ...gateRisks]),
+          needs_approval:
+            Boolean(synthesis.needs_approval) || gateRisks.length > 0,
+          confidence: gateRisks.length
+            ? Math.min(
+                clampConfidence(synthesis.confidence) ?? 0.55,
+                evidenceGate.hasCredibleEvidence ? 0.65 : 0.5,
+              )
+            : synthesis.confidence,
+        };
+        const originalNextAction = synthesis.next_action;
+        const nextActionWasWeak = isWeakNextAction(originalNextAction);
+        if (nextActionWasWeak) {
+          synthesis = {
+            ...synthesis,
+            next_action: buildOperationalNextAction(mission),
+            risks: uniqueStrings([
+              ...(synthesis.risks ?? []),
+              "Next action generica riscritta in artefatto operativo verificabile.",
+            ]),
+            needs_approval: true,
+          };
+        }
+
         const taskData = (completedTasks.data ?? []) as Array<
           Record<string, unknown>
         >;
@@ -1115,6 +1472,14 @@ Produci sintesi unica di Silvio.`,
           evidence: {
             needs_approval: needsApproval,
             risks: synthesis.risks ?? [],
+            evidence_gate: {
+              has_credible_evidence: evidenceGate.hasCredibleEvidence,
+              unsupported_claims: evidenceGate.unsupportedClaims.slice(0, 20),
+            },
+            action_gate: {
+              rewritten: nextActionWasWeak,
+              original_next_action: originalNextAction ?? null,
+            },
           },
         });
 
@@ -1138,10 +1503,18 @@ Produci sintesi unica di Silvio.`,
               risk_entry_count: riskEntryCount,
               failed_task_count: failedTaskCount,
               fact_entry_count: factEntryCount,
+              evidence_gate: {
+                has_credible_evidence: evidenceGate.hasCredibleEvidence,
+                unsupported_claims: evidenceGate.unsupportedClaims.slice(0, 20),
+              },
+              action_gate: {
+                rewritten: nextActionWasWeak,
+                original_next_action: originalNextAction ?? null,
+              },
               risks: synthesis.risks ?? [],
               force_model: body.force_model ?? null,
               background_processing: true,
-              orchestrator_version: "2026-05-p0-p1-async-hardening",
+              orchestrator_version: "2026-05-prompt-evidence-action-gates",
             },
           })
           .eq("id", mission.id);

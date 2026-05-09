@@ -33,11 +33,13 @@
         }
 
         // Increment DEPLOY_KEY whenever a forced SW reset is needed.
+        // v10 (2026-05-09): forza la pulizia dei device/localhost che avevano
+        // già applicato v9 ma tenevano ancora asset SPA vecchi in cache.
         // v9 (2026-04-26): SW non deve più intercettare /auth/v1/* né
         // /functions/v1/* — quel pattern aveva bloccato il login mobile su
         // iOS Safari ("Accesso in corso..." infinito). Bump forza l'unregister
         // del vecchio SW sui device che hanno ancora la versione bacata.
-        var DEPLOY_KEY = 'sw_reset_v9';
+        var DEPLOY_KEY = 'sw_reset_v10';
         try {
           if (!localStorage.getItem(DEPLOY_KEY) && 'serviceWorker' in navigator) {
             localStorage.setItem(DEPLOY_KEY, '1');
