@@ -91,6 +91,43 @@ interface SynthesisOutput {
   risks?: string[];
 }
 
+interface ToolRegistry {
+  tool_key: string;
+  display_name: string;
+  description: string;
+  tool_kind: "rpc" | "edge_function" | "internal" | "external";
+  rpc_name: string | null;
+  default_args: Record<string, unknown>;
+  access_mode: "read" | "write_proposal" | "write_requires_approval" | "blocked";
+  risk_level: "low" | "medium" | "high" | "critical";
+  timeout_ms: number;
+  enabled: boolean;
+}
+
+interface ToolPermission {
+  tool_key: string;
+  execution_mode: "read" | "proposal_only" | "approval_required" | "blocked";
+  max_calls_per_mission: number;
+  enabled: boolean;
+}
+
+interface ToolExecutionResult {
+  tool_key: string;
+  display_name: string;
+  ok: boolean;
+  data?: unknown;
+  error?: string;
+  duration_ms: number;
+}
+
+interface AgentMemory {
+  id: string;
+  memory_type: string;
+  content: string;
+  confidence: number | null;
+  hits_count: number;
+}
+
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -185,6 +222,151 @@ function compactAgent(agent: AgentRegistry) {
   };
 }
 
+function trimJsonForPrompt(value: unknown, maxLength = 6000): string {
+  const text = JSON.stringify(value, null, 2);
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}\n... [troncato per budget token]`;
+}
+
+async function loadAgentMemory(supabase: any, agentKey: string): Promise<string> {
+  const { data, error } = await supabase
+    .from("silvio_agent_memory")
+    .select("id,memory_type,content,confidence,hits_count")
+    .eq("agent_key", agentKey)
+    .eq("enabled", true)
+    .eq("memory_status", "active")
+    .order("hits_count", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(8);
+
+  if (error || !data?.length) return "";
+  const memories = data as AgentMemory[];
+
+  await Promise.allSettled(
+    memories.map((memory) =>
+      supabase
+        .from("silvio_agent_memory")
+        .update({
+          hits_count: (memory.hits_count ?? 0) + 1,
+          last_used_at: new Date().toISOString(),
+        })
+        .eq("id", memory.id)
+    ),
+  );
+
+  return memories
+    .map((memory, index) => {
+      const confidence = memory.confidence !== null ? ` conf=${Math.round(memory.confidence * 100)}%` : "";
+      return `${index + 1}. [${memory.memory_type}${confidence}] ${memory.content.replace(/\s+/g, " ").slice(0, 500)}`;
+    })
+    .join("\n");
+}
+
+async function executeKnowledgeSearch(agent: AgentRegistry, objective: string, tool: ToolRegistry): Promise<unknown> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), tool.timeout_ms);
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/silvio-kb-search`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SERVICE_ROLE_KEY}`,
+        "x-internal-secret": SERVICE_ROLE_KEY,
+      },
+      body: JSON.stringify({
+        query: `${objective}\n\nFocus agente: ${agent.mission}`,
+        persona_key: agent.persona_keys[0] ?? null,
+        top_k: Number(tool.default_args?.top_k ?? 5),
+      }),
+    });
+    return await res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function executeAgentTools(
+  supabase: any,
+  missionId: string,
+  taskId: string,
+  agent: AgentRegistry,
+  objective: string,
+): Promise<ToolExecutionResult[]> {
+  const { data: permissionRows } = await supabase
+    .from("silvio_agent_tool_permissions")
+    .select("*")
+    .eq("agent_key", agent.agent_key)
+    .eq("enabled", true)
+    .limit(6);
+
+  const permissions = (permissionRows ?? []) as ToolPermission[];
+  const allowedToolKeys = permissions
+    .filter((permission) => permission.execution_mode === "read")
+    .map((permission) => permission.tool_key);
+  if (allowedToolKeys.length === 0) return [];
+
+  const { data: toolRows } = await supabase
+    .from("silvio_agent_tool_registry")
+    .select("*")
+    .in("tool_key", allowedToolKeys)
+    .eq("enabled", true)
+    .neq("access_mode", "blocked")
+    .limit(6);
+
+  const tools = ((toolRows ?? []) as ToolRegistry[])
+    .filter((tool) => tool.access_mode === "read")
+    .slice(0, 4);
+
+  const results: ToolExecutionResult[] = [];
+  for (const tool of tools) {
+    const startedAt = Date.now();
+    let status: "success" | "failed" | "blocked" = "success";
+    let output: unknown = null;
+    let errorMessage: string | null = null;
+
+    try {
+      if (tool.tool_key === "search_knowledge") {
+        output = await executeKnowledgeSearch(agent, objective, tool);
+      } else if (tool.tool_kind === "rpc" && tool.rpc_name) {
+        const { data, error } = await supabase.rpc(tool.rpc_name, tool.default_args ?? {});
+        if (error) throw error;
+        output = data;
+      } else {
+        status = "blocked";
+        errorMessage = "Tool non eseguibile in modalita read-only.";
+      }
+    } catch (error) {
+      status = "failed";
+      errorMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    const durationMs = Date.now() - startedAt;
+    await supabase.from("silvio_agent_tool_calls").insert({
+      mission_id: missionId,
+      task_id: taskId,
+      agent_key: agent.agent_key,
+      tool_name: tool.tool_key,
+      input: { default_args: tool.default_args, objective_preview: objective.slice(0, 500) },
+      output: status === "success" ? output ?? {} : {},
+      status,
+      duration_ms: durationMs,
+      error_message: errorMessage,
+    });
+
+    results.push({
+      tool_key: tool.tool_key,
+      display_name: tool.display_name,
+      ok: status === "success",
+      data: status === "success" ? output : undefined,
+      error: errorMessage ?? undefined,
+      duration_ms: durationMs,
+    });
+  }
+
+  return results;
+}
+
 function selectAgents(
   agents: AgentRegistry[],
   objective: string,
@@ -250,7 +432,8 @@ Livello rischio: ${agent.risk_level}
 Regole:
 - Rispondi solo in italiano.
 - Non eseguire azioni esterne e non promettere deploy, invii, cancellazioni o modifiche non richieste.
-- Non inventare numeri: se mancano dati, marca l'ipotesi come rischio o domanda.
+- Usa prima i dati reali dei tool quando sono presenti. Non inventare numeri: se mancano dati, marca l'ipotesi come rischio o domanda.
+- Se un tool fallisce, segnala il buco informativo e lavora in modalita prudente.
 - Scrivi output concreto, utilizzabile dal coordinatore Silvio.
 - Il formato deve essere JSON valido, senza markdown fuori dal JSON.
 
@@ -263,15 +446,27 @@ Schema obbligatorio:
   "recommendations": [{"title":"...","content":"...","priority":"P0|P1|P2","effort":"low|medium|high","impact":"low|medium|high","confidence":0.0}],
   "questions": [{"title":"...","content":"...","confidence":0.0}],
   "next_action": "una sola prossima azione concreta"
-}`;
+	}`;
 }
 
-function workerUserPrompt(mission: MissionRow, agent: AgentRegistry, blackboard: Record<string, unknown>[]) {
+function workerUserPrompt(
+  mission: MissionRow,
+  agent: AgentRegistry,
+  blackboard: Record<string, unknown>[],
+  toolContext: ToolExecutionResult[],
+  memoryBlock: string,
+) {
   return `Obiettivo missione:
 ${mission.objective}
 
 Modalita missione: ${mission.mode}
 Agente incaricato: ${agent.display_name}
+
+Memoria attiva agente:
+${memoryBlock || "Nessuna memoria attiva ancora."}
+
+Dati reali letti dai tool autorizzati:
+${toolContext.length > 0 ? trimJsonForPrompt(toolContext) : "Nessun tool read-only disponibile per questo agente."}
 
 Blackboard disponibile finora:
 ${JSON.stringify(blackboard.slice(-20), null, 2)}
@@ -333,6 +528,48 @@ async function insertBlackboardItems(
   }
 }
 
+async function storeMemorySuggestions(
+  supabase: any,
+  missionId: string,
+  agentKey: string,
+  output: WorkerOutput,
+) {
+  const rows: Record<string, unknown>[] = [];
+  for (const rec of (output.recommendations ?? []).slice(0, 2)) {
+    const content = `${rec.priority ?? "P1"} - ${rec.title ?? "Raccomandazione"}: ${rec.content ?? ""}`.trim();
+    if (content.length < 30) continue;
+    rows.push({
+      agent_key: agentKey,
+      memory_type: "pattern",
+      content: content.slice(0, 900),
+      source: "mission_auto_suggestion",
+      source_mission_id: missionId,
+      confidence: clampConfidence(rec.confidence) ?? 0.7,
+      memory_status: "suggested",
+      enabled: false,
+    });
+  }
+
+  for (const risk of (output.risks ?? []).slice(0, 1)) {
+    const content = `${risk.title ?? "Rischio"}: ${risk.content ?? ""}`.trim();
+    if (content.length < 30) continue;
+    rows.push({
+      agent_key: agentKey,
+      memory_type: "avoid",
+      content: content.slice(0, 900),
+      source: "mission_auto_suggestion",
+      source_mission_id: missionId,
+      confidence: clampConfidence(risk.confidence) ?? 0.75,
+      memory_status: "suggested",
+      enabled: false,
+    });
+  }
+
+  if (rows.length > 0) {
+    await supabase.from("silvio_agent_memory").insert(rows);
+  }
+}
+
 async function loadBlackboard(supabase: any, missionId: string): Promise<Record<string, unknown>[]> {
   const { data } = await supabase
     .from("silvio_agent_blackboard")
@@ -352,6 +589,7 @@ Regole:
 - Tesi iniziale chiara.
 - Evidenzia P0/P1/P2 se emergono priorita.
 - Se mancano prove, dichiaralo.
+- Imposta needs_approval=true se raccomandi azioni esterne, modifiche dati, budget/spesa, invii massivi, decisioni GDPR/AI Act o se le prove sono deboli.
 - Chiudi con UNA prossima azione concreta.
 - Output solo JSON valido.
 
@@ -414,7 +652,7 @@ Deno.serve(async (req) => {
         metadata: {
           selected_agents: selectedAgents.map(compactAgent),
           force_model: body.force_model ?? null,
-          orchestrator_version: "2026-05-p0",
+          orchestrator_version: "2026-05-p1-tools-memory",
         },
       })
       .select("*")
@@ -462,6 +700,25 @@ Deno.serve(async (req) => {
 
       try {
         const blackboard = await loadBlackboard(supabase, mission.id);
+        const memoryBlock = await loadAgentMemory(supabase, agent.agent_key);
+        const toolContext = await executeAgentTools(supabase, mission.id, task.id, agent, objective);
+        await supabase
+          .from("silvio_agent_tasks")
+          .update({
+            input_context: {
+              mission: { title, objective, mode },
+              agent: compactAgent(agent),
+              active_memory_loaded: Boolean(memoryBlock),
+              tool_context: toolContext.map((tool) => ({
+                tool_key: tool.tool_key,
+                ok: tool.ok,
+                duration_ms: tool.duration_ms,
+                error: tool.error ?? null,
+              })),
+            },
+          })
+          .eq("id", task.id);
+
         const result = await aiRouterComplete({
           supabase,
           taskKey: "silvio_agent_worker",
@@ -474,7 +731,7 @@ Deno.serve(async (req) => {
           params: { temperature: 0.2, max_tokens: 1400 },
           messages: [
             { role: "system", content: workerSystemPrompt(agent) },
-            { role: "user", content: workerUserPrompt(mission, agent, blackboard) },
+            { role: "user", content: workerUserPrompt(mission, agent, blackboard, toolContext, memoryBlock) },
           ],
         });
 
@@ -488,6 +745,7 @@ Deno.serve(async (req) => {
         totalTokens += safeNumber(result.totalTokens);
 
         await insertBlackboardItems(supabase, mission.id, task.id, agent.agent_key, output);
+        await storeMemorySuggestions(supabase, mission.id, agent.agent_key, output);
         await supabase.from("silvio_agent_artifacts").insert({
           mission_id: mission.id,
           task_id: task.id,
@@ -598,17 +856,25 @@ Produci sintesi unica di Silvio.`,
       };
     }
 
+    const taskData = (completedTasks.data ?? []) as Array<Record<string, unknown>>;
+    const failedTaskCount = taskData.filter((task) => task.status === "failed").length;
+    const riskEntryCount = blackboard.filter((entry) => entry.entry_type === "risk").length;
+    const factEntryCount = blackboard.filter((entry) => entry.entry_type === "fact" || entry.entry_type === "source").length;
+    const synthesisConfidence = clampConfidence(synthesis.confidence);
     const needsApproval = Boolean(synthesis.needs_approval)
       || (synthesis.risks ?? []).length > 0
-      || selectedAgents.some((agent) => agent.risk_level === "critical");
+      || failedTaskCount > 0
+      || riskEntryCount > 0
+      || (synthesisConfidence !== null && synthesisConfidence < 0.65);
+    const finalStatus = needsApproval ? "waiting_approval" : "completed";
 
     await supabase.from("silvio_agent_evaluations").insert({
       mission_id: mission.id,
       evaluator_agent_key: QA_AGENT_KEY,
-      quality_score: clampConfidence(synthesis.confidence),
+      quality_score: synthesisConfidence,
       risk_score: needsApproval ? 0.7 : 0.25,
       hallucination_risk: needsApproval ? "medium" : "low",
-      missing_evidence: blackboard.length === 0,
+      missing_evidence: factEntryCount === 0,
       needs_human_approval: needsApproval,
       verdict: needsApproval ? "needs_revision" : "pass",
       notes: (synthesis.risks ?? []).join("\n") || null,
@@ -628,19 +894,22 @@ Produci sintesi unica di Silvio.`,
     await supabase
       .from("silvio_agent_missions")
       .update({
-        status: "completed",
+        status: finalStatus,
         summary_md: synthesis.summary_md ?? "Missione completata senza sintesi.",
         next_action: synthesis.next_action ?? "Rivedere la missione nel Silvio Hub.",
-        confidence: clampConfidence(synthesis.confidence),
+        confidence: synthesisConfidence,
         total_cost_usd: totalCostUsd,
         total_tokens: totalTokens,
         completed_at: new Date().toISOString(),
         metadata: {
           selected_agents: selectedAgents.map(compactAgent),
           needs_approval: needsApproval,
+          risk_entry_count: riskEntryCount,
+          failed_task_count: failedTaskCount,
+          fact_entry_count: factEntryCount,
           risks: synthesis.risks ?? [],
           force_model: body.force_model ?? null,
-          orchestrator_version: "2026-05-p0",
+          orchestrator_version: "2026-05-p1-tools-memory",
         },
       })
       .eq("id", mission.id);
@@ -648,7 +917,7 @@ Produci sintesi unica di Silvio.`,
     return jsonResponse({
       ok: true,
       mission_id: mission.id,
-      status: "completed",
+      status: finalStatus,
       agents: selectedAgents.map(compactAgent),
       summary_md: synthesis.summary_md,
       next_action: synthesis.next_action,

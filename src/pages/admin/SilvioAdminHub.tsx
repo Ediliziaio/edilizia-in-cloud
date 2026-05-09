@@ -122,6 +122,39 @@ interface BlackboardEntry {
   created_at: string;
 }
 
+interface AgentToolPermission {
+  agent_key: string;
+  tool_key: string;
+  execution_mode: "read" | "proposal_only" | "approval_required" | "blocked";
+  enabled: boolean;
+}
+
+interface AgentMemoryItem {
+  id: string;
+  agent_key: string;
+  memory_type: "fact" | "preference" | "decision" | "pattern" | "avoid" | "playbook";
+  content: string;
+  source: string | null;
+  confidence: number | null;
+  memory_status: "suggested" | "active" | "rejected" | "archived";
+  enabled: boolean;
+  created_at: string;
+}
+
+interface AgentEvaluation {
+  id: string;
+  mission_id: string;
+  evaluator_agent_key: string;
+  quality_score: number | null;
+  risk_score: number | null;
+  hallucination_risk: "low" | "medium" | "high";
+  missing_evidence: boolean;
+  needs_human_approval: boolean;
+  verdict: "pass" | "needs_revision" | "blocked";
+  notes: string | null;
+  created_at: string;
+}
+
 const MODE_COLORS: Record<Policy["mode"], string> = {
   auto: "bg-emerald-100 text-emerald-700 border-emerald-300",
   auto_notify: "bg-amber-100 text-amber-700 border-amber-300",
@@ -605,6 +638,32 @@ function AgentsMissionTab() {
     },
   });
 
+  const toolPermissionsQuery = useQuery({
+    queryKey: ["silvio-agent-tool-permissions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("silvio_agent_tool_permissions" as never)
+        .select("agent_key,tool_key,execution_mode,enabled")
+        .eq("enabled" as never, true as never)
+        .order("agent_key" as never, { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as AgentToolPermission[];
+    },
+  });
+
+  const memoryQuery = useQuery({
+    queryKey: ["silvio-agent-memory-latest"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("silvio_agent_memory" as never)
+        .select("*")
+        .order("created_at" as never, { ascending: false })
+        .limit(12);
+      if (error) throw error;
+      return (data ?? []) as AgentMemoryItem[];
+    },
+  });
+
   const missionsQuery = useQuery({
     queryKey: ["silvio-agent-missions"],
     refetchInterval: 15_000,
@@ -653,6 +712,20 @@ function AgentsMissionTab() {
     },
   });
 
+  const evaluationsQuery = useQuery({
+    queryKey: ["silvio-agent-evaluations", activeMission?.id],
+    enabled: Boolean(activeMission?.id),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("silvio_agent_evaluations" as never)
+        .select("*")
+        .eq("mission_id" as never, activeMission!.id as never)
+        .order("created_at" as never, { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as AgentEvaluation[];
+    },
+  });
+
   const launchMutation = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -681,10 +754,53 @@ function AgentsMissionTab() {
     onError: (e) => toast.error("Missione non completata", { description: String(e) }),
   });
 
+  const resolveMissionMutation = useMutation({
+    mutationFn: async ({ missionId, resolution }: { missionId: string; resolution: "approved" | "rejected" }) => {
+      const { error } = await supabase.rpc("silvio_agent_resolve_mission" as never, {
+        p_mission_id: missionId,
+        p_resolution: resolution,
+        p_note: null,
+      } as never);
+      if (error) throw error;
+    },
+    onSuccess: (_, { resolution }) => {
+      toast.success(resolution === "approved" ? "Missione approvata" : "Missione archiviata");
+      queryClient.invalidateQueries({ queryKey: ["silvio-agent-missions"] });
+      queryClient.invalidateQueries({ queryKey: ["silvio-agent-evaluations"] });
+    },
+    onError: (e) => toast.error("Errore revisione missione", { description: String(e) }),
+  });
+
+  const updateMemoryMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: "active" | "rejected" }) => {
+      const { error } = await supabase
+        .from("silvio_agent_memory" as never)
+        .update({
+          memory_status: status,
+          enabled: status === "active",
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id" as never, id as never);
+      if (error) throw error;
+    },
+    onSuccess: (_, { status }) => {
+      toast.success(status === "active" ? "Memoria agente attivata" : "Memoria agente rifiutata");
+      queryClient.invalidateQueries({ queryKey: ["silvio-agent-memory-latest"] });
+    },
+    onError: (e) => toast.error("Errore memoria agente", { description: String(e) }),
+  });
+
   const agents = (agentsQuery.data ?? []).filter((agent) => agent.agent_key !== "silvio_coordinator");
   const enabledAgents = agents.filter((agent) => agent.enabled);
   const tasks = tasksQuery.data ?? [];
   const blackboard = blackboardQuery.data ?? [];
+  const evaluations = evaluationsQuery.data ?? [];
+  const latestEvaluation = evaluations[0];
+  const memoryItems = memoryQuery.data ?? [];
+  const toolsByAgent = (toolPermissionsQuery.data ?? []).reduce<Record<string, AgentToolPermission[]>>((acc, permission) => {
+    acc[permission.agent_key] = [...(acc[permission.agent_key] ?? []), permission];
+    return acc;
+  }, {});
 
   const toggleAgent = (agentKey: string) => {
     setSelectedAgents((current) => {
@@ -819,6 +935,16 @@ function AgentsMissionTab() {
                   </div>
                   <p className="text-xs text-muted-foreground line-clamp-3">{agent.mission}</p>
                   <div className="flex flex-wrap gap-1">
+                    {(toolsByAgent[agent.agent_key] ?? []).slice(0, 4).map((permission) => (
+                      <Badge key={permission.tool_key} variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                        {permission.tool_key}
+                      </Badge>
+                    ))}
+                    {(toolsByAgent[agent.agent_key] ?? []).length === 0 && (
+                      <span className="text-[10px] text-muted-foreground">Nessun tool attivo</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
                     {agent.persona_keys.slice(0, 4).map((persona) => (
                       <Badge key={persona} variant="secondary" className="text-[10px]">
                         {persona}
@@ -830,6 +956,73 @@ function AgentsMissionTab() {
             ))
           )}
         </div>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Brain className="h-4 w-4 text-violet-500" />
+              Memoria agenti
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {memoryQuery.isLoading ? (
+              <Skeleton className="h-24" />
+            ) : memoryItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nessuna memoria agente ancora. Le missioni generano suggerimenti da approvare.
+              </p>
+            ) : (
+              memoryItems.map((memory) => (
+                <div key={memory.id} className="rounded-md border p-2 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-[10px] font-mono">
+                      {memory.agent_key}
+                    </Badge>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {memory.memory_type}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${
+                        memory.memory_status === "active"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : memory.memory_status === "rejected"
+                            ? "bg-rose-50 text-rose-700 border-rose-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                      }`}
+                    >
+                      {memory.memory_status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
+                    {memory.content}
+                  </p>
+                  {memory.memory_status === "suggested" && (
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 text-xs text-rose-600"
+                        disabled={updateMemoryMutation.isPending}
+                        onClick={() => updateMemoryMutation.mutate({ id: memory.id, status: "rejected" })}
+                      >
+                        Rifiuta
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
+                        disabled={updateMemoryMutation.isPending}
+                        onClick={() => updateMemoryMutation.mutate({ id: memory.id, status: "active" })}
+                      >
+                        Attiva
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <div className="space-y-4 min-w-0">
@@ -899,12 +1092,60 @@ function AgentsMissionTab() {
                     <Badge variant="secondary" className="text-[10px]">
                       {activeMission.mode}
                     </Badge>
-                    {activeMission.confidence !== null && (
-                      <Badge variant="outline" className="text-[10px]">
-                        conf {(activeMission.confidence * 100).toFixed(0)}%
+                  {activeMission.confidence !== null && (
+                    <Badge variant="outline" className="text-[10px]">
+                      conf {(activeMission.confidence * 100).toFixed(0)}%
+                    </Badge>
+                  )}
+                </div>
+                {latestEvaluation && (
+                  <div className="rounded-md border bg-muted/30 p-2 text-xs space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${latestEvaluation.verdict === "pass" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}
+                      >
+                        QA {latestEvaluation.verdict}
                       </Badge>
+                      <span className="text-muted-foreground">
+                        rischio hallucination: {latestEvaluation.hallucination_risk}
+                      </span>
+                      {latestEvaluation.needs_human_approval && (
+                        <span className="text-amber-700 font-medium">review umana richiesta</span>
+                      )}
+                    </div>
+                    {latestEvaluation.notes && (
+                      <p className="text-muted-foreground whitespace-pre-wrap break-words">{latestEvaluation.notes}</p>
                     )}
                   </div>
+                )}
+                {activeMission.status === "waiting_approval" && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 space-y-2">
+                    <p className="text-sm text-amber-800">
+                      Silvio ha completato l'analisi ma chiede validazione prima di considerarla chiusa.
+                    </p>
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={resolveMissionMutation.isPending}
+                        onClick={() => resolveMissionMutation.mutate({ missionId: activeMission.id, resolution: "rejected" })}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Archivia
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        disabled={resolveMissionMutation.isPending}
+                        onClick={() => resolveMissionMutation.mutate({ missionId: activeMission.id, resolution: "approved" })}
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-1" />
+                        Approva sintesi
+                      </Button>
+                    </div>
+                  </div>
+                )}
                   <h3 className="font-semibold text-sm">{activeMission.title}</h3>
                   {activeMission.summary_md ? (
                     <div className="rounded-md bg-muted/40 p-3 text-sm whitespace-pre-wrap break-words">
