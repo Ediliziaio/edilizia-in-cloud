@@ -680,8 +680,8 @@ Deno.serve(async (req) => {
       console.error("[silvio-admin-chat] insert reply:", insertErr);
     }
 
-    // 8. Persist assistant (con personas attive + tool calls per audit/learning)
-    await supabase.from("silvio_admin_messages").insert({
+    // 8a. Persist assistant in silvio_admin_messages (chat history)
+    const { data: insertedMsg } = await supabase.from("silvio_admin_messages").insert({
       user_id: userId,
       conversation_id: conversationId,
       role: "assistant",
@@ -693,10 +693,38 @@ Deno.serve(async (req) => {
       metadata: {
         active_personas: activePersonas,
         invocation_mode: invocationMode,
-        tool_calls_made: toolCallsMade.length,
-        tool_calls_made: toolCallsMade,
+        tool_calls_count: toolCallsMade.length,
+        tool_calls: toolCallsMade,
       },
-    });
+    }).select("id").single();
+
+    // 8b. Persist in ai_test_runs (AI Test Lab analytics — per super_admin/demo)
+    // Permette di confrontare costi/latency/quality tra modelli AI nel tempo.
+    try {
+      await supabase.from("ai_test_runs").insert({
+        company_id: PLATFORM_ADMIN_COMPANY,
+        user_id: userId,
+        feature: "silvio_admin_chat",
+        task_key: "silvio_admin_chat",
+        persona_key: activePersonas[0] ?? null,
+        model_id: modelUsed,
+        provider: modelUsed.split("/")[0] ?? "unknown",
+        forced_by_user: !!forceModel,
+        input_tokens: totalTokensIn,
+        output_tokens: totalTokensOut,
+        cost_usd: totalCostUsd,
+        latency_ms: aiDuration,
+        prompt_excerpt: message.slice(0, 200),
+        response_excerpt: finalContent.slice(0, 200),
+        // openrouter_generation_id non disponibile direttamente da aiRouterComplete
+        // (sarebbe utile esporlo in result; per ora null)
+      });
+    } catch (e) {
+      console.warn("[silvio-admin-chat] ai_test_runs insert failed:", e);
+    }
+
+    // ID del messaggio per permettere rating UI successivo (👍/👎/⭐)
+    const adminMessageId = insertedMsg?.id;
 
     return jsonRes({
       ok: true,
@@ -707,6 +735,7 @@ Deno.serve(async (req) => {
       tool_calls: toolCallsMade.length,
       active_personas: activePersonas,
       invocation_mode: invocationMode,
+      admin_message_id: adminMessageId,  // per rating UI
     });
   } catch (e) {
     console.error("[silvio-admin-chat] fatal:", e);
