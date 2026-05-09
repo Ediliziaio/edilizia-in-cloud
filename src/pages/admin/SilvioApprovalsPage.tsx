@@ -1,6 +1,11 @@
 /**
  * SilvioApprovalsPage — Coda di azioni in attesa di approvazione Florin.
  *
+ * ⚠️ DEPRECATED — Strategia C: questa pagina è duplicata da
+ * `/admin/ai-operate?tab=approvals`. La route principale fa redirect.
+ * Questo file resta solo come legacy (`/admin/legacy/silvio-approvazioni`)
+ * per emergency rollback. Da eliminare definitivamente dopo 30gg.
+ *
  * Letto da `silvio_pending_approvals` con status='awaiting'.
  * Per ogni card: Approva / Modifica / Rifiuta (+ countdown expires_at).
  *
