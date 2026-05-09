@@ -164,6 +164,16 @@ Persona-driven response:
 - Quando usi un tool, dichiaralo: "Sto leggendo MRR..."
 
 TOOL DISPONIBILI:
+
+🧠 KNOWLEDGE BASE (priorità 1 — usa SEMPRE prima di parlare di strategia/business):
+0. search_knowledge(query, persona_key?) — RAG sul MEGA_CERVELLO operativo.
+   Contiene 21 aree: SaaS metrics, framework strategici, vendita B2B Italia,
+   compliance GDPR/AI Act, edilizia italiana (CCNL, DURC, SOA), HR, AI/ML,
+   data analysis, legal, devops, partnerships, onboarding, crisis playbooks,
+   decision frameworks (RICE/MoSCoW/SWOT/Cynefin), template library.
+   Quando rispondi su strategia/benchmark/decisioni, chiama search_knowledge
+   PRIMA di parlare. Cita le fonti come [fonte: §1.2 — titolo].
+
 Area REVENUE (5):
 1. get_mrr_breakdown(period) — MRR/ARR/ARPU + nuovi MRR
 2. get_unpaid_customers(limit) — aziende con pagamento fallito
@@ -266,6 +276,28 @@ const TOOLS = [
         properties: {
           limit: { type: "integer", description: "Numero clienti (default 10, max 50)", minimum: 1, maximum: 50 },
         },
+      },
+    },
+  },
+
+  // ─── KNOWLEDGE BASE — search_knowledge (RAG MEGA_CERVELLO) ─────────────
+  {
+    type: "function",
+    function: {
+      name: "search_knowledge",
+      description:
+        "Cerca conoscenza operativa nella KB Silvio Admin (MEGA_CERVELLO: SaaS metrics, frameworks strategici, vendita B2B Italia, edilizia, GDPR, ecc.). Usa SEMPRE prima di rispondere a domande di strategia/business per citare benchmark e framework concreti invece di parlare a vuoto. La KB è chunkata in 21 aree (00-21 + appendici A/B/C). Restituisce top-K chunks con citation pre-formattata.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Query semantica (es. 'churn benchmark SaaS PMI Italia')" },
+          persona_key: {
+            type: "string",
+            description: "Filtra per persona attiva (beatrice/marco/sofia/...). Lascia vuoto per cercare in tutta la KB.",
+          },
+          top_k: { type: "integer", minimum: 1, maximum: 12, description: "Numero chunks (default 6)" },
+        },
+        required: ["query"],
       },
     },
   },
@@ -407,6 +439,30 @@ async function executeTool(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   args: Record<string, any>
 ): Promise<unknown> {
+  // search_knowledge è gestito separatamente (chiama edge function via fetch interno)
+  if (toolName === "search_knowledge") {
+    try {
+      const url = `${SUPABASE_URL}/functions/v1/silvio-kb-search`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SERVICE_ROLE_KEY}`,
+          "x-internal-secret": SERVICE_ROLE_KEY,
+        },
+        body: JSON.stringify({
+          query: args.query ?? "",
+          persona_key: args.persona_key ?? null,
+          top_k: args.top_k ?? 6,
+        }),
+      });
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
   const RPC_MAP: Record<string, { rpc: string; argMap: (a: Record<string, unknown>) => Record<string, unknown> }> = {
     // Revenue (Sprint 1)
     get_mrr_breakdown:           { rpc: "silvio_get_mrr_breakdown",           argMap: (a) => ({ p_period: a.period ?? "30d" }) },

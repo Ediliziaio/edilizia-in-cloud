@@ -15,15 +15,16 @@
  */
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import {
-  Loader2, Coins, Zap, Star, FlaskConical, TrendingUp, RefreshCw,
+  Coins, Zap, Star, FlaskConical, TrendingUp, RefreshCw, Brain, Database,
 } from "lucide-react";
 
 type Period = "24h" | "7d" | "30d" | "90d";
@@ -191,10 +192,13 @@ export default function AdminAITestLab() {
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
-          Aggiorna
-        </Button>
+        <div className="flex gap-2">
+          <KbIngestButton />
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+            Aggiorna
+          </Button>
+        </div>
       </div>
 
       {/* Filtro periodo */}
@@ -341,6 +345,65 @@ export default function AdminAITestLab() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * KB Ingest button — invoca silvio-kb-ingest-mega leggendo il file dal bucket.
+ * Operazione una-tantum / re-ingest dopo update del file MEGA_CERVELLO.
+ */
+function KbIngestButton() {
+  const [stats, setStats] = useState<{
+    total_chunks?: number;
+    inserted?: number;
+    skipped_dedup?: number;
+    errors?: number;
+    sections_covered?: string[];
+  } | null>(null);
+
+  const ingestMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("silvio-kb-ingest-mega", {
+        body: { replace_existing: true, storage_path: "admin/mega-cervello.md" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      setStats(data?.summary ?? null);
+      toast.success(
+        `KB ingerita: ${data?.summary?.inserted ?? 0} chunks aggiunti`,
+        { description: `Sezioni coperte: ${(data?.summary?.sections_covered ?? []).length}` }
+      );
+    },
+    onError: (e) => {
+      toast.error("Errore ingestion", { description: String(e) });
+    },
+  });
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        variant="default"
+        size="sm"
+        onClick={() => ingestMutation.mutate()}
+        disabled={ingestMutation.isPending}
+        className="bg-violet-600 hover:bg-violet-700"
+      >
+        {ingestMutation.isPending ? (
+          <Brain className="h-4 w-4 mr-2 animate-pulse" />
+        ) : (
+          <Database className="h-4 w-4 mr-2" />
+        )}
+        {ingestMutation.isPending ? "Ingesting..." : "Importa MEGA_CERVELLO"}
+      </Button>
+      {stats && (
+        <span className="text-[10px] text-muted-foreground">
+          {stats.inserted}/{stats.total_chunks} chunks · {stats.sections_covered?.length ?? 0} sez.
+        </span>
+      )}
     </div>
   );
 }
