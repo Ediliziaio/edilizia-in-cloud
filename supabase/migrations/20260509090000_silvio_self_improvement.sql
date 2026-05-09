@@ -78,9 +78,9 @@ BEGIN
       r.feature,
       r.user_rating,
       r.created_at,
-      r.metadata->>'persona_key' AS persona_key,
-      LEFT(COALESCE(r.metadata->>'response_excerpt', r.metadata->>'response', ''), 1200) AS response_excerpt,
-      LEFT(COALESCE(r.metadata->>'prompt_excerpt', r.metadata->>'prompt', ''), 600) AS prompt_excerpt
+      r.persona_key,
+      LEFT(COALESCE(r.response_excerpt, ''), 1200) AS response_excerpt,
+      LEFT(COALESCE(r.prompt_excerpt, ''), 600)   AS prompt_excerpt
     FROM public.ai_test_runs r
     WHERE r.feature = 'silvio_admin_chat'
       AND r.user_rating = 5
@@ -98,9 +98,9 @@ BEGIN
       r.feature,
       r.user_rating,
       r.created_at,
-      r.metadata->>'persona_key' AS persona_key,
-      LEFT(COALESCE(r.metadata->>'response_excerpt', r.metadata->>'response', ''), 1200) AS response_excerpt,
-      LEFT(COALESCE(r.metadata->>'prompt_excerpt', r.metadata->>'prompt', ''), 600) AS prompt_excerpt
+      r.persona_key,
+      LEFT(COALESCE(r.response_excerpt, ''), 1200) AS response_excerpt,
+      LEFT(COALESCE(r.prompt_excerpt, ''), 600)   AS prompt_excerpt
     FROM public.ai_test_runs r
     WHERE r.feature = 'silvio_admin_chat'
       AND r.user_rating = 1
