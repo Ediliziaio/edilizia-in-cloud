@@ -43,6 +43,8 @@ import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader"
 import { DashboardQuickActions, DashboardKeyboardHint } from "@/components/dashboard/DashboardQuickActions";
 import { CompanyDashboardFilters } from "@/components/dashboard/CompanyDashboardFilters";
 import { useCompanyDashboardData } from "@/hooks/useCompanyDashboardData";
+// 🆕 GAP 3 (Briefing giornaliero per ruolo): card sticky sopra dashboard
+import { DailyBriefingCard } from "@/components/ai/DailyBriefingCard";
 import { EditOrderDatesDialog } from "@/components/calendar/EditOrderDatesDialog";
 import type { CalendarOrder } from "@/types/calendar";
 import {
@@ -1267,6 +1269,8 @@ export default function CompanyDashboard() {
         }
       />
 
+      {/* 🆕 GAP 3: Briefing AI giornaliero personalizzato per ruolo */}
+      <DailyBriefingCard />
 
       <ManagementOverview
         stats={stats}
