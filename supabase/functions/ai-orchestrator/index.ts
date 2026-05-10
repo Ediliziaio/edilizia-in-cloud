@@ -563,7 +563,10 @@ serve(async (req: Request) => {
     if (citationCheck.invalidCitations.length > 0) {
       console.warn(`[ai-orchestrator/${personaKey}] citation INVALID: ${citationCheck.invalidCitations.join(", ")} non esistono`);
     }
-    if (citationMode === "enforce") {
+    // 🆕 BUG FIX: il prefix "[no-rag]" deve essere SEMPRE rimosso dalla
+    // response visibile all'utente (è un marker interno LLM). cleanedResponse
+    // ora gestisce lo strip indipendentemente dalla mode.
+    if (citationMode === "enforce" || citationCheck.noRagPrefix) {
       finalContent = citationCheck.cleanedResponse;
     }
 

@@ -148,9 +148,16 @@ function sortModels(models: AIModelMeta[]): AIModelMeta[] {
 /**
  * Fetcher principale. Cache in-memory 30 min.
  *
- * Strategia FIX 8/5: API OpenRouter PRIMA (lista live + completa), DB
- * `ai_model_catalog` come FALLBACK solo se API down. Prima era invertito e
- * la cache DB con poche righe (5 modelli) limitava la UI a 5 modelli statici.
+ * Strategia FIX 9/5: edge function `get-openrouter-models` come PRIMA fonte
+ * (server-side, no CORS issue), API OpenRouter direct come SECONDA, DB
+ * `ai_model_catalog` come FALLBACK ultimo.
+ *
+ * Storia bug:
+ *   - Pre 8/5: DB primario → solo 5-6 modelli WHITELIST hardcoded visibili
+ *   - 8/5:     API OpenRouter primario → ma fetch browser fallisce silenzioso
+ *              per CORS preflight bloccato (Lovable preview / ad-blocker) →
+ *              cade nel DB fallback povero → UI mostra di nuovo solo 6 modelli
+ *   - 9/5:     edge proxy primario → niente CORS, cache CDN 30min, ~300 modelli
  */
 export async function fetchAvailableModels(opts?: { forceRefresh?: boolean }): Promise<AIModelMeta[]> {
   const now = Date.now();
@@ -158,7 +165,29 @@ export async function fetchAvailableModels(opts?: { forceRefresh?: boolean }): P
     return _cache.data;
   }
 
-  // 1) Prova API pubblica OpenRouter (live, niente auth needed per /models)
+  // 1) Prova edge function proxy (server-side, no CORS issue)
+  try {
+    const { data, error } = await supabase.functions.invoke<{ models?: OpenRouterApiModel[]; count?: number }>(
+      'get-openrouter-models',
+    );
+    if (!error && data && Array.isArray(data.models) && data.models.length > 0) {
+      const apiModels = data.models
+        .map(fromApiModel)
+        .filter((m): m is AIModelMeta => m !== null);
+      if (apiModels.length > 0) {
+        const sorted = sortModels(apiModels);
+        _cache = { data: sorted, fetchedAt: now };
+        console.info(`[openrouter-models] edge proxy: ${data.count} raw → ${apiModels.length} filtered`);
+        return sorted;
+      }
+    } else if (error) {
+      console.warn('[openrouter-models] edge proxy error:', error.message);
+    }
+  } catch (e) {
+    console.warn('[openrouter-models] edge proxy invoke failed:', e);
+  }
+
+  // 2) Fallback: API pubblica OpenRouter direct (potrebbe fallire per CORS)
   try {
     const res = await fetch('https://openrouter.ai/api/v1/models');
     if (res.ok) {
@@ -169,13 +198,14 @@ export async function fetchAvailableModels(opts?: { forceRefresh?: boolean }): P
       if (apiModels.length > 0) {
         const sorted = sortModels(apiModels);
         _cache = { data: sorted, fetchedAt: now };
+        console.info(`[openrouter-models] direct API fallback: ${apiModels.length} models`);
         return sorted;
       }
     } else {
-      console.warn(`[openrouter-models] API ${res.status}, fallback to DB`);
+      console.warn(`[openrouter-models] direct API HTTP ${res.status}, fallback to DB`);
     }
   } catch (e) {
-    console.warn('[openrouter-models] API fetch failed, fallback to DB:', e);
+    console.warn('[openrouter-models] direct API fetch failed, fallback to DB:', e);
   }
 
   // 2) Fallback ai_model_catalog (locale, sincronizzato da edge sync-openrouter-catalog)

@@ -43,6 +43,10 @@ export function validateCitations(
   sources: RagSource[],
   mode: "warn" | "enforce" | "off" = "warn",
 ): CitationValidationResult {
+  // Strip [no-rag] anche se mode='off' (è un marker interno mai user-facing)
+  const responseStrippedForOff = String(response ?? "")
+    .replace(/^\s*\[no-rag\]\s*\n?/i, "")
+    .trimStart();
   const empty: CitationValidationResult = {
     citationsUsed: [],
     citationsAvailable: sources.map((s) => s.id),
@@ -51,8 +55,8 @@ export function validateCitations(
     chunkIdsUsed: [],
     chunkIdsInvalid: [],
     missingFontiSection: false,
-    noRagPrefix: false,
-    cleanedResponse: response,
+    noRagPrefix: String(response ?? "").trimStart().toLowerCase().startsWith("[no-rag]"),
+    cleanedResponse: responseStrippedForOff,
     appliedMode: mode,
   };
   if (mode === "off") return empty;
@@ -101,6 +105,16 @@ export function validateCitations(
     chunkIdsUsedSet.size === 0;
 
   let cleanedResponse = text;
+
+  // 🆕 Strip [no-rag] prefix SEMPRE (è un marker interno LLM, non per l'utente).
+  // Bug fix: prima il prefisso era visibile in chat ("[no-rag] Ciao...") perché
+  // veniva solo rilevato in `noRagPrefix` ma mai rimosso dalla response.
+  if (noRag) {
+    cleanedResponse = cleanedResponse
+      .replace(/^\s*\[no-rag\]\s*\n?/i, "")
+      .trimStart();
+  }
+
   if (mode === "enforce" && used.size > 0) {
     // Costruisci sezione Fonti deterministica
     const fontiBlock = [
@@ -115,9 +129,9 @@ export function validateCitations(
     ].join("\n");
 
     if (hasFontiSection) {
-      cleanedResponse = text.replace(FONTI_SECTION_RE, fontiBlock);
+      cleanedResponse = cleanedResponse.replace(FONTI_SECTION_RE, fontiBlock);
     } else {
-      cleanedResponse = text.trimEnd() + fontiBlock;
+      cleanedResponse = cleanedResponse.trimEnd() + fontiBlock;
     }
   }
 

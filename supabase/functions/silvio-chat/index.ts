@@ -876,8 +876,10 @@ serve(async (req: Request) => {
     if (citationCheck.invalidCitations.length > 0) {
       console.warn(`[silvio-chat] citation INVALID: ${citationCheck.invalidCitations.join(", ")} non esistono in sources`);
     }
-    // Modalità "enforce" → usa la response con sezione Fonti normalizzata
-    if (citationMode === "enforce") {
+    // Modalità "enforce" → usa la response con sezione Fonti normalizzata.
+    // 🆕 BUG FIX: il prefix "[no-rag]" deve essere SEMPRE rimosso dalla
+    // response visibile all'utente (è un marker interno LLM mai user-facing).
+    if (citationMode === "enforce" || citationCheck.noRagPrefix) {
       finalContent = citationCheck.cleanedResponse;
     }
 
