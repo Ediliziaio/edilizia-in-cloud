@@ -113,6 +113,7 @@ export const macroAreas: MacroArea[] = [
     items: [
       // ─── Operativo ───
       { title: "Commesse", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
+      { title: "Sopralluoghi", url: "/azienda/sopralluoghi", icon: ClipboardList, featureKey: "surveys_module", isBeta: true },
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
       { title: "Subappaltatori", url: "/azienda/subappaltatori", icon: HardHat, permissionKey: "canViewSubappaltatori" },
