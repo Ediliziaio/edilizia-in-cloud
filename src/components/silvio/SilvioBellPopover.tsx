@@ -8,7 +8,6 @@
  */
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -107,13 +106,17 @@ export function SilvioBellPopover() {
           )}
         </div>
         <div className="border-t bg-muted/30 px-3 py-2 flex items-center justify-end">
-          <Link
-            to="/azienda/chat?channel=silvio-ai"
-            onClick={() => setOpen(false)}
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              // Triggera l'apertura del SilvioChatSheet (lo stesso pannello del FAB)
+              window.dispatchEvent(new Event("silvio:open-chat"));
+            }}
             className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
           >
             Apri chat con Silvio <ArrowRight className="h-3 w-3" />
-          </Link>
+          </button>
         </div>
       </PopoverContent>
     </Popover>

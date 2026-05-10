@@ -92,6 +92,17 @@ export function SilvioFAB({ hidden = false }: Props) {
   // realtime e cache React Query restano vivi tra open/close.
   const [chatHasMounted, setChatHasMounted] = useState(false);
   useEffect(() => { if (chatOpen) setChatHasMounted(true); }, [chatOpen]);
+
+  // Listener globale per aprire il sheet da componenti esterni (es. il bell
+  // popover "Apri chat con Silvio"). window.dispatchEvent(new Event("silvio:open-chat"))
+  useEffect(() => {
+    const openHandler = () => {
+      setOpen(false); // chiudi popover FAB se aperto
+      setChatOpen(true);
+    };
+    window.addEventListener("silvio:open-chat", openHandler);
+    return () => window.removeEventListener("silvio:open-chat", openHandler);
+  }, []);
   const [tipIdx, setTipIdx] = useState(0);
   const [tipsExpanded, setTipsExpanded] = useState(false);
 
