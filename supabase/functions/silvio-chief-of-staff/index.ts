@@ -6,6 +6,9 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+// 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi dal
+// summary_md mostrato a Florin nel chief-of-staff brief.
+import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -590,12 +593,22 @@ ${JSON.stringify(promptSnapshot, null, 2)}`,
       }
     }
 
+    // 🛡️ Sanitize summary_md prima del salvataggio (mostrato a Florin).
+    const rawSummary = chiefOutput.summary_md ?? "Brief generato senza sintesi.";
+    const sanitizedSummary = sanitizeAnswer(rawSummary);
+    if (sanitizedSummary.wasModified) {
+      console.warn("[silvio-chief-of-staff] chain-of-thought leak rimosso dal summary_md");
+    }
+    const cleanedSummaryMd = sanitizedSummary.isFullyChainOfThought
+      ? "Brief non disponibile in formato pulito. Vedi top_priorities e risks per i dettagli."
+      : (sanitizedSummary.cleaned || rawSummary);
+
     const { data: brief, error: saveError } = await supabase
       .from("silvio_chief_of_staff_briefs")
       .upsert(
         {
           for_date: forDate,
-          summary_md: chiefOutput.summary_md ?? "Brief generato senza sintesi.",
+          summary_md: cleanedSummaryMd,
           top_priorities: chiefOutput.top_priorities ?? [],
           decisions_needed: chiefOutput.decisions_needed ?? [],
           risks: chiefOutput.risks ?? [],

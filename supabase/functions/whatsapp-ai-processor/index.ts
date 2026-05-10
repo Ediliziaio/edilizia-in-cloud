@@ -22,6 +22,9 @@ import {
 import { SYSTEM_PROMPT_OPERAIO } from "./prompts/system_operaio.ts";
 import { SYSTEM_PROMPT_TITOLARE } from "./prompts/system_titolare.ts";
 import { STR } from "./prompts/strings.ts";
+// 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
+// di rispondere su WhatsApp (operai, titolari).
+import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 import { resolveIdentity } from "./identity.ts";
 import { analyzeImage, transcribeAudio } from "./media.ts";
 import { callOpenAI, type ChatMessage } from "./openai.ts";
@@ -313,6 +316,27 @@ Deno.serve(async (req) => {
     }
 
     if (!finalText) finalText = STR.operaio.max_iterations;
+
+    // 🛡️ Sanitize: strip tool names ("send_attendance ritorna..."), opener
+    // narrativi ("Ho i dati dai tool. Analizzo:") prima dell'invio WhatsApp.
+    const sanitizedReply = sanitizeAnswer(finalText);
+    if (sanitizedReply.wasModified) {
+      console.warn(JSON.stringify({
+        level: "warn", fn: "whatsapp-ai-processor",
+        msg: "chain-of-thought leak rimosso prima dell'invio WhatsApp",
+        wa_message_id: msg.id,
+      }));
+    }
+    if (sanitizedReply.isFullyChainOfThought) {
+      console.error(JSON.stringify({
+        level: "error", fn: "whatsapp-ai-processor",
+        msg: "risposta era TUTTA chain-of-thought, fallback generico",
+        wa_message_id: msg.id,
+      }));
+      finalText = STR.operaio.max_iterations;
+    } else {
+      finalText = sanitizedReply.cleaned || finalText;
+    }
 
     await sendReply(msg, finalText);
 

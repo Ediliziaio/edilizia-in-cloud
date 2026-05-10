@@ -9,6 +9,9 @@ import { checkBudget, consumeBudget, estimateCostEur } from "../whatsapp-ai-proc
 import { logToolCall } from "../whatsapp-ai-processor/observability.ts";
 import { SYSTEM_PROMPT_LEAD } from "./prompts/system_lead.ts";
 import { TOOLS_LEAD, toOpenAISpec, findTool, type LeadCtx } from "./tools/registry.ts";
+// 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
+// di rispondere al lead via WhatsApp (touchpoint commerciale).
+import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 
 interface Request {
   message_id?: string;
@@ -149,6 +152,26 @@ Deno.serve(async (req) => {
     }
 
     if (!finalText) finalText = "Grazie, le scriviamo a breve per organizzare un sopralluogo.";
+
+    // 🛡️ Sanitize: strip tool names + opener narrativi prima dell'invio al lead.
+    // Touchpoint commerciale → la prima impressione conta.
+    const sanitizedReply = sanitizeAnswer(finalText);
+    if (sanitizedReply.wasModified) {
+      console.warn(JSON.stringify({
+        level: "warn", fn: "lead-ai-processor",
+        msg: "chain-of-thought leak rimosso prima dell'invio al lead",
+        contact_id: body.contact_id,
+      }));
+    }
+    if (sanitizedReply.isFullyChainOfThought) {
+      console.error(JSON.stringify({
+        level: "error", fn: "lead-ai-processor",
+        msg: "risposta era TUTTA chain-of-thought, fallback generico",
+      }));
+      finalText = "Grazie del tuo interesse. Un nostro consulente ti scriverà a breve.";
+    } else {
+      finalText = sanitizedReply.cleaned || finalText;
+    }
     await sendReply(body.wa_number_id, contact.company_id, contact.telefono ?? "", finalText);
 
     const cost = estimateCostEur(model, tokIn, tokOut);

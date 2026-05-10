@@ -14,6 +14,9 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+// 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi dal
+// briefing markdown salvato e mostrato nell'admin dashboard.
+import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -143,13 +146,22 @@ Componi la scheda markdown seguendo il formato. Usa SOLO i numeri presenti nello
       ai_cost_mtd_eur: (aiCost.data as { total_cost_real_eur?: number } | null)?.total_cost_real_eur ?? 0,
     };
 
+    // 🛡️ Sanitize briefing content prima del salvataggio.
+    const sanitizedBriefing = sanitizeAnswer(result.content ?? "");
+    if (sanitizedBriefing.wasModified) {
+      console.warn("[silvio-admin-briefing] chain-of-thought leak rimosso dal briefing");
+    }
+    const cleanedContentMd = sanitizedBriefing.isFullyChainOfThought
+      ? "Briefing non disponibile per questa data. Riprova tra qualche minuto."
+      : (sanitizedBriefing.cleaned || result.content);
+
     // 5. Salva in silvio_admin_briefings
     const { data: saved, error: saveErr } = await supabase
       .from("silvio_admin_briefings")
       .upsert(
         {
           for_date: forDate,
-          content_md: result.content,
+          content_md: cleanedContentMd,
           highlights,
           snapshot,
           generated_by: result.modelUsed,

@@ -34,6 +34,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+// 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
+// di mostrare la risposta al cliente nel portale.
+import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 
 interface RequestBody {
   token: string;
@@ -263,8 +266,18 @@ Deno.serve(async (req) => {
     });
 
     const parsed = parseSuggestions(result.content ?? "");
+
+    // 🛡️ Sanitize reply prima di mostrare al cliente nel portale.
+    const sanitizedReply = sanitizeAnswer(parsed.reply);
+    if (sanitizedReply.wasModified) {
+      console.warn("[cliente-ai-assistente] CoT leak rimosso prima della risposta al cliente");
+    }
+    const cleanedReply = sanitizedReply.isFullyChainOfThought
+      ? "Mi dispiace, non sono riuscito a formulare una risposta utile. Puoi riformulare la domanda?"
+      : (sanitizedReply.cleaned || parsed.reply);
+
     return new Response(JSON.stringify({
-      reply: parsed.reply,
+      reply: cleanedReply,
       suggestions: parsed.suggestions,
       model_used: result.modelUsed,
       cost_usd: result.costRealUsd,

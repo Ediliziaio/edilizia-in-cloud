@@ -25,6 +25,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { getToolsForChannel, toolsToOpenAISpec } from "../_shared/silvioTools.ts";
 import { executeToolsParallel } from "../_shared/silvioToolExecution.ts";
+// 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
+// di rispondere su Telegram.
+import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 
 const TELEGRAM_API = (token: string) => `https://api.telegram.org/bot${token}`;
 const MAX_TOOL_ITERATIONS = 4;
@@ -350,6 +353,26 @@ Deno.serve(async (req) => {
 
   if (!finalContent) {
     finalContent = "Non sono riuscito a completare la richiesta. Riformulala in modo più semplice.";
+  }
+
+  // 🛡️ Sanitize: strip tool names ("get_X ritorna..."), opener narrativi
+  // ("Ho i dati dai tool. Analizzo:") prima dell'invio Telegram.
+  const sanitizedReply = sanitizeAnswer(finalContent);
+  if (sanitizedReply.wasModified) {
+    console.warn(JSON.stringify({
+      level: "warn", fn: "telegram-bot-processor",
+      msg: "chain-of-thought leak rimosso prima dell'invio Telegram",
+      mapping_id: mapping.id,
+    }));
+  }
+  if (sanitizedReply.isFullyChainOfThought) {
+    console.error(JSON.stringify({
+      level: "error", fn: "telegram-bot-processor",
+      msg: "risposta era TUTTA chain-of-thought, fallback generico",
+    }));
+    finalContent = "Mi dispiace, non sono riuscito a comporre una risposta utile. Puoi riformulare la domanda?";
+  } else {
+    finalContent = sanitizedReply.cleaned || finalContent;
   }
 
   // Send response Telegram

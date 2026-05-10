@@ -12,6 +12,9 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+// 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
+// di salvare in internal_chat_messages (chat di Florin con Silvio Superadmin).
+import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -866,6 +869,26 @@ Deno.serve(async (req) => {
 
     if (!finalContent) {
       finalContent = "Non sono riuscito a formulare una risposta entro il limite di iterazioni tool. Riprova con una domanda più specifica.";
+    }
+
+    // 🛡️ Sanitize: strip tool names ("get_mrr_breakdown ritorna..."), opener
+    // narrativi ("Ho i dati dai tool. Analizzo:") prima del salvataggio.
+    const sanitizedReply = sanitizeAnswer(finalContent);
+    if (sanitizedReply.wasModified) {
+      console.warn(JSON.stringify({
+        level: "warn", fn: "silvio-admin-chat",
+        msg: "chain-of-thought leak rimosso prima del salvataggio",
+        conversation_id: conversationId,
+      }));
+    }
+    if (sanitizedReply.isFullyChainOfThought) {
+      console.error(JSON.stringify({
+        level: "error", fn: "silvio-admin-chat",
+        msg: "risposta era TUTTA chain-of-thought, fallback generico",
+      }));
+      finalContent = "Mi dispiace, non sono riuscito a comporre una risposta utile. Puoi riformulare la domanda con qualche dettaglio in più?";
+    } else {
+      finalContent = sanitizedReply.cleaned || finalContent;
     }
 
     // 7. Inserisci risposta nel canale

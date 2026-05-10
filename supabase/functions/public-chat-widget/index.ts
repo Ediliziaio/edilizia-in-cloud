@@ -11,6 +11,9 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+// 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
+// di mostrare la risposta nel widget pubblico (visitatori sito).
+import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 
 const SYSTEM_PROMPT = `Sei un assistente virtuale per un'azienda edile italiana. Il tuo compito è:
 1. Rispondere a domande generali sui servizi (preventivi, lavori, tempistiche)
@@ -231,6 +234,19 @@ async function handleMessage(supabase: any, body: MessageBody): Promise<Response
     } catch (e) {
       console.error("qualify_parse_error", e);
     }
+  }
+
+  // 🛡️ Sanitize displayText prima di salvare/mostrare al visitatore.
+  // Il widget pubblico è il primo touchpoint: zero tolerance per leak.
+  const sanitizedDisplay = sanitizeAnswer(displayText);
+  if (sanitizedDisplay.wasModified) {
+    console.warn("[public-chat-widget] CoT leak rimosso prima della risposta al visitatore");
+  }
+  if (sanitizedDisplay.isFullyChainOfThought) {
+    console.error("[public-chat-widget] risposta era TUTTA CoT, fallback generico");
+    displayText = "Mi dispiace, posso aiutarti meglio con una domanda più specifica. Cosa ti interessa di Edilizia in Cloud?";
+  } else {
+    displayText = sanitizedDisplay.cleaned || displayText;
   }
 
   // Save assistant message

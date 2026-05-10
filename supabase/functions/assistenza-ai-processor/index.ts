@@ -11,6 +11,10 @@ import { checkBudget, consumeBudget, estimateCostEur } from "../whatsapp-ai-proc
 import { logToolCall } from "../whatsapp-ai-processor/observability.ts";
 import { SYSTEM_PROMPT_ASSISTENZA } from "./prompts/system_assistenza.ts";
 import { TOOLS_ASSISTENZA, toOpenAISpec, findTool, type AssistenzaCtx } from "./tools/registry.ts";
+// 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
+// di inviare al CLIENTE FINALE via WhatsApp (zero tolerance per leak su canali
+// customer-facing).
+import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 
 interface Request {
   message_id?: string;
@@ -181,6 +185,28 @@ Deno.serve(async (req) => {
     }
 
     if (!finalText) finalText = "Grazie per averci scritto. Il nostro team le risponderà a breve.";
+
+    // 🛡️ Sanitize: strip tool names ("get_invoice_status ritorna..."), opener
+    // narrativi ("Ho i dati dai tool. Analizzo:") prima di inviare al cliente.
+    // Customer-facing → zero tolerance per leak interno.
+    const sanitizedReply = sanitizeAnswer(finalText);
+    if (sanitizedReply.wasModified) {
+      console.warn(JSON.stringify({
+        level: "warn", fn: "assistenza-ai-processor",
+        msg: "chain-of-thought leak rimosso prima dell'invio al cliente",
+        contact_id: body.contact_id,
+      }));
+    }
+    if (sanitizedReply.isFullyChainOfThought) {
+      console.error(JSON.stringify({
+        level: "error", fn: "assistenza-ai-processor",
+        msg: "risposta era TUTTA chain-of-thought, fallback generico",
+        contact_id: body.contact_id,
+      }));
+      finalText = "Grazie per averci scritto. Un nostro operatore le risponderà a breve.";
+    } else {
+      finalText = sanitizedReply.cleaned || finalText;
+    }
     await sendReply(body.wa_number_id, contact.company_id, phone, finalText);
 
     const cost = estimateCostEur(model, tokIn, tokOut);

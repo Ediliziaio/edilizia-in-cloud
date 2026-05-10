@@ -7,6 +7,9 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+// 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi dal
+// summary_md della synthesis del coordinator (mostrato a Florin nel Silvio Hub).
+import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -1348,6 +1351,16 @@ Produci sintesi unica di Silvio.`,
               needs_approval: true,
             },
           );
+          // 🛡️ Sanitize summary_md prima di salvarlo/mostrarlo a Florin.
+          if (synthesis.summary_md) {
+            const sanitizedSummary = sanitizeAnswer(synthesis.summary_md);
+            if (sanitizedSummary.wasModified) {
+              console.warn("[silvio-agent-orchestrator] CoT leak rimosso da summary_md della synthesis");
+            }
+            synthesis.summary_md = sanitizedSummary.isFullyChainOfThought
+              ? "Sintesi non disponibile in formato pulito. Vedi i task per i dettagli."
+              : (sanitizedSummary.cleaned || synthesis.summary_md);
+          }
           totalCostUsd += safeNumber(synthesisResult.costUsd);
           totalTokens += safeNumber(synthesisResult.totalTokens);
         } catch (error) {

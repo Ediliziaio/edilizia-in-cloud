@@ -22,6 +22,9 @@ import {
   GENERAL_EXECUTION_PLAYBOOKS,
   TOOL_SELECTION_AND_RESULT_PLAYBOOK,
 } from "../_shared/executionPlaybooks.ts";
+// 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi dalla
+// synthesis text del council (la risposta finale al user-side).
+import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 
 interface CouncilRequest {
   query: string;
@@ -206,6 +209,18 @@ Deno.serve(async (req) => {
           personaKey: "silvio",
         });
         synthesisText = synthesisRes.content ?? null;
+        // 🛡️ Sanitize synthesis: strip tool names + opener narrativi.
+        // I sub_outputs già passano per ai-orchestrator (sanitizzato), ma la
+        // synthesis è una nuova chiamata LLM senza sanitizzazione automatica.
+        if (synthesisText) {
+          const sanitizedSynthesis = sanitizeAnswer(synthesisText);
+          if (sanitizedSynthesis.wasModified) {
+            console.warn("[council] synthesis: chain-of-thought leak rimosso");
+          }
+          synthesisText = sanitizedSynthesis.isFullyChainOfThought
+            ? "Riepilogo non disponibile in formato pulito. Vedi le risposte delle aree coinvolte."
+            : (sanitizedSynthesis.cleaned || synthesisText);
+        }
         synthesisCost = synthesisRes.costBilledEur ?? 0;
       } catch (e) {
         console.warn("[council] synthesis failed:", e instanceof Error ? e.message : e);

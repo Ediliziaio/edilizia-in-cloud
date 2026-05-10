@@ -25,6 +25,9 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess, requireInternalSecret } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi dal
+// briefing quotidiano mostrato all'utente.
+import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const SILVIO_PERSONA_KEY = "silvio";
@@ -313,7 +316,19 @@ Genera il messaggio briefing seguendo le regole del system prompt.`;
       personaKey: SILVIO_PERSONA_KEY,
       idempotencyKey: `briefing_${userId}_${new Date().toISOString().slice(0, 10)}`,
     });
-    return result.content || fallbackBriefing(greeting, alerts, countCritical, countWarning);
+    const rawContent = result.content || "";
+    if (!rawContent) return fallbackBriefing(greeting, alerts, countCritical, countWarning);
+
+    // 🛡️ Sanitize: strip CoT leak prima di mostrare il briefing.
+    const sanitized = sanitizeAnswer(rawContent);
+    if (sanitized.wasModified) {
+      console.warn("[silvio-briefing] chain-of-thought leak rimosso dal briefing");
+    }
+    if (sanitized.isFullyChainOfThought) {
+      console.error("[silvio-briefing] briefing era TUTTO CoT, fallback statico");
+      return fallbackBriefing(greeting, alerts, countCritical, countWarning);
+    }
+    return sanitized.cleaned || rawContent;
   } catch (e) {
     console.error("[silvio-briefing] LLM compose error, using fallback:", e);
     return fallbackBriefing(greeting, alerts, countCritical, countWarning);
