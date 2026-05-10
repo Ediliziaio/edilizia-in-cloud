@@ -8,6 +8,8 @@ import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, Bot, Plu
 import { cn } from "@/lib/utils";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
+// 🆕 GAP 7b: card connessioni OAuth Gmail/Outlook native
+import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -458,6 +460,9 @@ export default function SettingsIntegrations() {
           </AlertDescription>
         </Alert>
       )}
+
+      {/* 🆕 GAP 7b: Email OAuth connections (Gmail/Outlook native) */}
+      <EmailOAuthConnectionsCard />
 
       <div className="grid gap-3 md:grid-cols-4">
         <Card>

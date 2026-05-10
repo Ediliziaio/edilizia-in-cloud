@@ -171,6 +171,8 @@ const AzioniProposteAi = lazy(() => import("@/pages/azienda/AzioniProposteAi"));
 const ActionProposalsAuditLog = lazy(() => import("@/pages/azienda/admin/ActionProposalsAuditLog"));
 // 🆕 GAP 7: pagina email triage AI
 const EmailTriagePage = lazy(() => import("@/pages/azienda/EmailTriagePage"));
+// 🆕 GAP 7b: callback OAuth Gmail/Outlook
+const EmailOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/EmailOAuthCallbackPage"));
 const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const FirmaElettronicaHub = lazy(() => import("@/pages/azienda/firma-elettronica/index"));
@@ -366,6 +368,8 @@ export function companyRoutes() {
         <Route path="azioni-proposte/audit-log" element={<ActionProposalsAuditLog />} />
         {/* 🆕 GAP 7: Email triage AI (lista email classificate AI) */}
         <Route path="email-triage" element={<EmailTriagePage />} />
+        {/* 🆕 GAP 7b: callback OAuth Gmail/Outlook */}
+        <Route path="impostazioni/integrazioni/email-callback" element={<EmailOAuthCallbackPage />} />
         <Route path="profilo" element={<Navigate to="/azienda/impostazioni/mio-profilo" replace />} />
         {/* HR & Personale — gated: hr_personale (addon pro/enterprise) */}
         <Route path="personale" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><PersonalePage /></FeatureRoute>)} />
