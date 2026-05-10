@@ -67,6 +67,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   QuotesFiltersSheet,
   EMPTY_QUOTE_FILTERS,
@@ -221,6 +222,31 @@ export default function Preventivi() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [deleteQuote, setDeleteQuote] = useState<QuoteRow | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
+
+  // 🛠️ 2026-05-10 — Server-side sorting per preventivi (stesso pattern di
+  // OrdersList). Persisted in localStorage. 7 colonne sortabili dal DB.
+  type QuoteSortField = "created_at" | "issue_date" | "valid_until" | "total"
+    | "margine_pct_snapshot" | "quote_number" | "client_name";
+  const [sortField, setSortField] = useState<QuoteSortField>(() => {
+    try {
+      const v = localStorage.getItem("quotes-sort-field");
+      const valid = ["created_at","issue_date","valid_until","total","margine_pct_snapshot","quote_number","client_name"];
+      if (v && valid.includes(v)) return v as QuoteSortField;
+    } catch { /* private mode */ }
+    return "created_at";
+  });
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(() => {
+    try {
+      return localStorage.getItem("quotes-sort-dir") === "asc" ? "asc" : "desc";
+    } catch { return "desc"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("quotes-sort-field", sortField); } catch { /* noop */ }
+  }, [sortField]);
+  useEffect(() => {
+    try { localStorage.setItem("quotes-sort-dir", sortDir); } catch { /* noop */ }
+  }, [sortDir]);
+
   const [showComputoModal, setShowComputoModal] = useState(false);
   const [showFotoModal, setShowFotoModal] = useState(false);
   const [showSmartImportModal, setShowSmartImportModal] = useState(false);
@@ -305,15 +331,22 @@ export default function Preventivi() {
   }, [search]);
 
   const { data: quotesPage = { data: [], total: 0 }, isLoading } = useQuery({
-    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter, filters, debouncedSearch],
+    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter, filters, debouncedSearch, sortField, sortDir],
     enabled: !!companyId,
     queryFn: async () => {
+      // nullsFirst: per date di scadenza (valid_until, issue_date) vogliamo
+      // i NULL alla fine sia ASC che DESC (UX più chiara — i preventivi senza
+      // data programmata non rubano la testa).
+      const isDateField = ["created_at", "issue_date", "valid_until"].includes(sortField);
       const query = applyQuoteListFilters(
         supabase
         .from("quotes")
           .select(QUOTE_LIST_SELECT, { count: "exact" })
         .eq("company_id", companyId!)
-          .order("created_at", { ascending: false }),
+          .order(sortField, {
+            ascending: sortDir === "asc",
+            nullsFirst: isDateField ? false : (sortDir === "asc"),
+          }),
       ).range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
 
       const { data, error, count } = await query;
@@ -932,6 +965,53 @@ export default function Preventivi() {
             onChange={setVisibleColumns}
             isAdmin={isAdmin}
           />
+        </div>
+
+        {/* 🆕 2026-05-10 — Sort selector server-side: ordina l'INTERO dataset
+            (non solo la pagina visibile). Persisted in localStorage. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground font-medium">Ordina:</span>
+          <Select value={sortField} onValueChange={(v) => { setSortField(v as QuoteSortField); setCurrentPage(0); }}>
+            <SelectTrigger className="h-8 w-auto min-w-[200px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="created_at">Data creazione</SelectItem>
+              <SelectItem value="issue_date">Data emissione</SelectItem>
+              <SelectItem value="valid_until">Validità</SelectItem>
+              <SelectItem value="total">Importo totale</SelectItem>
+              {isAdmin && <SelectItem value="margine_pct_snapshot">Margine %</SelectItem>}
+              <SelectItem value="quote_number">Numero preventivo</SelectItem>
+              <SelectItem value="client_name">Cliente</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setCurrentPage(0); }}>
+            <SelectTrigger className="h-8 w-auto min-w-[160px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="desc">{
+                ["created_at","issue_date","valid_until","total","margine_pct_snapshot"].includes(sortField)
+                  ? "↓ Più recente / grande"
+                  : "↓ Z → A"
+              }</SelectItem>
+              <SelectItem value="asc">{
+                ["created_at","issue_date","valid_until","total","margine_pct_snapshot"].includes(sortField)
+                  ? "↑ Più vecchio / piccolo"
+                  : "↑ A → Z"
+              }</SelectItem>
+            </SelectContent>
+          </Select>
+          {(sortField !== "created_at" || sortDir !== "desc") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => { setSortField("created_at"); setSortDir("desc"); setCurrentPage(0); }}
+            >
+              Ripristina
+            </Button>
+          )}
         </div>
 
         {/* Bulk actions toolbar — visibile solo con selezione attiva */}
