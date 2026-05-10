@@ -22,10 +22,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   Coins, Zap, Star, FlaskConical, TrendingUp, RefreshCw, Brain, Database,
-  ChevronDown, ChevronRight, Download,
+  ChevronDown, ChevronRight, Download, CheckCircle2, XCircle, Beaker,
 } from "lucide-react";
 import { Sparkline } from "@/components/admin/ai-shared/Sparkline";
 
@@ -323,6 +324,7 @@ export default function AdminAITestLab() {
           </div>
         </div>
         <div className="flex gap-2">
+          <SmokeTestButton onComplete={() => refetch()} />
           <KbIngestButton />
           {stats && stats.length > 0 && (
             <Button variant="outline" size="sm" onClick={handleExportCSV} title="Esporta confronto modelli in CSV">
@@ -608,6 +610,180 @@ function ModelStatRow({ stat }: { stat: ModelStat }) {
           </td>
         </tr>
       )}
+    </>
+  );
+}
+
+/**
+ * SmokeTestButton — invoca test-ai-models-suite per verificare che ogni
+ * modello OpenRouter allowed risponda correttamente. Output salvato anche in
+ * `ai_test_runs` con feature='smoke_test_models' (visibile nella tabella).
+ */
+interface SmokeTestResult {
+  model_id: string;
+  provider: string;
+  ok: boolean;
+  latency_ms?: number;
+  cost_usd?: number;
+  tokens?: { in: number; out: number };
+  answer_preview?: string;
+  error?: string;
+}
+interface SmokeTestResponse {
+  tested: number;
+  success: number;
+  failed: number;
+  duration_ms: number;
+  mode: string;
+  total_allowed_models: number;
+  results: SmokeTestResult[];
+  summary_by_provider: Record<string, { ok: number; failed: number }>;
+}
+
+function SmokeTestButton({ onComplete }: { onComplete?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [response, setResponse] = useState<SmokeTestResponse | null>(null);
+  const [mode, setMode] = useState<"recommended" | "top10" | "all">("recommended");
+
+  const mutation = useMutation({
+    mutationFn: async (m: typeof mode) => {
+      const { data, error } = await supabase.functions.invoke<SmokeTestResponse>(
+        "test-ai-models-suite",
+        { body: { mode: m, concurrency: 5 } },
+      );
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const errMaybe = (data as any)?.error;
+      if (errMaybe) throw new Error(String(errMaybe));
+      return data!;
+    },
+    onSuccess: (data) => {
+      setResponse(data);
+      setOpen(true);
+      toast.success(
+        `Smoke test completato: ${data.success}/${data.tested} modelli OK`,
+        { description: `Durata ${(data.duration_ms / 1000).toFixed(1)}s · costo totale ~$${data.results.reduce((s, r) => s + (r.cost_usd ?? 0), 0).toFixed(4)}` },
+      );
+      onComplete?.();
+    },
+    onError: (e) => toast.error("Smoke test fallito", { description: String(e) }),
+  });
+
+  const start = (m: typeof mode) => {
+    setMode(m);
+    setResponse(null);
+    mutation.mutate(m);
+  };
+
+  return (
+    <>
+      <div className="flex gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => start("recommended")}
+          disabled={mutation.isPending}
+          title="Smoke test su 1 modello per provider (max 20)"
+        >
+          {mutation.isPending && mode === "recommended" ? (
+            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Beaker className="h-4 w-4 mr-2" />
+          )}
+          {mutation.isPending && mode === "recommended" ? "Testing..." : "Test 20"}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => start("all")}
+          disabled={mutation.isPending}
+          title="Smoke test su TUTTI i modelli allowed (~50-100, ~5 min, ~$0.20)"
+          className="text-xs"
+        >
+          {mutation.isPending && mode === "all" ? "Testing all..." : "all"}
+        </Button>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Beaker className="h-5 w-5 text-violet-600" />
+              Risultati Smoke Test ({response?.mode})
+            </DialogTitle>
+            <DialogDescription>
+              {response ? (
+                <>
+                  {response.success}/{response.tested} OK ·{" "}
+                  durata {(response.duration_ms / 1000).toFixed(1)}s ·{" "}
+                  {response.total_allowed_models} modelli allowed totali ·{" "}
+                  costo ~${response.results.reduce((s, r) => s + (r.cost_usd ?? 0), 0).toFixed(4)}
+                </>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+
+          {response && (
+            <div className="space-y-3">
+              {/* Summary per provider */}
+              <div className="rounded-md border p-3 bg-muted/20">
+                <p className="text-xs font-medium mb-2">Per provider:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(response.summary_by_provider)
+                    .sort(([, a], [, b]) => b.ok + b.failed - (a.ok + a.failed))
+                    .map(([p, s]) => (
+                      <Badge
+                        key={p}
+                        variant={s.failed === 0 ? "default" : "destructive"}
+                        className="text-[10px]"
+                      >
+                        {p}: {s.ok}/{s.ok + s.failed}
+                      </Badge>
+                    ))}
+                </div>
+              </div>
+
+              {/* Tabella risultati */}
+              <div className="rounded-md border overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/30 text-[10px] uppercase">
+                    <tr>
+                      <th className="px-2 py-1.5 text-left">Modello</th>
+                      <th className="px-2 py-1.5 text-center w-8">OK</th>
+                      <th className="px-2 py-1.5 text-right">Latenza</th>
+                      <th className="px-2 py-1.5 text-right">Costo</th>
+                      <th className="px-2 py-1.5 text-left">Risposta / Errore</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {response.results.map((r) => (
+                      <tr key={r.model_id} className={`border-t ${r.ok ? "" : "bg-rose-50 dark:bg-rose-950/20"}`}>
+                        <td className="px-2 py-1 font-mono">{r.model_id}</td>
+                        <td className="px-2 py-1 text-center">
+                          {r.ok ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 mx-auto" />
+                          ) : (
+                            <XCircle className="h-3.5 w-3.5 text-rose-600 mx-auto" />
+                          )}
+                        </td>
+                        <td className="px-2 py-1 text-right tabular-nums">
+                          {r.latency_ms ? `${r.latency_ms}ms` : "—"}
+                        </td>
+                        <td className="px-2 py-1 text-right tabular-nums font-mono">
+                          {r.cost_usd ? `$${r.cost_usd.toFixed(6)}` : "—"}
+                        </td>
+                        <td className="px-2 py-1 text-muted-foreground truncate max-w-xs">
+                          {r.ok ? r.answer_preview : <span className="text-rose-700 dark:text-rose-400">{r.error}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
