@@ -139,7 +139,10 @@ serve(async (req: Request) => {
     const policy = ACTION_POLICIES[canonicalType] ?? ACTION_POLICIES[proposal.action_type] ?? actionPolicyFromRegistryTool(registryTool);
     if (!policy) return errorResponse(`Action type non consentito: ${proposal.action_type}`, 400, corsHeaders);
 
-    const permission = await loadActionPermission(supabaseAdmin, proposal.company_id, proposal.action_type, policy);
+    // Permission lookup sul canonical type: ai_default_action_policy ha CASE
+    // hardcoded sui nomi canonici (es. 'create_quote_draft'). Se passassimo
+    // 'preventivo_bozza' (alias) cadrebbe nell'ELSE → mode='propose' → blocco.
+    const permission = await loadActionPermission(supabaseAdmin, proposal.company_id, canonicalType, policy);
     if (permission.mode === "disabled") {
       return errorResponse("Azione AI disabilitata per questa azienda dal pannello permessi.", 403, corsHeaders);
     }
@@ -148,7 +151,7 @@ serve(async (req: Request) => {
     }
     if (permission.dailyLimitReached) {
       return errorResponse(
-        `Limite giornaliero raggiunto per ${proposal.action_type} (${permission.dailyExecutions}/${permission.maxDailyExecutions}).`,
+        `Limite giornaliero raggiunto per ${canonicalType} (${permission.dailyExecutions}/${permission.maxDailyExecutions}).`,
         429,
         corsHeaders,
       );
