@@ -224,6 +224,25 @@ export default function Preventivi() {
   const [showComputoModal, setShowComputoModal] = useState(false);
   const [showFotoModal, setShowFotoModal] = useState(false);
   const [showSmartImportModal, setShowSmartImportModal] = useState(false);
+
+  // 🆕 Bug fix 2026-05-10: gestione query param `?action=` per deep-link da
+  // SilvioFAB ("Computo metrico → Preventivo") e SmartDocumentImportModal
+  // (smista 'computo_metrico' → ?action=import-computo). Senza questo handler
+  // l'utente cliccava il bottone, navigava qui ma il modal non si apriva.
+  useEffect(() => {
+    const action = searchParams.get("action");
+    if (!action) return;
+    if (action === "import-computo") setShowComputoModal(true);
+    else if (action === "import-foto") setShowFotoModal(true);
+    else if (action === "import-smart") setShowSmartImportModal(true);
+    // Pulisce il query param dopo l'apertura per evitare re-trigger su back/forward
+    if (["import-computo", "import-foto", "import-smart"].includes(action)) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("action");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const PAGE_SIZE = 50;
 

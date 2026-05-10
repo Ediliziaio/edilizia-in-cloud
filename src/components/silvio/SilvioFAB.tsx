@@ -21,6 +21,13 @@ import {
   X,
   Lightbulb,
   ArrowRight,
+  // 🆕 Icon set espansa
+  Mic,
+  Camera,
+  Calculator,
+  Sparkles,
+  Inbox,
+  Wallet,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 // Lazy load: il SmartDocumentImportModal e il SilvioChatSheet sono pesanti
@@ -113,11 +120,28 @@ export function SilvioFAB({ hidden = false }: Props) {
       case "import_computo":
         navigate("/azienda/marketing/preventivi?action=import-computo");
         break;
+      case "import_foto_preventivo":
+        navigate("/azienda/marketing/preventivi?action=import-foto");
+        break;
       case "search_commesse":
         navigate("/azienda/cantieri");
         break;
       case "documenti":
         navigate("/azienda/documenti");
+        break;
+      // 🆕 Shortcuts ai 3 hub AI
+      case "azioni_proposte":
+        navigate("/azienda/azioni-proposte");
+        break;
+      case "ai_memoria":
+        navigate("/azienda/ai-memoria");
+        break;
+      case "personas_18":
+        navigate("/azienda/assistente-ai");
+        break;
+      case "command_palette":
+        // Trigger Cmd+K dal CompanyLayout
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
         break;
       default:
         break;
@@ -192,40 +216,97 @@ export function SilvioFAB({ hidden = false }: Props) {
           </div>
 
           {/* Body scrollable */}
-          <div className="p-3 space-y-2 overflow-y-auto flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1">
-              Azioni rapide
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <ActionCard
-                icon={MessageSquare}
-                title="Chat con Silvio"
-                subtitle="Chiedi qualsiasi cosa"
-                tone="orange"
-                onClick={() => handleAction("open_chat")}
-              />
-              <ActionCard
-                icon={Brain}
-                title="Documento intelligente"
-                subtitle="AI smista da sola"
-                tone="purple"
-                onClick={() => handleAction("smart_doc")}
-              />
-              <ActionCard
-                icon={FileUp}
-                title="Computo metrico"
-                subtitle="→ Preventivo"
-                tone="blue"
-                onClick={() => handleAction("import_computo")}
-              />
-              <ActionCard
-                icon={Search}
-                title="Cerca cantieri"
-                subtitle="Apri lista"
-                tone="green"
-                onClick={() => handleAction("search_commesse")}
-              />
+          <div className="p-3 space-y-3 overflow-y-auto flex-1">
+            {/* Sezione 1: chat principale (CTA primario, full width) */}
+            <button
+              type="button"
+              onClick={() => handleAction("open_chat")}
+              className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-lg p-3 flex items-center gap-3 transition-all shadow-sm hover:shadow-md text-left"
+            >
+              <MessageSquare className="h-5 w-5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Chiedi a Silvio</p>
+                <p className="text-[11px] opacity-90">Chat live · multimodal · 18 personas</p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0" />
+            </button>
+
+            {/* Sezione 2: import documenti */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1 mb-1.5">
+                Importa documenti
+              </p>
+              <div className="grid grid-cols-3 gap-1.5">
+                <ActionCard
+                  icon={Brain}
+                  title="Smart"
+                  subtitle="AI smista"
+                  tone="purple"
+                  compact
+                  onClick={() => handleAction("smart_doc")}
+                />
+                <ActionCard
+                  icon={Calculator}
+                  title="Computo"
+                  subtitle="→ Preventivo"
+                  tone="blue"
+                  compact
+                  onClick={() => handleAction("import_computo")}
+                />
+                <ActionCard
+                  icon={Camera}
+                  title="Foto/voce"
+                  subtitle="→ Preventivo"
+                  tone="rose"
+                  compact
+                  onClick={() => handleAction("import_foto_preventivo")}
+                />
+              </div>
             </div>
+
+            {/* Sezione 3: hub AI principali */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1 mb-1.5">
+                Hub AI
+              </p>
+              <div className="grid grid-cols-3 gap-1.5">
+                <ActionCard
+                  icon={Inbox}
+                  title="Azioni AI"
+                  subtitle="Da approvare"
+                  tone="amber"
+                  compact
+                  onClick={() => handleAction("azioni_proposte")}
+                />
+                <ActionCard
+                  icon={Sparkles}
+                  title="Personas"
+                  subtitle="18 esperti AI"
+                  tone="violet"
+                  compact
+                  onClick={() => handleAction("personas_18")}
+                />
+                <ActionCard
+                  icon={Brain}
+                  title="Memoria"
+                  subtitle="Cosa sa di te"
+                  tone="emerald"
+                  compact
+                  onClick={() => handleAction("ai_memoria")}
+                />
+              </div>
+            </div>
+
+            {/* Sezione 4: shortcut search */}
+            <button
+              type="button"
+              onClick={() => handleAction("command_palette")}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left"
+            >
+              <Search className="h-3.5 w-3.5 text-slate-500" />
+              <span className="text-xs text-slate-700 flex-1">Cerca clienti, cantieri, fatture…</span>
+              <kbd className="text-[9px] px-1.5 py-0.5 rounded border bg-white font-mono">⌘K</kbd>
+            </button>
 
             {/* Cose da sapere — accordion collassabile (default chiuso) */}
             <div className="mt-3 border-t pt-2">
@@ -340,10 +421,14 @@ export function SilvioFAB({ hidden = false }: Props) {
 // Sub-componente ActionCard
 // ─────────────────────────────────────────────────────────────────────────
 const TONE_STYLES: Record<string, string> = {
-  orange: "from-orange-50 to-orange-100 border-orange-200 hover:border-orange-300 text-orange-700",
-  purple: "from-purple-50 to-purple-100 border-purple-200 hover:border-purple-300 text-purple-700",
-  blue: "from-blue-50 to-blue-100 border-blue-200 hover:border-blue-300 text-blue-700",
-  green: "from-green-50 to-green-100 border-green-200 hover:border-green-300 text-green-700",
+  orange:  "from-orange-50  to-orange-100  border-orange-200  hover:border-orange-300  text-orange-700",
+  purple:  "from-purple-50  to-purple-100  border-purple-200  hover:border-purple-300  text-purple-700",
+  blue:    "from-blue-50    to-blue-100    border-blue-200    hover:border-blue-300    text-blue-700",
+  green:   "from-green-50   to-green-100   border-green-200   hover:border-green-300   text-green-700",
+  rose:    "from-rose-50    to-rose-100    border-rose-200    hover:border-rose-300    text-rose-700",
+  amber:   "from-amber-50   to-amber-100   border-amber-200   hover:border-amber-300   text-amber-700",
+  violet:  "from-violet-50  to-violet-100  border-violet-200  hover:border-violet-300  text-violet-700",
+  emerald: "from-emerald-50 to-emerald-100 border-emerald-200 hover:border-emerald-300 text-emerald-700",
 };
 
 function ActionCard({
@@ -351,12 +436,14 @@ function ActionCard({
   title,
   subtitle,
   tone,
+  compact = false,
   onClick,
 }: {
   icon: typeof MessageSquare;
   title: string;
   subtitle: string;
   tone: keyof typeof TONE_STYLES;
+  compact?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -365,11 +452,13 @@ function ActionCard({
       onClick={onClick}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
-      className={`bg-gradient-to-br ${TONE_STYLES[tone]} border rounded-lg p-2.5 text-left transition-colors`}
+      className={`bg-gradient-to-br ${TONE_STYLES[tone]} border rounded-lg ${compact ? "p-2" : "p-2.5"} text-left transition-colors`}
     >
-      <Icon className="h-4 w-4 mb-1" />
-      <p className="text-xs font-semibold leading-tight text-slate-800">{title}</p>
-      <p className="text-[10px] text-slate-500 leading-tight">{subtitle}</p>
+      <Icon className={compact ? "h-3.5 w-3.5 mb-0.5" : "h-4 w-4 mb-1"} />
+      <p className={`${compact ? "text-[11px]" : "text-xs"} font-semibold leading-tight text-slate-800`}>
+        {title}
+      </p>
+      <p className="text-[9px] text-slate-500 leading-tight">{subtitle}</p>
     </motion.button>
   );
 }

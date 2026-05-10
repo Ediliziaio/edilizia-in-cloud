@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { ExternalLink, Sparkles } from "lucide-react";
+import { ExternalLink, Inbox, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -69,7 +69,8 @@ export function ActionProposalsBadge() {
         title={count > 0 ? `${count} azioni AI da approvare` : "Azioni proposte AI"}
         aria-label={`Azioni proposte AI (${count})`}
       >
-        <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" aria-hidden="true" />
+        {/* 🆕 Icon Inbox (era Sparkles, identica a SilvioBellPopover → confusione header) */}
+        <Inbox className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
         {count > 0 && (
           <Badge
             variant="destructive"
@@ -84,7 +85,7 @@ export function ActionProposalsBadge() {
         <SheetContent side="right" className="w-full sm:max-w-md flex flex-col">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-violet-600" />
+              <Inbox className="h-4 w-4 text-amber-600" />
               Azioni proposte AI
               {count > 0 ? <Badge variant="destructive">{count}</Badge> : null}
             </SheetTitle>

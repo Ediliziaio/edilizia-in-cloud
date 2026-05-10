@@ -45,7 +45,18 @@ import {
   Plus,
   Zap,
   Smile,
+  // 🆕 Quick actions
+  Wallet,
+  HardHat,
+  Search,
+  TrendingUp,
+  Maximize2,
+  MoreVertical,
+  Trash2,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { AIModelSelector } from "@/components/ai/AIModelSelector";
@@ -769,19 +780,120 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
         side="right"
         className="w-full sm:max-w-xl p-0 flex flex-col gap-0 bg-slate-50"
       >
-        {/* Header */}
+        {/* Header migliorato 2026-05-10 con menu kebab + quick actions */}
         <SheetHeader className="px-4 py-3 border-b bg-white/95 backdrop-blur">
           <SheetTitle className="flex items-center gap-2 text-base">
             <div className="relative h-9 w-9 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shadow-sm">
               <Brain className="h-4 w-4 text-white" />
               <span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
             </div>
-            <div className="flex-1 text-left">
-              <p className="text-sm font-semibold text-slate-800">Chat con Silvio</p>
-              <p className="text-[11px] text-slate-500 font-normal">Analizza testi, foto, PDF, DDT e vocali con i dati aziendali</p>
+            <div className="flex-1 text-left min-w-0">
+              <p className="text-sm font-semibold text-slate-800 truncate">Chat con Silvio</p>
+              <p className="text-[11px] text-slate-500 font-normal truncate">
+                {messages.length > 0
+                  ? `${messages.length} messaggi · live · multimodal`
+                  : "Analizza testi, foto, PDF, DDT e vocali"}
+              </p>
             </div>
+            {/* 🆕 Bottoni azione header */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              title="Espandi in pagina dedicata"
+              onClick={() => {
+                onOpenChange(false);
+                navigate("/azienda/chat");
+              }}
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  title="Altre opzioni"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => navigate("/azienda/azioni-proposte")}>
+                  <Sparkles className="h-3.5 w-3.5 mr-2 text-violet-600" />
+                  Azioni proposte AI
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/azienda/ai-memoria")}>
+                  <Brain className="h-3.5 w-3.5 mr-2 text-orange-600" />
+                  Memoria AI
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/azienda/email-triage")}>
+                  <FileText className="h-3.5 w-3.5 mr-2 text-blue-600" />
+                  Email triage
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate("/azienda/assistente-ai")}>
+                  <UserIcon className="h-3.5 w-3.5 mr-2 text-emerald-600" />
+                  Le 18 personas AI
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (confirm("Pulire la cronologia visibile? I messaggi rimangono in DB.")) {
+                      qc.setQueryData(["internal-chat-messages", channelId], []);
+                    }
+                  }}
+                  className="text-rose-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                  Pulisci visualizzazione
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SheetTitle>
         </SheetHeader>
+
+        {/* 🆕 Quick actions toolbar — sempre visibile (non solo nell'empty state) */}
+        <div className="px-3 py-2 border-b bg-white/60 flex gap-1.5 overflow-x-auto scrollbar-thin shrink-0">
+          <SilvioQuickAction
+            icon={FileSpreadsheet}
+            label="Computo → Preventivo"
+            color="text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100"
+            onClick={() => {
+              onOpenChange(false);
+              navigate("/azienda/marketing/preventivi?action=import-computo");
+            }}
+          />
+          <SilvioQuickAction
+            icon={Wallet}
+            label="Cassa 30gg"
+            color="text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
+            onClick={() => setDraft("Come sta la mia cassa nei prossimi 30 giorni?")}
+          />
+          <SilvioQuickAction
+            icon={HardHat}
+            label="Margini cantieri"
+            color="text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100"
+            onClick={() => setDraft("Quali commesse stanno erodendo margine? Spiega cause e suggerisci azioni.")}
+          />
+          <SilvioQuickAction
+            icon={TrendingUp}
+            label="Pipeline"
+            color="text-violet-700 bg-violet-50 border-violet-200 hover:bg-violet-100"
+            onClick={() => setDraft("Forecast pipeline trimestre + opportunità a rischio.")}
+          />
+          <SilvioQuickAction
+            icon={Search}
+            label="Cerca"
+            color="text-slate-700 bg-slate-50 border-slate-200 hover:bg-slate-100"
+            onClick={() => {
+              onOpenChange(false);
+              // Trigger Cmd+K command palette
+              window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+            }}
+          />
+        </div>
 
         {/* Messages area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3 bg-slate-50">
@@ -1175,6 +1287,31 @@ const SUGGESTED_QUESTIONS = [
   "Quali clienti sono in ritardo grave?",
   "Quanti preventivi devo ancora chiudere?",
 ];
+
+// 🆕 Quick action chip riutilizzabile in toolbar
+function SilvioQuickAction({
+  icon: Icon,
+  label,
+  color,
+  onClick,
+}: {
+  icon: typeof Sparkles;
+  label: string;
+  color: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-[11px] font-medium transition-colors ${color}`}
+      title={label}
+    >
+      <Icon className="h-3 w-3" />
+      <span className="whitespace-nowrap">{label}</span>
+    </button>
+  );
+}
 
 /**
  * FIX 6 (A11): mappa errori tecnici a messaggi user-friendly italiani.
