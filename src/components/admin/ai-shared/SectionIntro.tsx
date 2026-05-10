@@ -110,7 +110,10 @@ export function SectionIntro({
   );
 }
 
-/** Variante shorthand per messaggi info/warning/success comuni */
+/** Variante shorthand per messaggi info/warning/success comuni.
+ *  NB: HMR fast-refresh segnala che esportiamo sia un componente che un object,
+ *  ma è voluto — pattern ergonomico identico a `Card.Header`. Suppress mirato. */
+// eslint-disable-next-line react-refresh/only-export-components
 export const SectionAlert = {
   info: (props: Omit<Props, "icon" | "tone">) => (
     <SectionIntro {...props} icon={Info} tone="info" />
