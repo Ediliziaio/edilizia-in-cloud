@@ -79,6 +79,7 @@ export const macroAreas: MacroArea[] = [
     icon: LayoutGrid,
     items: [
       { title: "Attività", url: "/azienda/attivita", icon: CheckSquare },
+      { title: "Email", url: "/azienda/email", icon: Mail, featureKey: "email_client", isBeta: true },
       { title: "Cruscotto", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
       { title: "Chat Team", url: "/azienda/chat", icon: MessagesSquare }, // no gate — accessible to all authenticated users
     ],

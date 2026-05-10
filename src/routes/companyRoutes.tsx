@@ -171,6 +171,8 @@ const AzioniProposteAi = lazy(() => import("@/pages/azienda/AzioniProposteAi"));
 const ActionProposalsAuditLog = lazy(() => import("@/pages/azienda/admin/ActionProposalsAuditLog"));
 // 🆕 GAP 7: pagina email triage AI
 const EmailTriagePage = lazy(() => import("@/pages/azienda/EmailTriagePage"));
+// 🆕 Sprint E1: client email integrato (Beta, gate via feature flag email_client)
+const EmailClientPage = lazy(() => import("@/pages/azienda/email/EmailClientPage"));
 // 🆕 GAP 7b: callback OAuth Gmail/Outlook
 const EmailOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/EmailOAuthCallbackPage"));
 // 🆕 GAP 9b: pagina gestione memoria AI personas
@@ -370,6 +372,8 @@ export function companyRoutes() {
         <Route path="azioni-proposte/audit-log" element={<ActionProposalsAuditLog />} />
         {/* 🆕 GAP 7: Email triage AI (lista email classificate AI) */}
         <Route path="email-triage" element={<EmailTriagePage />} />
+        {/* 🆕 Sprint E1: Email client integrato (Beta) */}
+        <Route path="email" element={<EmailClientPage />} />
         {/* 🆕 GAP 7b: callback OAuth Gmail/Outlook */}
         <Route path="impostazioni/integrazioni/email-callback" element={<EmailOAuthCallbackPage />} />
         {/* 🆕 GAP 9b: gestione memoria AI personas */}
