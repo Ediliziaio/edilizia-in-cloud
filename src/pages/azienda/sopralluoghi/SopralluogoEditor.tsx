@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   getSurvey, updateSurvey, addArea, updateArea, deleteArea,
   addElement, updateElement, deleteElement, logActivity,
@@ -61,6 +62,68 @@ export default function SopralluogoEditor() {
   const [headerOpen, setHeaderOpen] = useState(true);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [aiSummary, setAiSummary] = useState<any | null>(null);
+
+  // Realtime: invalidate query quando media/elementi/aree cambiano (multi-utente sync)
+  useEffect(() => {
+    if (!id) return;
+    const ch = supabase
+      .channel(`survey-${id}-realtime`)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "survey_elements",
+        filter: `survey_id=eq.${id}`,
+      }, () => qc.invalidateQueries({ queryKey: ["sopralluogo", id] }))
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "survey_areas",
+        filter: `survey_id=eq.${id}`,
+      }, () => qc.invalidateQueries({ queryKey: ["sopralluogo", id] }))
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "survey_media",
+        filter: `survey_id=eq.${id}`,
+      }, () => qc.invalidateQueries({ queryKey: ["sopralluogo", id] }))
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [id, qc]);
+
+  const generatePdfMut = useMutation({
+    mutationFn: async () => {
+      if (!id) return;
+      const { data, error } = await supabase.functions.invoke("generate-survey-pdf", {
+        body: { survey_id: id },
+      });
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r = data as any;
+      if (!r?.ok) throw new Error(r?.error ?? "Generazione fallita");
+      return r;
+    },
+    onSuccess: (r) => {
+      if (r?.html_url) {
+        window.open(r.html_url, "_blank");
+        toast.success("Report aperto in nuova tab", {
+          description: "Clicca 'Stampa / Salva PDF' nel report",
+        });
+      }
+    },
+    onError: (e) => toast.error("Generazione PDF fallita", { description: String(e) }),
+  });
+
+  const aiSummaryMut = useMutation({
+    mutationFn: async () => {
+      if (!id) return;
+      const { data, error } = await supabase.functions.invoke("survey-ai-assistant", {
+        body: { action: "summary", survey_id: id },
+      });
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r = data as any;
+      if (!r?.ok) throw new Error(r?.error ?? "AI summary fallito");
+      return r;
+    },
+    onSuccess: (r) => setAiSummary(r),
+    onError: (e) => toast.error("AI riassunto fallito", { description: String(e) }),
+  });
 
   // Local state per auto-save debounced
   const [headerData, setHeaderData] = useState<Record<string, unknown>>({});
@@ -434,31 +497,97 @@ export default function SopralluogoEditor() {
         onOpenChange={setAssignDialogOpen}
       />
 
+      {/* AI Summary panel */}
+      {aiSummary && (
+        <div className="container mx-auto p-3 md:p-4 max-w-4xl mb-20">
+          <Card className="border-2 border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50">
+            <CardHeader className="p-3 pb-2 flex-row items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-violet-600" />
+                Riassunto AI
+              </CardTitle>
+              <Button
+                variant="ghost" size="icon" onClick={() => setAiSummary(null)}
+                className="h-7 w-7"
+              >
+                <ArrowLeft className="h-3.5 w-3.5 rotate-45" />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 space-y-3 text-sm">
+              {aiSummary.summary && (
+                <p className="text-violet-900 leading-relaxed">{aiSummary.summary}</p>
+              )}
+              {aiSummary.estimated_complexity && (
+                <Badge variant="outline" className={
+                  aiSummary.estimated_complexity === "alta" ? "bg-rose-100 text-rose-700" :
+                  aiSummary.estimated_complexity === "media" ? "bg-amber-100 text-amber-700" :
+                  "bg-emerald-100 text-emerald-700"
+                }>
+                  Complessità: {aiSummary.estimated_complexity}
+                </Badge>
+              )}
+              {Array.isArray(aiSummary.key_dimensions) && aiSummary.key_dimensions.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-700 mb-1">Misure chiave</p>
+                  <ul className="space-y-0.5 text-xs">
+                    {aiSummary.key_dimensions.map((d: { label: string; value: string }, i: number) => (
+                      <li key={i}><span className="font-medium">{d.label}:</span> {d.value}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {Array.isArray(aiSummary.complications) && aiSummary.complications.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-rose-700 mb-1">Criticità</p>
+                  <ul className="space-y-0.5 text-xs">
+                    {aiSummary.complications.map((c: string, i: number) => (
+                      <li key={i} className="flex items-start gap-1.5"><span className="text-rose-500">⚠</span> {c}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {Array.isArray(aiSummary.recommended_actions) && aiSummary.recommended_actions.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-700 mb-1">Azioni consigliate</p>
+                  <ul className="space-y-0.5 text-xs">
+                    {aiSummary.recommended_actions.map((a: string, i: number) => (
+                      <li key={i} className="flex items-start gap-1.5"><span className="text-violet-500">→</span> {a}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Bottom action bar */}
       <div className="fixed bottom-0 left-0 right-0 z-20 bg-background border-t p-3 flex gap-2 flex-wrap">
         <Button
           variant="outline"
-          className="flex-1 gap-2"
+          className="flex-1 gap-2 min-w-[120px]"
           onClick={() => navigate(`/azienda/sopralluoghi/${id}/firma`)}
         >
           <FileSignature className="h-4 w-4" />
-          Firma cliente
+          Firma
         </Button>
         <Button
           variant="outline"
-          className="flex-1 gap-2"
-          disabled
-          title="In arrivo Sprint S5"
+          className="flex-1 gap-2 min-w-[120px]"
+          onClick={() => generatePdfMut.mutate()}
+          disabled={generatePdfMut.isPending}
         >
-          <FileText className="h-4 w-4" />
-          Genera PDF
+          {generatePdfMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+          PDF
         </Button>
         <Button
-          className="flex-1 gap-2 bg-orange-600 hover:bg-orange-700"
-          onClick={() => toast.info("In arrivo Sprint S5", { description: "Generazione preventivo AI dal sopralluogo" })}
+          variant="outline"
+          className="flex-1 gap-2 min-w-[120px] border-violet-300 text-violet-700"
+          onClick={() => aiSummaryMut.mutate()}
+          disabled={aiSummaryMut.isPending}
         >
-          <Sparkles className="h-4 w-4" />
-          Crea preventivo
+          {aiSummaryMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          Riassunto AI
         </Button>
       </div>
     </div>
