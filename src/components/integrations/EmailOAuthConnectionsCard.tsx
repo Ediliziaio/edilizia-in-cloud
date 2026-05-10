@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  AlertCircle, CheckCircle2, Loader2, Mail, Plug, Plus, RefreshCw, Trash2, XCircle,
+  AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Loader2, Mail, Plug, Plus, RefreshCw, Settings, Trash2, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,13 @@ interface OAuthConnectionMeta {
   created_at: string;
 }
 
+interface DiagnosticResult {
+  ready: boolean;
+  checklist: Record<string, { configured?: boolean; reachable?: boolean; ok?: boolean; preview?: string | null; error?: string; latency_ms?: number; count?: number; missing?: string[] }>;
+  missing_steps: string[];
+  next_action: string | null;
+}
+
 const PROVIDER_LABEL: Record<string, { name: string; color: string }> = {
   gmail: { name: "Gmail (Google)", color: "bg-rose-100 text-rose-700 border-rose-300" },
   outlook: { name: "Outlook (Microsoft)", color: "bg-blue-100 text-blue-700 border-blue-300" },
@@ -53,6 +60,22 @@ export function EmailOAuthConnectionsCard() {
   const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
   const [connecting, setConnecting] = useState<"gmail" | "outlook" | null>(null);
+  const [diagOpen, setDiagOpen] = useState(false);
+
+  // 🆕 Diagnostica setup OAuth (mostra cosa manca SE non tutto è configurato)
+  const { data: diag, refetch: refetchDiag } = useQuery({
+    queryKey: ["email-oauth-diagnostic", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id,
+    staleTime: 60_000,
+    queryFn: async (): Promise<DiagnosticResult | null> => {
+      const { data, error } = await supabase.functions.invoke<DiagnosticResult>(
+        "email-oauth-diagnostic",
+      );
+      if (error) return null;
+      return data ?? null;
+    },
+    retry: 0,
+  });
 
   const { data: connections = [], isLoading } = useQuery({
     queryKey: ["email-oauth-connections", effectiveCompany?.id],
@@ -136,6 +159,84 @@ export function EmailOAuthConnectionsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* 🆕 Setup diagnostic — visibile solo SE setup non completo */}
+        {diag && !diag.ready && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900 p-3 space-y-2">
+            <button
+              type="button"
+              onClick={() => setDiagOpen(!diagOpen)}
+              className="w-full flex items-center justify-between gap-2 text-left"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                    Setup OAuth non completo · {diag.missing_steps.length} step{diag.missing_steps.length === 1 ? "" : "s"} mancante
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 truncate">
+                    {diag.next_action ?? "Vedi dettagli"}
+                  </p>
+                </div>
+              </div>
+              {diagOpen ? <ChevronDown className="h-4 w-4 text-amber-600" /> : <ChevronRight className="h-4 w-4 text-amber-600" />}
+            </button>
+            {diagOpen && (
+              <div className="space-y-1.5 pt-2 border-t border-amber-200 dark:border-amber-900">
+                {Object.entries(diag.checklist).map(([key, val]) => {
+                  const ok = val.configured ?? val.reachable ?? val.ok ?? false;
+                  return (
+                    <div key={key} className="flex items-start gap-2 text-xs">
+                      {ok ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                      ) : (
+                        <XCircle className="h-3.5 w-3.5 text-rose-600 mt-0.5 shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <code className="bg-background px-1 rounded text-[10px]">{key}</code>
+                        {val.preview ? <span className="ml-1 text-muted-foreground">({val.preview})</span> : null}
+                        {val.latency_ms != null ? <span className="ml-1 text-muted-foreground">({val.latency_ms}ms)</span> : null}
+                        {val.error ? (
+                          <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">{val.error}</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="pt-2 flex items-center justify-between">
+                  <p className="text-[10px] text-muted-foreground">
+                    Vedi <code className="bg-background px-1 rounded">scripts/SETUP-EMAIL-OAUTH.md</code> per la guida completa
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => refetchDiag()}
+                    className="text-[10px] text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Re-check
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {diag?.ready && (
+          <div className="rounded-lg border border-emerald-300 bg-emerald-50/30 dark:bg-emerald-950/10 dark:border-emerald-900 p-2 flex items-center gap-2">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+            <p className="text-xs text-emerald-800 dark:text-emerald-300">
+              Setup OAuth completo. Pronto per connettere account.
+            </p>
+            <button
+              type="button"
+              onClick={() => setDiagOpen(!diagOpen)}
+              className="ml-auto text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            >
+              <Settings className="h-3 w-3" />
+              Diagnostica
+            </button>
+          </div>
+        )}
+
         {/* Bottoni connect */}
         <div className="flex flex-wrap gap-2">
           <Button
