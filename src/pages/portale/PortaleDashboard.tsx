@@ -5,6 +5,8 @@ import { Loader2, Plus, AlertTriangle, Wrench, ClipboardList, CheckCircle2 } fro
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PortaleLayout } from "@/components/portale/PortaleLayout";
+// 🆕 GAP 6 (AI per committente cliente finale): widget chat dedicato
+import { PortaleAIChat } from "@/components/portale/PortaleAIChat";
 import { usePortaleAuth } from "@/hooks/usePortaleAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -252,6 +254,8 @@ export default function PortaleDashboard() {
       >
         <Plus className="w-6 h-6" strokeWidth={2.5} />
       </button>
+      {/* 🆕 GAP 6: AI Chat dedicato al committente */}
+      {token ? <PortaleAIChat token={token} customerName={cliente?.first_name ?? null} /> : null}
     </PortaleLayout>
   );
 }
