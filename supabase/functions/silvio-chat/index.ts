@@ -34,6 +34,7 @@ import { validateCitations, getCitationMode } from "../_shared/citationValidator
 import {
   AI_RESPONSE_SCHEMA,
   parseStructuredResponse,
+  sanitizeAnswer,
   type StructuredAiResponse,
 } from "../_shared/structuredOutput.ts";
 // MP-09: auto-delegate al Council orchestrator quando la query è multi-area
@@ -885,6 +886,22 @@ serve(async (req: Request) => {
             finalContent = thinkingMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\").trim();
           }
         }
+      }
+    }
+
+    // 🆕 v3 (2026-05-10): final content sanitization — strip chain-of-thought
+    // leak (tool names, opener narrativi tipo "Ho i dati dai tool. Analizzo:").
+    // Anche con BAD/GOOD example nel prompt, Claude Haiku/Mistral Medium
+    // dumpano internals dentro answer. Questo è l'ultimo guardiano.
+    if (finalContent) {
+      const sanitized = sanitizeAnswer(finalContent);
+      if (sanitized.wasModified) {
+        console.warn(`[silvio-chat] sanitizeAnswer: chain-of-thought leak rimosso`);
+        finalContent = sanitized.cleaned;
+      }
+      if (sanitized.isFullyChainOfThought) {
+        console.error(`[silvio-chat] sanitizeAnswer: answer era TUTTA CoT — fallback generico`);
+        finalContent = "Mi dispiace, non sono riuscito a comporre una risposta utile. Puoi riformulare la domanda con qualche dettaglio in più?";
       }
     }
 
