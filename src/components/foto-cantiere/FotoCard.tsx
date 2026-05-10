@@ -4,6 +4,8 @@ import { formatDateTime } from '@/lib/formatters';
 import { FotoCantiere } from '@/hooks/useFotoCantiere';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+// 🆕 GAP 5 (Mobile cantiere AI-native): badge AI quality auto-trigger
+import { FotoAIQualityBadge } from '@/components/foto-cantiere/FotoAIQualityBadge';
 
 interface Props {
   foto: FotoCantiere;
@@ -66,6 +68,13 @@ export function FotoCard({ foto, onElimina, getSignedUrl }: Props) {
         {foto.descrizione && (
           <p className="text-sm text-gray-700 line-clamp-2">{foto.descrizione}</p>
         )}
+        {/* 🆕 GAP 5: AI quality badge auto-trigger appena la foto è caricata */}
+        <FotoAIQualityBadge
+          fotoId={foto.id}
+          companyId={foto.company_id}
+          autoAnalyze
+          variant="compact"
+        />
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-500">{formatDateTime(foto.taken_at)}</span>
           <Button
