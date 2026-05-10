@@ -13,12 +13,15 @@ import {
   CheckCircle, Loader2, Clock, PlayCircle, PauseCircle, LogOut,
   ShieldCheck, Mic, QrCode, MessageSquare, FileText,
   CalendarDays, Receipt, ClipboardCheck,
+  ClipboardList,
   Ticket, CalendarDays as CalendarDaysIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
+// 🆕 GAP 5b: hook cantieri timbrati oggi senza rapportino
+import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompilare";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +78,8 @@ export default function CampoHome() {
       <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
         {/* Cantieri assegnati */}
         <div className="space-y-3 md:space-y-6">
+          {/* 🆕 GAP 5b: prompt rapportini di OGGI non ancora compilati (priorità alta) */}
+          {isOperaio && <RapportiniDaCompilareOggi />}
           {isOperaio && <CantieriAssegnati />}
           {isSubappaltatore && <CantieriSub />}
           {isOperaio && <RapportiniSospesi />}
@@ -512,6 +517,69 @@ function CantieriSub() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Rapportini in sospeso (operaio)
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * 🆕 GAP 5b — RapportiniDaCompilareOggi
+ *
+ * Card prominente "Crea i rapportini di OGGI" per i cantieri in cui l'operaio
+ * ha già timbrato oggi ma non ha ancora compilato il rapportino di intervento.
+ *
+ * Differenza vs RapportiniSospesi (esistente):
+ *   - RapportiniSospesi → rapportini DI GIORNI PRECEDENTI ancora aperti (lavoro
+ *     non completato)
+ *   - RapportiniDaCompilareOggi → cantieri di OGGI senza rapportino — il "promemoria"
+ *     proattivo che l'operaio dimentica spesso a fine giornata
+ *
+ * Il pattern è AI-native: l'app sa cosa hai fatto oggi (timbrature GPS) e
+ * ti chiede di chiudere la giornata correttamente.
+ */
+function RapportiniDaCompilareOggi() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data: cantieri = [], isLoading } = useCampoRapportiniDaCompilare(user?.id);
+
+  if (isLoading || cantieri.length === 0) return null;
+
+  return (
+    <Card className="border-violet-200 bg-violet-50/60 dark:border-violet-900 dark:bg-violet-950/20">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2 text-violet-800 dark:text-violet-200">
+          <ClipboardList className="h-4 w-4" />
+          {cantieri.length === 1
+            ? "Compila il rapportino di oggi"
+            : `Compila ${cantieri.length} rapportini di oggi`}
+        </CardTitle>
+        <p className="text-xs text-violet-700 dark:text-violet-300 mt-1">
+          Hai timbrato in {cantieri.length === 1 ? "questo cantiere" : "questi cantieri"} ma non hai ancora chiuso la giornata.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {cantieri.slice(0, 5).map((c) => (
+          <button
+            key={c.order_id}
+            onClick={() => navigate(`/campo/lavoro/${c.order_id}`)}
+            className="w-full flex items-center justify-between text-left rounded-lg px-2 py-2 hover:bg-violet-100/60 dark:hover:bg-violet-900/40 transition-colors"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-foreground font-medium truncate">
+                {c.order_code ?? "—"}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {c.description?.slice(0, 60) ?? "—"} · ~{c.ore_in_cantiere_stimate}h stimate
+              </p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-violet-600 shrink-0 ml-2" />
+          </button>
+        ))}
+        {cantieri.length > 5 && (
+          <p className="text-[10px] text-muted-foreground text-center pt-1">
+            +{cantieri.length - 5} altri cantieri
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function RapportiniSospesi() {
   const navigate = useNavigate();
   const { user } = useAuth();
