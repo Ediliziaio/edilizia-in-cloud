@@ -44,7 +44,6 @@ import {
   FileStack,
   FileText,
   RefreshCw,
-  Bell,
   Search,
   Globe,
   Phone,
@@ -98,8 +97,7 @@ import { cn } from "@/lib/utils";
 import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { useBillingMode } from "@/contexts/BillingModeContext";
-import { useNotifications } from "@/hooks/useNotifications";
-import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
+import { NotificationsBellPopover } from "@/components/notifications/NotificationsBellPopover";
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
 
 import { CommandPalette } from "@/components/CommandPalette";
@@ -1066,10 +1064,8 @@ export function CompanyLayout() {
   const navigate = useNavigate();
   const [supportOpen, setSupportOpen] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
-  const [notificationsPanelOpen, setNotificationsPanelOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const { unreadCount, markAsRead } = useUnreadSupportCount();
-  const { unreadCount: notifUnreadCount } = useNotifications();
   const { area, areaIcon: AreaIcon, page, pageUrl } = useBreadcrumb();
   const location = useLocation();
   // True only when the current path goes deeper than the matched nav item (sub-page)
@@ -1184,14 +1180,7 @@ export function CompanyLayout() {
             <ActionProposalsBadge />
             {/* Silvio: cose da sapere proattive */}
             <SilvioBellPopover />
-            <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setNotificationsPanelOpen(true)} title="Notifiche" aria-label={notifUnreadCount > 0 ? `Notifiche (${notifUnreadCount} non lette)` : "Notifiche"}>
-              <Bell className="h-4 w-4" aria-hidden="true" />
-              {notifUnreadCount > 0 && (
-                <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 flex items-center justify-center text-[10px] font-bold">
-                  {notifUnreadCount > 99 ? "99+" : notifUnreadCount}
-                </Badge>
-              )}
-            </Button>
+            <NotificationsBellPopover />
             {showSupport && (
               <Button variant="outline" size="sm" className="relative hidden sm:flex" onClick={() => setChannelDialogOpen(true)}>
                 <HeadphonesIcon className="h-4 w-4 sm:mr-2" />
@@ -1242,10 +1231,6 @@ export function CompanyLayout() {
           <SupportChatSheet open={supportOpen} onOpenChange={setSupportOpen} />
         </>
       )}
-      <NotificationsPanel
-        open={notificationsPanelOpen}
-        onOpenChange={setNotificationsPanelOpen}
-      />
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
       <PWAInstallBanner />
       <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
