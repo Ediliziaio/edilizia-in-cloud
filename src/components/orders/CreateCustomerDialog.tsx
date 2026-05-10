@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
+import { companyCustomersKeys, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -249,13 +250,45 @@ export function CreateCustomerDialog({
       }
       if (data?.error) throw new Error(data.error);
 
-      queryClient.invalidateQueries({ queryKey: ["customers", effectiveCompany?.id] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
-
       const newCustomerId = data?.customer?.id ?? data?.user_id ?? data?.customer_id;
       if (!newCustomerId) {
         throw new Error("Risposta non valida dal server (ID cliente mancante).");
       }
+
+      // 🛠️ Cache invalidation v2 (2026-05-10): bug fix "cliente appena creato non visibile"
+      //
+      // Prima invalidavamo solo `["customers"]` e `customersList.all`, ma il
+      // dropdown della creazione commessa usa la query key `companyCustomersKeys`
+      // (`["company-customers", companyId]`) → la cache restava stale per 5min
+      // e l'utente non vedeva il cliente appena creato.
+      //
+      // Strategia ottimistica: aggiungiamo subito il cliente alla cache + invalidiamo
+      // tutte le 3 query keys per refresh completo nei sub-componenti.
+      const optimisticCustomer: CompanyCustomer = {
+        id: newCustomerId,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim() || null,
+      };
+      queryClient.setQueryData<CompanyCustomer[]>(
+        companyCustomersKeys.byCompany(effectiveCompany?.id),
+        (prev) => {
+          const list = prev ?? [];
+          // Evita duplicati se per qualche motivo il customer è già lì
+          if (list.some((c) => c.id === newCustomerId)) return list;
+          return [...list, optimisticCustomer].sort((a, b) => {
+            const aLast = (a.last_name ?? "").toLowerCase();
+            const bLast = (b.last_name ?? "").toLowerCase();
+            if (aLast !== bLast) return aLast < bLast ? -1 : 1;
+            const aFirst = (a.first_name ?? "").toLowerCase();
+            const bFirst = (b.first_name ?? "").toLowerCase();
+            return aFirst < bFirst ? -1 : aFirst > bFirst ? 1 : 0;
+          });
+        },
+      );
+      queryClient.invalidateQueries({ queryKey: companyCustomersKeys.byCompany(effectiveCompany?.id) });
+      queryClient.invalidateQueries({ queryKey: ["customers", effectiveCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
       if (selectedDocumentCount > 0) {
         try {
           await uploadCustomerDocuments(newCustomerId);
