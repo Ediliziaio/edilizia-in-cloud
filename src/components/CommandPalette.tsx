@@ -7,7 +7,7 @@ import {
   CommandGroup, CommandItem, CommandSeparator,
 } from "@/components/ui/command";
 import {
-  Package, User, UserCircle, MessageSquare, Loader2, Settings, Sparkles, Bot,
+  Package, User, UserCircle, MessageSquare, Loader2, Settings, Sparkles, Bot, BookOpen, Search,
 } from "lucide-react";
 import { useGlobalSearch, type SearchResult } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +20,24 @@ interface AIPersonaLite {
   short_label: string;
   example_questions: string[];
   category: string;
+}
+
+// 🆕 GAP 8 (Search semantica globale): risultati semantici dalla KB
+interface SemanticSearchResult {
+  chunk_id: string;
+  doc_id: string;
+  title: string;
+  category_path: string;
+  content_preview: string;
+  similarity: number;
+  language?: string;
+}
+
+interface SemanticResponse {
+  results?: SemanticSearchResult[];
+  total_search_ms?: number;
+  error?: string;
+  info?: string;
 }
 
 // ─── Tutte le 33 voci impostazioni per la ricerca Command Palette ─────────────
@@ -116,6 +134,23 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     },
     staleTime: 5 * 60 * 1000,
     enabled: open, // carica solo quando palette aperto (evita fetch su ogni mount)
+  });
+
+  // 🆕 GAP 8: search semantica nella KB (debounced, attivo solo se query ≥3 char)
+  const { data: semanticData, isFetching: isSemanticFetching } = useQuery({
+    queryKey: ["command-palette-semantic", query],
+    enabled: open && query.length >= 3,
+    staleTime: 60_000,
+    queryFn: async (): Promise<SemanticSearchResult[]> => {
+      const { data, error } = await supabase.functions.invoke<SemanticResponse>(
+        "semantic-search-global",
+        { body: { query, top_k: 5, min_similarity: 0.25 } },
+      );
+      if (error || !data) return [];
+      // Edge function ritorna sempre {results:[]} anche su errore soft → no throw
+      return data.results ?? [];
+    },
+    retry: 0, // search è "best effort" — no retry se fallisce
   });
 
   useEffect(() => {
@@ -275,6 +310,46 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         ))}
 
         {results.length > 0 && query.length >= 2 && <CommandSeparator />}
+
+        {/* 🆕 GAP 8: Risultati semantic search dalla KB (companies, normative, doc) */}
+        {query.length >= 3 && (semanticData ?? []).length > 0 && (
+          <>
+            <CommandGroup heading="AI Search · Knowledge base">
+              {(semanticData ?? []).map((r) => (
+                <CommandItem
+                  key={`sem-${r.chunk_id}`}
+                  onSelect={() => handleSelect(`/azienda/assistente-ai?persona=brain&q=${encodeURIComponent(query)}`)}
+                  className="flex items-start gap-3 py-2"
+                >
+                  <BookOpen className="h-4 w-4 text-violet-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium truncate">{r.title}</span>
+                      <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+                        {(r.similarity * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground line-clamp-2 leading-snug">
+                      {r.content_preview}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/70 mt-0.5">
+                      {r.category_path}
+                    </span>
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
+
+        {/* Loading semantic search */}
+        {query.length >= 3 && isSemanticFetching && (semanticData ?? []).length === 0 && (
+          <div className="px-2 py-1.5 text-[11px] text-muted-foreground flex items-center gap-2">
+            <Search className="h-3 w-3 animate-pulse text-violet-500" />
+            Cerco semanticamente nella KB…
+          </div>
+        )}
 
         {/* Voci Impostazioni */}
         {filteredSettingsItems.length > 0 && (
