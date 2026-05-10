@@ -49,9 +49,24 @@ interface EmailViewerProps {
   threadId: string;
   onBack: () => void;
   onClose: () => void;
+  onReply?: (
+    source: {
+      id: string;
+      thread_id: string | null;
+      from_email: string | null;
+      from_name: string | null;
+      to_email: string | null;
+      cc_emails?: string[] | null;
+      subject: string | null;
+      received_at: string;
+      raw_text: string | null;
+      raw_html: string | null;
+    },
+    mode: "reply" | "replyAll" | "forward",
+  ) => void;
 }
 
-export function EmailViewer({ threadId, onBack, onClose }: EmailViewerProps) {
+export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerProps) {
   const qc = useQueryClient();
 
   const { data: messages, isLoading } = useQuery({
@@ -204,47 +219,43 @@ export function EmailViewer({ threadId, onBack, onClose }: EmailViewerProps) {
         )}
       </ScrollArea>
 
-      {/* Action bar bottom (Sprint E3 attiverà i bottoni reply/forward) */}
+      {/* Action bar bottom — Reply/ReplyAll/Forward (Sprint E3) */}
       <div className="border-t p-3 bg-muted/20 flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() =>
-            toast.info("Rispondi", {
-              description: "Disponibile nello Sprint E3 (compose + send)",
-            })
-          }
-        >
-          <Reply className="h-3.5 w-3.5" />
-          Rispondi
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() =>
-            toast.info("Rispondi a tutti", {
-              description: "Disponibile nello Sprint E3",
-            })
-          }
-        >
-          <ReplyAll className="h-3.5 w-3.5" />
-          A tutti
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() =>
-            toast.info("Inoltra", {
-              description: "Disponibile nello Sprint E3",
-            })
-          }
-        >
-          <Forward className="h-3.5 w-3.5" />
-          Inoltra
-        </Button>
+        {(["reply", "replyAll", "forward"] as const).map((mode) => {
+          const Icon = mode === "reply" ? Reply : mode === "replyAll" ? ReplyAll : Forward;
+          const label = mode === "reply" ? "Rispondi" : mode === "replyAll" ? "A tutti" : "Inoltra";
+          return (
+            <Button
+              key={mode}
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={!messages || messages.length === 0}
+              onClick={() => {
+                if (!onReply || !messages || messages.length === 0) return;
+                const last = messages[messages.length - 1];
+                onReply(
+                  {
+                    id: last.id,
+                    thread_id: last.thread_id,
+                    from_email: last.from_email,
+                    from_name: last.from_name,
+                    to_email: last.to_email,
+                    cc_emails: null,
+                    subject: last.subject,
+                    received_at: last.received_at,
+                    raw_text: last.raw_text,
+                    raw_html: last.raw_html,
+                  },
+                  mode,
+                );
+              }}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </Button>
+          );
+        })}
       </div>
     </>
   );

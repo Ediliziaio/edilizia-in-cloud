@@ -17,7 +17,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Inbox, Send, FileEdit, Star, ShieldAlert, Trash2, Plus, Mail,
 } from "lucide-react";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { EmailFilter, FolderFilter } from "../EmailLayout";
 
@@ -39,10 +38,11 @@ const SYSTEM_FOLDERS: SystemFolder[] = [
 interface EmailSidebarProps {
   filter: EmailFilter;
   onFilterChange: (filter: EmailFilter) => void;
+  onCompose: () => void;
   connections: Array<{ id: string; provider: string; email_address: string; status: string }>;
 }
 
-export function EmailSidebar({ filter, onFilterChange, connections }: EmailSidebarProps) {
+export function EmailSidebar({ filter, onFilterChange, onCompose, connections }: EmailSidebarProps) {
   const { user } = useAuth();
   const userId = user?.id;
 
@@ -83,11 +83,7 @@ export function EmailSidebar({ filter, onFilterChange, connections }: EmailSideb
       <div className="p-3 space-y-4">
         <Button
           className="w-full gap-2 bg-violet-600 hover:bg-violet-700 shadow-sm"
-          onClick={() =>
-            toast.info("Componi email", {
-              description: "Disponibile nello Sprint E3 — sto lavorando alla UI compose",
-            })
-          }
+          onClick={onCompose}
         >
           <Plus className="h-4 w-4" />
           Scrivi
@@ -179,7 +175,7 @@ export function EmailSidebar({ filter, onFilterChange, connections }: EmailSideb
         )}
 
         <p className="text-[10px] text-muted-foreground/70 px-2 pt-2 border-t">
-          Sprint E2 attivo. Compose, IMAP, ricerca, AI in arrivo.
+          Beta Sprint E3 · IMAP custom + ricerca + AI in arrivo
         </p>
       </div>
     </ScrollArea>

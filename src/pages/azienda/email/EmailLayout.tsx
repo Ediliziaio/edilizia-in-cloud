@@ -10,13 +10,14 @@
  *
  * Mobile: stack layout, navigazione tra pannelli con pulsanti back.
  */
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { EmailSidebar } from "./components/EmailSidebar";
 import { EmailList } from "./components/EmailList";
 import { EmailViewer } from "./components/EmailViewer";
+import { EmailComposeDialog, type ComposeContext } from "./components/EmailComposeDialog";
 import { Button } from "@/components/ui/button";
 import { Mail, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,13 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [mobilePane, setMobilePane] = useState<"sidebar" | "list" | "viewer">("list");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeContext, setComposeContext] = useState<ComposeContext>({ mode: "new" });
+
+  const openCompose = useCallback((ctx: ComposeContext) => {
+    setComposeContext(ctx);
+    setComposeOpen(true);
+  }, []);
 
   const userId = user?.id;
   const companyId = effectiveCompany?.id;
@@ -100,6 +108,7 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
             setSidebarOpen(false);
             setMobilePane("list");
           }}
+          onCompose={() => openCompose({ mode: "new" })}
           connections={connections ?? []}
         />
       </aside>
@@ -138,11 +147,18 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
             threadId={selectedThreadId}
             onBack={() => setMobilePane("list")}
             onClose={() => setSelectedThreadId(null)}
+            onReply={(src, mode) => openCompose({ mode, source: src })}
           />
         ) : (
           <ViewerEmptyState />
         )}
       </section>
+
+      <EmailComposeDialog
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        context={composeContext}
+      />
     </div>
   );
 }

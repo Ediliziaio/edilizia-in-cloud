@@ -18,6 +18,7 @@ BEGIN;
 -- 1) FEATURE FLAG 'email_client'
 -- ───────────────────────────────────────────────────────────────────────────
 
+-- Catalogo legacy 'feature_flags' (compat hook locale)
 INSERT INTO public.feature_flags (key, label, description, scope, is_active, default_value)
 VALUES (
   'email_client',
@@ -31,6 +32,28 @@ ON CONFLICT (key) DO UPDATE SET
   label = EXCLUDED.label,
   description = EXCLUDED.description,
   is_active = true;
+
+-- Catalogo authoritative 'platform_feature_flags' (usato da resolve_company_features
+-- — è da QUESTA tabella che la sidebar legge i flag, non da feature_flags).
+-- Bug fix: senza questo insert, il flag non appare nel resolver e il tab sidebar
+-- resta nascosto anche se l'override è presente.
+INSERT INTO public.platform_feature_flags (
+  key, name, description, category, is_beta, default_value, sort_order, icon
+)
+VALUES (
+  'email_client',
+  'Email Client (Beta)',
+  'Client email integrato stile Gmail: connetti Google/Outlook/IMAP, leggi, classifica con AI, scrivi e invia. Per-utente isolato.',
+  'productivity',
+  true,
+  false,
+  100,
+  'Mail'
+)
+ON CONFLICT (key) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  is_beta = true;
 
 -- Override per Demo Azienda S.r.l. → ENABLED in Beta
 INSERT INTO public.company_feature_overrides (
