@@ -350,6 +350,44 @@ serve(async (req: Request) => {
       console.warn("[ai-orchestrator] memory context fetch failed:", e instanceof Error ? e.message : e);
     }
 
+    // 🆕 GAP 9 (Memoria personalizzata per persona azienda): recall ai_persona_memory
+    // top-5 entries per questa specifica persona per questo user/company.
+    // Iniettato nel system prompt come "Cose che sai dell'utente come <persona>"
+    // così il CFO ricorda "Florin preferisce P&L mensile", PM Cantiere ricorda
+    // "il cantiere XYZ va sempre in ritardo per Bianchi Srl", ecc.
+    let personaMemoryCount = 0;
+    const personaMemoryIds: string[] = [];
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: pmem } = await (supabaseAdmin as any).rpc("recall_persona_memory", {
+        p_company_id: companyId,
+        p_persona_key: personaKey,
+        p_user_id: userId,
+        p_limit: 5,
+      });
+      const memoryRows = (pmem ?? []) as Array<{
+        id: string; memory_type: string; content: string; hits_count: number; source: string;
+      }>;
+      personaMemoryCount = memoryRows.length;
+
+      if (memoryRows.length > 0) {
+        const lines: string[] = ["", `# MEMORIA PERSONA "${persona.display_name}" (uso interno)`];
+        for (const m of memoryRows) {
+          const tag = m.memory_type === "preference" ? "PREF" :
+                      m.memory_type === "decision" ? "DECISION" :
+                      m.memory_type === "avoid" ? "EVITA" :
+                      m.memory_type === "pattern" ? "PATTERN" : "FATTO";
+          lines.push(`- [${tag}] ${m.content}`);
+          personaMemoryIds.push(m.id);
+        }
+        lines.push("REGOLA: usa queste memory per personalizzare il tono/decisioni. Se l'utente dice qualcosa che entra in CONFLITTO con una memory, chiedi conferma e proponi update.");
+        // Concatena al memoryContextPrompt esistente (long-term cross-persona)
+        memoryContextPrompt = (memoryContextPrompt + "\n" + lines.join("\n")).trim();
+      }
+    } catch (e) {
+      console.warn("[ai-orchestrator] persona memory recall failed:", e instanceof Error ? e.message : e);
+    }
+
     // 9) Build messages for OpenRouter
     // MP-01 Pre-RAG: carica chunk universal + company brain pertinenti alla query
     // PRIMA di chiamare il modello, iniettando marker [S1], [S2]... nel prompt.
@@ -568,6 +606,12 @@ serve(async (req: Request) => {
     // ora gestisce lo strip indipendentemente dalla mode.
     if (citationMode === "enforce" || citationCheck.noRagPrefix) {
       finalContent = citationCheck.cleanedResponse;
+    }
+
+    // 🆕 GAP 9: bump hits_count su tutte le memory effettivamente caricate
+    // (chiamate fire-and-forget, no await per non bloccare risposta)
+    for (const memId of personaMemoryIds) {
+      void supabaseAdmin.rpc("bump_persona_memory_hit", { p_memory_id: memId });
     }
 
     // 11) Record assistant message with ledger link + tool calls log
