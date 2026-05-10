@@ -33,12 +33,32 @@ interface SemanticSearchResult {
   language?: string;
 }
 
+// 🆕 GAP 8b (cross-entity): risultati clienti/cantieri/fatture
+interface EntitySearchResult {
+  id: string;
+  entity_type: "customer" | "order" | "invoice" | "opportunity" | "subcontractor" | "supplier";
+  entity_id: string;
+  content: string;
+  metadata: Record<string, unknown>;
+  similarity: number;
+}
+
 interface SemanticResponse {
   results?: SemanticSearchResult[];
+  entity_results?: EntitySearchResult[];
   total_search_ms?: number;
   error?: string;
   info?: string;
 }
+
+const ENTITY_LABEL: Record<string, { label: string; route: (id: string) => string }> = {
+  customer:      { label: "Cliente",       route: (id) => `/azienda/clienti/${id}` },
+  order:         { label: "Cantiere",      route: (id) => `/azienda/ordini/${id}` },
+  invoice:       { label: "Fattura",       route: (id) => `/azienda/fatturazione/${id}` },
+  opportunity:   { label: "Opportunità",   route: (id) => `/azienda/marketing/opportunita/${id}` },
+  subcontractor: { label: "Subappaltatore", route: (id) => `/azienda/subappaltatori/${id}` },
+  supplier:      { label: "Fornitore",     route: (_id) => `/azienda/impostazioni/fornitori` },
+};
 
 // ─── Tutte le 33 voci impostazioni per la ricerca Command Palette ─────────────
 interface SettingsItem {
@@ -136,22 +156,34 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     enabled: open, // carica solo quando palette aperto (evita fetch su ogni mount)
   });
 
-  // 🆕 GAP 8: search semantica nella KB (debounced, attivo solo se query ≥3 char)
-  const { data: semanticData, isFetching: isSemanticFetching } = useQuery({
-    queryKey: ["command-palette-semantic", query],
+  // 🆕 GAP 8 + 8b: search semantica nella KB + entità (cross-entity)
+  const { data: semanticBundle, isFetching: isSemanticFetching } = useQuery({
+    queryKey: ["command-palette-semantic", query, effectiveCompany?.id],
     enabled: open && query.length >= 3,
     staleTime: 60_000,
-    queryFn: async (): Promise<SemanticSearchResult[]> => {
+    queryFn: async (): Promise<{ kb: SemanticSearchResult[]; entities: EntitySearchResult[] }> => {
       const { data, error } = await supabase.functions.invoke<SemanticResponse>(
         "semantic-search-global",
-        { body: { query, top_k: 5, min_similarity: 0.25 } },
+        {
+          body: {
+            query,
+            top_k: 5,
+            min_similarity: 0.25,
+            company_id: effectiveCompany?.id,
+            search_in: ["kb_documents", "entities"],
+          },
+        },
       );
-      if (error || !data) return [];
-      // Edge function ritorna sempre {results:[]} anche su errore soft → no throw
-      return data.results ?? [];
+      if (error || !data) return { kb: [], entities: [] };
+      return {
+        kb: data.results ?? [],
+        entities: data.entity_results ?? [],
+      };
     },
     retry: 0, // search è "best effort" — no retry se fallisce
   });
+  const semanticData = semanticBundle?.kb ?? [];
+  const entityData = semanticBundle?.entities ?? [];
 
   useEffect(() => {
     if (!open) setTimeout(() => setQuery(""), 200);
@@ -232,7 +264,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           </div>
         )}
 
-        {query.length >= 2 && !isFetching && results.length === 0 && filteredNavGroups.length === 0 && filteredSettingsItems.length === 0 && filteredPersonaItems.length === 0 && (
+        {query.length >= 2 && !isFetching && results.length === 0 && filteredNavGroups.length === 0 && filteredSettingsItems.length === 0 && filteredPersonaItems.length === 0 && entityData.length === 0 && (semanticData ?? []).length === 0 && (
           <CommandEmpty>Nessun risultato per &quot;{query}&quot;</CommandEmpty>
         )}
 
@@ -343,11 +375,46 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           </>
         )}
 
+        {/* 🆕 GAP 8b: Risultati semantic search su ENTITÀ (clienti/cantieri/fatture) */}
+        {query.length >= 3 && entityData.length > 0 && (
+          <>
+            <CommandGroup heading="AI Search · Clienti, cantieri, fatture">
+              {entityData.map((r) => {
+                const cfg = ENTITY_LABEL[r.entity_type];
+                if (!cfg) return null;
+                return (
+                  <CommandItem
+                    key={`ent-${r.id}`}
+                    onSelect={() => handleSelect(cfg.route(r.entity_id))}
+                    className="flex items-start gap-3 py-2"
+                  >
+                    <Sparkles className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                          {cfg.label}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          {(r.similarity * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <span className="text-xs line-clamp-2 leading-snug">
+                        {r.content}
+                      </span>
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
+
         {/* Loading semantic search */}
-        {query.length >= 3 && isSemanticFetching && (semanticData ?? []).length === 0 && (
+        {query.length >= 3 && isSemanticFetching && (semanticData ?? []).length === 0 && entityData.length === 0 && (
           <div className="px-2 py-1.5 text-[11px] text-muted-foreground flex items-center gap-2">
             <Search className="h-3 w-3 animate-pulse text-violet-500" />
-            Cerco semanticamente nella KB…
+            Cerco semanticamente nella KB e nelle entità…
           </div>
         )}
 

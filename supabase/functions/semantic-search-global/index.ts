@@ -34,6 +34,10 @@ interface SearchBody {
   top_k?: number;
   category_path?: string;
   min_similarity?: number;
+  // 🆕 GAP 8b: filtro per tipo (kb_documents | entities) e tipi entità
+  search_in?: ("kb_documents" | "entities")[];
+  entity_types?: string[];
+  company_id?: string;  // necessario per entity search
 }
 
 interface EmbedResponse {
@@ -116,9 +120,7 @@ Deno.serve(async (req) => {
     }), { status: 503, headers: { ...cors, "Content-Type": "application/json" } });
   }
 
-  // 2) Query pgvector via RPC kb_test_query_multilang (esistente)
-  // L'RPC richiede super_admin per ora. Fallback a kb_test_query universale
-  // per company_admin standard.
+  // 2) Search PARALLELA: KB documents + Entities (clienti/cantieri/fatture)
   const supa = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -127,34 +129,63 @@ Deno.serve(async (req) => {
 
   const topK = Math.min(body.top_k ?? 8, 25);
   const minSim = body.min_similarity ?? 0.20;
+  const searchIn = body.search_in ?? ["kb_documents", "entities"];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supa as any).rpc("kb_test_query_multilang", {
-    p_query: query,
-    p_query_embedding: queryEmbedding,
-    p_top_k: topK,
-    p_min_similarity: minSim,
-    p_language: "it",
-    p_cross_lang_fallback: true,
-    p_category_path: body.category_path ?? null,
-  });
+  // 2a) KB documents search
+  const kbPromise = searchIn.includes("kb_documents")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? (supa as any).rpc("kb_test_query_multilang", {
+        p_query: query,
+        p_query_embedding: queryEmbedding,
+        p_top_k: topK,
+        p_min_similarity: minSim,
+        p_language: "it",
+        p_cross_lang_fallback: true,
+        p_category_path: body.category_path ?? null,
+      })
+    : Promise.resolve({ data: [], error: null });
 
-  if (error) {
-    // Permission denied (non super_admin) → ritorniamo array vuoto soft
-    if (error.message?.includes("Permesso negato") || error.code === "42501") {
-      return new Response(JSON.stringify({
-        results: [], query_embedded_in_ms: queryEmbMs, total_search_ms: Date.now() - t0Total,
-        info: "search_requires_super_admin_for_now",
-      }), { headers: { ...cors, "Content-Type": "application/json" } });
+  // 2b) Entity search (clienti/cantieri/fatture) — richiede company_id
+  const entityPromise = (searchIn.includes("entities") && body.company_id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? (supa as any).rpc("search_entities_semantic", {
+        p_company_id: body.company_id,
+        p_query_embedding: queryEmbedding,
+        p_top_k: topK,
+        p_min_similarity: minSim,
+        p_entity_types: body.entity_types ?? null,
+      })
+    : Promise.resolve({ data: [], error: null });
+
+  const [kbRes, entityRes] = await Promise.all([kbPromise, entityPromise]);
+
+  // KB results (soft fail su permission denied)
+  let kbResults: unknown[] = [];
+  let kbError: string | null = null;
+  if (kbRes.error) {
+    if (!kbRes.error.message?.includes("Permesso negato") && kbRes.error.code !== "42501") {
+      kbError = kbRes.error.message;
     }
-    return new Response(JSON.stringify({
-      results: [], error: error.message,
-      query_embedded_in_ms: queryEmbMs, total_search_ms: Date.now() - t0Total,
-    }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+  } else {
+    kbResults = kbRes.data ?? [];
+  }
+
+  // Entity results (soft fail)
+  let entityResults: unknown[] = [];
+  let entityError: string | null = null;
+  if (entityRes.error) {
+    if (!entityRes.error.message?.includes("Permesso negato")) {
+      entityError = entityRes.error.message;
+    }
+  } else {
+    entityResults = entityRes.data ?? [];
   }
 
   return new Response(JSON.stringify({
-    results: data ?? [],
+    results: kbResults,        // back-compat: campo "results" = KB documents
+    entity_results: entityResults,  // 🆕 GAP 8b: clienti/cantieri/fatture
+    kb_error: kbError,
+    entity_error: entityError,
     query_embedded_in_ms: queryEmbMs,
     total_search_ms: Date.now() - t0Total,
   }), { headers: { ...cors, "Content-Type": "application/json" } });
