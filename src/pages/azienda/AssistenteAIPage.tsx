@@ -14,6 +14,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -78,6 +79,8 @@ interface Persona {
   color: string;
   enabled: boolean;
   is_system: boolean;
+  // 🆕 GAP 1 (Discoverability): chip cliccabili in empty state chat
+  example_questions?: string[];
   allowed_roles: string[];
 }
 
@@ -123,11 +126,15 @@ const fmtEur = (n: number | null | undefined, decimals = 4) =>
 
 export default function AssistenteAIPage() {
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [activePersonaKey, setActivePersonaKey] = useState<string | null>(null);
+  const [activePersonaKey, setActivePersonaKey] = useState<string | null>(
+    () => searchParams.get("persona"),
+  );
   const [draftMessage, setDraftMessage] = useState("");
   const [search, setSearch] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [autosendHandled, setAutosendHandled] = useState(false);
 
   // ─── DATA: personas (con check RBAC su client lato — orchestrator ricontrolla server-side) ──
   const { data: personas, isLoading: personasLoading } = useQuery({
@@ -135,7 +142,7 @@ export default function AssistenteAIPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ai_personas_public" as never)
-        .select("persona_key, display_name, short_label, mission, category, recommended_tier_key, icon, color, enabled, is_system, allowed_roles")
+        .select("persona_key, display_name, short_label, mission, category, recommended_tier_key, icon, color, enabled, is_system, allowed_roles, example_questions")
         .eq("enabled", true)
         .eq("is_system", false)
         .order("sort_order");
@@ -220,6 +227,42 @@ export default function AssistenteAIPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // 🆕 GAP 1 (Discoverability): deep-link autosend
+  // /azienda/assistente-ai?persona=cfo&q=Come%20va%20la%20cassa
+  // viene chiamato dal Command Palette (Cmd+K) e da future proactive proposals.
+  useEffect(() => {
+    if (autosendHandled) return;
+    if (!personas || personas.length === 0) return;
+    const personaParam = searchParams.get("persona");
+    const qParam = searchParams.get("q");
+    if (!personaParam) return;
+    // Verifica che la persona esista + sia visibile dal ruolo utente
+    const personaExists = personas.some((p) => p.persona_key === personaParam);
+    if (!personaExists) {
+      toast.error(`Persona "${personaParam}" non disponibile per il tuo ruolo`);
+      setAutosendHandled(true);
+      return;
+    }
+    setActivePersonaKey(personaParam);
+    setActiveSessionId(null);
+    if (qParam && qParam.trim()) {
+      // Auto-invio del messaggio in coda al mount
+      setTimeout(() => {
+        sendMut.mutate({
+          message: qParam.trim(),
+          personaKey: personaParam,
+          sessionId: null,
+        });
+        // Pulisce ?q= per non re-invio su back/forward (mantiene ?persona)
+        const next = new URLSearchParams(searchParams);
+        next.delete("q");
+        setSearchParams(next, { replace: true });
+      }, 100);
+    }
+    setAutosendHandled(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personas, autosendHandled]);
+
   // ─── HELPERS ───────────────────────────────────────────────────────────
   const grouped = useMemo(() => {
     const filtered = (personas ?? []).filter(p =>
@@ -289,13 +332,19 @@ export default function AssistenteAIPage() {
             Assistente AI
           </h1>
           <p className="text-sm text-muted-foreground">
-            Chatta con le persone AI specializzate per ogni area aziendale
+            Chatta con le persone AI specializzate per ogni area aziendale ·{" "}
+            <kbd className="px-1.5 py-0.5 text-[10px] rounded border bg-muted font-mono">⌘K</kbd>{" "}
+            per ricerca rapida
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleNewChat} className="gap-2">
           <Plus className="h-4 w-4" /> Nuova chat
         </Button>
       </div>
+
+      {/* 🆕 GAP 1: Discovery banner primo accesso (dismissable) */}
+      <DiscoveryBanner personaCount={personas?.length ?? 0} />
+
 
       <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
 
@@ -408,15 +457,48 @@ export default function AssistenteAIPage() {
             <ScrollArea className="flex-1">
               <div className="p-4 space-y-4">
                 {!activeSessionId && activePersona ? (
-                  <div className="text-center py-12">
+                  <div className="text-center py-8 max-w-2xl mx-auto">
                     <PersonaIcon icon={activePersona.icon} color={activePersona.color} size="lg" />
-                    <h3 className="mt-4 font-semibold">{activePersona.display_name}</h3>
+                    <h3 className="mt-4 font-semibold text-lg">{activePersona.display_name}</h3>
                     <p className="text-sm text-muted-foreground max-w-md mx-auto mt-2">
                       {activePersona.mission}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-6">
-                      Scrivi un messaggio per iniziare la conversazione
-                    </p>
+                    {/* 🆕 GAP 1: chip esempi cliccabili (era solo "scrivi un messaggio") */}
+                    {(activePersona.example_questions ?? []).length > 0 ? (
+                      <div className="mt-8 space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          Prova a chiedere
+                        </p>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {activePersona.example_questions!.slice(0, 5).map((q, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => {
+                                if (!activePersonaKey || sendMut.isPending) return;
+                                sendMut.mutate({
+                                  message: q,
+                                  personaKey: activePersonaKey,
+                                  sessionId: activeSessionId,
+                                });
+                              }}
+                              disabled={sendMut.isPending}
+                              className={cn(
+                                "text-xs px-3 py-2 rounded-full border bg-background",
+                                "hover:bg-accent hover:border-primary/50 transition-colors",
+                                "text-left max-w-xs disabled:opacity-50",
+                              )}
+                            >
+                              {q}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-6">
+                        Scrivi un messaggio per iniziare la conversazione
+                      </p>
+                    )}
                   </div>
                 ) : !activePersona ? (
                   <div className="text-center py-12 text-muted-foreground">
@@ -538,6 +620,55 @@ export default function AssistenteAIPage() {
 // ════════════════════════════════════════════════════════════════════════════
 // SUB-COMPONENTS
 // ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 🆕 GAP 1 (Discoverability): banner introduttivo dismissable, mostrato la
+ * prima volta che l'utente apre /azienda/assistente-ai. Spiega in 1 frase
+ * cosa sono le 18 personas e che il Cmd+K mostra esempi pronti.
+ *
+ * Stato persisted in localStorage per-user (chiave: ai_intro_banner_dismissed).
+ */
+const BANNER_KEY = "ai_intro_banner_dismissed_v1";
+
+function DiscoveryBanner({ personaCount }: { personaCount: number }) {
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem(BANNER_KEY) === "1";
+  });
+
+  if (dismissed) return null;
+
+  const handleDismiss = () => {
+    try { window.localStorage.setItem(BANNER_KEY, "1"); } catch { /* noop */ }
+    setDismissed(true);
+  };
+
+  return (
+    <div className="rounded-lg border border-violet-200 bg-gradient-to-r from-violet-50 via-purple-50 to-indigo-50 dark:border-violet-900 dark:from-violet-950/30 dark:via-purple-950/30 dark:to-indigo-950/30 p-4 flex items-start gap-3">
+      <div className="shrink-0 h-9 w-9 rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center">
+        <Bot className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+      </div>
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <p className="text-sm font-semibold">
+          Hai {personaCount > 0 ? personaCount : "diverse"} AI specializzate che lavorano per la tua azienda 24/7
+        </p>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          CFO per la cassa, Compliance per il DURC, PM Cantiere per la pianificazione, Sales per i lead… Ognuno con i suoi tool e la sua expertise.
+          Premi <kbd className="px-1 py-0.5 text-[10px] rounded border bg-background font-mono">⌘K</kbd> ovunque per cercare per esempio
+          (es. "Genera LIPE" oppure "Suggerisci squadra"), oppure clicca uno dei chip qui sotto quando entri in una chat.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={handleDismiss}
+        className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
+        aria-label="Chiudi"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
 
 function PersonaButton({ persona, onSelect }: { persona: Persona; onSelect: (key: string) => void }) {
   const Icon = ICON_MAP[persona.icon] ?? Bot;

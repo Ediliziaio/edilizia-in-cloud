@@ -1,15 +1,26 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty,
   CommandGroup, CommandItem, CommandSeparator,
 } from "@/components/ui/command";
 import {
-  Package, User, UserCircle, MessageSquare, Loader2, Settings,
+  Package, User, UserCircle, MessageSquare, Loader2, Settings, Sparkles, Bot,
 } from "lucide-react";
 import { useGlobalSearch, type SearchResult } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/contexts/AuthContext";
 import { macroAreas } from "@/lib/sidebarConfig";
+
+// 🆕 GAP 1 (Discoverability): personas AI nel command palette
+interface AIPersonaLite {
+  persona_key: string;
+  display_name: string;
+  short_label: string;
+  example_questions: string[];
+  category: string;
+}
 
 // ─── Tutte le 33 voci impostazioni per la ricerca Command Palette ─────────────
 interface SettingsItem {
@@ -91,6 +102,22 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   const { data: results = [], isFetching } = useGlobalSearch(query, effectiveCompany?.id);
 
+  // 🆕 GAP 1: carica personas + esempi (cached, refetch ogni 5 min)
+  const { data: personas = [] } = useQuery({
+    queryKey: ["command-palette-personas"],
+    queryFn: async (): Promise<AIPersonaLite[]> => {
+      const { data, error } = await supabase
+        .from("ai_personas" as never)
+        .select("persona_key, display_name, short_label, example_questions, category")
+        .eq("enabled", true)
+        .order("category");
+      if (error) return [];
+      return (data ?? []) as unknown as AIPersonaLite[];
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: open, // carica solo quando palette aperto (evita fetch su ogni mount)
+  });
+
   useEffect(() => {
     if (!open) setTimeout(() => setQuery(""), 200);
   }, [open]);
@@ -99,6 +126,39 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     navigate(url);
     onOpenChange(false);
   };
+
+  /** Apre AssistenteAIPage con persona pre-selezionata + question pre-compilata. */
+  const askPersona = (personaKey: string, prefillMessage?: string) => {
+    const url = prefillMessage
+      ? `/azienda/assistente-ai?persona=${personaKey}&q=${encodeURIComponent(prefillMessage)}`
+      : `/azienda/assistente-ai?persona=${personaKey}`;
+    handleSelect(url);
+  };
+
+  // Filtra personas + esempi in base al query
+  const filteredPersonaItems = useMemo(() => {
+    if (!personas.length) return [];
+    const q = query.toLowerCase().trim();
+    type Item = { kind: "persona" | "example"; persona: AIPersonaLite; question?: string };
+    const items: Item[] = [];
+    for (const p of personas) {
+      const personaMatch =
+        !q ||
+        p.display_name.toLowerCase().includes(q) ||
+        p.short_label.toLowerCase().includes(q) ||
+        p.persona_key.toLowerCase().includes(q);
+      if (personaMatch) items.push({ kind: "persona", persona: p });
+      // Esempi cliccabili: matchano sia con q sia mostrati di default (top 2 per persona) se no query
+      const examplesToShow = q
+        ? (p.example_questions ?? []).filter((ex) => ex.toLowerCase().includes(q))
+        : (personaMatch ? [] : []);
+      for (const ex of examplesToShow) {
+        items.push({ kind: "example", persona: p, question: ex });
+      }
+    }
+    // Limita a 30 per evitare listone (search più precisa)
+    return items.slice(0, 30);
+  }, [personas, query]);
 
   const groupedResults = results.reduce((acc, r) => {
     const group = TYPE_LABELS[r.type] ?? "Risultati";
@@ -126,7 +186,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput
-        placeholder="Cerca ordini, clienti, impostazioni..."
+        placeholder="Cerca ordini, clienti, AI, impostazioni..."
         value={query}
         onValueChange={setQuery}
       />
@@ -137,8 +197,56 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           </div>
         )}
 
-        {query.length >= 2 && !isFetching && results.length === 0 && filteredNavGroups.length === 0 && filteredSettingsItems.length === 0 && (
+        {query.length >= 2 && !isFetching && results.length === 0 && filteredNavGroups.length === 0 && filteredSettingsItems.length === 0 && filteredPersonaItems.length === 0 && (
           <CommandEmpty>Nessun risultato per &quot;{query}&quot;</CommandEmpty>
+        )}
+
+        {/* 🆕 GAP 1: AI Personas + esempi cliccabili. Quando query vuoto mostra
+            le personas in alto come "shortcut alle 18 AI persone". Quando
+            query c'è, filtra anche le example_questions (così "fattura"
+            mostra esempi tipo "Genera la LIPE trimestrale" da commercialista). */}
+        {filteredPersonaItems.length > 0 && (
+          <>
+            <CommandGroup heading="AI · Personas e domande">
+              {filteredPersonaItems.map((it, idx) => {
+                if (it.kind === "persona") {
+                  return (
+                    <CommandItem
+                      key={`p-${it.persona.persona_key}-${idx}`}
+                      onSelect={() => askPersona(it.persona.persona_key)}
+                      className="flex items-center gap-3"
+                    >
+                      <Bot className="h-4 w-4 text-violet-600" />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-medium truncate">
+                          Chiedi a {it.persona.display_name}
+                        </span>
+                        <span className="text-xs text-muted-foreground truncate">
+                          {it.persona.short_label}
+                        </span>
+                      </div>
+                    </CommandItem>
+                  );
+                }
+                return (
+                  <CommandItem
+                    key={`e-${it.persona.persona_key}-${idx}`}
+                    onSelect={() => askPersona(it.persona.persona_key, it.question!)}
+                    className="flex items-center gap-3 pl-7"
+                  >
+                    <Sparkles className="h-3 w-3 text-violet-500 flex-shrink-0" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs truncate">{it.question}</span>
+                      <span className="text-[10px] text-muted-foreground truncate">
+                        → {it.persona.display_name}
+                      </span>
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
         )}
 
         {Object.entries(groupedResults).map(([group, items]) => (
