@@ -1,6 +1,30 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * Breakdown per (company × model) — alimenta il drill-down accordion nella tabella.
+ * Tutti i numeri sono già aggregati nel periodo richiesto.
+ */
+export interface AIUsageModelBreakdown {
+  model: string;
+  provider: string;
+  requests: number;
+  cost_eur: number;
+  revenue_eur: number;
+  margin_eur: number;
+  share_pct: number; // % del costo totale di quella company
+}
+
+/**
+ * Punto della timeline giornaliera per una company.
+ * Usato dalla sparkline inline nelle row e dal trend overall.
+ */
+export interface AIUsageDailyPoint {
+  date: string; // YYYY-MM-DD
+  cost_eur: number;
+  requests: number;
+}
+
 export interface AIUsageSummary {
   company_id: string;
   company_name: string;
@@ -13,6 +37,25 @@ export interface AIUsageSummary {
   // 🆕 Margine: ricavo (quanto pagato dall'azienda) - costo (quanto pagato all'API)
   month_revenue_eur: number;
   month_margin_eur: number;
+  // 🆕 Drill-down (calcolati una volta sola dall'hook, no re-aggregation lato UI)
+  models_breakdown: AIUsageModelBreakdown[];
+  daily_trend: AIUsageDailyPoint[];
+}
+
+/**
+ * Top modelli aggregati GLOBALMENTE (cross-company) nel periodo richiesto.
+ * Utile per capire quale modello sta consumando più budget complessivo,
+ * indipendentemente da chi lo usa. Ordinato per cost_eur desc.
+ */
+export interface AIUsageTopModel {
+  model: string;
+  provider: string;
+  requests: number;
+  cost_eur: number;
+  revenue_eur: number;
+  margin_eur: number;
+  companies_using: number; // n. aziende che lo hanno usato
+  share_pct: number;       // % sul costo totale platform
 }
 
 export interface AIUsageKPIs {
@@ -128,6 +171,7 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
       kpis: AIUsageKPIs;
       diagnostic: AIUsageDiagnostic;
       featureBreakdown: AIUsageFeatureBreakdown[];
+      topModels: AIUsageTopModel[];
     }> => {
       const now = new Date();
       const todayStart = new Date(now);
@@ -223,6 +267,10 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
       );
 
       // ── Aggregate per company ─────────────────────────────────────────
+      // models_detail: chiave = `${provider}|${model}` per evitare collisione
+      // tra modelli omonimi su provider diversi (es. 'gpt-4o' su openai vs altri)
+      type ModelAgg = { provider: string; model: string; requests: number; cost: number; revenue: number };
+      type DayAgg = { cost: number; requests: number };
       const byCompany = new Map<
         string,
         {
@@ -231,10 +279,61 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
           month_revenue: number; // 🆕 ricavo
           today_requests: number;
           month_requests: number;
-          models: Map<string, number>;
-          providers: Map<string, number>;
+          models: Map<string, number>;        // top_model usage count (legacy)
+          providers: Map<string, number>;     // top_provider usage count (legacy)
+          // 🆕 drill-down per modello (chiave = `${provider}|${model}`)
+          models_detail: Map<string, ModelAgg>;
+          // 🆕 timeline giornaliera (chiave = YYYY-MM-DD)
+          daily: Map<string, DayAgg>;
         }
       >();
+
+      // 🆕 Top models GLOBALI (cross-company)
+      type GlobalModelAgg = ModelAgg & { companies: Set<string> };
+      const globalModels = new Map<string, GlobalModelAgg>();
+
+      const dayKey = (d: Date) => {
+        // YYYY-MM-DD in local timezone (allinea col grouping della UI italiana)
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${dd}`;
+      };
+
+      const trackModelDetail = (
+        entry: NonNullable<ReturnType<typeof byCompany.get>>,
+        company_id: string,
+        provider: string,
+        model: string,
+        cost: number,
+        revenue: number,
+      ) => {
+        const key = `${provider}|${model}`;
+        const cur = entry.models_detail.get(key) ?? { provider, model, requests: 0, cost: 0, revenue: 0 };
+        cur.requests += 1;
+        cur.cost += cost;
+        cur.revenue += revenue;
+        entry.models_detail.set(key, cur);
+
+        const gcur = globalModels.get(key) ?? { provider, model, requests: 0, cost: 0, revenue: 0, companies: new Set<string>() };
+        gcur.requests += 1;
+        gcur.cost += cost;
+        gcur.revenue += revenue;
+        gcur.companies.add(company_id);
+        globalModels.set(key, gcur);
+      };
+
+      const trackDaily = (
+        entry: NonNullable<ReturnType<typeof byCompany.get>>,
+        ts: string,
+        cost: number,
+      ) => {
+        const k = dayKey(new Date(ts));
+        const cur = entry.daily.get(k) ?? { cost: 0, requests: 0 };
+        cur.cost += cost;
+        cur.requests += 1;
+        entry.daily.set(k, cur);
+      };
 
       // Breakdown per feature (aggregato globale, non per company)
       const featureBreakdown = new Map<AIUsageFeatureBreakdown["feature"], {
@@ -257,6 +356,8 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
           month_requests: 0,
           models: new Map(),
           providers: new Map(),
+          models_detail: new Map<string, ModelAgg>(),
+          daily: new Map<string, DayAgg>(),
         };
         byCompany.set(companyId, entry);
         return entry;
@@ -281,6 +382,9 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
         entry.month_requests += 1;
         entry.models.set(row.model, (entry.models.get(row.model) ?? 0) + 1);
         entry.providers.set(row.provider, (entry.providers.get(row.provider) ?? 0) + 1);
+        // 🆕 drill-down + timeline
+        trackModelDetail(entry, row.company_id, row.provider, row.model, cost, revenue);
+        trackDaily(entry, row.created_at, cost);
 
         // Feature breakdown
         const feat = categorizeFeature({
@@ -339,6 +443,9 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
         const modelLabel = r.provider_model ?? `render:${providerLabel}`;
         entry.models.set(modelLabel, (entry.models.get(modelLabel) ?? 0) + 1);
         entry.providers.set(providerLabel, (entry.providers.get(providerLabel) ?? 0) + 1);
+        // 🆕 drill-down + timeline
+        trackModelDetail(entry, r.company_id, providerLabel, modelLabel, cost, revenue);
+        trackDaily(entry, ts ?? r.created_at, cost);
 
         // Feature breakdown: render
         const fb = ensureFeature("render");
@@ -352,6 +459,41 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
           const topModel = [...agg.models.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "-";
           const topProvider =
             [...agg.providers.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "-";
+
+          // 🆕 models_breakdown ordinato per cost desc, con share %
+          const totalCompanyCost = agg.month_cost || 1;
+          const models_breakdown: AIUsageModelBreakdown[] = Array.from(agg.models_detail.values())
+            .map((m) => ({
+              model: m.model,
+              provider: m.provider,
+              requests: m.requests,
+              cost_eur: m.cost,
+              revenue_eur: m.revenue,
+              margin_eur: m.revenue - m.cost,
+              share_pct: Math.round((m.cost / totalCompanyCost) * 1000) / 10,
+            }))
+            .sort((a, b) => b.cost_eur - a.cost_eur);
+
+          // 🆕 daily_trend riempito anche per giorni "vuoti" nel range richiesto
+          // (così la sparkline non ha gap visivi)
+          const daily_trend: AIUsageDailyPoint[] = [];
+          const cursor = new Date(dateFrom);
+          cursor.setHours(0, 0, 0, 0);
+          const end = new Date(dateTo);
+          end.setHours(0, 0, 0, 0);
+          while (cursor <= end) {
+            const k = dayKey(cursor);
+            const v = agg.daily.get(k);
+            daily_trend.push({
+              date: k,
+              cost_eur: v?.cost ?? 0,
+              requests: v?.requests ?? 0,
+            });
+            cursor.setDate(cursor.getDate() + 1);
+            // safety break: non dovremmo mai avere range > 1 anno
+            if (daily_trend.length > 366) break;
+          }
+
           return {
             company_id,
             company_name: companyMap.get(company_id) ?? company_id,
@@ -363,6 +505,8 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
             month_margin_eur: agg.month_revenue - agg.month_cost,
             top_model: topModel,
             top_provider: topProvider,
+            models_breakdown,
+            daily_trend,
           };
         })
         .sort((a, b) => b.month_cost_eur - a.month_cost_eur);
@@ -404,7 +548,22 @@ export function useAIUsageMonitor(filters: AIUsageFilters = {}) {
         ai_usage_log_error: logRes.error?.message ?? null,
       };
 
-      return { summaries, kpis, diagnostic, featureBreakdown: featureBreakdownArr };
+      // 🆕 topModels GLOBALI cross-company
+      const totalPlatformCost = totalCostMonth || 1;
+      const topModels: AIUsageTopModel[] = Array.from(globalModels.values())
+        .map((m) => ({
+          model: m.model,
+          provider: m.provider,
+          requests: m.requests,
+          cost_eur: m.cost,
+          revenue_eur: m.revenue,
+          margin_eur: m.revenue - m.cost,
+          companies_using: m.companies.size,
+          share_pct: Math.round((m.cost / totalPlatformCost) * 1000) / 10,
+        }))
+        .sort((a, b) => b.cost_eur - a.cost_eur);
+
+      return { summaries, kpis, diagnostic, featureBreakdown: featureBreakdownArr, topModels };
     },
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,

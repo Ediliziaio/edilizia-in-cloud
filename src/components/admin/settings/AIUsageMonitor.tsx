@@ -13,13 +13,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Bot, Download, RefreshCw, Settings2, AlertCircle, TrendingUp, Euro,
+  Bot, ChevronDown, ChevronRight, Download, RefreshCw, Settings2, AlertCircle, TrendingUp, Euro,
+  Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  useAIUsageMonitor, type AIUsageSummary,
+  useAIUsageMonitor, type AIUsageSummary, type AIUsageTopModel,
 } from "@/hooks/useAIUsageMonitor";
 import { AIPricingValidator } from "@/components/admin/settings/AIPricingValidator";
+import { Sparkline } from "@/components/admin/ai-shared/Sparkline";
 import { cn } from "@/lib/utils";
 
 // ─── Thresholds ──────────────────────────────────────────
@@ -303,23 +305,129 @@ function KpiCard({
 }
 
 function UsageRow({ row }: { row: AIUsageSummary }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasDrilldown = row.models_breakdown.length > 0;
+  const hasTrend = row.daily_trend.length >= 2;
+
   return (
-    <div className="grid grid-cols-6 gap-2 items-center px-3 py-2.5 text-sm border-b last:border-0 hover:bg-accent/20">
-      <span className="font-medium truncate col-span-1">{row.company_name}</span>
-      <span className="text-xs font-mono">{EUR.format(row.today_cost_eur)}</span>
-      <span className="text-xs font-mono font-medium">
-        {EUR.format(row.month_cost_eur)}
-      </span>
-      <span className="text-xs text-muted-foreground">
-        {NUM.format(row.month_requests)}
-      </span>
-      <span>
-        <Badge variant="outline" className="text-xs">
-          {row.top_provider}
-        </Badge>
-      </span>
-      <span className="text-xs text-muted-foreground truncate">{row.top_model}</span>
-    </div>
+    <>
+      <button
+        type="button"
+        onClick={() => hasDrilldown && setExpanded((e) => !e)}
+        className={cn(
+          "w-full grid grid-cols-[16px_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.1fr)] gap-2 items-center px-3 py-2.5 text-sm border-b last:border-0 text-left",
+          hasDrilldown ? "hover:bg-accent/30 cursor-pointer" : "cursor-default opacity-90",
+        )}
+        aria-expanded={expanded}
+      >
+        <span className="text-muted-foreground">
+          {hasDrilldown ? (
+            expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />
+          ) : null}
+        </span>
+        <span className="font-medium truncate">{row.company_name}</span>
+        <span className="text-xs font-mono">{EUR.format(row.today_cost_eur)}</span>
+        <span className="text-xs font-mono font-medium">{EUR.format(row.month_cost_eur)}</span>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {NUM.format(row.month_requests)}
+        </span>
+        <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">
+          {EUR.format(row.month_revenue_eur)}
+        </span>
+        <span className="flex items-center">
+          {hasTrend ? (
+            <Sparkline
+              data={row.daily_trend.map((d) => ({ date: d.date, value: d.cost_eur }))}
+              tooltipPrefix="Costo giornaliero"
+              formatValue={(v) => EUR.format(v)}
+              trendDirection="lower-is-better"
+              width={70}
+              height={20}
+            />
+          ) : (
+            <span className="text-[10px] text-muted-foreground">—</span>
+          )}
+        </span>
+        <span className="flex items-center gap-1.5 min-w-0">
+          <Badge variant="outline" className="text-[10px] shrink-0">
+            {row.top_provider}
+          </Badge>
+          <span className="text-xs text-muted-foreground truncate">{row.top_model}</span>
+        </span>
+      </button>
+
+      {expanded && hasDrilldown && (
+        <div className="bg-muted/30 border-b px-12 py-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+            <p className="text-xs font-medium text-muted-foreground">
+              Breakdown per modello — {row.models_breakdown.length} modell{row.models_breakdown.length === 1 ? "o" : "i"} usat{row.models_breakdown.length === 1 ? "o" : "i"}
+            </p>
+          </div>
+          <div className="rounded-md border bg-background overflow-hidden">
+            <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,0.9fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.6fr)] gap-2 px-3 py-1.5 text-[10px] font-medium text-muted-foreground bg-muted/40 border-b">
+              <span>Modello</span>
+              <span>Provider</span>
+              <span className="text-right">Richieste</span>
+              <span className="text-right">Costo</span>
+              <span className="text-right">Ricavi</span>
+              <span className="text-right">Share</span>
+            </div>
+            {row.models_breakdown.map((m) => (
+              <div
+                key={`${m.provider}|${m.model}`}
+                className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,0.9fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.6fr)] gap-2 px-3 py-1.5 text-xs border-b last:border-0 hover:bg-muted/20"
+              >
+                <span className="font-mono truncate" title={m.model}>{m.model}</span>
+                <span>
+                  <Badge variant="outline" className="text-[10px]">{m.provider}</Badge>
+                </span>
+                <span className="text-right tabular-nums text-muted-foreground">{NUM.format(m.requests)}</span>
+                <span className="text-right tabular-nums font-mono">{EUR.format(m.cost_eur)}</span>
+                <span className="text-right tabular-nums font-mono text-emerald-600 dark:text-emerald-400">
+                  {EUR.format(m.revenue_eur)}
+                </span>
+                <span className="text-right tabular-nums text-muted-foreground">{m.share_pct.toFixed(1)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Card top modelli globali (cross-company) — utile per top spend platform-wide */
+function TopModelsCard({ topModels }: { topModels: AIUsageTopModel[] }) {
+  if (topModels.length === 0) return null;
+  const top = topModels.slice(0, 5);
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <Layers className="h-4 w-4" /> Top 5 modelli per costo (platform-wide)
+        </CardTitle>
+        <CardDescription className="text-xs">
+          Quale modello sta consumando più budget complessivo. Usa per decidere se cambiare il routing in <code className="bg-muted px-1 rounded">AI Config → Routing</code>.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0 pb-2 space-y-1.5">
+        {top.map((m, idx) => (
+          <div
+            key={`${m.provider}|${m.model}`}
+            className="grid grid-cols-[24px_minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,0.6fr)_minmax(0,0.8fr)_minmax(0,0.6fr)_minmax(0,0.8fr)] gap-2 items-center px-2 py-1.5 text-xs hover:bg-muted/30 rounded"
+          >
+            <span className="text-muted-foreground tabular-nums">#{idx + 1}</span>
+            <span className="font-mono truncate" title={m.model}>{m.model}</span>
+            <span><Badge variant="outline" className="text-[10px]">{m.provider}</Badge></span>
+            <span className="text-right tabular-nums text-muted-foreground">{NUM.format(m.requests)}</span>
+            <span className="text-right tabular-nums font-mono font-medium">{EUR.format(m.cost_eur)}</span>
+            <span className="text-right tabular-nums text-muted-foreground">{m.companies_using} co.</span>
+            <span className="text-right tabular-nums text-muted-foreground">{m.share_pct.toFixed(1)}%</span>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -420,12 +528,24 @@ export function AIUsageMonitor() {
     return total / summaries.length;
   }, [summaries]);
 
+  const downloadCSV = (csvContent: string, filenameSuffix: string) => {
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ai-usage-${filenameSuffix}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleExportCSV = () => {
     if (filteredSummaries.length === 0) return;
     const header = [
       "Azienda",
       "Costo Oggi (EUR)",
       "Costo Mese (EUR)",
+      "Ricavi Mese (EUR)",
+      "Margine Mese (EUR)",
       "Richieste Mese",
       "Top Provider",
       "Top Modello",
@@ -435,19 +555,59 @@ export function AIUsageMonitor() {
         csvEscape(r.company_name),
         csvEscape(r.today_cost_eur.toFixed(4)),
         csvEscape(r.month_cost_eur.toFixed(4)),
+        csvEscape(r.month_revenue_eur.toFixed(4)),
+        csvEscape(r.month_margin_eur.toFixed(4)),
         csvEscape(r.month_requests),
         csvEscape(r.top_provider),
         csvEscape(r.top_model),
       ].join(","),
     );
-    const csv = [header, ...rows].join("\r\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `ai-usage-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCSV([header, ...rows].join("\r\n"), "summary");
+  };
+
+  /** Export drill-down completo: una riga per (azienda \u00D7 modello). Pesante ma utile per pivot. */
+  const handleExportDrilldownCSV = () => {
+    if (filteredSummaries.length === 0) return;
+    const header = [
+      "Azienda",
+      "Provider",
+      "Modello",
+      "Richieste",
+      "Costo (EUR)",
+      "Ricavi (EUR)",
+      "Margine (EUR)",
+      "Share %",
+    ].join(",");
+    const rows: string[] = [];
+    for (const company of filteredSummaries) {
+      if (company.models_breakdown.length === 0) {
+        // Fallback: include la company anche se non ha breakdown (es. solo render)
+        rows.push([
+          csvEscape(company.company_name),
+          csvEscape(company.top_provider),
+          csvEscape(company.top_model),
+          csvEscape(company.month_requests),
+          csvEscape(company.month_cost_eur.toFixed(4)),
+          csvEscape(company.month_revenue_eur.toFixed(4)),
+          csvEscape(company.month_margin_eur.toFixed(4)),
+          "100.0",
+        ].join(","));
+        continue;
+      }
+      for (const m of company.models_breakdown) {
+        rows.push([
+          csvEscape(company.company_name),
+          csvEscape(m.provider),
+          csvEscape(m.model),
+          csvEscape(m.requests),
+          csvEscape(m.cost_eur.toFixed(4)),
+          csvEscape(m.revenue_eur.toFixed(4)),
+          csvEscape(m.margin_eur.toFixed(4)),
+          csvEscape(m.share_pct.toFixed(1)),
+        ].join(","));
+      }
+    }
+    downloadCSV([header, ...rows].join("\r\n"), "drilldown");
   };
 
   return (
@@ -677,6 +837,11 @@ export function AIUsageMonitor() {
         </Card>
       )}
 
+      {/* 🆕 Top 5 modelli platform-wide */}
+      {!isLoading && data?.topModels && (
+        <TopModelsCard topModels={data.topModels} />
+      )}
+
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
         <Select value={period} onValueChange={(v) => handlePresetChange(v as PeriodPreset)}>
@@ -748,15 +913,28 @@ export function AIUsageMonitor() {
         </Button>
 
         {filteredSummaries.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 ml-auto"
-            onClick={handleExportCSV}
-          >
-            <Download className="h-3.5 w-3.5 mr-1.5" />
-            Esporta CSV
-          </Button>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              onClick={handleExportCSV}
+              title="CSV con 1 riga per azienda (summary)"
+            >
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+              CSV summary
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              onClick={handleExportDrilldownCSV}
+              title="CSV con 1 riga per (azienda × modello) — utile per pivot table"
+            >
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+              CSV drill-down
+            </Button>
+          </div>
         )}
       </div>
 
@@ -776,14 +954,16 @@ export function AIUsageMonitor() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Header */}
-          <div className="grid grid-cols-6 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/40 border-b">
+          {/* Header — grid 8 colonne (matcha UsageRow espandibile: chevron+7) */}
+          <div className="grid grid-cols-[16px_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.1fr)] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/40 border-b">
+            <span></span>
             <span>Azienda</span>
             <span>Costo oggi</span>
             <span>Costo mese</span>
-            <span>Richieste mese</span>
-            <span>Provider</span>
-            <span>Modello</span>
+            <span>Richieste</span>
+            <span>Ricavi mese</span>
+            <span>Trend 7d</span>
+            <span>Top modello</span>
           </div>
 
           {isLoading ? (

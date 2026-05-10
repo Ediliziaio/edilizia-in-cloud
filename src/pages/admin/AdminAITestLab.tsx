@@ -25,9 +25,30 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Coins, Zap, Star, FlaskConical, TrendingUp, RefreshCw, Brain, Database,
+  ChevronDown, ChevronRight, Download,
 } from "lucide-react";
+import { Sparkline } from "@/components/admin/ai-shared/Sparkline";
 
 type Period = "24h" | "7d" | "30d" | "90d";
+
+interface DailyTrendPoint {
+  date: string; // YYYY-MM-DD
+  cost_usd: number;
+  calls: number;
+  avg_latency_ms: number;
+}
+
+interface RecentCall {
+  id: string;
+  created_at: string;
+  cost_usd: number;
+  latency_ms: number;
+  user_rating: number | null;
+  input_tokens: number;
+  output_tokens: number;
+  status: string | null;
+  error: string | null;
+}
 
 interface ModelStat {
   model_id: string;
@@ -44,6 +65,9 @@ interface ModelStat {
   avg_input_tokens: number;
   avg_output_tokens: number;
   last_call_at: string;
+  // 🆕 trend giornaliero per sparkline + drill-down ultime chiamate
+  daily_trend: DailyTrendPoint[];
+  recent_calls: RecentCall[];
 }
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -98,6 +122,17 @@ export default function AdminAITestLab() {
 
       // Group by (model_id, feature)
       const groups = new Map<string, ModelStat>();
+      // 🆕 Buffer per drill-down: ultime calls + daily trend per ogni gruppo
+      const dailyByKey = new Map<string, Map<string, { cost: number; calls: number; latency_sum: number }>>();
+      const recentByKey = new Map<string, RecentCall[]>();
+
+      const dayKey = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${dd}`;
+      };
+
       for (const row of data ?? []) {
         const r = row as Record<string, unknown>;
         const key = `${r.model_id}__${r.feature}`;
@@ -105,6 +140,34 @@ export default function AdminAITestLab() {
         const latency = Number(r.latency_ms ?? 0);
         const cost = Number(r.cost_usd ?? 0);
         const rating = r.user_rating != null ? Number(r.user_rating) : null;
+        const createdAt = String(r.created_at);
+
+        // 🆕 daily trend
+        const dailyMap = dailyByKey.get(key) ?? new Map();
+        const dk = dayKey(new Date(createdAt));
+        const dEntry = dailyMap.get(dk) ?? { cost: 0, calls: 0, latency_sum: 0 };
+        dEntry.cost += cost;
+        dEntry.calls += 1;
+        dEntry.latency_sum += latency;
+        dailyMap.set(dk, dEntry);
+        dailyByKey.set(key, dailyMap);
+
+        // 🆕 recent calls (max 10 per gruppo, già ordinato desc dalla query)
+        const recents = recentByKey.get(key) ?? [];
+        if (recents.length < 10) {
+          recents.push({
+            id: String(r.id ?? `${key}-${recents.length}`),
+            created_at: createdAt,
+            cost_usd: cost,
+            latency_ms: latency,
+            user_rating: rating,
+            input_tokens: Number(r.input_tokens ?? 0),
+            output_tokens: Number(r.output_tokens ?? 0),
+            status: r.status != null ? String(r.status) : null,
+            error: r.error != null ? String(r.error) : null,
+          });
+          recentByKey.set(key, recents);
+        }
 
         if (!existing) {
           groups.set(key, {
@@ -121,7 +184,9 @@ export default function AdminAITestLab() {
             rated_count: rating !== null ? 1 : 0,
             avg_input_tokens: Number(r.input_tokens ?? 0),
             avg_output_tokens: Number(r.output_tokens ?? 0),
-            last_call_at: String(r.created_at),
+            last_call_at: createdAt,
+            daily_trend: [],
+            recent_calls: [],
           });
         } else {
           existing.n_calls += 1;
@@ -156,6 +221,31 @@ export default function AdminAITestLab() {
         }
       }
 
+      // 🆕 Riempie daily_trend (incluso giorni a 0 nel range richiesto) e recent_calls
+      const periodStart = new Date(Date.now() - parsePeriodMs(period));
+      periodStart.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      for (const [key, stat] of groups) {
+        const dailyMap = dailyByKey.get(key) ?? new Map();
+        const trend: DailyTrendPoint[] = [];
+        const cursor = new Date(periodStart);
+        while (cursor <= today) {
+          const k = dayKey(cursor);
+          const v = dailyMap.get(k);
+          trend.push({
+            date: k,
+            cost_usd: v?.cost ?? 0,
+            calls: v?.calls ?? 0,
+            avg_latency_ms: v && v.calls > 0 ? v.latency_sum / v.calls : 0,
+          });
+          cursor.setDate(cursor.getDate() + 1);
+          if (trend.length > 95) break; // safety
+        }
+        stat.daily_trend = trend;
+        stat.recent_calls = recentByKey.get(key) ?? [];
+      }
+
       return Array.from(groups.values()).sort((a, b) => b.total_cost_usd - a.total_cost_usd);
     },
   });
@@ -169,6 +259,56 @@ export default function AdminAITestLab() {
     }),
     { n_calls: 0, total_cost: 0, models: new Set<string>() }
   );
+
+  // 🆕 Export CSV: 1 riga per (modello × feature)
+  const handleExportCSV = () => {
+    if (!stats || stats.length === 0) return;
+    const header = [
+      "Modello",
+      "Provider",
+      "Feature",
+      "N° calls",
+      "Costo totale (USD)",
+      "Costo medio (USD)",
+      "P50 (ms)",
+      "P95 (ms)",
+      "Avg rating",
+      "Rated count",
+      "Avg input tokens",
+      "Avg output tokens",
+      "Last call",
+    ].join(",");
+    const escape = (v: string | number | null | undefined) => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = stats.map((s) =>
+      [
+        escape(s.model_id),
+        escape(s.provider),
+        escape(s.feature),
+        escape(s.n_calls),
+        escape(s.total_cost_usd.toFixed(6)),
+        escape(s.avg_cost_usd.toFixed(6)),
+        escape(Math.round(s.p50_latency_ms)),
+        escape(Math.round(s.p95_latency_ms)),
+        escape(s.avg_rating?.toFixed(2) ?? ""),
+        escape(s.rated_count),
+        escape(Math.round(s.avg_input_tokens)),
+        escape(Math.round(s.avg_output_tokens)),
+        escape(s.last_call_at),
+      ].join(","),
+    );
+    const csv = [header, ...rows].join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ai-test-lab-${period}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-4 p-4 md:p-6">
@@ -184,6 +324,12 @@ export default function AdminAITestLab() {
         </div>
         <div className="flex gap-2">
           <KbIngestButton />
+          {stats && stats.length > 0 && (
+            <Button variant="outline" size="sm" onClick={handleExportCSV} title="Esporta confronto modelli in CSV">
+              <Download className="h-4 w-4 mr-2" />
+              CSV
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
             Aggiorna
@@ -284,6 +430,7 @@ export default function AdminAITestLab() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
+                    <th className="px-3 py-2 w-6"></th>
                     <th className="px-3 py-2 text-left">Modello</th>
                     <th className="px-3 py-2 text-left">Feature</th>
                     <th className="px-3 py-2 text-right">N° calls</th>
@@ -292,43 +439,13 @@ export default function AdminAITestLab() {
                     <th className="px-3 py-2 text-right">P50</th>
                     <th className="px-3 py-2 text-right">P95</th>
                     <th className="px-3 py-2 text-right">Rating</th>
+                    <th className="px-3 py-2 text-left">Trend costo</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {stats.map((s) => {
-                    const providerColor = PROVIDER_COLORS[s.provider] ?? "bg-muted text-muted-foreground";
-                    return (
-                      <tr key={`${s.model_id}__${s.feature}`} className="border-t hover:bg-muted/30">
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={`text-[10px] ${providerColor}`}>
-                              {s.provider}
-                            </Badge>
-                            <span className="font-mono text-xs">{s.model_id.split("/").slice(1).join("/")}</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">
-                          {FEATURE_LABELS[s.feature] ?? s.feature}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono text-xs">{s.n_calls}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs">{fmtUSD(s.avg_cost_usd, 6)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs font-semibold">{fmtUSD(s.total_cost_usd, 4)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs">{fmtMs(s.p50_latency_ms)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs text-amber-600">{fmtMs(s.p95_latency_ms)}</td>
-                        <td className="px-3 py-2 text-right">
-                          {s.avg_rating != null ? (
-                            <span className="inline-flex items-center gap-1 text-xs">
-                              <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                              {s.avg_rating.toFixed(1)}
-                              <span className="text-muted-foreground">({s.rated_count})</span>
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {stats.map((s) => (
+                    <ModelStatRow key={`${s.model_id}__${s.feature}`} stat={s} />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -336,6 +453,162 @@ export default function AdminAITestLab() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * ModelStatRow — riga espandibile per la tabella confronto modelli.
+ * Click → drill-down con sparkline + ultime 10 chiamate.
+ */
+function ModelStatRow({ stat }: { stat: ModelStat }) {
+  const [expanded, setExpanded] = useState(false);
+  const providerColor = PROVIDER_COLORS[stat.provider] ?? "bg-muted text-muted-foreground";
+  const hasData = stat.daily_trend.length >= 2 || stat.recent_calls.length > 0;
+
+  return (
+    <>
+      <tr
+        className={`border-t hover:bg-muted/30 ${hasData ? "cursor-pointer" : ""}`}
+        onClick={() => hasData && setExpanded((e) => !e)}
+      >
+        <td className="px-2 py-2 text-muted-foreground">
+          {hasData ? (
+            expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />
+          ) : null}
+        </td>
+        <td className="px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className={`text-[10px] ${providerColor}`}>
+              {stat.provider}
+            </Badge>
+            <span className="font-mono text-xs">{stat.model_id.split("/").slice(1).join("/")}</span>
+          </div>
+        </td>
+        <td className="px-3 py-2 text-xs text-muted-foreground">
+          {FEATURE_LABELS[stat.feature] ?? stat.feature}
+        </td>
+        <td className="px-3 py-2 text-right font-mono text-xs">{stat.n_calls}</td>
+        <td className="px-3 py-2 text-right font-mono text-xs">{fmtUSD(stat.avg_cost_usd, 6)}</td>
+        <td className="px-3 py-2 text-right font-mono text-xs font-semibold">{fmtUSD(stat.total_cost_usd, 4)}</td>
+        <td className="px-3 py-2 text-right font-mono text-xs">{fmtMs(stat.p50_latency_ms)}</td>
+        <td className="px-3 py-2 text-right font-mono text-xs text-amber-600">{fmtMs(stat.p95_latency_ms)}</td>
+        <td className="px-3 py-2 text-right">
+          {stat.avg_rating != null ? (
+            <span className="inline-flex items-center gap-1 text-xs">
+              <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+              {stat.avg_rating.toFixed(1)}
+              <span className="text-muted-foreground">({stat.rated_count})</span>
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </td>
+        <td className="px-3 py-2">
+          {stat.daily_trend.length >= 2 ? (
+            <Sparkline
+              data={stat.daily_trend.map((d) => ({ date: d.date, value: d.cost_usd }))}
+              tooltipPrefix="Costo del giorno"
+              formatValue={(v) => fmtUSD(v, 4)}
+              trendDirection="lower-is-better"
+              width={80}
+              height={20}
+            />
+          ) : (
+            <span className="text-[10px] text-muted-foreground">—</span>
+          )}
+        </td>
+      </tr>
+
+      {expanded && hasData && (
+        <tr className="bg-muted/20">
+          <td colSpan={10} className="px-6 py-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Trend giornaliero esteso (sparkline grande) */}
+              <div className="rounded-md border bg-background p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  Costo giornaliero · ultimi {stat.daily_trend.length} giorni
+                </p>
+                <div className="flex items-center justify-between gap-3">
+                  <Sparkline
+                    data={stat.daily_trend.map((d) => ({ date: d.date, value: d.cost_usd }))}
+                    width={240}
+                    height={40}
+                    trendDirection="lower-is-better"
+                    showLastValue
+                    formatValue={(v) => fmtUSD(v, 4)}
+                  />
+                  <div className="text-right text-[10px] space-y-0.5">
+                    <p className="text-muted-foreground">
+                      Avg: <span className="font-mono">{fmtUSD(stat.daily_trend.reduce((s, d) => s + d.cost_usd, 0) / Math.max(stat.daily_trend.length, 1), 4)}</span>
+                    </p>
+                    <p className="text-muted-foreground">
+                      Picco: <span className="font-mono">{fmtUSD(Math.max(...stat.daily_trend.map((d) => d.cost_usd), 0), 4)}</span>
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs font-medium text-muted-foreground mt-3 mb-1">
+                  Latenza media giornaliera
+                </p>
+                <Sparkline
+                  data={stat.daily_trend.map((d) => ({ date: d.date, value: d.avg_latency_ms }))}
+                  width={240}
+                  height={32}
+                  trendDirection="lower-is-better"
+                  showLastValue
+                  formatValue={(v) => fmtMs(v)}
+                />
+              </div>
+
+              {/* Ultime 10 chiamate */}
+              <div className="rounded-md border bg-background overflow-hidden">
+                <p className="text-xs font-medium text-muted-foreground px-3 py-2 border-b bg-muted/30">
+                  Ultime {stat.recent_calls.length} chiamate
+                </p>
+                <div className="max-h-60 overflow-y-auto">
+                  <table className="w-full text-[11px]">
+                    <thead className="text-[10px] text-muted-foreground bg-muted/20">
+                      <tr>
+                        <th className="px-2 py-1 text-left">Data</th>
+                        <th className="px-2 py-1 text-right">Costo</th>
+                        <th className="px-2 py-1 text-right">Latency</th>
+                        <th className="px-2 py-1 text-right">Tokens (in/out)</th>
+                        <th className="px-2 py-1 text-right">Rating</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stat.recent_calls.map((c) => (
+                        <tr key={c.id} className="border-t">
+                          <td className="px-2 py-1 text-muted-foreground tabular-nums">
+                            {new Date(c.created_at).toLocaleString("it-IT", {
+                              day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                            })}
+                          </td>
+                          <td className="px-2 py-1 text-right font-mono">{fmtUSD(c.cost_usd, 6)}</td>
+                          <td className="px-2 py-1 text-right font-mono text-amber-600">{fmtMs(c.latency_ms)}</td>
+                          <td className="px-2 py-1 text-right font-mono text-muted-foreground tabular-nums">
+                            {c.input_tokens.toLocaleString("it-IT")}/{c.output_tokens.toLocaleString("it-IT")}
+                          </td>
+                          <td className="px-2 py-1 text-right">
+                            {c.user_rating != null ? (
+                              <span className="inline-flex items-center gap-0.5">
+                                <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                                {c.user_rating}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
