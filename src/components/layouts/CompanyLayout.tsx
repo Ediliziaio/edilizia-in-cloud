@@ -91,6 +91,8 @@ import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNoti
 import { SilvioBellPopover } from "@/components/silvio/SilvioBellPopover";
 // MP-AIE-03: badge realtime con conteggio proposte azione AI pending
 import { ActionProposalsBadge } from "@/components/ai/ActionProposals/ActionProposalsBadge";
+// 🆕 GAP 4: voice quick FAB (premi e parla → AI persona auto-detected)
+import { VoiceQuickFAB } from "@/components/ai/VoiceQuickFAB";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -1251,6 +1253,8 @@ export function CompanyLayout() {
       <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
       {/* Silvio FAB — sempre visibile in basso a sinistra */}
       <SilvioFAB />
+      {/* 🆕 GAP 4: Voice quick FAB — bottom-right (sopra eventuali widget chat) */}
+      <VoiceQuickFAB />
     </SidebarProvider>
     </>
   );
