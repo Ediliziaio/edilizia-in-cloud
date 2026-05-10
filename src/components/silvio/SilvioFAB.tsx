@@ -16,18 +16,15 @@ import {
   MessageSquare,
   Brain,
   BrainCircuit,
-  FileUp,
   Search,
   X,
   Lightbulb,
   ArrowRight,
   // 🆕 Icon set espansa
-  Mic,
   Camera,
   Calculator,
   Sparkles,
   Inbox,
-  Wallet,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 // Lazy load: il SmartDocumentImportModal e il SilvioChatSheet sono pesanti

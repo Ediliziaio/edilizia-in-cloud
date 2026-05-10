@@ -38,9 +38,16 @@ import { tecnicoRoutes } from "@/routes/tecnicoRoutes";
 import { campoRoutes } from "@/routes/campoRoutes";
 import { portaleClienteRoutes } from "@/routes/portaleClienteRoutes";
 
-// Suspense fallback
+// Suspense fallback — full-screen overlay (fixed inset-0 z-40) per evitare
+// che il fallback "piccolo" lasci intravedere la landing/Home sottostante
+// durante il bootstrap dei chunks lazy. z-40 sta sotto al FullScreenSpinner
+// di SubdomainRedirect (z-50) ma sopra a qualsiasi shell di pagina parziale.
 const PageLoader = () => (
-  <div className="flex items-center justify-center h-full min-h-[200px]">
+  <div
+    className="fixed inset-0 z-40 flex items-center justify-center bg-background"
+    role="status"
+    aria-live="polite"
+  >
     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
   </div>
 );
