@@ -86,23 +86,46 @@ export function useCompanyDetail(id: string | undefined) {
     queryKey: queryKeys.companyDetail.detail(id),
     queryFn: async () => {
       if (!id) return null;
-      const [companyRes, ordersRes, profilesRes, ticketsRes] = await Promise.all([
+
+      // 🛠️ 2026-05-10 — Performance fix: prima caricavamo 5000 orders + 5000
+      // tickets per company per calcolare 4 numeri (count + sum). Su company
+      // medie/grandi: 200-500 KB di payload e 50-200ms di parse client.
+      //
+      // Ora: 5 head-only COUNT queries (parallel) + 1 GET orders solo
+      // total_amount con limit 5000 per la sum (necessario senza RPC server).
+      // Riduzione attesa: 80-95% bandwidth, latenza simile o migliore grazie
+      // a head:true che salta il transfer dei row data.
+      const [
+        companyRes,
+        ordersCountRes,
+        ordersAmountRes,
+        profilesCountRes,
+        ticketsCountRes,
+        openTicketsCountRes,
+      ] = await Promise.all([
         supabase.from("companies").select("*").eq("id", id).single(),
-        supabase.from("orders").select("id, total_amount").eq("company_id", id).limit(5000),
+        // Count orders senza payload
+        supabase.from("orders").select("id", { count: "exact", head: true }).eq("company_id", id),
+        // Per la sum: solo la colonna numerica, limite di sicurezza
+        supabase.from("orders").select("total_amount").eq("company_id", id).limit(5000),
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", id),
-        supabase.from("tickets").select("id, status").eq("company_id", id).limit(5000),
+        supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", id),
+        // Count tickets aperti (server-side filter via .neq)
+        supabase.from("tickets").select("id", { count: "exact", head: true }).eq("company_id", id).neq("status", "risolto"),
       ]);
       if (!companyRes.data) return null;
       const company = companyRes.data as unknown as Company;
-      const ordersValue = ordersRes.data?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0;
-      const openTickets = ticketsRes.data?.filter((t) => t.status !== "risolto").length || 0;
+      const ordersValue = ordersAmountRes.data?.reduce(
+        (sum, o) => sum + (o.total_amount || 0),
+        0,
+      ) || 0;
       const stats: CompanyStats = {
-        ordersCount: ordersRes.data?.length || 0,
+        ordersCount: ordersCountRes.count || 0,
         ordersValue,
-        customersCount: profilesRes.count || 0,
-        ticketsCount: ticketsRes.data?.length || 0,
-        openTicketsCount: openTickets,
-        teamCount: profilesRes.count || 0,
+        customersCount: profilesCountRes.count || 0,
+        ticketsCount: ticketsCountRes.count || 0,
+        openTicketsCount: openTicketsCountRes.count || 0,
+        teamCount: profilesCountRes.count || 0,
       };
       return { company, stats };
     },

@@ -392,6 +392,44 @@ export function OrderItemsList({
     resetForm();
   };
 
+  /**
+   * 🆕 2026-05-10 — "Aggiungi e continua": stesso flow di handleSaveItem
+   * MA non chiude il dialog. Resetta solo i campi (quantità, costi, descrizione)
+   * mantenendo fornitore + IVA + stato così l'utente che inserisce 5 righe
+   * dello stesso fornitore non deve riselezionarli ogni volta.
+   *
+   * Ottimizza il caso "ho appena ricevuto un DDT, devo aggiungere 8 articoli
+   * dello stesso fornitore" — prima erano 8 cicli di apri/chiudi dialog.
+   */
+  const handleSaveAndContinue = () => {
+    setDialogError(null);
+    if (!itemName.trim()) { setDialogError("Inserisci il nome dell'articolo."); return; }
+    const quantity = Math.round(Number(itemQuantity));
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setDialogError("La quantità deve essere maggiore di zero."); return;
+    }
+    const purchasePrice = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
+    if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
+      setDialogError("Il costo di acquisto non può essere negativo."); return;
+    }
+
+    // Salva l'item (riusa la stessa logica di handleSaveItem)
+    handleSaveItem();
+
+    // handleSaveItem chiude il dialog e resetta tutto. Lo riapriamo con i
+    // campi "contestuali" pre-compilati (fornitore + IVA + stato) per
+    // velocizzare l'inserimento di righe simili.
+    const keepSupplier = itemSupplierId;
+    const keepVat = itemVatRate;
+    const keepStatus = itemStatus;
+    setTimeout(() => {
+      setDialogOpen(true);
+      setItemSupplierId(keepSupplier);
+      setItemVatRate(keepVat);
+      setItemStatus(keepStatus);
+    }, 0);
+  };
+
   const handleArticleSelect = (name: string, templateData?: ArticleTemplateData) => {
     setItemName(name);
     if (templateData) {
@@ -926,9 +964,26 @@ export function OrderItemsList({
 
                 <TabsContent value="new">
                   {renderNewArticleForm()}
-                  <DialogFooter className="mt-4">
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
-                    <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()}>Aggiungi</Button>
+                  <DialogFooter className="mt-4 flex-col sm:flex-row gap-2">
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1">
+                      Annulla
+                    </Button>
+                    {/* 🆕 Aggiungi e continua: salva + riapre dialog con
+                        fornitore/IVA/stato pre-compilati per inserimenti veloci */}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleSaveAndContinue}
+                      disabled={!itemName.trim()}
+                      className="sm:order-2 gap-1.5"
+                      title="Salva l'articolo e apri subito il form per il prossimo (mantiene fornitore, IVA, stato)"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Aggiungi e continua
+                    </Button>
+                    <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3">
+                      Aggiungi
+                    </Button>
                   </DialogFooter>
                 </TabsContent>
 
@@ -992,9 +1047,25 @@ export function OrderItemsList({
             ) : (
               <>
                 {renderNewArticleForm()}
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
-                  <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()}>
+                <DialogFooter className="flex-col sm:flex-row gap-2">
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1">
+                    Annulla
+                  </Button>
+                  {/* 🆕 "Aggiungi e continua" solo in creazione (non in edit) */}
+                  {editingIndex === null && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleSaveAndContinue}
+                      disabled={!itemName.trim()}
+                      className="sm:order-2 gap-1.5"
+                      title="Salva e apri subito il form per il prossimo articolo (mantiene fornitore, IVA, stato)"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Aggiungi e continua
+                    </Button>
+                  )}
+                  <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3">
                     {editingIndex !== null ? "Salva" : "Aggiungi"}
                   </Button>
                 </DialogFooter>

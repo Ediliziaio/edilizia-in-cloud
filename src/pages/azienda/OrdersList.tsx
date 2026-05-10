@@ -35,6 +35,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
 import { OrdersFilters } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
@@ -133,6 +134,45 @@ function OrdersListInner() {
 
   const [page, setPage] = useState(1);
   const pageSize = 20;
+
+  // 🛠️ 2026-05-10 — Server-side sorting per commesse.
+  //
+  // Bug originale: il sort nella tabella era solo client-side (useTableSort)
+  // → sortava solo le 20 righe della pagina corrente. Per aziende con 100+
+  // commesse l'utente non riusciva a vedere "le più care", "le più vecchie"
+  // o ordinarle per cliente in modo affidabile.
+  //
+  // Fix: aggiungiamo sortField/sortDir lato URL+state, mappiamo alle colonne
+  // DB sortabili e riordiniamo via Postgres. Le colonne "computed"
+  // (totalIvato, margine, costi variabili) restano client-side perché non
+  // esistono in DB — limitazione accettabile, l'utente ha tutti i casi
+  // pratici (data, importo, codice, cliente, scadenza) coperti server-side.
+  type SortableField = "created_at" | "total_amount" | "expected_date"
+    | "warehouse_arrival_date" | "work_start_date" | "work_end_date"
+    | "order_code" | "description";
+  const [sortField, setSortField] = useState<SortableField>(() => {
+    try {
+      const v = localStorage.getItem("orders-sort-field");
+      if (v && ["created_at","total_amount","expected_date","warehouse_arrival_date",
+        "work_start_date","work_end_date","order_code","description"].includes(v)) {
+        return v as SortableField;
+      }
+    } catch { /* private browsing */ }
+    return "created_at";
+  });
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(() => {
+    try {
+      const v = localStorage.getItem("orders-sort-dir");
+      return v === "asc" ? "asc" : "desc";
+    } catch { return "desc"; }
+  });
+  // Persist su LocalStorage
+  useEffect(() => {
+    try { localStorage.setItem("orders-sort-field", sortField); } catch { /* noop */ }
+  }, [sortField]);
+  useEffect(() => {
+    try { localStorage.setItem("orders-sort-dir", sortDir); } catch { /* noop */ }
+  }, [sortDir]);
   const selectedYear = yearFilter !== "all" ? Number(yearFilter) : null;
   const hasSelectedYear = Number.isInteger(selectedYear);
 
@@ -164,7 +204,7 @@ function OrdersListInner() {
     : null;
 
   const { data: ordersResult, isLoading } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange],
+    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir],
     queryFn: async () => {
       if (!effectiveCompany?.id) return { orders: [] as OrderWithDetails[], totalCount: 0 };
 
@@ -275,9 +315,16 @@ function OrdersListInner() {
       if (expectedDateRange.from) query = query.gte("expected_date", expectedDateRange.from.toISOString().split("T")[0]);
       if (expectedDateRange.to) query = query.lte("expected_date", new Date(expectedDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
 
+      // 🛠️ Server-side sort: usa sortField/sortDir dal state (default
+      // created_at desc). NULL last per scadenze/date così le commesse
+      // senza data programmata finiscono in fondo (UX più chiara).
+      const isDateSort = ["expected_date", "warehouse_arrival_date", "work_start_date", "work_end_date"].includes(sortField);
       query = query
         .range((page - 1) * pageSize, page * pageSize - 1)
-        .order("created_at", { ascending: false });
+        .order(sortField, {
+          ascending: sortDir === "asc",
+          nullsFirst: isDateSort ? false : (sortDir === "asc"),
+        });
 
       const { data, error, count } = await query;
       if (error) throw error;
@@ -2022,6 +2069,57 @@ function OrdersListInner() {
             />
           ) : (
             <div className="space-y-4">
+              {/* 🆕 Sort selector — server-side sort dell'intero dataset
+                  (non solo della pagina visibile). Persisted in localStorage. */}
+              <div className="flex flex-wrap items-center gap-2 px-1">
+                <span className="text-xs text-muted-foreground font-medium">Ordina:</span>
+                <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
+                  <SelectTrigger className="h-8 w-auto min-w-[180px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_at">Data creazione</SelectItem>
+                    <SelectItem value="order_code">Codice commessa</SelectItem>
+                    <SelectItem value="description">Descrizione</SelectItem>
+                    <SelectItem value="total_amount">Importo imponibile</SelectItem>
+                    <SelectItem value="expected_date">Data posa prevista</SelectItem>
+                    <SelectItem value="warehouse_arrival_date">Arrivo merce</SelectItem>
+                    <SelectItem value="work_start_date">Inizio lavori</SelectItem>
+                    <SelectItem value="work_end_date">Fine lavori</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
+                  <SelectTrigger className="h-8 w-auto min-w-[140px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">{
+                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
+                        ? "↓ Più recente / grande"
+                        : "↓ Z → A"
+                    }</SelectItem>
+                    <SelectItem value="asc">{
+                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
+                        ? "↑ Più vecchio / piccolo"
+                        : "↑ A → Z"
+                    }</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(sortField !== "created_at" || sortDir !== "desc") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => { setSortField("created_at"); setSortDir("desc"); setPage(1); }}
+                  >
+                    Ripristina
+                  </Button>
+                )}
+                <span className="ml-auto text-[11px] text-muted-foreground hidden sm:block">
+                  Click sulle colonne per ordinare la pagina corrente
+                </span>
+              </div>
+
               <OrdersTable
                 orders={visibleOrders}
                 onDelete={(id) => deleteOrderMutation.mutate(id)}
