@@ -123,7 +123,13 @@ Rispondi ESATTAMENTE con un oggetto JSON conforme allo schema:
 }
 
 REGOLE:
-- "thinking" SEMPRE compilato col tuo ragionamento
+- "thinking": MASSIMO 2-5 frasi di ragionamento INTERNO, NON la risposta.
+  ⚠ NON mettere mai dentro "thinking" la risposta completa che vuoi mostrare
+  all'utente. "thinking" è un appunto privato (NON mostrato), non l'output finale.
+  Esempio CORRETTO di thinking: "L'utente chiede X. Ho usato il tool Y che ritorna Z.
+  Calcolo: A+B=C. Confidenza media perché manca dato D."
+- "answer" è la risposta COMPLETA che l'utente vede (markdown, dettagli, calcoli, scenari).
+  ⚠ Se la risposta è lunga 200+ parole, va TUTTA dentro "answer", NON dentro "thinking".
 - "confidence":
   - "high" SOLO se hai dati sicuri da CONTEXT RAG o tool
   - "medium" per inferenze plausibili
@@ -167,16 +173,71 @@ export function parseStructuredResponse(raw: string): StructuredAiResponse | nul
   const jsonSlice = s.substring(first, last + 1);
   try {
     const parsed = JSON.parse(jsonSlice);
-    if (typeof parsed?.answer !== "string" || !parsed.answer) {
-      return null;
-    }
-    return parsed as StructuredAiResponse;
+    return normalizeAndValidate(parsed);
   } catch {
     // Fallback regex: modelli piccoli (Ministral 3B, Llama 3 8B) producono
     // JSON malformato (stringhe non chiuse, virgole mancanti). Per non
     // mostrare MAI JSON crudo all'utente, proviamo a estrarre i campi via regex.
     return recoverFromMalformedJson(jsonSlice, s);
   }
+}
+
+/**
+ * 🆕 Bug fix 2026-05-10: il modello (specie Claude Haiku/Mistral medi) talvolta
+ * mette la risposta vera dentro `thinking` invece che in `answer`, oppure
+ * lascia `answer` vuota/troppo corta. Detection + recovery:
+ *   - Se answer è valida → use as-is
+ *   - Se answer è vuota/molto corta MA thinking è sostanziale → use thinking
+ *   - Se entrambi vuoti → null (chiamante mostra raw)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeAndValidate(parsed: any): StructuredAiResponse | null {
+  if (!parsed || typeof parsed !== "object") return null;
+
+  const answer = typeof parsed.answer === "string" ? parsed.answer.trim() : "";
+  const thinking = typeof parsed.thinking === "string" ? parsed.thinking.trim() : "";
+
+  // Caso 1: answer valida (>50 char) → usa answer
+  if (answer.length > 50) {
+    return {
+      thinking: thinking.substring(0, 2000),
+      confidence: parsed.confidence ?? "medium",
+      uncertainty_reasons: parsed.uncertainty_reasons,
+      answer,
+      citations: parsed.citations,
+      no_rag_prefix: parsed.no_rag_prefix,
+      followup_suggestions: parsed.followup_suggestions,
+      requires_human_review: parsed.requires_human_review,
+      propose_action_id: parsed.propose_action_id,
+    };
+  }
+
+  // Caso 2: answer vuota/corta MA thinking è sostanzioso (>100 char) → SWAP
+  // Il modello ha invertito i campi: tratta il "ragionamento esteso" come risposta.
+  if (thinking.length > 100) {
+    return {
+      thinking: "", // svuotato (era effettivamente la risposta)
+      confidence: parsed.confidence ?? "medium",
+      uncertainty_reasons: parsed.uncertainty_reasons,
+      answer: thinking, // <- swap: il "thinking" diventa visibile
+      citations: parsed.citations,
+      no_rag_prefix: parsed.no_rag_prefix,
+      followup_suggestions: parsed.followup_suggestions,
+      requires_human_review: parsed.requires_human_review,
+      propose_action_id: parsed.propose_action_id,
+    };
+  }
+
+  // Caso 3: answer breve (es. 1-50 char) ma esistente → usa lo stesso
+  if (answer.length > 0) {
+    return {
+      thinking: thinking.substring(0, 2000),
+      confidence: parsed.confidence ?? "medium",
+      answer,
+    } as StructuredAiResponse;
+  }
+
+  return null;
 }
 
 /**
@@ -208,12 +269,35 @@ function recoverFromMalformedJson(jsonSlice: string, fullText: string): Structur
       .replace(/\\\\/g, "\\")
       .replace(/\\t/g, "\t")
       .trim();
-    if (cleanAnswer.length > 0) {
+    if (cleanAnswer.length > 50) {
+      // Caso normale: answer valida
       const thinkingMatch = /"thinking"\s*:\s*"((?:[^"\\]|\\.)*)"/s.exec(jsonSlice);
       const confMatch = /"confidence"\s*:\s*"(high|medium|low)"/i.exec(jsonSlice);
       return {
         thinking: thinkingMatch ? thinkingMatch[1].slice(0, 2000) : "",
         confidence: (confMatch?.[1]?.toLowerCase() as "high" | "medium" | "low") ?? "low",
+        answer: cleanAnswer,
+      };
+    }
+    // 🆕 Caso swap: answer corta, thinking lungo → usa thinking come answer
+    const thinkingLooseMatch = /"thinking"\s*:\s*"([\s\S]*?)(?:"\s*(?:[,}]|$)|$)/s.exec(jsonSlice);
+    const thinkingContent = thinkingLooseMatch?.[1]
+      ?.replace(/\\n/g, "\n")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\")
+      .trim();
+    if (thinkingContent && thinkingContent.length > 100) {
+      return {
+        thinking: "",
+        confidence: "medium" as const,
+        answer: thinkingContent,
+      };
+    }
+    // Fallback: usa answer corta come ultima spiaggia
+    if (cleanAnswer.length > 0) {
+      return {
+        thinking: "",
+        confidence: "low" as const,
         answer: cleanAnswer,
       };
     }

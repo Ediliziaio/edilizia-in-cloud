@@ -592,6 +592,43 @@ serve(async (req: Request) => {
       }
     }
 
+    // 🆕 BUG FIX 2026-05-10: safety net FINALE per JSON crudo non parsato
+    // Se il contenuto finale inizia con `{ "thinking"` o `{"thinking"`, il parser
+    // ha fallito silenzioso → l'utente vedrebbe JSON crudo. Tentiamo strip
+    // aggressivo del wrapper come ultima spiaggia.
+    if (
+      finalContent &&
+      /^\s*[`{[]/.test(finalContent) &&
+      /"(?:thinking|answer|confidence)"\s*:/.test(finalContent.substring(0, 200))
+    ) {
+      console.warn(`[ai-orchestrator/${personaKey}] safety net: JSON-looking content detected post-parse, stripping wrapper`);
+      // Tentativo 1: ri-parse con il fixer
+      const recovered = parseStructuredResponse(finalContent);
+      if (recovered?.answer) {
+        finalContent = recovered.answer;
+      } else {
+        // Tentativo 2: regex strip aggressiva
+        const answerMatch = /"answer"\s*:\s*"([\s\S]+?)"\s*[,}]/s.exec(finalContent);
+        if (answerMatch?.[1]) {
+          finalContent = answerMatch[1]
+            .replace(/\\n/g, "\n")
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, "\\")
+            .trim();
+        } else {
+          // Tentativo 3: estrai content del thinking se presente
+          const thinkingMatch = /"thinking"\s*:\s*"([\s\S]+?)(?:"\s*[,}]|$)/s.exec(finalContent);
+          if (thinkingMatch?.[1] && thinkingMatch[1].length > 50) {
+            finalContent = thinkingMatch[1]
+              .replace(/\\n/g, "\n")
+              .replace(/\\"/g, '"')
+              .replace(/\\\\/g, "\\")
+              .trim();
+          }
+        }
+      }
+    }
+
     // ── MP-03: Citation enforcement validation ──────────────────────────
     const citationMode = getCitationMode();
     const citationCheck = validateCitations(finalContent, ragSources, citationMode);

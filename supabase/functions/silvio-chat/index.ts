@@ -865,6 +865,29 @@ serve(async (req: Request) => {
       }
     }
 
+    // 🆕 BUG FIX 2026-05-10: safety net JSON crudo (vedi ai-orchestrator pari)
+    if (
+      finalContent &&
+      /^\s*[`{[]/.test(finalContent) &&
+      /"(?:thinking|answer|confidence)"\s*:/.test(finalContent.substring(0, 200))
+    ) {
+      console.warn(`[silvio-chat] safety net: JSON-looking content detected, stripping wrapper`);
+      const recovered = parseStructuredResponse(finalContent);
+      if (recovered?.answer) {
+        finalContent = recovered.answer;
+      } else {
+        const answerMatch = /"answer"\s*:\s*"([\s\S]+?)"\s*[,}]/s.exec(finalContent);
+        if (answerMatch?.[1]) {
+          finalContent = answerMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\").trim();
+        } else {
+          const thinkingMatch = /"thinking"\s*:\s*"([\s\S]+?)(?:"\s*[,}]|$)/s.exec(finalContent);
+          if (thinkingMatch?.[1] && thinkingMatch[1].length > 50) {
+            finalContent = thinkingMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\").trim();
+          }
+        }
+      }
+    }
+
     finalContent = appendEvidenceFooter(finalContent, toolCallsLog, lastResult);
 
     // ── MP-03: Citation enforcement validation ──────────────────────────
