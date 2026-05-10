@@ -1153,9 +1153,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           queryClient.invalidateQueries({
             queryKey: queryKeys.featureFlags.companyOverrides(effCompanyId),
           });
+          // 🛠️ 2026-05-10 cleanup: prima invalidavamo anche `["subscription-limits"]`
+          // e `["current-plan"]` ma nessuna query nel codebase usa queste chiavi
+          // (le subscription limits stanno in `["subscription-plan", planId]` e
+          // `["order-count", companyId]` via queryKeys.subscriptionLimits).
+          // Manteniamo `["company-subscription"]` come prefix-match: matcha tutte
+          // le query `["company-subscription", *]` definite in
+          // queryKeys.companySubscription.subscription(id).
           queryClient.invalidateQueries({ queryKey: ["company-subscription"] });
-          queryClient.invalidateQueries({ queryKey: ["subscription-limits"] });
-          queryClient.invalidateQueries({ queryKey: ["current-plan"] });
+          queryClient.invalidateQueries({ queryKey: ["subscription-plan"] });
+          queryClient.invalidateQueries({ queryKey: ["order-count", effCompanyId] });
+          queryClient.invalidateQueries({ queryKey: ["user-count", effCompanyId] });
         },
       )
       .subscribe();

@@ -286,8 +286,12 @@ export function CreateCustomerDialog({
           });
         },
       );
+      // Invalida le 2 chiavi reali in uso nel codebase:
+      //   - companyCustomersKeys.byCompany — alimentata da useCompanyCustomers
+      //     (dropdown commesse, ticket, interventi)
+      //   - queryKeys.customersList.all — alimentata da CustomersList page
+      // La key "customers" legacy è stata rimossa (nessuna query la usava più).
       queryClient.invalidateQueries({ queryKey: companyCustomersKeys.byCompany(effectiveCompany?.id) });
-      queryClient.invalidateQueries({ queryKey: ["customers", effectiveCompany?.id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
       if (selectedDocumentCount > 0) {
         try {

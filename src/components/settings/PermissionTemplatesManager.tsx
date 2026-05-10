@@ -105,8 +105,12 @@ export function PermissionTemplatesManager() {
       toast({ title: editingTemplate ? "Template aggiornato" : "Template creato" });
       closeDialog();
     },
-    onError: () => {
-      toast({ title: "Errore", variant: "destructive" });
+    onError: (err) => {
+      toast({
+        title: "Errore salvataggio template",
+        description: err instanceof Error ? err.message : "Riprova tra qualche istante.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -119,8 +123,12 @@ export function PermissionTemplatesManager() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.permissionTemplatesAll });
       toast({ title: "Template eliminato" });
     },
-    onError: () => {
-      toast({ title: "Errore", variant: "destructive" });
+    onError: (err) => {
+      toast({
+        title: "Errore eliminazione template",
+        description: err instanceof Error ? err.message : "Riprova tra qualche istante.",
+        variant: "destructive",
+      });
     },
   });
 

@@ -66,6 +66,8 @@ export default function CompanyCostsManager() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteGroupName, setDeleteGroupName] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  // 🛠️ 2026-05-10: previene double-submit del bottone "Genera ora" (#7 audit fix).
+  const [generatingRecurring, setGeneratingRecurring] = useState(false);
 
   // Filters
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
@@ -299,20 +301,30 @@ export default function CompanyCostsManager() {
                     <Button
                       variant="outline"
                       size="sm"
+                      disabled={generatingRecurring}
                       onClick={async () => {
+                        if (generatingRecurring) return;
+                        setGeneratingRecurring(true);
                         try {
                           const { data: result, error } = await supabase.functions.invoke("generate-recurring-costs", {
                             body: { company_id: companyId },
                           });
                           if (error) throw error;
                           toast({ title: `Generati ${result?.created || 0} costi ricorrenti` });
-                        } catch {
-                          toast({ title: "Errore nella generazione", variant: "destructive" });
+                        } catch (err) {
+                          toast({
+                            title: "Errore nella generazione",
+                            description: err instanceof Error ? err.message : "Riprova tra qualche istante.",
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setGeneratingRecurring(false);
                         }
                       }}
                       className="gap-1"
                     >
-                      <Repeat className="h-4 w-4" /> Genera ora (auto: 1° del mese)
+                      <Repeat className="h-4 w-4" />
+                      {generatingRecurring ? "Generazione..." : "Genera ora (auto: 1° del mese)"}
                     </Button>
                   </UITooltipTrigger>
                   <UITooltipContent side="bottom" className="max-w-[240px] text-xs">

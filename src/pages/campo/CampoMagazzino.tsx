@@ -97,7 +97,12 @@ export default function CampoMagazzino() {
       toast.success("Segnalazione inviata");
       setSegnalazioneId(null);
     },
-    onError: () => { toast.error("Errore"); setSegnalazioneId(null); },
+    onError: (err) => {
+      toast.error("Errore segnalazione riordino", {
+        description: err instanceof Error ? err.message : "Riprova tra qualche istante.",
+      });
+      setSegnalazioneId(null);
+    },
   });
 
   const scarseCount = scorte.filter((s: any) => s.quantita_attuale <= (s.quantita_minima ?? 1)).length;

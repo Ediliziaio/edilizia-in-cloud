@@ -117,7 +117,12 @@ export function EmailPricingConfig() {
     const { error } = await supabase
       .from("platform_settings" as never)
       .upsert({ key: "email_signup_bonus_eur", value: signupBonus, updated_at: new Date().toISOString() } as never, { onConflict: "key" as never });
-    if (error) { toast.error("Errore"); return; }
+    if (error) {
+      toast.error("Errore salvataggio bonus signup", {
+        description: error.message ?? "Impossibile salvare la configurazione.",
+      });
+      return;
+    }
     toast.success("Bonus signup salvato");
     queryClient.invalidateQueries({ queryKey: ["platform-settings-email-bonus"] });
   };

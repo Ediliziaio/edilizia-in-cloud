@@ -34,10 +34,18 @@ export function RoleBasedRedirect() {
       if (["company_staff", "salesperson", "call_center", "employee", "subcontractor", "multi_company_user"].includes(role || "") && user) {
         setCheckingPassword(true);
         try {
+          // 🛠️ Bug fix 2026-05-10: usavamo `.maybeSingle()` ma per
+          // multi_company_user esistono N righe staff_permissions (una per
+          // company accessibile) → PGRST116 multiple rows. Usiamo limit(1)
+          // ordinato per updated_at DESC per prendere l'entry più recente,
+          // cosicché se l'admin di una company ha resettato la password,
+          // il flag must_change_password si propaga al login successivo.
           const { data, error } = await supabase
             .from("staff_permissions")
-            .select("must_change_password")
+            .select("must_change_password, updated_at")
             .eq("user_id", user.id)
+            .order("updated_at", { ascending: false, nullsFirst: false })
+            .limit(1)
             .maybeSingle();
 
           if (cancelled) return;
