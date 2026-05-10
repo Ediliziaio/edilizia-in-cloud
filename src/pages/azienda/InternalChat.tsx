@@ -1403,10 +1403,10 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
             toast.error("Nessun testo trascritto");
             return;
           }
-          // Auto-fill input + auto-send (Silvio only)
+          // Auto-fill input + auto-send (Silvio cliente + Silvio Admin)
           setNewMsg(text);
           setTimeout(() => {
-            if (isSilvioChannel) {
+            if (isSilvioChannel || isSilvioAdminChannel) {
               setNewMsg("");
               sendToSilvio(text);
             } else {
@@ -1425,7 +1425,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
     } catch (e) {
       toast.error(`Impossibile accedere al microfono: ${e instanceof Error ? e.message : "permesso negato"}`);
     }
-  }, [isSilvioChannel, sendToSilvio]);
+  }, [isSilvioChannel, isSilvioAdminChannel, sendToSilvio]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
