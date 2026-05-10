@@ -461,9 +461,6 @@ export default function SettingsIntegrations() {
         </Alert>
       )}
 
-      {/* 🆕 GAP 7b: Email OAuth connections (Gmail/Outlook native) */}
-      <EmailOAuthConnectionsCard />
-
       <div className="grid gap-3 md:grid-cols-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
@@ -551,6 +548,11 @@ export default function SettingsIntegrations() {
           />
         ))}
       </div>
+
+      {/* GAP 7b: Email OAuth — collegate dell'azienda (vista admin).
+          Spostato sotto la griglia principale: le calendar/ads connections
+          sono primarie, le email/triage sono integrazioni avanzate AI. */}
+      <EmailOAuthConnectionsCard />
 
       {/* WhatsApp Bot AI Card */}
       <Card

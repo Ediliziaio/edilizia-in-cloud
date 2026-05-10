@@ -56,9 +56,21 @@ const STATUS_BADGE: Record<string, { label: string; color: string; icon: typeof 
   error:   { label: "Errore",     color: "bg-rose-100 text-rose-700 border-rose-300", icon: AlertCircle },
 };
 
-export function EmailOAuthConnectionsCard() {
+interface EmailOAuthConnectionsCardProps {
+  /**
+   * 'company' (default): mostra TUTTE le email connesse dell'azienda — vista
+   * admin in /azienda/impostazioni/integrazioni.
+   * 'user': mostra SOLO le email connesse dall'utente corrente — vista
+   * personale in /azienda/impostazioni/mio-profilo.
+   */
+  scope?: "company" | "user";
+}
+
+export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConnectionsCardProps = {}) {
   const qc = useQueryClient();
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
+  const userId = user?.id ?? null;
+  const isUserScope = scope === "user";
   const [connecting, setConnecting] = useState<"gmail" | "outlook" | null>(null);
   const [diagOpen, setDiagOpen] = useState(false);
 
@@ -78,15 +90,18 @@ export function EmailOAuthConnectionsCard() {
   });
 
   const { data: connections = [], isLoading } = useQuery({
-    queryKey: ["email-oauth-connections", effectiveCompany?.id],
-    enabled: !!effectiveCompany?.id,
+    queryKey: ["email-oauth-connections", effectiveCompany?.id, scope, userId],
+    enabled: !!effectiveCompany?.id && (!isUserScope || !!userId),
     queryFn: async (): Promise<OAuthConnectionMeta[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      let q = (supabase as any)
         .from("v_email_oauth_connections_meta")
-        .select("id, provider, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_interval_minutes, expires_at, created_at")
-        .eq("company_id", effectiveCompany!.id)
-        .order("created_at", { ascending: false });
+        .select("id, provider, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_interval_minutes, expires_at, created_at, user_id")
+        .eq("company_id", effectiveCompany!.id);
+      if (isUserScope && userId) {
+        q = q.eq("user_id", userId);
+      }
+      const { data, error } = await q.order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as OAuthConnectionMeta[];
     },
@@ -151,11 +166,12 @@ export function EmailOAuthConnectionsCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Mail className="h-4 w-4 text-violet-600" />
-          Email Triage AI — Account connessi
+          {isUserScope ? "Le mie email collegate" : "Email Triage AI — Account connessi"}
         </CardTitle>
         <CardDescription className="text-xs">
-          Collega Gmail o Outlook: l'AI legge le email in arrivo, le classifica per priorità (alta/media/bassa)
-          e suggerisce azioni (lead nuovo / fattura / ticket / pratica). Polling automatico ogni 10 minuti.
+          {isUserScope
+            ? "Collega il TUO Gmail o Outlook personale: l'AI legge le tue email in arrivo, le classifica per priorità e suggerisce azioni. Polling automatico ogni 10 minuti, sempre filtrato sul tuo account."
+            : "Collega Gmail o Outlook: l'AI legge le email in arrivo, le classifica per priorità (alta/media/bassa) e suggerisce azioni (lead nuovo / fattura / ticket / pratica). Polling automatico ogni 10 minuti."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

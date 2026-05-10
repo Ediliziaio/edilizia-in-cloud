@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
 
 // ── Role labels ──
 const ROLE_LABELS: Record<string, string> = {
@@ -342,6 +343,9 @@ export default function MioProfilo() {
           <TabsTrigger value="calendari" className="gap-1.5 text-xs sm:text-sm">
             <CalendarDays className="h-3.5 w-3.5" /> Calendari
           </TabsTrigger>
+          <TabsTrigger value="email" className="gap-1.5 text-xs sm:text-sm">
+            <Mail className="h-3.5 w-3.5" /> Email
+          </TabsTrigger>
           <TabsTrigger value="notifiche" className="gap-1.5 text-xs sm:text-sm">
             <Bell className="h-3.5 w-3.5" /> Notifiche
           </TabsTrigger>
@@ -641,6 +645,28 @@ export default function MioProfilo() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ════════════ TAB EMAIL — connessioni personali ════════════ */}
+        <TabsContent value="email" className="space-y-5 mt-0">
+          <Card className="bg-blue-50/30 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <Mail className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-blue-800 dark:text-blue-300">
+                    Le tue email collegate
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                    Come per il calendario, ogni utente collega il proprio Gmail
+                    o Outlook personale. Vedi solo le tue connessioni qui sotto;
+                    le email di altri membri del team non sono visibili.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <EmailOAuthConnectionsCard scope="user" />
         </TabsContent>
 
         {/* ════════════ TAB NOTIFICHE ════════════ */}
