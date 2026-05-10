@@ -46,7 +46,9 @@ export interface TicketRow {
 export interface RapportinoRow {
   id: string;
   created_at: string;
-  tipo_intervento: string | null;
+  /** Schema reale (migration 20260809000001_interventi.sql): la colonna è
+   *  `descrizione`, non `tipo_intervento`. Mantenere allineato. */
+  descrizione: string;
   note: string | null;
 }
 
@@ -318,7 +320,7 @@ function InterventiTab({ items }: { items: RapportinoRow[] }) {
           onClick={() => navigate(`/azienda/assistenza/${item.id}`)}
         >
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium truncate">{item.tipo_intervento || "Intervento"}</p>
+            <p className="text-sm font-medium truncate">{item.descrizione || "Intervento"}</p>
             <p className="text-xs text-muted-foreground">{formatDate(item.created_at)}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">

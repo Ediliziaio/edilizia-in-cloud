@@ -466,7 +466,6 @@ const TOOLS = [
 ];
 
 // Tool execution: chiama il RPC corrispondente
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function executeTool(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,

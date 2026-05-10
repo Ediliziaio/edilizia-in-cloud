@@ -84,7 +84,6 @@ async function executeSendEmail(payload: Record<string, any>): Promise<{ ok: boo
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function dispatch(action: ActionRow): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   const t = action.action_type;
   if (t.startsWith("send_email")) {

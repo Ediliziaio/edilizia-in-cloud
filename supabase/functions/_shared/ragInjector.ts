@@ -107,7 +107,6 @@ export async function buildPreRagContext(opts: BuildPreRagOptions): Promise<RagI
   }
 
   // 2. Parallel: universal + company
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [universalRes, companyRes] = await Promise.all([
     // Universal: usa pgvector embedding directly
     opts.supabase.rpc("match_brain_universal", {

@@ -200,20 +200,25 @@ export default function CompanyCustomerDetail() {
   ).length;
 
   // ── Rapportini Intervento ────────────────────────────────────────────────────
-  // TODO: verificare il nome corretto della colonna customer_id in rapportini_intervento
+  // FIX 2026-05-09: rapportini_intervento NON ha customer_id (vedi migration
+  // 20260809000001_interventi.sql) — la relazione passa via tickets.customer_id.
+  // La vecchia query `.eq("customer_id", id)` ritornava SEMPRE vuoto (colonna
+  // inesistente, nessun errore lato Supabase REST). Bug silente da audit.
   const { data: rapportini = [], error: rapportiniError } = useQuery({
     queryKey: ["customer-rapportini", id, effectiveCompany?.id],
     queryFn: async () => {
       try {
         const { data, error } = await supabase
           .from("rapportini_intervento" as never)
-          .select("id, created_at, tipo_intervento, note")
-          .eq("customer_id", id!)
+          .select("id, created_at, descrizione, note, tickets!inner(customer_id)")
+          .eq("tickets.customer_id", id!)
           .eq("company_id", effectiveCompany!.id)
           .order("created_at", { ascending: false })
           .limit(20);
         if (error) throw error;
-        return (data ?? []) as unknown as RapportinoRow[];
+        // Stripping del nested ticket per matchare RapportinoRow shape
+        return ((data ?? []) as unknown as Array<RapportinoRow & { tickets?: unknown }>)
+          .map(({ tickets: _t, ...rest }) => rest);
       } catch {
         throw new Error("Impossibile caricare i rapportini/interventi collegati al cliente.");
       }
