@@ -166,6 +166,9 @@ const RenderTechnicalModuleNew = lazy(() => import("@/pages/azienda/RenderTechni
 const RenderTechnicalModuleGallery = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGallery"));
 const RenderTechnicalModuleGalleryDetail = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGalleryDetail"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
+// MP-AIE-03: pagina dedicata azioni proposte AI
+const AzioniProposteAi = lazy(() => import("@/pages/azienda/AzioniProposteAi"));
+const ActionProposalsAuditLog = lazy(() => import("@/pages/azienda/admin/ActionProposalsAuditLog"));
 const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const FirmaElettronicaHub = lazy(() => import("@/pages/azienda/firma-elettronica/index"));
@@ -356,6 +359,9 @@ export function companyRoutes() {
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         {/* MP-CLEANUP: rotta messaggistica-beta rimossa — dominio eliminato. */}
         <Route path="chat" element={withCompanyPermission("canViewPersone", <InternalChat />)} />
+        {/* MP-AIE-03: Azioni proposte AI (yellow/red da Silvio + 18 personas) */}
+        <Route path="azioni-proposte" element={<AzioniProposteAi />} />
+        <Route path="azioni-proposte/audit-log" element={<ActionProposalsAuditLog />} />
         <Route path="profilo" element={<Navigate to="/azienda/impostazioni/mio-profilo" replace />} />
         {/* HR & Personale — gated: hr_personale (addon pro/enterprise) */}
         <Route path="personale" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><PersonalePage /></FeatureRoute>)} />

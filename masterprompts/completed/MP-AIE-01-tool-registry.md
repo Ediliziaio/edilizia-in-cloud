@@ -1,6 +1,16 @@
 # MP-AIE-01 — Tool Registry Unificato + Dispatcher
 
-## 🎯 Obiettivo
+## 📦 Stato finale
+- **Stato**: ✅ COMPLETATO (2026-05-09 audit + chiusura formale)
+- **Posizione registry**: `supabase/functions/_shared/agent-tools/` + `silvioTools.ts`
+- **Audit log table**: `tool_execution_log` (migration 20260506090600)
+- **Domain tools centralizzati**: crm/, cantiere/, fattura/ (5 file)
+- **Domain tools persona-side**: silvioTools.ts (51+ tool dei batch 12+13)
+- **Pattern WhatsApp esistente**: `whatsapp-ai-processor/tools/` (mantenuto
+  per back-compat + canale WA-specific). I 2 registry coesistono per design:
+  WA usa pattern legacy stabile, web/voice usa il nuovo unificato.
+
+## 🎯 Obiettivo originale
 Estrarre il tool registry pattern da `whatsapp-ai-processor/tools/` in una libreria
 condivisa `_shared/agent-tools/` riutilizzabile da: ai-orchestrator (chat web),
 elevenlabs voice agents, futuri canali (email, SMS).

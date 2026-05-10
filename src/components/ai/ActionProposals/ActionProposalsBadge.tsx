@@ -5,11 +5,12 @@
  * company. Click → apre Sheet con lista completa.
  */
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Bell } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ActionProposalsList } from "./ActionProposalsList";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
@@ -63,24 +64,48 @@ export function ActionProposalsBadge() {
       <Button
         variant="ghost"
         size="icon"
-        className="relative"
+        className="relative h-9 w-9 shrink-0"
         onClick={() => setOpen(true)}
-        aria-label={`Azioni proposte (${count})`}
+        title={count > 0 ? `${count} azioni AI da approvare` : "Azioni proposte AI"}
+        aria-label={`Azioni proposte AI (${count})`}
       >
-        <Bell className="h-5 w-5" />
+        <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" aria-hidden="true" />
         {count > 0 && (
-          <Badge className="absolute -top-1 -right-1 h-5 min-w-[20px] rounded-full px-1 text-[10px]">
+          <Badge
+            variant="destructive"
+            className="absolute -top-1 -right-1 h-5 min-w-[20px] rounded-full px-1 text-[10px] font-bold flex items-center justify-center"
+          >
             {count > 99 ? "99+" : count}
           </Badge>
         )}
       </Button>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetContent side="right" className="w-full sm:max-w-md flex flex-col">
           <SheetHeader>
-            <SheetTitle>Azioni proposte da Silvio</SheetTitle>
+            <SheetTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-violet-600" />
+              Azioni proposte AI
+              {count > 0 ? <Badge variant="destructive">{count}</Badge> : null}
+            </SheetTitle>
+            <SheetDescription className="text-xs">
+              Silvio ha proposto azioni che richiedono il tuo OK prima di essere eseguite.
+              Scadono automaticamente dopo il TTL indicato.
+            </SheetDescription>
           </SheetHeader>
-          <ActionProposalsList />
+          <div className="flex-1 overflow-y-auto -mx-6 px-6 pt-2">
+            <ActionProposalsList />
+          </div>
+          <div className="border-t pt-3 -mx-6 px-6">
+            <Link
+              to="/azienda/azioni-proposte"
+              onClick={() => setOpen(false)}
+              className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+            >
+              Apri pagina dedicata
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
         </SheetContent>
       </Sheet>
     </>

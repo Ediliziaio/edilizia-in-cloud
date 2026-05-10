@@ -43,9 +43,9 @@ MP-[AREA]-[NN]
 
 | MP | Titolo | Effort | Dipendenze | ROI | Stato |
 |---|---|---|---|---|---|
-| **MP-AIE-01** | Tool registry unificato + dispatcher | 2 sett | nessuna | 🔥🔥🔥🔥🔥 | 🟡 in_progress |
-| **MP-AIE-02** | Wire 18 personas con tool calling in ai-orchestrator | 1 sett | MP-AIE-01 | 🔥🔥🔥🔥🔥 | 📋 backlog |
-| **MP-AIE-03** | Action proposals UI completa + apply engine | 1 sett | MP-AIE-02 | 🔥🔥🔥🔥 | 📋 backlog |
+| **MP-AIE-01** | Tool registry unificato + dispatcher | 2 sett | nessuna | 🔥🔥🔥🔥🔥 | ✅ completed |
+| **MP-AIE-02** | Wire 18 personas con tool calling in ai-orchestrator | 1 sett | MP-AIE-01 | 🔥🔥🔥🔥🔥 | ✅ completed |
+| **MP-AIE-03** | Action proposals UI completa + apply engine | 1 sett | MP-AIE-02 | 🔥🔥🔥🔥 | ✅ completed |
 
 ### 💼 SPRINT 1 — Quick Wins ad alto impatto
 
