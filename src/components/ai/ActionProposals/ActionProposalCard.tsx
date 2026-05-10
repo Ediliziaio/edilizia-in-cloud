@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle, Clock, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Sparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface ProposalRow {
@@ -32,6 +32,10 @@ interface ProposalRow {
   applied_at: string | null;
   applied_result: Record<string, unknown> | null;
   created_at: string;
+  // 🆕 GAP 2 (Proattività): distingue auto-generated da tool-triggered
+  auto_generated?: boolean;
+  signal_type?: string | null;
+  signal_metadata?: Record<string, unknown> | null;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -166,9 +170,20 @@ export function ActionProposalCard({ proposalId }: { proposalId: string }) {
   return (
     <Card className={`mt-3 border-l-4 ${isRed ? "border-l-destructive" : "border-l-amber-500"}`}>
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
+        <CardTitle className="flex items-center gap-2 text-sm flex-wrap">
           <AlertTriangle className={`h-4 w-4 ${isRed ? "text-destructive" : "text-amber-500"}`} />
           <span>{labelTitle}</span>
+          {/* 🆕 GAP 2: badge "Suggerito da AI" per proposals proattive cron */}
+          {proposal.auto_generated ? (
+            <Badge
+              variant="outline"
+              className="text-[10px] gap-1 bg-violet-50 text-violet-700 border-violet-300 dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-800"
+              title={proposal.signal_type ? `Triggerato da: ${proposal.signal_type}` : undefined}
+            >
+              <Sparkles className="h-2.5 w-2.5" />
+              Suggerito da AI
+            </Badge>
+          ) : null}
           <Badge variant={isPending ? "default" : "outline"} className="ml-auto text-[10px]">
             {STATUS_LABEL[proposal.status] ?? proposal.status}
           </Badge>
