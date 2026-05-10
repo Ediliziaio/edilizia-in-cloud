@@ -76,10 +76,58 @@ export function EmailList({ filter, selectedThreadId, onSelectThread }: EmailLis
     enabled: !!userId,
     refetchInterval: 30_000,
     queryFn: async () => {
-      // Sprint E2: implementiamo Inbox + Importanti.
-      // Sent/Drafts/Spam/Trash arrivano nei prossimi sprint quando ci sono dati.
       const isInbox = filter.folder.type === "system" && filter.folder.key === "inbox";
       const isStarred = filter.folder.type === "system" && filter.folder.key === "starred";
+      const search = filter.search;
+      const hasSearch = !!search && Object.keys(search).filter((k) => k !== "raw").length > 0;
+
+      // Modalità: search attivo → query email_inbox + dedup per thread_id;
+      // altrimenti → query v_my_email_threads.
+      if (hasSearch && search) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let q = (supabase as any)
+          .from("v_my_email_inbox")
+          .select("thread_id, subject, from_email, from_name, received_at, attachments, is_read, is_starred, preview, message_count:thread_id")
+          .order("received_at", { ascending: false })
+          .limit(200);
+        if (search.from)        q = q.ilike("from_email", `%${search.from}%`);
+        if (search.to)          q = q.ilike("to_email", `%${search.to}%`);
+        if (search.subject)     q = q.ilike("subject", `%${search.subject}%`);
+        if (search.text)        q = q.or(`subject.ilike.%${search.text}%,from_email.ilike.%${search.text}%,from_name.ilike.%${search.text}%`);
+        if (search.hasStar)     q = q.eq("is_starred", true);
+        if (search.isUnread)    q = q.eq("is_read", false);
+        if (search.before)      q = q.lt("received_at", new Date(search.before).toISOString());
+        if (search.after)       q = q.gt("received_at", new Date(search.after).toISOString());
+        const { data, error } = await q;
+        if (error) throw error;
+        // Dedup per thread_id, prendiamo il più recente
+        const byThread = new Map<string, ThreadRow>();
+        for (const m of (data ?? []) as Array<Record<string, unknown>>) {
+          const tid = m.thread_id as string | null;
+          if (!tid) continue;
+          if (search.hasAttachment) {
+            const at = m.attachments;
+            if (!Array.isArray(at) || at.length === 0) continue;
+          }
+          if (!byThread.has(tid)) {
+            byThread.set(tid, {
+              id: tid,
+              subject_normalized: (m.subject as string) ?? "",
+              last_subject: (m.subject as string) ?? null,
+              last_from_email: (m.from_email as string) ?? null,
+              last_from_name: (m.from_name as string) ?? null,
+              participants: [],
+              message_count: 1,
+              unread_count: m.is_read ? 0 : 1,
+              has_starred: !!m.is_starred,
+              has_attachments: Array.isArray(m.attachments) && m.attachments.length > 0,
+              last_received_at: (m.received_at as string) ?? new Date().toISOString(),
+              preview: (m.preview as string) ?? null,
+            });
+          }
+        }
+        return Array.from(byThread.values());
+      }
 
       if (isInbox || isStarred) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

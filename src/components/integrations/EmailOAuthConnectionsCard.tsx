@@ -18,10 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Loader2, Mail, Plug, Plus, RefreshCw, Settings, Trash2, XCircle,
+  AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Loader2, Mail, Plug, Plus, RefreshCw, Server, Settings, Trash2, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ImapCustomDialog } from "./ImapCustomDialog";
 
 interface OAuthConnectionMeta {
   id: string;
@@ -47,6 +48,7 @@ interface DiagnosticResult {
 const PROVIDER_LABEL: Record<string, { name: string; color: string }> = {
   gmail: { name: "Gmail (Google)", color: "bg-rose-100 text-rose-700 border-rose-300" },
   outlook: { name: "Outlook (Microsoft)", color: "bg-blue-100 text-blue-700 border-blue-300" },
+  imap: { name: "IMAP/SMTP", color: "bg-violet-100 text-violet-700 border-violet-300" },
 };
 
 const STATUS_BADGE: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
@@ -73,6 +75,7 @@ export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConne
   const isUserScope = scope === "user";
   const [connecting, setConnecting] = useState<"gmail" | "outlook" | null>(null);
   const [diagOpen, setDiagOpen] = useState(false);
+  const [imapDialogOpen, setImapDialogOpen] = useState(false);
 
   // 🆕 Diagnostica setup OAuth (mostra cosa manca SE non tutto è configurato)
   const { data: diag, refetch: refetchDiag } = useQuery({
@@ -281,6 +284,15 @@ export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConne
             )}
             Connetti Outlook
           </Button>
+          <Button
+            onClick={() => setImapDialogOpen(true)}
+            variant="outline"
+            className="gap-2"
+            title="Per Aruba, Libero, iCloud, Yahoo, Register o server custom"
+          >
+            <Server className="h-4 w-4" />
+            Altro provider (IMAP)
+          </Button>
           {connections.length > 0 && (
             <Button
               onClick={() => forceSync.mutate()}
@@ -369,6 +381,7 @@ export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConne
           </div>
         )}
       </CardContent>
+      <ImapCustomDialog open={imapDialogOpen} onOpenChange={setImapDialogOpen} />
     </Card>
   );
 }

@@ -22,6 +22,7 @@
  * di proprietà.
  */
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { smtpSend } from "../_shared/imapSmtpClient.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -308,23 +309,17 @@ Deno.serve(async (req) => {
     .eq("id", outbox.id);
 
   try {
-    // 3) Decrypt tokens
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: tokensData } = await (supabase as any).rpc("email_oauth_get_decrypted_tokens", {
-      p_connection_id: outbox.oauth_connection_id,
-    });
-    if (!tokensData || tokensData.length === 0) {
-      throw new Error("tokens_not_found_for_connection");
-    }
-    const tokens = tokensData[0] as DecryptedTokens;
+    // 3) Carica info connessione (provider type)
+    const { data: connRow } = await supabase
+      .from("email_oauth_connections")
+      .select("provider, email_address")
+      .eq("id", outbox.oauth_connection_id)
+      .maybeSingle();
+    const providerType = (connRow?.provider as "gmail" | "outlook" | "imap" | undefined) ?? null;
 
-    // 4) Refresh se serve
-    const accessToken = await refreshTokenIfNeeded(supabase, tokens);
-
-    // 5) Recupera info reply (Message-ID del messaggio originale per In-Reply-To)
+    // 4) Recupera info reply per threading
     let inReplyToHeader: string | null = null;
     let referencesHeader: string[] = [];
-    let providerThreadId: string | null = null;
     if (outbox.in_reply_to_id) {
       const { data: parent } = await supabase
         .from("email_inbox")
@@ -336,12 +331,65 @@ Deno.serve(async (req) => {
         referencesHeader = [...(parent.references_ids ?? []), parent.message_id];
       }
     }
-    // Per Gmail, threadId aiuta il provider a raggruppare nello stesso thread
-    if (outbox.thread_id) {
-      // (futuro: persistere provider_thread_id quando salviamo messaggi Gmail)
+    const providerThreadId: string | null = null;
+
+    // 5) Branch IMAP/SMTP custom: nessun OAuth, usa password decrypted
+    if (providerType === "imap") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: creds } = await (supabase as any).rpc("email_imap_get_credentials", {
+        p_connection_id: outbox.oauth_connection_id,
+      });
+      if (!creds || creds.length === 0) {
+        throw new Error("imap_credentials_not_found");
+      }
+      const c = creds[0];
+      const sent = await smtpSend(
+        {
+          host: c.smtp_host,
+          port: c.smtp_port,
+          secure: c.smtp_secure,
+          username: c.imap_username || c.email_address,
+          password: c.password,
+        },
+        {
+          from: c.email_address,
+          to: outbox.to_emails,
+          cc: outbox.cc_emails,
+          bcc: outbox.bcc_emails,
+          subject: outbox.subject,
+          bodyHtml: outbox.body_html,
+          bodyText: outbox.body_text,
+          inReplyTo: inReplyToHeader,
+          references: referencesHeader,
+        },
+      );
+      await supabase
+        .from("email_outbox")
+        .update({
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          provider_message_id: sent.messageId,
+        })
+        .eq("id", outbox.id);
+      return jsonResponse({
+        ok: true,
+        outbox_id: outbox.id,
+        provider_message_id: sent.messageId,
+        provider: "imap",
+      });
     }
 
-    // 6) Send via provider
+    // 6) Branch OAuth (Gmail/Outlook)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: tokensData } = await (supabase as any).rpc("email_oauth_get_decrypted_tokens", {
+      p_connection_id: outbox.oauth_connection_id,
+    });
+    if (!tokensData || tokensData.length === 0) {
+      throw new Error("tokens_not_found_for_connection");
+    }
+    const tokens = tokensData[0] as DecryptedTokens;
+    const accessToken = await refreshTokenIfNeeded(supabase, tokens);
+
     let providerMessageId = "";
     if (tokens.provider === "gmail") {
       const rfc = buildRFC822({

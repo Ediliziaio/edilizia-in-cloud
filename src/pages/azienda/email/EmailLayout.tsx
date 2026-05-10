@@ -10,7 +10,7 @@
  *
  * Mobile: stack layout, navigazione tra pannelli con pulsanti back.
  */
-import { useCallback, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +18,7 @@ import { EmailSidebar } from "./components/EmailSidebar";
 import { EmailList } from "./components/EmailList";
 import { EmailViewer } from "./components/EmailViewer";
 import { EmailComposeDialog, type ComposeContext } from "./components/EmailComposeDialog";
+import { EmailSearchBar, type SearchQuery } from "./components/EmailSearchBar";
 import { Button } from "@/components/ui/button";
 import { Mail, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,7 +30,7 @@ export type FolderFilter =
 
 export interface EmailFilter {
   folder: FolderFilter;
-  search?: string;
+  search?: SearchQuery | null;
   accountId?: string; // filtro per oauth_connection_id
 }
 
@@ -83,6 +84,32 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
     void supabase.rpc("email_mark_thread_read", { p_thread_id: threadId });
   };
 
+  // Keyboard shortcuts (Gmail-style)
+  // c = compose, r = reply (when viewer aperto), e = archive, /  = focus search
+  // j/k = navigate threads (down/up)
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Ignora se l'utente sta scrivendo in un input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.key === "c") {
+        e.preventDefault();
+        openCompose({ mode: "new" });
+      } else if (e.key === "/") {
+        e.preventDefault();
+        const input = document.querySelector<HTMLInputElement>('input[placeholder*="Cerca"]');
+        input?.focus();
+      } else if (e.key === "Escape" && selectedThreadId) {
+        setSelectedThreadId(null);
+        setMobilePane("list");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [openCompose, selectedThreadId]);
+
   return (
     <div className="flex h-[calc(100vh-4rem)] bg-background overflow-hidden">
       {/* Sidebar — fixed on desktop, sheet on mobile */}
@@ -128,6 +155,9 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
             <FolderTitle filter={filter.folder} />
           </span>
         </div>
+        <EmailSearchBar
+          onSearch={(q) => setFilter((f) => ({ ...f, search: q }))}
+        />
         <EmailList
           filter={filter}
           selectedThreadId={selectedThreadId}
