@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -25,9 +24,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
-  Send, Loader2, Save, Mail, X, Paperclip, ChevronDown, ChevronUp,
+  Send, Loader2, Save, Mail, X, Paperclip, ChevronDown, ChevronUp, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RichTextEditor } from "./RichTextEditor";
 
 export type ComposeMode = "new" | "reply" | "replyAll" | "forward";
 
@@ -131,10 +131,24 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
   const [bcc, setBcc] = useState(initial.bcc);
   const [showCcBcc, setShowCcBcc] = useState(initial.cc.length > 0 || initial.bcc.length > 0);
   const [subject, setSubject] = useState(initial.subject);
+  // bodyHtml: contenuto rich (con tag), bodyText: derivato per fallback plain
+  const [bodyHtml, setBodyHtml] = useState(() =>
+    initial.body
+      ? initial.body.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join("")
+      : "",
+  );
   const [bodyText, setBodyText] = useState(initial.body);
   const [accountId, setAccountId] = useState<string>("");
   const [outboxId, setOutboxId] = useState<string | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [attachments, setAttachments] = useState<Array<{
+    name: string;
+    size: number;
+    mime: string;
+    storage_path: string;
+    uploading?: boolean;
+  }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Reset state quando cambia context
   useEffect(() => {
@@ -144,9 +158,59 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
     setBcc(initial.bcc);
     setSubject(initial.subject);
     setBodyText(initial.body);
+    setBodyHtml(
+      initial.body
+        ? initial.body.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join("")
+        : "",
+    );
     setShowCcBcc(initial.cc.length > 0 || initial.bcc.length > 0);
     setOutboxId(null);
+    setAttachments([]);
   }, [open, initial]);
+
+  // Upload allegati: storage path = <user_id>/<outbox_id|tmp>/<uuid>-<filename>
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || !userId) return;
+    const folder = outboxId || "tmp";
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.size > 25 * 1024 * 1024) {
+        toast.error(`${file.name} > 25 MB — non supportato`);
+        continue;
+      }
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const storagePath = `${userId}/${folder}/${crypto.randomUUID()}-${safe}`;
+
+      const tempEntry = {
+        name: file.name, size: file.size, mime: file.type || "application/octet-stream",
+        storage_path: storagePath, uploading: true,
+      };
+      setAttachments((a) => [...a, tempEntry]);
+
+      const { error } = await supabase.storage
+        .from("email-attachments")
+        .upload(storagePath, file, { contentType: file.type, upsert: false });
+
+      setAttachments((a) =>
+        a.map((x) => x.storage_path === storagePath
+          ? { ...x, uploading: false }
+          : x,
+        ),
+      );
+
+      if (error) {
+        toast.error(`Upload fallito: ${file.name}`, { description: error.message });
+        setAttachments((a) => a.filter((x) => x.storage_path !== storagePath));
+      } else {
+        toast.success(`${file.name} caricato`);
+      }
+    }
+  };
+
+  const removeAttachment = async (storagePath: string) => {
+    setAttachments((a) => a.filter((x) => x.storage_path !== storagePath));
+    void supabase.storage.from("email-attachments").remove([storagePath]);
+  };
 
   // Carica connessioni per account selector (default: prima active)
   const { data: connections } = useQuery({
@@ -189,7 +253,10 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
         bcc_emails: parseEmails(bcc),
         subject: subject || "(senza oggetto)",
         body_text: bodyText,
-        body_html: bodyText.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join(""),
+        body_html: bodyHtml || bodyText.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join(""),
+        attachments: attachments.filter((a) => !a.uploading).map((a) => ({
+          filename: a.name, size: a.size, mime: a.mime, storage_path: a.storage_path,
+        })),
         status: "draft" as const,
       };
       if (outboxId) {
@@ -253,7 +320,10 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
         bcc_emails: parseEmails(bcc),
         subject: subject.trim(),
         body_text: bodyText,
-        body_html: bodyText.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join(""),
+        body_html: bodyHtml || bodyText.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join(""),
+        attachments: attachments.filter((a) => !a.uploading).map((a) => ({
+          filename: a.name, size: a.size, mime: a.mime, storage_path: a.storage_path,
+        })),
         status: "queued" as const,
       };
 
@@ -379,14 +449,64 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
 
           <div>
             <Label className="text-xs">Messaggio</Label>
-            <Textarea
-              value={bodyText}
-              onChange={(e) => setBodyText(e.target.value)}
+            <RichTextEditor
+              value={bodyHtml}
+              onChange={(html, text) => {
+                setBodyHtml(html);
+                setBodyText(text);
+              }}
               placeholder="Scrivi il tuo messaggio…"
-              rows={14}
-              className="resize-none font-sans"
+              rows={12}
             />
           </div>
+
+          {attachments.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Allegati ({attachments.length})</Label>
+              <div className="flex flex-wrap gap-2">
+                {attachments.map((a) => (
+                  <div
+                    key={a.storage_path}
+                    className={cn(
+                      "flex items-center gap-2 px-2.5 py-1.5 rounded-md border bg-muted/20 text-xs",
+                      a.uploading && "opacity-60",
+                    )}
+                  >
+                    {a.uploading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                    <span className="font-medium truncate max-w-[200px]">{a.name}</span>
+                    <span className="text-muted-foreground">
+                      {(a.size / 1024).toFixed(0)} KB
+                    </span>
+                    {!a.uploading && (
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(a.storage_path)}
+                        className="text-muted-foreground hover:text-rose-600"
+                        title="Rimuovi"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              handleFileUpload(e.target.files);
+              e.target.value = "";
+            }}
+          />
         </div>
 
         <div className="px-4 py-3 border-t bg-muted/20 flex items-center gap-2 flex-wrap shrink-0">
@@ -410,9 +530,9 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
           <Button
             variant="ghost"
             size="icon"
-            disabled
-            title="Allegati — Sprint E5"
-            className="opacity-50"
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Allega file (max 25 MB ciascuno)"
           >
             <Paperclip className="h-4 w-4" />
           </Button>

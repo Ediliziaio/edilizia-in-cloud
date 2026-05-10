@@ -26,6 +26,12 @@ export interface SmtpConfig {
   password: string;
 }
 
+export interface SmtpAttachment {
+  filename: string;
+  mimeType: string;
+  contentBase64: string;  // base64-encoded content
+}
+
 export interface SmtpMessage {
   from: string;
   fromName?: string | null;
@@ -37,6 +43,7 @@ export interface SmtpMessage {
   bodyText?: string | null;
   inReplyTo?: string | null;
   references?: string[];
+  attachments?: SmtpAttachment[];
 }
 
 export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ messageId: string }> {
@@ -110,6 +117,7 @@ export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ mes
       subject: msg.subject, bodyHtml: msg.bodyHtml, bodyText: msg.bodyText,
       inReplyTo: msg.inReplyTo, references: msg.references,
       messageId,
+      attachments: msg.attachments,
     });
     // Dot-stuffing (RFC 5321): righe che iniziano con . vanno raddoppiate
     const stuffed = rfc822.replace(/\r\n\./g, "\r\n..");
@@ -133,7 +141,7 @@ function escapeHeader(s: string): string {
   return `=?UTF-8?B?${btoa(bin)}?=`;
 }
 
-function buildRFC822(opts: {
+export function buildRFC822(opts: {
   from: string;
   fromName?: string | null;
   to: string[];
@@ -145,6 +153,7 @@ function buildRFC822(opts: {
   inReplyTo?: string | null;
   references?: string[];
   messageId: string;
+  attachments?: SmtpAttachment[];
 }): string {
   const fromHeader = opts.fromName ? `${escapeHeader(opts.fromName)} <${opts.from}>` : opts.from;
   const lines: string[] = [];
@@ -161,36 +170,44 @@ function buildRFC822(opts: {
 
   const hasHtml = !!opts.bodyHtml && opts.bodyHtml.trim().length > 0;
   const hasText = !!opts.bodyText && opts.bodyText.trim().length > 0;
+  const hasAttachments = !!opts.attachments && opts.attachments.length > 0;
 
+  // Costruisci il body part (text/plain o multipart/alternative)
+  let bodyPart = "";
+  const altBoundary = `=_alt_${crypto.randomUUID().replace(/-/g, "")}`;
   if (hasHtml && hasText) {
-    const boundary = `=_b_${crypto.randomUUID().replace(/-/g, "")}`;
-    lines.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
-    lines.push("");
-    lines.push(`--${boundary}`);
-    lines.push(`Content-Type: text/plain; charset=UTF-8`);
-    lines.push(`Content-Transfer-Encoding: 8bit`);
-    lines.push("");
-    lines.push(opts.bodyText!);
-    lines.push("");
-    lines.push(`--${boundary}`);
-    lines.push(`Content-Type: text/html; charset=UTF-8`);
-    lines.push(`Content-Transfer-Encoding: 8bit`);
-    lines.push("");
-    lines.push(opts.bodyHtml!);
-    lines.push("");
-    lines.push(`--${boundary}--`);
+    bodyPart =
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"\r\n\r\n` +
+      `--${altBoundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${opts.bodyText}\r\n\r\n` +
+      `--${altBoundary}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${opts.bodyHtml}\r\n\r\n` +
+      `--${altBoundary}--`;
   } else if (hasHtml) {
-    lines.push(`Content-Type: text/html; charset=UTF-8`);
-    lines.push(`Content-Transfer-Encoding: 8bit`);
-    lines.push("");
-    lines.push(opts.bodyHtml!);
+    bodyPart = `Content-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${opts.bodyHtml}`;
   } else {
-    lines.push(`Content-Type: text/plain; charset=UTF-8`);
-    lines.push(`Content-Transfer-Encoding: 8bit`);
-    lines.push("");
-    lines.push(opts.bodyText ?? "");
+    bodyPart = `Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${opts.bodyText ?? ""}`;
   }
-  return lines.join("\r\n");
+
+  if (!hasAttachments) {
+    return lines.join("\r\n") + "\r\n" + bodyPart;
+  }
+
+  // Wrap body + attachments in multipart/mixed
+  const mixedBoundary = `=_mix_${crypto.randomUUID().replace(/-/g, "")}`;
+  lines.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
+  let out = lines.join("\r\n") + "\r\n\r\n";
+  out += `--${mixedBoundary}\r\n${bodyPart}\r\n\r\n`;
+  for (const att of opts.attachments!) {
+    const safeName = escapeHeader(att.filename);
+    out += `--${mixedBoundary}\r\n`;
+    out += `Content-Type: ${att.mimeType}; name="${safeName}"\r\n`;
+    out += `Content-Disposition: attachment; filename="${safeName}"\r\n`;
+    out += `Content-Transfer-Encoding: base64\r\n\r\n`;
+    // Wrap base64 a 76 char per riga (RFC 2045)
+    const wrapped = att.contentBase64.replace(/(.{76})/g, "$1\r\n");
+    out += wrapped + "\r\n\r\n";
+  }
+  out += `--${mixedBoundary}--`;
+  return out;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

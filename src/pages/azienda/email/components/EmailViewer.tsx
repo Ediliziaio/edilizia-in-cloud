@@ -22,10 +22,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft, Star, Archive, Trash2, Reply, ReplyAll, Forward, MoreVertical,
-  Paperclip, Sparkles, AlertTriangle, X,
+  Paperclip, Sparkles, AlertTriangle, X, Wand2, Loader2, ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 interface MessageRow {
   id: string;
@@ -68,6 +69,8 @@ interface EmailViewerProps {
 
 export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerProps) {
   const qc = useQueryClient();
+  const [aiSummary, setAiSummary] = useState<{ summary: string; action_items: string[] } | null>(null);
+  const [aiSuggestions, setAiSuggestions] = useState<Array<{ tone: string; label: string; body: string }> | null>(null);
 
   const { data: messages, isLoading } = useQuery({
     queryKey: ["email-thread-messages", threadId],
@@ -114,6 +117,40 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
       qc.invalidateQueries({ queryKey: ["email-threads"] });
       onClose();
     },
+  });
+
+  const summarizeMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("email-ai-assistant", {
+        body: { action: "summary", thread_id: threadId },
+      });
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r = data as any;
+      if (!r?.ok) throw new Error(r?.error ?? "AI summary fallita");
+      return r as { summary: string; action_items: string[] };
+    },
+    onSuccess: (r) => {
+      setAiSummary({ summary: r.summary, action_items: r.action_items });
+    },
+    onError: (e) => toast.error("AI riassunto fallito", { description: String(e) }),
+  });
+
+  const suggestRepliesMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("email-ai-assistant", {
+        body: { action: "reply_suggestions", thread_id: threadId },
+      });
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r = data as any;
+      if (!r?.ok) throw new Error(r?.error ?? "AI suggestions fallita");
+      return r.suggestions as Array<{ tone: string; label: string; body: string }>;
+    },
+    onSuccess: (suggestions) => {
+      setAiSuggestions(suggestions);
+    },
+    onError: (e) => toast.error("AI risposte fallite", { description: String(e) }),
   });
 
   const trashAll = useMutation({
@@ -178,6 +215,18 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
         <Button
           variant="ghost"
           size="icon"
+          onClick={() => summarizeMutation.mutate()}
+          disabled={summarizeMutation.isPending}
+          title="Riassumi thread con AI"
+          className="text-violet-600 hover:text-violet-700"
+        >
+          {summarizeMutation.isPending
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <Wand2 className="h-4 w-4" />}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => trashAll.mutate()}
           disabled={trashAll.isPending}
           title="Sposta nel cestino"
@@ -197,6 +246,43 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
       </div>
 
       <ScrollArea className="flex-1">
+        {aiSummary && (
+          <div className="m-4 mb-0 p-3 rounded-lg border-2 border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-50 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wand2 className="h-4 w-4 text-violet-600" />
+                <span className="text-xs font-bold uppercase tracking-wide text-violet-800">
+                  Riassunto AI
+                </span>
+              </div>
+              <button
+                type="button"
+                className="text-violet-600 hover:text-violet-800"
+                onClick={() => setAiSummary(null)}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <p className="text-sm leading-relaxed text-violet-900">{aiSummary.summary}</p>
+            {aiSummary.action_items.length > 0 && (
+              <div className="pt-2 border-t border-violet-200">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-700 mb-1 flex items-center gap-1">
+                  <ListChecks className="h-3 w-3" />
+                  Cose da fare
+                </p>
+                <ul className="space-y-0.5 ml-1">
+                  {aiSummary.action_items.map((a, i) => (
+                    <li key={i} className="text-xs text-violet-900 flex items-start gap-1.5">
+                      <span className="text-violet-500 mt-0.5">→</span>
+                      <span>{a}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
         {isLoading ? (
           <div className="p-4 space-y-3">
             <Skeleton className="h-32" />
@@ -219,8 +305,78 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
         )}
       </ScrollArea>
 
+      {/* Suggested AI replies (Sprint E5+) */}
+      {aiSuggestions && aiSuggestions.length > 0 && (
+        <div className="border-t p-3 bg-violet-50/40 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-violet-700 flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              Suggerite da AI · clicca per usarne una
+            </p>
+            <button
+              type="button"
+              className="text-violet-600 hover:text-violet-800"
+              onClick={() => setAiSuggestions(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            {aiSuggestions.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  if (!onReply || !messages || messages.length === 0) return;
+                  const last = messages[messages.length - 1];
+                  // Pre-popola la reply con il testo della suggestion
+                  onReply(
+                    {
+                      id: last.id,
+                      thread_id: last.thread_id,
+                      from_email: last.from_email,
+                      from_name: last.from_name,
+                      to_email: last.to_email,
+                      cc_emails: null,
+                      subject: last.subject,
+                      received_at: last.received_at,
+                      raw_text: `${s.body}\n\n${last.raw_text ?? ""}`,
+                      raw_html: null,
+                    },
+                    "reply",
+                  );
+                }}
+                className="w-full text-left p-2.5 rounded-md border border-violet-200 bg-white hover:border-violet-400 hover:shadow-sm transition-all"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant="outline" className="text-[10px] capitalize border-violet-300 text-violet-700 bg-violet-50">
+                    {s.tone}
+                  </Badge>
+                  <span className="text-xs font-medium text-foreground">{s.label}</span>
+                </div>
+                <p className="text-xs text-muted-foreground line-clamp-2">{s.body}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Action bar bottom — Reply/ReplyAll/Forward (Sprint E3) */}
       <div className="border-t p-3 bg-muted/20 flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 border-violet-200 text-violet-700 hover:bg-violet-50"
+          onClick={() => suggestRepliesMutation.mutate()}
+          disabled={suggestRepliesMutation.isPending || !messages || messages.length === 0}
+        >
+          {suggestRepliesMutation.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="h-3.5 w-3.5" />
+          )}
+          Suggerisci risposte
+        </Button>
         {(["reply", "replyAll", "forward"] as const).map((mode) => {
           const Icon = mode === "reply" ? Reply : mode === "replyAll" ? ReplyAll : Forward;
           const label = mode === "reply" ? "Rispondi" : mode === "replyAll" ? "A tutti" : "Inoltra";

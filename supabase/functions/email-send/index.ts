@@ -22,7 +22,7 @@
  * di proprietà.
  */
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { smtpSend } from "../_shared/imapSmtpClient.ts";
+import { smtpSend, buildRFC822, type SmtpAttachment } from "../_shared/imapSmtpClient.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -107,66 +107,7 @@ function escapeHeader(s: string): string {
   return `=?UTF-8?B?${btoa(unescape(encodeURIComponent(s)))}?=`;
 }
 
-function buildRFC822({
-  from, fromName, to, cc, bcc, subject, bodyHtml, bodyText, inReplyTo, references,
-}: {
-  from: string;
-  fromName?: string | null;
-  to: string[];
-  cc?: string[];
-  bcc?: string[];
-  subject: string;
-  bodyHtml?: string | null;
-  bodyText?: string | null;
-  inReplyTo?: string | null;
-  references?: string[];
-}): string {
-  const fromHeader = fromName ? `${escapeHeader(fromName)} <${from}>` : from;
-  const lines: string[] = [];
-  lines.push(`From: ${fromHeader}`);
-  lines.push(`To: ${to.join(", ")}`);
-  if (cc && cc.length > 0) lines.push(`Cc: ${cc.join(", ")}`);
-  if (bcc && bcc.length > 0) lines.push(`Bcc: ${bcc.join(", ")}`);
-  lines.push(`Subject: ${escapeHeader(subject)}`);
-  lines.push(`Date: ${new Date().toUTCString()}`);
-  lines.push(`Message-ID: <${crypto.randomUUID()}@edilizia-in-cloud>`);
-  if (inReplyTo) lines.push(`In-Reply-To: ${inReplyTo}`);
-  if (references && references.length > 0) lines.push(`References: ${references.join(" ")}`);
-  lines.push(`MIME-Version: 1.0`);
-
-  const hasHtml = !!bodyHtml && bodyHtml.trim().length > 0;
-  const hasText = !!bodyText && bodyText.trim().length > 0;
-
-  if (hasHtml && hasText) {
-    const boundary = `=_boundary_${crypto.randomUUID().replace(/-/g, "")}`;
-    lines.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
-    lines.push("");
-    lines.push(`--${boundary}`);
-    lines.push(`Content-Type: text/plain; charset=UTF-8`);
-    lines.push(`Content-Transfer-Encoding: 8bit`);
-    lines.push("");
-    lines.push(bodyText!);
-    lines.push("");
-    lines.push(`--${boundary}`);
-    lines.push(`Content-Type: text/html; charset=UTF-8`);
-    lines.push(`Content-Transfer-Encoding: 8bit`);
-    lines.push("");
-    lines.push(bodyHtml!);
-    lines.push("");
-    lines.push(`--${boundary}--`);
-  } else if (hasHtml) {
-    lines.push(`Content-Type: text/html; charset=UTF-8`);
-    lines.push(`Content-Transfer-Encoding: 8bit`);
-    lines.push("");
-    lines.push(bodyHtml!);
-  } else {
-    lines.push(`Content-Type: text/plain; charset=UTF-8`);
-    lines.push(`Content-Transfer-Encoding: 8bit`);
-    lines.push("");
-    lines.push(bodyText ?? "");
-  }
-  return lines.join("\r\n");
-}
+// (buildRFC822 ora importato da _shared/imapSmtpClient.ts con supporto attachments)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Gmail send
@@ -209,17 +150,28 @@ async function sendViaOutlook(
     cc?: string[];
     bcc?: string[];
     inReplyTo?: string | null;
+    attachments?: SmtpAttachment[];
   },
 ): Promise<{ id: string }> {
   const contentType = payload.bodyHtml ? "HTML" : "Text";
   const content = payload.bodyHtml || payload.bodyText || "";
-  const message = {
+  // Microsoft Graph: fileAttachment con @odata.type
+  const graphAttachments = (payload.attachments ?? []).map((a) => ({
+    "@odata.type": "#microsoft.graph.fileAttachment",
+    name: a.filename,
+    contentType: a.mimeType,
+    contentBytes: a.contentBase64,
+  }));
+  const message: Record<string, unknown> = {
     subject: payload.subject,
     body: { contentType, content },
     toRecipients: toRecipients(payload.to),
     ccRecipients: payload.cc ? toRecipients(payload.cc) : [],
     bccRecipients: payload.bcc ? toRecipients(payload.bcc) : [],
   };
+  if (graphAttachments.length > 0) {
+    message.attachments = graphAttachments;
+  }
   const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
     method: "POST",
     headers: {
@@ -232,7 +184,6 @@ async function sendViaOutlook(
     const err = await res.text();
     throw new Error(`outlook_send_${res.status}: ${err.substring(0, 300)}`);
   }
-  // sendMail non ritorna messageId; ne sintetizziamo uno locale per tracking
   return { id: `outlook-sent-${Date.now()}` };
 }
 
@@ -253,8 +204,36 @@ interface OutboxRow {
   subject: string;
   body_html: string | null;
   body_text: string | null;
+  attachments: Array<{ filename: string; size?: number; mime: string; storage_path: string }> | null;
   status: string;
   attempts: number;
+}
+
+async function downloadAttachments(
+  supabase: SupabaseClient,
+  raw: OutboxRow["attachments"],
+): Promise<SmtpAttachment[]> {
+  if (!raw || raw.length === 0) return [];
+  const result: SmtpAttachment[] = [];
+  for (const a of raw) {
+    const { data, error } = await supabase.storage
+      .from("email-attachments")
+      .download(a.storage_path);
+    if (error || !data) {
+      throw new Error(`attachment_download_failed: ${a.filename} — ${error?.message}`);
+    }
+    const buf = new Uint8Array(await data.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < buf.length; i += 1024) {
+      bin += String.fromCharCode(...buf.subarray(i, i + 1024));
+    }
+    result.push({
+      filename: a.filename,
+      mimeType: a.mime || "application/octet-stream",
+      contentBase64: btoa(bin),
+    });
+  }
+  return result;
 }
 
 Deno.serve(async (req) => {
@@ -333,6 +312,9 @@ Deno.serve(async (req) => {
     }
     const providerThreadId: string | null = null;
 
+    // Pre-download attachments (riusato in tutti i branch provider)
+    const smtpAttachments = await downloadAttachments(supabase, outbox.attachments);
+
     // 5) Branch IMAP/SMTP custom: nessun OAuth, usa password decrypted
     if (providerType === "imap") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -361,6 +343,7 @@ Deno.serve(async (req) => {
           bodyText: outbox.body_text,
           inReplyTo: inReplyToHeader,
           references: referencesHeader,
+          attachments: smtpAttachments,
         },
       );
       await supabase
@@ -402,6 +385,8 @@ Deno.serve(async (req) => {
         bodyText: outbox.body_text,
         inReplyTo: inReplyToHeader,
         references: referencesHeader,
+        messageId: `<${crypto.randomUUID()}@edilizia-in-cloud>`,
+        attachments: smtpAttachments,
       });
       const sent = await sendViaGmail(accessToken, rfc, providerThreadId);
       providerMessageId = sent.id;
@@ -414,6 +399,7 @@ Deno.serve(async (req) => {
         cc: outbox.cc_emails,
         bcc: outbox.bcc_emails,
         inReplyTo: inReplyToHeader,
+        attachments: smtpAttachments,
       });
       providerMessageId = sent.id;
     } else {

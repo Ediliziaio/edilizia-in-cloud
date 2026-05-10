@@ -14,9 +14,12 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
+// IMAP support (Sprint E4 — provider non-OAuth)
+import { imapFetchUnreadSince, type ImapMessage } from "../_shared/imapSmtpClient.ts";
+
 interface ConnectionDue {
   id: string;
-  provider: "gmail" | "outlook";
+  provider: "gmail" | "outlook" | "imap";
   email_address: string;
 }
 
@@ -283,23 +286,56 @@ Deno.serve(async (req) => {
   for (const conn of (due ?? []) as ConnectionDue[]) {
     summary.connections_checked += 1;
     try {
-      // Decrypt + refresh token
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: tokensData } = await (supa as any).rpc("email_oauth_get_decrypted_tokens", {
-        p_connection_id: conn.id,
-      });
-      if (!tokensData || tokensData.length === 0) {
-        summary.errors.push({ connection_id: conn.id, error: "tokens_not_found" });
-        continue;
-      }
-      const tokens = tokensData[0] as DecryptedTokens;
-      const accessToken = await refreshTokenIfNeeded(supa, tokens, conn.id);
-
-      // Fetch email nuove
       const sinceTs = Date.now() - 30 * 60 * 1000; // ultimi 30min (sicurezza overlap)
-      const emails = conn.provider === "gmail"
-        ? await pollGmail(accessToken, conn.email_address, sinceTs)
-        : await pollOutlook(accessToken, conn.email_address, sinceTs);
+      let emails: NormalizedEmail[] = [];
+
+      if (conn.provider === "imap") {
+        // Branch IMAP custom (Aruba/Libero/iCloud/...)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: creds } = await (supa as any).rpc("email_imap_get_credentials", {
+          p_connection_id: conn.id,
+        });
+        if (!creds || creds.length === 0) {
+          summary.errors.push({ connection_id: conn.id, error: "imap_credentials_not_found" });
+          continue;
+        }
+        const c = creds[0];
+        const imapMsgs: ImapMessage[] = await imapFetchUnreadSince(
+          {
+            host: c.imap_host,
+            port: c.imap_port,
+            secure: c.imap_secure,
+            username: c.imap_username || c.email_address,
+            password: c.password,
+          },
+          new Date(sinceTs),
+          50,
+        );
+        emails = imapMsgs.map((m) => ({
+          message_id: m.messageId,
+          from_email: m.from,
+          from_name: m.fromName,
+          to_email: c.email_address,
+          subject: m.subject || "(senza oggetto)",
+          text: m.text || "",
+          received_at: m.date ? new Date(m.date).toISOString() : new Date().toISOString(),
+        }));
+      } else {
+        // Branch OAuth Gmail/Outlook
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: tokensData } = await (supa as any).rpc("email_oauth_get_decrypted_tokens", {
+          p_connection_id: conn.id,
+        });
+        if (!tokensData || tokensData.length === 0) {
+          summary.errors.push({ connection_id: conn.id, error: "tokens_not_found" });
+          continue;
+        }
+        const tokens = tokensData[0] as DecryptedTokens;
+        const accessToken = await refreshTokenIfNeeded(supa, tokens, conn.id);
+        emails = conn.provider === "gmail"
+          ? await pollGmail(accessToken, conn.email_address, sinceTs)
+          : await pollOutlook(accessToken, conn.email_address, sinceTs);
+      }
 
       summary.emails_fetched += emails.length;
 

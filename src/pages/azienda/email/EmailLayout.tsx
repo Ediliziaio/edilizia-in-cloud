@@ -10,10 +10,11 @@
  *
  * Mobile: stack layout, navigazione tra pannelli con pulsanti back.
  */
-import React, { useCallback, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useCallback, useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 import { EmailSidebar } from "./components/EmailSidebar";
 import { EmailList } from "./components/EmailList";
 import { EmailViewer } from "./components/EmailViewer";
@@ -56,6 +57,53 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
 
   const userId = user?.id;
   const companyId = effectiveCompany?.id;
+  const qc = useQueryClient();
+
+  // Realtime: nuova email arrivata → invalidate query + toast
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`email-inbox-realtime-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "email_inbox",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const m = payload.new as any;
+          qc.invalidateQueries({ queryKey: ["email-threads"] });
+          qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
+          if (m?.from_name || m?.from_email) {
+            toast.message("Nuova email", {
+              description: `Da: ${m.from_name || m.from_email}${m.subject ? ` — ${m.subject}` : ""}`,
+              duration: 5000,
+            });
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "email_inbox",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ["email-threads"] });
+          qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
+          qc.invalidateQueries({ queryKey: ["email-thread-messages"] });
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [userId, qc]);
 
   // Connessioni email dell'utente
   const { data: connections } = useQuery({
