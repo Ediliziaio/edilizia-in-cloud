@@ -31,8 +31,9 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft, ClipboardList, Plus, Save, FileSignature, FileText, Sparkles,
-  Loader2, MapPin, Calendar,
+  Loader2, MapPin, Calendar, UserPlus,
 } from "lucide-react";
+import { SurveyAssignDialog } from "@/components/sopralluoghi/SurveyAssignDialog";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -59,6 +60,7 @@ export default function SopralluogoEditor() {
 
   const [headerOpen, setHeaderOpen] = useState(true);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
 
   // Local state per auto-save debounced
   const [headerData, setHeaderData] = useState<Record<string, unknown>>({});
@@ -251,6 +253,15 @@ export default function SopralluogoEditor() {
               {template.name} · {survey.address ?? "Indirizzo non specificato"}
             </p>
           </div>
+          <Button
+            variant="outline" size="sm"
+            onClick={() => setAssignDialogOpen(true)}
+            className="gap-1.5 h-8"
+            title="Assegna tecnici/subappaltatori"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Assegna</span>
+          </Button>
           <Select value={survey.status} onValueChange={(v) => updateStatusMut.mutate(v)}>
             <SelectTrigger className="w-32 h-8 text-xs">
               <SelectValue />
@@ -416,6 +427,12 @@ export default function SopralluogoEditor() {
           </Card>
         ) : null}
       </div>
+
+      <SurveyAssignDialog
+        surveyId={survey.id}
+        open={assignDialogOpen}
+        onOpenChange={setAssignDialogOpen}
+      />
 
       {/* Bottom action bar */}
       <div className="fixed bottom-0 left-0 right-0 z-20 bg-background border-t p-3 flex gap-2 flex-wrap">

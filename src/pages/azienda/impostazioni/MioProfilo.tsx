@@ -25,6 +25,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
+import { MySurveysTab } from "@/components/sopralluoghi/MySurveysTab";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { ClipboardList } from "lucide-react";
 
 // ── Role labels ──
 const ROLE_LABELS: Record<string, string> = {
@@ -67,6 +70,8 @@ export default function MioProfilo() {
   const { user, role, refreshAuth, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
+  const { isFeatureEnabled } = useFeatureFlags();
+  const surveysEnabled = isFeatureEnabled("surveys_module");
 
   // ── Profile data ──
   const { data: profile, isLoading } = useQuery({
@@ -346,6 +351,11 @@ export default function MioProfilo() {
           <TabsTrigger value="email" className="gap-1.5 text-xs sm:text-sm">
             <Mail className="h-3.5 w-3.5" /> Email
           </TabsTrigger>
+          {surveysEnabled && (
+            <TabsTrigger value="sopralluoghi" className="gap-1.5 text-xs sm:text-sm">
+              <ClipboardList className="h-3.5 w-3.5" /> Sopralluoghi
+            </TabsTrigger>
+          )}
           <TabsTrigger value="notifiche" className="gap-1.5 text-xs sm:text-sm">
             <Bell className="h-3.5 w-3.5" /> Notifiche
           </TabsTrigger>
@@ -668,6 +678,13 @@ export default function MioProfilo() {
           </Card>
           <EmailOAuthConnectionsCard scope="user" />
         </TabsContent>
+
+        {/* ════════════ TAB SOPRALLUOGHI ════════════ */}
+        {surveysEnabled && (
+          <TabsContent value="sopralluoghi" className="space-y-5 mt-0">
+            <MySurveysTab />
+          </TabsContent>
+        )}
 
         {/* ════════════ TAB NOTIFICHE ════════════ */}
         <TabsContent value="notifiche" className="space-y-5 mt-0">
