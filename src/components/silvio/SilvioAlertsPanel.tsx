@@ -14,6 +14,7 @@
  */
 
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,6 +53,38 @@ const ALERT_TYPE_ICON: Record<string, typeof Bell> = {
   hr_request_pending: Calendar,
 };
 
+/**
+ * Mappa cta_action → route target. Se l'azione inizia con "open_" o è qui
+ * dentro, click → navigate (no proposal). Altrimenti → silvio_promote_alert_to_proposal.
+ */
+const CTA_NAVIGATION_MAP: Record<string, (payload: Record<string, unknown> | null) => string> = {
+  open_cashflow_forecast: () => "/azienda/cashflow-forecast",
+  open_quote: (payload) => {
+    const id = payload?.quote_id ?? payload?.id;
+    return id ? `/azienda/preventivi/${id}` : "/azienda/preventivi";
+  },
+  open_order: (payload) => {
+    const id = payload?.order_id ?? payload?.id;
+    return id ? `/azienda/commesse/${id}` : "/azienda/commesse";
+  },
+  open_stock: (payload) => {
+    const id = payload?.stock_id ?? payload?.id;
+    return id ? `/azienda/magazzino?item=${id}` : "/azienda/magazzino";
+  },
+  open_employee: (payload) => {
+    const id = payload?.employee_id ?? payload?.user_id ?? payload?.id;
+    return id ? `/azienda/personale/${id}` : "/azienda/personale";
+  },
+  open_hr_requests: () => "/azienda/personale?tab=ferie-permessi",
+};
+
+function resolveCtaNavigation(action: string | null, payload: Record<string, unknown> | null): string | null {
+  if (!action) return null;
+  const handler = CTA_NAVIGATION_MAP[action];
+  if (!handler) return null;
+  return handler(payload);
+}
+
 function alertIcon(severity: string) {
   switch (severity) {
     case "critical": return AlertCircle;
@@ -85,6 +118,7 @@ export function SilvioAlertsPanel({
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: alerts, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["silvio_alerts_open", companyId],
@@ -166,6 +200,13 @@ export function SilvioAlertsPanel({
       onAlertCtaClick(alert);
       return;
     }
+    // Se cta_action è una navigazione (open_*), apri la route
+    const navTarget = resolveCtaNavigation(alert.cta_action, alert.cta_payload);
+    if (navTarget) {
+      navigate(navTarget);
+      return;
+    }
+    // Altrimenti promuovi a proposal (azione operativa)
     if (enableAutoPropose && alert.cta_action) {
       promoteMut.mutate(alert.id);
     }

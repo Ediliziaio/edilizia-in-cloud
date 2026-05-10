@@ -46,6 +46,17 @@ const ACTION_ICON: Record<string, typeof Send> = {
   create_quote_draft: Send,
   create_invoice_draft: Wallet,
   generic_email: Mail,
+  // Aliases italiani (proposal storiche o generate da silvioTools.create_action_draft)
+  preventivo_bozza: Send,
+  bozza_preventivo: Send,
+  sollecito_pagamento: Wallet,
+  email_recupero_crediti: Wallet,
+  follow_up_preventivo: Mail,
+  followup_preventivo: Mail,
+  riordino_materiale: Package,
+  ordine_fornitore: Package,
+  bozza_fattura: Wallet,
+  fattura_bozza: Wallet,
 };
 
 const ACTION_LABEL: Record<string, string> = {
@@ -56,6 +67,17 @@ const ACTION_LABEL: Record<string, string> = {
   create_quote_draft: "Crea bozza preventivo",
   create_invoice_draft: "Crea bozza fattura",
   generic_email: "Invia email",
+  // Aliases italiani
+  preventivo_bozza: "Crea bozza preventivo",
+  bozza_preventivo: "Crea bozza preventivo",
+  sollecito_pagamento: "Invia sollecito pagamento",
+  email_recupero_crediti: "Email recupero crediti",
+  follow_up_preventivo: "Follow-up preventivo",
+  followup_preventivo: "Follow-up preventivo",
+  riordino_materiale: "Crea ordine fornitore (bozza)",
+  ordine_fornitore: "Crea ordine fornitore (bozza)",
+  bozza_fattura: "Crea bozza fattura",
+  fattura_bozza: "Crea bozza fattura",
 };
 
 const STRONG_CONFIRM_ACTIONS = new Set(["mark_payment_received", "generic_email"]);

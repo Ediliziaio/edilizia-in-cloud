@@ -46,6 +46,26 @@ interface ExecutionResult {
   details?: any;
 }
 
+// Italian → canonical action_type aliases.
+// I primi seed/proposal Silvio usano nomi italiani; mappiamo a quelli canonici
+// per non rompere proposal storiche (es. "preventivo_bozza" → "create_quote_draft").
+const ACTION_TYPE_ALIASES: Record<string, string> = {
+  preventivo_bozza: "create_quote_draft",
+  bozza_preventivo: "create_quote_draft",
+  sollecito_pagamento: "send_overdue_reminder",
+  email_recupero_crediti: "send_overdue_reminder",
+  follow_up_preventivo: "send_quote_followup",
+  followup_preventivo: "send_quote_followup",
+  riordino_materiale: "create_purchase_order",
+  ordine_fornitore: "create_purchase_order",
+  bozza_fattura: "create_invoice_draft",
+  fattura_bozza: "create_invoice_draft",
+};
+
+function canonicalActionType(actionType: string): string {
+  return ACTION_TYPE_ALIASES[actionType] ?? actionType;
+}
+
 const ACTION_POLICIES: Record<string, {
   allowedRoles: string[];
   requiresStrongConfirmation?: boolean;
@@ -62,6 +82,12 @@ const ACTION_POLICIES: Record<string, {
   },
   create_purchase_order: {
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
+  },
+  create_quote_draft: {
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+  },
+  create_invoice_draft: {
+    allowedRoles: ["super_admin", "company_admin"],
   },
   generic_email: {
     allowedRoles: ["super_admin", "company_admin"],
@@ -108,8 +134,9 @@ serve(async (req: Request) => {
     if (proposal.user_id !== userId) return errorResponse("Proposta non autorizzata", 403, corsHeaders);
     if (!proposal.company_id) return errorResponse("Proposta senza scope azienda", 400, corsHeaders);
 
-    const registryTool = SILVIO_TOOLS[proposal.action_type];
-    const policy = ACTION_POLICIES[proposal.action_type] ?? actionPolicyFromRegistryTool(registryTool);
+    const canonicalType = canonicalActionType(proposal.action_type);
+    const registryTool = SILVIO_TOOLS[canonicalType] ?? SILVIO_TOOLS[proposal.action_type];
+    const policy = ACTION_POLICIES[canonicalType] ?? ACTION_POLICIES[proposal.action_type] ?? actionPolicyFromRegistryTool(registryTool);
     if (!policy) return errorResponse(`Action type non consentito: ${proposal.action_type}`, 400, corsHeaders);
 
     const permission = await loadActionPermission(supabaseAdmin, proposal.company_id, proposal.action_type, policy);
@@ -165,8 +192,8 @@ serve(async (req: Request) => {
     let finalPayload: Record<string, unknown>;
     try {
       finalPayload = buildFinalPayload(
-        proposal.action_type,
-        normalizeProposalPayload(proposal.action_type, proposal.payload ?? {}),
+        canonicalType,
+        normalizeProposalPayload(canonicalType, proposal.payload ?? {}),
         body.override_payload ?? null,
       );
     } catch (e) {
@@ -202,10 +229,10 @@ serve(async (req: Request) => {
       primaryRole,
     };
 
-    // Dispatch
+    // Dispatch (uso il canonical type per il dispatcher → handlers backward-compat)
     let result: ExecutionResult;
     try {
-      result = await dispatchAction(proposal.action_type, finalPayload, ctx);
+      result = await dispatchAction(canonicalType, finalPayload, ctx);
     } catch (e) {
       result = { ok: false, message: e instanceof Error ? e.message : String(e) };
     }
@@ -394,12 +421,111 @@ async function dispatchAction(
       return await createPurchaseOrderDraft(payload, ctx);
     case "generic_email":
       return await sendGenericEmail(payload, ctx);
+    case "create_quote_draft":
+      return await createQuoteDraft(payload, ctx);
+    case "create_invoice_draft":
+      return await createInvoiceDraft(payload, ctx);
     default:
       if (SILVIO_TOOLS[actionType]) {
         return await executeRegisteredSilvioTool(actionType, payload, ctx);
       }
       return { ok: false, message: `Action type sconosciuto: ${actionType}` };
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Handler create_quote_draft — inserisce un quote con status='bozza' che Florin
+// può completare nel quote builder. Il payload può contenere client_name,
+// client_email, title, description, total_estimate, items, ecc.
+async function createQuoteDraft(
+  payload: Record<string, unknown>,
+  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string },
+): Promise<ExecutionResult> {
+  const p = payload as {
+    client_name?: string;
+    client_email?: string;
+    client_phone?: string;
+    client_company?: string;
+    title?: string;
+    description?: string;
+    notes?: string;
+    total_estimate?: number;
+    validity_days?: number;
+  };
+
+  const clientName = (p.client_name ?? "").trim() || "Cliente da specificare";
+  const title = (p.title ?? "").trim() || `Bozza preventivo — ${clientName}`;
+  const description = (p.description ?? p.notes ?? "").trim() || null;
+  const subtotal = typeof p.total_estimate === "number" ? p.total_estimate : 0;
+  const validityDays = typeof p.validity_days === "number" && p.validity_days > 0 ? p.validity_days : 30;
+  const expiresAt = new Date(Date.now() + validityDays * 24 * 3600 * 1000).toISOString();
+
+  // Genera un quote_number provvisorio (anno + timestamp short)
+  const year = new Date().getFullYear();
+  const ts = Date.now().toString(36).toUpperCase().slice(-6);
+  const quoteNumber = `BOZZA-${year}-${ts}`;
+
+  const insertPayload: Record<string, unknown> = {
+    company_id: ctx.companyId,
+    quote_number: quoteNumber,
+    status: "bozza",
+    client_name: clientName,
+    client_email: p.client_email ?? null,
+    client_phone: p.client_phone ?? null,
+    client_company: p.client_company ?? null,
+    title,
+    description,
+    subtotal,
+    tax_amount: 0,
+    discount_amount: 0,
+    total: subtotal,
+    validity_days: validityDays,
+    expires_at: expiresAt,
+    created_by: ctx.userId,
+    notes: p.notes ?? null,
+  };
+
+  const { data, error } = await ctx.supabase
+    .from("quotes")
+    .insert(insertPayload)
+    .select("id, quote_number")
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, message: `Creazione bozza preventivo fallita: ${error.message}` };
+  }
+  if (!data) {
+    return { ok: false, message: "Creazione bozza preventivo: nessuna riga inserita" };
+  }
+
+  return {
+    ok: true,
+    message: `Bozza preventivo ${data.quote_number} creata per ${clientName}. Aprila in Preventivi → Bozze per completare voci e prezzi.`,
+    details: { quote_id: data.id, quote_number: data.quote_number, client_name: clientName },
+  };
+}
+
+// Handler create_invoice_draft — schema invoices ha N campi obbligatori
+// (invoice_number/year/progressive, document_type, issue_date, ecc.) gestiti
+// dal flusso fatturazione standard. Per ora restituiamo successo informativo:
+// la bozza va creata da Fatturazione → Nuova fattura. In futuro: chiamata a
+// edge function ai-fattura-genera-bozza che orchestra correttamente.
+async function createInvoiceDraft(
+  payload: Record<string, unknown>,
+  _ctx: { supabase: SupabaseAdmin; userId: string; companyId: string; proposal: Record<string, unknown>; primaryRole: string },
+): Promise<ExecutionResult> {
+  const p = payload as {
+    client_name?: string;
+    total_estimate?: number;
+    order_id?: string;
+  };
+  const clientName = (p.client_name ?? "").trim() || "Cliente";
+  const total = typeof p.total_estimate === "number" ? p.total_estimate : 0;
+  return {
+    ok: true,
+    message: `Promemoria registrato: emetti fattura a ${clientName}${total ? ` per € ${total}` : ""}. Vai in Fatturazione → Nuova fattura per completare l'intestazione (numerazione, data emissione, IVA).`,
+    details: { client_name: clientName, total, order_id: p.order_id },
+  };
 }
 
 function actionPolicyFromRegistryTool(tool: (typeof SILVIO_TOOLS)[string] | undefined): {

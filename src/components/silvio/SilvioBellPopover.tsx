@@ -106,7 +106,7 @@ export function SilvioBellPopover() {
         </div>
         <div className="border-t bg-muted/30 px-3 py-2 flex items-center justify-end">
           <Link
-            to="/azienda/chat"
+            to="/azienda/chat?channel=silvio-ai"
             className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
           >
             Apri chat con Silvio <ArrowRight className="h-3 w-3" />
