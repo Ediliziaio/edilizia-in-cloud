@@ -3,6 +3,7 @@
  * Supports DMs, group chats, Lucia AI bot, reactions, replies, pins
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
 import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
 import { SilvioRatingButtons } from "@/components/silvio/SilvioRatingButtons";
@@ -935,6 +936,7 @@ interface InternalChatProps {
 }
 
 export default function InternalChat({ companyIdOverride }: InternalChatProps = {}) {
+  const location = useLocation();
   const {
     channels, members, profiles, companyId, userId,
     queryClient, unreadCounts, markChannelRead, refetchUnread, lastMessages, internalProfileIds,
@@ -1007,23 +1009,29 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     markChannelRead(channelId);
   }, [markChannelRead]);
 
-  // Auto-select first channel on desktop, OR deep-link via ?channel=<id>
+  // Deep-link via ?channel=<id|name>: reagisce ai cambi URL (es. click su
+  // "Apri chat con Silvio" dal bell popover quando si è già sulla pagina chat).
+  useEffect(() => {
+    if (channels.length === 0) return;
+    const params = new URLSearchParams(location.search);
+    const targetChannel = params.get("channel");
+    if (!targetChannel) return;
+    const found = channels.find((c) => c.id === targetChannel || c.name === targetChannel);
+    if (found && found.id !== selectedChannelId) {
+      handleSelectChannel(found.id);
+    }
+  }, [location.search, channels, selectedChannelId, handleSelectChannel]);
+
+  // Auto-select primo canale al primo render (desktop), solo se non c'è
+  // un deep-link e nessun canale già selezionato.
   useEffect(() => {
     if (selectedChannelId || channels.length === 0) return;
-    // Deep-link: ?channel=<uuid> (usato da SilvioAdminPage per aprire silvio-admin)
-    const params = new URLSearchParams(window.location.search);
-    const targetChannel = params.get("channel");
-    if (targetChannel) {
-      const found = channels.find((c) => c.id === targetChannel || c.name === targetChannel);
-      if (found) {
-        handleSelectChannel(found.id);
-        return;
-      }
-    }
+    const params = new URLSearchParams(location.search);
+    if (params.get("channel")) return; // gestito dall'effect sopra
     if (window.innerWidth >= 768) {
       handleSelectChannel(channels[0].id);
     }
-  }, [channels, selectedChannelId, handleSelectChannel]);
+  }, [channels, selectedChannelId, handleSelectChannel, location.search]);
 
   // Scroll to bottom
   useEffect(() => {

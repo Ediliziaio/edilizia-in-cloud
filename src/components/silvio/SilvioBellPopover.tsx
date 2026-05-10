@@ -7,6 +7,7 @@
  *   - Link "Apri Cose da sapere" → /azienda/attivita?tab=cose_da_sapere
  */
 
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +22,7 @@ import { SilvioActionProposals } from "./SilvioActionProposals";
 export function SilvioBellPopover() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const [open, setOpen] = useState(false);
 
   const { data: stats } = useQuery({
     queryKey: ["silvio_alerts_badge_topbar", companyId],
@@ -62,7 +64,7 @@ export function SilvioBellPopover() {
   if (!companyId) return null;
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
@@ -107,6 +109,7 @@ export function SilvioBellPopover() {
         <div className="border-t bg-muted/30 px-3 py-2 flex items-center justify-end">
           <Link
             to="/azienda/chat?channel=silvio-ai"
+            onClick={() => setOpen(false)}
             className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
           >
             Apri chat con Silvio <ArrowRight className="h-3 w-3" />
