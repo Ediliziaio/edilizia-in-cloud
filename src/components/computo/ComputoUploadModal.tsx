@@ -237,7 +237,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
       );
       setStep(4);
     }
-  }, [status, step, voci, applyRicarico, ricarico]);
+  }, [status, step, voci, applyRicarico, ricarico, reset]);
 
   // ── Step 4 → Generate ──────────────────────────────────────────────────────
   const handleGenerate = () => {

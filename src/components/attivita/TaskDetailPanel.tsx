@@ -141,7 +141,12 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(task?.title ?? "");
 
-  // Sync title when a different task is selected
+  // Sync title when a different task is selected.
+  // NB: dipendiamo da `task?.id` (non `task?.title`) volutamente — vogliamo
+  // fare il reset SOLO quando cambia il task selezionato, non ad ogni save
+  // del titolo (che bumpa task.title nel parent → causerebbe overwrite del
+  // valore digitato dall'utente).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     setTitle(task?.title ?? "");
     setEditingTitle(false);

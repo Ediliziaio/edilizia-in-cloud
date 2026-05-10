@@ -243,7 +243,7 @@ export function CustomerDiaryPanel({ customerId, customerName, customerEmail }: 
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [customerId, queryClient]);
+  }, [customerId, queryClient, queryKey]);
 
   /* ─── Send chat/internal ──────────────────────────────── */
   const sendMutation = useMutation({

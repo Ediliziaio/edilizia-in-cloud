@@ -64,7 +64,7 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts, getMo
       totalCommissionsPaid,
       overallROI,
     };
-  }, [referrers, referralCompanies, payouts, getMonthlyCommission]);
+  }, [referrers, referralCompanies, getMonthlyCommission]);
 
   const calculateCommissions = async () => {
     setCalculating(true);

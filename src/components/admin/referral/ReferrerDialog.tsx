@@ -116,6 +116,10 @@ export function ReferrerDialog({ open, onOpenChange, referrer }: Props) {
         notes: "",
       });
     }
+    // `form` (di react-hook-form) è una API stabile internamente — la sua reset
+    // non cambia identità tra render, perciò omettiamo dalle deps per evitare
+    // re-trigger spuri al cambio di altri stati.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [referrer, open]);
 
   const mutation = useMutation({
