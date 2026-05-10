@@ -175,6 +175,9 @@ const EmailTriagePage = lazy(() => import("@/pages/azienda/EmailTriagePage"));
 const EmailClientPage = lazy(() => import("@/pages/azienda/email/EmailClientPage"));
 // 🆕 Sprint S1: modulo Sopralluoghi (Beta, gate via feature flag surveys_module)
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
+const NuovoSopralluogo = lazy(() => import("@/pages/azienda/sopralluoghi/NuovoSopralluogo"));
+const SopralluogoEditor = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluogoEditor"));
+const FirmaCliente = lazy(() => import("@/pages/azienda/sopralluoghi/FirmaCliente"));
 // 🆕 GAP 7b: callback OAuth Gmail/Outlook
 const EmailOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/EmailOAuthCallbackPage"));
 // 🆕 GAP 9b: pagina gestione memoria AI personas
@@ -376,8 +379,11 @@ export function companyRoutes() {
         <Route path="email-triage" element={<EmailTriagePage />} />
         {/* 🆕 Sprint E1: Email client integrato (Beta) */}
         <Route path="email" element={<EmailClientPage />} />
-        {/* 🆕 Sprint S1: Modulo Sopralluoghi (Beta) */}
+        {/* 🆕 Sprint S1-S3: Modulo Sopralluoghi (Beta) */}
         <Route path="sopralluoghi" element={<SopralluoghiList />} />
+        <Route path="sopralluoghi/nuovo" element={<NuovoSopralluogo />} />
+        <Route path="sopralluoghi/:id" element={<SopralluogoEditor />} />
+        <Route path="sopralluoghi/:id/firma" element={<FirmaCliente />} />
         {/* 🆕 GAP 7b: callback OAuth Gmail/Outlook */}
         <Route path="impostazioni/integrazioni/email-callback" element={<EmailOAuthCallbackPage />} />
         {/* 🆕 GAP 9b: gestione memoria AI personas */}
