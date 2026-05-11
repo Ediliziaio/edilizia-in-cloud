@@ -16,6 +16,7 @@ import {
   updateTemplate, deleteTemplate, createBlankTemplate, type TemplateWithSettings,
 } from "@/lib/api/surveys";
 import { SurveyTemplateEditor } from "./SurveyTemplateEditor";
+import { SurveyTemplatePreview } from "./SurveyTemplatePreview";
 import type { SurveyCategory } from "@/types/surveys";
 import type { TemplateSchema } from "@/types/surveys";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -39,7 +40,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   ClipboardList, Sparkles, Copy, Trash2, Save, Loader2, ChevronDown, ChevronUp,
-  Lock, Camera, FormInput, FileEdit, Plus, AlertCircle,
+  Lock, Camera, FormInput, FileEdit, Plus, AlertCircle, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
@@ -73,6 +74,7 @@ export default function SettingsSopralluoghi() {
 
   const [selected, setSelected] = useState<TemplateWithSettings | null>(null);
   const [editing, setEditing] = useState<TemplateWithSettings | null>(null);
+  const [previewing, setPreviewing] = useState<TemplateWithSettings | null>(null);
   const [cloneDialog, setCloneDialog] = useState<TemplateWithSettings | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<TemplateWithSettings | null>(null);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
@@ -216,6 +218,7 @@ export default function SettingsSopralluoghi() {
               onToggle={(en) => toggleMut.mutate({ id: t.id, enabled: en })}
               onView={() => setSelected(t)}
               onEdit={t.is_system ? undefined : () => setEditing(t)}
+              onPreview={() => setPreviewing(t)}
               onClone={() => setCloneDialog(t)}
               onDelete={() => setDeleteDialog(t)}
             />
@@ -240,6 +243,14 @@ export default function SettingsSopralluoghi() {
             setCloneDialog(null);
             qc.invalidateQueries({ queryKey: ["survey-templates-with-settings"] });
           }}
+        />
+      )}
+
+      {/* Preview interattiva */}
+      {previewing && (
+        <SurveyTemplatePreview
+          template={previewing}
+          onClose={() => setPreviewing(null)}
         />
       )}
 
@@ -313,13 +324,14 @@ export default function SettingsSopralluoghi() {
 // ───────────────────────────────────────────────────────────────────────────
 
 function TemplateRow({
-  template, isToggling, onToggle, onView, onEdit, onClone, onDelete,
+  template, isToggling, onToggle, onView, onEdit, onPreview, onClone, onDelete,
 }: {
   template: TemplateWithSettings;
   isToggling: boolean;
   onToggle: (enabled: boolean) => void;
   onView: () => void;
   onEdit?: () => void;
+  onPreview: () => void;
   onClone: () => void;
   onDelete: () => void;
 }) {
@@ -393,7 +405,16 @@ function TemplateRow({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-1.5 ml-auto w-full sm:w-auto sm:ml-0">
+        <div className="flex items-center gap-1.5 ml-auto w-full sm:w-auto sm:ml-0 flex-wrap">
+          <Button
+            variant="outline" size="sm"
+            className="gap-1 border-violet-300 text-violet-700 hover:bg-violet-50"
+            onClick={onPreview}
+            title="Anteprima interattiva del template"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            Anteprima
+          </Button>
           {onEdit ? (
             <Button variant="default" size="sm" className="gap-1 bg-orange-600 hover:bg-orange-700" onClick={onEdit}>
               <FileEdit className="h-3.5 w-3.5" />
