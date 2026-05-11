@@ -31,7 +31,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Upload, Sparkles, FolderTree, ShieldAlert, ChevronDown } from "lucide-react";
+import { Upload, Sparkles, FolderTree, ShieldAlert, ChevronDown, Package } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,24 +68,39 @@ export default function SettingsCatalog() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Header coerente con SettingsQuoteTemplates — palette arancione */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+            <Package className="h-5 w-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Listino Prodotti</h1>
+            <p className="text-sm text-muted-foreground">
+              Catalogo articoli organizzato per macrocategoria e categoria con prezzi,
+              griglia L×H e variabili (colore, apertura…).
+            </p>
+          </div>
+        </div>
+      </div>
+
       <ListinoGuide />
 
       <FamilyCatalog
         headerActions={
           <>
             <Button
-              variant="outline"
               size="sm"
               onClick={() => setShowCategorieDialog(true)}
-              className="h-10"
+              className="h-10 bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
             >
               <FolderTree className="h-4 w-4 mr-1.5" aria-hidden="true" />
               Categorie
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-10">
+                <Button variant="outline" size="sm" className="h-10 border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:border-orange-900/50 dark:hover:bg-orange-950/40">
                   <Upload className="h-4 w-4 mr-1.5" aria-hidden="true" />
                   Importa
                   <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60" aria-hidden="true" />
@@ -103,7 +118,7 @@ export default function SettingsCatalog() {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/azienda/impostazioni/listino/import" className="cursor-pointer">
-                    <Sparkles className="h-4 w-4 mr-2 text-primary" aria-hidden="true" />
+                    <Sparkles className="h-4 w-4 mr-2 text-orange-500" aria-hidden="true" />
                     <div className="flex flex-col">
                       <span>AI da PDF</span>
                       <span className="text-[10px] text-muted-foreground">Listino fornitore</span>

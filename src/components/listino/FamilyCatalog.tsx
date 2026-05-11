@@ -226,6 +226,7 @@ interface CategoriaGroup {
 interface MacroGroup {
   macroId: string; // id reale o NO_MACRO
   macroNome: string;
+  macroImmagineUrl: string | null;
   categorie: CategoriaGroup[];
   totalItems: number;
 }
@@ -392,10 +393,12 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
       const catMap = bucket.get(macroId);
       if (!catMap || catMap.size === 0) continue;
 
+      const macroRow = macroId === NO_MACRO ? null : macroById.get(macroId);
       const macroNome =
         macroId === NO_MACRO
           ? "Senza macrocategoria"
-          : macroById.get(macroId)?.nome ?? "Macrocategoria sconosciuta";
+          : macroRow?.nome ?? "Macrocategoria sconosciuta";
+      const macroImmagineUrl = macroRow?.immagine_url ?? null;
 
       // Ordina categorie per sort_order
       const catIdsSorted = Array.from(catMap.keys()).sort((a, b) => {
@@ -419,7 +422,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
       });
 
       const totalItems = categorieGroups.reduce((sum, c) => sum + c.items.length, 0);
-      result.push({ macroId, macroNome, categorie: categorieGroups, totalItems });
+      result.push({ macroId, macroNome, macroImmagineUrl, categorie: categorieGroups, totalItems });
     }
 
     return result;
@@ -551,12 +554,11 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-0.5 min-w-0">
-          <h2 className="text-xl sm:text-2xl font-semibold tracking-tight">Articoli</h2>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Organizzati per macrocategoria e categoria · prezzo base, griglia L×H o variabili
-          </p>
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold tracking-tight text-muted-foreground">
+            Articoli
+          </h2>
         </div>
         <div className="flex flex-col lg:flex-row gap-2 lg:items-center lg:flex-nowrap">
           <div className="relative w-full lg:w-56 xl:w-72">
@@ -598,7 +600,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                 onClick={() =>
                   navigate("/azienda/impostazioni/listino/famiglie/nuova")
                 }
-                className="h-10"
+                className="h-10 bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
               >
                 <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
                 Nuovo articolo
@@ -799,26 +801,41 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
               <button
                 type="button"
                 onClick={() => toggleMacro(macroGroup.macroId)}
-                className="w-full flex items-center gap-2 pb-2 border-b-2 border-primary/20 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:rounded transition-colors text-left group/macro"
+                className="w-full flex items-center gap-3 pb-2 border-b-2 border-orange-200/60 dark:border-orange-900/30 hover:border-orange-400/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40 focus-visible:rounded transition-colors text-left group/macro"
                 aria-expanded={!isCollapsed}
                 aria-controls={`macro-panel-${macroGroup.macroId}`}
               >
                 {isCollapsed ? (
                   <ChevronRight
-                    className="h-5 w-5 text-primary/70 group-hover/macro:text-primary transition-transform"
+                    className="h-5 w-5 text-orange-500/80 group-hover/macro:text-orange-600 transition-transform shrink-0"
                     aria-hidden="true"
                   />
                 ) : (
                   <ChevronDown
-                    className="h-5 w-5 text-primary/70 group-hover/macro:text-primary transition-transform"
+                    className="h-5 w-5 text-orange-500/80 group-hover/macro:text-orange-600 transition-transform shrink-0"
                     aria-hidden="true"
                   />
                 )}
-                <Folder className="h-5 w-5 text-primary" aria-hidden="true" />
-                <h3 className="text-lg font-semibold tracking-tight">
+                {/* Thumb macrocategoria: foto se presente, fallback icona Folder */}
+                {macroGroup.macroImmagineUrl ? (
+                  <img
+                    src={macroGroup.macroImmagineUrl}
+                    alt=""
+                    className="h-10 w-10 rounded-md object-cover border border-orange-200 dark:border-orange-900/50 shrink-0 shadow-sm"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-md bg-gradient-to-br from-orange-100 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/20 border border-orange-200 dark:border-orange-900/50 flex items-center justify-center shrink-0">
+                    <Folder className="h-5 w-5 text-orange-600 dark:text-orange-400" aria-hidden="true" />
+                  </div>
+                )}
+                <h3 className="text-lg font-semibold tracking-tight min-w-0 truncate">
                   {macroGroup.macroNome}
                 </h3>
-                <Badge variant="outline" className="ml-1">
+                <Badge
+                  variant="outline"
+                  className="ml-1 border-orange-200 bg-orange-50/50 text-orange-700 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-300 shrink-0"
+                >
                   {macroGroup.totalItems}{" "}
                   {macroGroup.totalItems === 1 ? "articolo" : "articoli"}
                 </Badge>

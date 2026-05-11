@@ -1666,11 +1666,11 @@ export default function SettingsTariffe() {
 
   return (
     <div className="space-y-6">
-      {/* Header pattern h-10 w-10 bg-primary/10 */}
+      {/* Header — palette arancione coerente con Listino Prodotti & Template */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <Wrench className="h-5 w-5 text-primary" />
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+            <Wrench className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold leading-tight">Tariffe Aziendali</h1>
@@ -1681,10 +1681,19 @@ export default function SettingsTariffe() {
           </div>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
-          <Button variant="outline" size="sm" onClick={() => setStandardOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setStandardOpen(true)}
+            className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
+          >
             <Zap className="h-4 w-4 mr-1.5" />Catalogo standard
           </Button>
-          <Button size="sm" onClick={openNew}>
+          <Button
+            size="sm"
+            onClick={openNew}
+            className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
+          >
             <Plus className="h-4 w-4 mr-1.5" />Nuova tariffa
           </Button>
         </div>
