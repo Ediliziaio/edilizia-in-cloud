@@ -53,9 +53,9 @@ interface Props {
   onSelect: (item: ListinoPickResult) => void;
 }
 
-// ─── Helpers calcolo prezzo (invariati) ─────────────────────────────────────
+// ─── Helpers calcolo prezzo (esportati per riuso in StepBom row) ───────────
 
-function calcolaPrezzoProdotto(
+export function calcolaPrezzoProdotto(
   family: ListinoFamily,
   larghezza: number | null,
   altezza: number | null,

@@ -372,7 +372,7 @@ export const SR_WIZARD_STEPS: { key: SrWizardStep; label: string; icon: string }
   { key: "immobile",       label: "Immobile",            icon: "Home" },
   { key: "esigenze",       label: "Contenuti PDF",       icon: "MessageCircle" },
   { key: "bom",            label: "Composizione offerta",icon: "RectangleVertical" },
-  { key: "accessori_foto", label: "Accessori e foto",    icon: "Image" },
+  { key: "accessori_foto", label: "Foto e render",       icon: "Image" },
   { key: "economia",       label: "Economia",            icon: "Euro" },
   { key: "consulenza",     label: "Consulenza",          icon: "Calendar" },
   { key: "pdf",            label: "Genera PDF",          icon: "FileText" },

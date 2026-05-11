@@ -1,0 +1,491 @@
+/**
+ * AccessoriSection — sezione "Accessori e complementi" estratta dallo
+ * StepAccessori e riusata dentro StepBom (Composizione offerta).
+ *
+ * Use case: tapparelle, cassonetti, zanzariere, persiane, monoblocchi che
+ * spesso hanno le stesse misure dei serramenti già nel preventivo.
+ *
+ * Feature chiave: "Copia misure dai serramenti" — dialog che mostra i
+ * serramenti già nel BOM e permette di selezionare quali importare; per
+ * ogni serramento selezionato viene creata una riga accessorio con
+ * tipologia comune (es. tapparella) ed esatte misure (larghezza × altezza
+ * × quantità). Risolve il workflow "ho 10 finestre, voglio 10 tapparelle
+ * con le stesse misure senza re-inserirle tutte".
+ */
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Image as ImageIcon, Plus, Trash2, Loader2, Copy, Layers,
+} from "lucide-react";
+import {
+  useAddAccessorio, useUpdateAccessorio, useDeleteAccessorio,
+} from "@/lib/serramenti/queries";
+import { SR_ACCESSORI_TIPI } from "@/types/serramenti";
+import type { SrProgettoDetail, SrAccessorioRow, SrSerramentoRow } from "@/types/serramenti";
+import { SrCard, formatEuro } from "@/lib/serramenti/wizardUI";
+import { toast } from "sonner";
+
+interface Props {
+  progettoId: string;
+  detail: SrProgettoDetail;
+}
+
+export function AccessoriSection({ progettoId, detail }: Props) {
+  const addMut = useAddAccessorio(progettoId);
+  const updateMut = useUpdateAccessorio(progettoId);
+  const deleteMut = useDeleteAccessorio(progettoId);
+
+  const accessori = detail.accessori;
+  const serramenti = detail.serramenti;
+
+  const [toDelete, setToDelete] = useState<SrAccessorioRow | null>(null);
+  const [copyDialogOpen, setCopyDialogOpen] = useState(false);
+
+  const handleAdd = () => {
+    addMut.mutate({
+      tipo: "avvolgibile",
+      quantita: 1,
+      position: accessori.length,
+    });
+  };
+
+  const onPatch = (id: string, patch: Partial<SrAccessorioRow>) => {
+    if (patch.prezzo_unitario !== undefined || patch.quantita !== undefined) {
+      const orig = accessori.find((a) => a.id === id);
+      if (orig) {
+        const pu = patch.prezzo_unitario ?? orig.prezzo_unitario ?? 0;
+        const q = patch.quantita ?? orig.quantita ?? 1;
+        patch.prezzo_totale = pu * q;
+      }
+    }
+    updateMut.mutate({ id, patch });
+  };
+
+  return (
+    <>
+      <SrCard
+        title="Accessori e complementi"
+        description="Tapparelle, cassonetti, zanzariere, persiane, monoblocchi. Possono ereditare le misure dai serramenti già configurati."
+        icon={<ImageIcon className="h-4 w-4" />}
+      >
+        {/* Toolbar: aggiungi vuoto + copia da serramenti */}
+        {accessori.length === 0 ? (
+          <div className="border-2 border-dashed border-emerald-200 rounded-md p-6 text-center space-y-3">
+            <ImageIcon className="h-8 w-8 mx-auto text-emerald-300" />
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Nessun accessorio aggiunto
+              </p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                Aggiungi tapparelle, cassonetti o altri complementi.{" "}
+                {serramenti.length > 0 && (
+                  <strong>Scorciatoia:</strong>
+                )}{" "}
+                {serramenti.length > 0 &&
+                  "se le tapparelle hanno le stesse misure dei serramenti, copiale in un click."}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center pt-1">
+              {serramenti.length > 0 && (
+                <Button
+                  size="sm"
+                  onClick={() => setCopyDialogOpen(true)}
+                  className="bg-emerald-700 hover:bg-emerald-800 gap-1.5"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copia misure dai serramenti ({serramenti.length})
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAdd}
+                disabled={addMut.isPending}
+              >
+                {addMut.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-1" />
+                )}
+                Aggiungi accessorio vuoto
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Toolbar superiore quando ci sono già accessori */}
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div className="text-xs text-muted-foreground">
+                {accessori.length} {accessori.length === 1 ? "accessorio" : "accessori"}
+              </div>
+              {serramenti.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCopyDialogOpen(true)}
+                  className="gap-1.5 border-emerald-300 hover:bg-emerald-50"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copia da serramenti
+                </Button>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Tipo</TableHead>
+                    <TableHead className="text-xs">Descrizione</TableHead>
+                    <TableHead className="text-xs w-24">Largh. (mm)</TableHead>
+                    <TableHead className="text-xs w-24">Altezza (mm)</TableHead>
+                    <TableHead className="text-xs w-16">Q.tà</TableHead>
+                    <TableHead className="text-xs w-32">Prezzo unit.</TableHead>
+                    <TableHead className="text-xs w-28">Totale</TableHead>
+                    <TableHead className="text-xs w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {accessori.map((a) => (
+                    <TableRow key={a.id}>
+                      <TableCell>
+                        <Select
+                          value={a.tipo}
+                          onValueChange={(v) => onPatch(a.id, { tipo: v })}
+                        >
+                          <SelectTrigger className="h-8 text-xs w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SR_ACCESSORI_TIPI.map((t) => (
+                              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          defaultValue={a.descrizione ?? ""}
+                          onBlur={(e) => onPatch(a.id, { descrizione: e.target.value || null })}
+                          placeholder="es. Alluminio coibentato"
+                          className="h-8 text-xs"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          defaultValue={(a as SrAccessorioRow & { larghezza_mm?: number | null }).larghezza_mm ?? ""}
+                          onBlur={(e) =>
+                            onPatch(a.id, {
+                              larghezza_mm: e.target.value ? Number(e.target.value) : null,
+                            } as Partial<SrAccessorioRow>)
+                          }
+                          className="h-8 text-xs w-20"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          defaultValue={(a as SrAccessorioRow & { altezza_mm?: number | null }).altezza_mm ?? ""}
+                          onBlur={(e) =>
+                            onPatch(a.id, {
+                              altezza_mm: e.target.value ? Number(e.target.value) : null,
+                            } as Partial<SrAccessorioRow>)
+                          }
+                          className="h-8 text-xs w-20"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={1}
+                          defaultValue={a.quantita}
+                          onBlur={(e) => onPatch(a.id, { quantita: Math.max(1, Number(e.target.value) || 1) })}
+                          className="h-8 text-xs w-14"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          defaultValue={a.prezzo_unitario ?? ""}
+                          onBlur={(e) =>
+                            onPatch(a.id, {
+                              prezzo_unitario: e.target.value ? Number(e.target.value) : null,
+                            })
+                          }
+                          className="h-8 text-xs w-24"
+                        />
+                      </TableCell>
+                      <TableCell className="text-xs font-semibold text-emerald-700">
+                        {formatEuro(a.prezzo_totale)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => setToDelete(a)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Button
+                onClick={handleAdd}
+                variant="outline"
+                className="w-full gap-1 mt-3 border-dashed border-2 border-emerald-300 hover:bg-emerald-50"
+                disabled={addMut.isPending}
+              >
+                {addMut.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                Aggiungi accessorio
+              </Button>
+            </div>
+          </>
+        )}
+      </SrCard>
+
+      {/* Dialog "Copia misure da serramenti" */}
+      <CopyMisureDialog
+        open={copyDialogOpen}
+        onClose={() => setCopyDialogOpen(false)}
+        serramenti={serramenti}
+        progettoId={progettoId}
+        position={accessori.length}
+      />
+
+      <AlertDialog
+        open={!!toDelete}
+        onOpenChange={(open) => !open && setToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare accessorio?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {toDelete?.descrizione || toDelete?.tipo} verrà rimosso dal preventivo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (toDelete) deleteMut.mutate(toDelete.id);
+                setToDelete(null);
+              }}
+              className="bg-rose-600 hover:bg-rose-700"
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+// ─── Dialog: copia misure dai serramenti ────────────────────────────────────
+
+function CopyMisureDialog({
+  open, onClose, serramenti, progettoId, position,
+}: {
+  open: boolean;
+  onClose: () => void;
+  serramenti: SrSerramentoRow[];
+  progettoId: string;
+  position: number;
+}) {
+  const addMut = useAddAccessorio(progettoId);
+  const [tipoAccessorio, setTipoAccessorio] = useState<string>("tapparella");
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(serramenti.map((s) => s.id)));
+  const [descrizionePresetByTipo, setDescrizionePresetByTipo] = useState<string>("");
+
+  const allSelected = serramenti.length > 0 && selected.size === serramenti.length;
+  const someSelected = selected.size > 0 && !allSelected;
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    setSelected((prev) =>
+      prev.size === serramenti.length ? new Set() : new Set(serramenti.map((s) => s.id)),
+    );
+  };
+
+  const handleCopy = async () => {
+    const targets = serramenti.filter((s) => selected.has(s.id));
+    if (targets.length === 0) {
+      toast.error("Seleziona almeno un serramento");
+      return;
+    }
+    try {
+      let count = 0;
+      for (const s of targets) {
+        await addMut.mutateAsync({
+          tipo: tipoAccessorio,
+          descrizione: descrizionePresetByTipo.trim() ||
+            (s.ambiente ? `${tipoLabel(tipoAccessorio)} ${s.ambiente}` : null),
+          quantita: s.quantita ?? 1,
+          // Cast: aggiungiamo larghezza/altezza che il DB accetta come campi
+          // accessori (migration esistente). Il tipo non è ancora rigenerato.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...({ larghezza_mm: s.larghezza_mm, altezza_mm: s.altezza_mm, serramento_id: s.id } as any),
+          position: position + count,
+        });
+        count++;
+      }
+      toast.success(`${count} ${count === 1 ? "accessorio creato" : "accessori creati"} dalle misure dei serramenti`);
+      onClose();
+    } catch (err) {
+      toast.error("Errore copia misure", {
+        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-start gap-3">
+            <div className="h-9 w-9 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center shrink-0">
+              <Layers className="h-4.5 w-4.5 text-emerald-700 dark:text-emerald-400" />
+            </div>
+            <div>
+              <DialogTitle>Copia misure dai serramenti</DialogTitle>
+              <DialogDescription>
+                Crea automaticamente un accessorio per ogni serramento selezionato,
+                con le stesse misure (larghezza × altezza × quantità). Utile per
+                tapparelle, cassonetti, persiane, zanzariere.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Tipo accessorio + descrizione */}
+          <div className="grid grid-cols-12 gap-3">
+            <div className="col-span-12 md:col-span-5">
+              <Label className="text-xs">Tipo di accessorio</Label>
+              <Select value={tipoAccessorio} onValueChange={setTipoAccessorio}>
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SR_ACCESSORI_TIPI.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-12 md:col-span-7">
+              <Label className="text-xs">Descrizione (opzionale)</Label>
+              <Input
+                value={descrizionePresetByTipo}
+                onChange={(e) => setDescrizionePresetByTipo(e.target.value)}
+                placeholder="Lascia vuoto per generare automaticamente"
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Lista serramenti con checkbox */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                  onCheckedChange={toggleAll}
+                />
+                Seleziona {selected.size > 0 ? `(${selected.size}/${serramenti.length})` : "tutti"}
+              </Label>
+              <Badge variant="secondary" className="text-[10px]">
+                {selected.size} {selected.size === 1 ? "selezionato" : "selezionati"}
+              </Badge>
+            </div>
+
+            <div className="rounded-md border divide-y max-h-72 overflow-y-auto">
+              {serramenti.map((s) => {
+                const isSel = selected.has(s.id);
+                return (
+                  <label
+                    key={s.id}
+                    className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-accent/40 transition-colors ${
+                      isSel ? "bg-emerald-50/40 dark:bg-emerald-950/20" : ""
+                    }`}
+                  >
+                    <Checkbox checked={isSel} onCheckedChange={() => toggleOne(s.id)} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">
+                          {s.tipologia_label || s.tipologia}
+                        </span>
+                        {s.ambiente && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5">
+                            {s.ambiente}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {s.larghezza_mm && s.altezza_mm
+                          ? `${s.larghezza_mm}×${s.altezza_mm} mm`
+                          : "Misure non impostate"}
+                        {" · "}×{s.quantita ?? 1}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Annulla</Button>
+          <Button
+            onClick={handleCopy}
+            disabled={selected.size === 0 || addMut.isPending}
+            className="bg-emerald-700 hover:bg-emerald-800 gap-1.5"
+          >
+            {addMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            <Copy className="h-4 w-4" />
+            Crea {selected.size} {selected.size === 1 ? "accessorio" : "accessori"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function tipoLabel(value: string): string {
+  return SR_ACCESSORI_TIPI.find((t) => t.value === value)?.label ?? value;
+}
