@@ -14,6 +14,14 @@ import type {
   SurveyMediaType,
 } from "@/types/surveys";
 
+/**
+ * TTL (in secondi) per i signed URL dei media del sopralluogo.
+ * 7 giorni è un compromesso fra: link condivisibili (email/WA brevi) e
+ * tempi di refresh ragionevoli — getSurvey rigenera l'URL ad ogni load,
+ * quindi anche dopo la scadenza il tecnico vede le foto al login successivo.
+ */
+const SURVEY_MEDIA_SIGNED_URL_TTL_SEC = 60 * 60 * 24 * 7;
+
 // ─── TEMPLATES ──────────────────────────────────────────────────────────────
 
 export async function listTemplates(category?: string): Promise<SurveyTemplateRow[]> {
@@ -151,7 +159,7 @@ export async function getSurvey(id: string): Promise<SurveyDetail> {
     try {
       const { data: signed } = await supabase.storage
         .from("surveys")
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 7); // 7g, ri-firmato ad ogni get
+        .createSignedUrl(storagePath, SURVEY_MEDIA_SIGNED_URL_TTL_SEC); // ri-firmato ad ogni get
       if (signed?.signedUrl) return { ...m, url: signed.signedUrl } as SurveyMediaRow;
     } catch (err) {
       console.warn("[surveys] refresh signed url failed", storagePath, err);
@@ -323,7 +331,7 @@ export async function uploadMedia(surveyId: string, file: File, opts: UploadMedi
   // Ottieni URL firmato (storage privato → signed URL valido 7 giorni)
   const { data: signed } = await supabase.storage
     .from("surveys")
-    .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+    .createSignedUrl(storagePath, SURVEY_MEDIA_SIGNED_URL_TTL_SEC);
   const url = signed?.signedUrl ?? "";
 
   // 2) Insert in survey_media (con rollback dello storage se il DB fallisce)

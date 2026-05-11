@@ -31,6 +31,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   ArrowLeft, ClipboardList, Plus, Save, FileSignature, FileText, Sparkles,
   Loader2, MapPin, Calendar, UserPlus,
 } from "lucide-react";
@@ -64,6 +68,13 @@ export default function SopralluogoEditor() {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [aiSummary, setAiSummary] = useState<any | null>(null);
+
+  // Confirm dialog (sostituisce confirm() nativo, mobile-hostile con guanti)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Conta mutazioni di auto-save attualmente in volo (header debounce + area + element)
   const pendingWrites = useIsMutating({ mutationKey: ["sopralluogo-autosave", id] });
@@ -494,9 +505,11 @@ export default function SopralluogoEditor() {
                   updateAreaMut.mutate({ id: aid, patch });
                 }}
                 onAreaDelete={() => {
-                  if (confirm(`Eliminare "${area.name}" e tutti i suoi elementi?`)) {
-                    deleteAreaMut.mutate(area.id);
-                  }
+                  setConfirmDialog({
+                    title: `Eliminare "${area.name}"?`,
+                    description: "Verranno eliminati anche tutti gli elementi e le foto di questa area. L'azione non è reversibile.",
+                    onConfirm: () => deleteAreaMut.mutate(area.id),
+                  });
                 }}
                 onElementAdd={(elType) => addElementMut.mutate({ areaId: area.id, elementType: elType })}
                 onElementChange={(eid, patch) => updateElementMut.mutate({ id: eid, patch })}
@@ -512,7 +525,11 @@ export default function SopralluogoEditor() {
                   });
                 }}
                 onElementDelete={(eid) => {
-                  if (confirm("Eliminare questo elemento?")) deleteElementMut.mutate(eid);
+                  setConfirmDialog({
+                    title: "Eliminare questo elemento?",
+                    description: "Verranno eliminate anche tutte le foto associate. L'azione non è reversibile.",
+                    onConfirm: () => deleteElementMut.mutate(eid),
+                  });
                 }}
                 onMediaAdded={onMediaChange}
                 onMediaDeleted={onMediaChange}
@@ -580,6 +597,28 @@ export default function SopralluogoEditor() {
         open={assignDialogOpen}
         onOpenChange={setAssignDialogOpen}
       />
+
+      {/* Confirm dialog (sostituisce confirm() nativo) */}
+      <AlertDialog open={!!confirmDialog} onOpenChange={(o) => !o && setConfirmDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmDialog?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-rose-600 hover:bg-rose-700"
+              onClick={() => {
+                confirmDialog?.onConfirm();
+                setConfirmDialog(null);
+              }}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* AI Summary panel */}
       {aiSummary && (
