@@ -10,6 +10,7 @@ import {
   addSerramento, updateSerramento, deleteSerramento,
   addAccessorio, updateAccessorio, deleteAccessorio,
   getTemplatePdf, upsertTemplatePdf,
+  generaPdf, importDaSopralluogo,
   type SrCreateProgettoInput,
 } from "./api";
 import type {
@@ -180,6 +181,43 @@ export function useTemplatePdf() {
   return useQuery({
     queryKey: SR_QK.template(),
     queryFn: () => getTemplatePdf(),
+  });
+}
+
+// ─── Edge functions ──────────────────────────────────────────────────────────
+
+export function useGeneraPdf(progettoId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => {
+      if (!progettoId) throw new Error("Progetto id mancante");
+      return generaPdf(progettoId);
+    },
+    onSuccess: (data) => {
+      if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+      qc.invalidateQueries({ queryKey: ["sr-progetti"] });
+      toast.success("Preventivo generato", { description: "Apri il documento per visualizzarlo o stamparlo." });
+      // Auto-open in nuova tab
+      if (data.html_url) window.open(data.html_url, "_blank");
+    },
+    onError: (e) => toast.error("Generazione PDF fallita", { description: String(e) }),
+  });
+}
+
+export function useImportDaSopralluogo(progettoId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sopralluogo_id, replace }: { sopralluogo_id: string; replace?: boolean }) => {
+      if (!progettoId) throw new Error("Progetto id mancante");
+      return importDaSopralluogo({ progetto_id: progettoId, sopralluogo_id, replace });
+    },
+    onSuccess: (data) => {
+      if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+      toast.success("Sopralluogo importato", {
+        description: `${data.imported_count} serramenti e ${data.accessori_imported} accessori aggiunti.`,
+      });
+    },
+    onError: (e) => toast.error("Import fallito", { description: String(e) }),
   });
 }
 

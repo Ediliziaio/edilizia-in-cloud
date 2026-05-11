@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload } from "lucide-react";
 import {
-  useAddSerramento, useUpdateSerramento, useDeleteSerramento,
+  useAddSerramento, useUpdateSerramento, useDeleteSerramento, useImportDaSopralluogo,
 } from "@/lib/serramenti/queries";
 import {
   SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI,
@@ -36,6 +36,7 @@ export function StepBom({ progettoId, detail }: Props) {
   const addMut = useAddSerramento(progettoId);
   const updateMut = useUpdateSerramento(progettoId);
   const deleteMut = useDeleteSerramento(progettoId);
+  const importMut = useImportDaSopralluogo(progettoId);
   const [toDelete, setToDelete] = useState<SrSerramentoRow | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -109,11 +110,24 @@ export function StepBom({ progettoId, detail }: Props) {
         description="Aggiungi tutti i pezzi della stima con misure, materiale e prezzo. Compariranno nella pagina tecnica del PDF."
         icon={<RectangleVertical className="h-4 w-4" />}
       >
-        {detail.progetto.sopralluogo_id && serramenti.length === 0 && (
+        {detail.progetto.sopralluogo_id && (
           <SrCallout variant="info" icon={<Upload className="h-3.5 w-3.5" />} title="Sopralluogo collegato" className="mb-3">
-            Questo progetto è collegato a un sopralluogo Infissi. Puoi importare automaticamente la composizione dei serramenti rilevati.
-            <Button size="sm" variant="outline" className="mt-2" disabled>
-              <Upload className="h-3.5 w-3.5 mr-1" /> Importa da sopralluogo (Wave 4)
+            Questo progetto è collegato a un sopralluogo Infissi. Puoi importare automaticamente la composizione dei serramenti rilevati (tipologia, materiale, apertura, misure, complementi).
+            <Button
+              size="sm" variant="outline" className="mt-2"
+              disabled={importMut.isPending}
+              onClick={() => {
+                if (!detail.progetto.sopralluogo_id) return;
+                importMut.mutate({
+                  sopralluogo_id: detail.progetto.sopralluogo_id,
+                  replace: serramenti.length > 0
+                    ? confirm("Esistono già serramenti in lista. Vuoi sostituirli con quelli del sopralluogo? (Annulla = aggiungi in coda)")
+                    : false,
+                });
+              }}
+            >
+              {importMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+              Importa da sopralluogo
             </Button>
           </SrCallout>
         )}

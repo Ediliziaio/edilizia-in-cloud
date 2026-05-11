@@ -7,10 +7,11 @@
  * Per ora mostra solo l'anteprima dei dati che entreranno nel PDF e un
  * placeholder per la generazione effettiva.
  */
-import { FileText, Loader2, Sparkles, Check, AlertCircle } from "lucide-react";
+import { FileText, Loader2, Sparkles, Check, AlertCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SrProgettoDetail } from "@/types/serramenti";
 import { SrCard, SrCallout, SrKpi, formatEuro, formatNumero } from "@/lib/serramenti/wizardUI";
+import { useGeneraPdf } from "@/lib/serramenti/queries";
 
 interface Props {
   progettoId: string;
@@ -23,8 +24,9 @@ interface ChecklistItem {
   hint?: string;
 }
 
-export function StepPdf({ detail }: Props) {
+export function StepPdf({ progettoId, detail }: Props) {
   const p = detail.progetto;
+  const generaPdfMut = useGeneraPdf(progettoId);
   const numSerramenti = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
 
   const checks: ChecklistItem[] = [
@@ -184,13 +186,35 @@ export function StepPdf({ detail }: Props) {
           </div>
         </div>
 
-        <Button disabled className="w-full bg-emerald-700 hover:bg-emerald-800 gap-2">
-          <Loader2 className="h-4 w-4" />
-          Generazione PDF — in arrivo Wave 4
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            onClick={() => generaPdfMut.mutate()}
+            disabled={!ready || generaPdfMut.isPending}
+            className="flex-1 bg-emerald-700 hover:bg-emerald-800 gap-2"
+            size="lg"
+          >
+            {generaPdfMut.isPending
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Sparkles className="h-4 w-4" />}
+            {p.pdf_html_url ? "Rigenera preventivo" : "Genera preventivo"}
+          </Button>
+          {p.pdf_html_url && (
+            <Button asChild variant="outline" size="lg">
+              <a href={p.pdf_html_url} target="_blank" rel="noopener noreferrer" className="gap-2">
+                <ExternalLink className="h-4 w-4" /> Apri ultimo PDF
+              </a>
+            </Button>
+          )}
+        </div>
+
+        {p.pdf_generated_at && (
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Ultimo PDF generato: {new Date(p.pdf_generated_at).toLocaleString("it-IT")}
+          </p>
+        )}
 
         <SrCallout variant="info" className="mt-3">
-          🚧 La generazione effettiva del PDF richiede l'edge function <code className="bg-white px-1 py-0.5 rounded text-[10px]">sr-genera-pdf</code> (Deno, HTML template + SVG charts). Wave 4 in arrivo.
+          💡 Il PDF si apre nel browser. Stampa con <strong>Ctrl+P</strong> (Cmd+P su Mac) e scegli "Salva come PDF" per inviarlo al cliente o stamparlo.
         </SrCallout>
       </SrCard>
     </div>

@@ -269,6 +269,40 @@ export async function getTemplatePdf(): Promise<SrTemplatePdfRow | null> {
   return data as SrTemplatePdfRow | null;
 }
 
+// ─── EDGE FUNCTIONS ─────────────────────────────────────────────────────────
+
+export async function generaPdf(progetto_id: string): Promise<{ html_url: string; duration_ms: number }> {
+  const { data, error } = await supabase.functions.invoke("sr-genera-pdf", {
+    body: { progetto_id },
+  });
+  if (error) {
+    console.error("[serramenti] generaPdf failed", error);
+    throw new Error("Generazione PDF fallita");
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = data as any;
+  if (!r?.ok) throw new Error(r?.error ?? "Generazione PDF fallita");
+  return { html_url: r.html_url, duration_ms: r.duration_ms };
+}
+
+export async function importDaSopralluogo(input: {
+  progetto_id: string;
+  sopralluogo_id: string;
+  replace?: boolean;
+}): Promise<{ imported_count: number; accessori_imported: number }> {
+  const { data, error } = await supabase.functions.invoke("sr-import-da-sopralluogo", {
+    body: input,
+  });
+  if (error) {
+    console.error("[serramenti] importDaSopralluogo failed", error);
+    throw new Error("Import da sopralluogo fallito");
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = data as any;
+  if (!r?.ok) throw new Error(r?.error ?? "Import fallito");
+  return { imported_count: r.imported_count, accessori_imported: r.accessori_imported };
+}
+
 export async function upsertTemplatePdf(patch: Partial<SrTemplatePdfRow>): Promise<void> {
   const { data: profile } = await supabase
     .from("profiles" as never)
