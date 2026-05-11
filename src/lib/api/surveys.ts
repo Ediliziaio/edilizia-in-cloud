@@ -425,6 +425,49 @@ export async function updateTemplate(
   if (error) throw new Error("Aggiornamento template fallito");
 }
 
+export async function createBlankTemplate(opts: {
+  name: string;
+  category: string;
+  description?: string | null;
+}): Promise<string> {
+  // Crea un template vuoto company-owned. companyId via profiles.
+  const { data: profile } = await supabase
+    .from("profiles" as never)
+    .select("company_id")
+    .eq("id", (await supabase.auth.getUser()).data.user?.id ?? "")
+    .maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const companyId = (profile as any)?.company_id;
+  if (!companyId) throw new Error("Profilo senza azienda");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("survey_templates")
+    .insert({
+      company_id: companyId,
+      category: opts.category,
+      name: opts.name.trim(),
+      description: opts.description ?? null,
+      is_system: false,
+      is_active: true,
+      area_label: "Area",
+      area_label_plural: "Aree",
+      element_label: "Elemento",
+      schema: {
+        version: 1,
+        header_schema: [],
+        area_definition: { label: "Area", label_plural: "Aree", fields: [] },
+        element_types: [],
+        general_required_photos: [],
+      },
+      version: 1,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error("Creazione template fallita: " + error.message);
+  return data.id as string;
+}
+
 export async function deleteTemplate(templateId: string): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)

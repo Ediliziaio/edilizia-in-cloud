@@ -13,8 +13,10 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   listTemplatesWithSettings, toggleTemplateEnabled, cloneTemplate,
-  updateTemplate, deleteTemplate, type TemplateWithSettings,
+  updateTemplate, deleteTemplate, createBlankTemplate, type TemplateWithSettings,
 } from "@/lib/api/surveys";
+import { SurveyTemplateEditor } from "./SurveyTemplateEditor";
+import type { SurveyCategory } from "@/types/surveys";
 import type { TemplateSchema } from "@/types/surveys";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -67,8 +69,10 @@ export default function SettingsSopralluoghi() {
   });
 
   const [selected, setSelected] = useState<TemplateWithSettings | null>(null);
+  const [editing, setEditing] = useState<TemplateWithSettings | null>(null);
   const [cloneDialog, setCloneDialog] = useState<TemplateWithSettings | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<TemplateWithSettings | null>(null);
+  const [newDialogOpen, setNewDialogOpen] = useState(false);
 
   const toggleMut = useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
@@ -123,6 +127,13 @@ export default function SettingsSopralluoghi() {
             </p>
           </div>
         </div>
+        <Button
+          onClick={() => setNewDialogOpen(true)}
+          className="gap-2 bg-orange-600 hover:bg-orange-700"
+        >
+          <Plus className="h-4 w-4" />
+          Nuovo template
+        </Button>
       </div>
 
       {/* Stats */}
@@ -201,6 +212,7 @@ export default function SettingsSopralluoghi() {
               isToggling={toggleMut.isPending && toggleMut.variables?.id === t.id}
               onToggle={(en) => toggleMut.mutate({ id: t.id, enabled: en })}
               onView={() => setSelected(t)}
+              onEdit={t.is_system ? undefined : () => setEditing(t)}
               onClone={() => setCloneDialog(t)}
               onDelete={() => setDeleteDialog(t)}
             />
@@ -224,6 +236,40 @@ export default function SettingsSopralluoghi() {
           onCloned={() => {
             setCloneDialog(null);
             qc.invalidateQueries({ queryKey: ["survey-templates-with-settings"] });
+          }}
+        />
+      )}
+
+      {/* Visual editor (solo template company) */}
+      {editing && (
+        <SurveyTemplateEditor
+          templateId={editing.id}
+          initialName={editing.name}
+          initialDescription={editing.description}
+          initialCategory={editing.category as SurveyCategory}
+          initialAreaLabel={editing.area_label}
+          initialAreaLabelPlural={editing.area_label_plural}
+          initialElementLabel={editing.element_label}
+          initialSchema={editing.schema}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {/* New template dialog */}
+      {newDialogOpen && (
+        <NewTemplateDialog
+          systemTemplates={list.filter((t) => t.is_system)}
+          onClose={() => setNewDialogOpen(false)}
+          onCreated={(newId) => {
+            qc.invalidateQueries({ queryKey: ["survey-templates-with-settings"] });
+            setNewDialogOpen(false);
+            // Apri automaticamente l'editor sul nuovo template
+            setTimeout(() => {
+              const fresh = (qc.getQueryData<TemplateWithSettings[]>(["survey-templates-with-settings"]) ?? [])
+                .find((t) => t.id === newId);
+              if (fresh) setEditing(fresh);
+              else toast.success("Template creato. Modificalo dalla lista.");
+            }, 800);
           }}
         />
       )}
@@ -266,12 +312,13 @@ export default function SettingsSopralluoghi() {
 // ───────────────────────────────────────────────────────────────────────────
 
 function TemplateRow({
-  template, isToggling, onToggle, onView, onClone, onDelete,
+  template, isToggling, onToggle, onView, onEdit, onClone, onDelete,
 }: {
   template: TemplateWithSettings;
   isToggling: boolean;
   onToggle: (enabled: boolean) => void;
   onView: () => void;
+  onEdit?: () => void;
   onClone: () => void;
   onDelete: () => void;
 }) {
@@ -346,9 +393,16 @@ function TemplateRow({
           )}
         </div>
         <div className="flex items-center gap-1.5 ml-auto w-full sm:w-auto sm:ml-0">
-          <Button variant="outline" size="sm" className="gap-1" onClick={onView}>
-            Vedi schema
-          </Button>
+          {onEdit ? (
+            <Button variant="default" size="sm" className="gap-1 bg-orange-600 hover:bg-orange-700" onClick={onEdit}>
+              <FileEdit className="h-3.5 w-3.5" />
+              Modifica
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" className="gap-1" onClick={onView}>
+              Vedi schema
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="gap-1" onClick={onClone} title="Crea copia modificabile">
             <Copy className="h-3.5 w-3.5" />
             Clona
@@ -604,6 +658,160 @@ function TemplateDetailDialog({
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+
+function NewTemplateDialog({
+  systemTemplates, onClose, onCreated,
+}: {
+  systemTemplates: TemplateWithSettings[];
+  onClose: () => void;
+  onCreated: (newId: string) => void;
+}) {
+  const [mode, setMode] = useState<"blank" | "clone">("blank");
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<string>("custom");
+  const [description, setDescription] = useState("");
+  const [sourceId, setSourceId] = useState<string>("");
+
+  const createMut = useMutation({
+    mutationFn: async () => {
+      if (!name.trim()) throw new Error("Inserisci un nome");
+      if (mode === "clone") {
+        if (!sourceId) throw new Error("Scegli un template da replicare");
+        return cloneTemplate(sourceId, name);
+      }
+      return createBlankTemplate({ name, category, description: description || null });
+    },
+    onSuccess: (id) => {
+      toast.success(mode === "clone" ? "Template replicato" : "Template creato");
+      onCreated(id);
+    },
+    onError: (e) => toast.error("Operazione fallita", { description: String(e) }),
+  });
+
+  const canSubmit = name.trim().length >= 3 && (mode === "blank" || sourceId);
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Plus className="h-4 w-4 text-orange-600" />
+            Nuovo template sopralluogo
+          </DialogTitle>
+          <DialogDescription>
+            Crea un nuovo template da zero o replica uno esistente per personalizzarlo.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Mode picker */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("blank")}
+            className={cn(
+              "rounded-lg border-2 p-3 text-left transition-all",
+              mode === "blank" ? "border-orange-500 bg-orange-50" : "border-muted hover:border-orange-300",
+            )}
+          >
+            <FileEdit className="h-5 w-5 text-orange-600 mb-1" />
+            <p className="font-semibold text-sm">Da zero</p>
+            <p className="text-[11px] text-muted-foreground">Template vuoto: aggiungi tu sezioni, campi, foto</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("clone")}
+            className={cn(
+              "rounded-lg border-2 p-3 text-left transition-all",
+              mode === "clone" ? "border-orange-500 bg-orange-50" : "border-muted hover:border-orange-300",
+            )}
+          >
+            <Copy className="h-5 w-5 text-orange-600 mb-1" />
+            <p className="font-semibold text-sm">Replica esistente</p>
+            <p className="text-[11px] text-muted-foreground">Parti da un template di sistema (Infissi, Bagno, ...)</p>
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs">Nome del nuovo template</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Es. Rilievo Infissi Personalizzato"
+            />
+          </div>
+
+          {mode === "blank" && (
+            <>
+              <div>
+                <Label className="text-xs">Categoria</Label>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[
+                      ["custom", "📋 Custom"],
+                      ["infissi", "🪟 Infissi"],
+                      ["bagno", "🛁 Bagno"],
+                      ["fotovoltaico", "☀️ Fotovoltaico"],
+                      ["ristrutturazione", "🏗️ Ristrutturazione"],
+                      ["cucina", "🍳 Cucina"],
+                      ["cappotto", "🏠 Cappotto"],
+                      ["tetto", "🏘️ Tetto"],
+                      ["impianti", "⚡ Impianti"],
+                      ["pavimentazioni", "🪜 Pavimentazioni"],
+                      ["porte_interne", "🚪 Porte interne"],
+                      ["climatizzazione", "❄️ Climatizzazione"],
+                    ].map(([v, l]) => (
+                      <SelectItem key={v} value={v}>{l}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Descrizione (opzionale)</Label>
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={2}
+                  placeholder="Cosa rileva questo template e quando usarlo"
+                />
+              </div>
+            </>
+          )}
+
+          {mode === "clone" && (
+            <div>
+              <Label className="text-xs">Template da replicare</Label>
+              <Select value={sourceId} onValueChange={setSourceId}>
+                <SelectTrigger><SelectValue placeholder="Scegli un template…" /></SelectTrigger>
+                <SelectContent>
+                  {systemTemplates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Verrà creata una copia completa modificabile del template scelto.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button
+            onClick={() => createMut.mutate()}
+            disabled={!canSubmit || createMut.isPending}
+            className="gap-1.5 bg-orange-600 hover:bg-orange-700"
+          >
+            {createMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {mode === "clone" ? "Replica e modifica" : "Crea e modifica"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function CloneDialog({
   source, onClose, onCloned,
