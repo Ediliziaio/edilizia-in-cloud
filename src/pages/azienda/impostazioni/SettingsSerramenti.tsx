@@ -354,7 +354,7 @@ export default function SettingsSerramenti() {
                   <Textarea
                     value={t.quote ?? ""}
                     onChange={(e) => updateTestimonianza(idx, "quote", e.target.value)}
-                    placeholder='"Avevamo chiesto un preventivo a quattro aziende: loro ce l\'hanno fatto interamente in casa…"'
+                    placeholder={'"Avevamo chiesto un preventivo a quattro aziende: loro ce l\'hanno fatto interamente in casa…"'}
                     rows={3}
                   />
                 </div>
