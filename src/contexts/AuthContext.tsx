@@ -389,10 +389,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Separate company from the joined profile row so the Profile type stays clean
-      const company: Company | null = rawProfile ? ((rawProfile as any).company as Company | null) ?? null : null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let company: Company | null = rawProfile ? ((rawProfile as any).company as Company | null) ?? null : null;
       const profileData: Profile | null = rawProfile
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ? (() => { const { company: _c, ...rest } = rawProfile as any; return rest as Profile; })()
         : null;
+
+      // FALLBACK defensivo: se il JOIN su `companies` è null ma il profilo
+      // ha un company_id valorizzato, riproviamo con fetch separata.
+      // Caso reale osservato: alcuni livelli di caching di PostgREST possono
+      // ritornare il join vuoto in sessioni appena create, mentre la query
+      // diretta funziona regolarmente. Senza questa rete di salvataggio
+      // l'utente vede "Nessuna azienda selezionata" pur avendo company_id
+      // valido in profiles.
+      if (!company && profileData?.company_id) {
+        try {
+          const { data: directCompany, error: ce } = await supabase
+            .from("companies")
+            .select("*")
+            .eq("id", profileData.company_id)
+            .abortSignal(controller.signal)
+            .maybeSingle();
+          if (!ce && directCompany) {
+            company = directCompany as Company;
+          } else if (ce && !isAbortError(ce)) {
+            logger.warn("Fallback company fetch failed:", JSON.stringify(ce));
+          }
+        } catch (err) {
+          if (!isAbortError(err)) {
+            logger.warn("Fallback company fetch exception:", err);
+          }
+        }
+      }
 
       // Determine effective role with priority: highest privilege first
       const rolePriority: AppRole[] = [
