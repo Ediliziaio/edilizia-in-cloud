@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   RectangleVertical, Plus, Search, FileText, Trash2, ExternalLink, Loader2,
-  Euro, ChevronRight,
+  Euro, ChevronRight, Settings,
 } from "lucide-react";
 import { useProgetti, useDeleteProgetto } from "@/lib/serramenti/queries";
 import { cn } from "@/lib/utils";
@@ -86,14 +86,25 @@ export default function SerramentiIndex() {
             Crea preventivi professionali per finestre, porte e persiane
           </p>
         </div>
-        <Button
-          onClick={() => navigate("/azienda/serramenti/nuovo")}
-          className="bg-emerald-700 hover:bg-emerald-800 gap-2"
-          size="lg"
-        >
-          <Plus className="h-4 w-4" />
-          Nuova stima
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => navigate("/azienda/impostazioni/serramenti")}
+            variant="outline"
+            size="lg"
+            className="gap-2"
+          >
+            <Settings className="h-4 w-4" />
+            Impostazioni
+          </Button>
+          <Button
+            onClick={() => navigate("/azienda/serramenti/nuovo")}
+            className="bg-emerald-700 hover:bg-emerald-800 gap-2"
+            size="lg"
+          >
+            <Plus className="h-4 w-4" />
+            Nuova stima
+          </Button>
+        </div>
       </div>
 
       {/* KPI */}

@@ -12,6 +12,7 @@ import {
   getTemplatePdf, upsertTemplatePdf,
   generaPdf, importDaSopralluogo, convertiInOrdine,
   uploadMedia, deleteMedia,
+  listRenderSessions, importRender,
   type SrCreateProgettoInput,
   type UploadMediaInput,
 } from "./api";
@@ -174,6 +175,31 @@ export function useDeleteAccessorio(progettoId: string | undefined) {
       toast.success("Accessorio eliminato");
     },
     onError: (e) => toast.error("Eliminazione fallita", { description: String(e) }),
+  });
+}
+
+// ─── Render Infissi ─────────────────────────────────────────────────────────
+
+export function useRenderSessions() {
+  return useQuery({
+    queryKey: ["sr-render-sessions"],
+    queryFn: () => listRenderSessions({ limit: 30 }),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useImportRender(progettoId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { render_session_id: string; result_index?: number; caption?: string }) => {
+      if (!progettoId) throw new Error("Progetto id mancante");
+      return importRender({ progetto_id: progettoId, ...input });
+    },
+    onSuccess: () => {
+      if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+      toast.success("Render aggiunto al preventivo");
+    },
+    onError: (e) => toast.error("Aggiunta render fallita", { description: String(e) }),
   });
 }
 

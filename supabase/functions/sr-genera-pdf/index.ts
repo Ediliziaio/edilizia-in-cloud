@@ -151,24 +151,21 @@ Deno.serve(async (req: Request) => {
     const cronoFasi = generaCrono(numSerr, prog.crono_giorni_produzione ?? 30, prog.crono_giorni_collaudo ?? 1);
     const cronoDurata = Math.max(...cronoFasi.map((f) => f.giorno_fine));
 
-    // 4b. Cantieri referenza vicini (se cantiere ha lat/lng)
-    let cantieriVicini: Array<{ citta: string | null; distanza_km: number; testo_breve: string | null }> = [];
-    if (prog.cantiere_lat != null && prog.cantiere_lng != null) {
-      const { data: cantieri } = await supabaseAdmin.rpc("sr_cantieri_referenza_vicini", {
-        p_lat: prog.cantiere_lat,
-        p_lng: prog.cantiere_lng,
-        p_raggio_km: 15,
-        p_limit: 4,
-      });
-      if (Array.isArray(cantieri)) {
-        // deno-lint-ignore no-explicit-any
-        cantieriVicini = cantieri.map((c: any) => ({
-          citta: c.citta,
-          distanza_km: Number(c.distanza_km) || 0,
-          testo_breve: c.testo_breve,
-        }));
+    // 4b. Render foto-realistici (kind='render' in media). Rinfresca URL firmato.
+    type MediaRow = { id: string; kind: string; storage_path: string; url: string | null; caption: string | null; position: number };
+    const renderRows = ((media ?? []) as MediaRow[]).filter((m) => m.kind === "render");
+    const renders = await Promise.all(renderRows.slice(0, 4).map(async (m) => {
+      let url = m.url ?? "";
+      if (m.storage_path) {
+        try {
+          const { data: signed } = await supabaseAdmin.storage
+            .from("sr-progetti")
+            .createSignedUrl(m.storage_path, 60 * 60 * 24 * 7);
+          if (signed?.signedUrl) url = signed.signedUrl;
+        } catch { /* keep existing */ }
       }
-    }
+      return { url, caption: m.caption };
+    }));
 
     // 4c. Public URL + QR code
     const appOrigin = Deno.env.get("APP_PUBLIC_URL") ?? "https://app.ediliziaincloud.it";
@@ -267,7 +264,7 @@ Deno.serve(async (req: Request) => {
       crono_durata_giorni: cronoDurata,
       public_url: publicUrl,
       qr_svg: qrSvg,
-      cantieri_vicini: cantieriVicini,
+      renders,
       valido_fino_giorni: prog.valido_fino_giorni ?? 15,
       azienda_nome: tpl.ragione_sociale || com.ragione_sociale || com.name || "Azienda",
       azienda_indirizzo: tpl.indirizzo_completo || com.indirizzo,

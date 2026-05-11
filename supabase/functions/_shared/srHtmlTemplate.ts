@@ -71,16 +71,12 @@ export interface SrPdfData {
   }[];
   accessori: { tipo: string; descrizione: string | null; quantita: number }[];
 
+  // Render foto-realistici dei serramenti (kind='render' in sr_progetti_media)
+  renders: { url: string; caption: string | null }[];
+
   // QR code + microsito
   public_url: string | null;
   qr_svg: string | null;             // SVG inline del QR
-
-  // Cantieri referenza vicini al cliente (entro 10km)
-  cantieri_vicini: {
-    citta: string | null;
-    distanza_km: number;
-    testo_breve: string | null;
-  }[];
 
   // Consulenza
   consulenza_at: string | null;     // ISO datetime
@@ -341,17 +337,6 @@ function renderPage2(d: SrPdfData): string {
         </ul>
       ` : ""}
 
-      ${d.cantieri_vicini && d.cantieri_vicini.length > 0 ? `
-        <h2 class="section-title">I NOSTRI CANTIERI NELLA TUA ZONA</h2>
-        <div class="cantieri-grid">
-          ${d.cantieri_vicini.slice(0, 4).map((c) => `
-            <div class="cantiere">
-              <p class="cantiere-citta">${esc(c.citta ?? "")}<span class="cantiere-km">${fmtNum(c.distanza_km, 1)} km</span></p>
-              <p class="cantiere-text">${esc(c.testo_breve ?? "")}</p>
-            </div>
-          `).join("")}
-        </div>
-      ` : ""}
     </main>
     ${renderFooter(d, 2, 3)}
   </section>
@@ -444,6 +429,19 @@ function renderPage3(d: SrPdfData): string {
             ${d.consulente_telefono ? `<p class="consulente-line">${esc(d.consulente_telefono)}</p>` : ""}
             ${d.consulente_email ? `<p class="consulente-line">${esc(d.consulente_email)}</p>` : ""}
           </div>
+        </div>
+      ` : ""}
+
+      ${d.renders && d.renders.length > 0 ? `
+        <h2 class="section-title">ANTEPRIMA FOTO-REALISTICA</h2>
+        <p class="muted small">Simulazione AI dei nuovi serramenti applicata alle foto del cantiere.</p>
+        <div class="render-grid">
+          ${d.renders.slice(0, 4).map((r) => `
+            <div class="render-item">
+              <img src="${esc(r.url)}" alt="${esc(r.caption ?? "render serramenti")}" />
+              ${r.caption ? `<p class="render-caption">${esc(r.caption)}</p>` : ""}
+            </div>
+          `).join("")}
         </div>
       ` : ""}
 
@@ -692,12 +690,11 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
 .step-list { padding-left: 20px; }
 .step-list li { font-size: 11.5px; line-height: 1.7; color: #1e293b; }
 
-/* Cantieri referenza */
-.cantieri-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.cantiere { background: #f1f7f4; border-radius: 4px; padding: 8px 10px; border-left: 3px solid var(--sr-green); }
-.cantiere-citta { font-size: 11px; font-weight: 700; color: var(--sr-green); display: flex; justify-content: space-between; align-items: center; }
-.cantiere-km { font-size: 9px; color: #64748b; font-weight: 500; background: #fff; padding: 2px 6px; border-radius: 10px; }
-.cantiere-text { font-size: 10px; color: #475569; margin-top: 3px; line-height: 1.4; }
+/* Render foto-realistici */
+.render-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 4px; }
+.render-item { border-radius: 6px; overflow: hidden; background: #f1f7f4; border: 1px solid #c6e1d3; }
+.render-item img { width: 100%; height: 180px; object-fit: cover; display: block; }
+.render-caption { padding: 4px 8px; font-size: 10px; color: #475569; }
 
 /* QR box */
 .qr-box {

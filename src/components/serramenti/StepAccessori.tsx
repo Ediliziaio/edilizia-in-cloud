@@ -18,11 +18,14 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Image as ImageIcon, Plus, Trash2, Loader2, Upload, X } from "lucide-react";
+import { Image as ImageIcon, Plus, Trash2, Loader2, Upload, X, Sparkles, ExternalLink } from "lucide-react";
 import {
   useAddAccessorio, useUpdateAccessorio, useDeleteAccessorio,
-  useUploadMedia, useDeleteMedia,
+  useUploadMedia, useDeleteMedia, useRenderSessions, useImportRender,
 } from "@/lib/serramenti/queries";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { SR_ACCESSORI_TIPI } from "@/types/serramenti";
 import type { SrProgettoDetail, SrAccessorioRow } from "@/types/serramenti";
 import { SrCard, SrCallout, formatEuro } from "@/lib/serramenti/wizardUI";
@@ -38,7 +41,9 @@ export function StepAccessori({ progettoId, detail }: Props) {
   const deleteMut = useDeleteAccessorio(progettoId);
   const uploadMediaMut = useUploadMedia(progettoId);
   const deleteMediaMut = useDeleteMedia(progettoId);
+  const importRenderMut = useImportRender(progettoId);
   const [toDelete, setToDelete] = useState<SrAccessorioRow | null>(null);
+  const [renderDialogOpen, setRenderDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFiles = (files: FileList | null) => {
@@ -179,10 +184,64 @@ export function StepAccessori({ progettoId, detail }: Props) {
 
       </SrCard>
 
+      {/* Render foto-realistici */}
+      <SrCard
+        title="Render foto-realistici AI"
+        description="Mostra al cliente come saranno i nuovi serramenti nella sua casa: collegamento al modulo Render Infissi."
+        icon={<Sparkles className="h-4 w-4" />}
+        variant="highlight"
+      >
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            onClick={() => setRenderDialogOpen(true)}
+            variant="outline"
+            className="flex-1 gap-2 border-emerald-300 hover:bg-emerald-50"
+          >
+            <Sparkles className="h-4 w-4 text-emerald-700" />
+            Importa render esistente
+          </Button>
+          <Button asChild variant="outline" className="flex-1 gap-2">
+            <a href="/azienda/render/nuovo" target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-4 w-4" />
+              Genera nuovo render (apre modulo Render)
+            </a>
+          </Button>
+        </div>
+
+        {/* Anteprima render già importati */}
+        {detail.media.filter((m) => m.kind === "render").length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">
+            {detail.media.filter((m) => m.kind === "render").map((m) => (
+              <div key={m.id} className="relative group rounded-md overflow-hidden border bg-muted aspect-video">
+                {m.url ? (
+                  <img src={m.url} alt={m.caption ?? "render"} className="w-full h-full object-cover" />
+                ) : (
+                  <Sparkles className="h-6 w-6 mx-auto text-emerald-300 mt-8" />
+                )}
+                <button
+                  onClick={() => deleteMediaMut.mutate(m.id)}
+                  className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                  title="Rimuovi"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+                <div className="absolute bottom-0 left-0 right-0 bg-emerald-700/90 text-white text-[10px] px-2 py-0.5 font-semibold">
+                  ✨ Render AI
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <SrCallout variant="info" className="mt-3">
+          💡 I render compaiono nella pagina 3 del PDF cliente (sezione "Anteprima foto-realistica"). Massimo 4 visibili nel PDF.
+        </SrCallout>
+      </SrCard>
+
       {/* Foto cantiere */}
       <SrCard
         title="Foto cantiere"
-        description="Carica foto della situazione attuale, render o cantieri simili. Utili per il PDF e per il backoffice."
+        description="Carica foto della situazione attuale o cantieri simili. Utili per il backoffice e per il PDF."
         icon={<ImageIcon className="h-4 w-4" />}
       >
         <input
@@ -203,9 +262,9 @@ export function StepAccessori({ progettoId, detail }: Props) {
           Carica foto (multipla supportata, max 10 MB ciascuna)
         </Button>
 
-        {detail.media.length > 0 && (
+        {detail.media.filter((m) => m.kind !== "render").length > 0 && (
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-3">
-            {detail.media.map((m) => (
+            {detail.media.filter((m) => m.kind !== "render").map((m) => (
               <div key={m.id} className="relative group aspect-square rounded-md overflow-hidden border bg-muted">
                 {m.url ? (
                   // eslint-disable-next-line jsx-a11y/img-redundant-alt
@@ -227,6 +286,17 @@ export function StepAccessori({ progettoId, detail }: Props) {
           </div>
         )}
       </SrCard>
+
+      {/* Dialog selezione render esistente */}
+      <ImportRenderDialog
+        open={renderDialogOpen}
+        onOpenChange={setRenderDialogOpen}
+        onSelect={(rsId, idx) => {
+          importRenderMut.mutate({ render_session_id: rsId, result_index: idx });
+          setRenderDialogOpen(false);
+        }}
+        importing={importRenderMut.isPending}
+      />
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
@@ -251,5 +321,82 @@ export function StepAccessori({ progettoId, detail }: Props) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+// ─── Dialog: Importa render esistente ───────────────────────────────────────
+
+function ImportRenderDialog({
+  open, onOpenChange, onSelect, importing,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSelect: (renderSessionId: string, resultIndex: number) => void;
+  importing: boolean;
+}) {
+  const { data: sessions = [], isLoading } = useRenderSessions();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Importa render esistente</DialogTitle>
+          <DialogDescription>
+            Scegli un render già generato nel modulo Render Infissi. Apparirà nella pagina 3 del PDF cliente.
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+            Caricamento render...
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="py-8 text-center">
+            <Sparkles className="h-10 w-10 mx-auto text-emerald-300 mb-2" />
+            <p className="text-sm text-muted-foreground mb-3">
+              Non hai ancora generato nessun render. Vai al modulo Render Infissi per crearne uno.
+            </p>
+            <Button asChild className="bg-emerald-700 hover:bg-emerald-800">
+              <a href="/azienda/render/nuovo" target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4 mr-1" />
+                Apri modulo Render
+              </a>
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto">
+            {sessions.map((s) => {
+              const urls = (s.result_urls ?? []) as string[];
+              const url0 = urls[0];
+              if (!url0) return null;
+              return (
+                <button
+                  key={s.id}
+                  disabled={importing}
+                  onClick={() => onSelect(s.id, 0)}
+                  className="group relative rounded-md overflow-hidden border bg-muted aspect-video text-left hover:ring-2 hover:ring-emerald-500 transition disabled:opacity-50"
+                >
+                  <img src={url0} alt="render" className="w-full h-full object-cover" />
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[10px] px-2 py-1.5">
+                    <p className="font-semibold">
+                      {new Date(s.created_at).toLocaleDateString("it-IT")}
+                    </p>
+                    {urls.length > 1 && (
+                      <p className="opacity-80">+{urls.length - 1} varianti</p>
+                    )}
+                  </div>
+                  {importing && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-white" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

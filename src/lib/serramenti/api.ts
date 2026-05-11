@@ -269,6 +269,92 @@ export async function getTemplatePdf(): Promise<SrTemplatePdfRow | null> {
   return data as SrTemplatePdfRow | null;
 }
 
+// ─── RENDER INFISSI ─────────────────────────────────────────────────────────
+
+export interface RenderSessionMinimal {
+  id: string;
+  status: string;
+  result_urls: string[] | null;
+  original_photo_url: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  config: any;
+  created_at: string;
+}
+
+export async function listRenderSessions(opts?: { limit?: number }): Promise<RenderSessionMinimal[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("render_sessions")
+    .select("id, status, result_urls, original_photo_url, config, created_at")
+    .eq("status", "completed")
+    .order("created_at", { ascending: false })
+    .limit(opts?.limit ?? 30);
+  if (error) {
+    console.error("[serramenti] listRenderSessions failed", error);
+    throw new Error("Errore caricamento render disponibili");
+  }
+  return ((data ?? []) as RenderSessionMinimal[]).filter(
+    (r) => Array.isArray(r.result_urls) && r.result_urls.length > 0,
+  );
+}
+
+/**
+ * Importa un render esistente come media del progetto serramenti.
+ * Crea una row in sr_progetti_media con kind='render', referenziando l'URL
+ * direttamente da render_sessions (nessuna copia in storage perché il render
+ * è già una risorsa firmata della stessa azienda).
+ */
+export async function importRender(input: {
+  progetto_id: string;
+  render_session_id: string;
+  result_index?: number;
+  caption?: string;
+}): Promise<import("@/types/serramenti").SrMediaRow> {
+  const { data: prog } = await supabase
+    .from("sr_progetti" as never)
+    .select("company_id")
+    .eq("id", input.progetto_id)
+    .maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const companyId = (prog as any)?.company_id;
+  if (!companyId) throw new Error("Progetto non trovato");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rs, error: rsErr } = await (supabase as any)
+    .from("render_sessions")
+    .select("id, company_id, result_urls, status")
+    .eq("id", input.render_session_id)
+    .maybeSingle();
+  if (rsErr || !rs) throw new Error("Render non trovato");
+  if (rs.company_id !== companyId) throw new Error("Render appartiene ad altra azienda");
+  if (!Array.isArray(rs.result_urls) || rs.result_urls.length === 0) {
+    throw new Error("Render senza immagini disponibili");
+  }
+  const idx = input.result_index ?? 0;
+  const url = rs.result_urls[idx] ?? rs.result_urls[0];
+
+  // Insert direttamente come media kind='render'. Storage path = "render-session:<id>:<idx>"
+  // (sentinel: la edge function PDF saprà che è un riferimento esterno e non
+  // tenterà di rinfrescare la signed URL sul bucket sr-progetti).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("sr_progetti_media")
+    .insert({
+      progetto_id: input.progetto_id,
+      company_id: companyId,
+      kind: "render",
+      storage_path: `render-session:${rs.id}:${idx}`,
+      url,
+      caption: input.caption ?? null,
+      posizione_pdf: "pag3_render",
+      position: 0,
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error("Aggiunta render al progetto fallita");
+  return data as import("@/types/serramenti").SrMediaRow;
+}
+
 // ─── MEDIA ──────────────────────────────────────────────────────────────────
 
 const SR_MEDIA_TTL_SEC = 60 * 60 * 24 * 7;
