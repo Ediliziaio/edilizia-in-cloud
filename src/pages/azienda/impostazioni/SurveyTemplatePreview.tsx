@@ -57,12 +57,20 @@ interface SurveyTemplatePreviewProps {
 export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePreviewProps) {
   const schema = template.schema as TemplateSchema;
   const [headerData, setHeaderData] = useState<Record<string, unknown>>({});
+  // Auto-crea 1 elemento di esempio sul primo element_type così
+  // l'utente vede subito i campi/sezioni senza dover cliccare Aggiungi
+  const firstElementType = schema?.element_types?.[0];
   const [areas, setAreas] = useState<PreviewArea[]>([
     {
       id: "preview-area-1",
       name: schema?.area_definition?.name_suggestions?.[0] ?? `${template.area_label} di esempio`,
       area_data: {},
-      elements: [],
+      elements: firstElementType ? [{
+        id: "preview-el-1",
+        type: firstElementType.key,
+        values: {},
+        quantity: 1,
+      }] : [],
     },
   ]);
   const [showState, setShowState] = useState(false);
@@ -73,7 +81,12 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
       id: "preview-area-1",
       name: schema?.area_definition?.name_suggestions?.[0] ?? `${template.area_label} di esempio`,
       area_data: {},
-      elements: [],
+      elements: firstElementType ? [{
+        id: `preview-el-${Date.now()}`,
+        type: firstElementType.key,
+        values: {},
+        quantity: 1,
+      }] : [],
     }]);
   };
 
@@ -310,10 +323,7 @@ function PreviewAreaCard({
           />
         )}
 
-        {schema?.area_definition?.required_photos && schema.area_definition.required_photos.length > 0 && (
-          <MockPhotoChecklist photos={schema.area_definition.required_photos} />
-        )}
-
+        {/* ELEMENTI prima (subito visibili) */}
         {area.elements.length > 0 && (
           <div className="space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -336,14 +346,14 @@ function PreviewAreaCard({
           </div>
         )}
 
-        {/* Add element */}
+        {/* Add element — bottone GRANDE e arancione subito sotto gli elementi */}
         {(schema?.element_types?.length ?? 0) === 1 ? (
           <Button
             variant="outline"
             onClick={() => onAddElement(schema.element_types[0].key)}
-            className="w-full gap-2 border-dashed border-2 border-orange-300 hover:bg-orange-50"
+            className="w-full gap-2 border-dashed border-2 border-orange-400 bg-orange-50/40 hover:bg-orange-100 text-orange-800 font-semibold py-5"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-5 w-5" />
             Aggiungi {schema.element_types[0].label}
           </Button>
         ) : (
@@ -351,14 +361,14 @@ function PreviewAreaCard({
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
-                className="w-full gap-2 border-dashed border-2 border-orange-300 hover:bg-orange-50"
+                className="w-full gap-2 border-dashed border-2 border-orange-400 bg-orange-50/40 hover:bg-orange-100 text-orange-800 font-semibold py-5"
               >
-                <Plus className="h-4 w-4" />
-                Aggiungi elemento
-                <ChevronDown className="h-3 w-3 ml-auto" />
+                <Plus className="h-5 w-5" />
+                {area.elements.length > 0 ? "Aggiungi un altro elemento" : "Aggiungi elemento (Infisso, Tapparella, Persiana, ecc.)"}
+                <ChevronDown className="h-4 w-4 ml-auto" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-72 max-h-80 overflow-y-auto">
+            <DropdownMenuContent align="start" className="w-80 max-h-80 overflow-y-auto">
               {(schema?.element_types ?? []).map((et) => (
                 <DropdownMenuItem
                   key={et.key}
@@ -373,6 +383,11 @@ function PreviewAreaCard({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+        )}
+
+        {/* Foto stanza in fondo (dopo gli elementi) */}
+        {schema?.area_definition?.required_photos && schema.area_definition.required_photos.length > 0 && (
+          <MockPhotoChecklist photos={schema.area_definition.required_photos} />
         )}
       </CardContent>
     </Card>
