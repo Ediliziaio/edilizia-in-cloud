@@ -61,6 +61,7 @@ import {
   FileSearch,
 } from "lucide-react";
 import logo from "@/assets/edilizia-in-cloud-logo.webp";
+import { getSubdomainUrl } from "@/utils/subdomainNav";
 
 // ───────────────────── Types ─────────────────────
 type MenuItem = {
@@ -419,8 +420,8 @@ export default function LandingNavbar() {
 
           {/* Right side CTAs */}
           <div className="hidden lg:flex items-center gap-3">
-            <Link
-              to="/login"
+            <a
+              href={getSubdomainUrl("/login", "app")}
               className={`px-5 py-2 rounded-full text-sm font-medium transition-colors border ${
                 isWhiteBg
                   ? "border-[#111111]/15 text-[#111111] hover:border-[#111111]/40"
@@ -428,7 +429,7 @@ export default function LandingNavbar() {
               }`}
             >
               Accedi
-            </Link>
+            </a>
             <Link
               to="/demo"
               className="px-5 py-2.5 rounded-full bg-[#F97415] text-white text-sm font-bold hover:bg-[#C94F06] transition-colors shadow-lg shadow-[#F97415]/20"
@@ -933,13 +934,13 @@ export default function LandingNavbar() {
             </Link>
 
             <div className="pt-4 space-y-2">
-              <Link
-                to="/login"
+              <a
+                href={getSubdomainUrl("/login", "app")}
                 onClick={() => setMobileOpen(false)}
                 className="block py-2.5 text-center text-[#111111] font-medium border border-[#111111]/15 rounded-full"
               >
                 Accedi
-              </Link>
+              </a>
               <Link
                 to="/demo"
                 onClick={() => setMobileOpen(false)}
