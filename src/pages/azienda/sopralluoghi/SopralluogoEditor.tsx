@@ -12,7 +12,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, useIsMutating } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getSurvey, updateSurvey, addArea, updateArea, deleteArea,
@@ -64,6 +64,27 @@ export default function SopralluogoEditor() {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [aiSummary, setAiSummary] = useState<any | null>(null);
+
+  // Conta mutazioni di auto-save attualmente in volo (header debounce + area + element)
+  const pendingWrites = useIsMutating({ mutationKey: ["sopralluogo-autosave", id] });
+
+  // Avvisa l'utente se prova a chiudere la tab/scheda mentre c'è del salvataggio
+  // in corso O modifiche locali non ancora propagate (header debounced)
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      const headerDirty = detail
+        ? (JSON.stringify(headerData) !== JSON.stringify(detail.survey.header_data ?? {})
+          || generalNotes !== (detail.survey.notes ?? ""))
+        : false;
+      if (pendingWrites > 0 || autoSaveStatus === "saving" || headerDirty) {
+        e.preventDefault();
+        // Browser moderni ignorano il testo; basta returnValue
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [pendingWrites, autoSaveStatus, headerData, generalNotes, detail]);
 
   // Realtime: invalidate query quando media/elementi/aree cambiano (multi-utente sync)
   useEffect(() => {
@@ -162,6 +183,13 @@ export default function SopralluogoEditor() {
     return () => clearTimeout(timer);
   }, [headerData, generalNotes, id, detail, qc]);
 
+  // Riporta l'indicatore a "idle" 2.5s dopo "saved" (UX pulita)
+  useEffect(() => {
+    if (autoSaveStatus !== "saved") return;
+    const t = setTimeout(() => setAutoSaveStatus("idle"), 2500);
+    return () => clearTimeout(t);
+  }, [autoSaveStatus]);
+
   const updateStatusMut = useMutation({
     mutationFn: async (status: string) => {
       if (!id) return;
@@ -193,10 +221,16 @@ export default function SopralluogoEditor() {
   });
 
   const updateAreaMut = useMutation({
+    mutationKey: ["sopralluogo-autosave", id],
     mutationFn: async ({ id: areaId, patch }: { id: string; patch: Partial<SurveyAreaRow> }) => {
       await updateArea(areaId, patch);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["sopralluogo", id] }),
+    onMutate: () => setAutoSaveStatus("saving"),
+    onSuccess: () => {
+      setAutoSaveStatus("saved");
+      qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
+    },
+    onError: () => setAutoSaveStatus("error"),
   });
 
   const deleteAreaMut = useMutation({
@@ -220,10 +254,16 @@ export default function SopralluogoEditor() {
   });
 
   const updateElementMut = useMutation({
+    mutationKey: ["sopralluogo-autosave", id],
     mutationFn: async ({ id: elId, patch }: { id: string; patch: Partial<SurveyElementRow> }) => {
       await updateElement(elId, patch);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["sopralluogo", id] }),
+    onMutate: () => setAutoSaveStatus("saving"),
+    onSuccess: () => {
+      setAutoSaveStatus("saved");
+      qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
+    },
+    onError: () => setAutoSaveStatus("error"),
   });
 
   const deleteElementMut = useMutation({
@@ -308,8 +348,8 @@ export default function SopralluogoEditor() {
               <Badge variant="outline" className={cn("text-[10px]", statusCfg.color)}>
                 {statusCfg.label}
               </Badge>
-              {autoSaveStatus === "saving" && <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…</span>}
-              {autoSaveStatus === "saved" && <span className="text-[10px] text-emerald-600 flex items-center gap-1"><Save className="h-3 w-3" /> Salvato</span>}
+              {(autoSaveStatus === "saving" || pendingWrites > 0) && <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…</span>}
+              {autoSaveStatus === "saved" && pendingWrites === 0 && <span className="text-[10px] text-emerald-600 flex items-center gap-1"><Save className="h-3 w-3" /> Salvato</span>}
               {autoSaveStatus === "error" && <span className="text-[10px] text-rose-600">Errore salvataggio</span>}
             </div>
             <p className="text-xs text-muted-foreground truncate">
