@@ -287,6 +287,24 @@ export function FamilyEditor() {
   // Salvati in JSONB `article_families.custom_field_values`. Le chiavi sono `field_key`.
   const [customFieldValues, setCustomFieldValues] = useState<DynamicFieldValues>({});
 
+  // ── Dirty tracking per beforeunload guard ──────────────────────────────
+  // Snapshot dello state al primo bootstrap. Confrontando con i field correnti
+  // capiamo se ci sono modifiche non salvate (Step 1). Pulito ad ogni save.
+  const initialSnapshotRef = useRef<string | null>(null);
+  const currentSnapshot = useMemo(
+    () => JSON.stringify({
+      nome, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
+      categoriaId, macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
+    }),
+    [
+      nome, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
+      categoriaId, macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
+    ],
+  );
+  const isDirty =
+    initialSnapshotRef.current !== null &&
+    initialSnapshotRef.current !== currentSnapshot;
+
   // ── Query: macrocategorie + categorie + tariffe ────────────────────────
   const { macrocategorie } = useListinoMacrocategorie();
   const { categorie } = useListinoCategorie();
@@ -357,6 +375,35 @@ export function FamilyEditor() {
       setManodoperaUnita(mp.manodopera_unita ?? "pz");
     }
   }, [family, categorie]);
+
+  // Salviamo la snapshot iniziale al primo tick utile dopo il bootstrap, così
+  // currentSnapshot != initialSnapshot solo dopo modifiche genuine dell'utente.
+  // Per le creazioni "nuove" salviamo la snapshot vuota al mount.
+  useEffect(() => {
+    if (initialSnapshotRef.current !== null) return;
+    if (isNew || family) {
+      // Microtask per allinearsi all'avvenuto setState del bootstrap.
+      const id = setTimeout(() => {
+        initialSnapshotRef.current = currentSnapshot;
+      }, 0);
+      return () => clearTimeout(id);
+    }
+  }, [isNew, family, currentSnapshot]);
+
+  // beforeunload guard: avvisa l'utente se sta chiudendo/refreshando con
+  // modifiche non salvate (Step 1). Non blocca navigazioni dentro l'app
+  // (gestite con conferma esplicita sui bottoni "Annulla").
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Stringa moderna: Chrome ignora il messaggio custom, ma il dialog appare.
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
 
   // Categorie filtrate per macrocategoria selezionata
   const categorieFiltered = useMemo(() => {
@@ -675,6 +722,8 @@ export function FamilyEditor() {
           sort_order: 0,
         });
         toast.success("Articolo creato");
+        // Snapshot post-save: niente beforeunload finché l'utente non modifica di nuovo.
+        initialSnapshotRef.current = currentSnapshot;
         // Redirect a /:id per continuare editing
         navigate(`/azienda/impostazioni/listino/famiglie/${created.id}`, {
           replace: true,
@@ -683,6 +732,7 @@ export function FamilyEditor() {
       } else if (family) {
         await updateFamily.mutateAsync({ id: family.id, patch: payload });
         toast.success("Articolo aggiornato");
+        initialSnapshotRef.current = currentSnapshot;
         return family.id;
       }
     } catch (err) {
@@ -752,8 +802,17 @@ export function FamilyEditor() {
             Articoli
           </Button>
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold truncate">
+            <h1 className="text-xl font-semibold truncate flex items-center gap-2">
               {isNew ? "Nuovo articolo" : family?.nome}
+              {isDirty && (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] font-normal text-amber-700 dark:text-amber-400"
+                  title="Hai modifiche non salvate"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Non salvato
+                </span>
+              )}
             </h1>
             {!isNew && family ? (
               <p className="text-xs text-muted-foreground">

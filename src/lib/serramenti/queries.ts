@@ -426,6 +426,9 @@ export function useTemplatePdf() {
   return useQuery({
     queryKey: SR_QK.template(),
     queryFn: () => getTemplatePdf(),
+    // Template aziendale ~statico: 5 min di cache è abbondante e riduce
+    // re-fetch su navigazione tra step del wizard.
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -441,9 +444,22 @@ export function useGeneraPdf(progettoId: string | undefined) {
     onSuccess: (data) => {
       if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
       qc.invalidateQueries({ queryKey: ["sr-progetti"] });
-      toast.success("Preventivo generato", { description: "Apri il documento per visualizzarlo o stamparlo." });
-      // Auto-open in nuova tab
-      if (data.html_url) window.open(data.html_url, "_blank");
+      // Auto-open in nuova tab. Se il popup blocker del browser blocca l'apertura,
+      // window.open ritorna null → mostriamo un toast con link cliccabile come
+      // fallback per non lasciare l'utente senza CTA.
+      const win = data.html_url ? window.open(data.html_url, "_blank") : null;
+      if (data.html_url && !win) {
+        toast.success("Preventivo generato", {
+          description: "Apertura automatica bloccata dal browser.",
+          action: {
+            label: "Apri documento",
+            onClick: () => window.open(data.html_url!, "_blank"),
+          },
+          duration: 10000,
+        });
+      } else {
+        toast.success("Preventivo generato", { description: "Apri il documento per visualizzarlo o stamparlo." });
+      }
     },
     onError: (e) => toast.error("Generazione PDF fallita", { description: String(e) }),
   });

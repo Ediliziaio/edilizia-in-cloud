@@ -22,6 +22,7 @@ import { Link } from "react-router-dom";
 import { FamilyCatalog } from "@/components/listino/FamilyCatalog";
 import { MacroCategorieManager } from "@/components/listino/MacroCategorieManager";
 import { ListinoGuide } from "@/components/listino/ListinoGuide";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -87,6 +88,7 @@ export default function SettingsCatalog() {
 
       <ListinoGuide />
 
+      <ErrorBoundary title="Errore nel catalogo articoli">
       <FamilyCatalog
         headerActions={
           <>
@@ -130,6 +132,7 @@ export default function SettingsCatalog() {
           </>
         }
       />
+      </ErrorBoundary>
 
       <Dialog open={showCategorieDialog} onOpenChange={setShowCategorieDialog}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">

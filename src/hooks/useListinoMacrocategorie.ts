@@ -98,14 +98,25 @@ export function useMacrocategorieMutations() {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
 
-  const invalidate = () => {
+  // Invalidation "leggera": solo le query che leggono direttamente le
+  // macrocategorie (lista, picker preventivo serramenti). Usata per update
+  // di campi cosmetici (nome/descrizione/immagine/verticali/pagina-pdf).
+  const invalidateLight = () => {
     void qc.invalidateQueries({ queryKey: ["listino-macrocategorie", companyId] });
+    void qc.invalidateQueries({ queryKey: ["sr-listino-macrocategorie"] });
+  };
+
+  // Invalidation "completa": invalida anche tutto il sottoalbero (categorie,
+  // famiglie, article-templates). Usata SOLO per create/delete che possono
+  // mutare la gerarchia visibile altrove.
+  const invalidate = () => {
+    invalidateLight();
     void qc.invalidateQueries({ queryKey: ["listino-categorie", companyId] });
     void qc.invalidateQueries({ queryKey: ["listino-categorie-for-families", companyId] });
     void qc.invalidateQueries({ queryKey: ["listino-categorie-for-editor", companyId] });
     void qc.invalidateQueries({ queryKey: ["catalog-categories", companyId] });
-    // M2 (audit): quando una macrocategoria cambia, categorie → famiglie →
-    // article-templates ereditano il cambio. Invalida tutto il sottoalbero.
+    // M2 (audit): quando una macrocategoria cambia struttura, categorie →
+    // famiglie → article-templates ereditano il cambio.
     void qc.invalidateQueries({ queryKey: ["article_families"] });
     void qc.invalidateQueries({ queryKey: ["families"] });
     void qc.invalidateQueries({ queryKey: ["article-templates-pro", companyId] });
@@ -178,7 +189,9 @@ export function useMacrocategorieMutations() {
       if (error) throw new Error(error.message);
       return data as unknown as ListinoMacrocategoria;
     },
-    onSuccess: invalidate,
+    // L'update non altera la gerarchia → invalidation light, niente
+    // re-fetch dell'intero albero famiglie/articoli (costoso su grandi cataloghi).
+    onSuccess: invalidateLight,
   });
 
   const remove = useMutation({

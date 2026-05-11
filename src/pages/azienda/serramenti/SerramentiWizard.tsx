@@ -50,6 +50,7 @@ import { StepAccessori } from "@/components/serramenti/StepAccessori";
 import { StepEconomia } from "@/components/serramenti/StepEconomia";
 import { StepConsulenza } from "@/components/serramenti/StepConsulenza";
 import { StepPdf } from "@/components/serramenti/StepPdf";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { StepContenuti } from "@/components/serramenti/StepContenuti";
 import { ContactPickerDialog } from "@/components/serramenti/ContactPickerDialog";
 import { Users } from "lucide-react";
@@ -312,6 +313,10 @@ export default function SerramentiWizard() {
 
           {/* Step content */}
           <main className="col-span-12 md:col-span-9 space-y-4">
+            {/* ErrorBoundary granulare per step: se uno step crasha (es. dato
+                corrotto), gli altri step restano navigabili e l'utente vede
+                un fallback con "Riprova" invece dell'app blank. */}
+            <ErrorBoundary title="Errore in questa sezione del preventivo">
             {currentStep === "cliente" && (
               <StepCliente form={form} onChange={onChange} />
             )}
@@ -336,6 +341,7 @@ export default function SerramentiWizard() {
             {currentStep === "pdf" && id && detail && (
               <StepPdf progettoId={id} detail={detail} />
             )}
+            </ErrorBoundary>
 
             {/* Navigation footer */}
             <div className="flex items-center justify-between pt-2">
