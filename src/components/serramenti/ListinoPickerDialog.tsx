@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import {
-  Loader2, Search, Package, ArrowLeft, Ruler, HardHat, Calculator,
+  Loader2, Search, Package, ArrowLeft, Ruler, Calculator,
 } from "lucide-react";
 import { useListinoFamilies, useListinoGriglia, useTariffeManodopera } from "@/lib/serramenti/queries";
 import type { ListinoFamily } from "@/lib/serramenti/api";
@@ -234,7 +234,10 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
       prezzo_prodotto: calcolo.prezzo_prodotto / calcolo.quantita,
       prezzo_posa: calcolo.prezzo_posa / calcolo.quantita,
       griglia_id: calcolo.matchedGrigliaId,
-      note: [calcolo.note, calcolo.desc_posa].filter(Boolean).join(" · ") || null,
+      // Note: niente menzione esplicita della posa nella nota del serramento.
+      // L'azienda vuole che il commerciale (e ancor più il cliente nel PDF)
+      // non veda quanto vale la voce posa separatamente — è inglobata.
+      note: calcolo.note,
     });
     onOpenChange(false);
   };
@@ -381,30 +384,17 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
               </p>
             )}
 
-            {/* Riepilogo calcolo live */}
+            {/* Riepilogo calcolo live — il commerciale vede solo il prezzo finale.
+                La posa è inclusa internamente nel totale ma non viene esposta
+                come voce separata (richiesta UX cliente). */}
             {calcolo && (
               <Card className="border-emerald-300 bg-emerald-50/50 p-4">
                 <p className="text-[11px] uppercase tracking-wide text-emerald-700 font-semibold mb-2 flex items-center gap-1">
                   <Calculator className="h-3.5 w-3.5" /> Calcolo prezzo
                 </p>
                 <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span>Prodotto ({calcolo.quantita}×)</span>
-                    <span className="font-semibold tabular-nums">€ {calcolo.prezzo_prodotto.toLocaleString("it-IT", { minimumFractionDigits: 2 })}</span>
-                  </div>
                   {calcolo.note && (
-                    <p className="text-[10px] text-muted-foreground italic pl-2">{calcolo.note}</p>
-                  )}
-                  {calcolo.prezzo_posa > 0 && (
-                    <>
-                      <div className="flex justify-between text-violet-700">
-                        <span className="flex items-center gap-1"><HardHat className="h-3 w-3" /> Posa inclusa</span>
-                        <span className="font-semibold tabular-nums">€ {calcolo.prezzo_posa.toLocaleString("it-IT", { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      {calcolo.desc_posa && (
-                        <p className="text-[10px] text-violet-600 italic pl-2">{calcolo.desc_posa}</p>
-                      )}
-                    </>
+                    <p className="text-[10px] text-muted-foreground italic">{calcolo.note}</p>
                   )}
                   <div className="border-t border-emerald-300 pt-2 mt-2 flex justify-between items-center">
                     <span className="font-bold text-emerald-900">Totale posizione</span>
@@ -413,7 +403,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                     </span>
                   </div>
                   <p className="text-[10px] text-muted-foreground text-right">
-                    Unitario: € {calcolo.unitario.toLocaleString("it-IT", { minimumFractionDigits: 2 })} × {calcolo.quantita}
+                    Prezzo unitario: € {calcolo.unitario.toLocaleString("it-IT", { minimumFractionDigits: 2 })} × {calcolo.quantita} pz
                   </p>
                 </div>
               </Card>

@@ -281,35 +281,59 @@ function SerramentoRow({
 
   return (
     <Card className="border-emerald-100">
-      <CardHeader
-        className="p-3 cursor-pointer hover:bg-emerald-50/30"
-        onClick={onToggle}
-      >
+      <CardHeader className="p-3 hover:bg-emerald-50/30">
         <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
-          <span className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[11px] font-bold">
-            {index + 1}
-          </span>
-          <span className="flex-1">
-            {tipoLabel}
-            {matLabel && <span className="text-muted-foreground font-normal"> · {matLabel}</span>}
-            {s.serie && <span className="text-muted-foreground font-normal"> · {s.serie}</span>}
-          </span>
-          <span className="text-xs font-normal text-muted-foreground">
-            ×{s.quantita}
-          </span>
-          {s.larghezza_mm && s.altezza_mm && (
-            <span className="text-[11px] font-normal text-muted-foreground">
-              {s.larghezza_mm}×{s.altezza_mm} mm
+          <button
+            type="button"
+            onClick={onToggle}
+            className="flex items-center gap-2 flex-wrap flex-1 min-w-0 text-left cursor-pointer"
+            aria-expanded={expanded}
+          >
+            <span className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[11px] font-bold shrink-0">
+              {index + 1}
             </span>
-          )}
-          {mq > 0 && (
-            <span className="text-[11px] font-normal text-emerald-700">
-              {mq.toFixed(2)} m²
+            <span className="flex-1 min-w-0">
+              {tipoLabel}
+              {matLabel && <span className="text-muted-foreground font-normal"> · {matLabel}</span>}
+              {s.serie && <span className="text-muted-foreground font-normal"> · {s.serie}</span>}
             </span>
-          )}
-          {s.prezzo_totale && (
-            <span className="font-semibold text-emerald-700">{formatEuro(s.prezzo_totale)}</span>
-          )}
+            <span className="text-xs font-normal text-muted-foreground">
+              ×{s.quantita}
+            </span>
+            {s.larghezza_mm && s.altezza_mm && (
+              <span className="text-[11px] font-normal text-muted-foreground">
+                {s.larghezza_mm}×{s.altezza_mm} mm
+              </span>
+            )}
+            {mq > 0 && (
+              <span className="text-[11px] font-normal text-emerald-700">
+                {mq.toFixed(2)} m²
+              </span>
+            )}
+            {s.prezzo_totale && (
+              <span className="font-semibold text-emerald-700">{formatEuro(s.prezzo_totale)}</span>
+            )}
+          </button>
+
+          {/* Azioni rapide: duplica + elimina sempre visibili (no toggle) */}
+          <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+            <Button
+              size="icon" variant="ghost"
+              onClick={onDuplicate}
+              className="h-8 w-8"
+              title="Duplica posizione"
+            >
+              <Copy className="h-4 w-4 text-slate-500" />
+            </Button>
+            <Button
+              size="icon" variant="ghost"
+              onClick={onDelete}
+              className="h-8 w-8"
+              title="Elimina posizione"
+            >
+              <Trash2 className="h-4 w-4 text-rose-600" />
+            </Button>
+          </div>
         </CardTitle>
       </CardHeader>
       {expanded && (
@@ -452,14 +476,8 @@ function SerramentoRow({
               className="h-9 text-xs"
             />
           </div>
-          <div className="col-span-12 flex justify-end gap-2 mt-2 pt-2 border-t">
-            <Button size="sm" variant="outline" onClick={onDuplicate} className="text-xs">
-              <Copy className="h-3.5 w-3.5 mr-1" /> Duplica
-            </Button>
-            <Button size="sm" variant="outline" onClick={onDelete} className="text-xs text-rose-600 hover:bg-rose-50">
-              <Trash2 className="h-3.5 w-3.5 mr-1" /> Elimina
-            </Button>
-          </div>
+          {/* Duplica/Elimina sono ora sempre visibili nell'header (icone) —
+              evitiamo bottoni duplicati nel dettaglio espanso. */}
         </CardContent>
       )}
     </Card>
