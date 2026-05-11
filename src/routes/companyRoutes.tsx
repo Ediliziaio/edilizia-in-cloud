@@ -182,7 +182,6 @@ const NuovoSopralluogo = lazy(() => import("@/pages/azienda/sopralluoghi/NuovoSo
 const SopralluogoEditor = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluogoEditor"));
 const FirmaCliente = lazy(() => import("@/pages/azienda/sopralluoghi/FirmaCliente"));
 const SettingsSopralluoghi = lazy(() => import("@/pages/azienda/impostazioni/SettingsSopralluoghi"));
-const SettingsSerramenti = lazy(() => import("@/pages/azienda/impostazioni/SettingsSerramenti"));
 // 🆕 GAP 7b: callback OAuth Gmail/Outlook
 const EmailOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/EmailOAuthCallbackPage"));
 // 🆕 GAP 9b: pagina gestione memoria AI personas
@@ -390,7 +389,8 @@ export function companyRoutes() {
         <Route path="sopralluoghi/:id" element={<SopralluogoEditor />} />
         <Route path="sopralluoghi/:id/firma" element={<FirmaCliente />} />
         <Route path="impostazioni/sopralluoghi" element={<SettingsSopralluoghi />} />
-        <Route path="impostazioni/serramenti" element={<SettingsSerramenti />} />
+        {/* Legacy redirect: vecchia route impostazioni serramenti → nuova tab nella Libreria Template */}
+        <Route path="impostazioni/serramenti" element={<Navigate to="/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti" replace />} />
         {/* 🆕 GAP 7b: callback OAuth Gmail/Outlook */}
         <Route path="impostazioni/integrazioni/email-callback" element={<EmailOAuthCallbackPage />} />
         {/* 🆕 GAP 9b: gestione memoria AI personas */}

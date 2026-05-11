@@ -32,6 +32,7 @@ import {
   Trash2,
   ExternalLink,
   Loader2,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -203,16 +204,29 @@ export default function FotovoltaicoIndex() {
           </div>
           <div className="flex gap-2">
             {isAdmin && (
-              <Button
-                asChild
-                size="lg"
-                className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0"
-              >
-                <Link to="/azienda/marketing/fotovoltaico/nuovo">
-                  <Plus className="h-4 w-4 mr-1.5" />
-                  Nuovo progetto
-                </Link>
-              </Button>
+              <>
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20"
+                >
+                  <Link to="/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=fotovoltaico">
+                    <Settings className="h-4 w-4 mr-1.5" />
+                    Impostazioni
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0"
+                >
+                  <Link to="/azienda/marketing/fotovoltaico/nuovo">
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    Nuovo progetto
+                  </Link>
+                </Button>
+              </>
             )}
           </div>
         </div>

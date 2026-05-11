@@ -1,20 +1,17 @@
 /**
- * SettingsSerramenti — Configurazione default del modulo Stima Serramenti.
+ * SerramentiTemplateEditor — editor del template PDF Stima Serramenti.
  *
- * Esportato in due modi:
- *  - Default export (pagina standalone con header e bottone "Indietro").
- *  - `SerramentiTemplateEditor` — componente puro usabile come tab in altre
- *    pagine (es. Libreria Template → Moduli Vendita → Serramenti).
+ * Usato dentro la tab "Template Moduli Vendita" della pagina
+ * Impostazioni → Libreria Template Preventivi.
  *
- * Cosa configura l'azienda:
- *  - Branding PDF (logo, ragione sociale, indirizzo, contatti, IVA, colore)
+ * Configura:
+ *  - Branding (logo, anagrafica azienda, colore)
  *  - Esigenze tipiche / Soluzione (testi pre-compilati)
- *  - "Perché noi" + "Cosa è incluso" + "Prossimi passi"
+ *  - USP + Cosa è incluso + Prossimi passi
  *  - Recensioni clienti (compaiono nel PDF pagina 2)
  *  - Default cronoprogramma + anticipo + IVA + validità
  */
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,8 +23,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  RectangleVertical, Save, Plus, Trash2, Loader2, MessageCircle,
-  Sparkles, ListChecks, Clock, ArrowLeft, Quote, Upload, Image as ImageIcon,
+  Save, Plus, Trash2, Loader2, MessageCircle,
+  Sparkles, ListChecks, Clock, Quote, Upload, Image as ImageIcon,
   Building2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -36,10 +33,8 @@ import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza } from "@/types/serramenti";
 
-// ─── Editor riusabile ───────────────────────────────────────────────────────
-
 interface SerramentiTemplateEditorProps {
-  /** Se true, nasconde l'header standalone (per usarlo dentro Tabs) */
+  /** Se true, nasconde lo sticky bottom save (usato dentro Tabs con bottone proprio) */
   embedded?: boolean;
 }
 
@@ -87,7 +82,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
     });
   };
 
-  // ─── Logo upload ────────────────────────────────────────────────────────────
+  // ─── Logo upload ──────────────────────────────────────────────────────────
   const handleLogoUpload = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast.error("Carica un file immagine (PNG, JPG, WebP)");
@@ -99,7 +94,6 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
     }
     setUploadingLogo(true);
     try {
-      // Ricavo company_id corrente
       const userId = (await supabase.auth.getUser()).data.user?.id;
       if (!userId) throw new Error("Non autenticato");
       const { data: profile } = await supabase
@@ -127,7 +121,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       update("logo_url", logoUrl);
       toast.success("Logo caricato. Salva per applicare.");
     } catch (e) {
-      console.error("[settings-serramenti] logo upload", e);
+      console.error("[serramenti-template-editor] logo upload", e);
       toast.error("Errore upload logo", { description: String(e) });
     } finally {
       setUploadingLogo(false);
@@ -168,7 +162,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
     setDelTestIdx(null);
   };
 
-  // ─── Liste testuali ───────────────────────────────────────────────────────
+  // ─── Helpers liste e oggetti ──────────────────────────────────────────────
 
   const renderListEditor = (
     label: string,
@@ -215,8 +209,6 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       </div>
     );
   };
-
-  // ─── Esigenze / Soluzione ─────────────────────────────────────────────────
 
   const renderBulletObjectEditor = (
     label: string,
@@ -272,7 +264,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
 
   return (
     <div className="space-y-4">
-      {/* Top save button + dirty indicator */}
+      {/* Top save bar */}
       <div className="flex items-center justify-between gap-3 sticky top-0 z-10 bg-background/95 backdrop-blur py-2 -my-2">
         <div>
           {dirty && (
@@ -289,14 +281,14 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         </Button>
       </div>
 
-      {/* Anagrafica e branding azienda */}
+      {/* Anagrafica + branding */}
       <SrCard
         title="Anagrafica e branding azienda"
-        description="Compaiono nell'header e nel footer del PDF cliente. Sostituiscono i dati di registrazione se diversi."
+        description="Logo, dati e colore primario che compaiono nell'header e footer di ogni preventivo PDF."
         icon={<Building2 className="h-4 w-4" />}
       >
         <div className="grid grid-cols-12 gap-3">
-          {/* Logo preview + upload */}
+          {/* Logo */}
           <div className="col-span-12 md:col-span-3">
             <Label className="text-xs mb-1 block">Logo PDF</Label>
             <input
@@ -418,7 +410,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       {/* Esigenze */}
       <SrCard
         title="Esigenze tipiche del cliente"
-        description="Compaiono nella pagina 1 del PDF come 'Le tue esigenze'. Modificabili per singola stima."
+        description="Pagina 1 del PDF — 'Le tue esigenze'. Modificabili per singola stima."
         icon={<MessageCircle className="h-4 w-4" />}
       >
         {renderBulletObjectEditor("esigenza", "esigenze_default", 3)}
@@ -427,7 +419,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       {/* Soluzione */}
       <SrCard
         title="Soluzione tipica"
-        description="Pagina 1 del PDF — sezione 'La soluzione per te'."
+        description="Pagina 1 del PDF — 'La soluzione per te'."
         icon={<Sparkles className="h-4 w-4" />}
       >
         {renderBulletObjectEditor("soluzione", "soluzione_default", 3)}
@@ -442,10 +434,10 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         {renderListEditor("USP", "perche_noi_default", "Es. Posa eseguita a regola d'arte con sigillature certificate")}
       </SrCard>
 
-      {/* Cosa è incluso */}
+      {/* Incluso */}
       <SrCard
         title="Cosa è incluso nell'investimento"
-        description="Bullet in pagina 2 del PDF, sotto la forbice prezzo."
+        description="Pagina 2 del PDF — sotto la forbice prezzo."
         icon={<ListChecks className="h-4 w-4" />}
       >
         {renderListEditor("voce", "incluso_default", "Es. Rilievo dimensionale a casa tua senza costi aggiuntivi")}
@@ -454,7 +446,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       {/* Testimonianze */}
       <SrCard
         title="Recensioni e testimonianze"
-        description="Pagina 2 del PDF — sezione 'Cosa dicono i nostri clienti'. Carica le recensioni positive da mostrare nei preventivi."
+        description="Pagina 2 del PDF — sezione 'Cosa dicono i nostri clienti'."
         icon={<Quote className="h-4 w-4" />}
         variant="highlight"
       >
@@ -527,7 +519,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       {/* Prossimi passi */}
       <SrCard
         title="Prossimi passi (chiusura PDF)"
-        description="I 4 step che il cliente vedrà in fondo a pagina 3."
+        description="I 4 step in fondo a pagina 3."
         icon={<ListChecks className="h-4 w-4" />}
       >
         {renderListEditor("step", "prossimi_passi_default", "Es. Ci vediamo a casa tua per la consulenza tecnica", 5)}
@@ -594,17 +586,19 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       </SrCard>
 
       {/* Save sticky bottom */}
-      <div className={`${embedded ? "" : "sticky bottom-4"} flex justify-end`}>
-        <Button
-          onClick={handleSave}
-          disabled={!dirty || upsertMut.isPending}
-          className="bg-emerald-700 hover:bg-emerald-800 gap-1 shadow-lg"
-          size="lg"
-        >
-          {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Salva impostazioni
-        </Button>
-      </div>
+      {!embedded && (
+        <div className="sticky bottom-4 flex justify-end">
+          <Button
+            onClick={handleSave}
+            disabled={!dirty || upsertMut.isPending}
+            className="bg-emerald-700 hover:bg-emerald-800 gap-1 shadow-lg"
+            size="lg"
+          >
+            {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Salva impostazioni
+          </Button>
+        </div>
+      )}
 
       <AlertDialog open={delTestIdx !== null} onOpenChange={(o) => !o && setDelTestIdx(null)}>
         <AlertDialogContent>
@@ -625,31 +619,6 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  );
-}
-
-// ─── Default export (pagina standalone) ─────────────────────────────────────
-
-export default function SettingsSerramenti() {
-  const navigate = useNavigate();
-  return (
-    <div className="container mx-auto p-3 md:p-6 max-w-4xl space-y-4">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/serramenti")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <RectangleVertical className="h-5 w-5 text-emerald-700" />
-            Impostazioni Stima Serramenti
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            Default che compaiono in tutti i preventivi. Modificabili per singola stima.
-          </p>
-        </div>
-      </div>
-      <SerramentiTemplateEditor />
     </div>
   );
 }

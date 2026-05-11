@@ -88,7 +88,7 @@ export default function SerramentiIndex() {
         </div>
         <div className="flex gap-2">
           <Button
-            onClick={() => navigate("/azienda/impostazioni/serramenti")}
+            onClick={() => navigate("/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti")}
             variant="outline"
             size="lg"
             className="gap-2"

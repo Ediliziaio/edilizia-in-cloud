@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
@@ -29,9 +30,10 @@ import {
 } from "lucide-react";
 import { MergeTagInserter } from "@/components/quotes/MergeTagInserter";
 import { CanvaColorPicker } from "@/components/quotes/CanvaColorPicker";
-import { SerramentiTemplateEditor } from "@/pages/azienda/impostazioni/SettingsSerramenti";
+import { SerramentiTemplateEditor } from "@/components/serramenti/SerramentiTemplateEditor";
+import { FotovoltaicoTemplateEditor } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RectangleVertical, ShoppingBag } from "lucide-react";
+import { RectangleVertical, ShoppingBag, Sun } from "lucide-react";
 
 const LAYOUTS: { key: QuoteTemplateLayout; label: string; desc: string }[] = [
   { key: 'classic', label: 'Classic', desc: 'Header bianco, bordo colorato. Professionale.' },
@@ -621,6 +623,12 @@ export default function SettingsQuoteTemplates() {
   const isAdmin = role === "company_admin" || role === "super_admin";
   const { templates, isLoading, fetchError, upsertTemplate, deleteTemplate } = useQuoteTemplates();
 
+  // Deeplink: ?tab=moduli-vendita | documenti, ?modulo=serramenti
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab");
+  const topTab = tabFromUrl === "moduli-vendita" ? "moduli-vendita" : "documenti";
+  const moduloFromUrl = searchParams.get("modulo") ?? "serramenti";
+
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<QuoteTemplate>>(DEFAULT_TEMPLATE);
   const [editId, setEditId] = useState<string | null>(null);
@@ -920,7 +928,11 @@ export default function SettingsQuoteTemplates() {
   if (isLoading) return <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
 
   return (
-    <Tabs defaultValue="documenti" className="space-y-4">
+    <Tabs value={topTab} onValueChange={(v) => setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", v);
+      return next;
+    }, { replace: true })} className="space-y-4">
       <TabsList className="bg-slate-100">
         <TabsTrigger value="documenti" className="gap-1.5">
           <FileText className="h-3.5 w-3.5" />
@@ -933,7 +945,7 @@ export default function SettingsQuoteTemplates() {
       </TabsList>
 
       <TabsContent value="moduli-vendita" className="space-y-4">
-        <ModuliVenditaPanel />
+        <ModuliVenditaPanel initialModulo={moduloFromUrl} />
       </TabsContent>
 
       <TabsContent value="documenti" className="space-y-6 mt-0">
@@ -2269,10 +2281,10 @@ const MODULI_VENDITA: ModuloVendita[] = [
   {
     slug: "fotovoltaico",
     nome: "Fotovoltaico",
-    icon: FileText,
-    description: "Template del PDF Fotovoltaico (gestito separatamente nel wizard FV).",
-    available: false,
-    render: () => null,
+    icon: Sun,
+    description: "Template del PDF Fotovoltaico (16 pagine): branding, presentazione impresa, recensioni, certificazioni, contatti.",
+    available: true,
+    render: () => <FotovoltaicoTemplateEditor embedded />,
   },
   {
     slug: "tetti",
@@ -2284,8 +2296,11 @@ const MODULI_VENDITA: ModuloVendita[] = [
   },
 ];
 
-function ModuliVenditaPanel() {
-  const [activeSlug, setActiveSlug] = useState<string>("serramenti");
+function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
+  const initial = initialModulo && MODULI_VENDITA.some((m) => m.slug === initialModulo && m.available)
+    ? initialModulo
+    : "serramenti";
+  const [activeSlug, setActiveSlug] = useState<string>(initial);
   const active = MODULI_VENDITA.find((m) => m.slug === activeSlug) ?? MODULI_VENDITA[0];
 
   return (
