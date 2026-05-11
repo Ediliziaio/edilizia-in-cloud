@@ -21,6 +21,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FamilyCatalog } from "@/components/listino/FamilyCatalog";
 import { MacroCategorieManager } from "@/components/listino/MacroCategorieManager";
+import { ListinoGuide } from "@/components/listino/ListinoGuide";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -62,6 +63,8 @@ export default function SettingsCatalog() {
 
   return (
     <div className="space-y-4">
+      <ListinoGuide />
+
       <div className="flex flex-wrap items-center justify-end gap-2">
         <Button
           variant="outline"

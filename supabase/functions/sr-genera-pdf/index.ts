@@ -127,6 +127,97 @@ Deno.serve(async (req: Request) => {
         supabaseAdmin.from("companies").select("name, ragione_sociale, indirizzo, telefono, email, partita_iva, logo_url").eq("id", prog.company_id).maybeSingle(),
       ]);
 
+    // 2b. Scheda tecnica dinamica: per ogni serramento → family_id → article_families
+    // (custom_field_values + categoria_id) → listino_categorie (macrocategoria_id)
+    // → listino_macrocategoria_fields (con show_in_pdf=true) → array di {label,value,unit}.
+    // Tutto best-effort: se un lookup fallisce, il serramento appare senza specs.
+    //
+    // deno-lint-ignore no-explicit-any
+    type FamilyRow = { id: string; categoria_id: string | null; custom_field_values: Record<string, any> | null };
+    // deno-lint-ignore no-explicit-any
+    type FieldRow = {
+      macrocategoria_id: string; field_key: string; field_label: string;
+      field_type: string; field_unit: string | null;
+      field_options: Array<{ value: string; label: string }> | null;
+      show_in_pdf: boolean; sort_order: number;
+    };
+    const familyIds = Array.from(new Set(
+      ((serramenti ?? []) as Array<{ family_id?: string | null }>).map((s) => s.family_id).filter((v): v is string => !!v),
+    ));
+    const familyById = new Map<string, FamilyRow>();
+    const fieldsByMacro = new Map<string, FieldRow[]>();
+    const categoriaToMacro = new Map<string, string>();
+
+    if (familyIds.length > 0) {
+      const { data: famRows } = await supabaseAdmin
+        .from("article_families")
+        .select("id, categoria_id, custom_field_values")
+        .in("id", familyIds);
+      ((famRows ?? []) as FamilyRow[]).forEach((f) => familyById.set(f.id, f));
+
+      const categoriaIds = Array.from(new Set(
+        ((famRows ?? []) as FamilyRow[]).map((f) => f.categoria_id).filter((v): v is string => !!v),
+      ));
+      if (categoriaIds.length > 0) {
+        const { data: catRows } = await supabaseAdmin
+          .from("listino_categorie")
+          .select("id, macrocategoria_id")
+          .in("id", categoriaIds);
+        ((catRows ?? []) as Array<{ id: string; macrocategoria_id: string | null }>).forEach((c) => {
+          if (c.macrocategoria_id) categoriaToMacro.set(c.id, c.macrocategoria_id);
+        });
+
+        const macroIds = Array.from(new Set(Array.from(categoriaToMacro.values())));
+        if (macroIds.length > 0) {
+          const { data: fieldRows } = await supabaseAdmin
+            .from("listino_macrocategoria_fields")
+            .select("macrocategoria_id, field_key, field_label, field_type, field_unit, field_options, show_in_pdf, sort_order")
+            .in("macrocategoria_id", macroIds)
+            .eq("show_in_pdf", true)
+            .order("sort_order", { ascending: true });
+          ((fieldRows ?? []) as FieldRow[]).forEach((f) => {
+            const arr = fieldsByMacro.get(f.macrocategoria_id) ?? [];
+            arr.push(f);
+            fieldsByMacro.set(f.macrocategoria_id, arr);
+          });
+        }
+      }
+    }
+
+    // Costruisce le specs tecniche stringa-formato per un serramento dato il
+    // suo family_id (best effort: empty array se manca qualche tassello).
+    const buildSpecsTecniche = (
+      familyId: string | null | undefined,
+    ): Array<{ label: string; value: string; unit: string | null }> => {
+      if (!familyId) return [];
+      const fam = familyById.get(familyId);
+      if (!fam) return [];
+      const values = (fam.custom_field_values ?? {}) as Record<string, unknown>;
+      if (Object.keys(values).length === 0) return [];
+      const macroId = fam.categoria_id ? categoriaToMacro.get(fam.categoria_id) : undefined;
+      if (!macroId) return [];
+      const fields = fieldsByMacro.get(macroId) ?? [];
+      const out: Array<{ label: string; value: string; unit: string | null }> = [];
+      for (const f of fields) {
+        const raw = values[f.field_key];
+        if (raw === undefined || raw === null || raw === "") continue;
+        let display: string;
+        if (f.field_type === "select" && typeof raw === "string") {
+          display = f.field_options?.find((o) => o.value === raw)?.label ?? raw;
+        } else if (f.field_type === "multiselect" && Array.isArray(raw)) {
+          display = (raw as string[])
+            .map((v) => f.field_options?.find((o) => o.value === v)?.label ?? v)
+            .join(", ");
+        } else if (f.field_type === "boolean") {
+          display = raw ? "Sì" : "No";
+        } else {
+          display = String(raw);
+        }
+        out.push({ label: f.field_label, value: display, unit: f.field_unit });
+      }
+      return out;
+    };
+
     // 3. Consulente
     let consulente: { nome: string; ruolo: string | null; telefono: string | null; email: string | null; foto: string | null } | null = null;
     if (prog.consulente_id) {
@@ -261,6 +352,7 @@ Deno.serve(async (req: Request) => {
         tipologia: string; tipologia_label?: string | null;
         materiale?: string | null; serie?: string | null; vetro?: string | null;
         larghezza_mm?: number | null; altezza_mm?: number | null; quantita?: number;
+        family_id?: string | null;
       }) => ({
         tipologia_label: s.tipologia_label || TIPOLOGIE_LABELS[s.tipologia] || s.tipologia,
         materiale: s.materiale ? (MATERIALI_LABELS[s.materiale] ?? s.materiale) : null,
@@ -269,6 +361,8 @@ Deno.serve(async (req: Request) => {
         larghezza_mm: s.larghezza_mm ?? null,
         altezza_mm: s.altezza_mm ?? null,
         quantita: s.quantita ?? 1,
+        // Scheda tecnica dinamica (campi show_in_pdf=true della macro)
+        specs_tecniche: buildSpecsTecniche(s.family_id),
       })),
       accessori: (accessori ?? []).map((a: { tipo: string; descrizione?: string | null; quantita?: number }) => ({
         tipo: a.tipo,

@@ -68,6 +68,9 @@ export interface SrPdfData {
     larghezza_mm: number | null;
     altezza_mm: number | null;
     quantita: number;
+    // Scheda tecnica dinamica della macrocategoria: campi con show_in_pdf=true.
+    // Ognuno è già una stringa formattata pronta da renderizzare nel PDF.
+    specs_tecniche?: Array<{ label: string; value: string; unit: string | null }>;
   }[];
   accessori: { tipo: string; descrizione: string | null; quantita: number }[];
 
@@ -344,10 +347,21 @@ function renderPage2(d: SrPdfData): string {
 }
 
 function renderPage3(d: SrPdfData): string {
-  // Raggruppa serramenti per (tipologia + materiale + serie + vetro)
-  const groups: Record<string, { label: string; materiale: string; vetro: string; q: number }> = {};
+  // Raggruppa serramenti per (tipologia + materiale + serie + vetro + scheda tecnica).
+  // La scheda tecnica concorre alla chiave di raggruppamento perché 2 finestre
+  // con Uw diverso sono prodotti diversi anche se la tipologia è la stessa.
+  type Group = {
+    label: string;
+    materiale: string;
+    vetro: string;
+    q: number;
+    specs: Array<{ label: string; value: string; unit: string | null }>;
+  };
+  const groups: Record<string, Group> = {};
   for (const s of d.serramenti) {
-    const key = `${s.tipologia_label}__${s.materiale ?? ""}__${s.serie ?? ""}__${s.vetro ?? ""}`;
+    const specs = s.specs_tecniche ?? [];
+    const specsKey = specs.map((sp) => `${sp.label}=${sp.value}`).join("|");
+    const key = `${s.tipologia_label}__${s.materiale ?? ""}__${s.serie ?? ""}__${s.vetro ?? ""}__${specsKey}`;
     const matStr = [s.materiale, s.serie].filter(Boolean).join(" · ") + (s.vetro ? " · " + s.vetro : "");
     if (!groups[key]) {
       groups[key] = {
@@ -355,6 +369,7 @@ function renderPage3(d: SrPdfData): string {
         materiale: matStr,
         vetro: s.vetro ?? "",
         q: 0,
+        specs,
       };
     }
     groups[key].q += s.quantita;
@@ -377,13 +392,23 @@ function renderPage3(d: SrPdfData): string {
           <tr><th>Tipologia</th><th>Materiale · Vetro</th><th class="num">Q.tà</th></tr>
         </thead>
         <tbody>
-          ${Object.values(groups).map((g) => `
+          ${Object.values(groups).map((g) => {
+            const specsHtml = g.specs.length > 0
+              ? `<div class="specs-tech">${g.specs.map((sp) =>
+                  `<span class="spec-chip"><span class="spec-label">${esc(sp.label)}:</span> <span class="spec-value">${esc(sp.value)}${sp.unit ? ` <span class="spec-unit">${esc(sp.unit)}</span>` : ""}</span></span>`,
+                ).join("")}</div>`
+              : "";
+            return `
             <tr>
-              <td>${esc(g.label)}</td>
+              <td>
+                ${esc(g.label)}
+                ${specsHtml}
+              </td>
               <td><span class="strong">${esc(g.materiale || "—")}</span></td>
               <td class="num">${g.q}</td>
             </tr>
-          `).join("")}
+          `;
+          }).join("")}
         </tbody>
       </table>
 
@@ -665,6 +690,20 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
 .data-table tbody tr:last-child td { border-bottom: none; }
 .data-table .strong { font-weight: 500; }
 .data-table .muted { color: #94a3b8; }
+
+/* Scheda tecnica dinamica: chip sotto la riga prodotto nella tabella */
+.specs-tech {
+  display: flex; flex-wrap: wrap; gap: 4px 6px;
+  margin-top: 4px; font-size: 9.5px; line-height: 1.4;
+}
+.specs-tech .spec-chip {
+  display: inline-flex; align-items: baseline; gap: 3px;
+  background: #f1f5f9; border-radius: 3px; padding: 2px 6px;
+  color: #334155; white-space: nowrap;
+}
+.specs-tech .spec-label { color: #64748b; font-weight: 500; }
+.specs-tech .spec-value { font-weight: 600; }
+.specs-tech .spec-unit { color: #94a3b8; font-weight: 400; font-size: 9px; }
 
 /* Consulenza */
 .consulenza-box {
