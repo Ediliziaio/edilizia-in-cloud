@@ -31,7 +31,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Upload, Sparkles, FolderTree, ShieldAlert } from "lucide-react";
+import { Upload, Sparkles, FolderTree, ShieldAlert, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function SettingsCatalog() {
@@ -65,30 +71,50 @@ export default function SettingsCatalog() {
     <div className="space-y-4">
       <ListinoGuide />
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowCategorieDialog(true)}
-        >
-          <FolderTree className="h-4 w-4 mr-2" aria-hidden="true" />
-          Gestisci categorie
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link to="/azienda/impostazioni/listino/import">
-            <Upload className="h-4 w-4 mr-2" aria-hidden="true" />
-            Import Excel/CSV
-          </Link>
-        </Button>
-        <Button asChild size="sm">
-          <Link to="/azienda/impostazioni/listino/import">
-            <Sparkles className="h-4 w-4 mr-2" aria-hidden="true" />
-            Import AI da PDF
-          </Link>
-        </Button>
-      </div>
-
-      <FamilyCatalog />
+      <FamilyCatalog
+        headerActions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCategorieDialog(true)}
+              className="h-10"
+            >
+              <FolderTree className="h-4 w-4 mr-1.5" aria-hidden="true" />
+              Categorie
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-10">
+                  <Upload className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                  Importa
+                  <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60" aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem asChild>
+                  <Link to="/azienda/impostazioni/listino/import" className="cursor-pointer">
+                    <Upload className="h-4 w-4 mr-2" aria-hidden="true" />
+                    <div className="flex flex-col">
+                      <span>Excel / CSV</span>
+                      <span className="text-[10px] text-muted-foreground">Foglio di calcolo</span>
+                    </div>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/azienda/impostazioni/listino/import" className="cursor-pointer">
+                    <Sparkles className="h-4 w-4 mr-2 text-primary" aria-hidden="true" />
+                    <div className="flex flex-col">
+                      <span>AI da PDF</span>
+                      <span className="text-[10px] text-muted-foreground">Listino fornitore</span>
+                    </div>
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      />
 
       <Dialog open={showCategorieDialog} onOpenChange={setShowCategorieDialog}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">

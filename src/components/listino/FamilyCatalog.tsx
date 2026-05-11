@@ -22,6 +22,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Plus,
   Search,
+  X as XIcon,
   Package,
   Loader2,
   CopyPlus,
@@ -229,7 +230,16 @@ interface MacroGroup {
   totalItems: number;
 }
 
-export function FamilyCatalog() {
+interface FamilyCatalogProps {
+  /**
+   * Azioni extra mostrate nell'header del catalogo (es. "Gestisci categorie",
+   * "Importa"). Render-prop per evitare di hard-codare i bottoni della pagina
+   * padre dentro questo componente riutilizzabile.
+   */
+  headerActions?: React.ReactNode;
+}
+
+export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
   const navigate = useNavigate();
   const { role } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
@@ -541,16 +551,15 @@ export function FamilyCatalog() {
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1 min-w-0">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-0.5 min-w-0">
           <h2 className="text-xl sm:text-2xl font-semibold tracking-tight">Articoli</h2>
-          <p className="text-sm text-muted-foreground">
-            Listino articoli organizzato in macrocategorie e categorie. Crea un nuovo
-            articolo con prezzo base, griglia L×H o variabili (colore, apertura…).
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Organizzati per macrocategoria e categoria · prezzo base, griglia L×H o variabili
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:flex-nowrap">
-          <div className="relative w-full sm:w-64 lg:w-72">
+        <div className="flex flex-col lg:flex-row gap-2 lg:items-center lg:flex-nowrap">
+          <div className="relative w-full lg:w-56 xl:w-72">
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
               aria-hidden="true"
@@ -564,37 +573,37 @@ export function FamilyCatalog() {
             />
           </div>
           {isAdmin && (
-            <>
+            <div className="flex items-center gap-2 flex-wrap">
+              {headerActions}
+              {headerActions && <div className="hidden lg:block h-6 w-px bg-border mx-1" aria-hidden="true" />}
               <Button
                 variant="outline"
+                size="icon"
                 onClick={() => {
                   setCestinoOpen(true);
                   void refetchCestino();
                 }}
-                className="h-10 w-full sm:w-auto"
+                className="h-10 w-10 relative"
                 aria-label={`Apri cestino (${cestino.length} elementi)`}
+                title={`Cestino${cestino.length > 0 ? ` (${cestino.length})` : ""}`}
               >
-                <Trash className="h-4 w-4 mr-2" aria-hidden="true" />
-                Cestino
+                <Trash className="h-4 w-4" aria-hidden="true" />
                 {cestino.length > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="ml-2 px-1.5 py-0 h-5 text-[10px]"
-                  >
+                  <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
                     {cestino.length}
-                  </Badge>
+                  </span>
                 )}
               </Button>
               <Button
                 onClick={() =>
                   navigate("/azienda/impostazioni/listino/famiglie/nuova")
                 }
-                className="h-10 w-full sm:w-auto"
+                className="h-10"
               >
-                <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+                <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
                 Nuovo articolo
               </Button>
-            </>
+            </div>
           )}
         </div>
       </header>
@@ -612,9 +621,9 @@ export function FamilyCatalog() {
         </div>
       )}
 
-      <Card>
-        <CardContent className="p-3 sm:p-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <Card className="border-muted">
+        <CardContent className="p-3">
+          <div className="grid gap-2 sm:gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
               <Label htmlFor="filter-macro" className="text-xs">
                 Macrocategoria
@@ -699,12 +708,14 @@ export function FamilyCatalog() {
             <div className="flex items-end">
               <Button
                 type="button"
-                variant="outline"
-                className="h-10 w-full"
+                variant="ghost"
+                size="sm"
+                className="h-10 w-full text-muted-foreground hover:text-foreground"
                 onClick={resetFilters}
                 disabled={!hasActiveFilters}
               >
-                Pulisci filtri
+                <XIcon className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+                Azzera filtri
               </Button>
             </div>
           </div>

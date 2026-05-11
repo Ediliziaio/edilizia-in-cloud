@@ -46,7 +46,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -381,16 +380,20 @@ export function MacroCategorieManager() {
 
   const isCatForm = editMode.kind === "cat-new" || editMode.kind === "cat-edit";
 
+  const numCategorieTotali = categorie.length;
+
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <CardTitle className="text-base">Macrocategorie e categorie</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Organizza il listino in 2 livelli. Esempio:{" "}
-            <span className="font-medium">INFISSO MODELLO 1 → FINESTRA 1 ANTA</span>. Sotto
-            ogni categoria potrai creare gli articoli con i loro prezzi.
-          </p>
+    <div className="space-y-3">
+      {/* Toolbar compatta: stat + azioni primarie */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b">
+        <div className="flex items-center gap-3 text-sm">
+          <span className="font-medium">
+            {macrocategorie.length} {macrocategorie.length === 1 ? "macrocategoria" : "macrocategorie"}
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground">
+            {numCategorieTotali} {numCategorieTotali === 1 ? "categoria" : "categorie"}
+          </span>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -398,46 +401,45 @@ export function MacroCategorieManager() {
             size="sm"
             onClick={() => openForm({ kind: "cat-new", macrocategoriaId: null })}
           >
-            <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+            <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
             Nuova categoria
           </Button>
           <Button size="sm" onClick={() => openForm({ kind: "macro-new" })}>
-            <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+            <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
             Nuova macrocategoria
           </Button>
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="space-y-3">
+      <div className="space-y-2">
         {isLoading ? (
-          <div className="flex items-center justify-center py-8 text-muted-foreground">
+          <div className="flex items-center justify-center py-12 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" aria-hidden="true" />
             Caricamento…
           </div>
         ) : macrocategorie.length === 0 && orfane.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground space-y-3">
-            <Folder className="h-8 w-8 mx-auto opacity-60" aria-hidden="true" />
-            <div>
-              <p className="font-medium mb-1 text-foreground">
+          <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground space-y-3">
+            <Folder className="h-10 w-10 mx-auto opacity-40" aria-hidden="true" />
+            <div className="space-y-1">
+              <p className="font-medium text-foreground">
                 Nessuna macrocategoria configurata
               </p>
-              <p>
-                Crea la prima macrocategoria (es. <em>INFISSO MODELLO 1</em>) per iniziare
-                a strutturare il listino. Le categorie (es. <em>FINESTRA 1 ANTA</em>)
+              <p className="text-xs max-w-md mx-auto">
+                Crea la prima macrocategoria (es. <em>Infissi</em>) per iniziare a
+                strutturare il listino. Le categorie (es. <em>Finestra 1 anta</em>)
                 andranno al suo interno.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 justify-center pt-1">
               <Button size="sm" onClick={() => openForm({ kind: "macro-new" })}>
-                <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+                <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
                 Crea macrocategoria
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() => openForm({ kind: "cat-new", macrocategoriaId: null })}
               >
-                <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
                 Solo categoria (senza macro)
               </Button>
             </div>
@@ -470,17 +472,15 @@ export function MacroCategorieManager() {
 
             {/* Gruppo categorie orfane (senza macrocat) */}
             {orfane.length > 0 && (
-              <div className="rounded-lg border border-dashed bg-muted/30">
-                <div className="flex items-center justify-between gap-2 p-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Folder className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    <span className="font-medium text-sm">Senza macrocategoria</span>
-                    <Badge variant="secondary" className="shrink-0">
-                      {orfane.length}
-                    </Badge>
-                  </div>
+              <div className="rounded-lg border border-dashed bg-muted/20 mt-3">
+                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-dashed">
+                  <Folder className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <span className="font-medium text-sm text-muted-foreground">Senza macrocategoria</span>
+                  <Badge variant="outline" className="h-5 text-[10px] font-mono">
+                    {orfane.length}
+                  </Badge>
                 </div>
-                <ul className="divide-y">
+                <ul className="divide-y divide-border/50">
                   {orfane.map((c) => (
                     <CategoriaRow
                       key={c.id}
@@ -494,7 +494,7 @@ export function MacroCategorieManager() {
             )}
           </div>
         )}
-      </CardContent>
+      </div>
 
       {/* Dialog create/edit unificato */}
       <Dialog
@@ -751,7 +751,7 @@ export function MacroCategorieManager() {
           onClose={() => setSchedaTecnicaFor(null)}
         />
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -790,76 +790,119 @@ function MacroRow({
 }: MacroRowProps) {
   const verticali = macro.verticali_abilitati ?? [];
   return (
-    <div className="rounded-lg border bg-card">
-      <div className="flex items-center justify-between gap-2 p-3">
+    <div className={`rounded-lg border bg-card transition-shadow hover:shadow-sm ${isOpen ? "ring-1 ring-primary/15" : ""}`}>
+      <div className="flex items-center gap-2 p-2.5">
+        {/* Toggle chevron */}
         <button
           type="button"
           onClick={onToggle}
-          className="flex items-center gap-2 flex-1 min-w-0 text-left hover:text-primary transition-colors"
+          className="h-9 w-9 shrink-0 rounded-md inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors"
           aria-expanded={isOpen}
           aria-label={isOpen ? `Chiudi ${macro.nome}` : `Apri ${macro.nome}`}
         >
           {isOpen ? (
-            <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <ChevronDown className="h-4 w-4" aria-hidden="true" />
           ) : (
-            <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
           )}
+        </button>
+
+        {/* Thumb (immagine o icona) — cliccabile per togglare */}
+        <button
+          type="button"
+          onClick={onToggle}
+          className="h-11 w-11 shrink-0 rounded-md overflow-hidden border bg-slate-50 dark:bg-slate-900 inline-flex items-center justify-center"
+          aria-label={isOpen ? "Chiudi" : "Apri"}
+        >
           {macro.immagine_url ? (
             <img
               src={macro.immagine_url}
               alt=""
-              className="h-8 w-8 shrink-0 rounded object-cover border"
+              className="h-full w-full object-cover"
               aria-hidden="true"
             />
           ) : isOpen ? (
-            <FolderOpen className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
+            <FolderOpen className="h-5 w-5 text-primary/70" aria-hidden="true" />
           ) : (
-            <Folder className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
-          )}
-          <span className="font-medium truncate">{macro.nome}</span>
-          <Badge variant="secondary" className="shrink-0">
-            {categorie.length}
-          </Badge>
-          {verticali.length > 0 && (
-            <div className="hidden sm:flex items-center gap-1 shrink-0">
-              {verticali.slice(0, 3).map((v) => (
-                <Badge
-                  key={v}
-                  variant="outline"
-                  className="text-[10px] px-1.5 py-0 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 text-blue-700 dark:text-blue-300"
-                  title={`Visibile nel modulo ${VERTICAL_LABEL_BY_VALUE.get(v) ?? v}`}
-                >
-                  {VERTICAL_LABEL_BY_VALUE.get(v) ?? v}
-                </Badge>
-              ))}
-              {verticali.length > 3 && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                  +{verticali.length - 3}
-                </Badge>
-              )}
-            </div>
+            <Folder className="h-5 w-5 text-primary/70" aria-hidden="true" />
           )}
         </button>
-        <div className="flex gap-1 shrink-0">
+
+        {/* Identità + meta */}
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex-1 min-w-0 text-left py-1"
+        >
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <span className="font-semibold truncate text-[15px] leading-tight">{macro.nome}</span>
+            <Badge
+              variant="secondary"
+              className="shrink-0 text-[10px] h-5 px-1.5 font-mono"
+              title={`${categorie.length} categorie`}
+            >
+              {categorie.length}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            {verticali.length > 0 ? (
+              <>
+                {verticali.slice(0, 4).map((v) => (
+                  <Badge
+                    key={v}
+                    variant="outline"
+                    className="text-[10px] h-4 px-1.5 py-0 border-blue-200 bg-blue-50/70 dark:bg-blue-950/30 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-normal"
+                    title={`Visibile nel modulo ${VERTICAL_LABEL_BY_VALUE.get(v) ?? v}`}
+                  >
+                    {VERTICAL_LABEL_BY_VALUE.get(v) ?? v}
+                  </Badge>
+                ))}
+                {verticali.length > 4 && (
+                  <Badge variant="outline" className="text-[10px] h-4 px-1.5 py-0">
+                    +{verticali.length - 4}
+                  </Badge>
+                )}
+              </>
+            ) : (
+              <span className="text-[10px] text-muted-foreground italic">Generica (tutti i moduli)</span>
+            )}
+          </div>
+        </button>
+
+        {/* Azioni — più rade, separator visivo */}
+        <div className="flex items-center shrink-0 ml-1">
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
             onClick={onEditSchedaTecnica}
-            title="Configura scheda tecnica (campi descrittivi del prodotto)"
+            title="Scheda tecnica — campi del prodotto"
+            className="h-9 w-9"
           >
             <Settings2 className="h-4 w-4" aria-hidden="true" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={onAddCategoria} title="Aggiungi categoria">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onAddCategoria}
+            title="Aggiungi categoria"
+            className="h-9 w-9"
+          >
             <Plus className="h-4 w-4" aria-hidden="true" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={onEditMacro} title="Modifica">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onEditMacro}
+            title="Modifica macrocategoria"
+            className="h-9 w-9"
+          >
             <Edit2 className="h-4 w-4" aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
             onClick={onDeleteMacro}
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
             title="Elimina"
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -868,9 +911,9 @@ function MacroRow({
       </div>
 
       {isOpen && (
-        <div className="border-t">
+        <div className="border-t bg-muted/20">
           {categorie.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground text-center">
+            <div className="px-6 py-5 text-sm text-muted-foreground text-center">
               Nessuna categoria in questa macrocategoria.
               <Button
                 variant="link"
@@ -882,7 +925,7 @@ function MacroRow({
               </Button>
             </div>
           ) : (
-            <ul className="divide-y">
+            <ul className="divide-y divide-border/50">
               {categorie.map((c) => (
                 <CategoriaRow
                   key={c.id}
@@ -907,28 +950,28 @@ interface CategoriaRowProps {
 
 function CategoriaRow({ row, onEdit, onDelete }: CategoriaRowProps) {
   return (
-    <li className="flex items-center justify-between gap-2 pl-9 pr-3 py-2">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" aria-hidden="true" />
-        <span className="truncate">{row.nome}</span>
+    <li className="flex items-center gap-2 pl-[88px] pr-2 py-2 hover:bg-accent/30 transition-colors group">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <span className="text-muted-foreground/50 shrink-0 text-xs">└─</span>
+        <span className="text-sm truncate">{row.nome}</span>
         {row.descrizione && (
           <span className="text-xs text-muted-foreground truncate hidden sm:inline">
-            — {row.descrizione}
+            · {row.descrizione}
           </span>
         )}
       </div>
-      <div className="flex gap-1 shrink-0">
-        <Button variant="ghost" size="sm" onClick={onEdit} title="Modifica">
-          <Edit2 className="h-4 w-4" aria-hidden="true" />
+      <div className="flex gap-0.5 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+        <Button variant="ghost" size="icon" onClick={onEdit} title="Modifica" className="h-8 w-8">
+          <Edit2 className="h-3.5 w-3.5" aria-hidden="true" />
         </Button>
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           onClick={onDelete}
-          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
           title="Elimina"
         >
-          <Trash2 className="h-4 w-4" aria-hidden="true" />
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
         </Button>
       </div>
     </li>
