@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/tooltip";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { useTableSort } from "@/hooks/useTableSort";
+import { TariffaProdottiCollegati } from "@/components/listino/TariffaProdottiCollegati";
 import { TariffaVariantiEditor } from "@/components/settings/TariffaVariantiEditor";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 
@@ -1018,6 +1019,20 @@ function TariffaDialog({
               tariffaId={editing.id}
               costoDefault={editing.costo_interno ?? editing.prezzo_costo ?? null}
             />
+          )}
+
+          {/* Reverse panel: prodotti del listino che usano questa tariffa */}
+          {editing && (
+            <div className="mt-4 pt-4 border-t">
+              <h4 className="text-sm font-semibold mb-2 flex items-center gap-1">
+                <span className="text-emerald-700">🔗</span>
+                Prodotti collegati a questa tariffa
+              </h4>
+              <TariffaProdottiCollegati
+                tariffaId={editing.id}
+                tariffaName={editing.nome}
+              />
+            </div>
           )}
         </div>
         <DialogFooter>

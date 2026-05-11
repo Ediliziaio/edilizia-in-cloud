@@ -409,6 +409,14 @@ export interface ListinoFamily {
   prezzo_base_vendita: number | null;
   vat_rate: number | null;
   modalita_prezzo_base: string | null;
+  // ─── Manodopera auto-link (configurata in FamilyEditor → Step Manodopera) ─
+  manodopera_modalita: "tariffa" | "manuale" | "nessuna" | null;
+  posa_tariffa_default_id: string | null;
+  posa_quantita_default: number | null;
+  posa_linked: boolean | null;
+  manodopera_unita: string | null;
+  manodopera_costo_acquisto: number | null;
+  manodopera_prezzo_vendita: number | null;
 }
 
 export interface ListinoGrigliaItem {
@@ -425,7 +433,11 @@ export async function listListinoFamilies(searchQuery?: string): Promise<Listino
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
     .from("article_families")
-    .select("id, nome, vertical, prezzo_base_vendita, vat_rate, modalita_prezzo_base")
+    .select(`
+      id, nome, vertical, prezzo_base_vendita, vat_rate, modalita_prezzo_base,
+      manodopera_modalita, posa_tariffa_default_id, posa_quantita_default, posa_linked,
+      manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita
+    `)
     .order("nome", { ascending: true })
     .limit(100);
   if (searchQuery && searchQuery.trim().length >= 2) {

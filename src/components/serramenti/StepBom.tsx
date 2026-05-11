@@ -24,6 +24,7 @@ import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDial
 import { ManodoperaSection } from "./ManodoperaSection";
 import {
   useAddSerramento, useUpdateSerramento, useDeleteSerramento, useImportDaSopralluogo,
+  useAddManodopera, useTariffeManodopera,
 } from "@/lib/serramenti/queries";
 import {
   SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI,
@@ -42,6 +43,8 @@ export function StepBom({ progettoId, detail }: Props) {
   const updateMut = useUpdateSerramento(progettoId);
   const deleteMut = useDeleteSerramento(progettoId);
   const importMut = useImportDaSopralluogo(progettoId);
+  const addManodoperaMut = useAddManodopera(progettoId);
+  const { data: tariffe = [] } = useTariffeManodopera(); // per risolvere il nome della tariffa
   const [toDelete, setToDelete] = useState<SrSerramentoRow | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [listinoOpen, setListinoOpen] = useState(false);
@@ -65,9 +68,60 @@ export function StepBom({ progettoId, detail }: Props) {
         note: `Da listino: ${item.family_nome}`,
       },
       {
-        onSuccess: (created) => setExpanded(created.id),
+        onSuccess: (created) => {
+          setExpanded(created.id);
+          // Auto-create riga manodopera se la famiglia ne ha una linkata
+          autoCreateManodopera(item);
+        },
       },
     );
+  };
+
+  // ─── Auto-create manodopera dal FamilyEditor ─────────────────────────────
+  // Quando aggiungo un serramento dal listino, se la family ha
+  // manodopera_modalita='tariffa' o 'manuale', creo automaticamente la riga
+  // corrispondente in sr_manodopera_progetto.
+  const autoCreateManodopera = (item: ListinoPickResult) => {
+    const m = item.manodopera;
+    if (!m || !m.modalita || m.modalita === "nessuna") return;
+
+    const qty = m.quantita_default ?? 1;
+
+    if (m.modalita === "tariffa" && m.tariffa_default_id) {
+      // Trova la tariffa per snapshot dei prezzi
+      const tariffa = tariffe.find((t) => t.id === m.tariffa_default_id);
+      if (!tariffa) {
+        // Tariffa non trovata o non caricata ancora; aggiunge comunque con riferimento
+        addManodoperaMut.mutate({
+          tariffa_id: m.tariffa_default_id,
+          descrizione: `Posa per ${item.family_nome}`,
+          unita: m.unita ?? "pz",
+          quantita: qty,
+          position: (detail.manodopera ?? []).length,
+        });
+        return;
+      }
+      addManodoperaMut.mutate({
+        tariffa_id: tariffa.id,
+        descrizione: tariffa.nome,
+        unita: m.unita ?? tariffa.unita ?? "pz",
+        quantita: qty,
+        prezzo_unitario_costo: tariffa.prezzo_costo != null ? Number(tariffa.prezzo_costo) : null,
+        prezzo_unitario_vendita: tariffa.prezzo_vendita != null ? Number(tariffa.prezzo_vendita) : null,
+        position: (detail.manodopera ?? []).length,
+        note: `Auto da listino: ${item.family_nome}`,
+      });
+    } else if (m.modalita === "manuale") {
+      addManodoperaMut.mutate({
+        descrizione: `Posa ${item.family_nome}`,
+        unita: m.unita ?? "a_corpo",
+        quantita: qty,
+        prezzo_unitario_costo: m.costo_acquisto,
+        prezzo_unitario_vendita: m.prezzo_vendita,
+        position: (detail.manodopera ?? []).length,
+        note: `Manodopera manuale dal listino: ${item.family_nome}`,
+      });
+    }
   };
 
   const handleAdd = () => {

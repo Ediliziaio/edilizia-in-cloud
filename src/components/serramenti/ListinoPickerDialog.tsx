@@ -25,6 +25,16 @@ export interface ListinoPickResult {
   altezza_mm: number | null;
   prezzo_unitario: number | null;
   griglia_id?: string | null;
+  // Auto-link manodopera dal FamilyEditor
+  manodopera?: {
+    modalita: "tariffa" | "manuale" | "nessuna" | null;
+    tariffa_default_id: string | null;
+    quantita_default: number | null;
+    posa_linked: boolean | null;
+    unita: string | null;
+    costo_acquisto: number | null;
+    prezzo_vendita: number | null;
+  };
 }
 
 interface Props {
@@ -54,6 +64,16 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
   const { data: families = [], isLoading: loadingFam } = useListinoFamilies(debounced);
   const { data: griglia = [], isLoading: loadingGriglia } = useListinoGriglia(selectedFamily?.id);
 
+  const manodoperaPayload = (f: ListinoFamily): ListinoPickResult["manodopera"] => ({
+    modalita: f.manodopera_modalita,
+    tariffa_default_id: f.posa_tariffa_default_id,
+    quantita_default: f.posa_quantita_default != null ? Number(f.posa_quantita_default) : null,
+    posa_linked: f.posa_linked,
+    unita: f.manodopera_unita,
+    costo_acquisto: f.manodopera_costo_acquisto != null ? Number(f.manodopera_costo_acquisto) : null,
+    prezzo_vendita: f.manodopera_prezzo_vendita != null ? Number(f.manodopera_prezzo_vendita) : null,
+  });
+
   const handlePickGriglia = (g: ListinoGrigliaItem) => {
     if (!selectedFamily) return;
     onSelect({
@@ -63,6 +83,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
       altezza_mm: g.valore_y,
       prezzo_unitario: g.prezzo_vendita != null ? Number(g.prezzo_vendita) : null,
       griglia_id: g.id,
+      manodopera: manodoperaPayload(selectedFamily),
     });
     onOpenChange(false);
   };
@@ -76,6 +97,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
         larghezza_mm: null,
         altezza_mm: null,
         prezzo_unitario: f.prezzo_base_vendita != null ? Number(f.prezzo_base_vendita) : null,
+        manodopera: manodoperaPayload(f),
       });
       onOpenChange(false);
     } else {
@@ -189,6 +211,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                       prezzo_unitario: selectedFamily.prezzo_base_vendita != null
                         ? Number(selectedFamily.prezzo_base_vendita)
                         : null,
+                      manodopera: manodoperaPayload(selectedFamily),
                     });
                     onOpenChange(false);
                   }}
