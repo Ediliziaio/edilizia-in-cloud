@@ -838,7 +838,7 @@ export function FamilyGridEditor({
           </>
         ) : (
           <div className="border rounded-md p-6 text-center text-sm text-muted-foreground">
-            Aggiungi valori ai due assi per iniziare a compilare la matrice.
+            Aggiungi valori alle due variabili per iniziare a compilare la matrice.
           </div>
         )}
 

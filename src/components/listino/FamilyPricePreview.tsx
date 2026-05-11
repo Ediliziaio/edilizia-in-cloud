@@ -709,7 +709,7 @@ export function FamilyPricePreview({ family }: Props) {
               ) : null}
               {Math.abs(result.breakdown.maggiorazioneEuro) > 0.001 ? (
                 <div className="flex justify-between px-3 py-1.5 text-indigo-700 dark:text-indigo-400">
-                  <span>+ Maggiorazioni assi</span>
+                  <span>+ Maggiorazioni variabili</span>
                   <span className="font-mono">
                     {result.breakdown.maggiorazioneEuro >= 0 ? "+" : ""}
                     {formatEur(result.breakdown.maggiorazioneEuro)}

@@ -422,7 +422,7 @@ export default function QuoteWizardSerramenti({
                           </div>
                         </div>
                         <div className="text-xs text-muted-foreground mt-2">
-                          {f.axes.length} {f.axes.length === 1 ? "asse" : "assi"} · UM: {f.unit_of_measure}
+                          {f.axes.length} {f.axes.length === 1 ? "variabile" : "variabili"} · UM: {f.unit_of_measure}
                         </div>
                       </CardContent>
                     </Card>
@@ -580,7 +580,7 @@ export default function QuoteWizardSerramenti({
             <div className="space-y-3">
               {selectedFamily.axes.length === 0 && (
                 <p className="text-sm text-muted-foreground italic">
-                  Questa famiglia non ha assi configurabili.
+                  Questa famiglia non ha variabili configurabili.
                 </p>
               )}
               {selectedFamily.axes.map((ax) => (

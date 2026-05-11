@@ -546,7 +546,7 @@ export function FamilyCatalog() {
           <h2 className="text-xl sm:text-2xl font-semibold tracking-tight">Articoli</h2>
           <p className="text-sm text-muted-foreground">
             Listino articoli organizzato in macrocategorie e categorie. Crea un nuovo
-            articolo con prezzo base, griglia L×H o assi di variazione.
+            articolo con prezzo base, griglia L×H o variabili (colore, apertura…).
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:flex-nowrap">
@@ -935,7 +935,7 @@ export function FamilyCatalog() {
                                 {nAssi > 0 && (
                                   <span
                                     className="inline-flex items-center gap-1"
-                                    title={`${nAssi} ${nAssi === 1 ? "asse" : "assi"} · ${nValori} ${nValori === 1 ? "valore" : "valori"}`}
+                                    title={`${nAssi} ${nAssi === 1 ? "variabile" : "variabili"} · ${nValori} ${nValori === 1 ? "valore" : "valori"}`}
                                   >
                                     <Grid3x3
                                       className="h-3 w-3"
@@ -1253,7 +1253,7 @@ export function FamilyCatalog() {
                                       className="h-3 w-3"
                                       aria-hidden="true"
                                     />
-                                    Variazioni Prodotto
+                                    Variabili Prodotto
                                   </p>
                                   <ul className="space-y-0.5 text-xs">
                                     {f.axes.map((a) => (
@@ -1306,7 +1306,7 @@ export function FamilyCatalog() {
           <DialogHeader>
             <DialogTitle>Duplica articolo</DialogTitle>
             <DialogDescription>
-              Crea una copia di &quot;{toDuplicate?.nome}&quot; con tutti gli assi e valori.
+              Crea una copia di &quot;{toDuplicate?.nome}&quot; con tutte le variabili e valori.
               Potrai modificarla separatamente.
             </DialogDescription>
           </DialogHeader>
@@ -1648,7 +1648,7 @@ export function FamilyCatalog() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               Questa azione è <strong>irreversibile</strong>. L&apos;articolo e
-              tutti i suoi assi/valori verranno rimossi subito dal database
+              tutte le sue variabili/valori verranno rimossi subito dal database
               invece di attendere la scadenza dei 15 giorni. I preventivi
               storici che lo usano restano invariati (i dati sono già stati
               snapshottati).

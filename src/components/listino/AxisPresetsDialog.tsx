@@ -193,11 +193,11 @@ export function AxisPresetsDialog({
               className="h-5 w-5 text-primary"
               aria-hidden="true"
             />
-            Applica preset di assi
+            Applica preset di variabili
           </DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
             Bootstrap rapido delle dimensioni di variazione della famiglia.
-            Scegli un pack preconfezionato (un click) o seleziona singoli assi.
+            Scegli un pack preconfezionato (un click) o seleziona singole variabili.
             Tutti i valori e le maggiorazioni sono modificabili dopo
             l'applicazione.
           </DialogDescription>
@@ -237,7 +237,7 @@ export function AxisPresetsDialog({
               <section className="space-y-2">
                 <h4 className="text-sm font-medium">Pack rapidi</h4>
                 <p className="text-xs text-muted-foreground">
-                  Un click aggiunge tutti gli assi del pack (gli eventuali già
+                  Un click aggiunge tutte le variabili del pack (le eventuali già
                   presenti vengono saltati).
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -266,7 +266,7 @@ export function AxisPresetsDialog({
                             <span aria-hidden="true">{pack.icona}</span>
                             {pack.nome}
                             <span className="ml-auto text-[10px] font-normal text-muted-foreground">
-                              {pack.assiIds.length} assi · {totValuesInPack}{" "}
+                              {pack.assiIds.length} variabili · {totValuesInPack}{" "}
                               valori
                             </span>
                           </div>
@@ -308,7 +308,7 @@ export function AxisPresetsDialog({
               {axesCategoria.length > 0 ? (
                 <section className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium">Singoli assi</h4>
+                    <h4 className="text-sm font-medium">Singole variabili</h4>
                     {selected.size > 0 ? (
                       <button
                         type="button"

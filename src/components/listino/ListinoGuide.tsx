@@ -97,7 +97,7 @@ export function ListinoGuide() {
                   <Package className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                   <span className="font-semibold">Articolo</span>
                   <span className="text-muted-foreground font-sans">
-                    prezzo base, griglia L×H, assi di variazione
+                    prezzo base, griglia L×H, variabili (colore, apertura, ferramenta…)
                   </span>
                 </div>
               </div>
@@ -129,7 +129,7 @@ export function ListinoGuide() {
               </h4>
               <p className="leading-relaxed">
                 Per <em>Infissi</em> ti serve sapere il vetro, la trasmittanza Uw,
-                il materiale, i colori. Per <em>Pannelli FV</em> ti servono la
+                il materiale del profilo. Per <em>Pannelli FV</em> ti servono la
                 potenza Wp, l'efficienza, la tecnologia delle celle. Ogni
                 macrocategoria ha la sua <strong>scheda tecnica personalizzata</strong>:
                 imposti i campi una volta, ogni articolo te li chiede in automatico.
@@ -144,6 +144,23 @@ export function ListinoGuide() {
                 per popolare i campi tipici del verticale in un click. Poi
                 modifichi quello che vuoi.
               </p>
+              <div className="mt-2 rounded-md bg-white/60 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 p-2.5 text-xs">
+                <strong>Scheda tecnica vs Variabili — differenza importante:</strong>
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
+                  <li>
+                    <strong>Scheda tecnica</strong> → caratteristiche{" "}
+                    <em>intrinseche del modello</em> (vetro, Uw, materiale profilo).
+                    Costanti per quell'articolo.
+                  </li>
+                  <li>
+                    <strong>Variabili Prodotto</strong> (step 3 dell'articolo) →
+                    caratteristiche <em>che variano in preventivo</em>{" "}
+                    (colore interno/esterno, tipo apertura, ferramenta). Il
+                    commerciale le sceglie quando compila il preventivo e possono
+                    avere maggiorazioni di prezzo.
+                  </li>
+                </ul>
+              </div>
             </section>
 
             {/* Import */}

@@ -790,7 +790,7 @@ export function FamilyEditor() {
             <TabsList className="grid grid-cols-5 w-full">
               <TabsTrigger value="1">1. Dati base</TabsTrigger>
               <TabsTrigger value="2" disabled={isNew}>2. Prezzo</TabsTrigger>
-              <TabsTrigger value="3" disabled={isNew}>3. Assi</TabsTrigger>
+              <TabsTrigger value="3" disabled={isNew}>3. Variabili</TabsTrigger>
               <TabsTrigger value="4" disabled={isNew}>4. Manodopera</TabsTrigger>
               <TabsTrigger value="5" disabled={isNew}>5. Riepilogo</TabsTrigger>
             </TabsList>
@@ -1757,7 +1757,7 @@ export function FamilyEditor() {
           ) : (
             <Card>
               <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                Salva i dati base per iniziare a configurare assi, griglia prezzi e vedere la preview live.
+                Salva i dati base per iniziare a configurare variabili, griglia prezzi e vedere la preview live.
               </CardContent>
             </Card>
           )}
@@ -2493,12 +2493,12 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
       {/* Card Assi */}
       <RiepilogoCard
         icon={ListChecks}
-        title={`Variazioni Prodotto (${family.axes.length})`}
+        title={`Variabili Prodotto (${family.axes.length})`}
         onEdit={() => onGotoStep("3")}
       >
         {family.axes.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Nessun asse configurato. L'articolo ha un prezzo fisso.
+            Nessuna variabile configurata. L'articolo ha un prezzo fisso.
           </p>
         ) : (
           <div className="space-y-2">

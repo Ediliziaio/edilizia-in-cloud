@@ -404,7 +404,7 @@ export function FamilyAxesEditor({ family }: Props) {
         axes: payloadAxes,
       });
       toast.success(
-        `Preset applicato: ${res.axesCreated} assi, ${res.valuesCreated} valori`,
+        `Preset applicato: ${res.axesCreated} variabili, ${res.valuesCreated} valori`,
       );
       setPresetsOpen(false);
     } catch (err) {
@@ -454,10 +454,10 @@ export function FamilyAxesEditor({ family }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
         <div className="min-w-0">
           <h3 className="font-medium flex items-center gap-2">
-            Variazioni Prodotto
+            Variabili Prodotto
             {family.axes.length > 0 ? (
               <span className="text-xs font-normal text-muted-foreground">
-                ({family.axes.length} variazion{family.axes.length === 1 ? "e" : "i"} · {stats.totValori} valori)
+                ({family.axes.length} variabil{family.axes.length === 1 ? "e" : "i"} · {stats.totValori} valori)
               </span>
             ) : null}
           </h3>
@@ -492,7 +492,7 @@ export function FamilyAxesEditor({ family }: Props) {
               variant="ghost"
               onClick={toggleExpandAll}
               className="h-9"
-              aria-label={allExpanded ? "Chiudi tutti gli assi" : "Espandi tutti gli assi"}
+              aria-label={allExpanded ? "Chiudi tutte le variabili" : "Espandi tutte le variabili"}
             >
               <ChevronsUpDown className="h-4 w-4 mr-1" aria-hidden="true" />
               {allExpanded ? "Chiudi tutto" : "Espandi tutto"}
@@ -513,7 +513,7 @@ export function FamilyAxesEditor({ family }: Props) {
             className="h-9"
           >
             <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-            Aggiungi variazione
+            Aggiungi variabile
           </Button>
         </div>
       </div>
@@ -567,7 +567,7 @@ export function FamilyAxesEditor({ family }: Props) {
         <Card className="border-dashed">
           <CardContent className="py-8 text-center space-y-3">
             <p className="text-sm text-muted-foreground">
-              Nessun asse configurato. Puoi partire da zero o applicare un{" "}
+              Nessuna variabile configurata. Puoi partire da zero o applicare un{" "}
               <strong className="text-foreground">preset rapido</strong> per serramenti
               (colore, vetro, apertura, ferramenta).
             </p>
@@ -606,7 +606,7 @@ export function FamilyAxesEditor({ family }: Props) {
                       onClick={() => toggleExpandOne(axis.id)}
                       className="flex-1 text-left flex items-start gap-2 min-w-0 py-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                       aria-expanded={isExpanded}
-                      aria-label={`${isExpanded ? "Chiudi" : "Apri"} asse ${axis.nome}`}
+                      aria-label={`${isExpanded ? "Chiudi" : "Apri"} variabile ${axis.nome}`}
                     >
                       <ChevronRight
                         className={`h-4 w-4 mt-0.5 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
@@ -662,7 +662,7 @@ export function FamilyAxesEditor({ family }: Props) {
                         size="icon"
                         variant="ghost"
                         onClick={() => setEditingAxis(axis)}
-                        aria-label="Modifica variazione"
+                        aria-label="Modifica variabile"
                         className="h-9 w-9"
                       >
                         <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -672,7 +672,7 @@ export function FamilyAxesEditor({ family }: Props) {
                         variant="ghost"
                         className="h-9 w-9 text-destructive hover:text-destructive"
                         onClick={() => setAxisToDelete(axis)}
-                        aria-label="Elimina asse"
+                        aria-label="Elimina variabile"
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
@@ -854,7 +854,7 @@ export function FamilyAxesEditor({ family }: Props) {
                 familyId: family.id,
                 patch: values,
               });
-              toast.success("Asse aggiornato");
+              toast.success("Variabile aggiornata");
             } else {
               await createAxis.mutateAsync({
                 family_id: family.id,
@@ -865,12 +865,12 @@ export function FamilyAxesEditor({ family }: Props) {
                 obbligatorio: values.obbligatorio,
                 sort_order: values.sort_order,
               });
-              toast.success("Asse creato");
+              toast.success("Variabile creata");
             }
             setNewAxisOpen(false);
             setEditingAxis(null);
           } catch (err) {
-            toast.error("Errore salvataggio asse", {
+            toast.error("Errore salvataggio variabile", {
               description: err instanceof Error ? err.message : "Errore sconosciuto",
             });
           }
@@ -981,7 +981,7 @@ export function FamilyAxesEditor({ family }: Props) {
       >
         <AlertDialogContent className="w-[96vw] sm:w-full sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-base sm:text-lg">Eliminare asse "{axisToDelete?.nome}"?</AlertDialogTitle>
+            <AlertDialogTitle className="text-base sm:text-lg">Eliminare variabile "{axisToDelete?.nome}"?</AlertDialogTitle>
             <AlertDialogDescription className="text-xs sm:text-sm">
               Verranno cancellati anche tutti i valori associati. Questa operazione è irreversibile.
             </AlertDialogDescription>
@@ -996,7 +996,7 @@ export function FamilyAxesEditor({ family }: Props) {
                     id: axisToDelete.id,
                     familyId: family.id,
                   });
-                  toast.success("Asse eliminato");
+                  toast.success("Variabile eliminata");
                   setAxisToDelete(null);
                 } catch (err) {
                   toast.error("Errore eliminazione", {
@@ -1238,7 +1238,7 @@ function AxisFormDialog({
           {/* Tipo asse come cards cliccabili: aumenta la leggibilità rispetto
               a un select opaco, specialmente per utenti non-tecnici. */}
           <div className="space-y-1.5">
-            <div className="text-sm font-medium">Tipo di asse</div>
+            <div className="text-sm font-medium">Tipo di variabile</div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -1324,7 +1324,7 @@ function AxisFormDialog({
             ) : editing ? (
               "Aggiorna"
             ) : (
-              "Crea asse"
+              "Crea variabile"
             )}
           </Button>
         </DialogFooter>
@@ -1414,7 +1414,7 @@ function ValueFormDialog({
   const editing = value !== null;
   const conflict =
     !editing && valore && existingValori.includes(valore)
-      ? "Valore già presente su questo asse"
+      ? "Valore già presente su questa variabile"
       : null;
   const canSave = label.trim() && valore.trim() && !conflict && !saving;
 
@@ -1433,7 +1433,7 @@ function ValueFormDialog({
         <DialogHeader>
           <DialogTitle className="text-base sm:text-lg">{editing ? "Modifica valore" : "Nuovo valore"}</DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
-            Un valore ammesso per l'asse + eventuale maggiorazione applicata al prezzo.
+            Un valore ammesso per la variabile + eventuale maggiorazione applicata al prezzo.
           </DialogDescription>
         </DialogHeader>
 
