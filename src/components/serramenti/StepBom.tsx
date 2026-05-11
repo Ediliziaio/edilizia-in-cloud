@@ -16,7 +16,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload } from "lucide-react";
+import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle } from "lucide-react";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   useAddSerramento, useUpdateSerramento, useDeleteSerramento, useImportDaSopralluogo,
 } from "@/lib/serramenti/queries";
@@ -300,7 +303,27 @@ function SerramentoRow({
             />
           </div>
           <div className="col-span-12 md:col-span-4">
-            <Label className="text-xs">Vetro</Label>
+            <Label className="text-xs flex items-center gap-1">
+              Vetro
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-emerald-600">
+                      <HelpCircle className="h-3 w-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-xs font-semibold mb-1">Tipologie di vetro più comuni</p>
+                    <ul className="text-[11px] space-y-1">
+                      <li>• <strong>Vetrocamera basso-emissiva</strong>: 4-16-4 con argon (standard moderno)</li>
+                      <li>• <strong>Triplo vetro</strong>: 4-16-4-16-4 per massimo isolamento (Uw 0.8)</li>
+                      <li>• <strong>Stratificato di sicurezza</strong>: 3+3 mm con PVB (antieffrazione RC2)</li>
+                      <li>• <strong>Acustico</strong>: spessori asimmetrici 6-12-44.1 (fino a 42 dB Rw)</li>
+                    </ul>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </Label>
             <Input
               defaultValue={s.vetro ?? ""}
               onBlur={(e) => onPatch({ vetro: e.target.value || null })}

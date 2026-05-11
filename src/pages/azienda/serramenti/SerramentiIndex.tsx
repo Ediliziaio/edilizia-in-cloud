@@ -181,23 +181,69 @@ export default function SerramentiIndex() {
               <Skeleton className="h-10" />
             </div>
           ) : progettiFiltrati.length === 0 ? (
-            <div className="p-8 text-center">
-              <RectangleVertical className="h-12 w-12 mx-auto text-muted-foreground/30 mb-2" />
-              <p className="text-sm text-muted-foreground">
-                {progetti.length === 0
-                  ? "Nessuna stima ancora creata. Inizia con la prima!"
-                  : "Nessun risultato con i filtri attuali."}
-              </p>
-              {progetti.length === 0 && (
+            progetti.length === 0 ? (
+              <div className="p-8 md:p-12 text-center">
+                <div className="relative inline-block mb-4">
+                  <div className="h-20 w-20 rounded-full bg-emerald-50 flex items-center justify-center">
+                    <RectangleVertical className="h-10 w-10 text-emerald-600" />
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-amber-100 border-2 border-white flex items-center justify-center">
+                    <Plus className="h-4 w-4 text-amber-700" />
+                  </div>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-1">
+                  Inizia la tua prima stima Serramenti
+                </h3>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
+                  Crea un preventivo professionale di 3 pagine con BOM serramenti, calcolo Ecobonus, ROI 10 anni e firma digitale. Il cliente lo riceve in un link condivisibile e firma dal cellulare.
+                </p>
+                <div className="grid grid-cols-3 gap-2 max-w-md mx-auto mb-5 text-[11px] text-slate-600">
+                  <div className="rounded-md bg-emerald-50/50 border border-emerald-100 p-2">
+                    📋 BOM completo
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Tipologia, vetro, misure</p>
+                  </div>
+                  <div className="rounded-md bg-emerald-50/50 border border-emerald-100 p-2">
+                    💰 ROI 10 anni
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Risparmio + Ecobonus</p>
+                  </div>
+                  <div className="rounded-md bg-emerald-50/50 border border-emerald-100 p-2">
+                    ✍️ Firma digitale
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Cliente firma online</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-center flex-wrap">
+                  <Button
+                    onClick={() => navigate("/azienda/serramenti/nuovo")}
+                    className="bg-emerald-700 hover:bg-emerald-800 gap-2"
+                  >
+                    <Plus className="h-4 w-4" /> Crea la prima stima
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate("/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti")}
+                    className="gap-2"
+                  >
+                    ⚙ Configura prima il template
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-4">
+                  💡 <strong>Suggerimento:</strong> imposta una volta sola logo, recensioni e USP nel template — ogni preventivo successivo li userà automaticamente.
+                </p>
+              </div>
+            ) : (
+              <div className="p-8 text-center">
+                <Search className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  Nessun risultato con i filtri attuali.
+                </p>
                 <Button
-                  onClick={() => navigate("/azienda/serramenti/nuovo")}
-                  className="mt-3 bg-emerald-700 hover:bg-emerald-800"
-                  size="sm"
+                  variant="ghost" size="sm" onClick={() => { setSearch(""); setFiltroStato("all"); }}
+                  className="mt-2 text-xs"
                 >
-                  <Plus className="h-4 w-4 mr-1" /> Crea la prima stima
+                  Pulisci filtri
                 </Button>
-              )}
-            </div>
+              </div>
+            )
           ) : (
             <div className="overflow-x-auto">
               <Table>

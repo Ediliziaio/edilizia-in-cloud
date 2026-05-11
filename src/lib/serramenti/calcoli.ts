@@ -85,22 +85,30 @@ export function calcolaTotale(
  * Forbice min/max: il totale è ±X% per coprire variabili (materiale, vetro,
  * finitura, accessori opzionali) — il prezzo definitivo si fissa con il
  * sopralluogo e la consulenza.
+ *
+ * Guard: totale non negativo, range_pct clampato 0-50%.
  */
 export function forbicePrezzo(
   totale: number,
   range_pct: number = 12,
 ): { min: number; max: number; media: number } {
-  const delta = totale * (range_pct / 100);
+  const t = Math.max(0, isFinite(totale) ? totale : 0);
+  const r = Math.max(0, Math.min(50, isFinite(range_pct) ? range_pct : 12));
+  const delta = t * (r / 100);
   return {
-    min: Math.round((totale - delta) / 10) * 10,    // arrotonda a 10
-    max: Math.round((totale + delta) / 10) * 10,
-    media: Math.round(totale / 10) * 10,
+    min: Math.round((t - delta) / 10) * 10,    // arrotonda a 10
+    max: Math.round((t + delta) / 10) * 10,
+    media: Math.round(t / 10) * 10,
   };
 }
 
 /**
  * Calcolo m² da dimensioni serramento.
+ * Guard: input non negativi/NaN, ritorna 0 se invalid.
  */
 export function calcolaM2(larghezza_mm: number, altezza_mm: number, quantita: number = 1): number {
-  return (larghezza_mm * altezza_mm * quantita) / 1_000_000;
+  const l = Math.max(0, isFinite(larghezza_mm) ? larghezza_mm : 0);
+  const h = Math.max(0, isFinite(altezza_mm) ? altezza_mm : 0);
+  const q = Math.max(0, Math.floor(isFinite(quantita) ? quantita : 0));
+  return (l * h * q) / 1_000_000;
 }

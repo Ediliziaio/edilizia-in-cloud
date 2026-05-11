@@ -83,29 +83,33 @@ export interface OutputCashflow {
 }
 
 export function calcolaCashflow(input: InputCashflow): OutputCashflow {
-  const anni = input.anni_dettaglio ?? 10;
-  const infl = (input.inflazione_energia_pct ?? 3) / 100;
+  // Guard: tutti gli input numerici NaN-safe
+  const costo = Math.max(0, isFinite(input.costo_iniziale) ? input.costo_iniziale : 0);
+  const risparmioBase = Math.max(0, isFinite(input.risparmio_eur_anno) ? input.risparmio_eur_anno : 0);
+  const detrazione = Math.max(0, isFinite(input.detrazione_eur_anno) ? input.detrazione_eur_anno : 0);
+  const inflRaw = input.inflazione_energia_pct ?? 3;
+  // Clamp inflazione tra -20% e +50% (oltre è poco realistico)
+  const infl = Math.max(-0.2, Math.min(0.5, (isFinite(inflRaw) ? inflRaw : 3) / 100));
+  const anni = Math.max(1, Math.floor(input.anni_dettaglio ?? 10));
 
   const righe: CashflowRiga[] = [];
   let cumulato = 0;
   let payback: number | null = null;
 
   for (let anno = 1; anno <= anni; anno++) {
-    const risparmio_bolletta = input.risparmio_eur_anno * Math.pow(1 + infl, anno - 1);
-    const detrazione = anno <= 10 ? input.detrazione_eur_anno : 0;
-    const flusso_anno = risparmio_bolletta + detrazione;
+    const risparmio_bolletta = risparmioBase * Math.pow(1 + infl, anno - 1);
+    const det = anno <= 10 ? detrazione : 0;
+    const flusso_anno = risparmio_bolletta + det;
     cumulato += flusso_anno;
-    const netto = cumulato - input.costo_iniziale;
-    if (payback === null && netto >= 0) {
+    const netto = cumulato - costo;
+    if (payback === null && netto >= 0 && flusso_anno > 0) {
       // Calcolo payback più preciso: anno - (eccedenza / flusso_anno)
-      const eccedenza = netto;
-      const flusso_normalizzato = flusso_anno || 1;
-      payback = anno - eccedenza / flusso_normalizzato;
+      payback = anno - netto / flusso_anno;
     }
     righe.push({
       anno,
       risparmio_bolletta: Math.round(risparmio_bolletta * 100) / 100,
-      detrazione: Math.round(detrazione * 100) / 100,
+      detrazione: Math.round(det * 100) / 100,
       flusso_anno: Math.round(flusso_anno * 100) / 100,
       cumulato: Math.round(cumulato * 100) / 100,
       netto: Math.round(netto * 100) / 100,
@@ -113,15 +117,15 @@ export function calcolaCashflow(input: InputCashflow): OutputCashflow {
   }
 
   const totale_recuperato_10y = righe[righe.length - 1]?.cumulato ?? 0;
-  const pct_recuperato_10y = input.costo_iniziale > 0
-    ? (totale_recuperato_10y / input.costo_iniziale) * 100
+  const pct_recuperato_10y = costo > 0
+    ? (totale_recuperato_10y / costo) * 100
     : 0;
-  const costo_netto_10y = Math.max(0, input.costo_iniziale - totale_recuperato_10y);
+  const costo_netto_10y = Math.max(0, costo - totale_recuperato_10y);
 
   return {
     righe,
     totale_recuperato_10y: Math.round(totale_recuperato_10y * 100) / 100,
-    payback_anni: payback != null ? Math.round(payback * 10) / 10 : null,
+    payback_anni: payback != null && isFinite(payback) ? Math.round(payback * 10) / 10 : null,
     pct_recuperato_10y: Math.round(pct_recuperato_10y * 10) / 10,
     costo_netto_10y: Math.round(costo_netto_10y * 100) / 100,
   };
@@ -138,14 +142,22 @@ export interface InputRata {
 /**
  * Calcola la rata mensile costante con formula della rata francese.
  * Se tasso = 0 → rata = importo / mesi.
+ *
+ * Guard: durata > 0 e importo non negativo. Se durata <= 0 ritorna 0.
  */
 export function calcolaRata(input: InputRata): number {
-  if (input.tasso_annuo_pct === 0) {
-    return input.importo_finanziato / input.durata_mesi;
+  const importo = Math.max(0, isFinite(input.importo_finanziato) ? input.importo_finanziato : 0);
+  const durata = Math.max(0, Math.floor(isFinite(input.durata_mesi) ? input.durata_mesi : 0));
+  const tasso = Math.max(0, isFinite(input.tasso_annuo_pct) ? input.tasso_annuo_pct : 0);
+
+  if (durata === 0 || importo === 0) return 0;
+  if (tasso === 0) {
+    return Math.round((importo / durata) * 100) / 100;
   }
-  const i = (input.tasso_annuo_pct / 100) / 12;
-  const n = input.durata_mesi;
-  const rata = input.importo_finanziato * i * Math.pow(1 + i, n) / (Math.pow(1 + i, n) - 1);
+  const i = (tasso / 100) / 12;
+  const n = durata;
+  const rata = importo * i * Math.pow(1 + i, n) / (Math.pow(1 + i, n) - 1);
+  if (!isFinite(rata) || rata < 0) return 0;
   return Math.round(rata * 100) / 100;
 }
 

@@ -92,17 +92,49 @@ export interface OutputRisparmio {
 
 /**
  * Calcola il risparmio energetico annuo dovuto alla sostituzione.
+ *
+ * Guard:
+ *  - efficienza_caldaia clampata a [0.5, 1.0] per evitare divisioni per zero
+ *    o assurde (caldaie reali stanno tra 75% e 98%)
+ *  - prezzo_kwh_termico non negativo
+ *  - m2 e uw non negativi
+ *  - se uw_nuovo >= uw_attuale → risparmio = 0 (caso degenere o errore input)
  */
 export function calcolaRisparmio(input: InputRisparmio): OutputRisparmio {
-  const eta = input.efficienza_caldaia ?? 0.85;
-  const prezzo = input.prezzo_kwh_termico ?? 0.10;
+  // Guard: clamp efficienza
+  const etaRaw = input.efficienza_caldaia ?? 0.85;
+  const eta = Math.max(0.5, Math.min(1.0, isFinite(etaRaw) ? etaRaw : 0.85));
+  // Guard: prezzo non negativo, fallback 0.10
+  const prezzoRaw = input.prezzo_kwh_termico ?? 0.10;
+  const prezzo = Math.max(0, isFinite(prezzoRaw) ? prezzoRaw : 0.10);
+
   const gg = ZONA_GG[input.zona_climatica];
   const giorni = ZONA_GIORNI_RISCALDAMENTO[input.zona_climatica];
 
+  // Guard: m2 e uw non negativi/NaN
+  const m2 = Math.max(0, isFinite(input.m2_serramenti) ? input.m2_serramenti : 0);
+  const uwAttuale = Math.max(0, isFinite(input.uw_attuale) ? input.uw_attuale : 0);
+  const uwNuovo = Math.max(0, isFinite(input.uw_nuovo) ? input.uw_nuovo : 0);
+
+  // Caso degenere: nessun risparmio se m² o GG = 0, o se Uw nuovo >= attuale
+  if (m2 === 0 || gg === 0 || uwNuovo >= uwAttuale) {
+    return {
+      zona_climatica: input.zona_climatica,
+      gradi_giorno: gg,
+      giorni_riscaldamento: giorni,
+      kwh_persi_attuali: 0,
+      kwh_persi_nuovi: 0,
+      risparmio_kwh_anno: 0,
+      risparmio_eur_anno: 0,
+      risparmio_pct: 0,
+      co2_risparmiata_kg_anno: 0,
+    };
+  }
+
   // Q = U × A × GG × 24 × 10⁻³ (kWh)
-  const factor = input.m2_serramenti * gg * 24 / 1000;
-  const kwh_persi_attuali = (input.uw_attuale * factor) / eta;
-  const kwh_persi_nuovi = (input.uw_nuovo * factor) / eta;
+  const factor = m2 * gg * 24 / 1000;
+  const kwh_persi_attuali = (uwAttuale * factor) / eta;
+  const kwh_persi_nuovi = (uwNuovo * factor) / eta;
   const risparmio_kwh_anno = Math.max(0, kwh_persi_attuali - kwh_persi_nuovi);
   const risparmio_eur_anno = risparmio_kwh_anno * prezzo;
   const risparmio_pct = input.bolletta_attuale_anno && input.bolletta_attuale_anno > 0
