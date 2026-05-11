@@ -1,18 +1,17 @@
 /**
- * ListinoPickerDialog — sceglie un articolo dal listino aziendale.
+ * ListinoPickerDialog — picker gerarchico del listino.
  *
- * Flusso nuovo (2 step):
- *  1. Scegli FAMIGLIA dal listino (con filtro/ricerca)
- *  2. Inserisci MISURE LIBERE (larghezza × altezza × quantità). Il sistema
- *     calcola il prezzo in base a `modalita_prezzo_base` della famiglia:
- *       - 'pz'           → prezzo_base × quantita
- *       - 'mq'           → prezzo_base × (l×h/10⁶) × quantita
- *       - 'misura_libera'→ prezzo_base × quantita (misure indicative)
- *       - 'griglia'      → lookup nella listino_griglia con misure
- *                          più vicine (≤ alle misure richieste)
+ * Flusso 4 step (navigazione drill-down):
+ *  1. Macrocategoria (es. Infissi, Persiane, Accessori)
+ *  2. Categoria (es. Profilo da 70, Finestra 1 anta)
+ *  3. Famiglia / prodotto (es. "COSTRUZIONE 2 IT — FINESTRA 1 ANTA")
+ *  4. Misure libere + calcolo prezzo automatico
  *
- *  La manodopera/posa configurata sulla famiglia (FamilyEditor) è
- *  AUTOMATICAMENTE INCLUSA nel prezzo della posizione, non separata.
+ *  Search globale: digitando ≥ 2 caratteri salta direttamente alla
+ *  vista famiglie cross-categoria.
+ *
+ *  La posa configurata sulla famiglia è inglobata nel totale ma NON
+ *  esposta al commerciale (UX policy).
  */
 import { useState, useEffect, useMemo } from "react";
 import {
@@ -23,10 +22,16 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import {
-  Loader2, Search, Package, ArrowLeft, Ruler, Calculator,
+  Loader2, Search, Package, ArrowLeft, Ruler, Calculator, ChevronRight,
+  Layers, FolderOpen,
 } from "lucide-react";
-import { useListinoFamilies, useListinoGriglia, useTariffeManodopera } from "@/lib/serramenti/queries";
-import type { ListinoFamily } from "@/lib/serramenti/api";
+import {
+  useListinoFamilies, useListinoGriglia, useTariffeManodopera,
+  useMacrocategorie, useCategorieByMacro,
+} from "@/lib/serramenti/queries";
+import type {
+  ListinoFamily, ListinoMacrocategoria, ListinoCategoria,
+} from "@/lib/serramenti/api";
 
 export interface ListinoPickResult {
   family_id: string;
@@ -34,9 +39,7 @@ export interface ListinoPickResult {
   larghezza_mm: number | null;
   altezza_mm: number | null;
   quantita: number;
-  /** Prezzo unitario FINALE — include eventuale posa configurata sul prodotto */
   prezzo_unitario: number | null;
-  /** Subtotali per trasparenza */
   prezzo_prodotto: number | null;
   prezzo_posa: number | null;
   griglia_id?: string | null;
@@ -49,7 +52,7 @@ interface Props {
   onSelect: (item: ListinoPickResult) => void;
 }
 
-// ─── Helpers calcolo prezzo ─────────────────────────────────────────────────
+// ─── Helpers calcolo prezzo (invariati) ─────────────────────────────────────
 
 function calcolaPrezzoProdotto(
   family: ListinoFamily,
@@ -64,7 +67,6 @@ function calcolaPrezzoProdotto(
   switch (modalita) {
     case "pz":
       return { prezzo: base * quantita, matchedGrigliaId: null, note: null };
-
     case "mq": {
       if (!larghezza || !altezza) {
         return { prezzo: 0, matchedGrigliaId: null, note: "Inserisci larghezza e altezza per calcolo m²" };
@@ -72,13 +74,9 @@ function calcolaPrezzoProdotto(
       const mq = (larghezza * altezza) / 1_000_000;
       return { prezzo: base * mq * quantita, matchedGrigliaId: null, note: `${mq.toFixed(2)} m² × €${base.toFixed(2)}/m²` };
     }
-
     case "misura_libera":
       return { prezzo: base * quantita, matchedGrigliaId: null, note: "Prezzo a corpo, misure indicative" };
-
     case "griglia": {
-      // Lookup: trovo la riga con valore_x e valore_y ≥ misure richieste
-      // (regola standard listini serramenti: si pagano le misure superiori).
       if (!larghezza || !altezza) {
         return { prezzo: base * quantita, matchedGrigliaId: null, note: "Inserisci misure per leggere griglia" };
       }
@@ -87,26 +85,21 @@ function calcolaPrezzoProdotto(
         && g.valore_x >= larghezza && g.valore_y >= altezza
       );
       if (candidates.length === 0) {
-        // Misure fuori griglia: usa il prezzo massimo della griglia come fallback
         const maxPrezzo = griglia.reduce((m, g) => Math.max(m, Number(g.prezzo_vendita ?? 0)), 0);
         return {
-          prezzo: maxPrezzo * quantita,
-          matchedGrigliaId: null,
+          prezzo: maxPrezzo * quantita, matchedGrigliaId: null,
           note: `Misure fuori griglia — applicato prezzo max €${maxPrezzo.toFixed(2)}`,
         };
       }
-      // Prendi la combo "più piccola che copre" (cioè la più economica fra le ≥)
       const best = candidates.reduce((min, g) =>
         Number(g.prezzo_vendita ?? Infinity) < Number(min.prezzo_vendita ?? Infinity) ? g : min,
       );
       const prezzoBest = Number(best.prezzo_vendita ?? 0);
       return {
-        prezzo: prezzoBest * quantita,
-        matchedGrigliaId: best.id,
+        prezzo: prezzoBest * quantita, matchedGrigliaId: best.id,
         note: `Griglia ${best.valore_x}×${best.valore_y}mm @ €${prezzoBest.toFixed(2)}`,
       };
     }
-
     default:
       return { prezzo: base * quantita, matchedGrigliaId: null, note: null };
   }
@@ -116,44 +109,51 @@ function calcolaPosaInclusa(
   family: ListinoFamily,
   quantita: number,
   tariffePrezzi: Map<string, number>,
-): { prezzoPosa: number; descrizione: string | null } {
+): number {
   const modalita = family.manodopera_modalita;
-  if (!modalita || modalita === "nessuna") return { prezzoPosa: 0, descrizione: null };
-
+  if (!modalita || modalita === "nessuna") return 0;
   const qtyDefault = Number(family.posa_quantita_default ?? 1);
   const qtyTotale = quantita * qtyDefault;
-
   if (modalita === "tariffa" && family.posa_tariffa_default_id) {
     const prezzoTariffa = tariffePrezzi.get(family.posa_tariffa_default_id) ?? 0;
-    return {
-      prezzoPosa: prezzoTariffa * qtyTotale,
-      descrizione: `Posa: ${qtyTotale} × €${prezzoTariffa.toFixed(2)} = €${(prezzoTariffa * qtyTotale).toFixed(2)}`,
-    };
+    return prezzoTariffa * qtyTotale;
   }
-
   if (modalita === "manuale") {
-    const prezzo = Number(family.manodopera_prezzo_vendita ?? 0);
-    return {
-      prezzoPosa: prezzo * qtyTotale,
-      descrizione: `Posa (manuale): ${qtyTotale} × €${prezzo.toFixed(2)} = €${(prezzo * qtyTotale).toFixed(2)}`,
-    };
+    return Number(family.manodopera_prezzo_vendita ?? 0) * qtyTotale;
   }
-
-  return { prezzoPosa: 0, descrizione: null };
+  return 0;
 }
 
 const MODALITA_LABEL: Record<string, string> = {
-  pz: "a pezzo",
-  mq: "a m²",
-  misura_libera: "a corpo (misure indicative)",
-  griglia: "da griglia misure",
+  pz: "a pezzo", mq: "a m²", misura_libera: "a corpo", griglia: "da griglia misure",
 };
 
-// ─── Component ──────────────────────────────────────────────────────────────
+type Step = "macro" | "categoria" | "famiglia" | "misure";
+
+// ─── Helper: icon o fallback ────────────────────────────────────────────────
+
+function IconBox({ colore, iconText }: { colore?: string | null; iconText: string }) {
+  return (
+    <div
+      className="h-12 w-12 rounded-md flex items-center justify-center text-xl shrink-0"
+      style={{
+        backgroundColor: colore ? `${colore}22` : "#10b98122",
+        color: colore ?? "#10b981",
+      }}
+    >
+      {iconText}
+    </div>
+  );
+}
+
+// ─── Component principale ──────────────────────────────────────────────────
 
 export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
+  const [step, setStep] = useState<Step>("macro");
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
+  const [selectedMacro, setSelectedMacro] = useState<ListinoMacrocategoria | null>(null);
+  const [selectedCategoria, setSelectedCategoria] = useState<ListinoCategoria | null>(null);
   const [selectedFamily, setSelectedFamily] = useState<ListinoFamily | null>(null);
   const [larghezza, setLarghezza] = useState<string>("");
   const [altezza, setAltezza] = useState<string>("");
@@ -164,56 +164,55 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Search globale: se ≥2 caratteri, salta a vista famiglie filtrata cross-cat
+  const isSearching = debounced.trim().length >= 2;
+
   useEffect(() => {
     if (!open) {
-      setSearch("");
-      setDebounced("");
-      setSelectedFamily(null);
-      setLarghezza("");
-      setAltezza("");
-      setQuantita("1");
+      setStep("macro");
+      setSearch(""); setDebounced("");
+      setSelectedMacro(null); setSelectedCategoria(null); setSelectedFamily(null);
+      setLarghezza(""); setAltezza(""); setQuantita("1");
     }
   }, [open]);
 
-  const { data: families = [], isLoading: loadingFam } = useListinoFamilies(debounced);
+  // Quando l'utente cerca, mostriamo vista famiglie senza alterare il drill state
+  const effectiveStep: Step = isSearching && step !== "misure" ? "famiglia" : step;
+
+  // ─── Data fetch ──────────────────────────────────────────────────────────
+  const { data: macros = [], isLoading: loadingMacros } = useMacrocategorie();
+  const { data: categorie = [], isLoading: loadingCat } = useCategorieByMacro(selectedMacro?.id ?? null);
+  const { data: families = [], isLoading: loadingFam } = useListinoFamilies({
+    searchQuery: isSearching ? debounced : undefined,
+    categoriaId: !isSearching && selectedCategoria ? selectedCategoria.id : undefined,
+  });
   const { data: griglia = [], isLoading: loadingGriglia } = useListinoGriglia(selectedFamily?.id);
   const { data: tariffe = [] } = useTariffeManodopera();
 
-  // Map id→prezzo_vendita per lookup veloce
   const tariffePrezzi = useMemo(() => {
     const m = new Map<string, number>();
-    tariffe.forEach((t) => {
-      if (t.prezzo_vendita != null) m.set(t.id, Number(t.prezzo_vendita));
-    });
+    tariffe.forEach((t) => { if (t.prezzo_vendita != null) m.set(t.id, Number(t.prezzo_vendita)); });
     return m;
   }, [tariffe]);
 
-  // Calcolo prezzo dinamico mentre l'utente digita
+  // ─── Calcolo prezzo live ────────────────────────────────────────────────
   const calcolo = useMemo(() => {
     if (!selectedFamily) return null;
     const l = larghezza ? Number(larghezza) : null;
     const h = altezza ? Number(altezza) : null;
     const q = Math.max(1, Number(quantita) || 1);
 
-    const { prezzo: prezzoProdotto, matchedGrigliaId, note: noteCalcolo } =
+    const { prezzo: prezzoProdotto, matchedGrigliaId, note } =
       calcolaPrezzoProdotto(selectedFamily, l, h, q, griglia);
-    const { prezzoPosa, descrizione: descPosa } =
-      calcolaPosaInclusa(selectedFamily, q, tariffePrezzi);
+    const prezzoPosa = calcolaPosaInclusa(selectedFamily, q, tariffePrezzi);
 
     const totale = prezzoProdotto + prezzoPosa;
     const unitario = q > 0 ? totale / q : 0;
 
     return {
-      larghezza: l,
-      altezza: h,
-      quantita: q,
-      prezzo_prodotto: prezzoProdotto,
-      prezzo_posa: prezzoPosa,
-      totale,
-      unitario,
-      matchedGrigliaId,
-      note: noteCalcolo,
-      desc_posa: descPosa,
+      larghezza: l, altezza: h, quantita: q,
+      prezzo_prodotto: prezzoProdotto, prezzo_posa: prezzoPosa,
+      totale, unitario, matchedGrigliaId, note,
     };
   }, [selectedFamily, larghezza, altezza, quantita, griglia, tariffePrezzi]);
 
@@ -221,6 +220,36 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
     selectedFamily.modalita_prezzo_base === "mq" ||
     selectedFamily.modalita_prezzo_base === "griglia"
   );
+
+  // ─── Handlers ────────────────────────────────────────────────────────────
+
+  const handleSelectMacro = (m: ListinoMacrocategoria) => {
+    setSelectedMacro(m);
+    setStep("categoria");
+  };
+
+  const handleSelectCategoria = (c: ListinoCategoria) => {
+    setSelectedCategoria(c);
+    setStep("famiglia");
+  };
+
+  const handleSelectFamily = (f: ListinoFamily) => {
+    setSelectedFamily(f);
+    setStep("misure");
+  };
+
+  const handleBack = () => {
+    if (step === "misure") {
+      setSelectedFamily(null);
+      setStep("famiglia");
+    } else if (step === "famiglia") {
+      setSelectedCategoria(null);
+      setStep("categoria");
+    } else if (step === "categoria") {
+      setSelectedMacro(null);
+      setStep("macro");
+    }
+  };
 
   const handleConferma = () => {
     if (!selectedFamily || !calcolo) return;
@@ -234,74 +263,178 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
       prezzo_prodotto: calcolo.prezzo_prodotto / calcolo.quantita,
       prezzo_posa: calcolo.prezzo_posa / calcolo.quantita,
       griglia_id: calcolo.matchedGrigliaId,
-      // Note: niente menzione esplicita della posa nella nota del serramento.
-      // L'azienda vuole che il commerciale (e ancor più il cliente nel PDF)
-      // non veda quanto vale la voce posa separatamente — è inglobata.
       note: calcolo.note,
     });
     onOpenChange(false);
   };
 
+  // ─── Breadcrumb ──────────────────────────────────────────────────────────
+  const breadcrumb = useMemo(() => {
+    if (isSearching && effectiveStep !== "misure") {
+      return `Risultati ricerca per "${debounced}"`;
+    }
+    const parts: string[] = [];
+    if (selectedMacro) parts.push(selectedMacro.nome);
+    if (selectedCategoria) parts.push(selectedCategoria.nome);
+    if (selectedFamily) parts.push(selectedFamily.nome);
+    return parts.join(" › ") || "Listino";
+  }, [isSearching, debounced, effectiveStep, selectedMacro, selectedCategoria, selectedFamily]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>
-            {selectedFamily ? (
-              <span className="flex items-center gap-2">
-                <Button size="icon" variant="ghost" onClick={() => setSelectedFamily(null)} className="h-7 w-7">
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <Ruler className="h-4 w-4 text-emerald-700" />
-                <span className="truncate">{selectedFamily.nome}</span>
-              </span>
-            ) : (
-              "Seleziona dal listino"
+          <DialogTitle className="flex items-center gap-2">
+            {(effectiveStep !== "macro" || isSearching) && !isSearching && (
+              <Button size="icon" variant="ghost" onClick={handleBack} className="h-7 w-7">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
             )}
+            {effectiveStep === "macro" && <Layers className="h-4 w-4 text-emerald-700" />}
+            {effectiveStep === "categoria" && <FolderOpen className="h-4 w-4 text-emerald-700" />}
+            {effectiveStep === "famiglia" && <Package className="h-4 w-4 text-emerald-700" />}
+            {effectiveStep === "misure" && <Ruler className="h-4 w-4 text-emerald-700" />}
+            <span className="flex-1 truncate">{breadcrumb}</span>
           </DialogTitle>
           <DialogDescription>
-            {selectedFamily
-              ? "Inserisci le misure: il prezzo viene calcolato automaticamente dal listino."
-              : "Scegli una tipologia di serramento dal listino della tua azienda."}
+            {effectiveStep === "macro" && "Scegli la macrocategoria di prodotto"}
+            {effectiveStep === "categoria" && "Scegli la categoria"}
+            {effectiveStep === "famiglia" && (isSearching ? "Famiglie corrispondenti alla ricerca" : "Scegli il prodotto specifico")}
+            {effectiveStep === "misure" && "Inserisci le misure: il prezzo è calcolato automaticamente"}
           </DialogDescription>
         </DialogHeader>
 
-        {!selectedFamily ? (
-          // ─── STEP 1: Scegli famiglia ───────────────────────────────────────
-          <>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cerca tipologia (es. 'Finestra', 'Porta-finestra', codice produttore)…"
-                className="pl-9 h-10"
-                autoFocus
+        {/* Search bar — visibile in tutti gli step tranne misure */}
+        {effectiveStep !== "misure" && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cerca direttamente per nome prodotto…"
+              className="pl-9 h-10"
+            />
+            {isSearching && (
+              <button
+                type="button"
+                onClick={() => { setSearch(""); setDebounced(""); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                Pulisci
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ─── STEP MACROCATEGORIA ──────────────────────────────────────── */}
+        {effectiveStep === "macro" && (
+          <div className="max-h-[55vh] overflow-y-auto">
+            {loadingMacros ? (
+              <LoadingState />
+            ) : macros.length === 0 ? (
+              <EmptyState
+                icon={<Layers className="h-10 w-10" />}
+                text="Nessuna macrocategoria configurata. Vai in Impostazioni → Listino prodotti per crearle."
               />
-            </div>
-            <div className="max-h-[55vh] overflow-y-auto -mx-2 px-2 space-y-1">
-              {loadingFam ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
-                  Caricamento listino…
-                </div>
-              ) : families.length === 0 ? (
-                <div className="py-8 text-center">
-                  <Package className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    {debounced.length >= 2
-                      ? "Nessuna famiglia trovata."
-                      : "Nessun articolo nel listino. Configuralo in Impostazioni → Listino prodotti."}
-                  </p>
-                </div>
-              ) : (
-                <ul className="divide-y">
-                  {families.map((f) => (
-                    <li key={f.id}>
-                      <button
-                        onClick={() => setSelectedFamily(f)}
-                        className="w-full text-left p-3 rounded-md hover:bg-emerald-50/60 focus:bg-emerald-50 focus:outline-none transition"
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {macros.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => handleSelectMacro(m)}
+                    className="text-left p-3 rounded-md border-2 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition group"
+                  >
+                    <div className="flex items-start gap-3">
+                      <IconBox colore={m.colore} iconText={m.icona ? "📦" : "📦"} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-slate-900 truncate">{m.nome}</p>
+                        {m.descrizione && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{m.descrizione}</p>
+                        )}
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-emerald-700 mt-1 shrink-0" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─── STEP CATEGORIA ──────────────────────────────────────────── */}
+        {effectiveStep === "categoria" && (
+          <div className="max-h-[55vh] overflow-y-auto">
+            {loadingCat ? (
+              <LoadingState />
+            ) : categorie.length === 0 ? (
+              <EmptyState
+                icon={<FolderOpen className="h-10 w-10" />}
+                text={`Nessuna categoria in "${selectedMacro?.nome ?? ""}". Configura le categorie nelle Impostazioni → Listino prodotti.`}
+              />
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {categorie.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleSelectCategoria(c)}
+                    className="text-left rounded-md border-2 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition overflow-hidden group"
+                  >
+                    {c.immagine_url ? (
+                      // eslint-disable-next-line jsx-a11y/img-redundant-alt
+                      <img
+                        src={c.immagine_url}
+                        alt={c.nome}
+                        className="w-full h-24 object-cover bg-muted"
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-24 flex items-center justify-center text-3xl"
+                        style={{
+                          backgroundColor: c.colore ? `${c.colore}22` : "#10b98122",
+                          color: c.colore ?? "#10b981",
+                        }}
                       >
+                        📁
+                      </div>
+                    )}
+                    <div className="p-2.5 flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{c.nome}</p>
+                        {c.descrizione && (
+                          <p className="text-[11px] text-muted-foreground line-clamp-1">{c.descrizione}</p>
+                        )}
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-emerald-700 mt-0.5 shrink-0" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─── STEP FAMIGLIA ───────────────────────────────────────────── */}
+        {effectiveStep === "famiglia" && (
+          <div className="max-h-[55vh] overflow-y-auto">
+            {loadingFam ? (
+              <LoadingState />
+            ) : families.length === 0 ? (
+              <EmptyState
+                icon={<Package className="h-10 w-10" />}
+                text={isSearching
+                  ? `Nessun prodotto trovato per "${debounced}".`
+                  : `Nessun prodotto in questa categoria.`
+                }
+              />
+            ) : (
+              <ul className="divide-y">
+                {families.map((f) => (
+                  <li key={f.id}>
+                    <button
+                      onClick={() => handleSelectFamily(f)}
+                      className="w-full text-left p-3 rounded-md hover:bg-emerald-50/60 focus:bg-emerald-50 focus:outline-none transition flex items-center gap-2"
+                    >
+                      <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-900">{f.nome}</p>
                         <div className="flex flex-wrap gap-2 mt-1 text-[10px]">
                           {f.vertical && (
@@ -315,21 +448,19 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                               base €{Number(f.prezzo_base_vendita).toFixed(2)}
                             </span>
                           )}
-                          {f.manodopera_modalita && f.manodopera_modalita !== "nessuna" && (
-                            <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">
-                              🔧 posa inclusa
-                            </span>
-                          )}
                         </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </>
-        ) : (
-          // ─── STEP 2: Misure libere + calcolo live ──────────────────────────
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* ─── STEP MISURE + CALCOLO ─────────────────────────────────── */}
+        {effectiveStep === "misure" && selectedFamily && (
           <div className="space-y-3">
             <Card className="bg-emerald-50/30 border-emerald-200 p-3">
               <p className="text-[11px] uppercase tracking-wide text-emerald-700 font-semibold mb-1">
@@ -347,8 +478,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
               <div className={richiedeMisure ? "col-span-4" : "col-span-6"}>
                 <Label className="text-xs">Larghezza (mm)</Label>
                 <Input
-                  type="number"
-                  min={0}
+                  type="number" min={0}
                   value={larghezza}
                   onChange={(e) => setLarghezza(e.target.value)}
                   placeholder="es. 1200"
@@ -358,8 +488,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
               <div className={richiedeMisure ? "col-span-4" : "col-span-6"}>
                 <Label className="text-xs">Altezza (mm)</Label>
                 <Input
-                  type="number"
-                  min={0}
+                  type="number" min={0}
                   value={altezza}
                   onChange={(e) => setAltezza(e.target.value)}
                   placeholder="es. 1400"
@@ -369,8 +498,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
               <div className="col-span-4">
                 <Label className="text-xs">Quantità</Label>
                 <Input
-                  type="number"
-                  min={1}
+                  type="number" min={1}
                   value={quantita}
                   onChange={(e) => setQuantita(e.target.value)}
                   className="h-9"
@@ -384,9 +512,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
               </p>
             )}
 
-            {/* Riepilogo calcolo live — il commerciale vede solo il prezzo finale.
-                La posa è inclusa internamente nel totale ma non viene esposta
-                come voce separata (richiesta UX cliente). */}
+            {/* Riepilogo calcolo — il commerciale vede solo il totale, niente posa esposta */}
             {calcolo && (
               <Card className="border-emerald-300 bg-emerald-50/50 p-4">
                 <p className="text-[11px] uppercase tracking-wide text-emerald-700 font-semibold mb-2 flex items-center gap-1">
@@ -413,14 +539,13 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
 
         <div className="flex justify-end gap-2 pt-2 border-t">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
-          {selectedFamily && (
+          {effectiveStep === "misure" && (
             <Button
               onClick={handleConferma}
               className="bg-emerald-700 hover:bg-emerald-800"
               disabled={
                 (richiedeMisure && (!larghezza || !altezza))
-                || !calcolo
-                || calcolo.totale <= 0
+                || !calcolo || calcolo.totale <= 0
               }
             >
               Aggiungi al preventivo
@@ -429,5 +554,25 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── Sub-components ─────────────────────────────────────────────────────────
+
+function LoadingState() {
+  return (
+    <div className="py-8 text-center text-sm text-muted-foreground">
+      <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+      Caricamento…
+    </div>
+  );
+}
+
+function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <div className="py-10 text-center text-muted-foreground">
+      <div className="mx-auto mb-2 opacity-30">{icon}</div>
+      <p className="text-sm max-w-md mx-auto">{text}</p>
+    </div>
   );
 }

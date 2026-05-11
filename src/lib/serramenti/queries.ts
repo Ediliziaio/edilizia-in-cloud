@@ -15,6 +15,7 @@ import {
   listRenderSessions, importRender,
   listCrmContacts,
   listListinoFamilies, listGrigliaByFamily,
+  listMacrocategorie, listCategorieByMacro,
   listTariffeManodopera, addManodopera, updateManodopera, deleteManodopera,
   type SrCreateProgettoInput,
   type UploadMediaInput,
@@ -244,11 +245,28 @@ export function useDeleteManodopera(progettoId: string | undefined) {
 
 // ─── Listino prodotti picker ────────────────────────────────────────────────
 
-export function useListinoFamilies(searchQuery: string = "") {
+export function useListinoFamilies(opts?: { searchQuery?: string; categoriaId?: string | null }) {
   return useQuery({
-    queryKey: ["sr-listino-families", searchQuery],
-    queryFn: () => listListinoFamilies(searchQuery),
-    staleTime: 5 * 60 * 1000, // 5 min — il listino cambia raramente
+    queryKey: ["sr-listino-families", opts?.searchQuery ?? "", opts?.categoriaId ?? null],
+    queryFn: () => listListinoFamilies(opts),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useMacrocategorie() {
+  return useQuery({
+    queryKey: ["sr-listino-macrocategorie"],
+    queryFn: () => listMacrocategorie(),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useCategorieByMacro(macroId: string | null) {
+  return useQuery({
+    queryKey: ["sr-listino-categorie", macroId],
+    queryFn: () => listCategorieByMacro(macroId),
+    enabled: macroId !== undefined,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -402,6 +402,57 @@ export async function deleteManodopera(id: string): Promise<void> {
   if (error) throw new Error("Eliminazione manodopera fallita");
 }
 
+// ─── LISTINO GERARCHIA (macrocategorie → categorie → families) ──────────────
+
+export interface ListinoMacrocategoria {
+  id: string;
+  nome: string;
+  descrizione: string | null;
+  icona: string | null;
+  colore: string | null;
+}
+
+export interface ListinoCategoria {
+  id: string;
+  nome: string;
+  descrizione: string | null;
+  icona: string | null;
+  colore: string | null;
+  immagine_url: string | null;
+  macrocategoria_id: string | null;
+}
+
+export async function listMacrocategorie(): Promise<ListinoMacrocategoria[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("listino_macrocategorie")
+    .select("id, nome, descrizione, icona, colore")
+    .eq("attivo", true)
+    .order("sort_order", { ascending: true, nullsFirst: false })
+    .order("nome", { ascending: true });
+  if (error) {
+    console.error("[serramenti] listMacrocategorie failed", error);
+    throw new Error("Errore caricamento macrocategorie listino");
+  }
+  return (data ?? []) as ListinoMacrocategoria[];
+}
+
+export async function listCategorieByMacro(macroId: string | null): Promise<ListinoCategoria[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q = (supabase as any)
+    .from("listino_categorie")
+    .select("id, nome, descrizione, icona, colore, immagine_url, macrocategoria_id")
+    .order("sort_order", { ascending: true, nullsFirst: false })
+    .order("nome", { ascending: true });
+  if (macroId) q = q.eq("macrocategoria_id", macroId);
+  const { data, error } = await q;
+  if (error) {
+    console.error("[serramenti] listCategorieByMacro failed", error);
+    throw new Error("Errore caricamento categorie listino");
+  }
+  return (data ?? []) as ListinoCategoria[];
+}
+
 // ─── LISTINO PRODOTTI (article_families + listino_griglia) ─────────────────
 
 export interface ListinoFamily {
@@ -411,6 +462,7 @@ export interface ListinoFamily {
   prezzo_base_vendita: number | null;
   vat_rate: number | null;
   modalita_prezzo_base: string | null;
+  categoria_id: string | null;
   // ─── Manodopera auto-link (configurata in FamilyEditor → Step Manodopera) ─
   manodopera_modalita: "tariffa" | "manuale" | "nessuna" | null;
   posa_tariffa_default_id: string | null;
@@ -431,19 +483,26 @@ export interface ListinoGrigliaItem {
   note: string | null;
 }
 
-export async function listListinoFamilies(searchQuery?: string): Promise<ListinoFamily[]> {
+export async function listListinoFamilies(opts?: {
+  searchQuery?: string;
+  categoriaId?: string | null;
+}): Promise<ListinoFamily[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
     .from("article_families")
     .select(`
-      id, nome, vertical, prezzo_base_vendita, vat_rate, modalita_prezzo_base,
+      id, nome, vertical, prezzo_base_vendita, vat_rate, modalita_prezzo_base, categoria_id,
       manodopera_modalita, posa_tariffa_default_id, posa_quantita_default, posa_linked,
       manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita
     `)
     .order("nome", { ascending: true })
     .limit(100);
-  if (searchQuery && searchQuery.trim().length >= 2) {
-    q = q.ilike("nome", `%${searchQuery.trim()}%`);
+  const search = opts?.searchQuery?.trim();
+  if (search && search.length >= 2) {
+    q = q.ilike("nome", `%${search}%`);
+  }
+  if (opts?.categoriaId) {
+    q = q.eq("categoria_id", opts.categoriaId);
   }
   const { data, error } = await q;
   if (error) {
