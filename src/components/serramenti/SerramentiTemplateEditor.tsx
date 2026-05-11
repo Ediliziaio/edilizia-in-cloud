@@ -31,6 +31,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
+import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
+import { FileText } from "lucide-react";
 import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza } from "@/types/serramenti";
 import {
   PRESET_ESIGENZE, PRESET_ESIGENZE_ALT, PRESET_ESIGENZE_FAMIGLIA,
@@ -687,6 +689,15 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
           />
         </div>
         {renderListEditor("step", "prossimi_passi_default", "Es. Ci vediamo a casa tua per la consulenza tecnica")}
+      </SrCard>
+
+      {/* Pagine dedicate macrocategoria — sincronizzate con il listino */}
+      <SrCard
+        title="Pagine dedicate macrocategoria"
+        description="Quando un articolo di una macro attivata è nel preventivo, il PDF aggiunge una pagina dedicata (foto + descrizione estesa). Le modifiche qui sono sincronizzate con il listino."
+        icon={<FileText className="h-4 w-4" />}
+      >
+        <MacroPagineDedicateManager vertical="serramentista" />
       </SrCard>
 
       {/* Crono + Economia */}

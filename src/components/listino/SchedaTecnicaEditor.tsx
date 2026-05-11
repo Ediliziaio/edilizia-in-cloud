@@ -18,7 +18,7 @@
  *      durante il preventivo) e `show_in_pdf` (stampato nel preventivo).
  */
 import { useState } from "react";
-import { Plus, Trash2, Edit2, Wand2, GripVertical, Loader2 } from "lucide-react";
+import { Plus, Trash2, Edit2, Wand2, GripVertical, Loader2, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -192,14 +192,23 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Scheda tecnica — {macroNome}</DialogTitle>
-            <DialogDescription>
-              Definisci i campi tecnici (vetro, Uw, potenza, materiale…) che apparirano
-              per ogni articolo di questa macrocategoria. I valori verranno mostrati nel
-              picker durante il preventivo e stampati nel PDF.
-            </DialogDescription>
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+                <Settings2 className="h-4.5 w-4.5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="truncate">
+                  Scheda tecnica · <span className="text-orange-600 dark:text-orange-400">{macroNome}</span>
+                </DialogTitle>
+                <DialogDescription>
+                  Definisci i campi che descriveranno tecnicamente ogni articolo
+                  di questa macrocategoria (vetro, Uw, potenza…). Verranno mostrati
+                  al commerciale nel picker e stampati nel PDF preventivo.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           {isLoading ? (
@@ -208,12 +217,20 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Toolbar */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
-                <div className="text-sm text-muted-foreground">
-                  {fields.length === 0
-                    ? "Nessun campo configurato. Inizia con uno standard o crea manualmente."
-                    : `${fields.length} ${fields.length === 1 ? "campo configurato" : "campi configurati"}`}
+              {/* Toolbar — stat live + azioni */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b">
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="font-medium">
+                    {fields.length} {fields.length === 1 ? "campo" : "campi"} configurati
+                  </span>
+                  {fields.length > 0 && (
+                    <>
+                      <span className="text-muted-foreground hidden sm:inline">·</span>
+                      <span className="text-xs text-muted-foreground hidden sm:inline">
+                        {fields.filter((f) => f.required).length} obbligatori
+                      </span>
+                    </>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
@@ -221,20 +238,28 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                     variant="outline"
                     onClick={() => setShowSeedPanel((v) => !v)}
                     disabled={seedFields.isPending}
+                    className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
                   >
                     <Wand2 className="h-4 w-4 mr-1.5" />
-                    Genera scheda standard
+                    {fields.length === 0 ? "Inizia con uno standard" : "Genera standard"}
                   </Button>
-                  <Button size="sm" onClick={openNew}>
+                  <Button
+                    size="sm"
+                    onClick={openNew}
+                    className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
+                  >
                     <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
                   </Button>
                 </div>
               </div>
 
-              {/* Seed panel */}
+              {/* Seed panel — colori coerenti arancione */}
               {showSeedPanel && (
-                <div className="rounded-md border bg-amber-50 dark:bg-amber-950/30 p-3 space-y-3">
-                  <div className="text-sm font-medium">Genera campi standard per:</div>
+                <div className="rounded-md border border-orange-200 bg-orange-50/60 dark:border-orange-900/50 dark:bg-orange-950/20 p-3 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Wand2 className="h-4 w-4 text-orange-600" />
+                    Genera campi standard per il verticale
+                  </div>
                   <Select value={seedVertical} onValueChange={setSeedVertical}>
                     <SelectTrigger className="bg-white dark:bg-background">
                       <SelectValue />
@@ -246,14 +271,19 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                     </SelectContent>
                   </Select>
                   <div className="text-xs text-muted-foreground">
-                    Aggiungerà 5–8 campi tipici del verticale. I campi già esistenti
-                    non verranno duplicati. Puoi sempre modificarli o eliminarli dopo.
+                    Aggiungerà i campi tipici del verticale. I campi già esistenti
+                    non vengono duplicati. Puoi modificarli o eliminarli singolarmente dopo.
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button size="sm" variant="ghost" onClick={() => setShowSeedPanel(false)}>
                       Annulla
                     </Button>
-                    <Button size="sm" onClick={handleSeed} disabled={seedFields.isPending}>
+                    <Button
+                      size="sm"
+                      onClick={handleSeed}
+                      disabled={seedFields.isPending}
+                      className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white"
+                    >
                       {seedFields.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
                       Genera campi
                     </Button>
@@ -261,62 +291,130 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                 </div>
               )}
 
-              {/* Lista campi */}
+              {/* Stato vuoto guidato — invita all'azione */}
+              {fields.length === 0 && !showSeedPanel && (
+                <div className="rounded-lg border border-dashed border-orange-200 bg-orange-50/30 dark:border-orange-900/40 dark:bg-orange-950/10 p-6 text-center space-y-3">
+                  <Settings2 className="h-10 w-10 mx-auto text-orange-400 opacity-60" />
+                  <div>
+                    <p className="font-medium text-foreground">Nessun campo configurato</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                      Aggiungi i campi tecnici che descriveranno gli articoli di questa
+                      macrocategoria. Suggerimento: parti da uno standard pre-configurato
+                      e poi personalizzalo.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      onClick={() => setShowSeedPanel(true)}
+                      className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white"
+                    >
+                      <Wand2 className="h-4 w-4 mr-1.5" />
+                      Usa scheda standard
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={openNew}>
+                      <Plus className="h-4 w-4 mr-1.5" /> Crea manualmente
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Lista campi — design rifinito coerente con palette listino */}
               {fields.length > 0 && (
                 <div className="space-y-2">
-                  {fields.map((f) => (
+                  {fields.map((f, idx) => (
                     <div
                       key={f.id}
-                      className="flex items-start gap-3 rounded-md border bg-card p-3 hover:bg-accent/30 transition-colors"
+                      className="flex items-start gap-2 rounded-lg border bg-card p-2.5 hover:shadow-sm transition-shadow group"
                     >
-                      <GripVertical className="h-4 w-4 text-muted-foreground mt-1 cursor-grab" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
+                      {/* Drag handle + numero */}
+                      <div className="flex flex-col items-center pt-1 pr-1 select-none">
+                        <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab" />
+                        <span className="text-[9px] font-mono text-muted-foreground/60 mt-0.5">
+                          {String(idx + 1).padStart(2, "0")}
+                        </span>
+                      </div>
+
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        {/* Header riga: label + tipo + unità + required */}
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-medium text-sm">{f.field_label}</span>
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] h-5 border-slate-200 bg-slate-50 text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300"
+                          >
                             {FIELD_TYPES.find((t) => t.value === f.field_type)?.label ?? f.field_type}
                           </Badge>
                           {f.field_unit && (
-                            <Badge variant="secondary" className="text-[10px]">{f.field_unit}</Badge>
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] h-5 border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:border-blue-900/50 dark:text-blue-300 font-mono"
+                            >
+                              {f.field_unit}
+                            </Badge>
                           )}
                           {f.required && (
-                            <Badge variant="destructive" className="text-[10px]">obbligatorio</Badge>
-                          )}
-                          {!f.show_in_picker && (
-                            <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                              nascosto nel picker
-                            </Badge>
-                          )}
-                          {!f.show_in_pdf && (
-                            <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                              non in PDF
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] h-5 border-red-200 bg-red-50 text-red-700 dark:bg-red-950/30 dark:border-red-900/50 dark:text-red-300"
+                            >
+                              obbligatorio
                             </Badge>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground mt-0.5 font-mono">
+
+                        {/* field_key in piccolo */}
+                        <div className="text-[10px] text-muted-foreground/80 font-mono">
                           {f.field_key}
                         </div>
-                        {f.field_help && (
-                          <div className="text-xs text-muted-foreground mt-1">{f.field_help}</div>
-                        )}
-                        {(f.field_type === "select" || f.field_type === "multiselect") && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {(f.field_options ?? []).map((o) => (
-                              <Badge key={o.value} variant="secondary" className="text-[10px]">
+
+                        {/* Opzioni come chip */}
+                        {(f.field_type === "select" || f.field_type === "multiselect") && (f.field_options?.length ?? 0) > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {(f.field_options ?? []).slice(0, 6).map((o) => (
+                              <span
+                                key={o.value}
+                                className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-800 border border-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:border-orange-900/40"
+                              >
                                 {o.label}
-                              </Badge>
+                              </span>
                             ))}
+                            {(f.field_options?.length ?? 0) > 6 && (
+                              <span className="text-[10px] text-muted-foreground">
+                                +{(f.field_options?.length ?? 0) - 6}
+                              </span>
+                            )}
                           </div>
                         )}
+
+                        {/* Visibilità */}
+                        <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                          <span className={`inline-flex items-center gap-1 ${f.show_in_picker ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground/70 line-through"}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${f.show_in_picker ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+                            Picker
+                          </span>
+                          <span className={`inline-flex items-center gap-1 ${f.show_in_pdf ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground/70 line-through"}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${f.show_in_pdf ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+                            PDF
+                          </span>
+                          {f.field_help && (
+                            <span className="text-muted-foreground italic line-clamp-1">
+                              · {f.field_help}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(f)}>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-0.5 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(f)} title="Modifica">
                           <Edit2 className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7 text-destructive"
+                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          title="Elimina"
                           onClick={() => {
                             if (confirm(`Eliminare il campo "${f.field_label}"?`)) {
                               void deleteField.mutateAsync(f.id);
@@ -343,7 +441,22 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
       <Dialog open={editingFieldId !== null} onOpenChange={(o) => { if (!o) closeFieldDialog(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{fieldDialogTitle}</DialogTitle>
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+                {editingFieldId === "new" ? (
+                  <Plus className="h-4.5 w-4.5 text-white" />
+                ) : (
+                  <Edit2 className="h-4 w-4 text-white" />
+                )}
+              </div>
+              <div>
+                <DialogTitle>{fieldDialogTitle}</DialogTitle>
+                <DialogDescription className="text-xs">
+                  Configura un campo della scheda tecnica. Il tipo determina come
+                  apparirà nel form articolo (Input numerico, dropdown, switch…).
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
           <div className="space-y-3">
             <div>
@@ -447,6 +560,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
             <Button
               onClick={handleSaveField}
               disabled={!form.field_label.trim() || createField.isPending || updateField.isPending}
+              className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
             >
               {(createField.isPending || updateField.isPending) && (
                 <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />

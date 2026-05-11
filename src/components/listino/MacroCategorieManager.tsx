@@ -41,6 +41,7 @@ import {
   ImageIcon,
   FileText,
   Sparkles,
+  FolderTree,
 } from "lucide-react";
 import { useRef } from "react";
 import { useListinoEntityImage } from "@/hooks/useListinoEntityImage";
@@ -137,7 +138,6 @@ export function MacroCategorieManager() {
   const [formVerticali, setFormVerticali] = useState<string[]>([]);
   const [formImmagineUrl, setFormImmagineUrl] = useState<string | null>(null);
   const [formDescrizioneEstesa, setFormDescrizioneEstesa] = useState("");
-  const [formMostraPaginaPdf, setFormMostraPaginaPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const macroImage = useListinoEntityImage("macro");
   // Macrocategoria di cui si sta editando la scheda tecnica (null = chiuso)
@@ -173,8 +173,7 @@ export function MacroCategorieManager() {
       setFormMacroId("none");
       setFormVerticali(mode.row.verticali_abilitati ?? []);
       setFormImmagineUrl(mode.row.immagine_url ?? null);
-      setFormDescrizioneEstesa(mode.row.descrizione_estesa ?? "");
-      setFormMostraPaginaPdf(mode.row.mostra_pagina_dedicata_pdf ?? false);
+      setFormDescrizioneEstesa(mode.row.descrizione_estesa ?? mode.row.descrizione ?? "");
     } else if (mode.kind === "cat-edit") {
       setFormNome(mode.row.nome);
       setFormDescrizione(mode.row.descrizione ?? "");
@@ -182,7 +181,6 @@ export function MacroCategorieManager() {
       setFormVerticali([]);
       setFormImmagineUrl(null);
       setFormDescrizioneEstesa("");
-      setFormMostraPaginaPdf(false);
     } else if (mode.kind === "cat-new") {
       setFormNome("");
       setFormDescrizione("");
@@ -190,7 +188,6 @@ export function MacroCategorieManager() {
       setFormVerticali([]);
       setFormImmagineUrl(null);
       setFormDescrizioneEstesa("");
-      setFormMostraPaginaPdf(false);
     } else {
       setFormNome("");
       setFormDescrizione("");
@@ -198,7 +195,6 @@ export function MacroCategorieManager() {
       setFormVerticali([]);
       setFormImmagineUrl(null);
       setFormDescrizioneEstesa("");
-      setFormMostraPaginaPdf(false);
     }
   };
 
@@ -210,7 +206,6 @@ export function MacroCategorieManager() {
     setFormVerticali([]);
     setFormImmagineUrl(null);
     setFormDescrizioneEstesa("");
-    setFormMostraPaginaPdf(false);
   };
 
   // Upload immagine macro: gestito solo in macro-edit (serve l'id).
@@ -308,10 +303,11 @@ export function MacroCategorieManager() {
       if (editMode.kind === "macro-new") {
         await createMacrocategoria.mutateAsync({
           nome,
-          descrizione: formDescrizione.trim() || null,
-          verticali_abilitati: formVerticali,
+          // Una macrocategoria usa solo `descrizione_estesa`. Manteniamo `descrizione`
+          // in sync (primi 250 char) per retro-compat con UI che la leggono ancora.
+          descrizione: formDescrizioneEstesa.trim().slice(0, 250) || null,
           descrizione_estesa: formDescrizioneEstesa.trim() || null,
-          mostra_pagina_dedicata_pdf: formMostraPaginaPdf,
+          verticali_abilitati: formVerticali,
         });
         toast.success("Macrocategoria creata");
       } else if (editMode.kind === "macro-edit") {
@@ -319,10 +315,9 @@ export function MacroCategorieManager() {
           id: editMode.row.id,
           patch: {
             nome,
-            descrizione: formDescrizione.trim() || null,
-            verticali_abilitati: formVerticali,
+            descrizione: formDescrizioneEstesa.trim().slice(0, 250) || null,
             descrizione_estesa: formDescrizioneEstesa.trim() || null,
-            mostra_pagina_dedicata_pdf: formMostraPaginaPdf,
+            verticali_abilitati: formVerticali,
           },
         });
         toast.success("Macrocategoria aggiornata");
@@ -566,28 +561,28 @@ export function MacroCategorieManager() {
                 }}
               />
             </div>
-            <div>
-              <Label htmlFor="mc-descrizione" className="flex items-center justify-between">
-                <span>Descrizione breve {isCatForm ? "" : "(opzionale)"}</span>
-                <span className="text-[10px] text-muted-foreground font-normal">
-                  {formDescrizione.length}/250
-                </span>
-              </Label>
-              <Textarea
-                id="mc-descrizione"
-                value={formDescrizione}
-                onChange={(e) => setFormDescrizione(e.target.value.slice(0, 250))}
-                rows={2}
-                placeholder={
-                  isCatForm
-                    ? "Breve descrizione della categoria"
-                    : "Una frase che riassume il modello (es. \"Listino fornitore WND — finestre e porte-balcone in PVC\")"
-                }
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Riga riassuntiva mostrata negli elenchi e nel picker preventivo.
-              </p>
-            </div>
+            {/* Per le CATEGORIE manteniamo il campo descrizione semplice
+                (testo breve mostrato negli elenchi). Per le MACROCATEGORIE
+                c'è invece un singolo campo "Descrizione estesa" più sotto,
+                che viene usato sia come riepilogo negli elenchi sia come
+                contenuto della pagina dedicata nel PDF. */}
+            {isCatForm && (
+              <div>
+                <Label htmlFor="mc-descrizione" className="flex items-center justify-between">
+                  <span>Descrizione (opzionale)</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    {formDescrizione.length}/250
+                  </span>
+                </Label>
+                <Textarea
+                  id="mc-descrizione"
+                  value={formDescrizione}
+                  onChange={(e) => setFormDescrizione(e.target.value.slice(0, 250))}
+                  rows={2}
+                  placeholder="Breve descrizione della categoria"
+                />
+              </div>
+            )}
             {isCatForm && (
               <div>
                 <Label htmlFor="mc-macro">Macrocategoria</Label>
@@ -716,72 +711,49 @@ export function MacroCategorieManager() {
               </div>
             )}
 
-            {/* ── Pagina dedicata PDF preventivo (solo per macrocategorie) ── */}
+            {/* ── Descrizione estesa (solo per macrocategorie) ─────────────
+                Questo è l'UNICO campo descrittivo della macrocategoria. Viene
+                usato sia come riepilogo negli elenchi/picker (troncato), sia
+                come contenuto della pagina dedicata nel PDF preventivo.
+                L'attivazione "pagina dedicata SI/NO" si fa in:
+                  Impostazioni → Preventivi Serramenti (o altri verticali) →
+                  pannello "Pagine dedicate".
+                Qui sotto è solo un hint informativo. */}
             {!isCatForm && (
-              <div className="space-y-3 pt-3 border-t">
+              <div className="space-y-2 pt-3 border-t">
                 <div className="flex items-start gap-2">
                   <FileText className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <Label className="text-sm font-medium">
-                      Pagina dedicata nel PDF preventivo
+                    <Label
+                      htmlFor="mc-descrizione-estesa"
+                      className="flex items-center justify-between text-sm font-medium"
+                    >
+                      <span>Descrizione</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        {formDescrizioneEstesa.length}/3000
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Quando un articolo di questa macrocategoria è nel preventivo,
-                      il PDF include una pagina dedicata con foto, nome e descrizione
-                      estesa. Utile per dare risalto a linee premium o storytelling
-                      del fornitore.
+                      Riassunto del modello/linea: caratteristiche distintive,
+                      vantaggi, storytelling. Mostrato nel picker preventivo
+                      (in versione breve) e nella pagina dedicata del PDF
+                      (se attivata nelle impostazioni del preventivo).
                     </p>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3 rounded-md border border-orange-200 bg-orange-50/50 dark:border-orange-900/40 dark:bg-orange-950/20 px-3 py-2.5">
-                  <Switch
-                    id="mc-pagina-pdf"
-                    checked={formMostraPaginaPdf}
-                    onCheckedChange={setFormMostraPaginaPdf}
-                  />
-                  <Label htmlFor="mc-pagina-pdf" className="cursor-pointer text-sm font-medium">
-                    {formMostraPaginaPdf ? "Pagina dedicata attiva" : "Pagina dedicata disattivata"}
-                  </Label>
-                  {formMostraPaginaPdf && (
-                    <Sparkles className="h-3.5 w-3.5 text-orange-500 ml-auto" />
-                  )}
-                </div>
-
-                <div>
-                  <Label
-                    htmlFor="mc-descrizione-estesa"
-                    className="flex items-center justify-between"
-                  >
-                    <span>
-                      Descrizione estesa
-                      {formMostraPaginaPdf && (
-                        <span className="text-destructive ml-0.5">*</span>
-                      )}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-normal">
-                      {formDescrizioneEstesa.length}/3000
-                    </span>
-                  </Label>
-                  <Textarea
-                    id="mc-descrizione-estesa"
-                    value={formDescrizioneEstesa}
-                    onChange={(e) => setFormDescrizioneEstesa(e.target.value.slice(0, 3000))}
-                    rows={8}
-                    placeholder={
-                      "Testo lungo per la pagina dedicata: storytelling del prodotto, caratteristiche tecniche distintive, vantaggi per il cliente.\n\nEsempio:\n\nI serramenti WND Square Plus rappresentano il top di gamma del PVC: profilo a 7 camere con guarnizione centrale, Uw fino a 0.9 W/m²K, vetro triplo basso-emissivo di serie. Garanzia 10 anni.\n\nDettagli:\n- Profilo PVC riciclabile classe A\n- Rinforzi in acciaio zincato\n- Disponibile in 24 colori RAL"
-                    }
-                    className="font-normal"
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    A capo per nuovi paragrafi. Verrà reso fedelmente nel PDF.
-                    {formMostraPaginaPdf && !formDescrizioneEstesa.trim() && (
-                      <span className="text-amber-600 dark:text-amber-400 ml-1">
-                        ⚠️ Aggiungi un testo per la pagina dedicata.
-                      </span>
-                    )}
-                  </p>
-                </div>
+                <Textarea
+                  id="mc-descrizione-estesa"
+                  value={formDescrizioneEstesa}
+                  onChange={(e) => setFormDescrizioneEstesa(e.target.value.slice(0, 3000))}
+                  rows={8}
+                  placeholder={
+                    "Esempio:\n\nI serramenti WND Square Plus rappresentano il top di gamma del PVC: profilo a 7 camere con guarnizione centrale, Uw fino a 0.9 W/m²K, vetro triplo basso-emissivo di serie. Garanzia 10 anni.\n\nCaratteristiche:\n- Profilo PVC riciclabile classe A\n- Rinforzi in acciaio zincato\n- Disponibile in 24 colori RAL"
+                  }
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  A capo doppio per nuovi paragrafi. Righe che iniziano con
+                  "<code className="font-mono">- </code>" diventano elenco puntato nel PDF.
+                </p>
               </div>
             )}
           </div>
