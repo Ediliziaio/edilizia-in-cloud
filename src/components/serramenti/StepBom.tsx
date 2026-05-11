@@ -16,10 +16,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle } from "lucide-react";
+import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle, Package } from "lucide-react";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
 import {
   useAddSerramento, useUpdateSerramento, useDeleteSerramento, useImportDaSopralluogo,
 } from "@/lib/serramenti/queries";
@@ -42,8 +43,31 @@ export function StepBom({ progettoId, detail }: Props) {
   const importMut = useImportDaSopralluogo(progettoId);
   const [toDelete, setToDelete] = useState<SrSerramentoRow | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [listinoOpen, setListinoOpen] = useState(false);
 
   const serramenti = detail.serramenti;
+
+  const handlePickFromListino = (item: ListinoPickResult) => {
+    addMut.mutate(
+      {
+        tipologia: detail.progetto.materiale_principale === "alluminio" ? "finestra_2ante" : "finestra_2ante",
+        tipologia_label: item.family_nome,
+        materiale: detail.progetto.materiale_principale ?? "alluminio",
+        larghezza_mm: item.larghezza_mm,
+        altezza_mm: item.altezza_mm,
+        quantita: 1,
+        prezzo_unitario: item.prezzo_unitario,
+        prezzo_totale: item.prezzo_unitario,
+        position: serramenti.length,
+        family_id: item.family_id,
+        listino_voce_id: item.griglia_id ?? null,
+        note: `Da listino: ${item.family_nome}`,
+      },
+      {
+        onSuccess: (created) => setExpanded(created.id),
+      },
+    );
+  };
 
   const handleAdd = () => {
     addMut.mutate(
@@ -109,8 +133,8 @@ export function StepBom({ progettoId, detail }: Props) {
   return (
     <div className="space-y-3">
       <SrCard
-        title="Composizione serramenti"
-        description="Aggiungi tutti i pezzi della stima con misure, materiale e prezzo. Compariranno nella pagina tecnica del PDF."
+        title="Composizione offerta"
+        description="Costruisci l'offerta con i pezzi del tuo listino. I prezzi vengono dal listino aziendale — modificabili per ogni preventivo."
         icon={<RectangleVertical className="h-4 w-4" />}
       >
         {detail.progetto.sopralluogo_id && (
@@ -135,14 +159,31 @@ export function StepBom({ progettoId, detail }: Props) {
           </SrCallout>
         )}
 
+        {/* Bottoni di aggiunta — sempre visibili */}
+        <div className="flex flex-col sm:flex-row gap-2 mb-3">
+          <Button
+            onClick={() => setListinoOpen(true)}
+            className="flex-1 bg-emerald-700 hover:bg-emerald-800 gap-1"
+            disabled={addMut.isPending}
+          >
+            <Package className="h-4 w-4" /> Aggiungi dal listino
+          </Button>
+          <Button
+            onClick={handleAdd}
+            variant="outline"
+            className="flex-1 gap-1"
+            disabled={addMut.isPending}
+          >
+            <Plus className="h-4 w-4" /> Aggiungi a mano (off-listino)
+          </Button>
+        </div>
+
         {serramenti.length === 0 ? (
           <div className="border-2 border-dashed border-emerald-200 rounded-md p-6 text-center">
             <RectangleVertical className="h-8 w-8 mx-auto text-emerald-300 mb-2" />
-            <p className="text-sm text-muted-foreground mb-3">Nessun serramento aggiunto</p>
-            <Button onClick={handleAdd} className="bg-emerald-700 hover:bg-emerald-800" disabled={addMut.isPending}>
-              {addMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
-              Aggiungi il primo serramento
-            </Button>
+            <p className="text-sm text-muted-foreground">
+              Nessun serramento ancora. Usa <strong>"Aggiungi dal listino"</strong> per scegliere da catalogo (consigliato) o aggiungi a mano per casi speciali.
+            </p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -158,17 +199,33 @@ export function StepBom({ progettoId, detail }: Props) {
                 onDelete={() => setToDelete(s)}
               />
             ))}
-            <Button
-              onClick={handleAdd}
-              variant="outline"
-              className="w-full gap-1 border-dashed border-2 border-emerald-300 hover:bg-emerald-50"
-              disabled={addMut.isPending}
-            >
-              {addMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              Aggiungi serramento
-            </Button>
+            <div className="flex gap-2 pt-1">
+              <Button
+                onClick={() => setListinoOpen(true)}
+                variant="outline"
+                className="flex-1 gap-1 border-dashed border-2 border-emerald-300 hover:bg-emerald-50"
+                disabled={addMut.isPending}
+              >
+                <Package className="h-4 w-4" /> Aggiungi dal listino
+              </Button>
+              <Button
+                onClick={handleAdd}
+                variant="outline"
+                className="flex-1 gap-1 border-dashed border-2 border-slate-300"
+                disabled={addMut.isPending}
+              >
+                {addMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                A mano
+              </Button>
+            </div>
           </div>
         )}
+
+        <ListinoPickerDialog
+          open={listinoOpen}
+          onOpenChange={setListinoOpen}
+          onSelect={handlePickFromListino}
+        />
       </SrCard>
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>

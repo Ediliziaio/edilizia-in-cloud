@@ -13,6 +13,8 @@ import {
   generaPdf, importDaSopralluogo, convertiInOrdine,
   uploadMedia, deleteMedia,
   listRenderSessions, importRender,
+  listCrmContacts,
+  listListinoFamilies, listGrigliaByFamily,
   type SrCreateProgettoInput,
   type UploadMediaInput,
 } from "./api";
@@ -175,6 +177,35 @@ export function useDeleteAccessorio(progettoId: string | undefined) {
       toast.success("Accessorio eliminato");
     },
     onError: (e) => toast.error("Eliminazione fallita", { description: String(e) }),
+  });
+}
+
+// ─── CRM contacts picker ────────────────────────────────────────────────────
+
+export function useCrmContacts(searchQuery: string = "") {
+  return useQuery({
+    queryKey: ["sr-crm-contacts", searchQuery],
+    queryFn: () => listCrmContacts(searchQuery, 50),
+    staleTime: 60 * 1000,
+  });
+}
+
+// ─── Listino prodotti picker ────────────────────────────────────────────────
+
+export function useListinoFamilies(searchQuery: string = "") {
+  return useQuery({
+    queryKey: ["sr-listino-families", searchQuery],
+    queryFn: () => listListinoFamilies(searchQuery),
+    staleTime: 5 * 60 * 1000, // 5 min — il listino cambia raramente
+  });
+}
+
+export function useListinoGriglia(familyId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["sr-listino-griglia", familyId],
+    queryFn: () => listGrigliaByFamily(familyId!),
+    enabled: !!familyId,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

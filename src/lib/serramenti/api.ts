@@ -19,16 +19,13 @@ import type {
 
 // ─── PROGETTI ───────────────────────────────────────────────────────────────
 
-export interface SrCreateProgettoInput {
-  cliente_id?: string | null;
-  cliente_nome?: string | null;
-  cliente_cognome?: string | null;
-  cantiere_indirizzo?: string | null;
-  cantiere_citta?: string | null;
-  tipo_intervento?: SrTipoIntervento;
-  sopralluogo_id?: string | null;
-  opportunita_id?: string | null;
-}
+/**
+ * Input creazione progetto: accetta TUTTI i campi del progetto, non solo i 4
+ * essenziali. Bug fix: prima i campi cliente_indirizzo, cliente_telefono,
+ * cliente_email, cap, provincia, ecc. inseriti nello Step 1 venivano persi
+ * perché non passati a createProgetto.
+ */
+export type SrCreateProgettoInput = Partial<SrProgettoRow>;
 
 export async function createProgetto(input: SrCreateProgettoInput): Promise<SrProgettoRow> {
   // company_id viene iniettato dal trigger / RLS check via profiles.company_id
@@ -41,21 +38,45 @@ export async function createProgetto(input: SrCreateProgettoInput): Promise<SrPr
   const companyId = (profile as any)?.company_id;
   if (!companyId) throw new Error("Profilo senza azienda associata");
 
+  // Whitelist dei campi insertabili (no id, created_at, code: gestiti da trigger)
+  const insertable: Partial<SrProgettoRow> = {
+    company_id: companyId,
+    cliente_id: input.cliente_id ?? null,
+    cliente_nome: input.cliente_nome ?? null,
+    cliente_cognome: input.cliente_cognome ?? null,
+    cliente_indirizzo: input.cliente_indirizzo ?? null,
+    cliente_citta: input.cliente_citta ?? null,
+    cliente_cap: input.cliente_cap ?? null,
+    cliente_provincia: input.cliente_provincia ?? null,
+    cliente_telefono: input.cliente_telefono ?? null,
+    cliente_email: input.cliente_email ?? null,
+    cliente_codice_fiscale: input.cliente_codice_fiscale ?? null,
+    cantiere_indirizzo: input.cantiere_indirizzo ?? null,
+    cantiere_citta: input.cantiere_citta ?? null,
+    cantiere_cap: input.cantiere_cap ?? null,
+    cantiere_provincia: input.cantiere_provincia ?? null,
+    cantiere_piano: input.cantiere_piano ?? null,
+    cantiere_condominio: input.cantiere_condominio ?? false,
+    tipo_intervento: input.tipo_intervento ?? "sostituzione",
+    intervento_titolo: input.intervento_titolo ?? null,
+    intervento_sintesi: input.intervento_sintesi ?? null,
+    materiale_principale: input.materiale_principale ?? null,
+    esigenze: input.esigenze ?? [],
+    soluzione: input.soluzione ?? [],
+    perche_noi: input.perche_noi ?? null,
+    incluso_investimento: input.incluso_investimento ?? null,
+    testimonianze: input.testimonianze ?? [],
+    prossimi_passi: input.prossimi_passi ?? null,
+    note_interne: input.note_interne ?? null,
+    sopralluogo_id: input.sopralluogo_id ?? null,
+    opportunita_id: input.opportunita_id ?? null,
+    stato: "bozza",
+  };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("sr_progetti")
-    .insert({
-      company_id: companyId,
-      cliente_id: input.cliente_id ?? null,
-      cliente_nome: input.cliente_nome ?? null,
-      cliente_cognome: input.cliente_cognome ?? null,
-      cantiere_indirizzo: input.cantiere_indirizzo ?? null,
-      cantiere_citta: input.cantiere_citta ?? null,
-      tipo_intervento: input.tipo_intervento ?? "sostituzione",
-      sopralluogo_id: input.sopralluogo_id ?? null,
-      opportunita_id: input.opportunita_id ?? null,
-      stato: "bozza",
-    })
+    .insert(insertable)
     .select("*")
     .single();
   if (error) {
@@ -267,6 +288,95 @@ export async function getTemplatePdf(): Promise<SrTemplatePdfRow | null> {
     return null;
   }
   return data as SrTemplatePdfRow | null;
+}
+
+// ─── LISTINO PRODOTTI (article_families + listino_griglia) ─────────────────
+
+export interface ListinoFamily {
+  id: string;
+  nome: string;
+  vertical: string | null;
+  prezzo_base_vendita: number | null;
+  vat_rate: number | null;
+  modalita_prezzo_base: string | null;
+}
+
+export interface ListinoGrigliaItem {
+  id: string;
+  family_id: string;
+  valore_x: number | null;
+  valore_y: number | null;
+  prezzo_vendita: number | null;
+  prezzo_acquisto: number | null;
+  note: string | null;
+}
+
+export async function listListinoFamilies(searchQuery?: string): Promise<ListinoFamily[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q = (supabase as any)
+    .from("article_families")
+    .select("id, nome, vertical, prezzo_base_vendita, vat_rate, modalita_prezzo_base")
+    .order("nome", { ascending: true })
+    .limit(100);
+  if (searchQuery && searchQuery.trim().length >= 2) {
+    q = q.ilike("nome", `%${searchQuery.trim()}%`);
+  }
+  const { data, error } = await q;
+  if (error) {
+    console.error("[serramenti] listListinoFamilies failed", error);
+    throw new Error("Errore caricamento listino prodotti");
+  }
+  return (data ?? []) as ListinoFamily[];
+}
+
+export async function listGrigliaByFamily(family_id: string): Promise<ListinoGrigliaItem[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("listino_griglia")
+    .select("id, family_id, valore_x, valore_y, prezzo_vendita, prezzo_acquisto, note")
+    .eq("family_id", family_id)
+    .order("valore_x", { ascending: true })
+    .order("valore_y", { ascending: true });
+  if (error) {
+    console.error("[serramenti] listGrigliaByFamily failed", error);
+    throw new Error("Errore caricamento griglia prezzi");
+  }
+  return (data ?? []) as ListinoGrigliaItem[];
+}
+
+// ─── CRM CONTACTS (riuso marketing_contacts) ────────────────────────────────
+
+export interface CrmContactMinimal {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  province: string | null;
+  postal_code: string | null;
+  company_name: string | null;
+}
+
+export async function listCrmContacts(searchQuery?: string, limit: number = 50): Promise<CrmContactMinimal[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q = (supabase as any)
+    .from("marketing_contacts")
+    .select("id, first_name, last_name, email, phone, address, city, province, postal_code, company_name")
+    .order("last_activity_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (searchQuery && searchQuery.trim().length >= 2) {
+    const t = `%${searchQuery.trim()}%`;
+    q = q.or(`first_name.ilike.${t},last_name.ilike.${t},email.ilike.${t},phone.ilike.${t},company_name.ilike.${t}`);
+  }
+  const { data, error } = await q;
+  if (error) {
+    console.error("[serramenti] listCrmContacts failed", error);
+    throw new Error("Errore caricamento contatti CRM");
+  }
+  return (data ?? []) as CrmContactMinimal[];
 }
 
 // ─── RENDER INFISSI ─────────────────────────────────────────────────────────

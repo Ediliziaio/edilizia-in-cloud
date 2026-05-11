@@ -51,6 +51,9 @@ import { StepEconomia } from "@/components/serramenti/StepEconomia";
 import { StepConsulenza } from "@/components/serramenti/StepConsulenza";
 import { StepPdf } from "@/components/serramenti/StepPdf";
 import { StepContenuti } from "@/components/serramenti/StepContenuti";
+import { ContactPickerDialog } from "@/components/serramenti/ContactPickerDialog";
+import { Users } from "lucide-react";
+import type { CrmContactMinimal } from "@/lib/serramenti/api";
 
 const STEP_ICONS: Record<SrWizardStep, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -133,15 +136,14 @@ export default function SerramentiWizard() {
   };
 
   const handleSaveAndContinue = async () => {
-    // Caso 1: nuovo progetto — crea
+    // Caso 1: nuovo progetto — crea passando TUTTO il form, non solo 4 campi.
+    // Bug fix: prima i campi cliente_indirizzo/cap/telefono/email/provincia ecc.
+    // inseriti nello Step 1 venivano persi alla creazione.
     if (isNew) {
       setCreating(true);
       try {
         const created = await createMut.mutateAsync({
-          cliente_nome: form.cliente_nome,
-          cliente_cognome: form.cliente_cognome,
-          cantiere_indirizzo: form.cantiere_indirizzo,
-          cantiere_citta: form.cantiere_citta,
+          ...form,
           tipo_intervento: (form.tipo_intervento as SrTipoIntervento) ?? "sostituzione",
         });
         navigate(`/azienda/serramenti/${created.id}/modifica`, { replace: true });
@@ -395,12 +397,65 @@ function StepCliente({
   form: Partial<SrProgettoRow>;
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const handleSelectContact = (c: CrmContactMinimal) => {
+    // Popola tutti i campi dal contatto CRM, salva il riferimento via cliente_id
+    onChange("cliente_id", c.id);
+    onChange("cliente_nome", c.first_name);
+    onChange("cliente_cognome", c.last_name);
+    onChange("cliente_email", c.email);
+    onChange("cliente_telefono", c.phone);
+    onChange("cliente_indirizzo", c.address);
+    onChange("cliente_citta", c.city);
+    onChange("cliente_cap", c.postal_code);
+    onChange("cliente_provincia", c.province);
+  };
+
   return (
     <SrCard
-      title="Anagrafica cliente"
-      description="Compila i dati del cliente che riceverà la stima. Indirizzo, telefono ed email sono opzionali ma consigliati per il PDF."
+      title="Contatto"
+      description="Seleziona un contatto esistente dal CRM oppure compila a mano. I campi non obbligatori (telefono, email, indirizzo) compaiono nel PDF e nel microsito cliente."
       icon={<User className="h-4 w-4" />}
     >
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-md border border-dashed border-emerald-300 bg-emerald-50/40 p-3">
+        <div>
+          <p className="text-xs font-semibold text-emerald-900">Hai già un contatto nel CRM?</p>
+          <p className="text-[11px] text-emerald-800">
+            {form.cliente_id
+              ? "Contatto CRM selezionato — i dati sono pre-popolati dal record esistente."
+              : "Selezionalo per pre-popolare nome, telefono, email e indirizzo."}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {form.cliente_id && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onChange("cliente_id", null)}
+              className="text-xs"
+            >
+              Scollega contatto
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setPickerOpen(true)}
+            className="gap-1 border-emerald-400 text-emerald-700 hover:bg-emerald-100"
+          >
+            <Users className="h-3.5 w-3.5" />
+            {form.cliente_id ? "Cambia contatto" : "Seleziona da CRM"}
+          </Button>
+        </div>
+      </div>
+
+      <ContactPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onSelect={handleSelectContact}
+      />
+
       <div className="grid grid-cols-12 gap-3">
         <div className="col-span-12 md:col-span-6">
           <Label className="text-xs">Nome</Label>

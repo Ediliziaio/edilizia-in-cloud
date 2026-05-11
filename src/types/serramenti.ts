@@ -333,14 +333,14 @@ export type SrWizardStep =
   | "pdf";
 
 export const SR_WIZARD_STEPS: { key: SrWizardStep; label: string; icon: string }[] = [
-  { key: "cliente",        label: "Cliente",         icon: "User" },
-  { key: "immobile",       label: "Immobile",        icon: "Home" },
-  { key: "esigenze",       label: "Contenuti PDF",   icon: "MessageCircle" },
-  { key: "bom",            label: "Serramenti",      icon: "RectangleVertical" },
-  { key: "accessori_foto", label: "Accessori e foto",icon: "Image" },
-  { key: "economia",       label: "Economia",        icon: "Euro" },
-  { key: "consulenza",     label: "Consulenza",      icon: "Calendar" },
-  { key: "pdf",            label: "Genera PDF",      icon: "FileText" },
+  { key: "cliente",        label: "Contatto",            icon: "User" },
+  { key: "immobile",       label: "Immobile",            icon: "Home" },
+  { key: "esigenze",       label: "Contenuti PDF",       icon: "MessageCircle" },
+  { key: "bom",            label: "Composizione offerta",icon: "RectangleVertical" },
+  { key: "accessori_foto", label: "Accessori e foto",    icon: "Image" },
+  { key: "economia",       label: "Economia",            icon: "Euro" },
+  { key: "consulenza",     label: "Consulenza",          icon: "Calendar" },
+  { key: "pdf",            label: "Genera PDF",          icon: "FileText" },
 ];
 
 // ─── Tipologie serramento (catalogo statico, override dal listino) ──────────
