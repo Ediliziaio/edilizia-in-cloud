@@ -33,12 +33,12 @@ import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza } from "@/types/serramenti";
 import {
-  PRESET_ESIGENZE, PRESET_ESIGENZE_ALT,
+  PRESET_ESIGENZE, PRESET_ESIGENZE_ALT, PRESET_ESIGENZE_FAMIGLIA,
   PRESET_SOLUZIONE, PRESET_SOLUZIONE_PREMIUM,
-  PRESET_PERCHE_NOI, PRESET_PERCHE_NOI_ALT,
+  PRESET_PERCHE_NOI, PRESET_PERCHE_NOI_ALT, PRESET_PERCHE_NOI_TRUST,
   PRESET_INCLUSO, PRESET_INCLUSO_PLUS,
   PRESET_PROSSIMI_PASSI, PRESET_PROSSIMI_PASSI_PREMIUM,
-  PRESET_RECENSIONI, PRESET_RECENSIONI_EXTRA,
+  PRESET_RECENSIONI, PRESET_RECENSIONI_EXTRA, PRESET_RECENSIONI_ANZIANI,
 } from "@/lib/serramenti/presets";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -473,8 +473,9 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             label="Applica template standard"
             currentValue={(form.esigenze_default ?? []) as SrEsigenza[]}
             presets={[
-              { label: "Comfort termico (Spifferi · Condensa · Aspetto)", value: PRESET_ESIGENZE },
-              { label: "Risparmio + Comfort (Bollette · Rumore · Sicurezza)", value: PRESET_ESIGENZE_ALT },
+              { label: "🏠 Comfort termico — Spifferi · Condensa · Estetica", value: PRESET_ESIGENZE },
+              { label: "💰 Risparmio + Sicurezza — Bollette · Rumore · Antieffrazione", value: PRESET_ESIGENZE_ALT },
+              { label: "👶 Famiglia — Sicurezza bimbi · Caldo estate · Manutenzione zero", value: PRESET_ESIGENZE_FAMIGLIA },
             ]}
             onApply={(v) => update("esigenze_default", v)}
           />
@@ -493,8 +494,8 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             label="Applica template standard"
             currentValue={(form.soluzione_default ?? []) as SrSoluzioneItem[]}
             presets={[
-              { label: "Base (Serramenti su misura + Posa qualificata)", value: PRESET_SOLUZIONE },
-              { label: "Premium (Vetri prestazionali + Taglio termico + UNI 11673)", value: PRESET_SOLUZIONE_PREMIUM },
+              { label: "💎 Standard (Su misura + Posa UNI 11673)", value: PRESET_SOLUZIONE },
+              { label: "🏆 Premium (Uw 0.8 + Taglio termico + 42 dB acustico)", value: PRESET_SOLUZIONE_PREMIUM },
             ]}
             onApply={(v) => update("soluzione_default", v)}
           />
@@ -513,8 +514,9 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             label="Applica template standard"
             currentValue={(form.perche_noi_default ?? []) as string[]}
             presets={[
-              { label: "Base (Interlocutore unico · Garanzia · Squadre interne)", value: PRESET_PERCHE_NOI },
-              { label: "Esperienza & Servizi (15+ anni · Ecobonus · Showroom)", value: PRESET_PERCHE_NOI_ALT },
+              { label: "✅ Servizio chiavi in mano (1 contatto · Garanzia 10 anni)", value: PRESET_PERCHE_NOI },
+              { label: "🏆 Numeri reali (1.200 cantieri · Showroom · Penale ritardi)", value: PRESET_PERCHE_NOI_ALT },
+              { label: "🛡️ Trust & sicurezza (Iscrizione CCIAA · Polizza · Recensioni Google)", value: PRESET_PERCHE_NOI_TRUST },
             ]}
             onApply={(v) => update("perche_noi_default", v)}
           />
@@ -533,8 +535,8 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             label="Applica template standard"
             currentValue={(form.incluso_default ?? []) as string[]}
             presets={[
-              { label: "Standard (5 voci essenziali)", value: PRESET_INCLUSO },
-              { label: "Plus (8 voci con ENEA, smaltimento certificato, pulizia)", value: PRESET_INCLUSO_PLUS },
+              { label: "📦 Standard (5 voci — rilievo, posa, sigillature, collaudo)", value: PRESET_INCLUSO },
+              { label: "⭐ Plus (8 voci — ENEA + foto cantiere + pulizia + garanzie scritte)", value: PRESET_INCLUSO_PLUS },
             ]}
             onApply={(v) => update("incluso_default", v)}
           />
@@ -557,37 +559,52 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                 Carica recensioni di esempio
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-72">
-              <DropdownMenuLabel className="text-xs">Aggiungi recensioni esempio (poi personalizza)</DropdownMenuLabel>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuLabel className="text-xs">Aggiungi recensioni di esempio</DropdownMenuLabel>
+              <p className="px-2 pb-1 text-[10px] text-muted-foreground italic">
+                Placeholder credibili da personalizzare con nomi e cantieri reali della tua azienda
+              </p>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="cursor-pointer text-xs"
                 onClick={() => {
                   update("testimonianze_default", [...testimonianze, ...PRESET_RECENSIONI]);
-                  toast.success("3 recensioni di esempio aggiunte. Personalizzale con autori reali.");
+                  toast.success("3 recensioni aggiunte. Personalizzale con dati reali.");
                 }}
               >
-                Set base — 3 recensioni (Bifamiliare · Villa · Appartamento)
+                ⭐ Set classico — 3 recensioni con prova sociale
+                <span className="block text-[10px] text-muted-foreground">Bifamiliare · Villa · Appartamento</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="cursor-pointer text-xs"
                 onClick={() => {
                   update("testimonianze_default", [...testimonianze, ...PRESET_RECENSIONI_EXTRA]);
-                  toast.success("2 recensioni esempio aggiunte. Personalizzale con autori reali.");
+                  toast.success("3 recensioni aggiunte. Personalizzale con dati reali.");
                 }}
               >
-                Set extra — 2 recensioni (Risparmio bollette · Famiglia)
+                💰 Set risultati misurabili — 3 recensioni con numeri concreti
+                <span className="block text-[10px] text-muted-foreground">Bolletta -35% · Cantiere con bimbi · Payback verificato</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer text-xs"
+                onClick={() => {
+                  update("testimonianze_default", [...testimonianze, ...PRESET_RECENSIONI_ANZIANI]);
+                  toast.success("1 recensione aggiunta — target anziani / cura cantiere.");
+                }}
+              >
+                🤝 Aggiungi 1 recensione 'cura del cliente anziano'
+                <span className="block text-[10px] text-muted-foreground">Empatia, pazienza, casa lasciata pulita</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="cursor-pointer text-xs"
                 onClick={() => {
-                  if (testimonianze.length > 0 && !confirm("Sostituire tutte le recensioni attuali con il set completo (5 recensioni)?")) return;
-                  update("testimonianze_default", [...PRESET_RECENSIONI, ...PRESET_RECENSIONI_EXTRA]);
-                  toast.success("5 recensioni esempio applicate.");
+                  if (testimonianze.length > 0 && !confirm("Sostituire tutte le recensioni attuali con il set completo (7 recensioni)?")) return;
+                  update("testimonianze_default", [...PRESET_RECENSIONI, ...PRESET_RECENSIONI_EXTRA, ...PRESET_RECENSIONI_ANZIANI]);
+                  toast.success("7 recensioni esempio applicate.");
                 }}
               >
-                ⚠ Sostituisci con set completo (5 recensioni)
+                ⚠ Sostituisci con set completo (7 recensioni)
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -669,8 +686,8 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             label="Applica template standard"
             currentValue={(form.prossimi_passi_default ?? []) as string[]}
             presets={[
-              { label: "Standard (4 step — consulenza → firma)", value: PRESET_PROSSIMI_PASSI },
-              { label: "Premium (5 step con showroom e produzione)", value: PRESET_PROSSIMI_PASSI_PREMIUM },
+              { label: "👋 Standard (4 step — Chiamata → Sopralluogo → Piano → Firma)", value: PRESET_PROSSIMI_PASSI },
+              { label: "🏆 Premium (5 step con showroom e prezzo bloccato)", value: PRESET_PROSSIMI_PASSI_PREMIUM },
             ]}
             onApply={(v) => update("prossimi_passi_default", v)}
           />

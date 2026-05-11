@@ -627,7 +627,9 @@ export default function SettingsQuoteTemplates() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
   const topTab = tabFromUrl === "moduli-vendita" ? "moduli-vendita" : "documenti";
-  const moduloFromUrl = searchParams.get("modulo") ?? "serramenti";
+  // Se ?modulo non è specificato → undefined → landing con grid card.
+  // Solo se l'URL contiene un modulo esplicito apre l'editor di quel modulo.
+  const moduloFromUrl = searchParams.get("modulo") ?? undefined;
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<QuoteTemplate>>(DEFAULT_TEMPLATE);
@@ -2299,11 +2301,23 @@ const MODULI_VENDITA: ModuloVendita[] = [
 function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
   // Se arriva via deeplink un modulo valido E available, lo pre-seleziono.
   // Altrimenti mostro la landing con la grid di selezione.
+  const [, setSearchParams] = useSearchParams();
   const initialFromUrl = initialModulo && MODULI_VENDITA.some((m) => m.slug === initialModulo && m.available)
     ? initialModulo
     : null;
   const [activeSlug, setActiveSlug] = useState<string | null>(initialFromUrl);
   const active = activeSlug ? MODULI_VENDITA.find((m) => m.slug === activeSlug) : null;
+
+  // Sincronizzo l'URL quando l'utente cambia modulo (così back/forward + share funzionano)
+  const handleSelectModulo = (slug: string | null) => {
+    setActiveSlug(slug);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (slug) next.set("modulo", slug);
+      else next.delete("modulo");
+      return next;
+    }, { replace: true });
+  };
 
   // Header comune
   const header = (
@@ -2325,7 +2339,7 @@ function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setActiveSlug(null)}
+          onClick={() => handleSelectModulo(null)}
           className="gap-1"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -2349,7 +2363,7 @@ function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
                 key={m.slug}
                 type="button"
                 disabled={isDisabled}
-                onClick={() => !isDisabled && setActiveSlug(m.slug)}
+                onClick={() => !isDisabled && handleSelectModulo(m.slug)}
                 className={
                   "text-left rounded-xl border-2 p-4 transition-all group focus:outline-none " +
                   (isDisabled
