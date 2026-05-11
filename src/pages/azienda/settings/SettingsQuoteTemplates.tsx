@@ -29,6 +29,9 @@ import {
 } from "lucide-react";
 import { MergeTagInserter } from "@/components/quotes/MergeTagInserter";
 import { CanvaColorPicker } from "@/components/quotes/CanvaColorPicker";
+import { SerramentiTemplateEditor } from "@/pages/azienda/impostazioni/SettingsSerramenti";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RectangleVertical, ShoppingBag } from "lucide-react";
 
 const LAYOUTS: { key: QuoteTemplateLayout; label: string; desc: string }[] = [
   { key: 'classic', label: 'Classic', desc: 'Header bianco, bordo colorato. Professionale.' },
@@ -917,7 +920,23 @@ export default function SettingsQuoteTemplates() {
   if (isLoading) return <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
 
   return (
-    <div className="space-y-6">
+    <Tabs defaultValue="documenti" className="space-y-4">
+      <TabsList className="bg-slate-100">
+        <TabsTrigger value="documenti" className="gap-1.5">
+          <FileText className="h-3.5 w-3.5" />
+          Template documenti
+        </TabsTrigger>
+        <TabsTrigger value="moduli-vendita" className="gap-1.5">
+          <ShoppingBag className="h-3.5 w-3.5" />
+          Template Moduli Vendita
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="moduli-vendita" className="space-y-4">
+        <ModuliVenditaPanel />
+      </TabsContent>
+
+      <TabsContent value="documenti" className="space-y-6 mt-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
           <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
@@ -2222,6 +2241,120 @@ export default function SettingsQuoteTemplates() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+// ─── Pannello "Template Moduli Vendita" ─────────────────────────────────────
+
+interface ModuloVendita {
+  slug: string;
+  nome: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+  available: boolean;
+  render: () => React.ReactNode;
+}
+
+const MODULI_VENDITA: ModuloVendita[] = [
+  {
+    slug: "serramenti",
+    nome: "Serramenti",
+    icon: RectangleVertical,
+    description: "Template del PDF Stima Serramenti: branding, recensioni, esigenze tipiche, USP, cronoprogramma.",
+    available: true,
+    render: () => <SerramentiTemplateEditor embedded />,
+  },
+  {
+    slug: "fotovoltaico",
+    nome: "Fotovoltaico",
+    icon: FileText,
+    description: "Template del PDF Fotovoltaico (gestito separatamente nel wizard FV).",
+    available: false,
+    render: () => null,
+  },
+  {
+    slug: "tetti",
+    nome: "Tetti",
+    icon: FileText,
+    description: "In arrivo.",
+    available: false,
+    render: () => null,
+  },
+];
+
+function ModuliVenditaPanel() {
+  const [activeSlug, setActiveSlug] = useState<string>("serramenti");
+  const active = MODULI_VENDITA.find((m) => m.slug === activeSlug) ?? MODULI_VENDITA[0];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center shrink-0 shadow-sm">
+            <ShoppingBag className="h-5 w-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Template Moduli Vendita</h1>
+            <p className="text-sm text-muted-foreground">
+              Configura una volta sola il PDF di ogni modulo vendita (Serramenti, Fotovoltaico, Tetti…) — logo, recensioni clienti, USP, cose incluse, prossimi passi.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Modulo selector */}
+      <div className="flex flex-wrap gap-2">
+        {MODULI_VENDITA.map((m) => {
+          const Icon = m.icon;
+          const isActive = m.slug === activeSlug;
+          const isDisabled = !m.available;
+          return (
+            <button
+              key={m.slug}
+              type="button"
+              disabled={isDisabled}
+              onClick={() => !isDisabled && setActiveSlug(m.slug)}
+              className={
+                "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium border transition " +
+                (isActive
+                  ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                  : isDisabled
+                    ? "bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-emerald-50 hover:border-emerald-200")
+              }
+            >
+              <Icon className="h-4 w-4" />
+              {m.nome}
+              {isDisabled && <span className="text-[10px] opacity-70">(presto)</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Descrizione modulo attivo */}
+      <Card className="bg-emerald-50/30 border-emerald-200">
+        <CardContent className="p-3 flex items-start gap-3">
+          <active.icon className="h-5 w-5 text-emerald-700 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold text-sm text-emerald-900">{active.nome}</p>
+            <p className="text-xs text-emerald-800 mt-0.5">{active.description}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Editor del modulo attivo */}
+      {active.available ? (
+        <div>{active.render()}</div>
+      ) : (
+        <Card className="p-8 text-center">
+          <p className="font-semibold text-slate-700">{active.nome} — in arrivo</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Questo modulo non ha ancora un editor di template dedicato in questa sezione. Apri il modulo per le sue impostazioni interne.
+          </p>
+        </Card>
+      )}
     </div>
   );
 }

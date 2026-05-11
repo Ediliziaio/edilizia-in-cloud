@@ -1,18 +1,19 @@
 /**
  * SettingsSerramenti — Configurazione default del modulo Stima Serramenti.
  *
- * Pagina dove l'azienda imposta:
- *  - Branding PDF (colore primario, logo già su company)
- *  - Esigenze tipiche default (3 pain bullets pre-compilati)
- *  - Soluzione default
- *  - "Perché noi" (USP bullets)
- *  - Cosa è incluso (bullets)
- *  - Prossimi passi (4 step)
- *  - **Testimonianze clienti** (recensioni mostrate nel PDF pagina 2)
- *  - Cronoprogramma default (giorni produzione/posa/collaudo)
- *  - Economia default (anticipo %, IVA, validità giorni)
+ * Esportato in due modi:
+ *  - Default export (pagina standalone con header e bottone "Indietro").
+ *  - `SerramentiTemplateEditor` — componente puro usabile come tab in altre
+ *    pagine (es. Libreria Template → Moduli Vendita → Serramenti).
+ *
+ * Cosa configura l'azienda:
+ *  - Branding PDF (logo, ragione sociale, indirizzo, contatti, IVA, colore)
+ *  - Esigenze tipiche / Soluzione (testi pre-compilati)
+ *  - "Perché noi" + "Cosa è incluso" + "Prossimi passi"
+ *  - Recensioni clienti (compaiono nel PDF pagina 2)
+ *  - Default cronoprogramma + anticipo + IVA + validità
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,28 +27,37 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   RectangleVertical, Save, Plus, Trash2, Loader2, MessageCircle,
-  Sparkles, ListChecks, Clock, ArrowLeft, Quote,
+  Sparkles, ListChecks, Clock, ArrowLeft, Quote, Upload, Image as ImageIcon,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza } from "@/types/serramenti";
 
-export default function SettingsSerramenti() {
-  const navigate = useNavigate();
+// ─── Editor riusabile ───────────────────────────────────────────────────────
+
+interface SerramentiTemplateEditorProps {
+  /** Se true, nasconde l'header standalone (per usarlo dentro Tabs) */
+  embedded?: boolean;
+}
+
+export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplateEditorProps) {
   const { data: template, isLoading } = useTemplatePdf();
   const upsertMut = useUpsertTemplatePdf();
 
   const [form, setForm] = useState<Partial<SrTemplatePdfRow>>({});
   const [dirty, setDirty] = useState(false);
   const [delTestIdx, setDelTestIdx] = useState<number | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (template) {
       setForm(template);
       setDirty(false);
     } else if (!isLoading) {
-      // Nessun template — pre-popola con defaults vuoti
       setForm({
         colore_primario: "#2D7D5C",
         esigenze_default: [],
@@ -77,9 +87,57 @@ export default function SettingsSerramenti() {
     });
   };
 
+  // ─── Logo upload ────────────────────────────────────────────────────────────
+  const handleLogoUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Carica un file immagine (PNG, JPG, WebP)");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File troppo grande (max 5 MB)");
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      // Ricavo company_id corrente
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) throw new Error("Non autenticato");
+      const { data: profile } = await supabase
+        .from("profiles" as never)
+        .select("company_id")
+        .eq("id", userId)
+        .maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const companyId = (profile as any)?.company_id;
+      if (!companyId) throw new Error("Profilo senza azienda");
+
+      const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "png";
+      const storagePath = `${companyId}/template-logos/${crypto.randomUUID()}.${ext}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from("sr-progetti")
+        .upload(storagePath, file, { contentType: file.type, upsert: false });
+      if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
+
+      const { data: signed } = await supabase.storage
+        .from("sr-progetti")
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
+      const logoUrl = signed?.signedUrl ?? "";
+
+      update("logo_url", logoUrl);
+      toast.success("Logo caricato. Salva per applicare.");
+    } catch (e) {
+      console.error("[settings-serramenti] logo upload", e);
+      toast.error("Errore upload logo", { description: String(e) });
+    } finally {
+      setUploadingLogo(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="container mx-auto p-4 max-w-4xl space-y-3">
+      <div className="space-y-3">
         <Skeleton className="h-16" />
         <Skeleton className="h-64" />
         <Skeleton className="h-96" />
@@ -110,7 +168,7 @@ export default function SettingsSerramenti() {
     setDelTestIdx(null);
   };
 
-  // ─── Liste testuali (array di string) ─────────────────────────────────────
+  // ─── Liste testuali ───────────────────────────────────────────────────────
 
   const renderListEditor = (
     label: string,
@@ -144,22 +202,13 @@ export default function SettingsSerramenti() {
               placeholder={placeholder}
               className="h-9 text-xs flex-1"
             />
-            <Button
-              size="icon" variant="ghost"
-              onClick={() => removeItem(idx)}
-              className="h-9 w-9 shrink-0"
-            >
+            <Button size="icon" variant="ghost" onClick={() => removeItem(idx)} className="h-9 w-9 shrink-0">
               <Trash2 className="h-3.5 w-3.5 text-rose-600" />
             </Button>
           </div>
         ))}
         {items.length < maxItems && (
-          <Button
-            onClick={addItem}
-            variant="outline"
-            size="sm"
-            className="w-full border-dashed gap-1"
-          >
+          <Button onClick={addItem} variant="outline" size="sm" className="w-full border-dashed gap-1">
             <Plus className="h-3.5 w-3.5" /> Aggiungi {label.toLowerCase()}
           </Button>
         )}
@@ -167,7 +216,7 @@ export default function SettingsSerramenti() {
     );
   };
 
-  // ─── Esigenze / Soluzione (oggetti con titolo + descrizione) ──────────────
+  // ─── Esigenze / Soluzione ─────────────────────────────────────────────────
 
   const renderBulletObjectEditor = (
     label: string,
@@ -187,18 +236,13 @@ export default function SettingsSerramenti() {
     const addItem = () => {
       update(key, [...items, { titolo: "", descrizione: "" }]);
     };
-
     return (
       <div className="space-y-3">
         {items.map((item, idx) => (
           <div key={idx} className="border-l-4 border-emerald-200 pl-3 py-1">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-xs">Titolo</Label>
-              <Button
-                size="sm" variant="ghost"
-                onClick={() => removeItem(idx)}
-                className="h-7 px-2 text-xs text-rose-600"
-              >
+              <Button size="sm" variant="ghost" onClick={() => removeItem(idx)} className="h-7 px-2 text-xs text-rose-600">
                 <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
               </Button>
             </div>
@@ -227,22 +271,13 @@ export default function SettingsSerramenti() {
   };
 
   return (
-    <div className="container mx-auto p-3 md:p-6 max-w-4xl space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/serramenti")}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <RectangleVertical className="h-5 w-5 text-emerald-700" />
-              Impostazioni Stima Serramenti
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              Default che compaiono in tutti i preventivi. Modificabili per singola stima.
-            </p>
-          </div>
+    <div className="space-y-4">
+      {/* Top save button + dirty indicator */}
+      <div className="flex items-center justify-between gap-3 sticky top-0 z-10 bg-background/95 backdrop-blur py-2 -my-2">
+        <div>
+          {dirty && (
+            <span className="text-xs text-amber-700">● Modifiche non salvate</span>
+          )}
         </div>
         <Button
           onClick={handleSave}
@@ -254,33 +289,128 @@ export default function SettingsSerramenti() {
         </Button>
       </div>
 
-      {/* Branding */}
-      <SrCard title="Branding PDF" icon={<Sparkles className="h-4 w-4" />}>
+      {/* Anagrafica e branding azienda */}
+      <SrCard
+        title="Anagrafica e branding azienda"
+        description="Compaiono nell'header e nel footer del PDF cliente. Sostituiscono i dati di registrazione se diversi."
+        icon={<Building2 className="h-4 w-4" />}
+      >
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Colore primario</Label>
-            <div className="flex gap-2">
+          {/* Logo preview + upload */}
+          <div className="col-span-12 md:col-span-3">
+            <Label className="text-xs mb-1 block">Logo PDF</Label>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && handleLogoUpload(e.target.files[0])}
+            />
+            <div
+              className="aspect-square rounded-md border-2 border-dashed border-slate-200 bg-muted/20 hover:border-emerald-300 hover:bg-emerald-50/30 cursor-pointer flex items-center justify-center overflow-hidden relative"
+              onClick={() => !uploadingLogo && logoInputRef.current?.click()}
+            >
+              {form.logo_url ? (
+                // eslint-disable-next-line jsx-a11y/img-redundant-alt
+                <img src={form.logo_url} alt="Logo azienda" className="w-full h-full object-contain p-2" />
+              ) : (
+                <div className="text-center p-3">
+                  <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
+                  <p className="text-[10px] text-muted-foreground">Clicca per caricare</p>
+                </div>
+              )}
+              {uploadingLogo && (
+                <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-emerald-700" />
+                </div>
+              )}
+            </div>
+            <div className="flex gap-1 mt-1">
+              <Button
+                size="sm" variant="outline"
+                onClick={() => logoInputRef.current?.click()}
+                disabled={uploadingLogo}
+                className="flex-1 h-7 text-[11px]"
+              >
+                <Upload className="h-3 w-3 mr-1" />
+                {form.logo_url ? "Cambia" : "Carica"}
+              </Button>
+              {form.logo_url && (
+                <Button
+                  size="sm" variant="outline"
+                  onClick={() => update("logo_url", null)}
+                  className="h-7 text-[11px] text-rose-600"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">PNG/JPG, max 5 MB. Sfondo trasparente consigliato.</p>
+          </div>
+
+          <div className="col-span-12 md:col-span-9 grid grid-cols-12 gap-3">
+            <div className="col-span-12">
+              <Label className="text-xs">Ragione sociale</Label>
               <Input
-                type="color"
-                value={form.colore_primario ?? "#2D7D5C"}
-                onChange={(e) => update("colore_primario", e.target.value)}
-                className="h-9 w-14 p-1 cursor-pointer"
-              />
-              <Input
-                value={form.colore_primario ?? "#2D7D5C"}
-                onChange={(e) => update("colore_primario", e.target.value)}
-                className="h-9 flex-1 font-mono"
+                value={form.ragione_sociale ?? ""}
+                onChange={(e) => update("ragione_sociale", e.target.value)}
+                placeholder="Es. Showroom Demo Srl"
+                className="h-9"
               />
             </div>
-          </div>
-          <div className="col-span-12 md:col-span-9">
-            <Label className="text-xs">Ragione sociale (override anagrafica azienda)</Label>
-            <Input
-              value={form.ragione_sociale ?? ""}
-              onChange={(e) => update("ragione_sociale", e.target.value)}
-              placeholder="Default: nome azienda registrato"
-              className="h-9"
-            />
+            <div className="col-span-12">
+              <Label className="text-xs">Indirizzo completo</Label>
+              <Input
+                value={form.indirizzo_completo ?? ""}
+                onChange={(e) => update("indirizzo_completo", e.target.value)}
+                placeholder="Es. Via Roma 42 · 20121 Milano (MI)"
+                className="h-9"
+              />
+            </div>
+            <div className="col-span-12 md:col-span-4">
+              <Label className="text-xs">Telefono</Label>
+              <Input
+                value={form.telefono ?? ""}
+                onChange={(e) => update("telefono", e.target.value)}
+                placeholder="+39 02 1234 5678"
+                className="h-9"
+              />
+            </div>
+            <div className="col-span-12 md:col-span-4">
+              <Label className="text-xs">Email</Label>
+              <Input
+                value={form.email ?? ""}
+                onChange={(e) => update("email", e.target.value)}
+                placeholder="info@azienda.it"
+                className="h-9"
+                type="email"
+              />
+            </div>
+            <div className="col-span-12 md:col-span-4">
+              <Label className="text-xs">P.IVA</Label>
+              <Input
+                value={form.partita_iva ?? ""}
+                onChange={(e) => update("partita_iva", e.target.value)}
+                placeholder="IT12345670156"
+                className="h-9"
+              />
+            </div>
+            <div className="col-span-12 md:col-span-6">
+              <Label className="text-xs">Colore primario (verde elegante consigliato)</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="color"
+                  value={form.colore_primario ?? "#2D7D5C"}
+                  onChange={(e) => update("colore_primario", e.target.value)}
+                  className="h-9 w-14 p-1 cursor-pointer"
+                />
+                <Input
+                  value={form.colore_primario ?? "#2D7D5C"}
+                  onChange={(e) => update("colore_primario", e.target.value)}
+                  className="h-9 flex-1 font-mono"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </SrCard>
@@ -288,7 +418,7 @@ export default function SettingsSerramenti() {
       {/* Esigenze */}
       <SrCard
         title="Esigenze tipiche del cliente"
-        description="Compaiono nella pagina 1 del PDF come 'Le tue esigenze'. Il commerciale può modificarle per singola stima."
+        description="Compaiono nella pagina 1 del PDF come 'Le tue esigenze'. Modificabili per singola stima."
         icon={<MessageCircle className="h-4 w-4" />}
       >
         {renderBulletObjectEditor("esigenza", "esigenze_default", 3)}
@@ -297,7 +427,7 @@ export default function SettingsSerramenti() {
       {/* Soluzione */}
       <SrCard
         title="Soluzione tipica"
-        description="Cosa proponi per risolvere le esigenze. Pagina 1 del PDF, sezione 'La soluzione per te'."
+        description="Pagina 1 del PDF — sezione 'La soluzione per te'."
         icon={<Sparkles className="h-4 w-4" />}
       >
         {renderBulletObjectEditor("soluzione", "soluzione_default", 3)}
@@ -306,7 +436,7 @@ export default function SettingsSerramenti() {
       {/* Perché noi */}
       <SrCard
         title="Perché scegliere noi (USP)"
-        description="5-6 bullet di vendita che compaiono in fondo a pagina 1."
+        description="5-6 bullet di vendita in fondo a pagina 1."
         icon={<ListChecks className="h-4 w-4" />}
       >
         {renderListEditor("USP", "perche_noi_default", "Es. Posa eseguita a regola d'arte con sigillature certificate")}
@@ -315,7 +445,7 @@ export default function SettingsSerramenti() {
       {/* Cosa è incluso */}
       <SrCard
         title="Cosa è incluso nell'investimento"
-        description="Bullet che compaiono in pagina 2 del PDF, sotto la forbice prezzo."
+        description="Bullet in pagina 2 del PDF, sotto la forbice prezzo."
         icon={<ListChecks className="h-4 w-4" />}
       >
         {renderListEditor("voce", "incluso_default", "Es. Rilievo dimensionale a casa tua senza costi aggiuntivi")}
@@ -324,14 +454,14 @@ export default function SettingsSerramenti() {
       {/* Testimonianze */}
       <SrCard
         title="Recensioni e testimonianze"
-        description="Compaiono nella pagina 2 del PDF, sezione 'Cosa dicono i nostri clienti'. Pesa le recensioni positive che vuoi mostrare ai nuovi clienti."
+        description="Pagina 2 del PDF — sezione 'Cosa dicono i nostri clienti'. Carica le recensioni positive da mostrare nei preventivi."
         icon={<Quote className="h-4 w-4" />}
         variant="highlight"
       >
         <div className="space-y-3">
           {testimonianze.length === 0 && (
             <SrCallout variant="info">
-              Nessuna recensione caricata. Aggiungi le testimonianze dei tuoi clienti per metterle nei preventivi.
+              Nessuna recensione caricata. Aggiungile per mostrare prova sociale ai nuovi clienti.
             </SrCallout>
           )}
           {testimonianze.map((t, idx) => (
@@ -340,11 +470,7 @@ export default function SettingsSerramenti() {
                 <CardTitle className="text-xs uppercase tracking-wide text-emerald-700">
                   Recensione {idx + 1}
                 </CardTitle>
-                <Button
-                  size="sm" variant="ghost"
-                  onClick={() => setDelTestIdx(idx)}
-                  className="h-7 px-2 text-xs text-rose-600"
-                >
+                <Button size="sm" variant="ghost" onClick={() => setDelTestIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
                   <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
                 </Button>
               </CardHeader>
@@ -354,12 +480,12 @@ export default function SettingsSerramenti() {
                   <Textarea
                     value={t.quote ?? ""}
                     onChange={(e) => updateTestimonianza(idx, "quote", e.target.value)}
-                    placeholder={'"Avevamo chiesto un preventivo a quattro aziende: loro ce l\'hanno fatto interamente in casa…"'}
+                    placeholder={'"Avevamo chiesto un preventivo a quattro aziende: loro ce l\'hanno fatto interamente in casa..."'}
                     rows={3}
                   />
                 </div>
                 <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Autore (nome + cognome iniziale)</Label>
+                  <Label className="text-xs">Autore</Label>
                   <Input
                     value={t.autore ?? ""}
                     onChange={(e) => updateTestimonianza(idx, "autore", e.target.value)}
@@ -381,7 +507,7 @@ export default function SettingsSerramenti() {
                   <Input
                     value={t.intervento ?? ""}
                     onChange={(e) => updateTestimonianza(idx, "intervento", e.target.value)}
-                    placeholder="Bifamiliare nuova costruzione, 22 serramenti alluminio-legno"
+                    placeholder="22 serramenti alluminio-legno"
                     className="h-9 text-xs"
                   />
                 </div>
@@ -401,7 +527,7 @@ export default function SettingsSerramenti() {
       {/* Prossimi passi */}
       <SrCard
         title="Prossimi passi (chiusura PDF)"
-        description="I 4 step che il cliente vedrà in fondo a pagina 3. Personalizzabili per ogni stima."
+        description="I 4 step che il cliente vedrà in fondo a pagina 3."
         icon={<ListChecks className="h-4 w-4" />}
       >
         {renderListEditor("step", "prossimi_passi_default", "Es. Ci vediamo a casa tua per la consulenza tecnica", 5)}
@@ -468,7 +594,7 @@ export default function SettingsSerramenti() {
       </SrCard>
 
       {/* Save sticky bottom */}
-      <div className="sticky bottom-4 flex justify-end">
+      <div className={`${embedded ? "" : "sticky bottom-4"} flex justify-end`}>
         <Button
           onClick={handleSave}
           disabled={!dirty || upsertMut.isPending}
@@ -499,6 +625,31 @@ export default function SettingsSerramenti() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+// ─── Default export (pagina standalone) ─────────────────────────────────────
+
+export default function SettingsSerramenti() {
+  const navigate = useNavigate();
+  return (
+    <div className="container mx-auto p-3 md:p-6 max-w-4xl space-y-4">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/serramenti")}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <RectangleVertical className="h-5 w-5 text-emerald-700" />
+            Impostazioni Stima Serramenti
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            Default che compaiono in tutti i preventivi. Modificabili per singola stima.
+          </p>
+        </div>
+      </div>
+      <SerramentiTemplateEditor />
     </div>
   );
 }
