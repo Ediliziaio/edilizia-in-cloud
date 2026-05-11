@@ -21,8 +21,11 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Euro, TrendingUp, Leaf, Calculator, Calendar,
+  Euro, TrendingUp, Leaf, Calculator, Calendar, HelpCircle,
 } from "lucide-react";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { calcolaTotale, forbicePrezzo } from "@/lib/serramenti/calcoli";
 import {
   calcolaEcobonus, calcolaCashflow, calcolaPianoFinanziamento,
@@ -368,9 +371,28 @@ export function StepEconomia({ detail, form, onChange }: Props) {
           </div>
           {risparmioAttivo && (
             <>
+              <TooltipProvider delayDuration={200}>
               <div className="grid grid-cols-12 gap-2">
                 <div className="col-span-6 md:col-span-3">
-                  <Label className="text-xs">Uw attuale (W/m²K)</Label>
+                  <Label className="text-xs flex items-center gap-1">
+                    Uw attuale (W/m²K)
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button type="button" className="text-muted-foreground hover:text-emerald-600">
+                          <HelpCircle className="h-3 w-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-xs font-semibold mb-1">Uw — Trasmittanza termica del serramento</p>
+                        <p className="text-[11px]">Quanto calore disperde il serramento attuale (W per m² per °C di differenza). Più basso = meglio isola. Riferimenti tipici:</p>
+                        <ul className="text-[11px] mt-1 space-y-0.5">
+                          <li>• <strong>5.0</strong>: singolo vetro anni '70-'80</li>
+                          <li>• <strong>2.8</strong>: vetrocamera vecchia (anni '90)</li>
+                          <li>• <strong>2.0</strong>: PVC standard senza taglio termico</li>
+                        </ul>
+                      </TooltipContent>
+                    </Tooltip>
+                  </Label>
                   <Input
                     type="number" step={0.1} value={uwAttuale}
                     onChange={(e) => setUwAttuale(Number(e.target.value) || 0)}
@@ -379,7 +401,26 @@ export function StepEconomia({ detail, form, onChange }: Props) {
                   <p className="text-[10px] text-muted-foreground mt-0.5">Singolo vetro: ~5.0 · Vecchia vetrocamera: ~2.8</p>
                 </div>
                 <div className="col-span-6 md:col-span-3">
-                  <Label className="text-xs">Uw nuovo (W/m²K)</Label>
+                  <Label className="text-xs flex items-center gap-1">
+                    Uw nuovo (W/m²K)
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button type="button" className="text-muted-foreground hover:text-emerald-600">
+                          <HelpCircle className="h-3 w-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-xs font-semibold mb-1">Uw del nuovo serramento</p>
+                        <p className="text-[11px]">Valore dichiarato dal produttore (lo trovi in scheda tecnica). Riferimenti:</p>
+                        <ul className="text-[11px] mt-1 space-y-0.5">
+                          <li>• <strong>1.4</strong>: PVC standard con vetrocamera basso-em.</li>
+                          <li>• <strong>1.1</strong>: PVC/Alluminio premium</li>
+                          <li>• <strong>0.8</strong>: triplo vetro con argon e warm-edge</li>
+                          <li>• Soglia minima Ecobonus zona E: <strong>≤ 1.4</strong></li>
+                        </ul>
+                      </TooltipContent>
+                    </Tooltip>
+                  </Label>
                   <Input
                     type="number" step={0.1} value={uwNuovo}
                     onChange={(e) => setUwNuovo(Number(e.target.value) || 0)}
@@ -429,6 +470,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
                   />
                 </div>
               )}
+              </TooltipProvider>
             </>
           )}
         </div>

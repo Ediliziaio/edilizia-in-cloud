@@ -151,21 +151,43 @@ Deno.serve(async (req: Request) => {
     const cronoFasi = generaCrono(numSerr, prog.crono_giorni_produzione ?? 30, prog.crono_giorni_collaudo ?? 1);
     const cronoDurata = Math.max(...cronoFasi.map((f) => f.giorno_fine));
 
-    // 4b. Render foto-realistici (kind='render' in media). Rinfresca URL firmato.
-    type MediaRow = { id: string; kind: string; storage_path: string; url: string | null; caption: string | null; position: number };
-    const renderRows = ((media ?? []) as MediaRow[]).filter((m) => m.kind === "render");
-    const renders = await Promise.all(renderRows.slice(0, 4).map(async (m) => {
-      let url = m.url ?? "";
-      if (m.storage_path) {
-        try {
-          const { data: signed } = await supabaseAdmin.storage
-            .from("sr-progetti")
-            .createSignedUrl(m.storage_path, 60 * 60 * 24 * 7);
-          if (signed?.signedUrl) url = signed.signedUrl;
-        } catch { /* keep existing */ }
+    // 4b. Render + foto cantiere. Rinfresca signed URL su TUTTI i media
+    // (precedente: solo render). Bug fix: i link nel PDF non scadono dopo
+    // 7 giorni perché ogni generazione PDF rigenera URL freschi.
+    type MediaRow = {
+      id: string; kind: string; storage_path: string; url: string | null;
+      caption: string | null; position: number;
+    };
+
+    const refreshMediaUrl = async (m: MediaRow): Promise<string> => {
+      // Sentinel "render-session:<id>:<idx>" → URL del render esterno, non
+      // un file nel bucket sr-progetti. Conserviamo l'URL così com'è.
+      if (!m.storage_path || m.storage_path.startsWith("render-session:")) {
+        return m.url ?? "";
       }
-      return { url, caption: m.caption };
-    }));
+      try {
+        const { data: signed, error: e } = await supabaseAdmin.storage
+          .from("sr-progetti")
+          .createSignedUrl(m.storage_path, 60 * 60 * 24 * 7);
+        if (e) {
+          console.warn("[sr-genera-pdf] signed url refresh failed", m.storage_path, e.message);
+          return m.url ?? "";
+        }
+        return signed?.signedUrl ?? m.url ?? "";
+      } catch (err) {
+        console.warn("[sr-genera-pdf] signed url refresh exception", m.storage_path, err);
+        return m.url ?? "";
+      }
+    };
+
+    const mediaRows = (media ?? []) as MediaRow[];
+
+    // Render foto-realistici (max 4 nel PDF)
+    const renderRows = mediaRows.filter((m) => m.kind === "render");
+    const renders = await Promise.all(renderRows.slice(0, 4).map(async (m) => ({
+      url: await refreshMediaUrl(m),
+      caption: m.caption,
+    })));
 
     // 4c. Public URL + QR code
     const appOrigin = Deno.env.get("APP_PUBLIC_URL") ?? "https://app.ediliziaincloud.it";
@@ -274,6 +296,26 @@ Deno.serve(async (req: Request) => {
       azienda_logo_url: tpl.logo_url || com.logo_url,
       colore_primario: tpl.colore_primario || "#2D7D5C",
     };
+
+    // 6b. Rigenera signed URL del logo se proviene dal bucket sr-progetti
+    // (path template-logos/...). Anche il logo scade dopo 1 anno, ma se
+    // l'azienda lo carica oggi e genera PDF tra 2 anni, l'URL sarebbe morto.
+    if (data.azienda_logo_url) {
+      try {
+        const url = new URL(data.azienda_logo_url);
+        // Path tipo /storage/v1/object/sign/sr-progetti/<company>/template-logos/<file>
+        const match = url.pathname.match(/sr-progetti\/(.+)/);
+        if (match) {
+          const logoPath = decodeURIComponent(match[1]).split("?")[0];
+          const { data: signed } = await supabaseAdmin.storage
+            .from("sr-progetti")
+            .createSignedUrl(logoPath, 60 * 60 * 24 * 365);
+          if (signed?.signedUrl) data.azienda_logo_url = signed.signedUrl;
+        }
+      } catch (err) {
+        console.warn("[sr-genera-pdf] logo refresh failed", err);
+      }
+    }
 
     // 6. Render HTML
     const html = renderSrPdfHtml(data);
