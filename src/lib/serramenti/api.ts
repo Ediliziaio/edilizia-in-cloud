@@ -422,7 +422,13 @@ export interface ListinoCategoria {
   macrocategoria_id: string | null;
 }
 
-export async function listMacrocategorie(): Promise<ListinoMacrocategoria[]> {
+/**
+ * Lista macrocategorie attive. Se `onlyWithFamilies=true` (default nel picker)
+ * filtra fuori le macro vuote — quelle senza nessuna famiglia attiva nei suoi
+ * rami categoria → famiglia. Evita di mostrare macrocategorie "fantasma"
+ * (es. create durante test ma mai popolate) che porterebbero a un dead-end.
+ */
+export async function listMacrocategorie(opts?: { onlyWithFamilies?: boolean }): Promise<ListinoMacrocategoria[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("listino_macrocategorie")
@@ -434,10 +440,40 @@ export async function listMacrocategorie(): Promise<ListinoMacrocategoria[]> {
     console.error("[serramenti] listMacrocategorie failed", error);
     throw new Error("Errore caricamento macrocategorie listino");
   }
-  return (data ?? []) as ListinoMacrocategoria[];
+  const macros = (data ?? []) as ListinoMacrocategoria[];
+  if (!opts?.onlyWithFamilies || macros.length === 0) return macros;
+
+  // Filtro lato client: per ogni macro conta le famiglie esistenti.
+  // 1 sola query: prendo tutte le famiglie con la loro categoria→macro.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: catRows } = await (supabase as any)
+    .from("listino_categorie")
+    .select("id, macrocategoria_id");
+  const catToMacro = new Map<string, string>();
+  (catRows ?? []).forEach((c: { id: string; macrocategoria_id: string | null }) => {
+    if (c.macrocategoria_id) catToMacro.set(c.id, c.macrocategoria_id);
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: famRows } = await (supabase as any)
+    .from("article_families").select("categoria_id");
+  const macrosWithFam = new Set<string>();
+  (famRows ?? []).forEach((f: { categoria_id: string | null }) => {
+    if (f.categoria_id) {
+      const macroId = catToMacro.get(f.categoria_id);
+      if (macroId) macrosWithFam.add(macroId);
+    }
+  });
+  return macros.filter((m) => macrosWithFam.has(m.id));
 }
 
-export async function listCategorieByMacro(macroId: string | null): Promise<ListinoCategoria[]> {
+/**
+ * Lista categorie. Se `onlyWithFamilies=true` filtra fuori le categorie senza
+ * articoli (dead-end UX).
+ */
+export async function listCategorieByMacro(
+  macroId: string | null,
+  opts?: { onlyWithFamilies?: boolean },
+): Promise<ListinoCategoria[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
     .from("listino_categorie")
@@ -450,7 +486,19 @@ export async function listCategorieByMacro(macroId: string | null): Promise<List
     console.error("[serramenti] listCategorieByMacro failed", error);
     throw new Error("Errore caricamento categorie listino");
   }
-  return (data ?? []) as ListinoCategoria[];
+  const cats = (data ?? []) as ListinoCategoria[];
+  if (!opts?.onlyWithFamilies || cats.length === 0) return cats;
+
+  const catIds = cats.map((c) => c.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: famRows } = await (supabase as any)
+    .from("article_families")
+    .select("categoria_id")
+    .in("categoria_id", catIds);
+  const catsWithFam = new Set<string>(
+    (famRows ?? []).map((f: { categoria_id: string }) => f.categoria_id),
+  );
+  return cats.filter((c) => catsWithFam.has(c.id));
 }
 
 // ─── LISTINO PRODOTTI (article_families + listino_griglia) ─────────────────

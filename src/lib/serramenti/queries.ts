@@ -253,18 +253,23 @@ export function useListinoFamilies(opts?: { searchQuery?: string; categoriaId?: 
   });
 }
 
-export function useMacrocategorie() {
+export function useMacrocategorie(opts?: { onlyWithFamilies?: boolean }) {
+  const onlyWithFamilies = opts?.onlyWithFamilies ?? true;
   return useQuery({
-    queryKey: ["sr-listino-macrocategorie"],
-    queryFn: () => listMacrocategorie(),
+    queryKey: ["sr-listino-macrocategorie", onlyWithFamilies],
+    queryFn: () => listMacrocategorie({ onlyWithFamilies }),
     staleTime: 5 * 60 * 1000,
   });
 }
 
-export function useCategorieByMacro(macroId: string | null) {
+export function useCategorieByMacro(
+  macroId: string | null,
+  opts?: { onlyWithFamilies?: boolean }
+) {
+  const onlyWithFamilies = opts?.onlyWithFamilies ?? true;
   return useQuery({
-    queryKey: ["sr-listino-categorie", macroId],
-    queryFn: () => listCategorieByMacro(macroId),
+    queryKey: ["sr-listino-categorie", macroId, onlyWithFamilies],
+    queryFn: () => listCategorieByMacro(macroId, { onlyWithFamilies }),
     enabled: macroId !== undefined,
     staleTime: 5 * 60 * 1000,
   });
