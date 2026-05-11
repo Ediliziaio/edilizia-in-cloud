@@ -31,6 +31,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
@@ -260,16 +263,14 @@ export default function SettingsSopralluoghi() {
         <NewTemplateDialog
           systemTemplates={list.filter((t) => t.is_system)}
           onClose={() => setNewDialogOpen(false)}
-          onCreated={(newId) => {
-            qc.invalidateQueries({ queryKey: ["survey-templates-with-settings"] });
+          onCreated={async (newId) => {
             setNewDialogOpen(false);
-            // Apri automaticamente l'editor sul nuovo template
-            setTimeout(() => {
-              const fresh = (qc.getQueryData<TemplateWithSettings[]>(["survey-templates-with-settings"]) ?? [])
-                .find((t) => t.id === newId);
-              if (fresh) setEditing(fresh);
-              else toast.success("Template creato. Modificalo dalla lista.");
-            }, 800);
+            // Attendi il refetch effettivo prima di cercare in cache
+            await qc.refetchQueries({ queryKey: ["survey-templates-with-settings"] });
+            const fresh = (qc.getQueryData<TemplateWithSettings[]>(["survey-templates-with-settings"]) ?? [])
+              .find((t) => t.id === newId);
+            if (fresh) setEditing(fresh);
+            else toast.success("Template creato. Modificalo dalla lista.");
           }}
         />
       )}
@@ -664,7 +665,7 @@ function NewTemplateDialog({
 }: {
   systemTemplates: TemplateWithSettings[];
   onClose: () => void;
-  onCreated: (newId: string) => void;
+  onCreated: (newId: string) => void | Promise<void>;
 }) {
   const [mode, setMode] = useState<"blank" | "clone">("blank");
   const [name, setName] = useState("");

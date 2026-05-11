@@ -127,6 +127,10 @@ export function SurveyTemplateEditor({
       await updateTemplate(templateId, {
         name: name.trim(),
         description: description.trim() || null,
+        category,
+        area_label: areaLabel.trim() || "Area",
+        area_label_plural: areaLabelPlural.trim() || "Aree",
+        element_label: elementLabel.trim() || "Elemento",
         schema,
       });
     },

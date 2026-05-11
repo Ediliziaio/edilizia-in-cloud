@@ -417,12 +417,24 @@ export async function cloneTemplate(sourceId: string, newName: string): Promise<
 
 export async function updateTemplate(
   templateId: string,
-  patch: { name?: string; description?: string | null; schema?: unknown; is_active?: boolean },
+  patch: {
+    name?: string;
+    description?: string | null;
+    schema?: unknown;
+    is_active?: boolean;
+    category?: string;
+    area_label?: string;
+    area_label_plural?: string;
+    element_label?: string;
+  },
 ): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from("survey_templates").update(patch).eq("id", templateId);
-  if (error) throw new Error("Aggiornamento template fallito");
+  if (error) {
+    console.error("[surveys] updateTemplate failed", error);
+    throw new Error("Aggiornamento template fallito: " + error.message);
+  }
 }
 
 export async function createBlankTemplate(opts: {
@@ -456,7 +468,12 @@ export async function createBlankTemplate(opts: {
       schema: {
         version: 1,
         header_schema: [],
-        area_definition: { label: "Area", label_plural: "Aree", fields: [] },
+        area_definition: {
+          label: "Area",
+          label_plural: "Aree",
+          fields: [],
+          required_photos: [],
+        },
         element_types: [],
         general_required_photos: [],
       },
