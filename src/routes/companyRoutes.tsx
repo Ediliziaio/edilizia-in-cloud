@@ -69,6 +69,9 @@ const SettingsFinanziamentiCalcolatore = lazy(() => import("@/pages/azienda/sett
 const FotovoltaicoIndex = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoIndex"));
 const FotovoltaicoWizard = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoWizard"));
 const FotovoltaicoDettaglio = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoDettaglio"));
+// Modulo Stima Serramenti
+const SerramentiIndex = lazy(() => import("@/pages/azienda/serramenti/SerramentiIndex"));
+const SerramentiWizard = lazy(() => import("@/pages/azienda/serramenti/SerramentiWizard"));
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
@@ -573,6 +576,16 @@ export function companyRoutes() {
           <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
             <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
           </FeatureRoute>
+        } />
+        {/* Modulo Stima Serramenti */}
+        <Route path="serramenti" element={
+          <ErrorBoundary title="Errore modulo Serramenti"><SerramentiIndex /></ErrorBoundary>
+        } />
+        <Route path="serramenti/nuovo" element={
+          <ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary>
+        } />
+        <Route path="serramenti/:id/modifica" element={
+          <ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary>
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewMarketingOpportunities", <Preventivi />)} />
         <Route path="marketing/preventivi/approvazioni" element={<Navigate to="/azienda/marketing/preventivi?tab=approvazioni" replace />} />
