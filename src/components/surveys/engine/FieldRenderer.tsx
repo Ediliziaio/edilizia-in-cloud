@@ -7,7 +7,8 @@
  * Gestisce: show_if (visibility), required (validation), width (grid-12), help.
  */
 import { useMemo } from "react";
-import type { FieldDefinition, ConditionalRule } from "@/types/surveys";
+import type { FieldDefinition } from "@/types/surveys";
+import { isVisible } from "./evalConditions";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -36,27 +37,8 @@ const WIDTH_TO_CLASS: Record<number, string> = {
   12: "col-span-12",
 };
 
-function evalRule(rule: ConditionalRule, allValues: Record<string, unknown>): boolean {
-  const v = allValues[rule.field];
-  switch (rule.operator) {
-    case "eq": return v === rule.value;
-    case "neq": return v !== rule.value;
-    case "in": return Array.isArray(rule.value) && rule.value.includes(v as string);
-    case "not_in": return Array.isArray(rule.value) && !rule.value.includes(v as string);
-    case "truthy": return !!v;
-    case "falsy": return !v;
-    default: return true;
-  }
-}
-
-function isVisible(field: FieldDefinition, allValues: Record<string, unknown>): boolean {
-  if (!field.show_if) return true;
-  const rules = Array.isArray(field.show_if) ? field.show_if : [field.show_if];
-  return rules.every((r) => evalRule(r, allValues));
-}
-
 export function FieldRenderer({ field, value, allValues, onChange, showErrors }: FieldRendererProps) {
-  const visible = useMemo(() => isVisible(field, allValues), [field, allValues]);
+  const visible = useMemo(() => isVisible(field.show_if, allValues), [field.show_if, allValues]);
   if (!visible) return null;
 
   const widthClass = field.width ? WIDTH_TO_CLASS[field.width] : "col-span-12";

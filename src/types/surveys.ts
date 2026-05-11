@@ -41,7 +41,7 @@ export interface SelectOption {
 export interface ConditionalRule {
   /** Mostra il campo solo se questa condizione è vera */
   field: string;
-  operator: 'eq' | 'neq' | 'in' | 'not_in' | 'truthy' | 'falsy';
+  operator: 'eq' | 'neq' | 'in' | 'not_in' | 'truthy' | 'falsy' | 'contains';
   value?: string | number | boolean | string[];
 }
 
@@ -102,6 +102,10 @@ export interface FieldSection {
   collapsible?: boolean;
   /** Aperta di default */
   default_open?: boolean;
+  /** Mostra la sezione SOLO se queste condizioni sono vere
+   *  (sui values del parent — header o element).
+   *  Utile per "Cosa rilevo": multiselect che attiva sezioni opzionali. */
+  show_if?: ConditionalRule | ConditionalRule[];
 }
 
 // ----------------------------------------------------------------------------

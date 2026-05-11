@@ -1,9 +1,10 @@
 /**
  * SectionRenderer — Card collassabile con grid 12-col contenente i campi.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FieldSection } from "@/types/surveys";
 import { FieldRenderer } from "./FieldRenderer";
+import { isVisible } from "./evalConditions";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
@@ -19,8 +20,11 @@ export interface SectionRendererProps {
 }
 
 export function SectionRenderer({ section, values, onChange, showErrors }: SectionRendererProps) {
+  const visible = useMemo(() => isVisible(section.show_if, values), [section.show_if, values]);
   const [open, setOpen] = useState(section.default_open !== false);
   const collapsible = section.collapsible !== false;
+
+  if (!visible) return null;
 
   return (
     <Card className="overflow-hidden">
