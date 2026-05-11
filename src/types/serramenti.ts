@@ -335,7 +335,7 @@ export type SrWizardStep =
 export const SR_WIZARD_STEPS: { key: SrWizardStep; label: string; icon: string }[] = [
   { key: "cliente",        label: "Cliente",         icon: "User" },
   { key: "immobile",       label: "Immobile",        icon: "Home" },
-  { key: "esigenze",       label: "Esigenze",        icon: "MessageCircle" },
+  { key: "esigenze",       label: "Contenuti PDF",   icon: "MessageCircle" },
   { key: "bom",            label: "Serramenti",      icon: "RectangleVertical" },
   { key: "accessori_foto", label: "Accessori e foto",icon: "Image" },
   { key: "economia",       label: "Economia",        icon: "Euro" },

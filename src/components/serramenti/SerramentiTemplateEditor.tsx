@@ -223,7 +223,6 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
     label: string,
     key: "perche_noi_default" | "incluso_default" | "prossimi_passi_default",
     placeholder: string,
-    maxItems: number = 6,
   ) => {
     const items = ((form[key] as string[]) ?? []);
     const updateItem = (idx: number, value: string) => {
@@ -256,11 +255,9 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             </Button>
           </div>
         ))}
-        {items.length < maxItems && (
-          <Button onClick={addItem} variant="outline" size="sm" className="w-full border-dashed gap-1">
-            <Plus className="h-3.5 w-3.5" /> Aggiungi {label.toLowerCase()}
-          </Button>
-        )}
+        <Button onClick={addItem} variant="outline" size="sm" className="w-full border-dashed gap-1">
+          <Plus className="h-3.5 w-3.5" /> Aggiungi {label.toLowerCase()}
+        </Button>
       </div>
     );
   };
@@ -268,7 +265,6 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
   const renderBulletObjectEditor = (
     label: string,
     key: "esigenze_default" | "soluzione_default",
-    maxItems: number = 3,
   ) => {
     const items = ((form[key] as Array<SrEsigenza | SrSoluzioneItem>) ?? []);
     const updateItem = (idx: number, field: "titolo" | "descrizione", value: string) => {
@@ -308,11 +304,9 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             />
           </div>
         ))}
-        {items.length < maxItems && (
-          <Button onClick={addItem} variant="outline" size="sm" className="w-full border-dashed gap-1">
-            <Plus className="h-3.5 w-3.5" /> Aggiungi {label.toLowerCase()}
-          </Button>
-        )}
+        <Button onClick={addItem} variant="outline" size="sm" className="w-full border-dashed gap-1">
+          <Plus className="h-3.5 w-3.5" /> Aggiungi {label.toLowerCase()}
+        </Button>
       </div>
     );
   };
@@ -464,8 +458,8 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
 
       {/* Esigenze */}
       <SrCard
-        title="Esigenze tipiche del cliente"
-        description="Pagina 1 del PDF — 'Le tue esigenze'. Modificabili per singola stima."
+        title="Libreria esigenze tipiche del cliente"
+        description="Aggiungi qui tutte le esigenze più comuni dei tuoi clienti. Nel preventivo sceglierai quali includere per ogni cliente specifico."
         icon={<MessageCircle className="h-4 w-4" />}
       >
         <div className="flex justify-end mb-3">
@@ -480,13 +474,13 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             onApply={(v) => update("esigenze_default", v)}
           />
         </div>
-        {renderBulletObjectEditor("esigenza", "esigenze_default", 3)}
+        {renderBulletObjectEditor("esigenza", "esigenze_default")}
       </SrCard>
 
       {/* Soluzione */}
       <SrCard
-        title="Soluzione tipica"
-        description="Pagina 1 del PDF — 'La soluzione per te'."
+        title="Libreria soluzioni / argomenti di vendita"
+        description="Tutte le soluzioni che proponi (su misura, posa qualificata, vetri premium...). Le sceglierai una per una per ogni preventivo."
         icon={<Sparkles className="h-4 w-4" />}
       >
         <div className="flex justify-end mb-3">
@@ -500,13 +494,13 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             onApply={(v) => update("soluzione_default", v)}
           />
         </div>
-        {renderBulletObjectEditor("soluzione", "soluzione_default", 3)}
+        {renderBulletObjectEditor("soluzione", "soluzione_default")}
       </SrCard>
 
       {/* Perché noi */}
       <SrCard
-        title="Perché scegliere noi (USP)"
-        description="5-6 bullet di vendita in fondo a pagina 1."
+        title="Libreria USP — Perché scegliere noi"
+        description="Tutti i punti forti della tua azienda. Nel preventivo selezionerai quelli più rilevanti per ogni cliente."
         icon={<ListChecks className="h-4 w-4" />}
       >
         <div className="flex justify-end mb-3">
@@ -526,8 +520,8 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
 
       {/* Incluso */}
       <SrCard
-        title="Cosa è incluso nell'investimento"
-        description="Pagina 2 del PDF — sotto la forbice prezzo."
+        title="Libreria 'Cosa è incluso nell'investimento'"
+        description="Tutte le voci che possono essere incluse nelle tue offerte. Nel preventivo scegli quali sono attive per quel cliente."
         icon={<ListChecks className="h-4 w-4" />}
       >
         <div className="flex justify-end mb-3">
@@ -677,8 +671,8 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
 
       {/* Prossimi passi */}
       <SrCard
-        title="Prossimi passi (chiusura PDF)"
-        description="I 4 step in fondo a pagina 3."
+        title="Libreria 'Prossimi passi' (chiusura PDF)"
+        description="Tutti i possibili step del tuo processo di vendita. Nel preventivo scegli quali mostrare al cliente specifico."
         icon={<ListChecks className="h-4 w-4" />}
       >
         <div className="flex justify-end mb-3">
@@ -692,7 +686,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             onApply={(v) => update("prossimi_passi_default", v)}
           />
         </div>
-        {renderListEditor("step", "prossimi_passi_default", "Es. Ci vediamo a casa tua per la consulenza tecnica", 5)}
+        {renderListEditor("step", "prossimi_passi_default", "Es. Ci vediamo a casa tua per la consulenza tecnica")}
       </SrCard>
 
       {/* Crono + Economia */}

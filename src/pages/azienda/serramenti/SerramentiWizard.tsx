@@ -50,6 +50,7 @@ import { StepAccessori } from "@/components/serramenti/StepAccessori";
 import { StepEconomia } from "@/components/serramenti/StepEconomia";
 import { StepConsulenza } from "@/components/serramenti/StepConsulenza";
 import { StepPdf } from "@/components/serramenti/StepPdf";
+import { StepContenuti } from "@/components/serramenti/StepContenuti";
 
 const STEP_ICONS: Record<SrWizardStep, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -316,7 +317,7 @@ export default function SerramentiWizard() {
               <StepImmobile form={form} onChange={onChange} />
             )}
             {currentStep === "esigenze" && (
-              <StepEsigenze form={form} onChange={onChange} />
+              <StepContenuti form={form} onChange={onChange} />
             )}
             {currentStep === "bom" && id && detail && (
               <StepBom progettoId={id} detail={detail} />
@@ -566,50 +567,6 @@ function StepImmobile({
   );
 }
 
-function StepEsigenze({
-  form, onChange,
-}: {
-  form: Partial<SrProgettoRow>;
-  onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
-}) {
-  const esigenze = (form.esigenze ?? []) as { titolo: string; descrizione: string }[];
-
-  const updateEsigenza = (idx: number, field: "titolo" | "descrizione", value: string) => {
-    const next = [...esigenze];
-    while (next.length <= idx) next.push({ titolo: "", descrizione: "" });
-    next[idx] = { ...next[idx], [field]: value };
-    onChange("esigenze", next);
-  };
-
-  return (
-    <SrCard
-      title="Esigenze del cliente"
-      description="Le 3 esigenze principali emerse dal sopralluogo o dalla chiamata. Compaiono nella pagina 1 del PDF come 'Le tue esigenze'."
-      icon={<MessageCircle className="h-4 w-4" />}
-    >
-      <div className="space-y-3">
-        {[0, 1, 2].map((idx) => {
-          const e = esigenze[idx] ?? { titolo: "", descrizione: "" };
-          return (
-            <div key={idx} className="border-l-4 border-emerald-200 pl-3 py-1">
-              <Label className="text-xs">Esigenza {idx + 1} — Titolo</Label>
-              <Input
-                value={e.titolo}
-                onChange={(v) => updateEsigenza(idx, "titolo", v.target.value)}
-                placeholder={["Spifferi", "Condensa", "Aspetto"][idx]}
-                className="h-9 mb-2"
-              />
-              <Label className="text-xs">Descrizione</Label>
-              <Textarea
-                value={e.descrizione}
-                onChange={(v) => updateEsigenza(idx, "descrizione", v.target.value)}
-                placeholder="Cosa risolve il nuovo serramento"
-                rows={2}
-              />
-            </div>
-          );
-        })}
-      </div>
-    </SrCard>
-  );
-}
+// StepEsigenze rimosso: ora il contenuto è gestito da
+// @/components/serramenti/StepContenuti (picker dal template + custom inline,
+// per esigenze + soluzione + perché noi + incluso + prossimi passi).
