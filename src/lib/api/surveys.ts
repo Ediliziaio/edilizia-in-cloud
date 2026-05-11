@@ -17,17 +17,30 @@ import type {
 // ─── TEMPLATES ──────────────────────────────────────────────────────────────
 
 export async function listTemplates(category?: string): Promise<SurveyTemplateRow[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let q = (supabase as any).from("survey_templates").select("*").eq("is_active", true);
-  if (category) q = q.eq("category", category);
-  const { data, error } = await q
-    .order("is_system", { ascending: false })
-    .order("name", { ascending: true });
-  if (error) {
-    console.error("[surveys] listTemplates failed", error);
-    throw new Error("Impossibile caricare i template del rilievo");
+  // Usa la RPC che restituisce solo i template ENABLED per la company corrente
+  // (filtrabili via SettingsSopralluoghi). Fallback su query diretta se RPC
+  // non disponibile (graceful degradation).
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc("list_survey_templates_with_settings");
+    if (error) throw error;
+    let rows = (data ?? []) as Array<SurveyTemplateRow & { enabled_for_company: boolean }>;
+    rows = rows.filter((r) => r.enabled_for_company);
+    if (category) rows = rows.filter((r) => r.category === category);
+    return rows;
+  } catch {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q = (supabase as any).from("survey_templates").select("*").eq("is_active", true);
+    if (category) q = q.eq("category", category);
+    const { data, error } = await q
+      .order("is_system", { ascending: false })
+      .order("name", { ascending: true });
+    if (error) {
+      console.error("[surveys] listTemplates failed", error);
+      throw new Error("Impossibile caricare i template del rilievo");
+    }
+    return (data ?? []) as SurveyTemplateRow[];
   }
-  return (data ?? []) as SurveyTemplateRow[];
 }
 
 export async function getTemplate(id: string): Promise<SurveyTemplateRow> {
@@ -364,6 +377,59 @@ export async function unassignUser(surveyId: string, userId: string): Promise<vo
     .eq("survey_id", surveyId)
     .eq("user_id", userId);
   if (error) throw new Error("Rimozione assegnazione fallita");
+}
+
+// ─── TEMPLATE SETTINGS (S6) ─────────────────────────────────────────────────
+
+export interface TemplateWithSettings extends SurveyTemplateRow {
+  enabled_for_company: boolean;
+  sort_order_for_company: number;
+}
+
+export async function listTemplatesWithSettings(): Promise<TemplateWithSettings[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc("list_survey_templates_with_settings");
+  if (error) {
+    console.error("[surveys] listTemplatesWithSettings failed", error);
+    throw new Error("Errore caricamento template");
+  }
+  return (data ?? []) as TemplateWithSettings[];
+}
+
+export async function toggleTemplateEnabled(templateId: string, enabled: boolean): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).rpc("toggle_survey_template", {
+    p_template_id: templateId,
+    p_enabled: enabled,
+  });
+  if (error) throw new Error("Toggle template fallito");
+}
+
+export async function cloneTemplate(sourceId: string, newName: string): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc("clone_survey_template", {
+    p_source_id: sourceId,
+    p_new_name: newName,
+  });
+  if (error) throw new Error("Clonazione template fallita");
+  return data as string;
+}
+
+export async function updateTemplate(
+  templateId: string,
+  patch: { name?: string; description?: string | null; schema?: unknown; is_active?: boolean },
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("survey_templates").update(patch).eq("id", templateId);
+  if (error) throw new Error("Aggiornamento template fallito");
+}
+
+export async function deleteTemplate(templateId: string): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("survey_templates").delete().eq("id", templateId);
+  if (error) throw new Error("Eliminazione template fallita");
 }
 
 export async function listAssignees(surveyId: string) {

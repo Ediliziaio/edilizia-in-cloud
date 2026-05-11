@@ -178,6 +178,7 @@ const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/Soprall
 const NuovoSopralluogo = lazy(() => import("@/pages/azienda/sopralluoghi/NuovoSopralluogo"));
 const SopralluogoEditor = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluogoEditor"));
 const FirmaCliente = lazy(() => import("@/pages/azienda/sopralluoghi/FirmaCliente"));
+const SettingsSopralluoghi = lazy(() => import("@/pages/azienda/impostazioni/SettingsSopralluoghi"));
 // 🆕 GAP 7b: callback OAuth Gmail/Outlook
 const EmailOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/EmailOAuthCallbackPage"));
 // 🆕 GAP 9b: pagina gestione memoria AI personas
@@ -384,6 +385,7 @@ export function companyRoutes() {
         <Route path="sopralluoghi/nuovo" element={<NuovoSopralluogo />} />
         <Route path="sopralluoghi/:id" element={<SopralluogoEditor />} />
         <Route path="sopralluoghi/:id/firma" element={<FirmaCliente />} />
+        <Route path="impostazioni/sopralluoghi" element={<SettingsSopralluoghi />} />
         {/* 🆕 GAP 7b: callback OAuth Gmail/Outlook */}
         <Route path="impostazioni/integrazioni/email-callback" element={<EmailOAuthCallbackPage />} />
         {/* 🆕 GAP 9b: gestione memoria AI personas */}
