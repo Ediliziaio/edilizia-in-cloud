@@ -25,13 +25,25 @@ import {
 import {
   Save, Plus, Trash2, Loader2, MessageCircle,
   Sparkles, ListChecks, Clock, Quote, Upload, Image as ImageIcon,
-  Building2,
+  Building2, Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza } from "@/types/serramenti";
+import {
+  PRESET_ESIGENZE, PRESET_ESIGENZE_ALT,
+  PRESET_SOLUZIONE, PRESET_SOLUZIONE_PREMIUM,
+  PRESET_PERCHE_NOI, PRESET_PERCHE_NOI_ALT,
+  PRESET_INCLUSO, PRESET_INCLUSO_PLUS,
+  PRESET_PROSSIMI_PASSI, PRESET_PROSSIMI_PASSI_PREMIUM,
+  PRESET_RECENSIONI, PRESET_RECENSIONI_EXTRA,
+} from "@/lib/serramenti/presets";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface SerramentiTemplateEditorProps {
   /** Se true, nasconde lo sticky bottom save (usato dentro Tabs con bottone proprio) */
@@ -138,6 +150,49 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       </div>
     );
   }
+
+  // ─── Preset Dropdown helper ──────────────────────────────────────────────
+  // Mostra un menu "Applica template" con N varianti. Avverte se sovrascrive.
+  const PresetMenu = <T,>({
+    label,
+    presets,
+    currentValue,
+    onApply,
+  }: {
+    label: string;
+    presets: { label: string; value: T }[];
+    currentValue: T;
+    onApply: (v: T) => void;
+  }) => {
+    const hasContent = Array.isArray(currentValue) && (currentValue as unknown as unknown[]).length > 0;
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline" className="gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+            <Wand2 className="h-3.5 w-3.5" />
+            {label}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuLabel className="text-xs">Scegli un template</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {presets.map((p, i) => (
+            <DropdownMenuItem
+              key={i}
+              className="cursor-pointer text-xs"
+              onClick={() => {
+                if (hasContent && !confirm(`Sovrascrivere il contenuto attuale con il template "${p.label}"?`)) return;
+                onApply(p.value);
+                toast.success(`Template "${p.label}" applicato`);
+              }}
+            >
+              {p.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
 
   // ─── Testimonianze ────────────────────────────────────────────────────────
 
@@ -413,6 +468,17 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         description="Pagina 1 del PDF — 'Le tue esigenze'. Modificabili per singola stima."
         icon={<MessageCircle className="h-4 w-4" />}
       >
+        <div className="flex justify-end mb-3">
+          <PresetMenu<SrEsigenza[]>
+            label="Applica template standard"
+            currentValue={(form.esigenze_default ?? []) as SrEsigenza[]}
+            presets={[
+              { label: "Comfort termico (Spifferi · Condensa · Aspetto)", value: PRESET_ESIGENZE },
+              { label: "Risparmio + Comfort (Bollette · Rumore · Sicurezza)", value: PRESET_ESIGENZE_ALT },
+            ]}
+            onApply={(v) => update("esigenze_default", v)}
+          />
+        </div>
         {renderBulletObjectEditor("esigenza", "esigenze_default", 3)}
       </SrCard>
 
@@ -422,6 +488,17 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         description="Pagina 1 del PDF — 'La soluzione per te'."
         icon={<Sparkles className="h-4 w-4" />}
       >
+        <div className="flex justify-end mb-3">
+          <PresetMenu<SrSoluzioneItem[]>
+            label="Applica template standard"
+            currentValue={(form.soluzione_default ?? []) as SrSoluzioneItem[]}
+            presets={[
+              { label: "Base (Serramenti su misura + Posa qualificata)", value: PRESET_SOLUZIONE },
+              { label: "Premium (Vetri prestazionali + Taglio termico + UNI 11673)", value: PRESET_SOLUZIONE_PREMIUM },
+            ]}
+            onApply={(v) => update("soluzione_default", v)}
+          />
+        </div>
         {renderBulletObjectEditor("soluzione", "soluzione_default", 3)}
       </SrCard>
 
@@ -431,6 +508,17 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         description="5-6 bullet di vendita in fondo a pagina 1."
         icon={<ListChecks className="h-4 w-4" />}
       >
+        <div className="flex justify-end mb-3">
+          <PresetMenu<string[]>
+            label="Applica template standard"
+            currentValue={(form.perche_noi_default ?? []) as string[]}
+            presets={[
+              { label: "Base (Interlocutore unico · Garanzia · Squadre interne)", value: PRESET_PERCHE_NOI },
+              { label: "Esperienza & Servizi (15+ anni · Ecobonus · Showroom)", value: PRESET_PERCHE_NOI_ALT },
+            ]}
+            onApply={(v) => update("perche_noi_default", v)}
+          />
+        </div>
         {renderListEditor("USP", "perche_noi_default", "Es. Posa eseguita a regola d'arte con sigillature certificate")}
       </SrCard>
 
@@ -440,6 +528,17 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         description="Pagina 2 del PDF — sotto la forbice prezzo."
         icon={<ListChecks className="h-4 w-4" />}
       >
+        <div className="flex justify-end mb-3">
+          <PresetMenu<string[]>
+            label="Applica template standard"
+            currentValue={(form.incluso_default ?? []) as string[]}
+            presets={[
+              { label: "Standard (5 voci essenziali)", value: PRESET_INCLUSO },
+              { label: "Plus (8 voci con ENEA, smaltimento certificato, pulizia)", value: PRESET_INCLUSO_PLUS },
+            ]}
+            onApply={(v) => update("incluso_default", v)}
+          />
+        </div>
         {renderListEditor("voce", "incluso_default", "Es. Rilievo dimensionale a casa tua senza costi aggiuntivi")}
       </SrCard>
 
@@ -450,10 +549,53 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         icon={<Quote className="h-4 w-4" />}
         variant="highlight"
       >
+        <div className="flex justify-end mb-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                <Wand2 className="h-3.5 w-3.5" />
+                Carica recensioni di esempio
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel className="text-xs">Aggiungi recensioni esempio (poi personalizza)</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer text-xs"
+                onClick={() => {
+                  update("testimonianze_default", [...testimonianze, ...PRESET_RECENSIONI]);
+                  toast.success("3 recensioni di esempio aggiunte. Personalizzale con autori reali.");
+                }}
+              >
+                Set base — 3 recensioni (Bifamiliare · Villa · Appartamento)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer text-xs"
+                onClick={() => {
+                  update("testimonianze_default", [...testimonianze, ...PRESET_RECENSIONI_EXTRA]);
+                  toast.success("2 recensioni esempio aggiunte. Personalizzale con autori reali.");
+                }}
+              >
+                Set extra — 2 recensioni (Risparmio bollette · Famiglia)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer text-xs"
+                onClick={() => {
+                  if (testimonianze.length > 0 && !confirm("Sostituire tutte le recensioni attuali con il set completo (5 recensioni)?")) return;
+                  update("testimonianze_default", [...PRESET_RECENSIONI, ...PRESET_RECENSIONI_EXTRA]);
+                  toast.success("5 recensioni esempio applicate.");
+                }}
+              >
+                ⚠ Sostituisci con set completo (5 recensioni)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <div className="space-y-3">
           {testimonianze.length === 0 && (
             <SrCallout variant="info">
-              Nessuna recensione caricata. Aggiungile per mostrare prova sociale ai nuovi clienti.
+              Nessuna recensione caricata. Aggiungile per mostrare prova sociale ai nuovi clienti, o clicca <strong>"Carica recensioni di esempio"</strong> qui sopra per partire da template realistici.
             </SrCallout>
           )}
           {testimonianze.map((t, idx) => (
@@ -522,6 +664,17 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         description="I 4 step in fondo a pagina 3."
         icon={<ListChecks className="h-4 w-4" />}
       >
+        <div className="flex justify-end mb-3">
+          <PresetMenu<string[]>
+            label="Applica template standard"
+            currentValue={(form.prossimi_passi_default ?? []) as string[]}
+            presets={[
+              { label: "Standard (4 step — consulenza → firma)", value: PRESET_PROSSIMI_PASSI },
+              { label: "Premium (5 step con showroom e produzione)", value: PRESET_PROSSIMI_PASSI_PREMIUM },
+            ]}
+            onApply={(v) => update("prossimi_passi_default", v)}
+          />
+        </div>
         {renderListEditor("step", "prossimi_passi_default", "Es. Ci vediamo a casa tua per la consulenza tecnica", 5)}
       </SrCard>
 

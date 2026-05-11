@@ -2297,58 +2297,115 @@ const MODULI_VENDITA: ModuloVendita[] = [
 ];
 
 function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
-  const initial = initialModulo && MODULI_VENDITA.some((m) => m.slug === initialModulo && m.available)
+  // Se arriva via deeplink un modulo valido E available, lo pre-seleziono.
+  // Altrimenti mostro la landing con la grid di selezione.
+  const initialFromUrl = initialModulo && MODULI_VENDITA.some((m) => m.slug === initialModulo && m.available)
     ? initialModulo
-    : "serramenti";
-  const [activeSlug, setActiveSlug] = useState<string>(initial);
-  const active = MODULI_VENDITA.find((m) => m.slug === activeSlug) ?? MODULI_VENDITA[0];
+    : null;
+  const [activeSlug, setActiveSlug] = useState<string | null>(initialFromUrl);
+  const active = activeSlug ? MODULI_VENDITA.find((m) => m.slug === activeSlug) : null;
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center shrink-0 shadow-sm">
-            <ShoppingBag className="h-5 w-5 text-white" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Template Moduli Vendita</h1>
-            <p className="text-sm text-muted-foreground">
-              Configura una volta sola il PDF di ogni modulo vendita (Serramenti, Fotovoltaico, Tetti…) — logo, recensioni clienti, USP, cose incluse, prossimi passi.
-            </p>
-          </div>
+  // Header comune
+  const header = (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex items-start gap-3 min-w-0">
+        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center shrink-0 shadow-sm">
+          <ShoppingBag className="h-5 w-5 text-white" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold leading-tight">Template Moduli Vendita</h1>
+          <p className="text-sm text-muted-foreground">
+            {active
+              ? <>Stai configurando il template del modulo <strong>{active.nome}</strong>.</>
+              : "Scegli quale modulo vuoi configurare. Le impostazioni si applicano a tutti i preventivi futuri di quel modulo."}
+          </p>
         </div>
       </div>
+      {active && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setActiveSlug(null)}
+          className="gap-1"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Scegli altro modulo
+        </Button>
+      )}
+    </div>
+  );
 
-      {/* Modulo selector */}
-      <div className="flex flex-wrap gap-2">
-        {MODULI_VENDITA.map((m) => {
-          const Icon = m.icon;
-          const isActive = m.slug === activeSlug;
-          const isDisabled = !m.available;
-          return (
-            <button
-              key={m.slug}
-              type="button"
-              disabled={isDisabled}
-              onClick={() => !isDisabled && setActiveSlug(m.slug)}
-              className={
-                "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium border transition " +
-                (isActive
-                  ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
-                  : isDisabled
-                    ? "bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed"
-                    : "bg-white text-slate-700 border-slate-200 hover:bg-emerald-50 hover:border-emerald-200")
-              }
-            >
-              <Icon className="h-4 w-4" />
-              {m.nome}
-              {isDisabled && <span className="text-[10px] opacity-70">(presto)</span>}
-            </button>
-          );
-        })}
+  // Landing: grid di card selezionabili
+  if (!active) {
+    return (
+      <div className="space-y-4">
+        {header}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {MODULI_VENDITA.map((m) => {
+            const Icon = m.icon;
+            const isDisabled = !m.available;
+            return (
+              <button
+                key={m.slug}
+                type="button"
+                disabled={isDisabled}
+                onClick={() => !isDisabled && setActiveSlug(m.slug)}
+                className={
+                  "text-left rounded-xl border-2 p-4 transition-all group focus:outline-none " +
+                  (isDisabled
+                    ? "bg-slate-50 border-slate-200 cursor-not-allowed opacity-60"
+                    : "bg-white border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/20 hover:shadow-md focus:ring-2 focus:ring-emerald-400 cursor-pointer")
+                }
+              >
+                <div className="flex items-start gap-3">
+                  <div className={
+                    "h-11 w-11 rounded-lg flex items-center justify-center shrink-0 " +
+                    (isDisabled ? "bg-slate-200" : "bg-gradient-to-br from-emerald-500 to-teal-400 text-white shadow-sm")
+                  }>
+                    <Icon className={isDisabled ? "h-5 w-5 text-slate-400" : "h-5 w-5 text-white"} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h3 className="font-bold text-slate-900">{m.nome}</h3>
+                      {isDisabled && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
+                          In arrivo
+                        </span>
+                      )}
+                      {!isDisabled && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">
+                          Disponibile
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600 leading-snug">{m.description}</p>
+                  </div>
+                </div>
+                {!isDisabled && (
+                  <div className="mt-3 pt-3 border-t flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Configura logo, recensioni, USP…</span>
+                    <span className="font-semibold text-emerald-700 group-hover:translate-x-0.5 transition-transform">
+                      Apri →
+                    </span>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <Card className="bg-slate-50 border-slate-200">
+          <CardContent className="p-3 text-xs text-slate-600">
+            💡 Ogni modulo ha un editor dedicato. Tutto quello che configuri qui (logo, recensioni, USP, cronoprogramma, ecc.) verrà applicato come <strong>default</strong> a ogni nuovo preventivo. Puoi sempre modificare i singoli valori dentro ogni stima.
+          </CardContent>
+        </Card>
       </div>
+    );
+  }
 
-      {/* Descrizione modulo attivo */}
+  // Editor del modulo selezionato
+  return (
+    <div className="space-y-4">
+      {header}
       <Card className="bg-emerald-50/30 border-emerald-200">
         <CardContent className="p-3 flex items-start gap-3">
           <active.icon className="h-5 w-5 text-emerald-700 mt-0.5 shrink-0" />
@@ -2358,18 +2415,7 @@ function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
           </div>
         </CardContent>
       </Card>
-
-      {/* Editor del modulo attivo */}
-      {active.available ? (
-        <div>{active.render()}</div>
-      ) : (
-        <Card className="p-8 text-center">
-          <p className="font-semibold text-slate-700">{active.nome} — in arrivo</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Questo modulo non ha ancora un editor di template dedicato in questa sezione. Apri il modulo per le sue impostazioni interne.
-          </p>
-        </Card>
-      )}
+      <div>{active.render()}</div>
     </div>
   );
 }
