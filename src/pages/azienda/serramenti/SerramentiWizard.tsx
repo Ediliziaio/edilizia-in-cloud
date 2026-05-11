@@ -46,6 +46,8 @@ import { SR_WIZARD_STEPS } from "@/types/serramenti";
 import type { SrProgettoRow, SrWizardStep, SrTipoIntervento } from "@/types/serramenti";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { StepBom } from "@/components/serramenti/StepBom";
+import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
+import { Sparkles } from "lucide-react";
 import { StepAccessori } from "@/components/serramenti/StepAccessori";
 import { StepEconomia } from "@/components/serramenti/StepEconomia";
 import { StepConsulenza } from "@/components/serramenti/StepConsulenza";
@@ -321,7 +323,7 @@ export default function SerramentiWizard() {
               <StepCliente form={form} onChange={onChange} />
             )}
             {currentStep === "immobile" && (
-              <StepImmobile form={form} onChange={onChange} />
+              <StepImmobile form={form} onChange={onChange} detail={detail ?? null} />
             )}
             {currentStep === "esigenze" && (
               <StepContenuti form={form} onChange={onChange} />
@@ -543,11 +545,18 @@ function StepCliente({
 }
 
 function StepImmobile({
-  form, onChange,
+  form, onChange, detail,
 }: {
   form: Partial<SrProgettoRow>;
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
+  detail: import("@/types/serramenti").SrProgettoDetail | null;
 }) {
+  const sintesiAuto = useMemo(
+    () => detail
+      ? generateInterventoSintesi(detail.serramenti, detail.accessori)
+      : "",
+    [detail],
+  );
   return (
     <SrCard
       title="Cantiere e intervento"
@@ -612,15 +621,35 @@ function StepImmobile({
           />
         </div>
         <div className="col-span-12">
-          <Label className="text-xs">Sintesi dell'intervento</Label>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <Label className="text-xs">Sintesi dell'intervento</Label>
+            {sintesiAuto && sintesiAuto !== (form.intervento_sintesi ?? "") && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] gap-1 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                onClick={() => onChange("intervento_sintesi", sintesiAuto)}
+                title="Genera dal BOM (serramenti + accessori già inseriti)"
+              >
+                <Sparkles className="h-3 w-3" />
+                Genera dal BOM
+              </Button>
+            )}
+          </div>
           <Textarea
             value={form.intervento_sintesi ?? ""}
             onChange={(e) => onChange("intervento_sintesi", e.target.value)}
-            placeholder="Es. Sostituzione di 4 finestre, 2 porte-finestre, più 6 avvolgibili, 6 cassonetti e 6 zanzariere."
+            placeholder={sintesiAuto
+              ? `Suggerimento: "${sintesiAuto}" — clicca "Genera dal BOM" per usarlo`
+              : "Es. Sostituzione di 4 finestre, 2 porte-finestre, più 6 avvolgibili, 6 cassonetti e 6 zanzariere."}
             rows={3}
           />
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            Comparirà in alto al PDF — "L'intervento in sintesi"
+            Comparirà in alto al PDF — "L'intervento in sintesi".
+            {sintesiAuto
+              ? " Auto-generabile dal BOM con il bottone in alto a destra."
+              : " Si auto-genera quando aggiungi serramenti e accessori al preventivo."}
           </p>
         </div>
       </div>

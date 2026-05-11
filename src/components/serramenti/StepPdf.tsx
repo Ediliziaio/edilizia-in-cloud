@@ -44,9 +44,13 @@ export function StepPdf({ progettoId, detail }: Props) {
       hint: !p.cantiere_indirizzo && !p.cliente_indirizzo ? "Aggiungi almeno un indirizzo" : undefined,
     },
     {
-      ok: !!p.intervento_sintesi,
+      // La sintesi viene auto-generata dal BOM se vuota → questo check non blocca
+      // più la generazione del PDF. Resta come "promemoria utile" se vuoto.
+      ok: !!p.intervento_sintesi || numSerramenti > 0,
       label: "Sintesi intervento",
-      hint: !p.intervento_sintesi ? "Mancante — compila lo step Immobile" : undefined,
+      hint: !p.intervento_sintesi
+        ? "Verrà auto-generata dal BOM. Puoi personalizzarla nello step Immobile."
+        : undefined,
     },
     {
       ok: Array.isArray(p.esigenze) && p.esigenze.filter((e) => e.titolo).length >= 1,

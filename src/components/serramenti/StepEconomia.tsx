@@ -22,7 +22,15 @@ import {
 } from "@/components/ui/table";
 import {
   Euro, TrendingUp, Leaf, Calculator, Calendar, HelpCircle,
+  Wallet, Tag, CreditCard, Plus, Trash2,
 } from "lucide-react";
+import { useDiscountRules } from "@/hooks/useDiscountRules";
+import {
+  useTabelleFinanziamentoAttive,
+  useTabellaFinanziamentoRighe,
+  findMigliorRiga,
+  getDurateUniche,
+} from "@/hooks/useTabelleFinanziamento";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
@@ -76,12 +84,49 @@ export function StepEconomia({ detail, form, onChange }: Props) {
     }
   }, [forbice.min, forbice.max]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ─── Sconto: collegamento alle regole azienda ────────────────────────────
+  const { data: discountRules = [] } = useDiscountRules();
+  // Quando l'utente seleziona una regola, auto-applichiamo sconto_max_pct
+  // come default editabile (l'utente può comunque alzare/abbassare).
+  const selectedDiscountRule = useMemo(
+    () => discountRules.find((r) => r.id === form.discount_rule_id) ?? null,
+    [discountRules, form.discount_rule_id],
+  );
+
   // ─── Finanziamento ────────────────────────────────────────────────────────
   const [anticipoPct, setAnticipoPct] = useState(form.fin_anticipo_pct ?? 40);
+  // Modalità: "tabella" usa eic_tabelle_finanziamento (no TAN/TAEG manuali),
+  // "manuale" usa i 2 piani Estesa/Standard come prima (fallback).
+  const [finModalita, setFinModalita] = useState<"tabella" | "manuale">(
+    form.fin_tabella_id ? "tabella" : "manuale",
+  );
+  const { data: tabelleFinanziamento = [] } = useTabelleFinanziamentoAttive();
+  const [tabellaId, setTabellaId] = useState<string | null>(form.fin_tabella_id ?? null);
+  const { data: righeTabella = [] } = useTabellaFinanziamentoRighe(tabellaId);
+  const durateDisponibili = useMemo(() => getDurateUniche(righeTabella), [righeTabella]);
+  const [durataTabella, setDurataTabella] = useState<number | null>(null);
+  // Auto-seleziona la prima durata disponibile quando cambia tabella
+  useEffect(() => {
+    if (durateDisponibili.length > 0 && durataTabella === null) {
+      setDurataTabella(durateDisponibili[0]);
+    }
+  }, [durateDisponibili]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [piano1Mesi, setPiano1Mesi] = useState(120);
   const [piano1Tasso, setPiano1Tasso] = useState(5.5);
   const [piano2Mesi, setPiano2Mesi] = useState(60);
   const [piano2Tasso, setPiano2Tasso] = useState(0);
+
+  // ─── Modalità pagamento cliente ──────────────────────────────────────────
+  type Milestone = { label: string; percentuale: number; when?: string | null };
+  const [milestones, setMilestones] = useState<Milestone[]>(
+    (form.pagamento_milestones as Milestone[] | null) ?? [
+      { label: "Acconto alla firma", percentuale: 30, when: "Firma contratto" },
+      { label: "Inizio lavori", percentuale: 40, when: "Consegna materiale in cantiere" },
+      { label: "Saldo", percentuale: 30, when: "Fine collaudo" },
+    ],
+  );
+  const milestonesTotale = milestones.reduce((acc, m) => acc + (Number(m.percentuale) || 0), 0);
 
   const finCalc = useMemo(() => calcolaPianoFinanziamento({
     importo_totale: forbice.media,
@@ -91,6 +136,15 @@ export function StepEconomia({ detail, form, onChange }: Props) {
       { nome: "Standard", durata_mesi: piano2Mesi, tasso_annuo_pct: piano2Tasso },
     ],
   }), [forbice.media, anticipoPct, piano1Mesi, piano1Tasso, piano2Mesi, piano2Tasso]);
+
+  // Quando uso una tabella finanziamento configurata: cerco la riga ottimale
+  // (importo×durata→importo_rata) dal listino fornitore. Niente TAN/TAEG
+  // manuali, il PDF mostra esattamente i dati della tabella.
+  const importoFinanziato = Math.max(0, forbice.media - (forbice.media * anticipoPct) / 100);
+  const rigaTabellaScelta = useMemo(() => {
+    if (finModalita !== "tabella" || !durataTabella || righeTabella.length === 0) return null;
+    return findMigliorRiga(righeTabella, importoFinanziato, durataTabella);
+  }, [finModalita, durataTabella, righeTabella, importoFinanziato]);
 
   // ─── Ecobonus ─────────────────────────────────────────────────────────────
   const [bonusAttivo, setBonusAttivo] = useState((form.detrazione_aliquota ?? 50) > 0);
@@ -147,12 +201,33 @@ export function StepEconomia({ detail, form, onChange }: Props) {
 
   // Salva finanziamento + detrazione nel progetto
   const handleSalvaCalcoli = () => {
-    const piani: SrPianoFinanziamento[] = finCalc.piani.map((p) => ({
-      nome: p.nome, mesi: p.mesi, tasso: p.tasso,
-      rata_mese: p.rata_mese, anticipo: finCalc.anticipo, finanziato: finCalc.finanziato,
-    }));
+    // Se uso una tabella finanziamento configurata, costruisco UN SOLO piano
+    // basato sulla riga scelta (TAN/TAEG/rata letti dalla tabella). Altrimenti
+    // fallback ai 2 piani manuali Estesa/Standard.
+    let piani: SrPianoFinanziamento[];
+    if (finModalita === "tabella" && rigaTabellaScelta) {
+      piani = [{
+        nome: tabelleFinanziamento.find((t) => t.id === tabellaId)?.nome_prodotto ?? "Finanziamento",
+        mesi: rigaTabellaScelta.durata_mesi,
+        tasso: rigaTabellaScelta.tan ?? 0,
+        rata_mese: rigaTabellaScelta.importo_rata,
+        anticipo: finCalc.anticipo,
+        finanziato: importoFinanziato,
+      }];
+      onChange("fin_tabella_id", tabellaId);
+      onChange("fin_tabella_riga_id", rigaTabellaScelta.id);
+    } else {
+      piani = finCalc.piani.map((p) => ({
+        nome: p.nome, mesi: p.mesi, tasso: p.tasso,
+        rata_mese: p.rata_mese, anticipo: finCalc.anticipo, finanziato: finCalc.finanziato,
+      }));
+      onChange("fin_tabella_id", null);
+      onChange("fin_tabella_riga_id", null);
+    }
     onChange("fin_anticipo_pct", anticipoPct);
     onChange("fin_piani", piani);
+    // Persisti modalità pagamento se l'utente l'ha personalizzata
+    onChange("pagamento_milestones", milestones);
     if (ecobonusCalc) {
       onChange("detrazione_aliquota", ecobonusCalc.aliquota);
       onChange("detrazione_eur_totale", ecobonusCalc.detrazione_totale);
@@ -196,12 +271,63 @@ export function StepEconomia({ detail, form, onChange }: Props) {
         description="Il prezzo definitivo si fissa con sopralluogo e scelta materiali. Mostra una forbice indicativa."
         icon={<Euro className="h-4 w-4" />}
       >
+        {/* Regola sconto aziendale — auto-popola il campo "Sconto %" */}
+        {discountRules.length > 0 && (
+          <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
+              <Tag className="h-3.5 w-3.5" />
+              Regola sconto applicata
+            </div>
+            <Select
+              value={form.discount_rule_id ?? "none"}
+              onValueChange={(v) => {
+                if (v === "none") {
+                  onChange("discount_rule_id", null);
+                } else {
+                  onChange("discount_rule_id", v);
+                  const rule = discountRules.find((r) => r.id === v);
+                  if (rule) {
+                    // Imposta lo sconto al massimo consentito dalla regola
+                    onChange("sconto_percentuale", rule.sconto_max_pct);
+                  }
+                }
+              }}
+            >
+              <SelectTrigger className="bg-white">
+                <SelectValue placeholder="Nessuna regola (sconto manuale)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Nessuna regola (sconto manuale) —</SelectItem>
+                {discountRules.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name} — max {r.sconto_max_pct}%
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedDiscountRule && (
+              <p className="text-[11px] text-emerald-700">
+                Margine minimo richiesto: {selectedDiscountRule.margine_min_pct}% ·
+                Sconto max: {selectedDiscountRule.sconto_max_pct}%
+                {selectedDiscountRule.approva_oltre_pct != null
+                  ? ` · Approvazione oltre ${selectedDiscountRule.approva_oltre_pct}%`
+                  : ""}
+              </p>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Sconto %</Label>
+            <Label className="text-xs flex items-center justify-between">
+              <span>Sconto %</span>
+              {selectedDiscountRule && (form.sconto_percentuale ?? 0) > selectedDiscountRule.sconto_max_pct && (
+                <span className="text-[10px] text-amber-600">⚠ supera regola</span>
+              )}
+            </Label>
             <Input
               type="number"
               min={0} max={100} step={0.5}
+              key={`sconto-${form.sconto_percentuale}`}
               defaultValue={form.sconto_percentuale ?? 0}
               onBlur={(e) => onChange("sconto_percentuale", Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
               className="h-9 text-xs"
@@ -248,14 +374,118 @@ export function StepEconomia({ detail, form, onChange }: Props) {
         </div>
       </SrCard>
 
+      {/* Modalità di pagamento cliente */}
+      <SrCard
+        title="Modalità di pagamento cliente"
+        description="Acconto e step di pagamento. Compare nel PDF come piano concordato. La somma delle percentuali deve fare 100%."
+        icon={<Wallet className="h-4 w-4" />}
+      >
+        <div className="space-y-2">
+          {milestones.map((m, idx) => (
+            <div key={idx} className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-5">
+                <Label className="text-xs">Step {idx + 1}</Label>
+                <Input
+                  value={m.label}
+                  onChange={(e) => {
+                    const next = [...milestones];
+                    next[idx] = { ...next[idx], label: e.target.value };
+                    setMilestones(next);
+                  }}
+                  className="h-9 text-xs"
+                  placeholder="es. Acconto alla firma"
+                />
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs">%</Label>
+                <Input
+                  type="number"
+                  min={0} max={100} step={5}
+                  value={m.percentuale}
+                  onChange={(e) => {
+                    const next = [...milestones];
+                    next[idx] = { ...next[idx], percentuale: Math.max(0, Math.min(100, Number(e.target.value) || 0)) };
+                    setMilestones(next);
+                  }}
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="col-span-4">
+                <Label className="text-xs">Quando</Label>
+                <Input
+                  value={m.when ?? ""}
+                  onChange={(e) => {
+                    const next = [...milestones];
+                    next[idx] = { ...next[idx], when: e.target.value || null };
+                    setMilestones(next);
+                  }}
+                  placeholder="es. Consegna materiale"
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="col-span-1 flex justify-end">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setMilestones(milestones.filter((_, i) => i !== idx))}
+                  disabled={milestones.length <= 1}
+                  className="h-9 w-9 text-rose-600 hover:bg-rose-50"
+                  title="Rimuovi step"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+              {/* Importo calcolato sul medio */}
+              <div className="col-span-12 text-[11px] text-muted-foreground -mt-1 pl-1">
+                ≈ {formatEuro((forbice.media * (Number(m.percentuale) || 0)) / 100)} IVA inclusa
+              </div>
+            </div>
+          ))}
+          <div className="flex items-center justify-between pt-2 border-t mt-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setMilestones([...milestones, { label: "", percentuale: 0, when: null }])}
+              className="gap-1"
+            >
+              <Plus className="h-3.5 w-3.5" /> Aggiungi step
+            </Button>
+            <div className={`text-sm font-bold ${milestonesTotale === 100 ? "text-emerald-700" : "text-amber-600"}`}>
+              Totale: {milestonesTotale}%
+              {milestonesTotale !== 100 && (
+                <span className="text-xs font-normal ml-1">(deve fare 100%)</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </SrCard>
+
       {/* Finanziamento */}
       <SrCard
         title="Simulazione finanziamento"
-        description="Anticipo + 2 piani di rateizzazione (estesa e standard). Compare nella pagina 2 del PDF."
-        icon={<Euro className="h-4 w-4" />}
+        description="Scegli una tabella finanziaria configurata oppure imposta manualmente. La rata si calcola da importo + durata."
+        icon={<CreditCard className="h-4 w-4" />}
       >
+        {/* Switch modalità: tabella vs manuale */}
+        <div className="flex gap-2 mb-3 p-1 bg-muted rounded-md w-fit">
+          <button
+            type="button"
+            onClick={() => setFinModalita("tabella")}
+            className={`px-3 py-1 text-xs rounded ${finModalita === "tabella" ? "bg-white shadow-sm font-semibold text-emerald-700" : "text-muted-foreground"}`}
+          >
+            Da tabella configurata
+          </button>
+          <button
+            type="button"
+            onClick={() => setFinModalita("manuale")}
+            className={`px-3 py-1 text-xs rounded ${finModalita === "manuale" ? "bg-white shadow-sm font-semibold text-emerald-700" : "text-muted-foreground"}`}
+          >
+            Manuale (TAN libero)
+          </button>
+        </div>
+
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-12 md:col-span-4">
+          <div className="col-span-6 md:col-span-3">
             <Label className="text-xs">Anticipo %</Label>
             <Input
               type="number"
@@ -268,52 +498,144 @@ export function StepEconomia({ detail, form, onChange }: Props) {
               {formatEuro(finCalc.anticipo)} su {formatEuro(forbice.media)}
             </p>
           </div>
-          <div className="col-span-12 md:col-span-8">
-            <Label className="text-xs">Finanziato</Label>
+          <div className="col-span-6 md:col-span-9">
+            <Label className="text-xs">Importo finanziato</Label>
             <div className="h-9 px-3 flex items-center text-sm font-semibold text-emerald-700 bg-emerald-50 rounded-md border border-emerald-200">
-              {formatEuro(finCalc.finanziato)}
+              {formatEuro(importoFinanziato)}
             </div>
           </div>
-          {/* Piano 1 (Estesa) */}
-          <div className="col-span-12 grid grid-cols-12 gap-2 mt-2">
-            <div className="col-span-12">
-              <p className="text-xs font-semibold uppercase text-emerald-900">Piano Estesa</p>
-            </div>
-            <div className="col-span-4 md:col-span-3">
-              <Label className="text-xs">Durata (mesi)</Label>
-              <Input type="number" value={piano1Mesi} onChange={(e) => setPiano1Mesi(Number(e.target.value) || 0)} className="h-9 text-xs" />
-            </div>
-            <div className="col-span-4 md:col-span-3">
-              <Label className="text-xs">Tasso TAN %</Label>
-              <Input type="number" step={0.1} value={piano1Tasso} onChange={(e) => setPiano1Tasso(Number(e.target.value) || 0)} className="h-9 text-xs" />
-            </div>
-            <div className="col-span-4 md:col-span-6">
-              <Label className="text-xs">Rata mensile</Label>
-              <div className="h-9 px-3 flex items-center text-sm font-bold text-emerald-700 bg-emerald-50 rounded-md border border-emerald-200">
-                {formatEuro(finCalc.piani[0]?.rata_mese, 0)}/mese
+
+          {finModalita === "tabella" ? (
+            <>
+              <div className="col-span-12 md:col-span-6">
+                <Label className="text-xs">Tabella finanziamento</Label>
+                {tabelleFinanziamento.length === 0 ? (
+                  <SrCallout variant="info" className="text-[11px]">
+                    Nessuna tabella configurata. Vai in{" "}
+                    <a href="/azienda/impostazioni/finanziamenti" className="underline font-semibold">
+                      Impostazioni → Finanziamenti
+                    </a>{" "}
+                    per caricarla.
+                  </SrCallout>
+                ) : (
+                  <Select
+                    value={tabellaId ?? "none"}
+                    onValueChange={(v) => {
+                      const next = v === "none" ? null : v;
+                      setTabellaId(next);
+                      setDurataTabella(null);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Seleziona tabella..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Nessuna —</SelectItem>
+                      {tabelleFinanziamento.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.nome_prodotto}{t.finanziaria_nome ? ` · ${t.finanziaria_nome}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
-            </div>
-          </div>
-          {/* Piano 2 (Standard) */}
-          <div className="col-span-12 grid grid-cols-12 gap-2 mt-2">
-            <div className="col-span-12">
-              <p className="text-xs font-semibold uppercase text-emerald-900">Piano Standard</p>
-            </div>
-            <div className="col-span-4 md:col-span-3">
-              <Label className="text-xs">Durata (mesi)</Label>
-              <Input type="number" value={piano2Mesi} onChange={(e) => setPiano2Mesi(Number(e.target.value) || 0)} className="h-9 text-xs" />
-            </div>
-            <div className="col-span-4 md:col-span-3">
-              <Label className="text-xs">Tasso TAN %</Label>
-              <Input type="number" step={0.1} value={piano2Tasso} onChange={(e) => setPiano2Tasso(Number(e.target.value) || 0)} className="h-9 text-xs" />
-            </div>
-            <div className="col-span-4 md:col-span-6">
-              <Label className="text-xs">Rata mensile</Label>
-              <div className="h-9 px-3 flex items-center text-sm font-bold text-emerald-700 bg-emerald-50 rounded-md border border-emerald-200">
-                {formatEuro(finCalc.piani[1]?.rata_mese, 0)}/mese
+              <div className="col-span-12 md:col-span-6">
+                <Label className="text-xs">Durata (mesi)</Label>
+                <Select
+                  value={durataTabella ? String(durataTabella) : ""}
+                  onValueChange={(v) => setDurataTabella(Number(v))}
+                  disabled={durateDisponibili.length === 0}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder={durateDisponibili.length === 0 ? "Seleziona prima tabella" : "Scegli durata..."} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {durateDisponibili.map((d) => (
+                      <SelectItem key={d} value={String(d)}>{d} mesi ({Math.round(d / 12 * 10) / 10} anni)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
-          </div>
+
+              {rigaTabellaScelta && (
+                <div className="col-span-12 mt-2 rounded-md border border-emerald-300 bg-emerald-50/50 p-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                    <div>
+                      <p className="text-[10px] uppercase text-emerald-700 font-semibold">Rata mensile</p>
+                      <p className="text-2xl font-bold text-emerald-900 tabular-nums">
+                        {formatEuro(rigaTabellaScelta.importo_rata, 0)}
+                      </p>
+                      <p className="text-[10px] text-emerald-700">× {rigaTabellaScelta.numero_rate} rate</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-emerald-700 font-semibold">TAN</p>
+                      <p className="text-lg font-bold text-emerald-900 tabular-nums">
+                        {rigaTabellaScelta.tan != null ? `${rigaTabellaScelta.tan}%` : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-emerald-700 font-semibold">TAEG</p>
+                      <p className="text-lg font-bold text-emerald-900 tabular-nums">
+                        {rigaTabellaScelta.taeg != null ? `${rigaTabellaScelta.taeg}%` : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-emerald-700 font-semibold">Totale dovuto</p>
+                      <p className="text-lg font-bold text-emerald-900 tabular-nums">
+                        {formatEuro(rigaTabellaScelta.importo_totale_dovuto ?? rigaTabellaScelta.importo_rata * rigaTabellaScelta.numero_rate, 0)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-center text-emerald-700/80 mt-2">
+                    Valori letti dalla tabella ufficiale: TAN e TAEG sono pre-calcolati, niente input manuali.
+                  </p>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Modalità manuale (legacy) */}
+              <div className="col-span-12 grid grid-cols-12 gap-2 mt-2">
+                <div className="col-span-12">
+                  <p className="text-xs font-semibold uppercase text-emerald-900">Piano Estesa</p>
+                </div>
+                <div className="col-span-4 md:col-span-3">
+                  <Label className="text-xs">Durata (mesi)</Label>
+                  <Input type="number" value={piano1Mesi} onChange={(e) => setPiano1Mesi(Number(e.target.value) || 0)} className="h-9 text-xs" />
+                </div>
+                <div className="col-span-4 md:col-span-3">
+                  <Label className="text-xs">Tasso TAN %</Label>
+                  <Input type="number" step={0.1} value={piano1Tasso} onChange={(e) => setPiano1Tasso(Number(e.target.value) || 0)} className="h-9 text-xs" />
+                </div>
+                <div className="col-span-4 md:col-span-6">
+                  <Label className="text-xs">Rata mensile</Label>
+                  <div className="h-9 px-3 flex items-center text-sm font-bold text-emerald-700 bg-emerald-50 rounded-md border border-emerald-200">
+                    {formatEuro(finCalc.piani[0]?.rata_mese, 0)}/mese
+                  </div>
+                </div>
+              </div>
+              <div className="col-span-12 grid grid-cols-12 gap-2 mt-2">
+                <div className="col-span-12">
+                  <p className="text-xs font-semibold uppercase text-emerald-900">Piano Standard</p>
+                </div>
+                <div className="col-span-4 md:col-span-3">
+                  <Label className="text-xs">Durata (mesi)</Label>
+                  <Input type="number" value={piano2Mesi} onChange={(e) => setPiano2Mesi(Number(e.target.value) || 0)} className="h-9 text-xs" />
+                </div>
+                <div className="col-span-4 md:col-span-3">
+                  <Label className="text-xs">Tasso TAN %</Label>
+                  <Input type="number" step={0.1} value={piano2Tasso} onChange={(e) => setPiano2Tasso(Number(e.target.value) || 0)} className="h-9 text-xs" />
+                </div>
+                <div className="col-span-4 md:col-span-6">
+                  <Label className="text-xs">Rata mensile</Label>
+                  <div className="h-9 px-3 flex items-center text-sm font-bold text-emerald-700 bg-emerald-50 rounded-md border border-emerald-200">
+                    {formatEuro(finCalc.piani[1]?.rata_mese, 0)}/mese
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </SrCard>
 

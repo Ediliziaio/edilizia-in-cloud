@@ -22,12 +22,22 @@ interface Props {
 export function StepConsulenza({ form, onChange, detail }: Props) {
   const numSerramenti = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
 
+  // Suggerimento giorni posa: solo come hint (NON applicato automaticamente).
+  // Il consulente deve inserire un valore proprio in base al cantiere reale
+  // (accesso, ponteggio, complessità, n. operai, ecc.).
+  const giorniPosaSuggeriti = Math.max(1, Math.ceil((numSerramenti || 1) * 0.8));
+  const giorniPosaEffettivi = form.crono_giorni_posa ?? giorniPosaSuggeriti;
+
   const crono = useMemo(() => generaCrono({
     num_serramenti: numSerramenti,
-    giorni_produzione: form.crono_giorni_produzione ?? 30,
-    giorni_posa_per_pezzo: 0.8,
+    giorni_produzione: form.crono_giorni_produzione ?? 90,
+    // ↓ ora i giorni posa NON sono più auto-calcolati: leggiamo quelli inseriti
+    // dal consulente. Se non c'è valore, fallback al suggerimento (≈0.8 × pz).
+    // Calcoliamo giorni_posa_per_pezzo "inverso" per compatibilità con generaCrono
+    // che attende un per-pezzo.
+    giorni_posa_per_pezzo: numSerramenti > 0 ? giorniPosaEffettivi / numSerramenti : 0.8,
     giorni_collaudo: form.crono_giorni_collaudo ?? 1,
-  }), [numSerramenti, form.crono_giorni_produzione, form.crono_giorni_collaudo]);
+  }), [numSerramenti, form.crono_giorni_produzione, giorniPosaEffettivi, form.crono_giorni_collaudo]);
 
   const durata = durataTotaleGiorni(crono);
 
@@ -95,7 +105,7 @@ export function StepConsulenza({ form, onChange, detail }: Props) {
       {/* Cronoprogramma */}
       <SrCard
         title="Cronoprogramma lavori"
-        description="Generato automaticamente dal numero di serramenti. Riduce l'ansia 'quanti giorni mi tieni casa sottosopra?' del cliente."
+        description="Imposta produzione, posa e collaudo. Il consulente stima i giorni posa in base al cantiere (accesso, ponteggio, n. operai)."
         icon={<Clock className="h-4 w-4" />}
       >
         <div className="grid grid-cols-12 gap-3 mb-3">
@@ -103,22 +113,35 @@ export function StepConsulenza({ form, onChange, detail }: Props) {
             <Label className="text-xs">Giorni produzione</Label>
             <Input
               type="number"
-              defaultValue={form.crono_giorni_produzione ?? 30}
-              onBlur={(e) => onChange("crono_giorni_produzione", Number(e.target.value) || 30)}
+              min={1}
+              defaultValue={form.crono_giorni_produzione ?? 90}
+              onBlur={(e) => onChange("crono_giorni_produzione", Number(e.target.value) || 90)}
               className="h-9 text-xs"
             />
+            <p className="text-[10px] text-muted-foreground mt-0.5">Default 90 gg lavorativi</p>
           </div>
           <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Giorni posa (auto)</Label>
-            <div className="h-9 px-3 flex items-center text-xs bg-emerald-50 rounded-md border border-emerald-200 font-semibold text-emerald-700">
-              {Math.ceil(numSerramenti * 0.8)} giorni
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">≈0.8 g per pezzo × {numSerramenti}</p>
+            <Label className="text-xs">Giorni posa</Label>
+            <Input
+              type="number"
+              min={1}
+              defaultValue={form.crono_giorni_posa ?? giorniPosaSuggeriti}
+              onBlur={(e) => {
+                const v = Math.max(1, Number(e.target.value) || giorniPosaSuggeriti);
+                onChange("crono_giorni_posa", v);
+              }}
+              className="h-9 text-xs"
+              title="Inserisci i giorni di posa stimati per questo cantiere"
+            />
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Suggerito: {giorniPosaSuggeriti} (×0,8 per pezzo)
+            </p>
           </div>
           <div className="col-span-6 md:col-span-3">
             <Label className="text-xs">Giorni collaudo</Label>
             <Input
               type="number"
+              min={0}
               defaultValue={form.crono_giorni_collaudo ?? 1}
               onBlur={(e) => onChange("crono_giorni_collaudo", Number(e.target.value) || 1)}
               className="h-9 text-xs"

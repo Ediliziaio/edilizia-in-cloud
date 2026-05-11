@@ -146,6 +146,17 @@ export interface SrProgettoRow {
   fin_anticipo_pct: number;
   fin_piani: SrPianoFinanziamento[];
   fin_tabella_id: string | null;
+  /** Riga specifica scelta dalla tabella finanziamento (importo×durata→rata). */
+  fin_tabella_riga_id: string | null;
+  /** FK alla regola di sconto azienda applicata (override manuale possibile). */
+  discount_rule_id: string | null;
+  /**
+   * Modalità pagamento cliente: array di milestone con percentuale.
+   * Esempio: [{label:"Acconto",percentuale:30,when:"Firma"},
+   *           {label:"Inizio lavori",percentuale:40,when:"Consegna"},
+   *           {label:"Saldo",percentuale:30,when:"Fine collaudo"}]
+   */
+  pagamento_milestones: Array<{ label: string; percentuale: number; when?: string | null }> | null;
 
   // Varianti
   varianti_attive: boolean;

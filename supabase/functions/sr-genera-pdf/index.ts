@@ -27,12 +27,89 @@ interface Payload {
   progetto_id: string;
 }
 
+// ─── Sintesi intervento auto-generata (duplicata da src/lib/serramenti/sintesiIntervento.ts).
+// Tenuta inline qui perché le edge function Deno non importano da src/.
+// Se cambi una mappa, aggiorna entrambe le copie.
+const SR_TIPO_GROUPS: Record<string, { singular: string; plural: string }> = {
+  finestra_1anta: { singular: "finestra", plural: "finestre" },
+  finestra_2ante: { singular: "finestra", plural: "finestre" },
+  finestra_3ante: { singular: "finestra", plural: "finestre" },
+  finestra_4ante: { singular: "finestra", plural: "finestre" },
+  portafinestra_1anta: { singular: "porta-finestra", plural: "porte-finestre" },
+  portafinestra_2ante: { singular: "porta-finestra", plural: "porte-finestre" },
+  portafinestra_3ante: { singular: "porta-finestra", plural: "porte-finestre" },
+  alzante_scorrevole: { singular: "alzante-scorrevole", plural: "alzanti-scorrevoli" },
+  scorrevole: { singular: "scorrevole", plural: "scorrevoli" },
+  a_libro: { singular: "pieghevole", plural: "pieghevoli" },
+  fisso: { singular: "vetrata fissa", plural: "vetrate fisse" },
+  lucernario: { singular: "lucernario", plural: "lucernari" },
+};
+const SR_ACC_GROUPS: Record<string, { singular: string; plural: string }> = {
+  avvolgibile: { singular: "avvolgibile", plural: "avvolgibili" },
+  tapparella: { singular: "tapparella", plural: "tapparelle" },
+  cassonetto: { singular: "cassonetto", plural: "cassonetti" },
+  zanzariera: { singular: "zanzariera", plural: "zanzariere" },
+  persiana: { singular: "persiana", plural: "persiane" },
+  scuro: { singular: "scuro", plural: "scuri" },
+  inferriata: { singular: "inferriata", plural: "inferriate" },
+  davanzale: { singular: "davanzale", plural: "davanzali" },
+  controtelaio: { singular: "controtelaio", plural: "controtelai" },
+};
+function joinIt(parts: string[]): string {
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return `${parts[0]} e ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")} e ${parts[parts.length - 1]}`;
+}
+function autoGenerateInterventoSintesi(
+  serr: Array<{ tipologia?: string; quantita?: number | null }>,
+  acc: Array<{ tipo?: string; quantita?: number | null }>,
+): string | null {
+  const sCount = new Map<string, number>();
+  for (const s of serr) {
+    const g = s.tipologia ? SR_TIPO_GROUPS[s.tipologia] : undefined;
+    const key = g ? `${g.singular}|${g.plural}` : "serramento|serramenti";
+    sCount.set(key, (sCount.get(key) ?? 0) + (s.quantita ?? 1));
+  }
+  const sParts: string[] = [];
+  for (const [k, v] of sCount) {
+    const [sing, plural] = k.split("|");
+    sParts.push(v === 1 ? `1 ${sing}` : `${v} ${plural ?? sing}`);
+  }
+  const aCount = new Map<string, number>();
+  for (const a of acc) {
+    if (!a.tipo) continue;
+    aCount.set(a.tipo, (aCount.get(a.tipo) ?? 0) + (a.quantita ?? 1));
+  }
+  const aParts: string[] = [];
+  for (const [tipo, v] of aCount) {
+    const g = SR_ACC_GROUPS[tipo];
+    if (g) aParts.push(v === 1 ? `1 ${g.singular}` : `${v} ${g.plural}`);
+  }
+  if (sParts.length === 0 && aParts.length === 0) return null;
+  const out: string[] = [];
+  if (sParts.length > 0) out.push(`Sostituzione di ${joinIt(sParts)}`);
+  if (aParts.length > 0) {
+    out.push(`${sParts.length > 0 ? "più" : "Fornitura di"} ${joinIt(aParts)}`);
+  }
+  return out.join(", ") + ".";
+}
+
 // ─── Cronoprogramma (duplicato server-side per non dipendere dal client) ────
 
 interface FaseCrono { label: string; giorno_inizio: number; giorno_fine: number; emoji: string }
 
-function generaCrono(numSerramenti: number, giorniProduzione: number, giorniCollaudo: number): FaseCrono[] {
-  const giorniPosa = Math.ceil((numSerramenti || 1) * 0.8);
+function generaCrono(
+  numSerramenti: number,
+  giorniProduzione: number,
+  giorniCollaudo: number,
+  giorniPosaOverride: number | null = null,
+): FaseCrono[] {
+  // Posa: priorità al valore esplicito impostato dal consulente; fallback al
+  // suggerimento ≈0,8 g/pezzo solo se il campo non è valorizzato.
+  const giorniPosa = giorniPosaOverride && giorniPosaOverride > 0
+    ? giorniPosaOverride
+    : Math.max(1, Math.ceil((numSerramenti || 1) * 0.8));
   const fasi: FaseCrono[] = [];
   fasi.push({ label: "Conferma ordine", giorno_inizio: 1, giorno_fine: 1, emoji: "📝" });
   const prodInizio = 2, prodFine = prodInizio + giorniProduzione - 1;
@@ -287,7 +364,12 @@ Deno.serve(async (req: Request) => {
 
     // 4. Cronoprogramma
     const numSerr = (serramenti ?? []).reduce((acc: number, s: { quantita?: number }) => acc + (s.quantita ?? 1), 0);
-    const cronoFasi = generaCrono(numSerr, prog.crono_giorni_produzione ?? 30, prog.crono_giorni_collaudo ?? 1);
+    const cronoFasi = generaCrono(
+      numSerr,
+      prog.crono_giorni_produzione ?? 90,
+      prog.crono_giorni_collaudo ?? 1,
+      prog.crono_giorni_posa ?? null,
+    );
     const cronoDurata = Math.max(...cronoFasi.map((f) => f.giorno_fine));
 
     // 4b. Render + foto cantiere. Rinfresca signed URL su TUTTI i media
@@ -360,7 +442,10 @@ Deno.serve(async (req: Request) => {
       totale_accessori: (accessori ?? []).reduce((acc: number, a: { quantita?: number }) => acc + (a.quantita ?? 1), 0),
       tipo_intervento: prog.tipo_intervento,
       intervento_titolo: prog.intervento_titolo || `Per ${prog.cliente_nome ?? ""}`,
-      intervento_sintesi: prog.intervento_sintesi,
+      // Sintesi: usa quella esplicitamente inserita; se vuota, auto-genera dal BOM
+      // così il PDF non resta mai senza sezione "L'intervento in sintesi".
+      intervento_sintesi: (prog.intervento_sintesi && String(prog.intervento_sintesi).trim())
+        || autoGenerateInterventoSintesi(serramenti ?? [], accessori ?? []),
       materiale_principale: prog.materiale_principale,
       esigenze: (Array.isArray(prog.esigenze) && prog.esigenze.length > 0)
         ? prog.esigenze
