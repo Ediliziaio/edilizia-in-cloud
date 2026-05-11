@@ -30,6 +30,8 @@ interface Payload {
 // ─── Sintesi intervento auto-generata (duplicata da src/lib/serramenti/sintesiIntervento.ts).
 // Tenuta inline qui perché le edge function Deno non importano da src/.
 // Se cambi una mappa, aggiorna entrambe le copie.
+// Mappe ALLINEATE 1:1 con src/lib/serramenti/sintesiIntervento.ts.
+// Includono tutte le 14 tipologie del client (anche bow_window, tonda_ovale).
 const SR_TIPO_GROUPS: Record<string, { singular: string; plural: string }> = {
   finestra_1anta: { singular: "finestra", plural: "finestre" },
   finestra_2ante: { singular: "finestra", plural: "finestre" },
@@ -41,8 +43,10 @@ const SR_TIPO_GROUPS: Record<string, { singular: string; plural: string }> = {
   alzante_scorrevole: { singular: "alzante-scorrevole", plural: "alzanti-scorrevoli" },
   scorrevole: { singular: "scorrevole", plural: "scorrevoli" },
   a_libro: { singular: "pieghevole", plural: "pieghevoli" },
+  bow_window: { singular: "bow-window", plural: "bow-window" },
   fisso: { singular: "vetrata fissa", plural: "vetrate fisse" },
   lucernario: { singular: "lucernario", plural: "lucernari" },
+  tonda_ovale: { singular: "finestra tonda", plural: "finestre tonde" },
 };
 const SR_ACC_GROUPS: Record<string, { singular: string; plural: string }> = {
   avvolgibile: { singular: "avvolgibile", plural: "avvolgibili" },
@@ -61,10 +65,12 @@ function joinIt(parts: string[]): string {
   if (parts.length === 2) return `${parts[0]} e ${parts[1]}`;
   return `${parts.slice(0, -1).join(", ")} e ${parts[parts.length - 1]}`;
 }
+// Allineato a generateInterventoSintesi() client: stessa firma, stesso output
+// (stringa, mai null). PDF template gestisce "" come "non mostrare sezione".
 function autoGenerateInterventoSintesi(
   serr: Array<{ tipologia?: string; quantita?: number | null }>,
   acc: Array<{ tipo?: string; quantita?: number | null }>,
-): string | null {
+): string {
   const sCount = new Map<string, number>();
   for (const s of serr) {
     const g = s.tipologia ? SR_TIPO_GROUPS[s.tipologia] : undefined;
@@ -86,7 +92,7 @@ function autoGenerateInterventoSintesi(
     const g = SR_ACC_GROUPS[tipo];
     if (g) aParts.push(v === 1 ? `1 ${g.singular}` : `${v} ${g.plural}`);
   }
-  if (sParts.length === 0 && aParts.length === 0) return null;
+  if (sParts.length === 0 && aParts.length === 0) return "";
   const out: string[] = [];
   if (sParts.length > 0) out.push(`Sostituzione di ${joinIt(sParts)}`);
   if (aParts.length > 0) {

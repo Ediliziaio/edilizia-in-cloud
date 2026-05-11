@@ -119,14 +119,24 @@ export function StepEconomia({ detail, form, onChange }: Props) {
 
   // ─── Modalità pagamento cliente ──────────────────────────────────────────
   type Milestone = { label: string; percentuale: number; when?: string | null };
+  const milestoneDefault: Milestone[] = [
+    { label: "Acconto alla firma", percentuale: 30, when: "Firma contratto" },
+    { label: "Inizio lavori", percentuale: 40, when: "Consegna materiale in cantiere" },
+    { label: "Saldo", percentuale: 30, when: "Fine collaudo" },
+  ];
   const [milestones, setMilestones] = useState<Milestone[]>(
-    (form.pagamento_milestones as Milestone[] | null) ?? [
-      { label: "Acconto alla firma", percentuale: 30, when: "Firma contratto" },
-      { label: "Inizio lavori", percentuale: 40, when: "Consegna materiale in cantiere" },
-      { label: "Saldo", percentuale: 30, when: "Fine collaudo" },
-    ],
+    (form.pagamento_milestones as Milestone[] | null) ?? milestoneDefault,
   );
+  // Sync con prop: se il progetto viene re-fetchato (es. dopo refresh, edit
+  // su altra tab), aggiorniamo lo state locale per non mostrare valori stale.
+  // Confronto JSON per evitare loop infinito su reference uguali ma identità diversa.
+  const formMilestonesKey = JSON.stringify(form.pagamento_milestones ?? null);
+  useEffect(() => {
+    const incoming = (form.pagamento_milestones as Milestone[] | null) ?? milestoneDefault;
+    setMilestones(incoming);
+  }, [formMilestonesKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const milestonesTotale = milestones.reduce((acc, m) => acc + (Number(m.percentuale) || 0), 0);
+  const milestonesOk = milestonesTotale === 100;
 
   const finCalc = useMemo(() => calcolaPianoFinanziamento({
     importo_totale: forbice.media,
@@ -450,10 +460,19 @@ export function StepEconomia({ detail, form, onChange }: Props) {
             >
               <Plus className="h-3.5 w-3.5" /> Aggiungi step
             </Button>
-            <div className={`text-sm font-bold ${milestonesTotale === 100 ? "text-emerald-700" : "text-amber-600"}`}>
+            <div
+              className={`text-sm font-bold inline-flex items-center gap-1.5 ${milestonesOk ? "text-emerald-700" : "text-amber-600"}`}
+              role="status"
+              aria-live="polite"
+            >
+              {milestonesOk && (
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+              )}
               Totale: {milestonesTotale}%
-              {milestonesTotale !== 100 && (
-                <span className="text-xs font-normal ml-1">(deve fare 100%)</span>
+              {!milestonesOk && (
+                <span className="text-xs font-normal ml-1">
+                  ({milestonesTotale > 100 ? `−${milestonesTotale - 100}%` : `+${100 - milestonesTotale}%`} per arrivare a 100%)
+                </span>
               )}
             </div>
           </div>
@@ -467,18 +486,22 @@ export function StepEconomia({ detail, form, onChange }: Props) {
         icon={<CreditCard className="h-4 w-4" />}
       >
         {/* Switch modalità: tabella vs manuale */}
-        <div className="flex gap-2 mb-3 p-1 bg-muted rounded-md w-fit">
+        <div className="flex gap-2 mb-3 p-1 bg-muted rounded-md w-fit" role="tablist" aria-label="Modalità finanziamento">
           <button
             type="button"
+            role="tab"
+            aria-selected={finModalita === "tabella"}
             onClick={() => setFinModalita("tabella")}
-            className={`px-3 py-1 text-xs rounded ${finModalita === "tabella" ? "bg-white shadow-sm font-semibold text-emerald-700" : "text-muted-foreground"}`}
+            className={`px-3 py-1 text-xs rounded transition-colors ${finModalita === "tabella" ? "bg-white shadow-sm font-semibold text-emerald-700" : "text-muted-foreground hover:text-foreground"}`}
           >
             Da tabella configurata
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={finModalita === "manuale"}
             onClick={() => setFinModalita("manuale")}
-            className={`px-3 py-1 text-xs rounded ${finModalita === "manuale" ? "bg-white shadow-sm font-semibold text-emerald-700" : "text-muted-foreground"}`}
+            className={`px-3 py-1 text-xs rounded transition-colors ${finModalita === "manuale" ? "bg-white shadow-sm font-semibold text-emerald-700" : "text-muted-foreground hover:text-foreground"}`}
           >
             Manuale (TAN libero)
           </button>

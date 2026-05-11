@@ -18,7 +18,7 @@
  *      durante il preventivo) e `show_in_pdf` (stampato nel preventivo).
  */
 import { useState } from "react";
-import { Plus, Trash2, Edit2, Wand2, GripVertical, Loader2, Settings2 } from "lucide-react";
+import { Plus, Trash2, Edit2, Wand2, Loader2, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -327,10 +327,13 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                       key={f.id}
                       className="flex items-start gap-2 rounded-lg border bg-card p-2.5 hover:shadow-sm transition-shadow group"
                     >
-                      {/* Drag handle + numero */}
+                      {/* Numero ordinale (l'ordine è gestito da sort_order su create).
+                          Drag&drop riordino è un TODO: vedi commento qui sotto. */}
                       <div className="flex flex-col items-center pt-1 pr-1 select-none">
-                        <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab" />
-                        <span className="text-[9px] font-mono text-muted-foreground/60 mt-0.5">
+                        <span
+                          className="text-[10px] font-mono text-muted-foreground/70 bg-muted/40 rounded px-1 py-0.5 min-w-[22px] text-center"
+                          aria-label={`Campo ${idx + 1}`}
+                        >
                           {String(idx + 1).padStart(2, "0")}
                         </span>
                       </div>
