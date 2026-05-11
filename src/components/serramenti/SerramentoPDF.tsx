@@ -1,340 +1,473 @@
 /**
- * SerramentoPDF — Documento PDF nativo (A4) generato lato client con
- * @react-pdf/renderer, ispirato allo stile del PDF FV "Solar Pro Italia".
+ * SerramentoPDF — Documento PDF nativo A4 generato lato client con
+ * @react-pdf/renderer, design ispirato al benchmark "Solar Pro Italia"
+ * ma adattato al brand Edilizia in Cloud / serramenti.
  *
- * Caricamento lazy: l'import della libreria avviene solo dentro
- * useSerramentoPDF.downloadPDF() per evitare di trascinare ~740 KB
- * di vendor-pdf sul chunk principale.
+ * Strutture pagina:
+ *   1. Cover — sfondo scuro, hero personalizzabile, decoro SVG finestra,
+ *               dati cliente in card con accent arancio
+ *   2. Proposta intervento — anagrafica, sintesi, esigenze, soluzione, perché noi
+ *   3. Investimento — prezzo big, modalità pagamento step-by-step, finanziamento,
+ *               detrazione ecobonus, cashflow SVG 10 anni
+ *   4. Allegato tecnico — tabella serramenti con foto prodotto + scheda tecnica
+ *               chip (show_in_pdf=true), accessori (con misure), cronoprogramma
+ *               Gantt SVG, consulenza con foto consulente
+ *   5+. Pagine dedicate macrocategoria (foto modello + descrizione_estesa)
+ *   N. CTA finale "Cosa fare adesso" + testimonianze + render foto-realistici
  *
- * Pagine generate:
- *   1. Cover — sfondo scuro, titolo emotivo, dati cliente, prezzo evidenziato
- *   2. Proposta — anagrafica, sintesi intervento, esigenze, soluzione, perché noi
- *   3. Investimento — forbice prezzo, schema pagamento, finanziamento, ecobonus
- *   4. Tecnico — composizione serramenti, accessori, cronoprogramma, consulenza
- *   5+. (opzionale) Render foto-realistici se presenti nel progetto
+ * Font: tenta Inter via Google Fonts CDN (HTTPS, no auth). Se la registrazione
+ * fallisce (CORS, network) il renderer fa fallback automatico a Helvetica.
  */
-import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image, Svg, Path, Rect, Circle, G, Font } from "@react-pdf/renderer";
 import type {
-  SrProgettoDetail, SrSerramentoRow, SrAccessorioRow, SrPagamentoMilestone,
+  SrProgettoDetail, SrSerramentoRow, SrPagamentoMilestone,
   SrPianoFinanziamento, SrEsigenza, SrSoluzioneItem, SrTestimonianza,
   SrTemplatePdfRow,
 } from "@/types/serramenti";
 import { SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI, SR_SCHEMI_PAGAMENTO } from "@/types/serramenti";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
+import type {
+  SerramentoPdfConsulente, SerramentoPdfFamilyData,
+  SerramentoPdfMacroField, SerramentoPdfMacroPagina,
+} from "@/hooks/useSerramentoPDF";
 
-// ─── Palette colori (allineata al template HTML SR + ispirata FV) ──────────
-const C = {
-  bgDark: "#0F2A2E",          // cover scura
-  primary: "#2D7D5C",         // verde brand SR
-  primaryLight: "#E8F3EE",
-  accent: "#F59E0B",           // arancio per eyebrow/CTA
-  accentLight: "#FEF3C7",
-  white: "#FFFFFF",
-  gray50: "#F8FAFC",
-  gray100: "#F1F5F9",
-  gray200: "#E2E8F0",
-  gray300: "#CBD5E1",
-  gray500: "#64748B",
-  gray700: "#334155",
-  gray900: "#0F172A",
-  successBg: "#DCFCE7",
-  successText: "#15803D",
-};
+// ─── Font custom: Inter via Google Fonts CDN ───────────────────────────────
+// Best effort: se la rete blocca, react-pdf usa Helvetica come fallback.
+try {
+  Font.register({
+    family: "Inter",
+    fonts: [
+      { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa1ZL7W0Q5nw.ttf", fontWeight: 400 },
+      { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa3ZL7W0Q5nw.ttf", fontWeight: 500 },
+      { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa2pL7W0Q5nw.ttf", fontWeight: 600 },
+      { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa1pL7W0Q5nw.ttf", fontWeight: 700 },
+      { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa0JL7W0Q5nw.ttf", fontWeight: 800 },
+    ],
+  });
+  // Hyphenation OFF per non spezzare parole italiane male
+  Font.registerHyphenationCallback((word) => [word]);
+} catch {
+  // Silenzio: fallback Helvetica
+}
 
-const s = StyleSheet.create({
-  // Pagine
-  page: {
-    fontFamily: "Helvetica",
-    fontSize: 9.5,
-    color: C.gray900,
-    paddingTop: 36,
-    paddingBottom: 56,
-    paddingHorizontal: 40,
-    backgroundColor: C.white,
-  },
-  cover: {
-    fontFamily: "Helvetica",
-    color: C.white,
-    paddingTop: 60,
-    paddingBottom: 60,
-    paddingHorizontal: 50,
-    backgroundColor: C.bgDark,
-    flexDirection: "column",
-    justifyContent: "space-between",
-    height: "100%",
-  },
-  // Header standard pagine 2+
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-    paddingBottom: 10,
-    borderBottom: `1pt solid ${C.gray200}`,
-  },
-  headerLogo: { width: 32, height: 32, marginRight: 10 },
-  headerLeft: { flexDirection: "row", alignItems: "center" },
-  headerName: { fontSize: 11, fontFamily: "Helvetica-Bold", color: C.primary },
-  headerRight: { fontSize: 8.5, color: C.gray500, textAlign: "right" as const },
-  headerStimaCode: { fontFamily: "Helvetica-Bold", color: C.gray900 },
+const FF = "Inter";
 
-  // Footer
-  footer: {
-    position: "absolute",
-    bottom: 24,
-    left: 40,
-    right: 40,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: 8,
-    borderTop: `0.5pt solid ${C.gray200}`,
-    fontSize: 8,
-    color: C.gray500,
-  },
-  footerLeft: { flex: 1 },
-  footerCompanyName: { fontFamily: "Helvetica-Bold", color: C.gray700, marginBottom: 1 },
+// ─── Palette default (override dinamico da template.colore_primario) ──────
+const DEFAULT_PRIMARY = "#2D7D5C";
+const DEFAULT_ACCENT = "#F59E0B";
+const COVER_BG = "#0F2A2E";
 
-  // Cover content
-  coverEyebrow: {
-    fontSize: 10,
-    color: C.accent,
-    fontFamily: "Helvetica-Bold",
-    letterSpacing: 1.5,
-    textTransform: "uppercase" as const,
-    marginBottom: 14,
-  },
-  coverTitle: {
-    fontSize: 44,
-    fontFamily: "Helvetica-Bold",
-    lineHeight: 1.05,
-    marginBottom: 18,
-  },
-  coverSubtitle: {
-    fontSize: 13,
-    lineHeight: 1.5,
-    color: "rgba(255,255,255,0.85)",
-    maxWidth: 380,
-  },
-  coverCard: {
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderRadius: 10,
-    padding: 22,
-    marginTop: 30,
-    borderLeft: `3pt solid ${C.accent}`,
-  },
-  coverLabel: {
-    fontSize: 8.5,
-    color: C.accent,
-    fontFamily: "Helvetica-Bold",
-    letterSpacing: 1,
-    textTransform: "uppercase" as const,
-    marginBottom: 6,
-  },
-  coverClientName: { fontSize: 22, fontFamily: "Helvetica-Bold", marginBottom: 4 },
-  coverClientAddr: { fontSize: 10.5, color: "rgba(255,255,255,0.7)" },
-  coverFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: 18,
-    borderTop: `0.5pt solid rgba(255,255,255,0.2)`,
-    fontSize: 9,
-    color: "rgba(255,255,255,0.6)",
-  },
-  coverFooterStrong: { fontFamily: "Helvetica-Bold", color: C.white },
-  coverLogoBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 50,
-  },
-  coverLogoCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: C.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  coverLogoImage: { width: 56, height: 56, borderRadius: 12, objectFit: "cover" as const },
-  coverCompanyName: { fontSize: 18, fontFamily: "Helvetica-Bold" },
-  coverCompanyTag: { fontSize: 9, color: "rgba(255,255,255,0.7)", marginTop: 2 },
+function makePalette(primary: string, accent = DEFAULT_ACCENT) {
+  return {
+    primary,
+    accent,
+    primaryLight: hexToTint(primary, 0.92),
+    primaryBorder: hexToTint(primary, 0.65),
+    coverBg: COVER_BG,
+    white: "#FFFFFF",
+    gray50: "#F8FAFC",
+    gray100: "#F1F5F9",
+    gray200: "#E2E8F0",
+    gray300: "#CBD5E1",
+    gray500: "#64748B",
+    gray700: "#334155",
+    gray900: "#0F172A",
+    successBg: "#DCFCE7",
+    successText: "#15803D",
+    accentLight: "#FEF3C7",
+    accentText: "#92400E",
+  };
+}
 
-  // Tipografia generale
-  pageEyebrow: {
-    fontSize: 8.5,
-    color: C.primary,
-    fontFamily: "Helvetica-Bold",
-    letterSpacing: 1.2,
-    textTransform: "uppercase" as const,
-    marginBottom: 4,
-  },
-  pageTitle: {
-    fontSize: 26,
-    fontFamily: "Helvetica-Bold",
-    color: C.gray900,
-    lineHeight: 1.1,
-    marginBottom: 6,
-    letterSpacing: -0.4,
-  },
-  pageSubtitle: { fontSize: 10, color: C.gray500, marginBottom: 18 },
+// Schiarisce un colore hex verso il bianco (alpha=1 → bianco puro).
+function hexToTint(hex: string, alpha: number): string {
+  const c = hex.replace("#", "");
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  const mix = (ch: number) => Math.round(ch + (255 - ch) * alpha);
+  return `#${[mix(r), mix(g), mix(b)].map((x) => x.toString(16).padStart(2, "0")).join("")}`;
+}
 
-  sectionTitle: {
-    fontSize: 10,
-    fontFamily: "Helvetica-Bold",
-    color: C.primary,
-    textTransform: "uppercase" as const,
-    letterSpacing: 0.6,
-    marginTop: 14,
-    marginBottom: 6,
-    paddingBottom: 4,
-    borderBottom: `1pt solid ${C.gray200}`,
-  },
+// ─── Style factory (colori dinamici) ───────────────────────────────────────
+function makeStyles(C: ReturnType<typeof makePalette>) {
+  return StyleSheet.create({
+    page: {
+      fontFamily: FF,
+      fontSize: 9.5,
+      color: C.gray900,
+      paddingTop: 40,
+      paddingBottom: 64,
+      paddingHorizontal: 44,
+      backgroundColor: C.white,
+    },
+    cover: {
+      fontFamily: FF,
+      color: C.white,
+      paddingTop: 64,
+      paddingBottom: 64,
+      paddingHorizontal: 54,
+      backgroundColor: C.coverBg,
+      flexDirection: "column",
+      justifyContent: "space-between",
+      height: "100%",
+    },
 
-  // Anagrafica righe key-value
-  kvRow: { flexDirection: "row", marginBottom: 3 },
-  kvKey: { width: 95, fontSize: 9, color: C.gray500 },
-  kvValue: { flex: 1, fontSize: 9.5, fontFamily: "Helvetica-Bold", color: C.gray900 },
+    // Header
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 24,
+      paddingBottom: 12,
+      borderBottom: `1pt solid ${C.gray200}`,
+    },
+    headerLogo: { width: 34, height: 34, marginRight: 10 },
+    headerLeft: { flexDirection: "row", alignItems: "center" },
+    headerName: { fontSize: 11, fontWeight: 700, color: C.primary },
+    headerRight: { fontSize: 8, color: C.gray500, textAlign: "right" as const },
+    headerStimaCode: { fontWeight: 700, color: C.gray900, fontSize: 9 },
 
-  // Investimento highlight
-  priceBox: {
-    backgroundColor: C.primaryLight,
-    borderRadius: 8,
-    padding: 18,
-    marginTop: 8,
-    marginBottom: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  priceLabel: {
-    fontSize: 8.5,
-    color: C.primary,
-    fontFamily: "Helvetica-Bold",
-    textTransform: "uppercase" as const,
-    letterSpacing: 0.8,
-    marginBottom: 4,
-  },
-  priceValue: {
-    fontSize: 22,
-    fontFamily: "Helvetica-Bold",
-    color: C.primary,
-  },
-  priceSuffix: { fontSize: 10, color: C.primary, marginLeft: 6 },
+    // Footer
+    footer: {
+      position: "absolute",
+      bottom: 26,
+      left: 44,
+      right: 44,
+      paddingTop: 8,
+      borderTop: `0.5pt solid ${C.gray200}`,
+    },
+    footerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      fontSize: 7.5,
+      color: C.gray500,
+      marginBottom: 1,
+    },
+    footerCompanyName: { fontWeight: 700, color: C.gray700 },
 
-  // Bullet list (esigenze/soluzione/perché noi)
-  bulletItem: { flexDirection: "row", marginBottom: 8, alignItems: "flex-start" },
-  bulletDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.primary, marginTop: 5, marginRight: 8 },
-  bulletContent: { flex: 1 },
-  bulletTitle: { fontSize: 10.5, fontFamily: "Helvetica-Bold", color: C.gray900, marginBottom: 2 },
-  bulletText: { fontSize: 9.5, color: C.gray700, lineHeight: 1.5 },
+    // Cover
+    coverLogoBox: { flexDirection: "row", alignItems: "center", marginBottom: 58 },
+    coverLogoCircle: {
+      width: 56, height: 56, borderRadius: 12,
+      backgroundColor: C.primary,
+      alignItems: "center", justifyContent: "center",
+      marginRight: 14,
+    },
+    coverLogoImage: { width: 56, height: 56, borderRadius: 12, objectFit: "cover" as const, marginRight: 14 },
+    coverCompanyName: { fontSize: 18, fontWeight: 700 },
+    coverCompanyTag: { fontSize: 9.5, color: "#9CA3AF", marginTop: 2 },
 
-  // Tabella tipologie/accessori
-  table: { marginTop: 6 },
-  tableHeader: {
-    flexDirection: "row",
-    borderBottom: `1pt solid ${C.gray300}`,
-    paddingBottom: 5,
-    marginBottom: 4,
-  },
-  tableCol: { flex: 1, paddingRight: 6 },
-  tableColNum: { width: 50, textAlign: "right" as const },
-  tableHeaderText: {
-    fontSize: 7.5,
-    color: C.gray500,
-    fontFamily: "Helvetica-Bold",
-    textTransform: "uppercase" as const,
-    letterSpacing: 0.6,
-  },
-  tableRow: {
-    flexDirection: "row",
-    paddingVertical: 6,
-    borderBottom: `0.5pt solid ${C.gray100}`,
-    alignItems: "flex-start",
-  },
-  tableCell: { fontSize: 9.5, color: C.gray900 },
-  tableCellStrong: { fontSize: 9.5, fontFamily: "Helvetica-Bold", color: C.gray900 },
-  tableCellMuted: { fontSize: 9, color: C.gray500, marginTop: 1 },
+    coverEyebrow: {
+      fontSize: 10,
+      color: C.accent,
+      fontWeight: 700,
+      letterSpacing: 1.6,
+      textTransform: "uppercase" as const,
+      marginBottom: 16,
+    },
+    coverTitle: {
+      fontSize: 46,
+      fontWeight: 800,
+      lineHeight: 1.04,
+      marginBottom: 18,
+      letterSpacing: -0.5,
+    },
+    coverSubtitle: {
+      fontSize: 13,
+      lineHeight: 1.55,
+      color: "#D1D5DB",
+      maxWidth: 380,
+    },
+    coverCard: {
+      backgroundColor: "rgba(255,255,255,0.07)",
+      borderRadius: 10,
+      padding: 22,
+      marginTop: 34,
+      borderLeft: `3pt solid ${C.accent}`,
+    },
+    coverLabel: {
+      fontSize: 8.5,
+      color: C.accent,
+      fontWeight: 700,
+      letterSpacing: 1,
+      textTransform: "uppercase" as const,
+      marginBottom: 6,
+    },
+    coverClientName: { fontSize: 22, fontWeight: 700, marginBottom: 4 },
+    coverClientAddr: { fontSize: 10.5, color: "#9CA3AF" },
 
-  // Modalità pagamento
-  paySchemaTag: {
-    backgroundColor: C.accentLight,
-    color: "#92400E",
-    fontSize: 8.5,
-    fontFamily: "Helvetica-Bold",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 3,
-    alignSelf: "flex-start" as const,
-    marginBottom: 8,
-    textTransform: "uppercase" as const,
-    letterSpacing: 0.5,
-  },
-  payStep: {
-    flexDirection: "row",
-    paddingVertical: 6,
-    borderBottom: `0.5pt solid ${C.gray100}`,
-    alignItems: "center",
-  },
-  payStepIdx: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: C.primary,
-    color: C.white,
-    fontSize: 9,
-    fontFamily: "Helvetica-Bold",
-    textAlign: "center" as const,
-    paddingTop: 5,
-    marginRight: 10,
-  },
-  payStepLabel: { flex: 1, fontSize: 9.5, fontFamily: "Helvetica-Bold", color: C.gray900 },
-  payStepWhen: { fontSize: 8.5, color: C.gray500, marginTop: 1 },
-  payStepPct: { fontSize: 11, fontFamily: "Helvetica-Bold", color: C.primary, width: 60, textAlign: "right" as const },
-  payStepAmount: { fontSize: 8.5, color: C.gray500, textAlign: "right" as const, marginTop: 1 },
+    coverFooter: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingTop: 18,
+      borderTop: `0.5pt solid rgba(255,255,255,0.18)`,
+      fontSize: 9,
+      color: "#9CA3AF",
+    },
+    coverFooterStrong: { fontWeight: 700, color: C.white },
+    coverDecoSvg: {
+      position: "absolute",
+      top: 50,
+      right: 50,
+      width: 180,
+      height: 180,
+      opacity: 0.8,
+    },
 
-  // Finanziamento box
-  finBox: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 6,
-  },
-  finCard: {
-    flex: 1,
-    backgroundColor: C.gray50,
-    borderRadius: 6,
-    padding: 12,
-    border: `0.5pt solid ${C.gray200}`,
-  },
-  finCardTitle: {
-    fontSize: 8,
-    color: C.gray500,
-    fontFamily: "Helvetica-Bold",
-    textTransform: "uppercase" as const,
-    letterSpacing: 0.6,
-    marginBottom: 4,
-  },
-  finCardValue: { fontSize: 18, fontFamily: "Helvetica-Bold", color: C.primary },
-  finCardSub: { fontSize: 8, color: C.gray500, marginTop: 2 },
+    // Tipografia pagine
+    pageEyebrow: {
+      fontSize: 9,
+      color: C.primary,
+      fontWeight: 700,
+      letterSpacing: 1.3,
+      textTransform: "uppercase" as const,
+      marginBottom: 6,
+    },
+    pageTitle: {
+      fontSize: 34,
+      fontWeight: 800,
+      color: C.gray900,
+      lineHeight: 1.05,
+      marginBottom: 8,
+      letterSpacing: -0.6,
+    },
+    pageSubtitle: { fontSize: 11, color: C.gray500, marginBottom: 22, lineHeight: 1.45 },
 
-  // Crono mini-bar
-  cronoFase: { flexDirection: "row", marginBottom: 6, alignItems: "center" },
-  cronoEmoji: { width: 18, fontSize: 11 },
-  cronoLabel: { flex: 1, fontSize: 9.5, color: C.gray900 },
-  cronoGiorni: { fontSize: 8.5, color: C.gray500 },
+    sectionTitle: {
+      fontSize: 10,
+      fontWeight: 700,
+      color: C.primary,
+      textTransform: "uppercase" as const,
+      letterSpacing: 0.7,
+      marginTop: 20,
+      marginBottom: 8,
+      paddingBottom: 5,
+      borderBottom: `1pt solid ${C.gray200}`,
+    },
 
-  // Renders grid
-  rendersGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
-  renderItem: {
-    width: "48%",
-    aspectRatio: 1.4,
-    borderRadius: 6,
-    overflow: "hidden",
-    backgroundColor: C.gray100,
-  },
-  renderImg: { width: "100%", height: "100%", objectFit: "cover" as const },
-});
+    // K-V
+    kvRow: { flexDirection: "row", marginBottom: 4 },
+    kvKey: { width: 95, fontSize: 9, color: C.gray500 },
+    kvValue: { flex: 1, fontSize: 10, fontWeight: 700, color: C.gray900 },
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+    // Bullet
+    bulletItem: { flexDirection: "row", marginBottom: 10, alignItems: "flex-start" },
+    bulletDot: {
+      width: 5, height: 5, borderRadius: 2.5,
+      backgroundColor: C.primary, marginTop: 6, marginRight: 9,
+    },
+    bulletContent: { flex: 1 },
+    bulletTitle: { fontSize: 11, fontWeight: 700, color: C.gray900, marginBottom: 2 },
+    bulletText: { fontSize: 10, color: C.gray700, lineHeight: 1.55 },
+
+    // Sintesi paragraph
+    sintesiBox: {
+      fontSize: 10.5,
+      color: C.gray700,
+      lineHeight: 1.6,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      backgroundColor: C.gray50,
+      borderRadius: 6,
+      borderLeft: `3pt solid ${C.primary}`,
+    },
+
+    // Prezzo big
+    priceBox: {
+      backgroundColor: C.primaryLight,
+      borderRadius: 10,
+      padding: 22,
+      marginTop: 6,
+      marginBottom: 18,
+    },
+    priceLabel: {
+      fontSize: 9,
+      color: C.primary,
+      fontWeight: 700,
+      textTransform: "uppercase" as const,
+      letterSpacing: 0.9,
+      marginBottom: 6,
+    },
+    priceValue: { fontSize: 28, fontWeight: 800, color: C.primary },
+    priceSuffix: { fontSize: 11, color: C.primary, marginLeft: 8, fontWeight: 500 },
+
+    // Pay schema tag
+    paySchemaTag: {
+      backgroundColor: C.accentLight,
+      color: C.accentText,
+      fontSize: 8.5,
+      fontWeight: 700,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 4,
+      alignSelf: "flex-start" as const,
+      marginBottom: 10,
+      textTransform: "uppercase" as const,
+      letterSpacing: 0.5,
+    },
+    payStep: {
+      flexDirection: "row",
+      paddingVertical: 8,
+      borderBottom: `0.5pt solid ${C.gray100}`,
+      alignItems: "center",
+    },
+    payStepIdx: {
+      width: 24, height: 24, borderRadius: 12,
+      backgroundColor: C.primary, color: C.white,
+      fontSize: 10, fontWeight: 700,
+      textAlign: "center" as const, paddingTop: 5, marginRight: 12,
+    },
+    payStepLabel: { flex: 1, fontSize: 10, fontWeight: 700, color: C.gray900 },
+    payStepWhen: { fontSize: 9, color: C.gray500, marginTop: 1 },
+    payStepPct: { fontSize: 12, fontWeight: 700, color: C.primary },
+    payStepAmount: { fontSize: 8.5, color: C.gray500, marginTop: 1 },
+
+    // Finanziamento
+    finBox: { flexDirection: "row", gap: 12, marginTop: 6 },
+    finCard: {
+      flex: 1,
+      backgroundColor: C.gray50,
+      borderRadius: 8,
+      padding: 14,
+      border: `0.5pt solid ${C.gray200}`,
+    },
+    finCardTitle: {
+      fontSize: 8.5, color: C.gray500, fontWeight: 700,
+      textTransform: "uppercase" as const, letterSpacing: 0.7, marginBottom: 6,
+    },
+    finCardValue: { fontSize: 20, fontWeight: 800, color: C.primary },
+    finCardSub: { fontSize: 8.5, color: C.gray500, marginTop: 3 },
+
+    // Tabella prodotti
+    table: { marginTop: 8 },
+    tableHeader: {
+      flexDirection: "row",
+      borderBottom: `1pt solid ${C.gray300}`,
+      paddingBottom: 6,
+      marginBottom: 5,
+    },
+    tableHeaderText: {
+      fontSize: 7.5, color: C.gray500, fontWeight: 700,
+      textTransform: "uppercase" as const, letterSpacing: 0.6,
+    },
+    tableRow: {
+      flexDirection: "row",
+      paddingVertical: 9,
+      borderBottom: `0.5pt solid ${C.gray100}`,
+      alignItems: "flex-start",
+    },
+    tableThumb: {
+      width: 44, height: 44, borderRadius: 4,
+      objectFit: "cover" as const,
+      marginRight: 10,
+      borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
+    },
+    tableThumbPh: {
+      width: 44, height: 44, borderRadius: 4,
+      backgroundColor: C.gray100, marginRight: 10,
+      alignItems: "center", justifyContent: "center",
+    },
+    tableCellStrong: { fontSize: 10, fontWeight: 700, color: C.gray900 },
+    tableCellMuted: { fontSize: 9, color: C.gray500, marginTop: 2, lineHeight: 1.4 },
+    tableCellNum: { fontSize: 10, fontWeight: 700, color: C.gray900, textAlign: "right" as const },
+
+    // Scheda tecnica chips
+    specChips: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 4 },
+    specChip: {
+      backgroundColor: C.gray100,
+      paddingHorizontal: 6, paddingVertical: 2,
+      borderRadius: 3,
+      fontSize: 8.5, color: C.gray700,
+    },
+    specChipLabel: { color: C.gray500, fontWeight: 600 },
+    specChipValue: { color: C.gray900, fontWeight: 700 },
+    specChipUnit: { color: C.gray500, fontSize: 8 },
+
+    // Consulenza
+    consBox: {
+      backgroundColor: C.primaryLight,
+      borderRadius: 10,
+      padding: 16,
+      flexDirection: "row",
+      gap: 14,
+      alignItems: "center",
+      marginTop: 8,
+    },
+    consPhoto: {
+      width: 64, height: 64, borderRadius: 32,
+      objectFit: "cover" as const,
+      borderWidth: 2, borderColor: C.white, borderStyle: "solid",
+    },
+    consPhotoPh: {
+      width: 64, height: 64, borderRadius: 32,
+      backgroundColor: C.primary,
+      alignItems: "center", justifyContent: "center",
+    },
+    consName: { fontSize: 13, fontWeight: 700, color: C.gray900 },
+    consRole: { fontSize: 9.5, color: C.gray500, marginTop: 2 },
+    consContact: { fontSize: 9, color: C.gray700, marginTop: 6, lineHeight: 1.4 },
+
+    // Macro pagina dedicata
+    macroPageHero: { flexDirection: "row", gap: 22, marginTop: 12 },
+    macroPageImg: {
+      width: 260, height: 320,
+      borderRadius: 10, objectFit: "cover" as const,
+      borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
+    },
+    macroPageImgPh: {
+      width: 260, height: 320,
+      borderRadius: 10,
+      backgroundColor: C.gray100,
+      alignItems: "center", justifyContent: "center",
+    },
+    macroPageContent: { flex: 1, fontSize: 11, color: C.gray700, lineHeight: 1.65 },
+
+    // CTA finale
+    ctaBox: {
+      backgroundColor: C.primary,
+      borderRadius: 12,
+      padding: 24,
+      marginTop: 18,
+    },
+    ctaTitle: {
+      fontSize: 15, fontWeight: 700, color: C.white,
+      textTransform: "uppercase" as const,
+      letterSpacing: 0.6, marginBottom: 12,
+    },
+    ctaStep: { flexDirection: "row", alignItems: "flex-start", marginBottom: 9 },
+    ctaCheck: {
+      width: 18, height: 18, borderRadius: 9,
+      backgroundColor: C.white, color: C.primary,
+      fontSize: 11, fontWeight: 700, textAlign: "center" as const,
+      paddingTop: 2, marginRight: 10,
+    },
+    ctaText: { flex: 1, fontSize: 10.5, color: C.white, lineHeight: 1.5 },
+
+    // Render grid
+    rendersGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
+    renderItem: {
+      width: "48%",
+      aspectRatio: 1.4,
+      borderRadius: 8,
+      overflow: "hidden",
+      backgroundColor: C.gray100,
+    },
+    renderImg: { width: "100%", height: "100%", objectFit: "cover" as const },
+
+    // Testimonianze
+    testimonialBox: {
+      marginBottom: 12,
+      paddingLeft: 14,
+      borderLeft: `2pt solid ${C.primary}`,
+    },
+    testimonialQuote: { fontSize: 10, fontStyle: "italic" as const, color: C.gray700, lineHeight: 1.55 },
+    testimonialAuthor: { fontSize: 8.5, color: C.gray500, marginTop: 4 },
+  });
+}
+
+// ─── Helpers formatting ────────────────────────────────────────────────────
+
 function fmtEuro(v: number | null | undefined, decimals = 0): string {
   const n = Number(v ?? 0);
   return n.toLocaleString("it-IT", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -343,9 +476,13 @@ function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
   try {
     return new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
-  } catch {
-    return d;
-  }
+  } catch { return d; }
+}
+function fmtDateTime(d: string | null | undefined): string {
+  if (!d) return "—";
+  try {
+    return new Date(d).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" });
+  } catch { return d; }
 }
 function tipologiaLabel(t: string): string {
   return SR_TIPOLOGIE_SERRAMENTO.find((x) => x.value === t)?.label ?? t;
@@ -355,67 +492,262 @@ function materialeLabel(m: string | null | undefined): string {
   return SR_MATERIALI.find((x) => x.value === m)?.label ?? m;
 }
 
-// Raggruppa serramenti per (tipologia, materiale, serie, vetro) per tabella riassuntiva
-function groupSerramenti(serr: SrSerramentoRow[]): Array<{
-  tipologia: string; materiale: string; serie: string; vetro: string; quantita: number;
+// Raggruppa serramenti per family_id (per mostrare scheda tecnica + foto).
+// Se la riga non ha family_id, fallback al raggruppamento tipologia+materiale.
+function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
+  key: string;
+  tipologia: string;
+  materiale: string;
+  serie: string;
+  vetro: string;
+  quantita: number;
+  family_id: string | null;
 }> {
-  const map = new Map<string, { tipologia: string; materiale: string; serie: string; vetro: string; quantita: number }>();
+  const map = new Map<string, { key: string; tipologia: string; materiale: string; serie: string; vetro: string; quantita: number; family_id: string | null }>();
   for (const s of serr) {
-    const key = `${s.tipologia}__${s.materiale ?? ""}__${s.serie ?? ""}__${s.vetro ?? ""}`;
+    const key = s.family_id
+      ? `fam-${s.family_id}__${s.tipologia}`
+      : `oth-${s.tipologia}__${s.materiale ?? ""}__${s.serie ?? ""}__${s.vetro ?? ""}`;
     const existing = map.get(key);
     if (existing) existing.quantita += s.quantita ?? 1;
     else map.set(key, {
+      key,
       tipologia: tipologiaLabel(s.tipologia),
       materiale: materialeLabel(s.materiale),
       serie: s.serie ?? "",
       vetro: s.vetro ?? "",
       quantita: s.quantita ?? 1,
+      family_id: s.family_id ?? null,
     });
   }
   return Array.from(map.values());
 }
 
-// ─── Subcomponenti ──────────────────────────────────────────────────────────
+// Format display value di un custom_field per il PDF (select → label, etc).
+function formatFieldDisplay(field: SerramentoPdfMacroField, raw: unknown): string | null {
+  if (raw === null || raw === undefined || raw === "") return null;
+  if (field.field_type === "select" && typeof raw === "string") {
+    const opt = field.field_options?.find((o) => o.value === raw);
+    return opt?.label ?? raw;
+  }
+  if (field.field_type === "multiselect" && Array.isArray(raw)) {
+    return (raw as string[])
+      .map((v) => field.field_options?.find((o) => o.value === v)?.label ?? v)
+      .join(", ");
+  }
+  if (field.field_type === "boolean") return raw ? "Sì" : "No";
+  return String(raw);
+}
 
-function PageHeader({ code, clienteNome, companyName, logoUrl, primaryColor }: {
-  code: string; clienteNome: string; companyName: string; logoUrl?: string | null; primaryColor: string;
+// ─── SVG: Decoro cover (finestra stilizzata) ───────────────────────────────
+
+function CoverDecorationSvg({ color }: { color: string }) {
+  return (
+    <Svg viewBox="0 0 180 180" style={{ width: 180, height: 180 } as never}>
+      {/* Finestra a 4 ante stilizzata */}
+      <G opacity={0.7}>
+        <Rect x={20} y={20} width={140} height={140} rx={6} stroke={color} strokeWidth={3} fill="none" />
+        <Path d={`M 90 25 L 90 155`} stroke={color} strokeWidth={2} />
+        <Path d={`M 25 90 L 155 90`} stroke={color} strokeWidth={2} />
+        {/* Maniglia */}
+        <Circle cx={84} cy={90} r={3} fill={color} />
+        {/* Riflessi sui vetri */}
+        <Path d={`M 35 35 L 55 35 L 35 55 Z`} fill={color} opacity={0.25} />
+        <Path d={`M 95 95 L 115 95 L 95 115 Z`} fill={color} opacity={0.25} />
+      </G>
+      {/* Raggi/decoro intorno */}
+      <G opacity={0.3}>
+        <Path d="M 0 90 L 18 90" stroke={color} strokeWidth={1.5} />
+        <Path d="M 162 90 L 180 90" stroke={color} strokeWidth={1.5} />
+        <Path d="M 90 0 L 90 18" stroke={color} strokeWidth={1.5} />
+        <Path d="M 90 162 L 90 180" stroke={color} strokeWidth={1.5} />
+      </G>
+    </Svg>
+  );
+}
+
+// ─── SVG: Gantt cronoprogramma ─────────────────────────────────────────────
+
+function GanttSvg({ fases, totalDays, primary, accent }: {
+  fases: Array<{ label: string; emoji: string; start: number; end: number }>;
+  totalDays: number;
+  primary: string;
+  accent: string;
+}) {
+  const W = 480;
+  const H = fases.length * 28 + 30;
+  const labelW = 130;
+  const chartX = labelW + 8;
+  const chartW = W - chartX - 8;
+  const dayW = chartW / Math.max(totalDays, 1);
+  // Tick ogni 15 gg
+  const ticks: number[] = [];
+  for (let d = 0; d <= totalDays; d += 15) ticks.push(d);
+
+  return (
+    <Svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H } as never}>
+      {/* Ticks verticali */}
+      {ticks.map((t, i) => (
+        <G key={i}>
+          <Path
+            d={`M ${chartX + t * dayW} 0 L ${chartX + t * dayW} ${H - 18}`}
+            stroke="#E2E8F0" strokeWidth={0.5}
+          />
+          <Text
+            x={chartX + t * dayW}
+            y={H - 6}
+            fill="#64748B"
+            style={{ fontSize: 7, textAnchor: "middle" } as never}
+          >
+            {t === 0 ? "Inizio" : `G${t}`}
+          </Text>
+        </G>
+      ))}
+      {/* Barre fasi */}
+      {fases.map((f, i) => {
+        const y = i * 28 + 8;
+        const x1 = chartX + (f.start - 1) * dayW;
+        const w = Math.max(2, (f.end - f.start + 1) * dayW);
+        const color = i === 0 ? accent : i === fases.length - 1 ? "#15803D" : primary;
+        return (
+          <G key={i}>
+            <Text x={4} y={y + 13} fill="#0F172A" style={{ fontSize: 9, fontWeight: 600 } as never}>
+              {f.emoji} {f.label}
+            </Text>
+            <Rect x={x1} y={y + 4} width={w} height={14} fill={color} rx={3} />
+            <Text
+              x={x1 + w + 4}
+              y={y + 14}
+              fill="#64748B"
+              style={{ fontSize: 7 } as never}
+            >
+              {f.end - f.start + 1}gg
+            </Text>
+          </G>
+        );
+      })}
+    </Svg>
+  );
+}
+
+// ─── SVG: Cashflow 10 anni ─────────────────────────────────────────────────
+
+function CashflowSvg({ years, primary }: {
+  years: Array<{ year: number; cumulato: number }>;
+  primary: string;
+}) {
+  if (years.length === 0) return null;
+  const W = 480;
+  const H = 160;
+  const padX = 40;
+  const padY = 24;
+  const chartW = W - 2 * padX;
+  const chartH = H - 2 * padY;
+  const maxAbs = Math.max(...years.map((y) => Math.abs(y.cumulato)), 1);
+  const xStep = chartW / (years.length - 1 || 1);
+  const yOf = (v: number) => padY + chartH / 2 - (v / maxAbs) * (chartH / 2);
+  const points = years.map((y, i) => `${padX + i * xStep},${yOf(y.cumulato)}`).join(" ");
+
+  // Trovo year di break-even (primo cumulato >= 0)
+  const breakIdx = years.findIndex((y) => y.cumulato >= 0);
+
+  return (
+    <Svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H } as never}>
+      {/* Asse zero */}
+      <Path d={`M ${padX} ${padY + chartH / 2} L ${W - padX} ${padY + chartH / 2}`} stroke="#CBD5E1" strokeWidth={0.5} strokeDasharray="2 2" />
+      {/* Area sotto curva */}
+      <Path
+        d={`M ${padX},${padY + chartH / 2} L ${points} L ${W - padX},${padY + chartH / 2} Z`}
+        fill={primary}
+        opacity={0.15}
+      />
+      {/* Curva */}
+      <Path d={`M ${points}`} stroke={primary} strokeWidth={2} fill="none" />
+      {/* Punti + label Y */}
+      {years.map((y, i) => {
+        const cx = padX + i * xStep;
+        const cy = yOf(y.cumulato);
+        const showLabel = i % 2 === 0 || i === years.length - 1;
+        return (
+          <G key={i}>
+            <Circle cx={cx} cy={cy} r={2} fill={primary} />
+            {showLabel && (
+              <Text x={cx} y={H - 4} fill="#64748B" style={{ fontSize: 7, textAnchor: "middle" } as never}>
+                A{y.year}
+              </Text>
+            )}
+          </G>
+        );
+      })}
+      {/* Break-even line */}
+      {breakIdx >= 0 && (
+        <G>
+          <Path
+            d={`M ${padX + breakIdx * xStep} ${padY} L ${padX + breakIdx * xStep} ${padY + chartH}`}
+            stroke="#15803D" strokeWidth={1} strokeDasharray="3 3"
+          />
+          <Text
+            x={padX + breakIdx * xStep + 4}
+            y={padY + 10}
+            fill="#15803D"
+            style={{ fontSize: 8, fontWeight: 700 } as never}
+          >
+            Break-even A{years[breakIdx].year}
+          </Text>
+        </G>
+      )}
+    </Svg>
+  );
+}
+
+// ─── Subcomponenti ─────────────────────────────────────────────────────────
+
+function PageHeader({ code, clienteNome, companyName, logoUrl, primaryColor, styles }: {
+  code: string; clienteNome: string; companyName: string;
+  logoUrl?: string | null; primaryColor: string;
+  styles: ReturnType<typeof makeStyles>;
 }) {
   return (
-    <View style={s.header} fixed>
-      <View style={s.headerLeft}>
+    <View style={styles.header} fixed>
+      <View style={styles.headerLeft}>
         {logoUrl ? (
-          <Image src={logoUrl} style={s.headerLogo} />
+          <Image src={logoUrl} style={styles.headerLogo} />
         ) : (
-          <View style={[s.headerLogo, { backgroundColor: primaryColor, alignItems: "center", justifyContent: "center" }]}>
-            <Text style={{ color: C.white, fontSize: 14, fontFamily: "Helvetica-Bold" }}>
+          <View style={[styles.headerLogo, { backgroundColor: primaryColor, alignItems: "center", justifyContent: "center" }]}>
+            <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: 700 }}>
               {(companyName || "S").charAt(0).toUpperCase()}
             </Text>
           </View>
         )}
         <View>
-          <Text style={s.headerName}>{companyName}</Text>
-          <Text style={{ fontSize: 7.5, color: C.gray500 }}>{clienteNome}</Text>
+          <Text style={styles.headerName}>{companyName}</Text>
+          <Text style={{ fontSize: 7.5, color: "#64748B" }}>{clienteNome}</Text>
         </View>
       </View>
-      <View style={s.headerRight}>
+      <View style={styles.headerRight}>
         <Text>STIMA N.</Text>
-        <Text style={s.headerStimaCode}>{code}</Text>
+        <Text style={styles.headerStimaCode}>{code}</Text>
       </View>
     </View>
   );
 }
 
-function PageFooter({ companyName, indirizzo, telefono, email, vat }: {
-  companyName: string; indirizzo?: string | null; telefono?: string | null; email?: string | null; vat?: string | null;
+function PageFooter({ companyName, indirizzo, telefono, email, vat, website, styles }: {
+  companyName: string;
+  indirizzo?: string | null; telefono?: string | null; email?: string | null;
+  vat?: string | null; website?: string | null;
+  styles: ReturnType<typeof makeStyles>;
 }) {
-  const right = [indirizzo, telefono ? `· ${telefono}` : null, email ? `· ${email}` : null].filter(Boolean).join(" ");
+  const line1 = [indirizzo, telefono, email].filter(Boolean).join(" · ");
+  const line2 = [vat ? `P.IVA ${vat}` : null, website].filter(Boolean).join(" · ");
   return (
-    <View style={s.footer} fixed>
-      <View style={s.footerLeft}>
-        <Text style={s.footerCompanyName}>{companyName}</Text>
-        <Text>{right}{vat ? ` · P.IVA ${vat}` : ""}</Text>
+    <View style={styles.footer} fixed>
+      <View style={styles.footerRow}>
+        <Text style={styles.footerCompanyName}>{companyName}</Text>
+        <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
       </View>
-      <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+      {line1 && <View style={styles.footerRow}><Text>{line1}</Text><Text></Text></View>}
+      {line2 && <View style={styles.footerRow}><Text>{line2}</Text><Text></Text></View>}
     </View>
   );
 }
@@ -433,23 +765,45 @@ export interface SerramentoPDFProps {
     email?: string | null;
     partita_iva?: string | null;
     logo_url?: string | null;
+    website?: string | null;
   } | null;
+  consulente: SerramentoPdfConsulente | null;
+  familiesById: Record<string, SerramentoPdfFamilyData>;
+  fieldsByMacro: Record<string, SerramentoPdfMacroField[]>;
+  macroPagineDedicate: SerramentoPdfMacroPagina[];
 }
 
 // ─── Componente principale ─────────────────────────────────────────────────
 
-export function SerramentoPDF({ detail, template, company }: SerramentoPDFProps) {
+export function SerramentoPDF({
+  detail, template, company,
+  consulente, familiesById, fieldsByMacro, macroPagineDedicate,
+}: SerramentoPDFProps) {
   const p = detail.progetto;
   const companyName = template?.ragione_sociale || company?.ragione_sociale || company?.name || "Azienda";
   const logoUrl = template?.logo_url || company?.logo_url || null;
-  const primaryColor = template?.colore_primario || C.primary;
-  const clienteNome = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente";
-  const cantiereLine = [p.cantiere_citta || p.cliente_citta, `${detail.serramenti.length} serramenti`, p.tipo_intervento].filter(Boolean).join(" · ");
+  const primaryColor = template?.colore_primario || DEFAULT_PRIMARY;
+  const C = makePalette(primaryColor);
+  const styles = makeStyles(C);
 
-  // Sintesi auto-fallback
+  const clienteNome = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente";
   const sintesi = p.intervento_sintesi?.trim()
     || generateInterventoSintesi(detail.serramenti, detail.accessori)
     || "Intervento da definire";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tpl = (template ?? {}) as any;
+  const coverHero = tpl.pdf_cover_hero || "La tua casa,\nfinalmente al caldo.";
+  const coverSubhero = tpl.pdf_cover_subhero || sintesi;
+  const ctaTitle = tpl.pdf_cta_finale_titolo || "Cosa fare adesso";
+  const ctaSteps = (Array.isArray(tpl.pdf_cta_finale_passi) && tpl.pdf_cta_finale_passi.length > 0)
+    ? tpl.pdf_cta_finale_passi as string[]
+    : [
+        "Conferma l'appuntamento di consulenza tecnica",
+        "Firma digitale del preventivo via link sicuro",
+        "Versa l'acconto secondo lo schema concordato",
+        "Diamo il via alla produzione e cantiere",
+      ];
 
   const totaleMin = Number(p.totale_min ?? 0);
   const totaleMax = Number(p.totale_max ?? 0);
@@ -463,8 +817,39 @@ export function SerramentoPDF({ detail, template, company }: SerramentoPDFProps)
   const piani = (Array.isArray(p.fin_piani) ? p.fin_piani : []) as SrPianoFinanziamento[];
   const schemaPagamento = p.schema_pagamento ?? "tre_step";
   const schemaCfg = SR_SCHEMI_PAGAMENTO[schemaPagamento as keyof typeof SR_SCHEMI_PAGAMENTO];
-  const serramentiGrouped = groupSerramenti(detail.serramenti);
   const renderUrls = detail.media.filter((m) => m.kind === "render" && m.url).map((m) => m.url!);
+  const serramentiGrouped = groupSerramentiAdvanced(detail.serramenti);
+
+  // Cronoprogramma fasi
+  const numSerr = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
+  const gProd = p.crono_giorni_produzione ?? 90;
+  const gPosa = p.crono_giorni_posa ?? Math.max(1, Math.ceil(numSerr * 0.8));
+  const gColl = p.crono_giorni_collaudo ?? 1;
+  const cronoFasi = [
+    { label: "Conferma ordine", emoji: "📝", start: 1, end: 1 },
+    { label: "Produzione", emoji: "🏭", start: 2, end: 1 + gProd },
+    { label: "Sopralluogo posa", emoji: "📐", start: Math.max(2, gProd - 2), end: Math.max(2, gProd - 2) },
+    { label: "Posa cantiere", emoji: "🔧", start: 2 + gProd, end: 1 + gProd + gPosa },
+    { label: "Collaudo finale", emoji: "✅", start: 2 + gProd + gPosa, end: 1 + gProd + gPosa + gColl },
+  ];
+  const totalDays = 1 + gProd + gPosa + gColl;
+
+  // Cashflow 10 anni
+  const cashflowYears: Array<{ year: number; cumulato: number }> = [];
+  if ((Number(p.risparmio_eur_anno) > 0) || (Number(p.detrazione_eur_anno) > 0)) {
+    let cum = -totaleMedia;
+    for (let y = 1; y <= 10; y++) {
+      cum += Number(p.risparmio_eur_anno ?? 0);
+      cum += Number(p.detrazione_eur_anno ?? 0);
+      cashflowYears.push({ year: y, cumulato: cum });
+    }
+  }
+
+  const indirizzo = template?.indirizzo_completo || company?.indirizzo;
+  const telefono = template?.telefono || company?.telefono;
+  const email = template?.email || company?.email;
+  const vat = template?.partita_iva || company?.partita_iva;
+  const website = company?.website;
 
   return (
     <Document
@@ -472,80 +857,85 @@ export function SerramentoPDF({ detail, template, company }: SerramentoPDFProps)
       author={companyName}
       subject={`Preventivo serramenti per ${clienteNome}`}
     >
-      {/* ─── PAGINA 1 — COVER ────────────────────────────────────────────── */}
-      <Page size="A4" style={s.cover}>
+      {/* ─── PAGINA 1 — COVER ─────────────────────────────────────────────── */}
+      <Page size="A4" style={styles.cover}>
+        {/* Decoro SVG finestra in alto a destra */}
+        <View style={styles.coverDecoSvg}>
+          <CoverDecorationSvg color={C.accent} />
+        </View>
+
         <View>
-          <View style={s.coverLogoBox}>
+          <View style={styles.coverLogoBox}>
             {logoUrl ? (
-              <Image src={logoUrl} style={s.coverLogoImage} />
+              <Image src={logoUrl} style={styles.coverLogoImage} />
             ) : (
-              <View style={s.coverLogoCircle}>
-                <Text style={{ color: C.white, fontSize: 28, fontFamily: "Helvetica-Bold" }}>
+              <View style={styles.coverLogoCircle}>
+                <Text style={{ color: "#FFFFFF", fontSize: 28, fontWeight: 700 }}>
                   {(companyName || "S").charAt(0).toUpperCase()}
                 </Text>
               </View>
             )}
             <View>
-              <Text style={s.coverCompanyName}>{companyName}</Text>
-              {company?.indirizzo && <Text style={s.coverCompanyTag}>{company.indirizzo}</Text>}
+              <Text style={styles.coverCompanyName}>{companyName}</Text>
+              {company?.indirizzo && <Text style={styles.coverCompanyTag}>{company.indirizzo}</Text>}
             </View>
           </View>
 
-          <Text style={s.coverEyebrow}>★ La tua proposta personalizzata</Text>
-          <Text style={s.coverTitle}>
-            Il tuo nuovo{"\n"}cantiere parte{"\n"}da qui.
-          </Text>
-          <Text style={s.coverSubtitle}>
-            {sintesi}
-          </Text>
+          <Text style={styles.coverEyebrow}>★ La tua proposta personalizzata</Text>
+          <Text style={styles.coverTitle}>{coverHero}</Text>
+          <Text style={styles.coverSubtitle}>{coverSubhero}</Text>
 
-          <View style={s.coverCard}>
-            <Text style={s.coverLabel}>Preparato per</Text>
-            <Text style={s.coverClientName}>{clienteNome}</Text>
-            <Text style={s.coverClientAddr}>
+          <View style={styles.coverCard}>
+            <Text style={styles.coverLabel}>Preparato per</Text>
+            <Text style={styles.coverClientName}>{clienteNome}</Text>
+            <Text style={styles.coverClientAddr}>
               {[p.cliente_indirizzo, p.cantiere_citta || p.cliente_citta].filter(Boolean).join(", ")}
             </Text>
           </View>
         </View>
 
-        <View style={s.coverFooter}>
+        <View style={styles.coverFooter}>
           <View>
-            <Text>Preventivo <Text style={s.coverFooterStrong}>{p.code}</Text></Text>
+            <Text>Preventivo <Text style={styles.coverFooterStrong}>{p.code}</Text></Text>
             <Text>{fmtDate(p.created_at)} · valido {p.valido_fino_giorni ?? 15} giorni</Text>
           </View>
-          <View style={{ textAlign: "right" as const }}>
-            <Text>A cura di</Text>
-            <Text style={s.coverFooterStrong}>{template?.ragione_sociale || companyName}</Text>
-          </View>
+          {consulente && (
+            <View style={{ textAlign: "right" as const }}>
+              <Text>A cura di</Text>
+              <Text style={styles.coverFooterStrong}>{consulente.nome}</Text>
+            </View>
+          )}
         </View>
       </Page>
 
-      {/* ─── PAGINA 2 — PROPOSTA DI INTERVENTO ───────────────────────────── */}
-      <Page size="A4" style={s.page}>
-        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} />
+      {/* ─── PAGINA 2 — PROPOSTA INTERVENTO ──────────────────────────────── */}
+      <Page size="A4" style={styles.page}>
+        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
-        <Text style={s.pageEyebrow}>Pagina 2 · Proposta di intervento</Text>
-        <Text style={s.pageTitle}>Per {p.cliente_nome ?? clienteNome}</Text>
-        <Text style={s.pageSubtitle}>{cantiereLine}</Text>
+        <Text style={styles.pageEyebrow}>Pagina 2 · Proposta di intervento</Text>
+        <Text style={styles.pageTitle}>Per {p.cliente_nome ?? clienteNome}</Text>
+        <Text style={styles.pageSubtitle}>
+          {[p.cantiere_citta || p.cliente_citta, `${numSerr} serramenti`, p.tipo_intervento].filter(Boolean).join(" · ")}
+        </Text>
 
-        <Text style={s.sectionTitle}>Anagrafica cliente</Text>
-        <View style={s.kvRow}><Text style={s.kvKey}>Intestatario</Text><Text style={s.kvValue}>{clienteNome}</Text></View>
-        {p.cliente_indirizzo && <View style={s.kvRow}><Text style={s.kvKey}>Indirizzo</Text><Text style={s.kvValue}>{p.cliente_indirizzo}</Text></View>}
-        {p.cliente_telefono && <View style={s.kvRow}><Text style={s.kvKey}>Telefono</Text><Text style={s.kvValue}>{p.cliente_telefono}</Text></View>}
-        {p.cliente_email && <View style={s.kvRow}><Text style={s.kvKey}>Email</Text><Text style={s.kvValue}>{p.cliente_email}</Text></View>}
+        <Text style={styles.sectionTitle}>Anagrafica cliente</Text>
+        <View style={styles.kvRow}><Text style={styles.kvKey}>Intestatario</Text><Text style={styles.kvValue}>{clienteNome}</Text></View>
+        {p.cliente_indirizzo && <View style={styles.kvRow}><Text style={styles.kvKey}>Indirizzo</Text><Text style={styles.kvValue}>{p.cliente_indirizzo}</Text></View>}
+        {p.cliente_telefono && <View style={styles.kvRow}><Text style={styles.kvKey}>Telefono</Text><Text style={styles.kvValue}>{p.cliente_telefono}</Text></View>}
+        {p.cliente_email && <View style={styles.kvRow}><Text style={styles.kvKey}>Email</Text><Text style={styles.kvValue}>{p.cliente_email}</Text></View>}
 
-        <Text style={s.sectionTitle}>L'intervento in sintesi</Text>
-        <Text style={{ fontSize: 10, lineHeight: 1.55, color: C.gray700 }}>{sintesi}</Text>
+        <Text style={styles.sectionTitle}>L'intervento in sintesi</Text>
+        <Text style={styles.sintesiBox}>{sintesi}</Text>
 
         {esigenze.length > 0 && (
           <>
-            <Text style={s.sectionTitle}>Le tue esigenze</Text>
+            <Text style={styles.sectionTitle}>Le tue esigenze</Text>
             {esigenze.slice(0, 3).map((e, i) => (
-              <View key={i} style={s.bulletItem}>
-                <View style={s.bulletDot} />
-                <View style={s.bulletContent}>
-                  <Text style={s.bulletTitle}>{e.titolo}</Text>
-                  {e.descrizione && <Text style={s.bulletText}>{e.descrizione}</Text>}
+              <View key={i} style={styles.bulletItem} wrap={false}>
+                <View style={styles.bulletDot} />
+                <View style={styles.bulletContent}>
+                  <Text style={styles.bulletTitle}>{e.titolo}</Text>
+                  {e.descrizione && <Text style={styles.bulletText}>{e.descrizione}</Text>}
                 </View>
               </View>
             ))}
@@ -554,13 +944,13 @@ export function SerramentoPDF({ detail, template, company }: SerramentoPDFProps)
 
         {soluzione.length > 0 && (
           <>
-            <Text style={s.sectionTitle}>La soluzione per te</Text>
+            <Text style={styles.sectionTitle}>La soluzione per te</Text>
             {soluzione.slice(0, 4).map((sol, i) => (
-              <View key={i} style={s.bulletItem}>
-                <View style={s.bulletDot} />
-                <View style={s.bulletContent}>
-                  <Text style={s.bulletTitle}>{sol.titolo}</Text>
-                  {sol.descrizione && <Text style={s.bulletText}>{sol.descrizione}</Text>}
+              <View key={i} style={styles.bulletItem} wrap={false}>
+                <View style={styles.bulletDot} />
+                <View style={styles.bulletContent}>
+                  <Text style={styles.bulletTitle}>{sol.titolo}</Text>
+                  {sol.descrizione && <Text style={styles.bulletText}>{sol.descrizione}</Text>}
                 </View>
               </View>
             ))}
@@ -569,16 +959,16 @@ export function SerramentoPDF({ detail, template, company }: SerramentoPDFProps)
 
         {percheNoi.length > 0 && (
           <>
-            <Text style={s.sectionTitle}>Perché {companyName}</Text>
+            <Text style={styles.sectionTitle}>Perché {companyName}</Text>
             {percheNoi.slice(0, 5).map((it, i) => {
               const titolo = typeof it === "string" ? it : it.titolo;
               const descrizione = typeof it === "string" ? null : it.descrizione;
               return (
-                <View key={i} style={s.bulletItem}>
-                  <View style={s.bulletDot} />
-                  <View style={s.bulletContent}>
-                    <Text style={s.bulletTitle}>{titolo}</Text>
-                    {descrizione && <Text style={s.bulletText}>{descrizione}</Text>}
+                <View key={i} style={styles.bulletItem} wrap={false}>
+                  <View style={styles.bulletDot} />
+                  <View style={styles.bulletContent}>
+                    <Text style={styles.bulletTitle}>{titolo}</Text>
+                    {descrizione && <Text style={styles.bulletText}>{descrizione}</Text>}
                   </View>
                 </View>
               );
@@ -586,73 +976,62 @@ export function SerramentoPDF({ detail, template, company }: SerramentoPDFProps)
           </>
         )}
 
-        <PageFooter
-          companyName={companyName}
-          indirizzo={template?.indirizzo_completo || company?.indirizzo}
-          telefono={template?.telefono || company?.telefono}
-          email={template?.email || company?.email}
-          vat={template?.partita_iva || company?.partita_iva}
-        />
+        <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
       </Page>
 
-      {/* ─── PAGINA 3 — INVESTIMENTO ─────────────────────────────────────── */}
-      <Page size="A4" style={s.page}>
-        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} />
+      {/* ─── PAGINA 3 — INVESTIMENTO ────────────────────────────────────── */}
+      <Page size="A4" style={styles.page}>
+        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
-        <Text style={s.pageEyebrow}>Pagina 3 · L'investimento</Text>
-        <Text style={s.pageTitle}>Trasparenza{"\n"}totale.</Text>
-        <Text style={s.pageSubtitle}>Forbice indicativa basata sul primo contatto. Il prezzo definitivo si fissa con sopralluogo e scelta materiali.</Text>
+        <Text style={styles.pageEyebrow}>Pagina 3 · L'investimento</Text>
+        <Text style={styles.pageTitle}>Trasparenza{"\n"}totale.</Text>
+        <Text style={styles.pageSubtitle}>
+          Forbice indicativa basata sul primo contatto. Il prezzo definitivo si fissa con sopralluogo e scelta materiali.
+        </Text>
 
-        {/* Prezzo big */}
-        <View style={s.priceBox}>
-          <View>
-            <Text style={s.priceLabel}>Il tuo investimento stimato</Text>
-            <Text style={s.priceValue}>
-              € {fmtEuro(totaleMin)} – € {fmtEuro(totaleMax)}
-              <Text style={s.priceSuffix}>IVA inclusa</Text>
-            </Text>
-            <Text style={{ fontSize: 8.5, color: C.primary, marginTop: 4 }}>
-              Media: € {fmtEuro(totaleMedia)}
-            </Text>
-          </View>
+        <View style={styles.priceBox}>
+          <Text style={styles.priceLabel}>Il tuo investimento stimato</Text>
+          <Text style={styles.priceValue}>
+            € {fmtEuro(totaleMin)} – € {fmtEuro(totaleMax)}
+            <Text style={styles.priceSuffix}>IVA inclusa</Text>
+          </Text>
+          <Text style={{ fontSize: 9, color: C.primary, marginTop: 4 }}>
+            Media: € {fmtEuro(totaleMedia)}
+          </Text>
         </View>
 
-        {/* Schema pagamento */}
         {milestones.length > 0 && (
           <>
-            <Text style={s.sectionTitle}>Modalità di pagamento</Text>
-            <Text style={s.paySchemaTag}>{schemaCfg?.label ?? "Personalizzato"}</Text>
-            <View>
-              {milestones.map((m, i) => {
-                const amount = (totaleMedia * (Number(m.percentuale) || 0)) / 100;
-                return (
-                  <View key={i} style={s.payStep}>
-                    <Text style={s.payStepIdx}>{i + 1}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.payStepLabel}>{m.label}</Text>
-                      {m.when && <Text style={s.payStepWhen}>{m.when}</Text>}
-                    </View>
-                    <View style={{ width: 80, alignItems: "flex-end" }}>
-                      <Text style={s.payStepPct}>{m.percentuale}%</Text>
-                      <Text style={s.payStepAmount}>≈ € {fmtEuro(amount)}</Text>
-                    </View>
+            <Text style={styles.sectionTitle}>Modalità di pagamento</Text>
+            <Text style={styles.paySchemaTag}>{schemaCfg?.label ?? "Personalizzato"}</Text>
+            {milestones.map((m, i) => {
+              const amount = (totaleMedia * (Number(m.percentuale) || 0)) / 100;
+              return (
+                <View key={i} style={styles.payStep} wrap={false}>
+                  <Text style={styles.payStepIdx}>{i + 1}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.payStepLabel}>{m.label}</Text>
+                    {m.when && <Text style={styles.payStepWhen}>{m.when}</Text>}
                   </View>
-                );
-              })}
-            </View>
+                  <View style={{ width: 90, alignItems: "flex-end" }}>
+                    <Text style={styles.payStepPct}>{m.percentuale}%</Text>
+                    <Text style={styles.payStepAmount}>≈ € {fmtEuro(amount)}</Text>
+                  </View>
+                </View>
+              );
+            })}
           </>
         )}
 
-        {/* Finanziamento */}
         {piani.length > 0 && schemaCfg?.hasFinanziamento && (
           <>
-            <Text style={s.sectionTitle}>Simulazione finanziamento</Text>
-            <View style={s.finBox}>
+            <Text style={styles.sectionTitle}>Simulazione finanziamento</Text>
+            <View style={styles.finBox}>
               {piani.slice(0, 2).map((piano, i) => (
-                <View key={i} style={s.finCard}>
-                  <Text style={s.finCardTitle}>{piano.nome} · {piano.mesi} mesi · TAN {piano.tasso}%</Text>
-                  <Text style={s.finCardValue}>€ {fmtEuro(piano.rata_mese)}</Text>
-                  <Text style={s.finCardSub}>/mese · finanziato € {fmtEuro(piano.finanziato)}</Text>
+                <View key={i} style={styles.finCard}>
+                  <Text style={styles.finCardTitle}>{piano.nome} · {piano.mesi} mesi · TAN {piano.tasso}%</Text>
+                  <Text style={styles.finCardValue}>€ {fmtEuro(piano.rata_mese)}</Text>
+                  <Text style={styles.finCardSub}>/mese · finanziato € {fmtEuro(piano.finanziato)}</Text>
                 </View>
               ))}
             </View>
@@ -662,37 +1041,46 @@ export function SerramentoPDF({ detail, template, company }: SerramentoPDFProps)
           </>
         )}
 
-        {/* Detrazione */}
         {p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0 && (
           <>
-            <Text style={s.sectionTitle}>Detrazione fiscale</Text>
-            <View style={[s.finCard, { backgroundColor: C.successBg, borderColor: "#86EFAC" }]}>
-              <Text style={[s.finCardTitle, { color: C.successText }]}>
+            <Text style={styles.sectionTitle}>Detrazione fiscale</Text>
+            <View style={[styles.finCard, { backgroundColor: C.successBg, borderColor: "#86EFAC" }]}>
+              <Text style={[styles.finCardTitle, { color: C.successText }]}>
                 Detrazione {p.detrazione_aliquota}% recuperabile in 10 quote annuali
               </Text>
-              <Text style={[s.finCardValue, { color: C.successText }]}>
+              <Text style={[styles.finCardValue, { color: C.successText }]}>
                 € {fmtEuro(p.detrazione_eur_totale)}
               </Text>
-              <Text style={[s.finCardSub, { color: C.successText }]}>
+              <Text style={[styles.finCardSub, { color: C.successText }]}>
                 ≈ € {fmtEuro(p.detrazione_eur_anno)} / anno per 10 anni
               </Text>
             </View>
           </>
         )}
 
-        {/* Cosa è incluso */}
+        {cashflowYears.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Cashflow 10 anni — rientro dell'investimento</Text>
+            <CashflowSvg years={cashflowYears} primary={primaryColor} />
+            <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 4 }}>
+              Risparmio bolletta + detrazione fiscale cumulati anno dopo anno. La linea verde indica
+              l'anno in cui l'investimento è completamente ripagato.
+            </Text>
+          </>
+        )}
+
         {incluso.length > 0 && (
           <>
-            <Text style={s.sectionTitle}>Cosa è incluso nell'investimento</Text>
+            <Text style={styles.sectionTitle}>Cosa è incluso</Text>
             {incluso.slice(0, 6).map((it, i) => {
               const titolo = typeof it === "string" ? it : it.titolo;
               const descrizione = typeof it === "string" ? null : it.descrizione;
               return (
-                <View key={i} style={s.bulletItem}>
-                  <View style={s.bulletDot} />
-                  <View style={s.bulletContent}>
-                    <Text style={s.bulletTitle}>{titolo}</Text>
-                    {descrizione && <Text style={s.bulletText}>{descrizione}</Text>}
+                <View key={i} style={styles.bulletItem} wrap={false}>
+                  <View style={styles.bulletDot} />
+                  <View style={styles.bulletContent}>
+                    <Text style={styles.bulletTitle}>{titolo}</Text>
+                    {descrizione && <Text style={styles.bulletText}>{descrizione}</Text>}
                   </View>
                 </View>
               );
@@ -700,159 +1088,235 @@ export function SerramentoPDF({ detail, template, company }: SerramentoPDFProps)
           </>
         )}
 
-        <PageFooter
-          companyName={companyName}
-          indirizzo={template?.indirizzo_completo || company?.indirizzo}
-          telefono={template?.telefono || company?.telefono}
-          email={template?.email || company?.email}
-          vat={template?.partita_iva || company?.partita_iva}
-        />
+        <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
       </Page>
 
-      {/* ─── PAGINA 4 — TECNICO ──────────────────────────────────────────── */}
-      <Page size="A4" style={s.page}>
-        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} />
+      {/* ─── PAGINA 4 — ALLEGATO TECNICO ────────────────────────────────── */}
+      <Page size="A4" style={styles.page}>
+        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
-        <Text style={s.pageEyebrow}>Pagina 4 · Allegato tecnico</Text>
-        <Text style={s.pageTitle}>Cosa entra{"\n"}in cantiere.</Text>
-        <Text style={s.pageSubtitle}>Composizione dettagliata dei serramenti e degli accessori previsti.</Text>
+        <Text style={styles.pageEyebrow}>Pagina 4 · Allegato tecnico</Text>
+        <Text style={styles.pageTitle}>Cosa entra{"\n"}in cantiere.</Text>
+        <Text style={styles.pageSubtitle}>Composizione dettagliata dei serramenti e degli accessori previsti.</Text>
 
-        {/* Serramenti */}
-        <Text style={s.sectionTitle}>Composizione serramenti · {detail.serramenti.reduce((a, x) => a + (x.quantita ?? 1), 0)} pezzi</Text>
-        <View style={s.table}>
-          <View style={s.tableHeader}>
-            <View style={s.tableCol}><Text style={s.tableHeaderText}>Tipologia</Text></View>
-            <View style={s.tableCol}><Text style={s.tableHeaderText}>Materiale · Vetro</Text></View>
-            <View style={[s.tableCol, s.tableColNum]}><Text style={s.tableHeaderText}>Q.tà</Text></View>
+        <Text style={styles.sectionTitle}>Composizione serramenti · {numSerr} pezzi</Text>
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <View style={{ width: 54 }}><Text style={styles.tableHeaderText}>Foto</Text></View>
+            <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Tipologia · Caratteristiche</Text></View>
+            <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
           </View>
-          {serramentiGrouped.map((g, i) => (
-            <View key={i} style={s.tableRow}>
-              <View style={s.tableCol}><Text style={s.tableCellStrong}>{g.tipologia}</Text></View>
-              <View style={s.tableCol}>
-                <Text style={s.tableCell}>
-                  {[g.materiale, g.serie].filter(Boolean).join(" · ")}
+          {serramentiGrouped.map((g) => {
+            const family = g.family_id ? familiesById[g.family_id] : null;
+            const macroId = family?.macrocategoria_id;
+            const fields = macroId ? (fieldsByMacro[macroId] ?? []) : [];
+            // Specs chip = solo field con show_in_pdf=true e valore non vuoto
+            const specs: Array<{ label: string; value: string; unit: string | null }> = [];
+            if (family && fields.length > 0) {
+              for (const f of fields) {
+                const raw = family.custom_field_values[f.field_key];
+                const display = formatFieldDisplay(f, raw);
+                if (display) specs.push({ label: f.field_label, value: display, unit: f.field_unit });
+              }
+            }
+            return (
+              <View key={g.key} style={styles.tableRow} wrap={false}>
+                <View style={{ width: 54 }}>
+                  {family?.immagine_url ? (
+                    <Image src={family.immagine_url} style={styles.tableThumb} />
+                  ) : (
+                    <View style={styles.tableThumbPh}>
+                      <Text style={{ fontSize: 18 }}>🪟</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={{ flex: 1, paddingRight: 6 }}>
+                  <Text style={styles.tableCellStrong}>{g.tipologia}</Text>
+                  {(g.materiale !== "—" || g.serie || g.vetro) && (
+                    <Text style={styles.tableCellMuted}>
+                      {[g.materiale !== "—" ? g.materiale : null, g.serie, g.vetro].filter(Boolean).join(" · ")}
+                    </Text>
+                  )}
+                  {specs.length > 0 && (
+                    <View style={styles.specChips}>
+                      {specs.slice(0, 6).map((sp, si) => (
+                        <Text key={si} style={styles.specChip}>
+                          <Text style={styles.specChipLabel}>{sp.label}: </Text>
+                          <Text style={styles.specChipValue}>{sp.value}</Text>
+                          {sp.unit && <Text style={styles.specChipUnit}> {sp.unit}</Text>}
+                        </Text>
+                      ))}
+                    </View>
+                  )}
+                </View>
+                <View style={{ width: 50, alignItems: "flex-end", paddingTop: 4 }}>
+                  <Text style={styles.tableCellNum}>{g.quantita}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        {detail.accessori.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Accessori e complementi</Text>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Voce</Text></View>
+                <View style={{ width: 90 }}><Text style={styles.tableHeaderText}>Misure</Text></View>
+                <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
+              </View>
+              {detail.accessori.map((a, i) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const ax = a as any;
+                const misure = ax.larghezza_mm && ax.altezza_mm
+                  ? `${ax.larghezza_mm}×${ax.altezza_mm} mm`
+                  : "—";
+                return (
+                  <View key={i} style={styles.tableRow} wrap={false}>
+                    <View style={{ flex: 1, paddingRight: 6 }}>
+                      <Text style={styles.tableCellStrong}>{a.descrizione || a.tipo}</Text>
+                    </View>
+                    <View style={{ width: 90 }}>
+                      <Text style={styles.tableCellMuted}>{misure}</Text>
+                    </View>
+                    <View style={{ width: 50, alignItems: "flex-end" }}>
+                      <Text style={styles.tableCellNum}>{a.quantita ?? 1}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        )}
+
+        <Text style={styles.sectionTitle}>Cronoprogramma indicativo</Text>
+        <GanttSvg fases={cronoFasi} totalDays={totalDays} primary={primaryColor} accent={C.accent} />
+
+        {consulente && (
+          <>
+            <Text style={styles.sectionTitle}>La tua consulenza</Text>
+            <View style={styles.consBox}>
+              {consulente.foto_url ? (
+                <Image src={consulente.foto_url} style={styles.consPhoto} />
+              ) : (
+                <View style={styles.consPhotoPh}>
+                  <Text style={{ color: "#FFFFFF", fontSize: 24, fontWeight: 700 }}>
+                    {consulente.nome.charAt(0)}
+                  </Text>
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.consName}>{consulente.nome}</Text>
+                <Text style={styles.consRole}>{consulente.ruolo}</Text>
+                <Text style={styles.consContact}>
+                  {p.consulenza_at ? `Appuntamento: ${fmtDateTime(p.consulenza_at)}\n` : ""}
+                  {[consulente.telefono, consulente.email].filter(Boolean).join(" · ")}
                 </Text>
-                {g.vetro && <Text style={s.tableCellMuted}>{g.vetro}</Text>}
               </View>
-              <View style={[s.tableCol, s.tableColNum]}>
-                <Text style={s.tableCellStrong}>{g.quantita}</Text>
+            </View>
+          </>
+        )}
+
+        <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+      </Page>
+
+      {/* ─── PAGINE DEDICATE MACROCATEGORIA (opzionali) ─────────────────── */}
+      {macroPagineDedicate.map((mp, mi) => (
+        <Page key={mp.macro_id} size="A4" style={styles.page}>
+          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+          <Text style={styles.pageEyebrow}>
+            Linea prodotto · {mi + 1} di {macroPagineDedicate.length}
+          </Text>
+          <Text style={styles.pageTitle}>{mp.nome}</Text>
+          <View style={styles.macroPageHero}>
+            {mp.immagine_url ? (
+              <Image src={mp.immagine_url} style={styles.macroPageImg} />
+            ) : (
+              <View style={styles.macroPageImgPh}>
+                <Text style={{ fontSize: 12, color: C.gray500 }}>{mp.nome}</Text>
               </View>
+            )}
+            <View style={styles.macroPageContent}>
+              {mp.descrizione_estesa.split(/\n\n+/).map((para, i) => {
+                const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
+                const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
+                if (allBullets) {
+                  return (
+                    <View key={i} style={{ marginBottom: 8 }}>
+                      {lines.map((l, li) => (
+                        <View key={li} style={styles.bulletItem}>
+                          <View style={styles.bulletDot} />
+                          <Text style={{ flex: 1, fontSize: 10.5, color: C.gray700, lineHeight: 1.55 }}>
+                            {l.replace(/^[-•]\s*/, "")}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                }
+                return (
+                  <Text key={i} style={{ marginBottom: 8 }}>{para}</Text>
+                );
+              })}
+            </View>
+          </View>
+          <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+        </Page>
+      ))}
+
+      {/* ─── PAGINA FINALE — CTA + RENDER + TESTIMONIANZE ───────────────── */}
+      <Page size="A4" style={styles.page}>
+        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+
+        <Text style={styles.pageEyebrow}>Il prossimo passo</Text>
+        <Text style={styles.pageTitle}>Pronti{"\n"}per partire.</Text>
+        <Text style={styles.pageSubtitle}>
+          Tutto quello che serve per trasformare il preventivo in cantiere.
+        </Text>
+
+        {/* CTA box */}
+        <View style={styles.ctaBox}>
+          <Text style={styles.ctaTitle}>✓ {ctaTitle}</Text>
+          {ctaSteps.slice(0, 5).map((step, i) => (
+            <View key={i} style={styles.ctaStep} wrap={false}>
+              <Text style={styles.ctaCheck}>{i + 1}</Text>
+              <Text style={styles.ctaText}>{step}</Text>
             </View>
           ))}
         </View>
 
-        {/* Accessori */}
-        {detail.accessori.length > 0 && (
+        {/* Render foto-realistici */}
+        {renderUrls.length > 0 && (
           <>
-            <Text style={s.sectionTitle}>Accessori e complementi</Text>
-            <View style={s.table}>
-              <View style={s.tableHeader}>
-                <View style={s.tableCol}><Text style={s.tableHeaderText}>Voce</Text></View>
-                <View style={[s.tableCol, s.tableColNum]}><Text style={s.tableHeaderText}>Q.tà</Text></View>
-              </View>
-              {detail.accessori.map((a, i) => (
-                <View key={i} style={s.tableRow}>
-                  <View style={s.tableCol}>
-                    <Text style={s.tableCellStrong}>{a.descrizione || a.tipo}</Text>
-                  </View>
-                  <View style={[s.tableCol, s.tableColNum]}>
-                    <Text style={s.tableCellStrong}>{a.quantita ?? 1}</Text>
-                  </View>
+            <Text style={styles.sectionTitle}>Anteprima dei serramenti</Text>
+            <View style={styles.rendersGrid}>
+              {renderUrls.slice(0, 4).map((url, i) => (
+                <View key={i} style={styles.renderItem}>
+                  <Image src={url} style={styles.renderImg} />
                 </View>
               ))}
             </View>
           </>
         )}
 
-        {/* Cronoprogramma */}
-        <Text style={s.sectionTitle}>Cronoprogramma indicativo</Text>
-        <View style={s.cronoFase}>
-          <Text style={s.cronoEmoji}>📝</Text>
-          <Text style={s.cronoLabel}>Conferma ordine + acconto</Text>
-          <Text style={s.cronoGiorni}>Giorno 1</Text>
-        </View>
-        <View style={s.cronoFase}>
-          <Text style={s.cronoEmoji}>🏭</Text>
-          <Text style={s.cronoLabel}>Produzione in stabilimento</Text>
-          <Text style={s.cronoGiorni}>≈{p.crono_giorni_produzione ?? 90} giorni</Text>
-        </View>
-        <View style={s.cronoFase}>
-          <Text style={s.cronoEmoji}>🔧</Text>
-          <Text style={s.cronoLabel}>Posa qualificata in cantiere</Text>
-          <Text style={s.cronoGiorni}>{p.crono_giorni_posa ?? Math.max(1, Math.ceil(detail.serramenti.length * 0.8))} giorni</Text>
-        </View>
-        <View style={s.cronoFase}>
-          <Text style={s.cronoEmoji}>✅</Text>
-          <Text style={s.cronoLabel}>Collaudo finale</Text>
-          <Text style={s.cronoGiorni}>{p.crono_giorni_collaudo ?? 1} {(p.crono_giorni_collaudo ?? 1) === 1 ? "giorno" : "giorni"}</Text>
-        </View>
-
-        {/* Consulenza appuntamento */}
-        {p.consulenza_at && (
+        {/* Testimonianze */}
+        {testimonianze.length > 0 && (
           <>
-            <Text style={s.sectionTitle}>La tua consulenza</Text>
-            <View style={{ backgroundColor: C.primaryLight, padding: 12, borderRadius: 6 }}>
-              <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: C.primary }}>
-                {new Date(p.consulenza_at).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}
-              </Text>
-              {p.consulenza_luogo && (
-                <Text style={{ fontSize: 9.5, color: C.gray700, marginTop: 2 }}>{p.consulenza_luogo}</Text>
-              )}
-            </View>
-          </>
-        )}
-
-        <PageFooter
-          companyName={companyName}
-          indirizzo={template?.indirizzo_completo || company?.indirizzo}
-          telefono={template?.telefono || company?.telefono}
-          email={template?.email || company?.email}
-          vat={template?.partita_iva || company?.partita_iva}
-        />
-      </Page>
-
-      {/* ─── PAGINA 5 (opzionale) — RENDER FOTO-REALISTICI ──────────────── */}
-      {renderUrls.length > 0 && (
-        <Page size="A4" style={s.page}>
-          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} />
-
-          <Text style={s.pageEyebrow}>Pagina 5 · Anteprima visiva</Text>
-          <Text style={s.pageTitle}>La tua casa,{"\n"}rinnovata.</Text>
-          <Text style={s.pageSubtitle}>Rendering foto-realistici di come saranno i nuovi serramenti.</Text>
-
-          <View style={s.rendersGrid}>
-            {renderUrls.slice(0, 4).map((url, i) => (
-              <View key={i} style={s.renderItem}>
-                <Image src={url} style={s.renderImg} />
+            <Text style={styles.sectionTitle}>Cosa dicono i nostri clienti</Text>
+            {testimonianze.slice(0, 3).map((t, i) => (
+              <View key={i} style={styles.testimonialBox} wrap={false}>
+                <Text style={styles.testimonialQuote}>"{t.testo}"</Text>
+                <Text style={styles.testimonialAuthor}>
+                  — {t.cliente_nome}{t.dettaglio ? ` · ${t.dettaglio}` : ""}
+                </Text>
               </View>
             ))}
-          </View>
+          </>
+        )}
 
-          {testimonianze.length > 0 && (
-            <>
-              <Text style={s.sectionTitle}>Cosa dicono i nostri clienti</Text>
-              {testimonianze.slice(0, 3).map((t, i) => (
-                <View key={i} style={{ marginBottom: 10, paddingLeft: 12, borderLeft: `2pt solid ${C.primary}` }}>
-                  <Text style={{ fontSize: 9.5, fontStyle: "italic" as const, color: C.gray700, lineHeight: 1.5 }}>
-                    "{t.testo}"
-                  </Text>
-                  <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 2 }}>
-                    — {t.cliente_nome}{t.dettaglio ? ` · ${t.dettaglio}` : ""}
-                  </Text>
-                </View>
-              ))}
-            </>
-          )}
-
-          <PageFooter
-            companyName={companyName}
-            indirizzo={template?.indirizzo_completo || company?.indirizzo}
-            telefono={template?.telefono || company?.telefono}
-            email={template?.email || company?.email}
-            vat={template?.partita_iva || company?.partita_iva}
-          />
-        </Page>
-      )}
+        <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+      </Page>
     </Document>
   );
 }

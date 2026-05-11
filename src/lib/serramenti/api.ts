@@ -29,10 +29,11 @@ export type SrCreateProgettoInput = Partial<SrProgettoRow>;
 
 export async function createProgetto(input: SrCreateProgettoInput): Promise<SrProgettoRow> {
   // company_id viene iniettato dal trigger / RLS check via profiles.company_id
+  const userId = (await supabase.auth.getUser()).data.user?.id ?? null;
   const { data: profile } = await supabase
     .from("profiles" as never)
     .select("company_id")
-    .eq("id", (await supabase.auth.getUser()).data.user?.id ?? "")
+    .eq("id", userId ?? "")
     .maybeSingle();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const companyId = (profile as any)?.company_id;
@@ -70,6 +71,10 @@ export async function createProgetto(input: SrCreateProgettoInput): Promise<SrPr
     note_interne: input.note_interne ?? null,
     sopralluogo_id: input.sopralluogo_id ?? null,
     opportunita_id: input.opportunita_id ?? null,
+    // Consulente di default = utente che crea il preventivo. Permette di
+    // pre-popolare il PDF con nome + foto profilo + ruolo senza richiedere
+    // un secondo step "scegli consulente". Override possibile dopo via update.
+    consulente_id: input.consulente_id ?? userId ?? null,
     stato: "bozza",
   };
 
