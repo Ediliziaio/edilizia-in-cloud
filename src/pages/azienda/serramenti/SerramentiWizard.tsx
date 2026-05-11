@@ -2,21 +2,23 @@
  * SerramentiWizard — wizard a 8 step per la creazione/modifica di una stima.
  *
  * STEP:
- *  1. Cliente            — anagrafica (riusa Clienti / link CRM)
- *  2. Immobile           — indirizzo cantiere, vincoli, tipo intervento
+ *  1. Cliente            — anagrafica
+ *  2. Immobile           — cantiere, vincoli, tipo intervento
  *  3. Esigenze           — 3 pain bullets (default da template)
- *  4. Serramenti (BOM)   — composizione, materiale, vetro, misure, import sopralluogo
- *  5. Accessori + Foto   — avvolgibili, cassonetti, zanzariere + foto cantiere
+ *  4. Serramenti (BOM)   — composizione, materiale, vetro, misure
+ *  5. Accessori          — avvolgibili, cassonetti, zanzariere
  *  6. Economia           — forbice min/max, sconto, varianti, finanziamento, ROI
  *  7. Consulenza         — appuntamento, consulente, cronoprogramma
- *  8. PDF                — genera HTML preventivo, salva URL
+ *  8. PDF                — genera HTML preventivo (Wave 4)
  *
- * Scheletro Wave 2: navigazione, salvataggio header, layout. Le sezioni
- * di dettaglio vengono completate progressivamente in Wave 3.
+ * Fix Wave 3:
+ *  - Bug: dopo "Crea e continua" l'utente passa subito a Step 2 (era bloccato su Step 1)
+ *  - Dirty check: avviso AlertDialog se cambio step con modifiche non salvate
+ *  - beforeunload guard
  */
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +30,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   ArrowLeft, ArrowRight, Save, Loader2, RectangleVertical,
   User, Home, MessageCircle, Image as ImageIcon, Euro, Calendar, FileText,
 } from "lucide-react";
@@ -38,6 +44,12 @@ import {
 } from "@/lib/serramenti/queries";
 import { SR_WIZARD_STEPS } from "@/types/serramenti";
 import type { SrProgettoRow, SrWizardStep, SrTipoIntervento } from "@/types/serramenti";
+import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
+import { StepBom } from "@/components/serramenti/StepBom";
+import { StepAccessori } from "@/components/serramenti/StepAccessori";
+import { StepEconomia } from "@/components/serramenti/StepEconomia";
+import { StepConsulenza } from "@/components/serramenti/StepConsulenza";
+import { StepPdf } from "@/components/serramenti/StepPdf";
 
 const STEP_ICONS: Record<SrWizardStep, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -53,30 +65,74 @@ const STEP_ICONS: Record<SrWizardStep, React.FC<React.SVGProps<SVGSVGElement>>> 
 export default function SerramentiWizard() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const isNew = !id;
 
   const [currentStep, setCurrentStep] = useState<SrWizardStep>("cliente");
   const [creating, setCreating] = useState(false);
+  const [pendingStep, setPendingStep] = useState<SrWizardStep | null>(null);
 
   const { data: detail, isLoading } = useProgetto(id);
   const updateMut = useUpdateProgetto(id);
   const createMut = useCreateProgetto();
 
-  // Local form state per il progetto
-  const [form, setForm] = useState<Partial<SrProgettoRow>>({});
+  const pendingWrites = useIsMutating({ mutationKey: ["sr-progetto-autosave", id] });
 
+  // Local form state — solo per i campi del progetto stesso
+  const [form, setForm] = useState<Partial<SrProgettoRow>>({});
+  const [dirty, setDirty] = useState(false);
+
+  // Sync form con dati server al primo load / cambio progetto
   useEffect(() => {
     if (detail?.progetto) {
       setForm(detail.progetto);
+      setDirty(false);
     }
+  }, [detail?.progetto.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bug fix: dopo creazione (auto-advance step quando si carica un nuovo id appena creato)
+  // → quando arriviamo qui con un id appena creato, advance allo step 2
+  useEffect(() => {
+    if (id && detail?.progetto && currentStep === "cliente") {
+      // Se il progetto ha cliente_nome compilato, l'utente probabilmente ha
+      // già fatto step 1 → portiamolo allo step 2.
+      const hasStep1Data = detail.progetto.cliente_nome || detail.progetto.cliente_cognome;
+      if (hasStep1Data) {
+        setCurrentStep("immobile");
+      }
+    }
+    // Solo al primo load del progetto
   }, [detail?.progetto.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onChange = <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+    setDirty(true);
+  };
+
+  // Beforeunload guard
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (dirty || pendingWrites > 0) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty, pendingWrites]);
+
+  const saveProgetto = async (): Promise<boolean> => {
+    if (!id) return false;
+    try {
+      await updateMut.mutateAsync(form);
+      setDirty(false);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const handleSaveAndContinue = async () => {
+    // Caso 1: nuovo progetto — crea
     if (isNew) {
       setCreating(true);
       try {
@@ -93,18 +149,52 @@ export default function SerramentiWizard() {
       }
       return;
     }
+
+    // Caso 2: progetto esistente — salva e advance
     if (!id) return;
-    try {
-      await updateMut.mutateAsync(form);
-      const idx = SR_WIZARD_STEPS.findIndex((s) => s.key === currentStep);
-      if (idx >= 0 && idx < SR_WIZARD_STEPS.length - 1) {
-        setCurrentStep(SR_WIZARD_STEPS[idx + 1].key);
-      } else {
-        toast.success("Stima salvata");
-      }
-    } catch {
-      /* error toast già gestito dal hook */
+    const ok = await saveProgetto();
+    if (!ok) return;
+    const idx = SR_WIZARD_STEPS.findIndex((s) => s.key === currentStep);
+    if (idx >= 0 && idx < SR_WIZARD_STEPS.length - 1) {
+      setCurrentStep(SR_WIZARD_STEPS[idx + 1].key);
+    } else {
+      toast.success("Stima salvata");
     }
+  };
+
+  // Click su step sidebar — controlla dirty
+  const handleStepClick = (target: SrWizardStep) => {
+    if (target === currentStep) return;
+    if (isNew) return; // in new mode lo step laterale è disabled
+    if (dirty || pendingWrites > 0) {
+      setPendingStep(target);
+      return;
+    }
+    setCurrentStep(target);
+  };
+
+  const handleBack = () => {
+    const idx = currentStepIndex;
+    if (idx > 0) handleStepClick(SR_WIZARD_STEPS[idx - 1].key);
+  };
+
+  const confirmStepChange = async (saveFirst: boolean) => {
+    if (!pendingStep) return;
+    if (saveFirst) {
+      const ok = await saveProgetto();
+      if (!ok) {
+        setPendingStep(null);
+        return;
+      }
+    } else {
+      // Discard local changes — re-sync from server
+      if (detail?.progetto) {
+        setForm(detail.progetto);
+        setDirty(false);
+      }
+    }
+    setCurrentStep(pendingStep);
+    setPendingStep(null);
   };
 
   const currentStepIndex = useMemo(
@@ -112,9 +202,10 @@ export default function SerramentiWizard() {
     [currentStep],
   );
 
-  const progress = useMemo(() => {
-    return Math.round(((currentStepIndex + 1) / SR_WIZARD_STEPS.length) * 100);
-  }, [currentStepIndex]);
+  const progress = useMemo(
+    () => Math.round(((currentStepIndex + 1) / SR_WIZARD_STEPS.length) * 100),
+    [currentStepIndex],
+  );
 
   if (!isNew && isLoading) {
     return (
@@ -144,10 +235,13 @@ export default function SerramentiWizard() {
                   {[detail.progetto.cliente_nome, detail.progetto.cliente_cognome].filter(Boolean).join(" ")}
                 </Badge>
               )}
-              {updateMut.isPending && (
+              {(updateMut.isPending || pendingWrites > 0) && (
                 <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                   <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
                 </span>
+              )}
+              {dirty && pendingWrites === 0 && !updateMut.isPending && (
+                <span className="text-[10px] text-amber-600">● Modifiche non salvate</span>
               )}
             </div>
             <p className="text-[11px] text-muted-foreground">
@@ -155,7 +249,6 @@ export default function SerramentiWizard() {
             </p>
           </div>
         </div>
-        {/* Progress */}
         <div className="h-1 bg-muted">
           <div
             className="h-full bg-emerald-600 transition-all duration-300"
@@ -175,19 +268,20 @@ export default function SerramentiWizard() {
                     const Icon = STEP_ICONS[s.key];
                     const isActive = s.key === currentStep;
                     const isPast = idx < currentStepIndex;
+                    const disabled = isNew && idx > 0;
                     return (
                       <button
                         key={s.key}
-                        onClick={() => !isNew && setCurrentStep(s.key)}
-                        disabled={isNew && idx > 0}
+                        onClick={() => !disabled && handleStepClick(s.key)}
+                        disabled={disabled}
                         className={cn(
                           "w-full text-left px-2.5 py-2 rounded-md text-xs flex items-center gap-2 transition-colors",
                           isActive
                             ? "bg-emerald-100 text-emerald-900 font-semibold"
                             : isPast
-                            ? "text-muted-foreground hover:bg-muted"
-                            : "text-muted-foreground/60",
-                          isNew && idx > 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+                            ? "text-foreground hover:bg-muted"
+                            : "text-muted-foreground",
+                          disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
                         )}
                       >
                         <span className={cn(
@@ -204,6 +298,11 @@ export default function SerramentiWizard() {
                     );
                   })}
                 </nav>
+                {isNew && (
+                  <SrCallout variant="info" className="mt-2 text-[10px]">
+                    Compila i dati cliente e crea il progetto per sbloccare gli altri step.
+                  </SrCallout>
+                )}
               </CardContent>
             </Card>
           </aside>
@@ -219,22 +318,25 @@ export default function SerramentiWizard() {
             {currentStep === "esigenze" && (
               <StepEsigenze form={form} onChange={onChange} />
             )}
-            {currentStep === "bom" && <StepPlaceholder title="Composizione serramenti" description="In Wave 3 — aggiunta tipologie, materiali, vetri, misure per ciascun pezzo. Import da sopralluogo Infissi v6." />}
-            {currentStep === "accessori_foto" && <StepPlaceholder title="Accessori e foto" description="In Wave 3 — avvolgibili, cassonetti, zanzariere + upload foto cantiere/render." />}
-            {currentStep === "economia" && <StepPlaceholder title="Economia + ROI" description="In Wave 3 — forbice min/max, sconto, varianti (Standard/Comfort/Premium), finanziamento, calcolo risparmio energetico 10 anni." />}
-            {currentStep === "consulenza" && <StepPlaceholder title="Consulenza + Cronoprogramma" description="In Wave 3 — appuntamento, consulente, cronoprogramma lavori, prossimi passi." />}
-            {currentStep === "pdf" && <StepPlaceholder title="Genera PDF" description="In Wave 4 — chiama edge function sr-genera-pdf, salva HTML su Storage, link condivisibile + QR firma." />}
+            {currentStep === "bom" && id && detail && (
+              <StepBom progettoId={id} detail={detail} />
+            )}
+            {currentStep === "accessori_foto" && id && detail && (
+              <StepAccessori progettoId={id} detail={detail} />
+            )}
+            {currentStep === "economia" && id && detail && (
+              <StepEconomia progettoId={id} detail={detail} form={form} onChange={onChange} />
+            )}
+            {currentStep === "consulenza" && id && detail && (
+              <StepConsulenza form={form} onChange={onChange} detail={detail} />
+            )}
+            {currentStep === "pdf" && id && detail && (
+              <StepPdf progettoId={id} detail={detail} />
+            )}
 
             {/* Navigation footer */}
             <div className="flex items-center justify-between pt-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const idx = currentStepIndex;
-                  if (idx > 0) setCurrentStep(SR_WIZARD_STEPS[idx - 1].key);
-                }}
-                disabled={currentStepIndex === 0}
-              >
+              <Button variant="outline" onClick={handleBack} disabled={currentStepIndex === 0}>
                 <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
               </Button>
               <Button
@@ -256,11 +358,35 @@ export default function SerramentiWizard() {
           </main>
         </div>
       </div>
+
+      {/* Dialog conferma cambio step con modifiche non salvate */}
+      <AlertDialog open={!!pendingStep} onOpenChange={(o) => !o && setPendingStep(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Modifiche non salvate</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hai modifiche non ancora salvate. Cosa vuoi fare prima di passare allo step "{SR_WIZARD_STEPS.find((s) => s.key === pendingStep)?.label}"?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <Button variant="outline" onClick={() => confirmStepChange(false)}>
+              Scarta modifiche
+            </Button>
+            <AlertDialogAction
+              className="bg-emerald-700 hover:bg-emerald-800"
+              onClick={() => confirmStepChange(true)}
+            >
+              Salva e continua
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
-// ─── Step components ────────────────────────────────────────────────────────
+// ─── Step inline (Cliente, Immobile, Esigenze) ──────────────────────────────
 
 function StepCliente({
   form, onChange,
@@ -269,14 +395,12 @@ function StepCliente({
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
 }) {
   return (
-    <Card>
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <User className="h-4 w-4 text-emerald-700" />
-          Anagrafica cliente
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-2 grid grid-cols-12 gap-3">
+    <SrCard
+      title="Anagrafica cliente"
+      description="Compila i dati del cliente che riceverà la stima. Indirizzo, telefono ed email sono opzionali ma consigliati per il PDF."
+      icon={<User className="h-4 w-4" />}
+    >
+      <div className="grid grid-cols-12 gap-3">
         <div className="col-span-12 md:col-span-6">
           <Label className="text-xs">Nome</Label>
           <Input
@@ -351,8 +475,8 @@ function StepCliente({
             className="h-9 uppercase"
           />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </SrCard>
   );
 }
 
@@ -363,14 +487,12 @@ function StepImmobile({
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
 }) {
   return (
-    <Card>
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Home className="h-4 w-4 text-emerald-700" />
-          Cantiere e intervento
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-2 grid grid-cols-12 gap-3">
+    <SrCard
+      title="Cantiere e intervento"
+      description="Indirizzo del cantiere (se diverso dal cliente), tipo di intervento e sintesi che compare in alto al PDF."
+      icon={<Home className="h-4 w-4" />}
+    >
+      <div className="grid grid-cols-12 gap-3">
         <div className="col-span-12">
           <Label className="text-xs">Tipo di intervento</Label>
           <Select
@@ -439,8 +561,8 @@ function StepImmobile({
             Comparirà in alto al PDF — "L'intervento in sintesi"
           </p>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </SrCard>
   );
 }
 
@@ -454,22 +576,18 @@ function StepEsigenze({
 
   const updateEsigenza = (idx: number, field: "titolo" | "descrizione", value: string) => {
     const next = [...esigenze];
+    while (next.length <= idx) next.push({ titolo: "", descrizione: "" });
     next[idx] = { ...next[idx], [field]: value };
     onChange("esigenze", next);
   };
 
   return (
-    <Card>
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <MessageCircle className="h-4 w-4 text-emerald-700" />
-          Esigenze del cliente
-        </CardTitle>
-        <p className="text-[11px] text-muted-foreground mt-1">
-          Le 3 esigenze principali emerse dal sopralluogo o dalla chiamata. Compaiono nella pagina 1 del PDF come "Le tue esigenze".
-        </p>
-      </CardHeader>
-      <CardContent className="p-4 pt-2 space-y-3">
+    <SrCard
+      title="Esigenze del cliente"
+      description="Le 3 esigenze principali emerse dal sopralluogo o dalla chiamata. Compaiono nella pagina 1 del PDF come 'Le tue esigenze'."
+      icon={<MessageCircle className="h-4 w-4" />}
+    >
+      <div className="space-y-3">
         {[0, 1, 2].map((idx) => {
           const e = esigenze[idx] ?? { titolo: "", descrizione: "" };
           return (
@@ -491,26 +609,7 @@ function StepEsigenze({
             </div>
           );
         })}
-      </CardContent>
-    </Card>
-  );
-}
-
-function StepPlaceholder({ title, description }: { title: string; description: string }) {
-  return (
-    <Card>
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-2">
-        <div className="border-2 border-dashed border-emerald-200 rounded-md p-6 text-center">
-          <FileText className="h-8 w-8 mx-auto text-emerald-300 mb-2" />
-          <p className="text-sm text-muted-foreground">{description}</p>
-          <Badge variant="outline" className="mt-3 bg-amber-50 text-amber-700 border-amber-200">
-            🚧 In sviluppo
-          </Badge>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </SrCard>
   );
 }
