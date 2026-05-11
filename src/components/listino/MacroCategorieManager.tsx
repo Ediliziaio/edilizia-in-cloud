@@ -34,6 +34,8 @@ import {
   ChevronRight,
   Loader2,
   ArrowRight,
+  Settings2,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +79,21 @@ import {
   type ListinoCategoria,
 } from "@/hooks/useListinoCategorie";
 import { translateListinoError } from "@/lib/listinoErrors";
+import { Checkbox } from "@/components/ui/checkbox";
+import { SchedaTecnicaEditor } from "./SchedaTecnicaEditor";
+
+// Valori coerenti con companies_vertical_check + fotovoltaico (gestito a parte).
+const VERTICALI_OPTIONS: { value: string; label: string }[] = [
+  { value: "serramentista", label: "Serramenti" },
+  { value: "fotovoltaico", label: "Fotovoltaico" },
+  { value: "bagno", label: "Bagno" },
+  { value: "tetti", label: "Tetti" },
+  { value: "tende_da_sole", label: "Tende da sole" },
+  { value: "vetrate", label: "Vetrate" },
+  { value: "caldaie", label: "Caldaie" },
+  { value: "clima", label: "Climatizzazione" },
+  { value: "ristrutturazione", label: "Ristrutturazione" },
+];
 
 // ─────────────────────────────────────────────────────────────────────────
 // Helper tipi interni
@@ -110,6 +127,9 @@ export function MacroCategorieManager() {
   const [formNome, setFormNome] = useState("");
   const [formDescrizione, setFormDescrizione] = useState("");
   const [formMacroId, setFormMacroId] = useState<string | "none">("none");
+  const [formVerticali, setFormVerticali] = useState<string[]>([]);
+  // Macrocategoria di cui si sta editando la scheda tecnica (null = chiuso)
+  const [schedaTecnicaFor, setSchedaTecnicaFor] = useState<ListinoMacrocategoria | null>(null);
 
   // Raggruppa categorie per macrocategoria_id (null → orfane)
   const byMacroId = useMemo(() => {
@@ -139,18 +159,22 @@ export function MacroCategorieManager() {
       setFormNome(mode.row.nome);
       setFormDescrizione(mode.row.descrizione ?? "");
       setFormMacroId("none");
+      setFormVerticali(mode.row.verticali_abilitati ?? []);
     } else if (mode.kind === "cat-edit") {
       setFormNome(mode.row.nome);
       setFormDescrizione(mode.row.descrizione ?? "");
       setFormMacroId(mode.row.macrocategoria_id ?? "none");
+      setFormVerticali([]);
     } else if (mode.kind === "cat-new") {
       setFormNome("");
       setFormDescrizione("");
       setFormMacroId(mode.macrocategoriaId ?? "none");
+      setFormVerticali([]);
     } else {
       setFormNome("");
       setFormDescrizione("");
       setFormMacroId("none");
+      setFormVerticali([]);
     }
   };
 
@@ -159,6 +183,13 @@ export function MacroCategorieManager() {
     setFormNome("");
     setFormDescrizione("");
     setFormMacroId("none");
+    setFormVerticali([]);
+  };
+
+  const toggleVerticale = (v: string) => {
+    setFormVerticali((prev) =>
+      prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v],
+    );
   };
 
   const saving =
@@ -218,12 +249,17 @@ export function MacroCategorieManager() {
         await createMacrocategoria.mutateAsync({
           nome,
           descrizione: formDescrizione.trim() || null,
+          verticali_abilitati: formVerticali,
         });
         toast.success("Macrocategoria creata");
       } else if (editMode.kind === "macro-edit") {
         await updateMacrocategoria.mutateAsync({
           id: editMode.row.id,
-          patch: { nome, descrizione: formDescrizione.trim() || null },
+          patch: {
+            nome,
+            descrizione: formDescrizione.trim() || null,
+            verticali_abilitati: formVerticali,
+          },
         });
         toast.success("Macrocategoria aggiornata");
       } else if (editMode.kind === "cat-new") {
@@ -381,6 +417,7 @@ export function MacroCategorieManager() {
                   }
                   onEditCategoria={(row) => openForm({ kind: "cat-edit", row })}
                   onDeleteCategoria={(row) => setToDelete({ kind: "cat", row })}
+                  onEditSchedaTecnica={() => setSchedaTecnicaFor(m)}
                 />
               );
             })}
@@ -475,6 +512,38 @@ export function MacroCategorieManager() {
                 </Select>
               </div>
             )}
+            {!isCatForm && (
+              <div className="space-y-2 pt-1 border-t">
+                <div className="flex items-center gap-2">
+                  <Tag className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-sm font-medium">Verticali abilitati</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Scegli in quali moduli preventivo (Serramenti, Bagno, Fotovoltaico…)
+                  questa macrocategoria dovrà essere visibile. Lascia <em>tutto deselezionato</em>{" "}
+                  per renderla visibile in tutti i moduli.
+                </p>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1 max-h-48 overflow-y-auto">
+                  {VERTICALI_OPTIONS.map((v) => (
+                    <label
+                      key={v.value}
+                      className="flex items-center gap-2 cursor-pointer text-sm hover:bg-accent/50 rounded px-1 py-0.5"
+                    >
+                      <Checkbox
+                        checked={formVerticali.includes(v.value)}
+                        onCheckedChange={() => toggleVerticale(v.value)}
+                      />
+                      <span>{v.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {formVerticali.length === 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 italic">
+                    ⚠️ Nessun verticale selezionato → macro visibile ovunque (generica)
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
@@ -549,6 +618,16 @@ export function MacroCategorieManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog scheda tecnica (campi descrittivi per macrocategoria) */}
+      {schedaTecnicaFor && (
+        <SchedaTecnicaEditor
+          macroId={schedaTecnicaFor.id}
+          macroNome={schedaTecnicaFor.nome}
+          open={!!schedaTecnicaFor}
+          onClose={() => setSchedaTecnicaFor(null)}
+        />
+      )}
     </Card>
   );
 }
@@ -566,7 +645,13 @@ interface MacroRowProps {
   onAddCategoria: () => void;
   onEditCategoria: (row: ListinoCategoria) => void;
   onDeleteCategoria: (row: ListinoCategoria) => void;
+  onEditSchedaTecnica: () => void;
 }
+
+// Mappa value→label per le badge dei verticali nel MacroRow header
+const VERTICAL_LABEL_BY_VALUE = new Map(
+  VERTICALI_OPTIONS.map((v) => [v.value, v.label]),
+);
 
 function MacroRow({
   macro,
@@ -578,7 +663,9 @@ function MacroRow({
   onAddCategoria,
   onEditCategoria,
   onDeleteCategoria,
+  onEditSchedaTecnica,
 }: MacroRowProps) {
+  const verticali = macro.verticali_abilitati ?? [];
   return (
     <div className="rounded-lg border bg-card">
       <div className="flex items-center justify-between gap-2 p-3">
@@ -603,8 +690,35 @@ function MacroRow({
           <Badge variant="secondary" className="shrink-0">
             {categorie.length}
           </Badge>
+          {verticali.length > 0 && (
+            <div className="hidden sm:flex items-center gap-1 shrink-0">
+              {verticali.slice(0, 3).map((v) => (
+                <Badge
+                  key={v}
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 text-blue-700 dark:text-blue-300"
+                  title={`Visibile nel modulo ${VERTICAL_LABEL_BY_VALUE.get(v) ?? v}`}
+                >
+                  {VERTICAL_LABEL_BY_VALUE.get(v) ?? v}
+                </Badge>
+              ))}
+              {verticali.length > 3 && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                  +{verticali.length - 3}
+                </Badge>
+              )}
+            </div>
+          )}
         </button>
         <div className="flex gap-1 shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onEditSchedaTecnica}
+            title="Configura scheda tecnica (campi descrittivi del prodotto)"
+          >
+            <Settings2 className="h-4 w-4" aria-hidden="true" />
+          </Button>
           <Button variant="ghost" size="sm" onClick={onAddCategoria} title="Aggiungi categoria">
             <Plus className="h-4 w-4" aria-hidden="true" />
           </Button>

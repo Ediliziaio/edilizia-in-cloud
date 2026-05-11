@@ -28,6 +28,9 @@ export interface ListinoMacrocategoria {
   colore: string | null;
   sort_order: number;
   attivo: boolean;
+  // Verticali (moduli preventivo) a cui questa macro è esposta.
+  // [] = visibile in tutti i verticali (retrocompat).
+  verticali_abilitati: string[];
   created_at: string;
   updated_at: string;
 }
@@ -39,6 +42,7 @@ export interface MacrocategoriaPayload {
   colore?: string | null;
   sort_order?: number;
   attivo?: boolean;
+  verticali_abilitati?: string[];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -111,6 +115,7 @@ export function useMacrocategorieMutations() {
           colore: payload.colore ?? null,
           sort_order: payload.sort_order ?? 0,
           attivo: payload.attivo ?? true,
+          verticali_abilitati: payload.verticali_abilitati ?? [],
         } as never)
         .select()
         .single();
@@ -140,6 +145,9 @@ export function useMacrocategorieMutations() {
           ...(patch.colore !== undefined ? { colore: patch.colore } : {}),
           ...(patch.sort_order !== undefined ? { sort_order: patch.sort_order } : {}),
           ...(patch.attivo !== undefined ? { attivo: patch.attivo } : {}),
+          ...(patch.verticali_abilitati !== undefined
+            ? { verticali_abilitati: patch.verticali_abilitati }
+            : {}),
         } as never)
         .eq("id", id)
         .eq("company_id", companyId)

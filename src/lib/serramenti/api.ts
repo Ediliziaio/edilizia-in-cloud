@@ -410,6 +410,7 @@ export interface ListinoMacrocategoria {
   descrizione: string | null;
   icona: string | null;
   colore: string | null;
+  verticali_abilitati: string[];
 }
 
 export interface ListinoCategoria {
@@ -423,19 +424,33 @@ export interface ListinoCategoria {
 }
 
 /**
- * Lista macrocategorie attive. Se `onlyWithFamilies=true` (default nel picker)
- * filtra fuori le macro vuote — quelle senza nessuna famiglia attiva nei suoi
- * rami categoria → famiglia. Evita di mostrare macrocategorie "fantasma"
- * (es. create durante test ma mai popolate) che porterebbero a un dead-end.
+ * Lista macrocategorie attive. Opzioni:
+ *   - `vertical`: filtra solo macro esposte al verticale (es. 'serramentista').
+ *     Una macro con `verticali_abilitati = []` è considerata generica → sempre
+ *     visibile. Quando passi un vertical, vedi: generiche + quelle con il vertical
+ *     nell'array.
+ *   - `onlyWithFamilies=true` (default nel picker preventivo): filtra fuori
+ *     le macro senza famiglie nei suoi rami categoria → famiglia. Evita
+ *     macrocategorie fantasma (create durante test ma mai popolate) che
+ *     porterebbero a un dead-end UX.
  */
-export async function listMacrocategorie(opts?: { onlyWithFamilies?: boolean }): Promise<ListinoMacrocategoria[]> {
+export async function listMacrocategorie(opts?: {
+  onlyWithFamilies?: boolean;
+  vertical?: string | null;
+}): Promise<ListinoMacrocategoria[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  let q = (supabase as any)
     .from("listino_macrocategorie")
-    .select("id, nome, descrizione, icona, colore")
+    .select("id, nome, descrizione, icona, colore, verticali_abilitati")
     .eq("attivo", true)
     .order("sort_order", { ascending: true, nullsFirst: false })
     .order("nome", { ascending: true });
+  // Filtro vertical lato server via PostgREST `or`:
+  // verticali_abilitati = '{}' (vuoto → generica) OR ? = ANY(verticali_abilitati)
+  if (opts?.vertical) {
+    q = q.or(`verticali_abilitati.eq.{},verticali_abilitati.cs.{${opts.vertical}}`);
+  }
+  const { data, error } = await q;
   if (error) {
     console.error("[serramenti] listMacrocategorie failed", error);
     throw new Error("Errore caricamento macrocategorie listino");
@@ -501,6 +516,147 @@ export async function listCategorieByMacro(
   return cats.filter((c) => catsWithFam.has(c.id));
 }
 
+// ─── SCHEDA TECNICA: campi tipizzati per macrocategoria ──────────────────
+//
+// Ogni macrocategoria può definire un set di "campi descrittivi" tipizzati
+// che vivono in `listino_macrocategoria_fields`. I valori per ogni articolo
+// (famiglia) sono salvati in `article_families.custom_field_values` JSONB
+// con chiave = `field_key`.
+//
+// Use case: "Infissi" ha campi {materiale_profilo, vetro, Uw, colori...},
+// "Pannelli FV" ha {potenza_wp, efficienza, tecnologia_celle...}. Lo schema
+// pilota sia il form di anagrafica famiglia che il rendering nel preventivo/PDF.
+
+export type ListinoFieldType =
+  | "text" | "textarea" | "number" | "select" | "multiselect" | "boolean" | "color";
+
+export interface ListinoFieldOption {
+  value: string;
+  label: string;
+}
+
+export interface ListinoMacroField {
+  id: string;
+  macrocategoria_id: string;
+  field_key: string;
+  field_label: string;
+  field_type: ListinoFieldType;
+  field_unit: string | null;
+  field_options: ListinoFieldOption[];
+  field_placeholder: string | null;
+  field_help: string | null;
+  required: boolean;
+  show_in_picker: boolean;
+  show_in_pdf: boolean;
+  sort_order: number;
+}
+
+/**
+ * Carica la scheda tecnica (lista campi tipizzati) di una macrocategoria,
+ * ordinata per sort_order. Restituisce array vuoto se la macro non ha schema.
+ */
+export async function listMacroFields(macroId: string): Promise<ListinoMacroField[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("listino_macrocategoria_fields")
+    .select(`
+      id, macrocategoria_id, field_key, field_label, field_type, field_unit,
+      field_options, field_placeholder, field_help, required,
+      show_in_picker, show_in_pdf, sort_order
+    `)
+    .eq("macrocategoria_id", macroId)
+    .order("sort_order", { ascending: true });
+  if (error) {
+    console.error("[serramenti] listMacroFields failed", error);
+    throw new Error("Errore caricamento scheda tecnica");
+  }
+  return (data ?? []) as ListinoMacroField[];
+}
+
+export async function createMacroField(
+  input: Omit<ListinoMacroField, "id">,
+): Promise<ListinoMacroField> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("listino_macrocategoria_fields")
+    .insert(input)
+    .select("*")
+    .single();
+  if (error) {
+    console.error("[serramenti] createMacroField failed", error);
+    throw new Error("Errore creazione campo scheda tecnica");
+  }
+  return data as ListinoMacroField;
+}
+
+export async function updateMacroField(
+  id: string,
+  patch: Partial<Omit<ListinoMacroField, "id" | "macrocategoria_id">>,
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("listino_macrocategoria_fields")
+    .update(patch)
+    .eq("id", id);
+  if (error) {
+    console.error("[serramenti] updateMacroField failed", error);
+    throw new Error("Errore aggiornamento campo scheda tecnica");
+  }
+}
+
+export async function deleteMacroField(id: string): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("listino_macrocategoria_fields")
+    .delete()
+    .eq("id", id);
+  if (error) {
+    console.error("[serramenti] deleteMacroField failed", error);
+    throw new Error("Errore eliminazione campo scheda tecnica");
+  }
+}
+
+/**
+ * Bootstrap rapido: popola la scheda tecnica di una macro con i campi
+ * standard del verticale indicato (serramentista | fotovoltaico | bagno |
+ * tetti). Idempotente: campi già esistenti non vengono duplicati.
+ * Ritorna il numero di campi effettivamente creati.
+ */
+export async function seedMacroFieldsFromVertical(
+  macroId: string,
+  vertical: string,
+): Promise<number> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc("seed_macro_fields_from_vertical", {
+    p_macro_id: macroId,
+    p_vertical: vertical,
+  });
+  if (error) {
+    console.error("[serramenti] seedMacroFieldsFromVertical failed", error);
+    throw new Error("Errore seed scheda tecnica");
+  }
+  return Number(data ?? 0);
+}
+
+/**
+ * Aggiorna i verticali abilitati su una macrocategoria. Una macro con
+ * `[]` (default) è generica e appare in tutti i moduli preventivo.
+ */
+export async function updateMacrocategoriaVerticali(
+  macroId: string,
+  verticali: string[],
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("listino_macrocategorie")
+    .update({ verticali_abilitati: verticali })
+    .eq("id", macroId);
+  if (error) {
+    console.error("[serramenti] updateMacrocategoriaVerticali failed", error);
+    throw new Error("Errore aggiornamento verticali macrocategoria");
+  }
+}
+
 // ─── LISTINO PRODOTTI (article_families + listino_griglia) ─────────────────
 
 export interface ListinoFamily {
@@ -513,6 +669,8 @@ export interface ListinoFamily {
   vat_rate: number | null;
   modalita_prezzo_base: string | null;
   categoria_id: string | null;
+  // ─── Scheda tecnica (valori tipizzati dei campi definiti su macrocategoria) ─
+  custom_field_values: Record<string, unknown>;
   // ─── Manodopera auto-link (configurata in FamilyEditor → Step Manodopera) ─
   manodopera_modalita: "tariffa" | "manuale" | "nessuna" | null;
   posa_tariffa_default_id: string | null;
@@ -542,7 +700,7 @@ export async function listListinoFamilies(opts?: {
     .from("article_families")
     .select(`
       id, nome, descrizione, immagine_url, vertical, prezzo_base_vendita, vat_rate,
-      modalita_prezzo_base, categoria_id,
+      modalita_prezzo_base, categoria_id, custom_field_values,
       manodopera_modalita, posa_tariffa_default_id, posa_quantita_default, posa_linked,
       manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita
     `)

@@ -16,9 +16,12 @@ import {
   listCrmContacts,
   listListinoFamilies, listGrigliaByFamily,
   listMacrocategorie, listCategorieByMacro,
+  listMacroFields, createMacroField, updateMacroField, deleteMacroField,
+  seedMacroFieldsFromVertical, updateMacrocategoriaVerticali,
   listTariffeManodopera, addManodopera, updateManodopera, deleteManodopera,
   type SrCreateProgettoInput,
   type UploadMediaInput,
+  type ListinoMacroField,
 } from "./api";
 import type { SrManodoperaRow } from "@/types/serramenti";
 import type {
@@ -253,11 +256,15 @@ export function useListinoFamilies(opts?: { searchQuery?: string; categoriaId?: 
   });
 }
 
-export function useMacrocategorie(opts?: { onlyWithFamilies?: boolean }) {
+export function useMacrocategorie(opts?: {
+  onlyWithFamilies?: boolean;
+  vertical?: string | null;
+}) {
   const onlyWithFamilies = opts?.onlyWithFamilies ?? true;
+  const vertical = opts?.vertical ?? null;
   return useQuery({
-    queryKey: ["sr-listino-macrocategorie", onlyWithFamilies],
-    queryFn: () => listMacrocategorie({ onlyWithFamilies }),
+    queryKey: ["sr-listino-macrocategorie", onlyWithFamilies, vertical],
+    queryFn: () => listMacrocategorie({ onlyWithFamilies, vertical }),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -272,6 +279,82 @@ export function useCategorieByMacro(
     queryFn: () => listCategorieByMacro(macroId, { onlyWithFamilies }),
     enabled: macroId !== undefined,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+// ─── Scheda tecnica: campi tipizzati per macrocategoria ────────────────────
+
+export function useMacroFields(macroId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["sr-listino-macro-fields", macroId],
+    queryFn: () => listMacroFields(macroId!),
+    enabled: !!macroId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useCreateMacroField(macroId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Omit<ListinoMacroField, "id">) => createMacroField(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sr-listino-macro-fields", macroId] });
+      toast.success("Campo aggiunto alla scheda tecnica");
+    },
+    onError: (e) => toast.error("Creazione campo fallita", { description: String(e) }),
+  });
+}
+
+export function useUpdateMacroField(macroId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ["sr-macro-field-autosave", macroId],
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<Omit<ListinoMacroField, "id" | "macrocategoria_id">> }) =>
+      updateMacroField(id, patch),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sr-listino-macro-fields", macroId] });
+    },
+    onError: (e) => toast.error("Aggiornamento campo fallito", { description: String(e) }),
+  });
+}
+
+export function useDeleteMacroField(macroId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteMacroField(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sr-listino-macro-fields", macroId] });
+      toast.success("Campo eliminato");
+    },
+    onError: (e) => toast.error("Eliminazione fallita", { description: String(e) }),
+  });
+}
+
+export function useSeedMacroFields(macroId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vertical }: { vertical: string }) => {
+      if (!macroId) throw new Error("Macrocategoria id mancante");
+      return seedMacroFieldsFromVertical(macroId, vertical);
+    },
+    onSuccess: (count) => {
+      qc.invalidateQueries({ queryKey: ["sr-listino-macro-fields", macroId] });
+      toast.success(`${count} campi standard aggiunti alla scheda tecnica`);
+    },
+    onError: (e) => toast.error("Bootstrap scheda tecnica fallito", { description: String(e) }),
+  });
+}
+
+export function useUpdateMacroVerticali() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ macroId, verticali }: { macroId: string; verticali: string[] }) =>
+      updateMacrocategoriaVerticali(macroId, verticali),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sr-listino-macrocategorie"] });
+      toast.success("Verticali aggiornati");
+    },
+    onError: (e) => toast.error("Aggiornamento verticali fallito", { description: String(e) }),
   });
 }
 

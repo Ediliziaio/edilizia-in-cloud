@@ -32,6 +32,7 @@ import {
 import type {
   ListinoFamily, ListinoMacrocategoria, ListinoCategoria,
 } from "@/lib/serramenti/api";
+import { DynamicFieldsRenderer } from "@/components/listino/DynamicFieldsRenderer";
 
 export interface ListinoPickResult {
   family_id: string;
@@ -180,7 +181,11 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
   const effectiveStep: Step = isSearching && step !== "misure" ? "famiglia" : step;
 
   // ─── Data fetch ──────────────────────────────────────────────────────────
-  const { data: macros = [], isLoading: loadingMacros } = useMacrocategorie();
+  // Filtro vertical='serramentista': nel preventivo serramenti vediamo solo
+  // macro etichettate per questo verticale (più le generiche con verticali_abilitati=[]).
+  const { data: macros = [], isLoading: loadingMacros } = useMacrocategorie({
+    vertical: "serramentista",
+  });
   const { data: categorie = [], isLoading: loadingCat } = useCategorieByMacro(selectedMacro?.id ?? null);
   const { data: families = [], isLoading: loadingFam } = useListinoFamilies({
     searchQuery: isSearching ? debounced : undefined,
@@ -520,6 +525,22 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Loader2 className="h-3 w-3 animate-spin" /> Caricamento griglia prezzi…
               </p>
+            )}
+
+            {/* Scheda tecnica read-only: chiavi visibili (show_in_picker) della
+                macrocategoria della famiglia selezionata. Si nasconde da sé se
+                la macro non ha schema o se la famiglia non ha valori compilati. */}
+            {selectedMacro && Object.keys(selectedFamily.custom_field_values ?? {}).length > 0 && (
+              <Card className="bg-slate-50 border-slate-200 p-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-600 font-semibold mb-2">
+                  Caratteristiche prodotto
+                </p>
+                <DynamicFieldsRenderer
+                  macroId={selectedMacro.id}
+                  values={selectedFamily.custom_field_values ?? {}}
+                  mode="display"
+                />
+              </Card>
             )}
 
             {/* Riepilogo calcolo — il commerciale vede solo il totale, niente posa esposta */}

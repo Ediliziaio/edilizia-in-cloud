@@ -81,6 +81,7 @@ import { FamilyAxesEditor } from "./FamilyAxesEditor";
 import { FamilyGridEditor } from "./FamilyGridEditor";
 import { FamilyPricePreview } from "./FamilyPricePreview";
 import { MacroCategorieManager } from "./MacroCategorieManager";
+import { DynamicFieldsRenderer, type DynamicFieldValues } from "./DynamicFieldsRenderer";
 import type {
   ModalitaPrezzoBase,
   PrezzoBaseMode,
@@ -282,6 +283,10 @@ export function FamilyEditor() {
   const [manodoperaPrezzoVendita, setManodoperaPrezzoVendita] = useState("0");
   const [manodoperaUnita, setManodoperaUnita] = useState<ManodoperaUnita>("pz");
 
+  // Scheda tecnica: valori dei campi tipizzati definiti su `listino_macrocategoria_fields`.
+  // Salvati in JSONB `article_families.custom_field_values`. Le chiavi sono `field_key`.
+  const [customFieldValues, setCustomFieldValues] = useState<DynamicFieldValues>({});
+
   // ── Query: macrocategorie + categorie + tariffe ────────────────────────
   const { macrocategorie } = useListinoMacrocategorie();
   const { categorie } = useListinoCategorie();
@@ -310,6 +315,10 @@ export function FamilyEditor() {
       setGrigliaYLabel(family.griglia_asse_y_label);
       setPrezzoVendita(String(family.prezzo_base_vendita));
       setPrezzoAcquisto(String(family.prezzo_base_acquisto));
+      // Scheda tecnica: bootstrap valori da JSONB. Cast defensivo perché i types
+      // generati potrebbero non avere `custom_field_values` finché non rigenerati.
+      const fxCustom = family as unknown as { custom_field_values?: DynamicFieldValues | null };
+      setCustomFieldValues(fxCustom.custom_field_values ?? {});
       // Nuovi campi dalla migration 20260421000002. Fino alla rigenerazione
       // dei types potrebbero non essere presenti sull'oggetto — fallback
       // ai default del DB ('vendita'/'none'/0).
@@ -651,6 +660,8 @@ export function FamilyEditor() {
       manodopera_costo_acquisto: manodoperaCostoAcquistoNum,
       manodopera_prezzo_vendita: manodoperaPrezzoVenditaNum,
       manodopera_unita: manodoperaUnita,
+      // Scheda tecnica (campi dinamici della macrocategoria). Salvato come JSONB.
+      custom_field_values: customFieldValues,
     };
 
     try {
@@ -662,7 +673,6 @@ export function FamilyEditor() {
           griglia_unita: "mm",
           attivo: true,
           sort_order: 0,
-          custom_field_values: {},
         });
         toast.success("Articolo creato");
         // Redirect a /:id per continuare editing
@@ -1075,6 +1085,32 @@ export function FamilyEditor() {
                   ) : null}
                 </CardContent>
               </Card>
+
+              {/* Scheda tecnica — campi dinamici della macrocategoria.
+                  Il renderer mostra automaticamente il form se la macro ha uno
+                  schema definito (`listino_macrocategoria_fields`), altrimenti
+                  un hint che invita a configurare i campi in Impostazioni. */}
+              {macrocategoriaId !== "none" && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Scheda tecnica</CardTitle>
+                    <p className="text-xs text-muted-foreground">
+                      Caratteristiche specifiche del prodotto (vetro, Uw, potenza, materiale…).
+                      I campi sono definiti dalla macrocategoria; vengono mostrati al
+                      commerciale nel picker e stampati nel PDF preventivo.
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <DynamicFieldsRenderer
+                      macroId={macrocategoriaId}
+                      values={customFieldValues}
+                      onChange={setCustomFieldValues}
+                      mode="edit"
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
               <div className="flex justify-end">
                 <Button
                   onClick={async () => {
