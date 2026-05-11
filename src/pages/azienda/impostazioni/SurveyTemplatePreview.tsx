@@ -26,6 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Eye, Code, RotateCcw, ChevronDown, ChevronRight,
   Camera, Mic, X, Plus, Sparkles, MapPin, Trash2, FileSignature,
 } from "lucide-react";
@@ -281,7 +284,6 @@ function PreviewAreaCard({
   onUpdateElement: (elementId: string, k: string, v: unknown) => void;
   onRemoveElement: (elementId: string) => void;
 }) {
-  const [showAddMenu, setShowAddMenu] = useState(false);
   const areaFields = schema?.area_definition?.fields ?? [];
 
   return (
@@ -345,39 +347,32 @@ function PreviewAreaCard({
             Aggiungi {schema.element_types[0].label}
           </Button>
         ) : (
-          <div className="relative">
-            <Button
-              variant="outline"
-              onClick={() => setShowAddMenu((v) => !v)}
-              className="w-full gap-2 border-dashed border-2 border-orange-300 hover:bg-orange-50"
-            >
-              <Plus className="h-4 w-4" />
-              Aggiungi elemento
-              <ChevronDown className="h-3 w-3 ml-auto" />
-            </Button>
-            {showAddMenu && (
-              <Card className="absolute z-10 top-full mt-1 left-0 right-0 shadow-lg max-h-64 overflow-y-auto">
-                <CardContent className="p-1">
-                  {(schema?.element_types ?? []).map((et) => (
-                    <button
-                      key={et.key}
-                      type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 rounded"
-                      onClick={() => {
-                        onAddElement(et.key);
-                        setShowAddMenu(false);
-                      }}
-                    >
-                      <p className="font-medium">{et.label}</p>
-                      {et.description && (
-                        <p className="text-[10px] text-muted-foreground line-clamp-1">{et.description}</p>
-                      )}
-                    </button>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full gap-2 border-dashed border-2 border-orange-300 hover:bg-orange-50"
+              >
+                <Plus className="h-4 w-4" />
+                Aggiungi elemento
+                <ChevronDown className="h-3 w-3 ml-auto" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-72 max-h-80 overflow-y-auto">
+              {(schema?.element_types ?? []).map((et) => (
+                <DropdownMenuItem
+                  key={et.key}
+                  onClick={() => onAddElement(et.key)}
+                  className="flex-col items-start gap-0.5 py-2"
+                >
+                  <span className="font-medium text-sm">{et.label}</span>
+                  {et.description && (
+                    <span className="text-[10px] text-muted-foreground line-clamp-2">{et.description}</span>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </CardContent>
     </Card>
