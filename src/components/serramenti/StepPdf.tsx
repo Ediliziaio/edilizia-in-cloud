@@ -228,53 +228,31 @@ export function StepPdf({ progettoId, detail }: Props) {
         </p>
       </SrCard>
 
-      {/* Versione HTML legacy + link condivisibile col cliente (firma) */}
+      {/* Pagina pubblica HTML + firma digitale cliente.
+          NON è alternativa al PDF: è il LINK che il cliente apre dal cellulare
+          per firmare digitalmente. Funzioni distinte:
+          - "Scarica PDF (A4)" sopra → file PDF da inviare via email
+          - Questo qui sotto       → URL pubblico per firma digitale + QR */}
       <SrCard
-        title="Link condivisibile col cliente (HTML)"
-        description="Versione HTML pubblica del preventivo. Il cliente la apre senza login e firma digitalmente. QR code già incluso nel PDF."
-        icon={<Sparkles className="h-4 w-4" />}
+        title="Pagina pubblica per firma cliente"
+        description="Genera un link che il cliente apre dal cellulare per visualizzare il preventivo e firmare digitalmente. È separato dal PDF: questo serve solo per la firma."
+        icon={<Link2 className="h-4 w-4" />}
       >
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-          <div className="border border-emerald-100 rounded-md p-3 bg-white">
-            <p className="text-[10px] uppercase font-bold text-emerald-700">Pagina 1</p>
-            <p className="text-sm font-semibold mt-1">Proposta di intervento</p>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Anagrafica · Sintesi · Esigenze · Soluzione · Perché noi
-            </p>
-          </div>
-          <div className="border border-emerald-100 rounded-md p-3 bg-white">
-            <p className="text-[10px] uppercase font-bold text-emerald-700">Pagina 2</p>
-            <p className="text-sm font-semibold mt-1">Investimento + Finanziamento</p>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Forbice prezzo · Anticipo + 2 piani · Testimonianze · Cosa è incluso
-            </p>
-          </div>
-          <div className="border border-emerald-100 rounded-md p-3 bg-white">
-            <p className="text-[10px] uppercase font-bold text-emerald-700">Pagina 3</p>
-            <p className="text-sm font-semibold mt-1">Allegato tecnico</p>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              BOM serramenti · Accessori · Consulenza · Cronoprogramma · Prossimi passi
-            </p>
-          </div>
-        </div>
-
         <div className="flex flex-col sm:flex-row gap-2">
           <Button
             onClick={() => generaPdfMut.mutate()}
             disabled={!ready || generaPdfMut.isPending}
             className="flex-1 bg-emerald-700 hover:bg-emerald-800 gap-2"
-            size="lg"
           >
             {generaPdfMut.isPending
               ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <Sparkles className="h-4 w-4" />}
-            {p.pdf_html_url ? "Rigenera preventivo" : "Genera preventivo"}
+              : <Link2 className="h-4 w-4" />}
+            {p.pdf_html_url ? "Aggiorna link firma" : "Genera link firma"}
           </Button>
           {p.pdf_html_url && (
-            <Button asChild variant="outline" size="lg">
-              <a href={p.pdf_html_url} target="_blank" rel="noopener noreferrer" className="gap-2">
-                <ExternalLink className="h-4 w-4" /> Apri ultimo PDF
+            <Button asChild variant="outline" className="gap-2">
+              <a href={p.pdf_html_url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4" /> Apri pagina pubblica
               </a>
             </Button>
           )}
@@ -282,7 +260,7 @@ export function StepPdf({ progettoId, detail }: Props) {
 
         {p.pdf_generated_at && (
           <p className="text-[11px] text-muted-foreground mt-2">
-            Ultimo PDF generato: {new Date(p.pdf_generated_at).toLocaleString("it-IT")}
+            Ultimo link generato: {new Date(p.pdf_generated_at).toLocaleString("it-IT")}
           </p>
         )}
 
@@ -319,7 +297,9 @@ export function StepPdf({ progettoId, detail }: Props) {
         )}
 
         <SrCallout variant="info" className="mt-3">
-          💡 Il PDF si apre nel browser. Stampa con <strong>Ctrl+P</strong> (Cmd+P su Mac) e scegli "Salva come PDF" per inviarlo al cliente o stamparlo.
+          💡 Per il <strong>PDF da inviare via email</strong> usa la sezione qui sopra
+          "Scarica PDF (A4)". Questa pagina pubblica serve solo per la firma digitale
+          del cliente dal cellulare.
         </SrCallout>
       </SrCard>
 

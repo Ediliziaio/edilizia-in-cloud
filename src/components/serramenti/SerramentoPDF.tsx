@@ -18,7 +18,7 @@
  * Font: tenta Inter via Google Fonts CDN (HTTPS, no auth). Se la registrazione
  * fallisce (CORS, network) il renderer fa fallback automatico a Helvetica.
  */
-import { Document, Page, Text, View, StyleSheet, Image, Svg, Path, Rect, Circle, G, Font } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image, Svg, Path, Rect, Circle, G } from "@react-pdf/renderer";
 import type {
   SrProgettoDetail, SrSerramentoRow, SrPagamentoMilestone,
   SrPianoFinanziamento, SrEsigenza, SrSoluzioneItem, SrTestimonianza,
@@ -31,26 +31,12 @@ import type {
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
 } from "@/hooks/useSerramentoPDF";
 
-// ─── Font custom: Inter via Google Fonts CDN ───────────────────────────────
-// Best effort: se la rete blocca, react-pdf usa Helvetica come fallback.
-try {
-  Font.register({
-    family: "Inter",
-    fonts: [
-      { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa1ZL7W0Q5nw.ttf", fontWeight: 400 },
-      { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa3ZL7W0Q5nw.ttf", fontWeight: 500 },
-      { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa2pL7W0Q5nw.ttf", fontWeight: 600 },
-      { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa1pL7W0Q5nw.ttf", fontWeight: 700 },
-      { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIa0JL7W0Q5nw.ttf", fontWeight: 800 },
-    ],
-  });
-  // Hyphenation OFF per non spezzare parole italiane male
-  Font.registerHyphenationCallback((word) => [word]);
-} catch {
-  // Silenzio: fallback Helvetica
-}
-
-const FF = "Inter";
+// Font: usiamo Helvetica built-in di react-pdf (zero rete, zero failure).
+// Tentativi precedenti di registrare Inter via Google Fonts CDN avevano
+// URL instabili che davano 404 e facevano fallire l'intera generazione
+// PDF (react-pdf è strict: se un font registrato non scarica → throw).
+// Helvetica è elegante per documenti business e supporta i 4 pesi che servono.
+const FF = "Helvetica";
 
 // ─── Palette default (override dinamico da template.colore_primario) ──────
 const DEFAULT_PRIMARY = "#2D7D5C";
