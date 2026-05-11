@@ -156,7 +156,14 @@ function FieldInput({
 
     case "multiselect": {
       const opts = field.options ?? [];
-      const arr = Array.isArray(value) ? value as string[] : [];
+      // Se value è undefined (campo mai toccato) E c'è un default_value
+      // di tipo array, usa quello come stato iniziale.
+      // Esempio Infissi: "Lati con Z" ha default ["alto","basso","dx","sx"]
+      // → tutti i lati spuntati di default, utente toglie quelli senza Z.
+      const arrSource = value !== undefined
+        ? value
+        : (Array.isArray(field.default_value) ? field.default_value : []);
+      const arr = Array.isArray(arrSource) ? arrSource as string[] : [];
       return (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {opts.map((o) => {
