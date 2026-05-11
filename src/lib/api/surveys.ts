@@ -138,12 +138,33 @@ export async function getSurvey(id: string): Promise<SurveyDetail> {
     throw new Error("Errore caricamento dati sopralluogo");
   }
   const template = await getTemplate((survey as SurveyRow).template_id);
+
+  // Rinfresca gli URL firmati: quelli salvati in DB scadono dopo 7 giorni e
+  // non serviranno mai più per generare PDF / archivio storico. Rigenerare
+  // ad ogni load garantisce che le foto siano sempre visibili senza dover
+  // ri-uploadare. Il fallback su data.url tiene compatibilità con righe
+  // create prima di questa modifica (dove storage_path potrebbe non esserci).
+  const rawMedia = (media ?? []) as SurveyMediaRow[];
+  const refreshed = await Promise.all(rawMedia.map(async (m) => {
+    const storagePath = (m as { storage_path?: string | null }).storage_path;
+    if (!storagePath) return m;
+    try {
+      const { data: signed } = await supabase.storage
+        .from("surveys")
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 7); // 7g, ri-firmato ad ogni get
+      if (signed?.signedUrl) return { ...m, url: signed.signedUrl } as SurveyMediaRow;
+    } catch (err) {
+      console.warn("[surveys] refresh signed url failed", storagePath, err);
+    }
+    return m;
+  }));
+
   return {
     survey: survey as SurveyRow,
     template,
     areas: (areas ?? []) as SurveyAreaRow[],
     elements: (elements ?? []) as SurveyElementRow[],
-    media: (media ?? []) as SurveyMediaRow[],
+    media: refreshed,
   };
 }
 
@@ -305,7 +326,7 @@ export async function uploadMedia(surveyId: string, file: File, opts: UploadMedi
     .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
   const url = signed?.signedUrl ?? "";
 
-  // 2) Insert in survey_media
+  // 2) Insert in survey_media (con rollback dello storage se il DB fallisce)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("survey_media")
@@ -327,6 +348,12 @@ export async function uploadMedia(surveyId: string, file: File, opts: UploadMedi
     .single();
   if (error) {
     console.error("[surveys] uploadMedia insert failed", error);
+    // Rollback: rimuovi il file appena caricato per evitare orfani permanenti
+    try {
+      await supabase.storage.from("surveys").remove([storagePath]);
+    } catch (cleanupErr) {
+      console.warn("[surveys] uploadMedia storage rollback failed", cleanupErr);
+    }
     throw new Error("Registrazione file fallita");
   }
   return data as SurveyMediaRow;
@@ -341,8 +368,15 @@ export async function deleteMedia(id: string): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("survey_media").delete().eq("id", id);
   if (error) throw new Error("Eliminazione media fallita");
+  // Rimuovi il file dallo storage; se fallisce logga ma non bloccare:
+  // la riga DB è già rimossa, il file orfano verrà ripulito dal cleanup job.
   if (storagePath) {
-    await supabase.storage.from("surveys").remove([storagePath]);
+    try {
+      const { error: rmErr } = await supabase.storage.from("surveys").remove([storagePath]);
+      if (rmErr) console.warn("[surveys] deleteMedia storage cleanup failed", storagePath, rmErr);
+    } catch (rmErr) {
+      console.warn("[surveys] deleteMedia storage cleanup exception", storagePath, rmErr);
+    }
   }
 }
 

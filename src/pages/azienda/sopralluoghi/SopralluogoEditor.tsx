@@ -68,24 +68,6 @@ export default function SopralluogoEditor() {
   // Conta mutazioni di auto-save attualmente in volo (header debounce + area + element)
   const pendingWrites = useIsMutating({ mutationKey: ["sopralluogo-autosave", id] });
 
-  // Avvisa l'utente se prova a chiudere la tab/scheda mentre c'è del salvataggio
-  // in corso O modifiche locali non ancora propagate (header debounced)
-  useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      const headerDirty = detail
-        ? (JSON.stringify(headerData) !== JSON.stringify(detail.survey.header_data ?? {})
-          || generalNotes !== (detail.survey.notes ?? ""))
-        : false;
-      if (pendingWrites > 0 || autoSaveStatus === "saving" || headerDirty) {
-        e.preventDefault();
-        // Browser moderni ignorano il testo; basta returnValue
-        e.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [pendingWrites, autoSaveStatus, headerData, generalNotes, detail]);
-
   // Realtime: invalidate query quando media/elementi/aree cambiano (multi-utente sync)
   useEffect(() => {
     if (!id) return;
@@ -164,6 +146,24 @@ export default function SopralluogoEditor() {
     }
   }, [detail?.survey.id]);  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Avvisa l'utente se prova a chiudere la tab/scheda mentre c'è del salvataggio
+  // in corso O modifiche locali non ancora propagate (header debounced)
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      const headerDirty = detail
+        ? (JSON.stringify(headerData) !== JSON.stringify(detail.survey.header_data ?? {})
+          || generalNotes !== (detail.survey.notes ?? ""))
+        : false;
+      if (pendingWrites > 0 || autoSaveStatus === "saving" || headerDirty) {
+        e.preventDefault();
+        // Browser moderni ignorano il testo; basta returnValue
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [pendingWrites, autoSaveStatus, headerData, generalNotes, detail]);
+
   // Auto-save header (debounced 600ms)
   useEffect(() => {
     if (!detail || !id) return;
@@ -218,6 +218,7 @@ export default function SopralluogoEditor() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
     },
+    onError: (e) => toast.error("Aggiunta area fallita", { description: String(e) }),
   });
 
   const updateAreaMut = useMutation({
@@ -225,12 +226,19 @@ export default function SopralluogoEditor() {
     mutationFn: async ({ id: areaId, patch }: { id: string; patch: Partial<SurveyAreaRow> }) => {
       await updateArea(areaId, patch);
     },
-    onMutate: () => setAutoSaveStatus("saving"),
+    onMutate: () => {
+      // Reset stato "error" precedente quando si parte con una nuova mutazione
+      setAutoSaveStatus("saving");
+    },
     onSuccess: () => {
       setAutoSaveStatus("saved");
       qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
     },
-    onError: () => setAutoSaveStatus("error"),
+    onError: (err) => {
+      console.error("[sopralluogo] autosave mutation failed", err);
+      setAutoSaveStatus("error");
+      toast.error("Salvataggio fallito", { description: "Riprovo automaticamente al prossimo input" });
+    },
   });
 
   const deleteAreaMut = useMutation({
@@ -239,6 +247,7 @@ export default function SopralluogoEditor() {
       toast.success("Area eliminata");
       qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
     },
+    onError: (e) => toast.error("Eliminazione area fallita", { description: String(e) }),
   });
 
   const addElementMut = useMutation({
@@ -251,6 +260,7 @@ export default function SopralluogoEditor() {
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sopralluogo", id] }),
+    onError: (e) => toast.error("Aggiunta elemento fallita", { description: String(e) }),
   });
 
   const updateElementMut = useMutation({
@@ -258,12 +268,19 @@ export default function SopralluogoEditor() {
     mutationFn: async ({ id: elId, patch }: { id: string; patch: Partial<SurveyElementRow> }) => {
       await updateElement(elId, patch);
     },
-    onMutate: () => setAutoSaveStatus("saving"),
+    onMutate: () => {
+      // Reset stato "error" precedente quando si parte con una nuova mutazione
+      setAutoSaveStatus("saving");
+    },
     onSuccess: () => {
       setAutoSaveStatus("saved");
       qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
     },
-    onError: () => setAutoSaveStatus("error"),
+    onError: (err) => {
+      console.error("[sopralluogo] autosave mutation failed", err);
+      setAutoSaveStatus("error");
+      toast.error("Salvataggio fallito", { description: "Riprovo automaticamente al prossimo input" });
+    },
   });
 
   const deleteElementMut = useMutation({
@@ -272,6 +289,32 @@ export default function SopralluogoEditor() {
       toast.success("Elemento eliminato");
       qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
     },
+    onError: (e) => toast.error("Eliminazione fallita", { description: String(e) }),
+  });
+
+  // Duplica un elemento (mutation con feedback errore — prima era addElement diretto)
+  const duplicateElementMut = useMutation({
+    mutationKey: ["sopralluogo-autosave", id],
+    mutationFn: async (input: {
+      areaId: string;
+      elementType: string;
+      values: Record<string, unknown> | null | undefined;
+      quantity: number | null | undefined;
+      position: number;
+    }) => {
+      if (!id) return;
+      return addElement(id, input.areaId, {
+        element_type: input.elementType,
+        values: (input.values ?? {}) as SurveyElementRow["values"],
+        quantity: input.quantity ?? 1,
+        position: input.position,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Elemento duplicato");
+      qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
+    },
+    onError: (e) => toast.error("Duplicazione fallita", { description: String(e) }),
   });
 
   // Calcolo % completamento (campi obbligatori header + area + element + foto)
@@ -460,12 +503,13 @@ export default function SopralluogoEditor() {
                 onElementDuplicate={(eid) => {
                   const orig = elements.find((e) => e.id === eid);
                   if (!orig) return;
-                  addElement(survey.id, area.id, {
-                    element_type: orig.element_type,
+                  duplicateElementMut.mutate({
+                    areaId: area.id,
+                    elementType: orig.element_type,
                     values: orig.values,
                     quantity: orig.quantity,
                     position: elements.filter((e) => e.area_id === area.id).length,
-                  }).then(() => qc.invalidateQueries({ queryKey: ["sopralluogo", id] }));
+                  });
                 }}
                 onElementDelete={(eid) => {
                   if (confirm("Eliminare questo elemento?")) deleteElementMut.mutate(eid);
