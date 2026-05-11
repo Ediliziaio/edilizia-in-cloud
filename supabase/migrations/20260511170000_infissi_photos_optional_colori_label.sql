@@ -9,9 +9,6 @@
 
 BEGIN;
 
--- Helper: forza required:false su ogni elemento di un array di foto
--- (rende idempotente anche se nuove foto vengono aggiunte in futuro)
-
 WITH tmpl AS (
   SELECT id, schema FROM public.survey_templates
   WHERE category = 'infissi' AND is_system = true
@@ -21,9 +18,10 @@ WITH tmpl AS (
 step1 AS (
   SELECT id,
     CASE
-      WHEN schema ? 'general_required_photos' THEN
+      WHEN schema ? 'general_required_photos'
+       AND jsonb_typeof(schema->'general_required_photos') = 'array' THEN
         jsonb_set(schema, '{general_required_photos}', (
-          SELECT jsonb_agg(p || jsonb_build_object('required', false))
+          SELECT COALESCE(jsonb_agg(p || jsonb_build_object('required', false)), '[]'::jsonb)
           FROM jsonb_array_elements(schema->'general_required_photos') AS p
         ))
       ELSE schema
@@ -34,9 +32,10 @@ step1 AS (
 step2 AS (
   SELECT id,
     CASE
-      WHEN schema->'area_definition' ? 'required_photos' THEN
+      WHEN schema->'area_definition' ? 'required_photos'
+       AND jsonb_typeof(schema->'area_definition'->'required_photos') = 'array' THEN
         jsonb_set(schema, '{area_definition,required_photos}', (
-          SELECT jsonb_agg(p || jsonb_build_object('required', false))
+          SELECT COALESCE(jsonb_agg(p || jsonb_build_object('required', false)), '[]'::jsonb)
           FROM jsonb_array_elements(schema->'area_definition'->'required_photos') AS p
         ))
       ELSE schema
@@ -46,42 +45,54 @@ step2 AS (
 -- 3. element_types[*].required_photos: required → false (per ciascun element_type)
 step3 AS (
   SELECT id,
-    jsonb_set(schema, '{element_types}', (
-      SELECT jsonb_agg(
-        CASE
-          WHEN et ? 'required_photos' THEN
-            jsonb_set(et, '{required_photos}', (
-              SELECT COALESCE(jsonb_agg(p || jsonb_build_object('required', false)), '[]'::jsonb)
-              FROM jsonb_array_elements(et->'required_photos') AS p
-            ))
-          ELSE et
-        END
-      )
-      FROM jsonb_array_elements(schema->'element_types') AS et
-    )) AS schema
+    CASE
+      WHEN schema ? 'element_types'
+       AND jsonb_typeof(schema->'element_types') = 'array' THEN
+        jsonb_set(schema, '{element_types}', (
+          SELECT COALESCE(jsonb_agg(
+            CASE
+              WHEN et ? 'required_photos'
+               AND jsonb_typeof(et->'required_photos') = 'array' THEN
+                jsonb_set(et, '{required_photos}', (
+                  SELECT COALESCE(jsonb_agg(p || jsonb_build_object('required', false)), '[]'::jsonb)
+                  FROM jsonb_array_elements(et->'required_photos') AS p
+                ))
+              ELSE et
+            END
+          ), '[]'::jsonb)
+          FROM jsonb_array_elements(schema->'element_types') AS et
+        ))
+      ELSE schema
+    END AS schema
   FROM step2
 ),
--- 4. Sezione header colori: label → "Colori"
+-- 4. header_schema → sezione "colori_globali" label → "Colori"
 step4 AS (
   SELECT id,
-    jsonb_set(schema, '{header_sections}', (
-      SELECT jsonb_agg(
-        CASE
-          WHEN sec->>'key' = 'colori_globali' THEN
-            sec
-              || jsonb_build_object('label', 'Colori')
-              || jsonb_build_object('description', 'Compila qui i colori UNA VOLTA: vengono applicati a tutti i pezzi del sopralluogo. Se per qualche pezzo serve un colore diverso, segnalalo nelle note di quel pezzo.')
-          ELSE sec
-        END
-      )
-      FROM jsonb_array_elements(schema->'header_sections') AS sec
-    )) AS schema
+    CASE
+      WHEN schema ? 'header_schema'
+       AND jsonb_typeof(schema->'header_schema') = 'array' THEN
+        jsonb_set(schema, '{header_schema}', (
+          SELECT COALESCE(jsonb_agg(
+            CASE
+              WHEN sec->>'key' = 'colori_globali' THEN
+                sec
+                  || jsonb_build_object('label', 'Colori')
+                  || jsonb_build_object('description', 'Compila qui i colori UNA VOLTA: vengono applicati a tutti i pezzi del sopralluogo. Se per qualche pezzo serve un colore diverso, segnalalo nelle note di quel pezzo.')
+              ELSE sec
+            END
+          ), '[]'::jsonb)
+          FROM jsonb_array_elements(schema->'header_schema') AS sec
+        ))
+      ELSE schema
+    END AS schema
   FROM step3
 )
 UPDATE public.survey_templates t
 SET schema = s.schema,
     version = 6
 FROM step4 s
-WHERE t.id = s.id;
+WHERE t.id = s.id
+  AND s.schema IS NOT NULL;  -- guardia: mai NULL
 
 COMMIT;
