@@ -26,6 +26,9 @@ export interface ListinoMacrocategoria {
   descrizione: string | null;
   icona: string | null;
   colore: string | null;
+  // URL pubblico foto rappresentativa (bucket article-images, path
+  // <company_id>/macros/<id>.<ext>). NULL = fallback colore/icona.
+  immagine_url: string | null;
   sort_order: number;
   attivo: boolean;
   // Verticali (moduli preventivo) a cui questa macro è esposta.
@@ -40,6 +43,7 @@ export interface MacrocategoriaPayload {
   descrizione?: string | null;
   icona?: string | null;
   colore?: string | null;
+  immagine_url?: string | null;
   sort_order?: number;
   attivo?: boolean;
   verticali_abilitati?: string[];
@@ -113,6 +117,7 @@ export function useMacrocategorieMutations() {
           descrizione: payload.descrizione?.trim() || null,
           icona: payload.icona ?? null,
           colore: payload.colore ?? null,
+          immagine_url: payload.immagine_url ?? null,
           sort_order: payload.sort_order ?? 0,
           attivo: payload.attivo ?? true,
           verticali_abilitati: payload.verticali_abilitati ?? [],
@@ -143,6 +148,7 @@ export function useMacrocategorieMutations() {
             : {}),
           ...(patch.icona !== undefined ? { icona: patch.icona } : {}),
           ...(patch.colore !== undefined ? { colore: patch.colore } : {}),
+          ...(patch.immagine_url !== undefined ? { immagine_url: patch.immagine_url } : {}),
           ...(patch.sort_order !== undefined ? { sort_order: patch.sort_order } : {}),
           ...(patch.attivo !== undefined ? { attivo: patch.attivo } : {}),
           ...(patch.verticali_abilitati !== undefined

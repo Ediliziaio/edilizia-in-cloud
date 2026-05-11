@@ -36,7 +36,12 @@ import {
   ArrowRight,
   Settings2,
   Tag,
+  Upload,
+  X as XIcon,
+  ImageIcon,
 } from "lucide-react";
+import { useRef } from "react";
+import { useListinoEntityImage } from "@/hooks/useListinoEntityImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -128,6 +133,9 @@ export function MacroCategorieManager() {
   const [formDescrizione, setFormDescrizione] = useState("");
   const [formMacroId, setFormMacroId] = useState<string | "none">("none");
   const [formVerticali, setFormVerticali] = useState<string[]>([]);
+  const [formImmagineUrl, setFormImmagineUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const macroImage = useListinoEntityImage("macro");
   // Macrocategoria di cui si sta editando la scheda tecnica (null = chiuso)
   const [schedaTecnicaFor, setSchedaTecnicaFor] = useState<ListinoMacrocategoria | null>(null);
 
@@ -160,21 +168,25 @@ export function MacroCategorieManager() {
       setFormDescrizione(mode.row.descrizione ?? "");
       setFormMacroId("none");
       setFormVerticali(mode.row.verticali_abilitati ?? []);
+      setFormImmagineUrl(mode.row.immagine_url ?? null);
     } else if (mode.kind === "cat-edit") {
       setFormNome(mode.row.nome);
       setFormDescrizione(mode.row.descrizione ?? "");
       setFormMacroId(mode.row.macrocategoria_id ?? "none");
       setFormVerticali([]);
+      setFormImmagineUrl(null);
     } else if (mode.kind === "cat-new") {
       setFormNome("");
       setFormDescrizione("");
       setFormMacroId(mode.macrocategoriaId ?? "none");
       setFormVerticali([]);
+      setFormImmagineUrl(null);
     } else {
       setFormNome("");
       setFormDescrizione("");
       setFormMacroId("none");
       setFormVerticali([]);
+      setFormImmagineUrl(null);
     }
   };
 
@@ -184,6 +196,40 @@ export function MacroCategorieManager() {
     setFormDescrizione("");
     setFormMacroId("none");
     setFormVerticali([]);
+    setFormImmagineUrl(null);
+  };
+
+  // Upload immagine macro: gestito solo in macro-edit (serve l'id).
+  // In macro-new l'utente prima salva il record, poi può rientrare in edit.
+  const handleImageUpload = async (file: File) => {
+    if (editMode.kind !== "macro-edit") return;
+    const res = await macroImage.upload(editMode.row.id, file);
+    if (!res.ok) {
+      toast.error("Upload fallito", { description: res.error });
+      return;
+    }
+    setFormImmagineUrl(res.url);
+    // Persistiamo subito sulla riga per non perdere lo stato se l'utente chiude
+    await updateMacrocategoria.mutateAsync({
+      id: editMode.row.id,
+      patch: { immagine_url: res.url },
+    });
+    toast.success("Foto caricata");
+  };
+
+  const handleImageRemove = async () => {
+    if (editMode.kind !== "macro-edit") return;
+    const res = await macroImage.remove(editMode.row.id);
+    if (!res.ok) {
+      toast.error("Rimozione fallita", { description: res.error });
+      return;
+    }
+    setFormImmagineUrl(null);
+    await updateMacrocategoria.mutateAsync({
+      id: editMode.row.id,
+      patch: { immagine_url: null },
+    });
+    toast.success("Foto rimossa");
   };
 
   const toggleVerticale = (v: string) => {
@@ -515,6 +561,83 @@ export function MacroCategorieManager() {
             {!isCatForm && (
               <div className="space-y-2 pt-1 border-t">
                 <div className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-sm font-medium">Foto macrocategoria (opzionale)</Label>
+                </div>
+                {editMode.kind === "macro-new" ? (
+                  <p className="text-xs text-muted-foreground italic">
+                    Salva prima la macrocategoria, poi rientra in modifica per caricare la foto.
+                  </p>
+                ) : (
+                  <div className="flex items-start gap-3">
+                    {/* Preview */}
+                    <div className="h-24 w-24 shrink-0 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center overflow-hidden bg-muted/40">
+                      {formImmagineUrl ? (
+                        <img
+                          src={formImmagineUrl}
+                          alt={formNome || "Macrocategoria"}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Foto rappresentativa (es. tipologia infisso/persiana).
+                        Appare nel picker preventivo e nell'elenco. Max 3 MB,
+                        PNG/JPG/WEBP.
+                      </p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void handleImageUpload(f);
+                          e.currentTarget.value = "";
+                        }}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={macroImage.isUploading || macroImage.isRemoving}
+                        >
+                          {macroImage.isUploading ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                              Carico…
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-3.5 w-3.5 mr-1.5" />
+                              {formImmagineUrl ? "Cambia foto" : "Carica foto"}
+                            </>
+                          )}
+                        </Button>
+                        {formImmagineUrl && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={handleImageRemove}
+                            disabled={macroImage.isUploading || macroImage.isRemoving}
+                          >
+                            <XIcon className="h-3.5 w-3.5 mr-1.5" />
+                            Rimuovi
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="pt-2 border-t mt-2" />
+                <div className="flex items-center gap-2">
                   <Tag className="h-4 w-4 text-muted-foreground" />
                   <Label className="text-sm font-medium">Verticali abilitati</Label>
                 </div>
@@ -681,7 +804,14 @@ function MacroRow({
           ) : (
             <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
           )}
-          {isOpen ? (
+          {macro.immagine_url ? (
+            <img
+              src={macro.immagine_url}
+              alt=""
+              className="h-8 w-8 shrink-0 rounded object-cover border"
+              aria-hidden="true"
+            />
+          ) : isOpen ? (
             <FolderOpen className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
           ) : (
             <Folder className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />

@@ -410,6 +410,7 @@ export interface ListinoMacrocategoria {
   descrizione: string | null;
   icona: string | null;
   colore: string | null;
+  immagine_url: string | null;
   verticali_abilitati: string[];
 }
 
@@ -441,7 +442,7 @@ export async function listMacrocategorie(opts?: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
     .from("listino_macrocategorie")
-    .select("id, nome, descrizione, icona, colore, verticali_abilitati")
+    .select("id, nome, descrizione, icona, colore, immagine_url, verticali_abilitati")
     .eq("attivo", true)
     .order("sort_order", { ascending: true, nullsFirst: false })
     .order("nome", { ascending: true });

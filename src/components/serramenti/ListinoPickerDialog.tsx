@@ -350,7 +350,15 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                     className="text-left p-3 rounded-md border-2 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition group"
                   >
                     <div className="flex items-start gap-3">
-                      <IconBox colore={m.colore} iconText={m.icona ? "📦" : "📦"} />
+                      {m.immagine_url ? (
+                        <img
+                          src={m.immagine_url}
+                          alt={m.nome}
+                          className="h-12 w-12 shrink-0 rounded-md object-cover border bg-slate-50"
+                        />
+                      ) : (
+                        <IconBox colore={m.colore} iconText={m.icona ? "📦" : "📦"} />
+                      )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-slate-900 truncate">{m.nome}</p>
                         {m.descrizione && (
