@@ -23,7 +23,6 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -184,7 +183,9 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
             <TabsTrigger value="summary" className="gap-1.5"><FileSignature className="h-3.5 w-3.5" /> Riepilogo struttura</TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1">
+          {/* Native overflow-y-auto — ScrollArea Radix non funzionava
+              dentro Tabs+flex su alcuni browser. Native scroll è più affidabile. */}
+          <div className="flex-1 overflow-y-auto min-h-0">
             <div className="p-4 space-y-4">
 
               <TabsContent value="form" className="mt-0 space-y-4">
@@ -271,7 +272,7 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
                 </Card>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </Tabs>
 
         <DialogFooter className="px-5 py-3 border-t shrink-0">
