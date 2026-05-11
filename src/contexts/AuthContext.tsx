@@ -356,7 +356,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const [profileResult, rolesResult] = await Promise.all([
         supabase
           .from("profiles")
-          .select("*, company:companies(*)")
+          // Disambiguazione FK: PostgREST trova 2 relazioni profiles↔companies
+          // (profiles_company_id_fkey + companies_sr_default_consulente_id_fkey).
+          // Specifichiamo esplicitamente il vincolo per evitare PGRST201.
+          .select("*, company:companies!profiles_company_id_fkey(*)")
           .eq("id", userId)
           .abortSignal(controller.signal)
           .maybeSingle(),
