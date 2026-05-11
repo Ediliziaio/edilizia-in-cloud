@@ -458,6 +458,8 @@ export async function listCategorieByMacro(macroId: string | null): Promise<List
 export interface ListinoFamily {
   id: string;
   nome: string;
+  descrizione: string | null;
+  immagine_url: string | null;
   vertical: string | null;
   prezzo_base_vendita: number | null;
   vat_rate: number | null;
@@ -491,7 +493,8 @@ export async function listListinoFamilies(opts?: {
   let q = (supabase as any)
     .from("article_families")
     .select(`
-      id, nome, vertical, prezzo_base_vendita, vat_rate, modalita_prezzo_base, categoria_id,
+      id, nome, descrizione, immagine_url, vertical, prezzo_base_vendita, vat_rate,
+      modalita_prezzo_base, categoria_id,
       manodopera_modalita, posa_tariffa_default_id, posa_quantita_default, posa_linked,
       manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita
     `)

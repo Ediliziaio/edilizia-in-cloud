@@ -413,7 +413,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
           </div>
         )}
 
-        {/* ─── STEP FAMIGLIA ───────────────────────────────────────────── */}
+        {/* ─── STEP FAMIGLIA — grid con immagini prodotto ─────────────── */}
         {effectiveStep === "famiglia" && (
           <div className="max-h-[55vh] overflow-y-auto">
             {loadingFam ? (
@@ -427,34 +427,44 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                 }
               />
             ) : (
-              <ul className="divide-y">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {families.map((f) => (
-                  <li key={f.id}>
-                    <button
-                      onClick={() => handleSelectFamily(f)}
-                      className="w-full text-left p-3 rounded-md hover:bg-emerald-50/60 focus:bg-emerald-50 focus:outline-none transition flex items-center gap-2"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-900">{f.nome}</p>
-                        <div className="flex flex-wrap gap-2 mt-1 text-[10px]">
-                          {f.vertical && (
-                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">📦 {f.vertical}</span>
-                          )}
-                          <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">
-                            💰 {MODALITA_LABEL[f.modalita_prezzo_base ?? "pz"]}
-                          </span>
-                          {f.prezzo_base_vendita != null && Number(f.prezzo_base_vendita) > 0 && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-                              base €{Number(f.prezzo_base_vendita).toFixed(2)}
-                            </span>
-                          )}
-                        </div>
+                  <button
+                    key={f.id}
+                    onClick={() => handleSelectFamily(f)}
+                    className="text-left rounded-md border-2 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition overflow-hidden group flex flex-col"
+                  >
+                    {f.immagine_url ? (
+                      // eslint-disable-next-line jsx-a11y/img-redundant-alt
+                      <img
+                        src={f.immagine_url}
+                        alt={f.nome}
+                        className="w-full h-32 object-contain bg-slate-50"
+                      />
+                    ) : (
+                      <div className="w-full h-32 flex items-center justify-center bg-slate-50 text-4xl text-slate-300">
+                        <Package className="h-10 w-10" />
                       </div>
-                      <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
-                    </button>
-                  </li>
+                    )}
+                    <div className="p-2.5 flex flex-col gap-1 flex-1">
+                      <p className="text-xs font-semibold text-slate-900 line-clamp-2 leading-tight">{f.nome}</p>
+                      {f.descrizione && (
+                        <p className="text-[10px] text-muted-foreground line-clamp-2 leading-tight">{f.descrizione}</p>
+                      )}
+                      <div className="flex flex-wrap gap-1 mt-auto pt-1 text-[9px]">
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium">
+                          {MODALITA_LABEL[f.modalita_prezzo_base ?? "pz"]}
+                        </span>
+                        {f.prezzo_base_vendita != null && Number(f.prezzo_base_vendita) > 0 && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">
+                            €{Number(f.prezzo_base_vendita).toFixed(0)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
                 ))}
-              </ul>
+              </div>
             )}
           </div>
         )}
