@@ -21,6 +21,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { renderSrPdfHtml, type SrPdfData } from "../_shared/srHtmlTemplate.ts";
+import { generateQrSvg } from "../_shared/qrcode.ts";
 
 interface Payload {
   progetto_id: string;
@@ -150,6 +151,30 @@ Deno.serve(async (req: Request) => {
     const cronoFasi = generaCrono(numSerr, prog.crono_giorni_produzione ?? 30, prog.crono_giorni_collaudo ?? 1);
     const cronoDurata = Math.max(...cronoFasi.map((f) => f.giorno_fine));
 
+    // 4b. Cantieri referenza vicini (se cantiere ha lat/lng)
+    let cantieriVicini: Array<{ citta: string | null; distanza_km: number; testo_breve: string | null }> = [];
+    if (prog.cantiere_lat != null && prog.cantiere_lng != null) {
+      const { data: cantieri } = await supabaseAdmin.rpc("sr_cantieri_referenza_vicini", {
+        p_lat: prog.cantiere_lat,
+        p_lng: prog.cantiere_lng,
+        p_raggio_km: 15,
+        p_limit: 4,
+      });
+      if (Array.isArray(cantieri)) {
+        // deno-lint-ignore no-explicit-any
+        cantieriVicini = cantieri.map((c: any) => ({
+          citta: c.citta,
+          distanza_km: Number(c.distanza_km) || 0,
+          testo_breve: c.testo_breve,
+        }));
+      }
+    }
+
+    // 4c. Public URL + QR code
+    const appOrigin = Deno.env.get("APP_PUBLIC_URL") ?? "https://app.ediliziaincloud.it";
+    const publicUrl = prog.public_token ? `${appOrigin}/stima/${prog.public_token}` : null;
+    const qrSvg = publicUrl ? generateQrSvg(publicUrl, { size: 200, margin: 1, color: "#2D7D5C" }) : null;
+
     // 5. Costruisci payload template
     // deno-lint-ignore no-explicit-any
     const tpl = (template ?? {}) as any;
@@ -240,6 +265,9 @@ Deno.serve(async (req: Request) => {
       consulente_foto_url: consulente?.foto ?? null,
       crono_fasi: cronoFasi,
       crono_durata_giorni: cronoDurata,
+      public_url: publicUrl,
+      qr_svg: qrSvg,
+      cantieri_vicini: cantieriVicini,
       valido_fino_giorni: prog.valido_fino_giorni ?? 15,
       azienda_nome: tpl.ragione_sociale || com.ragione_sociale || com.name || "Azienda",
       azienda_indirizzo: tpl.indirizzo_completo || com.indirizzo,
@@ -275,6 +303,7 @@ Deno.serve(async (req: Request) => {
     await supabaseAdmin.from("sr_progetti").update({
       pdf_html_url: htmlUrl,
       pdf_generated_at: new Date().toISOString(),
+      public_url: publicUrl,
       stato: prog.stato === "bozza" ? "da_consegnare" : prog.stato,
     }).eq("id", prog.id);
 
@@ -292,7 +321,7 @@ Deno.serve(async (req: Request) => {
     });
 
     return jsonResponse(
-      { ok: true, html_url: htmlUrl, duration_ms, pages_count: 3 },
+      { ok: true, html_url: htmlUrl, public_url: publicUrl, duration_ms, pages_count: 3 },
       200, corsHeaders,
     );
   } catch (err) {

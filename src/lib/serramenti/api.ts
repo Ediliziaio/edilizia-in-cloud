@@ -269,6 +269,93 @@ export async function getTemplatePdf(): Promise<SrTemplatePdfRow | null> {
   return data as SrTemplatePdfRow | null;
 }
 
+// ─── MEDIA ──────────────────────────────────────────────────────────────────
+
+const SR_MEDIA_TTL_SEC = 60 * 60 * 24 * 7;
+
+export interface UploadMediaInput {
+  progetto_id: string;
+  kind: import("@/types/serramenti").SrMediaKind;
+  caption?: string | null;
+  posizione_pdf?: string | null;
+  serramento_id?: string | null;
+  position?: number;
+}
+
+export async function uploadMedia(file: File, opts: UploadMediaInput): Promise<import("@/types/serramenti").SrMediaRow> {
+  // 1) Ottieni company_id dal progetto
+  const { data: prog } = await supabase
+    .from("sr_progetti" as never)
+    .select("company_id")
+    .eq("id", opts.progetto_id)
+    .maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const companyId = (prog as any)?.company_id;
+  if (!companyId) throw new Error("Progetto non trovato");
+
+  const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "bin";
+  const filename = `${crypto.randomUUID()}.${ext}`;
+  const storagePath = `${companyId}/${opts.progetto_id}/photos/${filename}`;
+
+  const { error: uploadErr } = await supabase.storage
+    .from("sr-progetti")
+    .upload(storagePath, file, { contentType: file.type, upsert: false });
+  if (uploadErr) {
+    console.error("[serramenti] uploadMedia storage failed", uploadErr);
+    throw new Error("Upload file fallito");
+  }
+
+  // Signed URL
+  const { data: signed } = await supabase.storage
+    .from("sr-progetti")
+    .createSignedUrl(storagePath, SR_MEDIA_TTL_SEC);
+  const url = signed?.signedUrl ?? "";
+
+  // 2) Insert row
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("sr_progetti_media")
+    .insert({
+      progetto_id: opts.progetto_id,
+      company_id: companyId,
+      kind: opts.kind,
+      storage_path: storagePath,
+      url,
+      caption: opts.caption ?? null,
+      posizione_pdf: opts.posizione_pdf ?? null,
+      serramento_id: opts.serramento_id ?? null,
+      position: opts.position ?? 0,
+    })
+    .select("*")
+    .single();
+  if (error) {
+    // Rollback storage
+    try { await supabase.storage.from("sr-progetti").remove([storagePath]); }
+    catch (e) { console.warn("[serramenti] uploadMedia rollback failed", e); }
+    throw new Error("Registrazione media fallita");
+  }
+  return data as import("@/types/serramenti").SrMediaRow;
+}
+
+export async function deleteMedia(id: string): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existing } = await (supabase as any)
+    .from("sr_progetti_media").select("storage_path").eq("id", id).maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const storagePath = (existing as any)?.storage_path;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("sr_progetti_media").delete().eq("id", id);
+  if (error) throw new Error("Eliminazione media fallita");
+  if (storagePath) {
+    try {
+      const { error: rmErr } = await supabase.storage.from("sr-progetti").remove([storagePath]);
+      if (rmErr) console.warn("[serramenti] deleteMedia cleanup failed", storagePath, rmErr);
+    } catch (e) {
+      console.warn("[serramenti] deleteMedia exception", e);
+    }
+  }
+}
+
 // ─── EDGE FUNCTIONS ─────────────────────────────────────────────────────────
 
 export async function generaPdf(progetto_id: string): Promise<{ html_url: string; duration_ms: number }> {
@@ -283,6 +370,18 @@ export async function generaPdf(progetto_id: string): Promise<{ html_url: string
   const r = data as any;
   if (!r?.ok) throw new Error(r?.error ?? "Generazione PDF fallita");
   return { html_url: r.html_url, duration_ms: r.duration_ms };
+}
+
+export async function convertiInOrdine(progetto_id: string): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc("sr_converti_in_ordine", {
+    p_progetto_id: progetto_id,
+  });
+  if (error) {
+    console.error("[serramenti] convertiInOrdine failed", error);
+    throw new Error(error.message || "Conversione in commessa fallita");
+  }
+  return data as string; // ordine_id
 }
 
 export async function importDaSopralluogo(input: {

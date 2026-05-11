@@ -10,8 +10,10 @@ import {
   addSerramento, updateSerramento, deleteSerramento,
   addAccessorio, updateAccessorio, deleteAccessorio,
   getTemplatePdf, upsertTemplatePdf,
-  generaPdf, importDaSopralluogo,
+  generaPdf, importDaSopralluogo, convertiInOrdine,
+  uploadMedia, deleteMedia,
   type SrCreateProgettoInput,
+  type UploadMediaInput,
 } from "./api";
 import type {
   SrProgettoRow, SrSerramentoRow, SrAccessorioRow, SrTemplatePdfRow,
@@ -175,6 +177,34 @@ export function useDeleteAccessorio(progettoId: string | undefined) {
   });
 }
 
+// ─── Media (foto) ───────────────────────────────────────────────────────────
+
+export function useUploadMedia(progettoId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, ...opts }: { file: File } & Omit<UploadMediaInput, "progetto_id">) => {
+      if (!progettoId) throw new Error("Progetto id mancante");
+      return uploadMedia(file, { ...opts, progetto_id: progettoId });
+    },
+    onSuccess: () => {
+      if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+      toast.success("Foto caricata");
+    },
+    onError: (e) => toast.error("Upload fallito", { description: String(e) }),
+  });
+}
+
+export function useDeleteMedia(progettoId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteMedia(id),
+    onSuccess: () => {
+      if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+    },
+    onError: (e) => toast.error("Eliminazione foto fallita", { description: String(e) }),
+  });
+}
+
 // ─── Template PDF ────────────────────────────────────────────────────────────
 
 export function useTemplatePdf() {
@@ -201,6 +231,24 @@ export function useGeneraPdf(progettoId: string | undefined) {
       if (data.html_url) window.open(data.html_url, "_blank");
     },
     onError: (e) => toast.error("Generazione PDF fallita", { description: String(e) }),
+  });
+}
+
+export function useConvertiInOrdine(progettoId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => {
+      if (!progettoId) throw new Error("Progetto id mancante");
+      return convertiInOrdine(progettoId);
+    },
+    onSuccess: (ordineId) => {
+      if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+      qc.invalidateQueries({ queryKey: ["sr-progetti"] });
+      toast.success("Commessa creata", { description: "Stato progetto: Accettato." });
+      // Naviga alla pagina della nuova commessa
+      window.location.href = `/azienda/ordini/${ordineId}`;
+    },
+    onError: (e) => toast.error("Conversione in commessa fallita", { description: String(e) }),
   });
 }
 

@@ -71,6 +71,17 @@ export interface SrPdfData {
   }[];
   accessori: { tipo: string; descrizione: string | null; quantita: number }[];
 
+  // QR code + microsito
+  public_url: string | null;
+  qr_svg: string | null;             // SVG inline del QR
+
+  // Cantieri referenza vicini al cliente (entro 10km)
+  cantieri_vicini: {
+    citta: string | null;
+    distanza_km: number;
+    testo_breve: string | null;
+  }[];
+
   // Consulenza
   consulenza_at: string | null;     // ISO datetime
   consulenza_luogo: string | null;
@@ -329,6 +340,18 @@ function renderPage2(d: SrPdfData): string {
           ${d.incluso_investimento.slice(0, 6).map((i) => `<li>${esc(i)}</li>`).join("")}
         </ul>
       ` : ""}
+
+      ${d.cantieri_vicini && d.cantieri_vicini.length > 0 ? `
+        <h2 class="section-title">I NOSTRI CANTIERI NELLA TUA ZONA</h2>
+        <div class="cantieri-grid">
+          ${d.cantieri_vicini.slice(0, 4).map((c) => `
+            <div class="cantiere">
+              <p class="cantiere-citta">${esc(c.citta ?? "")}<span class="cantiere-km">${fmtNum(c.distanza_km, 1)} km</span></p>
+              <p class="cantiere-text">${esc(c.testo_breve ?? "")}</p>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
     </main>
     ${renderFooter(d, 2, 3)}
   </section>
@@ -429,6 +452,18 @@ function renderPage3(d: SrPdfData): string {
         <ol class="step-list">
           ${d.prossimi_passi.slice(0, 4).map((p) => `<li>${esc(p)}</li>`).join("")}
         </ol>
+      ` : ""}
+
+      ${d.qr_svg && d.public_url ? `
+        <h2 class="section-title">VISUALIZZA E FIRMA ONLINE</h2>
+        <div class="qr-box">
+          <div class="qr-svg">${d.qr_svg}</div>
+          <div class="qr-info">
+            <p class="qr-title">Inquadra il QR Code con il tuo smartphone</p>
+            <p class="qr-text">Apri la stima online, leggila comoda da casa e firma direttamente dal cellulare senza dover stampare nulla.</p>
+            <p class="qr-url">${esc(d.public_url)}</p>
+          </div>
+        </div>
       ` : ""}
     </main>
     ${renderFooter(d, 3, 3)}
@@ -656,6 +691,26 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
 /* Step list (prossimi passi) */
 .step-list { padding-left: 20px; }
 .step-list li { font-size: 11.5px; line-height: 1.7; color: #1e293b; }
+
+/* Cantieri referenza */
+.cantieri-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.cantiere { background: #f1f7f4; border-radius: 4px; padding: 8px 10px; border-left: 3px solid var(--sr-green); }
+.cantiere-citta { font-size: 11px; font-weight: 700; color: var(--sr-green); display: flex; justify-content: space-between; align-items: center; }
+.cantiere-km { font-size: 9px; color: #64748b; font-weight: 500; background: #fff; padding: 2px 6px; border-radius: 10px; }
+.cantiere-text { font-size: 10px; color: #475569; margin-top: 3px; line-height: 1.4; }
+
+/* QR box */
+.qr-box {
+  display: flex; gap: 14px; align-items: center;
+  background: var(--sr-green-light); border: 1px solid #c6e1d3;
+  border-radius: 4px; padding: 14px;
+}
+.qr-svg { width: 130px; height: 130px; flex-shrink: 0; background: white; padding: 6px; border-radius: 4px; }
+.qr-svg svg { width: 100%; height: 100%; display: block; }
+.qr-info { flex: 1; }
+.qr-title { font-size: 12px; font-weight: 700; color: var(--sr-green); margin-bottom: 4px; }
+.qr-text { font-size: 10.5px; color: #475569; line-height: 1.4; }
+.qr-url { font-size: 9px; color: #64748b; font-family: ui-monospace, monospace; word-break: break-all; margin-top: 6px; }
 
 @media print {
   html, body { background: white !important; }

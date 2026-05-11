@@ -89,6 +89,7 @@ const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
 const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
 const FirmaDocumento = lazy(() => import("@/pages/public/FirmaDocumento"));
+const SerramentiStimaPubblica = lazy(() => import("@/pages/public/SerramentiStimaPubblica"));
 const AcceptInvite = lazy(() => import("@/pages/admin/AcceptInvite"));
 const Blog = lazy(() => import("@/pages/Blog"));
 const BlogPost = lazy(() => import("@/pages/BlogPost"));
@@ -416,6 +417,8 @@ const App = () => (
               <Route path="/admin/accept-invite" element={<AcceptInvite />} />
               <Route path="/preventivo/:id" element={<AccettaPreventivo />} />
               <Route path="/feedback/nps" element={<NpsSurvey />} />
+              {/* Microsito pubblico Serramenti (no login, token-based) */}
+              <Route path="/stima/:token" element={<SerramentiStimaPubblica />} />
 
               {/* Referral public pages */}
               <Route path="/ref/:code" element={<ReferralLanding />} />

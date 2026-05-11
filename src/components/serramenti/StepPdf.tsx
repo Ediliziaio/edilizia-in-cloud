@@ -7,11 +7,13 @@
  * Per ora mostra solo l'anteprima dei dati che entreranno nel PDF e un
  * placeholder per la generazione effettiva.
  */
-import { FileText, Loader2, Sparkles, Check, AlertCircle, ExternalLink } from "lucide-react";
+import { FileText, Loader2, Sparkles, Check, AlertCircle, ExternalLink, Link2, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import type { SrProgettoDetail } from "@/types/serramenti";
 import { SrCard, SrCallout, SrKpi, formatEuro, formatNumero } from "@/lib/serramenti/wizardUI";
-import { useGeneraPdf } from "@/lib/serramenti/queries";
+import { useGeneraPdf, useConvertiInOrdine } from "@/lib/serramenti/queries";
+import { ClipboardList } from "lucide-react";
 
 interface Props {
   progettoId: string;
@@ -27,6 +29,7 @@ interface ChecklistItem {
 export function StepPdf({ progettoId, detail }: Props) {
   const p = detail.progetto;
   const generaPdfMut = useGeneraPdf(progettoId);
+  const convertiMut = useConvertiInOrdine(progettoId);
   const numSerramenti = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
 
   const checks: ChecklistItem[] = [
@@ -213,9 +216,84 @@ export function StepPdf({ progettoId, detail }: Props) {
           </p>
         )}
 
+        {p.public_url && (
+          <div className="mt-3 p-3 rounded-md bg-emerald-50 border border-emerald-200">
+            <p className="text-[11px] font-semibold text-emerald-900 mb-1 flex items-center gap-1.5">
+              <Link2 className="h-3.5 w-3.5" />
+              Link condivisibile col cliente
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <code className="text-xs bg-white px-2 py-1 rounded border border-emerald-200 flex-1 min-w-0 truncate font-mono">
+                {p.public_url}
+              </code>
+              <Button
+                size="sm" variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(p.public_url!);
+                  toast.success("Link copiato");
+                }}
+                className="gap-1 h-8"
+              >
+                <Copy className="h-3.5 w-3.5" /> Copia
+              </Button>
+              <Button asChild size="sm" variant="outline" className="gap-1 h-8">
+                <a href={p.public_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-3.5 w-3.5" /> Apri
+                </a>
+              </Button>
+            </div>
+            <p className="text-[10px] text-emerald-800 mt-1.5">
+              Il cliente può aprire il preventivo senza login e firmare digitalmente. Il QR code è già nel PDF.
+            </p>
+          </div>
+        )}
+
         <SrCallout variant="info" className="mt-3">
           💡 Il PDF si apre nel browser. Stampa con <strong>Ctrl+P</strong> (Cmd+P su Mac) e scegli "Salva come PDF" per inviarlo al cliente o stamparlo.
         </SrCallout>
+      </SrCard>
+
+      {/* Conversione in commessa */}
+      <SrCard
+        title="Cliente accettato? Crea la commessa"
+        description="Quando il cliente firma o conferma, converti la stima in commessa per gestire produzione, posa e fatturazione."
+        icon={<ClipboardList className="h-4 w-4" />}
+        variant={p.ordine_id ? "muted" : "highlight"}
+      >
+        {p.ordine_id ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm font-semibold flex items-center gap-1.5 text-emerald-700">
+                <Check className="h-4 w-4" /> Già convertita in commessa
+              </p>
+              <p className="text-[11px] text-muted-foreground">Stato progetto: <strong>{p.stato}</strong></p>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <a href={`/azienda/ordini/${p.ordine_id}`} className="gap-1">
+                <ExternalLink className="h-3.5 w-3.5" /> Apri commessa
+              </a>
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              La nuova commessa erediterà cliente, importo e anticipo. La stima resterà collegata per riferimento.
+            </p>
+            <Button
+              onClick={() => convertiMut.mutate()}
+              disabled={convertiMut.isPending || !ready}
+              className="w-full bg-emerald-700 hover:bg-emerald-800 gap-2"
+            >
+              {convertiMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+              Crea commessa da questa stima
+            </Button>
+            {!ready && (
+              <p className="text-[11px] text-amber-700">
+                ⚠️ Completa prima la checklist sopra per creare la commessa.
+              </p>
+            )}
+          </div>
+        )}
       </SrCard>
     </div>
   );

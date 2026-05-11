@@ -4,7 +4,7 @@
  * Tabella semplificata: tipo, descrizione, quantità, prezzo.
  * Foto cantiere/render gestite in Wave 4.
  */
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,9 +18,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Image as ImageIcon, Plus, Trash2, Loader2 } from "lucide-react";
+import { Image as ImageIcon, Plus, Trash2, Loader2, Upload, X } from "lucide-react";
 import {
   useAddAccessorio, useUpdateAccessorio, useDeleteAccessorio,
+  useUploadMedia, useDeleteMedia,
 } from "@/lib/serramenti/queries";
 import { SR_ACCESSORI_TIPI } from "@/types/serramenti";
 import type { SrProgettoDetail, SrAccessorioRow } from "@/types/serramenti";
@@ -35,7 +36,25 @@ export function StepAccessori({ progettoId, detail }: Props) {
   const addMut = useAddAccessorio(progettoId);
   const updateMut = useUpdateAccessorio(progettoId);
   const deleteMut = useDeleteAccessorio(progettoId);
+  const uploadMediaMut = useUploadMedia(progettoId);
+  const deleteMediaMut = useDeleteMedia(progettoId);
   const [toDelete, setToDelete] = useState<SrAccessorioRow | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    Array.from(files).slice(0, 10).forEach((file, idx) => {
+      // Solo immagini ragionevoli (< 10 MB)
+      if (!file.type.startsWith("image/")) return;
+      if (file.size > 10 * 1024 * 1024) return;
+      uploadMediaMut.mutate({
+        file,
+        kind: "situazione",
+        position: detail.media.length + idx,
+      });
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const accessori = detail.accessori;
 
@@ -158,9 +177,55 @@ export function StepAccessori({ progettoId, detail }: Props) {
           </div>
         )}
 
-        <SrCallout variant="info" className="mt-3">
-          📷 La gestione foto cantiere/render verrà aggiunta in Wave 4 insieme alla generazione PDF.
-        </SrCallout>
+      </SrCard>
+
+      {/* Foto cantiere */}
+      <SrCard
+        title="Foto cantiere"
+        description="Carica foto della situazione attuale, render o cantieri simili. Utili per il PDF e per il backoffice."
+        icon={<ImageIcon className="h-4 w-4" />}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+        <Button
+          onClick={() => fileInputRef.current?.click()}
+          variant="outline"
+          className="w-full gap-1 border-dashed border-2 border-emerald-300 hover:bg-emerald-50"
+          disabled={uploadMediaMut.isPending}
+        >
+          {uploadMediaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+          Carica foto (multipla supportata, max 10 MB ciascuna)
+        </Button>
+
+        {detail.media.length > 0 && (
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-3">
+            {detail.media.map((m) => (
+              <div key={m.id} className="relative group aspect-square rounded-md overflow-hidden border bg-muted">
+                {m.url ? (
+                  // eslint-disable-next-line jsx-a11y/img-redundant-alt
+                  <img src={m.url} alt={m.caption ?? "foto"} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                  </div>
+                )}
+                <button
+                  onClick={() => deleteMediaMut.mutate(m.id)}
+                  className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                  title="Elimina"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </SrCard>
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
