@@ -7,13 +7,17 @@
  * Per ora mostra solo l'anteprima dei dati che entreranno nel PDF e un
  * placeholder per la generazione effettiva.
  */
-import { FileText, Loader2, Sparkles, Check, AlertCircle, ExternalLink, Link2, Copy } from "lucide-react";
+import { FileText, Loader2, Sparkles, Check, AlertCircle, ExternalLink, Link2, Copy, Download, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { SrProgettoDetail } from "@/types/serramenti";
 import { SrCard, SrCallout, SrKpi, formatEuro, formatNumero } from "@/lib/serramenti/wizardUI";
-import { useGeneraPdf, useConvertiInOrdine } from "@/lib/serramenti/queries";
+import { useGeneraPdf, useConvertiInOrdine, useTemplatePdf } from "@/lib/serramenti/queries";
 import { ClipboardList } from "lucide-react";
+import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   progettoId: string;
@@ -31,6 +35,31 @@ export function StepPdf({ progettoId, detail }: Props) {
   const generaPdfMut = useGeneraPdf(progettoId);
   const convertiMut = useConvertiInOrdine(progettoId);
   const numSerramenti = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
+
+  // PDF nativo A4 client-side (@react-pdf/renderer, code-split via dynamic import)
+  const { downloadPDF, previewPDF, isGenerating: isGeneratingPdf } = useSerramentoPDF();
+  const { data: template } = useTemplatePdf();
+  const companyId = useEffectiveCompanyId();
+  const { data: company } = useQuery({
+    queryKey: ["sr-step-pdf-company", companyId],
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("name, ragione_sociale, indirizzo, telefono, email, partita_iva, logo_url")
+        .eq("id", companyId!)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data;
+    },
+  });
+  const handleDownloadNative = () => {
+    void downloadPDF({ detail, template: template ?? null, company: company ?? null });
+  };
+  const handlePreviewNative = () => {
+    void previewPDF({ detail, template: template ?? null, company: company ?? null });
+  };
 
   const checks: ChecklistItem[] = [
     {
@@ -157,17 +186,54 @@ export function StepPdf({ progettoId, detail }: Props) {
         </div>
       </SrCard>
 
-      {/* Genera PDF (placeholder Wave 4) */}
+      {/* Genera PDF nativo A4 (RACCOMANDATO) */}
       <SrCard
-        title="Genera preventivo PDF"
-        description="Edge function sr-genera-pdf produrrà 3 pagine HTML (Proposta · Investimento · Tecnico) e le salverà su Storage."
-        icon={<Sparkles className="h-4 w-4" />}
+        title="Scarica PDF da inviare al cliente"
+        description="PDF nativo A4 stampabile e allegabile via email. Layout impaginato professionalmente con anagrafica, investimento, modalità pagamento, tecnico e render."
+        icon={<Download className="h-4 w-4" />}
       >
         {!ready && (
           <SrCallout variant="warning" className="mb-3">
             ⚠️ Completa prima i {erroriCount} elementi mancanti nella checklist sopra.
           </SrCallout>
         )}
+
+        <div className="flex flex-col sm:flex-row gap-2 mb-3">
+          <Button
+            onClick={handleDownloadNative}
+            disabled={!ready || isGeneratingPdf}
+            className="flex-1 bg-emerald-700 hover:bg-emerald-800 gap-2"
+            size="lg"
+          >
+            {isGeneratingPdf ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            Scarica PDF (A4)
+          </Button>
+          <Button
+            onClick={handlePreviewNative}
+            disabled={!ready || isGeneratingPdf}
+            variant="outline"
+            size="lg"
+            className="gap-2"
+          >
+            <Eye className="h-4 w-4" /> Anteprima PDF
+          </Button>
+        </div>
+        <p className="text-[11px] text-muted-foreground mb-2">
+          ⚡ Generato direttamente nel browser, niente attesa server. File pronto da{" "}
+          <strong>allegare via email</strong> o <strong>stampare</strong>.
+        </p>
+      </SrCard>
+
+      {/* Versione HTML legacy + link condivisibile col cliente (firma) */}
+      <SrCard
+        title="Link condivisibile col cliente (HTML)"
+        description="Versione HTML pubblica del preventivo. Il cliente la apre senza login e firma digitalmente. QR code già incluso nel PDF."
+        icon={<Sparkles className="h-4 w-4" />}
+      >
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
           <div className="border border-emerald-100 rounded-md p-3 bg-white">

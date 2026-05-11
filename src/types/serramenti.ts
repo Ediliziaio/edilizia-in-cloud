@@ -157,6 +157,17 @@ export interface SrProgettoRow {
    *           {label:"Saldo",percentuale:30,when:"Fine collaudo"}]
    */
   pagamento_milestones: Array<{ label: string; percentuale: number; when?: string | null }> | null;
+  /**
+   * Schema pagamento di alto livello: guida i template default per le
+   * milestone e mostra/nasconde la sezione finanziaria.
+   * - tutto_finanziato:       100% via finanziaria (no milestone)
+   * - acconto_finanziato:     1 acconto + saldo via finanziaria
+   * - due_acconti_finanziato: 2 acconti + saldo via finanziaria
+   * - due_acconti_saldo:      2 acconti + saldo a fine (no finanziaria)
+   * - tre_step:               default Italia (firma + merce + saldo)
+   * - personalizzato:         l'utente definisce manualmente
+   */
+  schema_pagamento: SrSchemaPagamento | null;
 
   // Varianti
   varianti_attive: boolean;
@@ -390,6 +401,87 @@ export const SR_WIZARD_STEPS: { key: SrWizardStep; label: string; icon: string }
 ];
 
 // ─── Tipologie serramento (catalogo statico, override dal listino) ──────────
+
+// ─── Schema pagamento (modalità di alto livello) ──────────────────────────
+
+export type SrSchemaPagamento =
+  | "tutto_finanziato"
+  | "acconto_finanziato"
+  | "due_acconti_finanziato"
+  | "due_acconti_saldo"
+  | "tre_step"
+  | "personalizzato";
+
+export interface SrPagamentoMilestone {
+  label: string;
+  percentuale: number;
+  when?: string | null;
+}
+
+/**
+ * Template milestone per ogni schema. La somma fa 100% (eccetto schemi
+ * "personalizzato" che parte vuoto). Le label/when sono editabili dopo.
+ */
+export const SR_SCHEMI_PAGAMENTO: Record<SrSchemaPagamento, {
+  label: string;
+  description: string;
+  hasFinanziamento: boolean;
+  milestones: SrPagamentoMilestone[];
+}> = {
+  tutto_finanziato: {
+    label: "Tutto finanziato",
+    description: "Importo intero tramite finanziaria, niente acconto cliente.",
+    hasFinanziamento: true,
+    milestones: [
+      { label: "Finanziamento", percentuale: 100, when: "Erogato dalla finanziaria all'inizio dei lavori" },
+    ],
+  },
+  acconto_finanziato: {
+    label: "Acconto + finanziato",
+    description: "Acconto alla firma + resto via finanziaria.",
+    hasFinanziamento: true,
+    milestones: [
+      { label: "Acconto alla firma", percentuale: 30, when: "Firma contratto" },
+      { label: "Finanziamento", percentuale: 70, when: "Erogato all'inizio lavori" },
+    ],
+  },
+  due_acconti_finanziato: {
+    label: "2 acconti + finanziato",
+    description: "Firma + arrivo merce + resto via finanziaria.",
+    hasFinanziamento: true,
+    milestones: [
+      { label: "Acconto alla firma", percentuale: 20, when: "Firma contratto" },
+      { label: "Acconto arrivo merce", percentuale: 30, when: "Merce in magazzino" },
+      { label: "Finanziamento", percentuale: 50, when: "Erogato all'inizio lavori" },
+    ],
+  },
+  due_acconti_saldo: {
+    label: "2 acconti + saldo",
+    description: "Firma + arrivo merce + saldo a fine lavori, senza finanziaria.",
+    hasFinanziamento: false,
+    milestones: [
+      { label: "Acconto alla firma", percentuale: 30, when: "Firma contratto" },
+      { label: "Acconto arrivo merce", percentuale: 40, when: "Merce in magazzino" },
+      { label: "Saldo", percentuale: 30, when: "Fine collaudo" },
+    ],
+  },
+  tre_step: {
+    label: "3 step (firma + merce + saldo)",
+    description: "Pattern standard: acconto firma + acconto arrivo merce + saldo prima dei lavori.",
+    hasFinanziamento: false,
+    milestones: [
+      { label: "Acconto alla firma", percentuale: 30, when: "Firma contratto" },
+      { label: "Acconto arrivo merce", percentuale: 40, when: "Merce in magazzino" },
+      { label: "Saldo", percentuale: 30, when: "Prima dei lavori" },
+    ],
+  },
+  personalizzato: {
+    label: "Personalizzato",
+    description: "Crea uno schema su misura per questo cliente.",
+    hasFinanziamento: true,
+    milestones: [],
+  },
+};
 
 export const SR_TIPOLOGIE_SERRAMENTO = [
   { value: "finestra_1anta",      label: "Finestra a 1 anta" },

@@ -44,7 +44,9 @@ import {
 } from "@/lib/serramenti/risparmio";
 import type {
   SrProgettoRow, SrProgettoDetail, SrPianoFinanziamento, SrCashflowRiga,
+  SrSchemaPagamento, SrPagamentoMilestone,
 } from "@/types/serramenti";
+import { SR_SCHEMI_PAGAMENTO } from "@/types/serramenti";
 import {
   SrCard, SrKpi, SrCallout, formatEuro, formatPct, formatNumero,
 } from "@/lib/serramenti/wizardUI";
@@ -118,15 +120,25 @@ export function StepEconomia({ detail, form, onChange }: Props) {
   const [piano2Tasso, setPiano2Tasso] = useState(0);
 
   // ─── Modalità pagamento cliente ──────────────────────────────────────────
-  type Milestone = { label: string; percentuale: number; when?: string | null };
-  const milestoneDefault: Milestone[] = [
-    { label: "Acconto alla firma", percentuale: 30, when: "Firma contratto" },
-    { label: "Inizio lavori", percentuale: 40, when: "Consegna materiale in cantiere" },
-    { label: "Saldo", percentuale: 30, when: "Fine collaudo" },
-  ];
+  type Milestone = SrPagamentoMilestone;
+  // Schema di alto livello: l'utente sceglie il pattern (tutto finanziato /
+  // acconto+fin / 2 acconti+fin / 2 acconti+saldo / 3 step / personalizzato).
+  // Lo schema determina sia le milestone default sia la visibilità della
+  // sezione finanziaria.
+  const [schemaPagamento, setSchemaPagamento] = useState<SrSchemaPagamento>(
+    (form.schema_pagamento as SrSchemaPagamento | null) ?? "tre_step",
+  );
+  const schemaCfg = SR_SCHEMI_PAGAMENTO[schemaPagamento];
+  const milestoneDefault = schemaCfg.milestones;
   const [milestones, setMilestones] = useState<Milestone[]>(
     (form.pagamento_milestones as Milestone[] | null) ?? milestoneDefault,
   );
+  // Quando l'utente cambia schema, ripopoliamo le milestone con il template.
+  const applySchema = (next: SrSchemaPagamento) => {
+    setSchemaPagamento(next);
+    onChange("schema_pagamento", next);
+    setMilestones(SR_SCHEMI_PAGAMENTO[next].milestones);
+  };
   // Sync con prop: se il progetto viene re-fetchato (es. dopo refresh, edit
   // su altra tab), aggiorniamo lo state locale per non mostrare valori stale.
   // Confronto JSON per evitare loop infinito su reference uguali ma identità diversa.
@@ -387,9 +399,30 @@ export function StepEconomia({ detail, form, onChange }: Props) {
       {/* Modalità di pagamento cliente */}
       <SrCard
         title="Modalità di pagamento cliente"
-        description="Acconto e step di pagamento. Compare nel PDF come piano concordato. La somma delle percentuali deve fare 100%."
+        description="Scegli prima il pattern di pagamento, poi personalizza gli step. Compare nel PDF come piano concordato."
         icon={<Wallet className="h-4 w-4" />}
       >
+        {/* Schema di alto livello — guida il template */}
+        <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50/40 p-3 space-y-2">
+          <Label className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5">
+            <CreditCard className="h-3.5 w-3.5" />
+            Schema pagamento
+          </Label>
+          <Select value={schemaPagamento} onValueChange={(v) => applySchema(v as SrSchemaPagamento)}>
+            <SelectTrigger className="bg-white text-sm h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(SR_SCHEMI_PAGAMENTO) as SrSchemaPagamento[]).map((k) => (
+                <SelectItem key={k} value={k}>
+                  {SR_SCHEMI_PAGAMENTO[k].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-emerald-700">{schemaCfg.description}</p>
+        </div>
+
         <div className="space-y-2">
           {milestones.map((m, idx) => (
             <div key={idx} className="grid grid-cols-12 gap-2 items-end">
@@ -479,7 +512,8 @@ export function StepEconomia({ detail, form, onChange }: Props) {
         </div>
       </SrCard>
 
-      {/* Finanziamento */}
+      {/* Finanziamento — mostrato solo se lo schema lo prevede */}
+      {schemaCfg.hasFinanziamento && (
       <SrCard
         title="Simulazione finanziamento"
         description="Scegli una tabella finanziaria configurata oppure imposta manualmente. La rata si calcola da importo + durata."
@@ -661,6 +695,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
           )}
         </div>
       </SrCard>
+      )}
 
       {/* Ecobonus */}
       <SrCard
