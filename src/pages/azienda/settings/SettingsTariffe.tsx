@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useVertical, type Vertical } from "@/hooks/useVertical";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
+import { invalidateAllTariffe } from "@/lib/tariffeQueryKeys";
 import {
   Plus, Pencil, Trash2, Zap, Search, Copy, MoreVertical, Calculator,
   TrendingUp, Percent, Package, Activity, Archive, RotateCcw, Info,
@@ -1564,7 +1565,7 @@ export default function SettingsTariffe() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full", companyId] });
+      invalidateAllTariffe(queryClient);
       toast.success("Tariffa eliminata");
       setDeleteId(null);
     },
@@ -1586,7 +1587,7 @@ export default function SettingsTariffe() {
       return next;
     },
     onSuccess: (next) => {
-      queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full", companyId] });
+      invalidateAllTariffe(queryClient);
       toast.success(next ? "Tariffa riattivata" : "Tariffa archiviata");
     },
     onError: (err: unknown) => {
@@ -1616,7 +1617,7 @@ export default function SettingsTariffe() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full", companyId] });
+      invalidateAllTariffe(queryClient);
       toast.success("Tariffa duplicata");
     },
     onError: (err: unknown) => {
@@ -1841,7 +1842,7 @@ export default function SettingsTariffe() {
           companyId={companyId}
           isAdmin={isAdmin}
           currentVertical={currentVertical}
-          onSaved={() => queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full", companyId] })}
+          onSaved={() => invalidateAllTariffe(queryClient)}
         />
       )}
 
@@ -1851,7 +1852,7 @@ export default function SettingsTariffe() {
           onClose={() => setStandardOpen(false)}
           existing={tariffe}
           companyId={companyId}
-          onCreated={() => queryClient.invalidateQueries({ queryKey: ["tariffe-aziendali-full", companyId] })}
+          onCreated={() => invalidateAllTariffe(queryClient)}
           vertical={currentVertical ?? "generico"}
         />
       )}
