@@ -1,11 +1,15 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShoppingBag, Euro, TrendingUp, AlertCircle } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon } from "lucide-react";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+
+// 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
+const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
 import { OrdersFilterSidebar, INITIAL_FILTER_STATE, countActiveFilters, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
 import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
 import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
@@ -2187,12 +2191,15 @@ export default function OrdersList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab") || "ordini";
   const permissions = usePermissions();
+  const { isFeatureEnabled } = useFeatureFlags();
+  const surveysEnabled = isFeatureEnabled("surveys_module");
   const handleTabChange = (tab: string) => {
     setSearchParams(tab === "ordini" ? {} : { tab });
   };
 
   const tabs = [
     { id: "ordini", label: "Commesse", icon: ClipboardList, show: true },
+    { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled, beta: true },
     { id: "acquisto", label: "Ordini d'Acquisto", icon: ShoppingCart, show: permissions.canViewForecast },
     { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewForecast },
     { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewOrders },
@@ -2231,6 +2238,11 @@ export default function OrdersList() {
                   aria-hidden="true"
                 />
                 {t.label}
+                {("beta" in t && t.beta) ? (
+                  <span className="ml-1 inline-flex items-center rounded-full bg-orange-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-orange-700 ring-1 ring-orange-200">
+                    Beta
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -2240,6 +2252,14 @@ export default function OrdersList() {
       {activeTab === "ordini" && (
         <ErrorBoundary title="Errore nella lista commesse">
           <OrdersListInner />
+        </ErrorBoundary>
+      )}
+
+      {activeTab === "sopralluoghi" && surveysEnabled && (
+        <ErrorBoundary title="Errore nel modulo Sopralluoghi">
+          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento sopralluoghi…</div>}>
+            <SopralluoghiList />
+          </Suspense>
         </ErrorBoundary>
       )}
 

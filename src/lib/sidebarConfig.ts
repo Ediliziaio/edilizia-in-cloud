@@ -112,8 +112,9 @@ export const macroAreas: MacroArea[] = [
     icon: HardHat,
     items: [
       // ─── Operativo ───
+      // NB: Sopralluoghi non è più voce separata sidebar — è un tab dentro Commesse
+      // (OrdersList.tsx). Visibile a Demo Azienda via feature flag surveys_module.
       { title: "Commesse", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
-      { title: "Sopralluoghi", url: "/azienda/sopralluoghi", icon: ClipboardList, featureKey: "surveys_module", isBeta: true },
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
       { title: "Subappaltatori", url: "/azienda/subappaltatori", icon: HardHat, permissionKey: "canViewSubappaltatori" },
