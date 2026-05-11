@@ -1,11 +1,15 @@
 /**
- * ManodoperaSection — sezione manodopera/posa nello Step Composizione offerta.
+ * ServiziSection — sezione "Servizi aggiuntivi" del preventivo Serramenti.
  *
- * Permette di:
- *  - Aggiungere voci di manodopera dal listino aziendale (tariffe_aziendali)
- *  - Inserire voci a mano (off-listino)
- *  - Modificare quantità, prezzi unitari (auto-calcolo totale)
- *  - Vedere il subtotale manodopera
+ * Servizi tipici: trasporto, tiro al piano, pratica ENEA, smaltimento,
+ * sopralluogo extra, ponteggio, occupazione suolo pubblico, ecc.
+ *
+ * NOTA importante: la MANODOPERA / POSA è inclusa nel prezzo del singolo
+ * prodotto (vedi FamilyEditor.posa_tariffa_default_id) — NON entra qui.
+ * Qui ci sono solo servizi che vengono fatturati a parte rispetto ai
+ * serramenti veri e propri.
+ *
+ * DB: riusa sr_servizi_progetto (rinominata da sr_manodopera_progetto).
  */
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -23,12 +27,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  HardHat, Plus, Trash2, Loader2, Search, Wrench,
+  Truck, Plus, Trash2, Loader2, Search, Settings,
 } from "lucide-react";
 import {
   useTariffeManodopera, useAddManodopera, useUpdateManodopera, useDeleteManodopera,
 } from "@/lib/serramenti/queries";
-import type { SrManodoperaRow, SrProgettoDetail } from "@/types/serramenti";
+import type { SrServizioRow, SrProgettoDetail } from "@/types/serramenti";
 import type { TariffaMinimal } from "@/lib/serramenti/api";
 import { SrCard, formatEuro } from "@/lib/serramenti/wizardUI";
 
@@ -37,26 +41,33 @@ interface Props {
   detail: SrProgettoDetail;
 }
 
-export function ManodoperaSection({ progettoId, detail }: Props) {
+// Servizi tipici suggeriti come quick-add
+const SERVIZI_RAPIDI = [
+  { tipo: "trasporto", label: "Trasporto", unita: "a_corpo", emoji: "🚚" },
+  { tipo: "tiro_al_piano", label: "Tiro al piano", unita: "pz", emoji: "🏗️" },
+  { tipo: "pratica_enea", label: "Pratica ENEA", unita: "a_corpo", emoji: "📋" },
+  { tipo: "smaltimento", label: "Smaltimento materiali", unita: "a_corpo", emoji: "♻️" },
+  { tipo: "sopralluogo_extra", label: "Sopralluogo extra", unita: "pz", emoji: "📏" },
+  { tipo: "ponteggio", label: "Ponteggio / piattaforma", unita: "giorno", emoji: "🚧" },
+];
+
+export function ServiziSection({ progettoId, detail }: Props) {
   const addMut = useAddManodopera(progettoId);
   const updateMut = useUpdateManodopera(progettoId);
   const deleteMut = useDeleteManodopera(progettoId);
   const [tariffaPickerOpen, setTariffaPickerOpen] = useState(false);
-  const [toDelete, setToDelete] = useState<SrManodoperaRow | null>(null);
+  const [toDelete, setToDelete] = useState<SrServizioRow | null>(null);
 
-  const righe = detail.manodopera ?? [];
+  const righe = detail.servizi ?? detail.manodopera ?? [];
 
   const subtotaleVendita = righe.reduce(
     (acc, r) => acc + Number(r.prezzo_totale_vendita ?? 0), 0,
   );
-  const subtotaleCosto = righe.reduce(
-    (acc, r) => acc + Number(r.prezzo_totale_costo ?? 0), 0,
-  );
 
-  const handleAddManual = () => {
+  const handleAddQuick = (servizio: typeof SERVIZI_RAPIDI[0]) => {
     addMut.mutate({
-      descrizione: "Posa serramenti",
-      unita: "cantiere",
+      descrizione: servizio.label,
+      unita: servizio.unita,
       quantita: 1,
       position: righe.length,
     });
@@ -66,7 +77,7 @@ export function ManodoperaSection({ progettoId, detail }: Props) {
     addMut.mutate({
       tariffa_id: t.id,
       descrizione: t.nome,
-      unita: t.unita ?? "ora",
+      unita: t.unita ?? "pz",
       quantita: 1,
       prezzo_unitario_costo: t.prezzo_costo != null ? Number(t.prezzo_costo) : null,
       prezzo_unitario_vendita: t.prezzo_vendita != null ? Number(t.prezzo_vendita) : null,
@@ -75,39 +86,57 @@ export function ManodoperaSection({ progettoId, detail }: Props) {
     setTariffaPickerOpen(false);
   };
 
-  const onPatch = (id: string, patch: Partial<SrManodoperaRow>) => {
+  const onPatch = (id: string, patch: Partial<SrServizioRow>) => {
     updateMut.mutate({ id, patch });
   };
 
   return (
     <SrCard
-      title="Manodopera / Posa"
-      description="Voci di manodopera collegate al listino tariffe aziendali. Entrano nel calcolo del prezzo finale nello Step Economia."
-      icon={<HardHat className="h-4 w-4" />}
+      title="Servizi aggiuntivi"
+      description="Trasporto, tiro al piano, pratica ENEA, smaltimento, ponteggio… La posa è già inclusa nel prezzo dei serramenti."
+      icon={<Truck className="h-4 w-4" />}
     >
+      {/* Quick-add chip per i servizi tipici */}
+      <div className="mb-3">
+        <p className="text-[11px] text-muted-foreground mb-1.5">Servizi tipici (click per aggiungere):</p>
+        <div className="flex flex-wrap gap-1.5">
+          {SERVIZI_RAPIDI.map((s) => (
+            <button
+              key={s.tipo}
+              onClick={() => handleAddQuick(s)}
+              disabled={addMut.isPending}
+              className="text-xs px-2.5 py-1.5 rounded-full border border-emerald-200 bg-white hover:bg-emerald-50 hover:border-emerald-300 transition disabled:opacity-50"
+            >
+              {s.emoji} {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="flex flex-col sm:flex-row gap-2 mb-3">
         <Button
           onClick={() => setTariffaPickerOpen(true)}
-          className="flex-1 bg-emerald-700 hover:bg-emerald-800 gap-1"
+          variant="outline"
+          className="flex-1 gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
           disabled={addMut.isPending}
         >
-          <Wrench className="h-4 w-4" /> Aggiungi dal listino tariffe
+          <Settings className="h-4 w-4" /> Da listino tariffe
         </Button>
         <Button
-          onClick={handleAddManual}
+          onClick={() => addMut.mutate({ descrizione: "Servizio personalizzato", unita: "a_corpo", quantita: 1, position: righe.length })}
           variant="outline"
           className="flex-1 gap-1"
           disabled={addMut.isPending}
         >
-          <Plus className="h-4 w-4" /> Aggiungi voce custom
+          <Plus className="h-4 w-4" /> Voce custom
         </Button>
       </div>
 
       {righe.length === 0 ? (
-        <div className="border-2 border-dashed border-emerald-200 rounded-md p-5 text-center">
-          <HardHat className="h-8 w-8 mx-auto text-emerald-300 mb-2" />
+        <div className="border-2 border-dashed border-slate-200 rounded-md p-4 text-center bg-slate-50/30">
+          <Truck className="h-7 w-7 mx-auto text-slate-300 mb-1.5" />
           <p className="text-xs text-muted-foreground">
-            Nessuna voce di manodopera. Aggiungi dal listino o crea una voce custom (posa, smontaggio, sopralluogo, ecc.).
+            Nessun servizio aggiuntivo. Sono <strong>opzionali</strong>: aggiungi solo quelli effettivamente concordati col cliente.
           </p>
         </div>
       ) : (
@@ -119,7 +148,6 @@ export function ManodoperaSection({ progettoId, detail }: Props) {
                   <TableHead className="text-xs">Descrizione</TableHead>
                   <TableHead className="text-xs w-20">Unità</TableHead>
                   <TableHead className="text-xs w-20">Q.tà</TableHead>
-                  <TableHead className="text-xs w-28">€ costo</TableHead>
                   <TableHead className="text-xs w-28">€ vendita</TableHead>
                   <TableHead className="text-xs w-28">Totale</TableHead>
                   <TableHead className="text-xs w-10"></TableHead>
@@ -139,7 +167,7 @@ export function ManodoperaSection({ progettoId, detail }: Props) {
                       <Input
                         defaultValue={r.unita ?? ""}
                         onBlur={(e) => onPatch(r.id, { unita: e.target.value || null })}
-                        placeholder="ora"
+                        placeholder="pz"
                         className="h-8 text-xs w-16"
                       />
                     </TableCell>
@@ -149,14 +177,6 @@ export function ManodoperaSection({ progettoId, detail }: Props) {
                         defaultValue={r.quantita}
                         onBlur={(e) => onPatch(r.id, { quantita: Math.max(0, Number(e.target.value) || 0) })}
                         className="h-8 text-xs w-16"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number" step={0.01}
-                        defaultValue={r.prezzo_unitario_costo ?? ""}
-                        onBlur={(e) => onPatch(r.id, { prezzo_unitario_costo: e.target.value ? Number(e.target.value) : null })}
-                        className="h-8 text-xs w-24"
                       />
                     </TableCell>
                     <TableCell>
@@ -184,18 +204,11 @@ export function ManodoperaSection({ progettoId, detail }: Props) {
             </Table>
           </div>
 
-          <Card className="bg-emerald-50/40 border-emerald-200 p-3 flex items-center justify-between flex-wrap gap-2">
-            <span className="text-xs font-semibold text-emerald-900">
-              Subtotale manodopera (vendita)
+          <Card className="bg-slate-50 border-slate-200 p-3 flex items-center justify-between flex-wrap gap-2">
+            <span className="text-xs font-semibold text-slate-700">Subtotale servizi</span>
+            <span className="text-lg font-bold text-slate-800 tabular-nums">
+              {formatEuro(subtotaleVendita)}
             </span>
-            <div className="flex gap-4 items-center">
-              <span className="text-[10px] text-emerald-700">
-                costo: {formatEuro(subtotaleCosto)}
-              </span>
-              <span className="text-lg font-bold text-emerald-800 tabular-nums">
-                {formatEuro(subtotaleVendita)}
-              </span>
-            </div>
           </Card>
         </div>
       )}
@@ -209,9 +222,9 @@ export function ManodoperaSection({ progettoId, detail }: Props) {
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare voce manodopera?</AlertDialogTitle>
+            <AlertDialogTitle>Eliminare il servizio?</AlertDialogTitle>
             <AlertDialogDescription>
-              "{toDelete?.descrizione}" verrà rimossa dal preventivo. Non è reversibile.
+              "{toDelete?.descrizione}" verrà rimosso dal preventivo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -232,7 +245,7 @@ export function ManodoperaSection({ progettoId, detail }: Props) {
   );
 }
 
-// ─── TariffaPickerDialog (inline qui per semplicità) ────────────────────────
+// ─── TariffaPickerDialog inline ─────────────────────────────────────────────
 
 function TariffaPickerDialog({
   open, onOpenChange, onSelect,
@@ -248,10 +261,7 @@ function TariffaPickerDialog({
     const t = setTimeout(() => setDebounced(search), 300);
     return () => clearTimeout(t);
   }, [search]);
-
-  useEffect(() => {
-    if (!open) { setSearch(""); setDebounced(""); }
-  }, [open]);
+  useEffect(() => { if (!open) { setSearch(""); setDebounced(""); } }, [open]);
 
   const { data: tariffe = [], isLoading } = useTariffeManodopera(debounced);
 
@@ -261,8 +271,7 @@ function TariffaPickerDialog({
         <DialogHeader>
           <DialogTitle>Seleziona dal listino tariffe</DialogTitle>
           <DialogDescription>
-            Tariffe aziendali da `tariffe_aziendali`: posa, manodopera, sopralluogo, smontaggio, ecc.
-            Configurabili in Impostazioni → Tariffe.
+            Tariffe configurate in Impostazioni → Tariffe aziendali. Filtra per cercare servizi (trasporto, ENEA, ecc.).
           </DialogDescription>
         </DialogHeader>
 
@@ -271,7 +280,7 @@ function TariffaPickerDialog({
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cerca tariffa (posa, sopralluogo, smontaggio...)"
+            placeholder="Cerca (trasporto, ENEA, smaltimento, sopralluogo…)"
             className="pl-9 h-10"
             autoFocus
           />
@@ -281,15 +290,13 @@ function TariffaPickerDialog({
           {isLoading ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
-              Caricamento tariffe…
+              Caricamento…
             </div>
           ) : tariffe.length === 0 ? (
             <div className="py-8 text-center">
-              <Wrench className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
+              <Truck className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
               <p className="text-sm text-muted-foreground">
-                {debounced.length >= 2
-                  ? "Nessuna tariffa trovata."
-                  : "Configura le tariffe in Impostazioni → Tariffe aziendali per usarle nei preventivi."}
+                Nessuna tariffa trovata. Configurale in Impostazioni → Tariffe aziendali.
               </p>
             </div>
           ) : (
@@ -310,9 +317,6 @@ function TariffaPickerDialog({
                           {t.categoria_prodotto && (
                             <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{t.categoria_prodotto}</span>
                           )}
-                          {t.vertical_associato && (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">{t.vertical_associato}</span>
-                          )}
                           {t.unita && (
                             <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">per {t.unita}</span>
                           )}
@@ -322,11 +326,6 @@ function TariffaPickerDialog({
                         {t.prezzo_vendita != null && (
                           <p className="text-sm font-bold text-emerald-700 tabular-nums">
                             € {Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
-                          </p>
-                        )}
-                        {t.prezzo_costo != null && (
-                          <p className="text-[10px] text-muted-foreground">
-                            costo: € {Number(t.prezzo_costo).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
                           </p>
                         )}
                       </div>

@@ -59,9 +59,9 @@ export function StepEconomia({ detail, form, onChange }: Props) {
         sconto_percentuale: form.sconto_percentuale ?? 0,
         sconto_importo: form.sconto_importo ?? 0,
       },
-      detail.manodopera,
+      detail.servizi ?? detail.manodopera ?? [],
     ),
-    [detail.serramenti, detail.accessori, detail.manodopera, form.iva_percentuale, form.sconto_percentuale, form.sconto_importo],
+    [detail.serramenti, detail.accessori, detail.servizi, detail.manodopera, form.iva_percentuale, form.sconto_percentuale, form.sconto_importo],
   );
 
   const forbice = useMemo(() => forbicePrezzo(totaleCalc.totale_iva_inclusa, 12), [totaleCalc.totale_iva_inclusa]);
@@ -178,13 +178,13 @@ export function StepEconomia({ detail, form, onChange }: Props) {
       {/* Riepilogo BOM */}
       <SrCard
         title="Riepilogo composizione"
-        description={`${detail.serramenti.length} serramenti · ${detail.accessori.length} accessori · ${detail.manodopera.length} voci manodopera · ${formatNumero(totaleCalc.metri_quadri, 2)} m² totali`}
+        description={`${detail.serramenti.length} serramenti (posa inclusa) · ${detail.accessori.length} accessori · ${(detail.servizi ?? detail.manodopera ?? []).length} servizi · ${formatNumero(totaleCalc.metri_quadri, 2)} m²`}
         icon={<Calculator className="h-4 w-4" />}
       >
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-          <SrKpi label="Serramenti" value={formatEuro(totaleCalc.imponibile_serramenti)} />
+          <SrKpi label="Serramenti" value={formatEuro(totaleCalc.imponibile_serramenti)} hint="Posa inclusa nei prezzi" />
           <SrKpi label="Accessori" value={formatEuro(totaleCalc.imponibile_accessori)} />
-          <SrKpi label="Manodopera" value={formatEuro(totaleCalc.imponibile_manodopera)} />
+          <SrKpi label="Servizi" value={formatEuro(totaleCalc.imponibile_servizi)} hint="Trasporto, ENEA, ecc." />
           <SrKpi label="Imponibile" value={formatEuro(totaleCalc.imponibile_netto)} hint={totaleCalc.sconto > 0 ? `Sconto: -${formatEuro(totaleCalc.sconto)}` : undefined} />
           <SrKpi label="IVA inclusa" value={formatEuro(totaleCalc.totale_iva_inclusa)} variant="primary" />
         </div>

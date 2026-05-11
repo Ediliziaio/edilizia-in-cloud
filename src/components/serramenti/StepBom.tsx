@@ -21,10 +21,9 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
-import { ManodoperaSection } from "./ManodoperaSection";
+import { ServiziSection } from "./ServiziSection";
 import {
   useAddSerramento, useUpdateSerramento, useDeleteSerramento, useImportDaSopralluogo,
-  useAddManodopera, useTariffeManodopera,
 } from "@/lib/serramenti/queries";
 import {
   SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI,
@@ -43,85 +42,35 @@ export function StepBom({ progettoId, detail }: Props) {
   const updateMut = useUpdateSerramento(progettoId);
   const deleteMut = useDeleteSerramento(progettoId);
   const importMut = useImportDaSopralluogo(progettoId);
-  const addManodoperaMut = useAddManodopera(progettoId);
-  const { data: tariffe = [] } = useTariffeManodopera(); // per risolvere il nome della tariffa
   const [toDelete, setToDelete] = useState<SrSerramentoRow | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [listinoOpen, setListinoOpen] = useState(false);
 
   const serramenti = detail.serramenti;
 
+  // Nuovo flow: ListinoPicker ritorna già misure + prezzo unitario calcolato
+  // (incluso eventuale posa configurata sul prodotto). Niente più auto-create
+  // riga manodopera separata — la posa è dentro il prezzo della posizione.
   const handlePickFromListino = (item: ListinoPickResult) => {
+    const qty = item.quantita || 1;
+    const prezzoUnitarioFinal = item.prezzo_unitario ?? 0;
     addMut.mutate(
       {
-        tipologia: detail.progetto.materiale_principale === "alluminio" ? "finestra_2ante" : "finestra_2ante",
+        tipologia: "finestra_2ante",
         tipologia_label: item.family_nome,
         materiale: detail.progetto.materiale_principale ?? "alluminio",
         larghezza_mm: item.larghezza_mm,
         altezza_mm: item.altezza_mm,
-        quantita: 1,
-        prezzo_unitario: item.prezzo_unitario,
-        prezzo_totale: item.prezzo_unitario,
+        quantita: qty,
+        prezzo_unitario: prezzoUnitarioFinal,
+        prezzo_totale: prezzoUnitarioFinal * qty,
         position: serramenti.length,
         family_id: item.family_id,
         listino_voce_id: item.griglia_id ?? null,
-        note: `Da listino: ${item.family_nome}`,
+        note: item.note ?? `Da listino: ${item.family_nome}`,
       },
-      {
-        onSuccess: (created) => {
-          setExpanded(created.id);
-          // Auto-create riga manodopera se la famiglia ne ha una linkata
-          autoCreateManodopera(item);
-        },
-      },
+      { onSuccess: (created) => setExpanded(created.id) },
     );
-  };
-
-  // ─── Auto-create manodopera dal FamilyEditor ─────────────────────────────
-  // Quando aggiungo un serramento dal listino, se la family ha
-  // manodopera_modalita='tariffa' o 'manuale', creo automaticamente la riga
-  // corrispondente in sr_manodopera_progetto.
-  const autoCreateManodopera = (item: ListinoPickResult) => {
-    const m = item.manodopera;
-    if (!m || !m.modalita || m.modalita === "nessuna") return;
-
-    const qty = m.quantita_default ?? 1;
-
-    if (m.modalita === "tariffa" && m.tariffa_default_id) {
-      // Trova la tariffa per snapshot dei prezzi
-      const tariffa = tariffe.find((t) => t.id === m.tariffa_default_id);
-      if (!tariffa) {
-        // Tariffa non trovata o non caricata ancora; aggiunge comunque con riferimento
-        addManodoperaMut.mutate({
-          tariffa_id: m.tariffa_default_id,
-          descrizione: `Posa per ${item.family_nome}`,
-          unita: m.unita ?? "pz",
-          quantita: qty,
-          position: (detail.manodopera ?? []).length,
-        });
-        return;
-      }
-      addManodoperaMut.mutate({
-        tariffa_id: tariffa.id,
-        descrizione: tariffa.nome,
-        unita: m.unita ?? tariffa.unita ?? "pz",
-        quantita: qty,
-        prezzo_unitario_costo: tariffa.prezzo_costo != null ? Number(tariffa.prezzo_costo) : null,
-        prezzo_unitario_vendita: tariffa.prezzo_vendita != null ? Number(tariffa.prezzo_vendita) : null,
-        position: (detail.manodopera ?? []).length,
-        note: `Auto da listino: ${item.family_nome}`,
-      });
-    } else if (m.modalita === "manuale") {
-      addManodoperaMut.mutate({
-        descrizione: `Posa ${item.family_nome}`,
-        unita: m.unita ?? "a_corpo",
-        quantita: qty,
-        prezzo_unitario_costo: m.costo_acquisto,
-        prezzo_unitario_vendita: m.prezzo_vendita,
-        position: (detail.manodopera ?? []).length,
-        note: `Manodopera manuale dal listino: ${item.family_nome}`,
-      });
-    }
   };
 
   const handleAdd = () => {
@@ -283,8 +232,9 @@ export function StepBom({ progettoId, detail }: Props) {
         />
       </SrCard>
 
-      {/* Sezione manodopera/posa — collegata al listino tariffe aziendali */}
-      <ManodoperaSection progettoId={progettoId} detail={detail} />
+      {/* Sezione Servizi aggiuntivi — trasporto, ENEA, smaltimento, ecc.
+          La manodopera/posa è inclusa nel prezzo del singolo prodotto. */}
+      <ServiziSection progettoId={progettoId} detail={detail} />
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>

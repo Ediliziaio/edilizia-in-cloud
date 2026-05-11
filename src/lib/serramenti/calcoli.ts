@@ -6,13 +6,15 @@
  * - Forbice min/max (per gestire varianti di mercato)
  * - IVA
  */
-import type { SrSerramentoRow, SrAccessorioRow, SrManodoperaRow } from "@/types/serramenti";
+import type { SrSerramentoRow, SrAccessorioRow, SrServizioRow } from "@/types/serramenti";
 
 export interface CalcoloTotale {
+  /** Serramenti: prezzo già include la posa configurata nel listino prodotto */
   imponibile_serramenti: number;
   imponibile_accessori: number;
-  imponibile_manodopera: number;
-  imponibile_lordo: number;       // somma BOM
+  /** Servizi aggiuntivi (trasporto, ENEA, smaltimento, ecc.) */
+  imponibile_servizi: number;
+  imponibile_lordo: number;       // somma totale
   sconto: number;                  // valore sconto applicato
   imponibile_netto: number;        // dopo sconto
   iva_importo: number;
@@ -20,6 +22,7 @@ export interface CalcoloTotale {
   metri_quadri: number;
   num_serramenti: number;
   num_accessori: number;
+  num_servizi: number;
 }
 
 export interface CalcoloOptions {
@@ -35,12 +38,13 @@ export function calcolaTotale(
   serramenti: SrSerramentoRow[],
   accessori: SrAccessorioRow[],
   opts: CalcoloOptions = {},
-  manodopera: SrManodoperaRow[] = [],
+  servizi: SrServizioRow[] = [],
 ): CalcoloTotale {
   const iva = opts.iva_percentuale ?? 22;
   const scontoPct = opts.sconto_percentuale ?? 0;
   const scontoEur = opts.sconto_importo ?? 0;
 
+  // Serramenti: prezzo già comprende eventuale posa configurata sul prodotto
   const imponibile_serramenti = serramenti.reduce(
     (acc, s) => acc + Number(s.prezzo_totale ?? (s.prezzo_unitario ?? 0) * (s.quantita ?? 1)),
     0,
@@ -49,11 +53,12 @@ export function calcolaTotale(
     (acc, a) => acc + Number(a.prezzo_totale ?? (a.prezzo_unitario ?? 0) * (a.quantita ?? 1)),
     0,
   );
-  const imponibile_manodopera = manodopera.reduce(
-    (acc, m) => acc + Number(m.prezzo_totale_vendita ?? (m.prezzo_unitario_vendita ?? 0) * (m.quantita ?? 1)),
+  // Servizi aggiuntivi (trasporto, ENEA, smaltimento…)
+  const imponibile_servizi = servizi.reduce(
+    (acc, s) => acc + Number(s.prezzo_totale_vendita ?? (s.prezzo_unitario_vendita ?? 0) * (s.quantita ?? 1)),
     0,
   );
-  const imponibile_lordo = imponibile_serramenti + imponibile_accessori + imponibile_manodopera;
+  const imponibile_lordo = imponibile_serramenti + imponibile_accessori + imponibile_servizi;
 
   // Sconto: prima il fisso, poi il %
   const dopoFisso = Math.max(0, imponibile_lordo - scontoEur);
@@ -73,10 +78,12 @@ export function calcolaTotale(
   const num_serramenti = serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
   const num_accessori = accessori.reduce((acc, a) => acc + (a.quantita ?? 1), 0);
 
+  const num_servizi = servizi.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
+
   return {
     imponibile_serramenti,
     imponibile_accessori,
-    imponibile_manodopera,
+    imponibile_servizi,
     imponibile_lordo,
     sconto,
     imponibile_netto,
@@ -85,6 +92,7 @@ export function calcolaTotale(
     metri_quadri,
     num_serramenti,
     num_accessori,
+    num_servizi,
   };
 }
 

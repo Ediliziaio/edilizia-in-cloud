@@ -228,7 +228,16 @@ export interface SrSerramentoRow {
   updated_at: string;
 }
 
-export interface SrManodoperaRow {
+/**
+ * SrServizioRow — voci servizi aggiuntivi del preventivo (trasporto, tiro al
+ * piano, ENEA, smaltimento, sopralluogo extra...). La manodopera/posa è
+ * concettualmente INCLUSA nel prezzo del singolo prodotto del listino
+ * (vedi FamilyEditor.posa_tariffa_default_id), non in queste righe.
+ *
+ * NB: la tabella DB è sr_servizi_progetto (rinominata da sr_manodopera_progetto).
+ * Manteniamo alias SrManodoperaRow per retrocompat temporanea.
+ */
+export interface SrServizioRow {
   id: string;
   progetto_id: string;
   company_id: string;
@@ -246,6 +255,9 @@ export interface SrManodoperaRow {
   created_at: string;
   updated_at: string;
 }
+
+/** @deprecated usare SrServizioRow */
+export type SrManodoperaRow = SrServizioRow;
 
 export interface SrAccessorioRow {
   id: string;
@@ -337,7 +349,10 @@ export interface SrProgettoDetail {
   accessori: SrAccessorioRow[];
   media: SrMediaRow[];
   risparmio: SrCalcoloRisparmioRow | null;
-  manodopera: SrManodoperaRow[];
+  /** Servizi aggiuntivi (trasporto, ENEA, smaltimento, sopralluogo) */
+  servizi: SrServizioRow[];
+  /** @deprecated alias di servizi */
+  manodopera: SrServizioRow[];
 }
 
 // ─── Wizard step ─────────────────────────────────────────────────────────────
