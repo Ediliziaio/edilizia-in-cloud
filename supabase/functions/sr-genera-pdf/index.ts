@@ -218,6 +218,54 @@ Deno.serve(async (req: Request) => {
       return out;
     };
 
+    // 2c. Pagine dedicate macrocategoria: l'azienda può configurare alcune
+    // macro con `mostra_pagina_dedicata_pdf=true` per dare risalto a linee
+    // premium (foto + storytelling). Inseriamo una pagina dedicata per
+    // ciascuna macro coinvolta nel BOM, in ordine di prima occorrenza.
+    type MacroPagina = {
+      macro_id: string;
+      nome: string;
+      descrizione_estesa: string;
+      immagine_url: string | null;
+    };
+    let macroPagineDedicate: MacroPagina[] = [];
+    // Ordine di apparizione: usiamo le family_ids già raccolte (ordine BOM).
+    const macroIdsInBom: string[] = [];
+    const seenMacroIds = new Set<string>();
+    for (const fId of familyIds) {
+      const fam = familyById.get(fId);
+      const macroId = fam?.categoria_id ? categoriaToMacro.get(fam.categoria_id) : undefined;
+      if (macroId && !seenMacroIds.has(macroId)) {
+        seenMacroIds.add(macroId);
+        macroIdsInBom.push(macroId);
+      }
+    }
+    if (macroIdsInBom.length > 0) {
+      // deno-lint-ignore no-explicit-any
+      const { data: macroRows } = await (supabaseAdmin as any)
+        .from("listino_macrocategorie")
+        .select("id, nome, descrizione, descrizione_estesa, immagine_url, mostra_pagina_dedicata_pdf")
+        .in("id", macroIdsInBom)
+        .eq("mostra_pagina_dedicata_pdf", true);
+      const macroById = new Map<string, MacroPagina>();
+      ((macroRows ?? []) as Array<{
+        id: string; nome: string; descrizione: string | null;
+        descrizione_estesa: string | null; immagine_url: string | null;
+      }>).forEach((m) => {
+        const desc = (m.descrizione_estesa ?? m.descrizione ?? "").trim();
+        if (!desc) return; // niente testo → niente pagina
+        macroById.set(m.id, {
+          macro_id: m.id,
+          nome: m.nome,
+          descrizione_estesa: desc,
+          immagine_url: m.immagine_url,
+        });
+      });
+      macroPagineDedicate = macroIdsInBom
+        .filter((id) => macroById.has(id))
+        .map((id) => macroById.get(id)!);
+    }
+
     // 3. Consulente
     let consulente: { nome: string; ruolo: string | null; telefono: string | null; email: string | null; foto: string | null } | null = null;
     if (prog.consulente_id) {
@@ -364,6 +412,9 @@ Deno.serve(async (req: Request) => {
         // Scheda tecnica dinamica (campi show_in_pdf=true della macro)
         specs_tecniche: buildSpecsTecniche(s.family_id),
       })),
+      // Pagine dedicate macrocategoria (storytelling premium): array di
+      // {macro_id, nome, descrizione_estesa, immagine_url}. Vuoto se nessuna.
+      macro_pagine_dedicate: macroPagineDedicate,
       accessori: (accessori ?? []).map((a: { tipo: string; descrizione?: string | null; quantita?: number }) => ({
         tipo: a.tipo,
         descrizione: a.descrizione,

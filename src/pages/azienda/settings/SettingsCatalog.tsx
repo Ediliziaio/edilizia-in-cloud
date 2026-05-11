@@ -134,11 +134,18 @@ export default function SettingsCatalog() {
       <Dialog open={showCategorieDialog} onOpenChange={setShowCategorieDialog}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Gestione categorie</DialogTitle>
-            <DialogDescription>
-              Organizza il listino in macrocategorie e categorie. Gli articoli
-              saranno raggruppati automaticamente in base a questa struttura.
-            </DialogDescription>
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+                <FolderTree className="h-4.5 w-4.5 text-white" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle>Gestione categorie</DialogTitle>
+                <DialogDescription>
+                  Organizza il listino in macrocategorie e categorie. Gli articoli
+                  saranno raggruppati automaticamente.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
           <MacroCategorieManager />
         </DialogContent>

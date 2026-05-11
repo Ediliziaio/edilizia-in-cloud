@@ -34,6 +34,12 @@ export interface ListinoMacrocategoria {
   // Verticali (moduli preventivo) a cui questa macro è esposta.
   // [] = visibile in tutti i verticali (retrocompat).
   verticali_abilitati: string[];
+  // Descrizione lunga (markdown-light) per la pagina dedicata nel PDF
+  // preventivo. NULL = usa `descrizione` breve come fallback.
+  descrizione_estesa: string | null;
+  // Se true, sr-genera-pdf inserisce una pagina dedicata nel PDF quando
+  // questa macro è presente nel BOM del preventivo.
+  mostra_pagina_dedicata_pdf: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -47,6 +53,8 @@ export interface MacrocategoriaPayload {
   sort_order?: number;
   attivo?: boolean;
   verticali_abilitati?: string[];
+  descrizione_estesa?: string | null;
+  mostra_pagina_dedicata_pdf?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -121,6 +129,8 @@ export function useMacrocategorieMutations() {
           sort_order: payload.sort_order ?? 0,
           attivo: payload.attivo ?? true,
           verticali_abilitati: payload.verticali_abilitati ?? [],
+          descrizione_estesa: payload.descrizione_estesa ?? null,
+          mostra_pagina_dedicata_pdf: payload.mostra_pagina_dedicata_pdf ?? false,
         } as never)
         .select()
         .single();
@@ -149,6 +159,12 @@ export function useMacrocategorieMutations() {
           ...(patch.icona !== undefined ? { icona: patch.icona } : {}),
           ...(patch.colore !== undefined ? { colore: patch.colore } : {}),
           ...(patch.immagine_url !== undefined ? { immagine_url: patch.immagine_url } : {}),
+          ...(patch.descrizione_estesa !== undefined
+            ? { descrizione_estesa: patch.descrizione_estesa }
+            : {}),
+          ...(patch.mostra_pagina_dedicata_pdf !== undefined
+            ? { mostra_pagina_dedicata_pdf: patch.mostra_pagina_dedicata_pdf }
+            : {}),
           ...(patch.sort_order !== undefined ? { sort_order: patch.sort_order } : {}),
           ...(patch.attivo !== undefined ? { attivo: patch.attivo } : {}),
           ...(patch.verticali_abilitati !== undefined

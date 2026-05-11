@@ -74,6 +74,15 @@ export interface SrPdfData {
   }[];
   accessori: { tipo: string; descrizione: string | null; quantita: number }[];
 
+  // Pagine dedicate macrocategoria — storytelling premium opt-in (l'admin
+  // imposta `mostra_pagina_dedicata_pdf=true` su listino_macrocategorie).
+  macro_pagine_dedicate?: Array<{
+    macro_id: string;
+    nome: string;
+    descrizione_estesa: string;
+    immagine_url: string | null;
+  }>;
+
   // Render foto-realistici dei serramenti (kind='render' in sr_progetti_media)
   renders: { url: string; caption: string | null }[];
 
@@ -494,6 +503,56 @@ function renderPage3(d: SrPdfData): string {
   `;
 }
 
+/**
+ * Pagine dedicate macrocategoria — opzionali, una per ciascuna macro con
+ * `mostra_pagina_dedicata_pdf=true` presente nel BOM. Layout pulito a 2
+ * colonne: foto a sx + storytelling a dx. Pagina A4 piena, niente footer
+ * con numerazione perché sono "allegati" inseriti dopo la pagina 3 base.
+ */
+function renderPagineMacroDedicate(d: SrPdfData): string {
+  const pagine = d.macro_pagine_dedicate ?? [];
+  if (pagine.length === 0) return "";
+  return pagine.map((p, idx) => {
+    const total = pagine.length;
+    // Trasforma il testo libero in paragrafi (a-capo doppi) + supporto bullet
+    // "- " all'inizio della riga. Niente markdown completo per sicurezza.
+    const paragrafiHtml = p.descrizione_estesa
+      .split(/\n\s*\n/)
+      .filter((p) => p.trim().length > 0)
+      .map((paragrafo) => {
+        const lines = paragrafo.split("\n").map((l) => l.trim()).filter(Boolean);
+        const allBullets = lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
+        if (allBullets && lines.length > 0) {
+          const items = lines.map((l) => `<li>${esc(l.replace(/^[-•]\s*/, ""))}</li>`).join("");
+          return `<ul class="macro-bullets">${items}</ul>`;
+        }
+        return `<p>${esc(paragrafo).replace(/\n/g, "<br/>")}</p>`;
+      })
+      .join("");
+    return `
+    <section class="page macro-page">
+      ${renderHeader(d, 0, 0)}
+      <main class="page-body">
+        <div class="macro-page-meta">
+          <span class="macro-page-eyebrow">Linea prodotto · ${idx + 1} di ${total}</span>
+        </div>
+        <h1 class="macro-page-title">${esc(p.nome)}</h1>
+        <div class="macro-page-grid">
+          <div class="macro-page-media">
+            ${p.immagine_url
+              ? `<img src="${esc(p.immagine_url)}" alt="${esc(p.nome)}" />`
+              : `<div class="macro-page-media-empty">${esc(p.nome)}</div>`}
+          </div>
+          <div class="macro-page-body">
+            ${paragrafiHtml || `<p class="muted">Nessuna descrizione estesa configurata.</p>`}
+          </div>
+        </div>
+      </main>
+    </section>
+    `;
+  }).join("");
+}
+
 function labelAccessorio(tipo: string): string {
   const map: Record<string, string> = {
     avvolgibile: "Avvolgibile",
@@ -705,6 +764,68 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
 .specs-tech .spec-value { font-weight: 600; }
 .specs-tech .spec-unit { color: #94a3b8; font-weight: 400; font-size: 9px; }
 
+/* Pagine dedicate macrocategoria — storytelling premium */
+.macro-page .macro-page-meta { margin-bottom: 8px; }
+.macro-page .macro-page-eyebrow {
+  display: inline-block;
+  text-transform: uppercase;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--sr-green, #2D7D5C);
+  font-weight: 700;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  opacity: 0.85;
+}
+.macro-page .macro-page-title {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 6px 0 18px;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+.macro-page .macro-page-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 28px;
+  align-items: start;
+}
+.macro-page .macro-page-media {
+  width: 240px;
+  height: 320px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+.macro-page .macro-page-media img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.macro-page .macro-page-media-empty {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; text-align: center;
+  font-size: 14px; font-weight: 600; color: #94a3b8;
+}
+.macro-page .macro-page-body {
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: #1e293b;
+}
+.macro-page .macro-page-body p {
+  margin: 0 0 10px;
+}
+.macro-page .macro-bullets {
+  margin: 0 0 10px;
+  padding-left: 18px;
+  list-style: disc;
+}
+.macro-page .macro-bullets li {
+  margin-bottom: 4px;
+}
+
 /* Consulenza */
 .consulenza-box {
   display: grid; grid-template-columns: 64px 1fr 1fr; gap: 14px;
@@ -773,6 +894,7 @@ export function renderSrPdfHtml(d: SrPdfData): string {
     ${renderPage1(d)}
     ${renderPage2(d)}
     ${renderPage3(d)}
+    ${renderPagineMacroDedicate(d)}
   </div>
 </body>
 </html>`;
