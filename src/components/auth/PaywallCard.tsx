@@ -144,7 +144,7 @@ export function PaywallCard({
           </Link>
         </Button>
         <Button asChild variant="outline" className="w-full sm:w-auto">
-          <a href="mailto:commerciale@ediliziaincloud.it?subject=Richiesta%20attivazione%20funzionalità">
+          <a href="mailto:commerciale@ediliziaincloud.com?subject=Richiesta%20attivazione%20funzionalità">
             Contatta il commerciale
           </a>
         </Button>

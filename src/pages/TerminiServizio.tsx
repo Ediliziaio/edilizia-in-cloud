@@ -72,7 +72,7 @@ export default function TerminiServizio() {
         </li>
         <li>
           <strong>Piattaforma:</strong> l'applicazione web accessibile all'indirizzo
-          app.ediliziaincloud.it, lavori.ediliziaincloud.com e relative app mobili;
+          app.ediliziaincloud.com, lavori.ediliziaincloud.com e relative app mobili;
         </li>
         <li>
           <strong>Account:</strong> lo spazio applicativo riservato al Cliente, accessibile mediante

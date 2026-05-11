@@ -15,9 +15,11 @@ import {
   listRenderSessions, importRender,
   listCrmContacts,
   listListinoFamilies, listGrigliaByFamily,
+  listTariffeManodopera, addManodopera, updateManodopera, deleteManodopera,
   type SrCreateProgettoInput,
   type UploadMediaInput,
 } from "./api";
+import type { SrManodoperaRow } from "@/types/serramenti";
 import type {
   SrProgettoRow, SrSerramentoRow, SrAccessorioRow, SrTemplatePdfRow,
   SrStatoProgetto,
@@ -187,6 +189,56 @@ export function useCrmContacts(searchQuery: string = "") {
     queryKey: ["sr-crm-contacts", searchQuery],
     queryFn: () => listCrmContacts(searchQuery, 50),
     staleTime: 60 * 1000,
+  });
+}
+
+// ─── Listino manodopera (tariffe_aziendali) ────────────────────────────────
+
+export function useTariffeManodopera(searchQuery: string = "") {
+  return useQuery({
+    queryKey: ["sr-tariffe-manodopera", searchQuery],
+    queryFn: () => listTariffeManodopera(searchQuery),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useAddManodopera(progettoId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ["sr-progetto-autosave", progettoId],
+    mutationFn: (m: Partial<SrManodoperaRow>) => {
+      if (!progettoId) throw new Error("Progetto id mancante");
+      return addManodopera(progettoId, m);
+    },
+    onSuccess: () => {
+      if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+    },
+    onError: (e) => toast.error("Aggiunta manodopera fallita", { description: String(e) }),
+  });
+}
+
+export function useUpdateManodopera(progettoId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ["sr-progetto-autosave", progettoId],
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<SrManodoperaRow> }) =>
+      updateManodopera(id, patch),
+    onSuccess: () => {
+      if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+    },
+    onError: (e) => toast.error("Modifica manodopera fallita", { description: String(e) }),
+  });
+}
+
+export function useDeleteManodopera(progettoId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteManodopera(id),
+    onSuccess: () => {
+      if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+      toast.success("Voce manodopera eliminata");
+    },
+    onError: (e) => toast.error("Eliminazione fallita", { description: String(e) }),
   });
 }
 

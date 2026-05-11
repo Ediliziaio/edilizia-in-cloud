@@ -51,12 +51,17 @@ interface Props {
 export function StepEconomia({ detail, form, onChange }: Props) {
   // ─── Calcoli BOM ──────────────────────────────────────────────────────────
   const totaleCalc = useMemo(() =>
-    calcolaTotale(detail.serramenti, detail.accessori, {
-      iva_percentuale: form.iva_percentuale ?? 22,
-      sconto_percentuale: form.sconto_percentuale ?? 0,
-      sconto_importo: form.sconto_importo ?? 0,
-    }),
-    [detail.serramenti, detail.accessori, form.iva_percentuale, form.sconto_percentuale, form.sconto_importo],
+    calcolaTotale(
+      detail.serramenti,
+      detail.accessori,
+      {
+        iva_percentuale: form.iva_percentuale ?? 22,
+        sconto_percentuale: form.sconto_percentuale ?? 0,
+        sconto_importo: form.sconto_importo ?? 0,
+      },
+      detail.manodopera,
+    ),
+    [detail.serramenti, detail.accessori, detail.manodopera, form.iva_percentuale, form.sconto_percentuale, form.sconto_importo],
   );
 
   const forbice = useMemo(() => forbicePrezzo(totaleCalc.totale_iva_inclusa, 12), [totaleCalc.totale_iva_inclusa]);
@@ -173,12 +178,13 @@ export function StepEconomia({ detail, form, onChange }: Props) {
       {/* Riepilogo BOM */}
       <SrCard
         title="Riepilogo composizione"
-        description={`${detail.serramenti.length} serramenti · ${detail.accessori.length} accessori · ${formatNumero(totaleCalc.metri_quadri, 2)} m² totali`}
+        description={`${detail.serramenti.length} serramenti · ${detail.accessori.length} accessori · ${detail.manodopera.length} voci manodopera · ${formatNumero(totaleCalc.metri_quadri, 2)} m² totali`}
         icon={<Calculator className="h-4 w-4" />}
       >
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <SrKpi label="Serramenti" value={formatEuro(totaleCalc.imponibile_serramenti)} />
           <SrKpi label="Accessori" value={formatEuro(totaleCalc.imponibile_accessori)} />
+          <SrKpi label="Manodopera" value={formatEuro(totaleCalc.imponibile_manodopera)} />
           <SrKpi label="Imponibile" value={formatEuro(totaleCalc.imponibile_netto)} hint={totaleCalc.sconto > 0 ? `Sconto: -${formatEuro(totaleCalc.sconto)}` : undefined} />
           <SrKpi label="IVA inclusa" value={formatEuro(totaleCalc.totale_iva_inclusa)} variant="primary" />
         </div>

@@ -21,6 +21,7 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
+import { ManodoperaSection } from "./ManodoperaSection";
 import {
   useAddSerramento, useUpdateSerramento, useDeleteSerramento, useImportDaSopralluogo,
 } from "@/lib/serramenti/queries";
@@ -227,6 +228,9 @@ export function StepBom({ progettoId, detail }: Props) {
           onSelect={handlePickFromListino}
         />
       </SrCard>
+
+      {/* Sezione manodopera/posa — collegata al listino tariffe aziendali */}
+      <ManodoperaSection progettoId={progettoId} detail={detail} />
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>

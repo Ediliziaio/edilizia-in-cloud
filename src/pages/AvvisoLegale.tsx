@@ -36,7 +36,7 @@ export default function AvvisoLegale() {
 
       <h2>1. Editore del Sito</h2>
       <p>
-        Il sito web <a href="https://www.ediliziaincloud.it">www.ediliziaincloud.it</a> e i
+        Il sito web <a href="https://www.ediliziaincloud.com">www.ediliziaincloud.com</a> e i
         relativi sotto-domini (collettivamente, il &quot;Sito&quot;) sono pubblicati e gestiti da:
       </p>
 
@@ -70,7 +70,7 @@ export default function AvvisoLegale() {
           </tr>
           <tr>
             <td><strong>Email</strong></td>
-            <td><a href="mailto:info@ediliziaincloud.it">info@ediliziaincloud.it</a></td>
+            <td><a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a></td>
           </tr>
           <tr>
             <td><strong>PEC</strong></td>
@@ -152,7 +152,7 @@ export default function AvvisoLegale() {
       <p>
         L&apos;utilizzo eventualmente autorizzato dei contenuti dovrà sempre essere accompagnato
         dall&apos;indicazione della fonte (&quot;Fonte: Edilizia in Cloud —
-        www.ediliziaincloud.it&quot;) e, ove possibile, da un link ipertestuale alla pagina
+        www.ediliziaincloud.com&quot;) e, ove possibile, da un link ipertestuale alla pagina
         originale.
       </p>
 
@@ -238,7 +238,7 @@ export default function AvvisoLegale() {
         potenzialmente illeciti, lesivi di diritti propri o di terzi (incluse violazioni del
         diritto d&apos;autore, dei marchi, della reputazione, della privacy o della normativa
         sulla pubblicità ingannevole) possono segnalarlo via email all&apos;indirizzo{" "}
-        <a href="mailto:legal@ediliziaincloud.it">legal@ediliziaincloud.it</a>, fornendo:
+        <a href="mailto:legal@ediliziaincloud.com">legal@ediliziaincloud.com</a>, fornendo:
       </p>
       <ul>
         <li>i propri dati identificativi e di contatto;</li>

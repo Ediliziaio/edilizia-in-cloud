@@ -34,9 +34,9 @@ const EMPTY: PlatformEmailSignature = {
 };
 
 const DEFAULT_SIGNATURE_HTML =
-  '<p style="margin:0;color:#374151;font-size:14px;line-height:1.6;">Il team di <strong>Edilizia in Cloud</strong><br/><a href="https://ediliziaincloud.it" style="color:#1d4ed8;text-decoration:none;">ediliziaincloud.it</a></p>';
+  '<p style="margin:0;color:#374151;font-size:14px;line-height:1.6;">Il team di <strong>Edilizia in Cloud</strong><br/><a href="https://ediliziaincloud.com" style="color:#1d4ed8;text-decoration:none;">ediliziaincloud.com</a></p>';
 
-const DEFAULT_SIGNATURE_TEXT = "Il team di Edilizia in Cloud\nhttps://ediliziaincloud.it";
+const DEFAULT_SIGNATURE_TEXT = "Il team di Edilizia in Cloud\nhttps://ediliziaincloud.com";
 
 export function PlatformEmailSignaturePanel() {
   const query = usePlatformEmailSignature();
@@ -75,7 +75,7 @@ export function PlatformEmailSignaturePanel() {
     setForm((prev) => ({
       ...prev,
       from_name: prev.from_name.trim() || "Edilizia in Cloud",
-      support_mail: prev.support_mail.trim() || "supporto@ediliziaincloud.it",
+      support_mail: prev.support_mail.trim() || "supporto@ediliziaincloud.com",
       footer_text: prev.footer_text.trim() || "Edilizia in Cloud - Tutti i diritti riservati.",
       signature_html: DEFAULT_SIGNATURE_HTML,
       signature_text: DEFAULT_SIGNATURE_TEXT,
@@ -165,7 +165,7 @@ export function PlatformEmailSignaturePanel() {
                   type="email"
                   value={form.support_mail}
                   onChange={(e) => update("support_mail", e.target.value)}
-                  placeholder="supporto@ediliziaincloud.it"
+                  placeholder="supporto@ediliziaincloud.com"
                 />
               </div>
             </div>

@@ -127,20 +127,22 @@ export async function getProgetto(id: string): Promise<SrProgettoDetail> {
     { data: accessori, error: e3 },
     { data: media, error: e4 },
     { data: risparmio, error: e5 },
+    { data: manodopera, error: e6 },
   ] = await Promise.all([
     sb.from("sr_progetti").select("*").eq("id", id).maybeSingle(),
     sb.from("sr_serramenti_progetto").select("*").eq("progetto_id", id).order("position"),
     sb.from("sr_accessori_progetto").select("*").eq("progetto_id", id).order("position"),
     sb.from("sr_progetti_media").select("*").eq("progetto_id", id).order("position"),
     sb.from("sr_calcolo_risparmio").select("*").eq("progetto_id", id).maybeSingle(),
+    sb.from("sr_manodopera_progetto").select("*").eq("progetto_id", id).order("position"),
   ]);
 
   if (e1 || !progetto) {
     console.error("[serramenti] getProgetto failed", e1);
     throw new Error("Progetto non trovato");
   }
-  if (e2 || e3 || e4) {
-    console.error("[serramenti] getProgetto related failed", e2 || e3 || e4);
+  if (e2 || e3 || e4 || e6) {
+    console.error("[serramenti] getProgetto related failed", e2 || e3 || e4 || e6);
     throw new Error("Errore caricamento dati progetto");
   }
   if (e5 && e5.code !== "PGRST116") {
@@ -153,6 +155,7 @@ export async function getProgetto(id: string): Promise<SrProgettoDetail> {
     accessori: (accessori ?? []) as SrAccessorioRow[],
     media: (media ?? []) as SrMediaRow[],
     risparmio: (risparmio ?? null) as SrCalcoloRisparmioRow | null,
+    manodopera: (manodopera ?? []) as import("@/types/serramenti").SrManodoperaRow[],
   };
 }
 
@@ -288,6 +291,113 @@ export async function getTemplatePdf(): Promise<SrTemplatePdfRow | null> {
     return null;
   }
   return data as SrTemplatePdfRow | null;
+}
+
+// ─── LISTINO MANODOPERA (tariffe_aziendali) ─────────────────────────────────
+
+export interface TariffaMinimal {
+  id: string;
+  nome: string;
+  descrizione: string | null;
+  unita: string | null;
+  prezzo_costo: number | null;
+  prezzo_vendita: number | null;
+  categoria_prodotto: string | null;
+  vertical_associato: string | null;
+}
+
+export async function listTariffeManodopera(searchQuery?: string): Promise<TariffaMinimal[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q = (supabase as any)
+    .from("tariffe_aziendali")
+    .select("id, nome, descrizione, unita, prezzo_costo, prezzo_vendita, categoria_prodotto, vertical_associato, tipo, attiva")
+    .eq("attiva", true)
+    .order("nome", { ascending: true })
+    .limit(100);
+  if (searchQuery && searchQuery.trim().length >= 2) {
+    const t = `%${searchQuery.trim()}%`;
+    q = q.or(`nome.ilike.${t},descrizione.ilike.${t},categoria_prodotto.ilike.${t}`);
+  }
+  const { data, error } = await q;
+  if (error) {
+    console.error("[serramenti] listTariffeManodopera failed", error);
+    throw new Error("Errore caricamento tariffe manodopera");
+  }
+  return (data ?? []) as TariffaMinimal[];
+}
+
+// ─── Manodopera progetto (sr_manodopera_progetto) ───────────────────────────
+
+export async function addManodopera(
+  progetto_id: string,
+  m: Partial<import("@/types/serramenti").SrManodoperaRow>,
+): Promise<import("@/types/serramenti").SrManodoperaRow> {
+  const { data: prog } = await supabase
+    .from("sr_progetti" as never)
+    .select("company_id")
+    .eq("id", progetto_id)
+    .maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const companyId = (prog as any)?.company_id;
+  if (!companyId) throw new Error("Progetto non trovato");
+
+  const quantita = m.quantita ?? 1;
+  const totCosto = m.prezzo_unitario_costo != null
+    ? Number(m.prezzo_unitario_costo) * quantita : null;
+  const totVendita = m.prezzo_unitario_vendita != null
+    ? Number(m.prezzo_unitario_vendita) * quantita : null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("sr_manodopera_progetto")
+    .insert({
+      progetto_id,
+      company_id: companyId,
+      position: m.position ?? 0,
+      tariffa_id: m.tariffa_id ?? null,
+      variante_id: m.variante_id ?? null,
+      descrizione: m.descrizione ?? "Posa serramenti",
+      unita: m.unita ?? "cantiere",
+      quantita,
+      prezzo_unitario_costo: m.prezzo_unitario_costo ?? null,
+      prezzo_unitario_vendita: m.prezzo_unitario_vendita ?? null,
+      prezzo_totale_costo: totCosto,
+      prezzo_totale_vendita: totVendita,
+      note: m.note ?? null,
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error("Aggiunta manodopera fallita");
+  return data as import("@/types/serramenti").SrManodoperaRow;
+}
+
+export async function updateManodopera(
+  id: string,
+  patch: Partial<import("@/types/serramenti").SrManodoperaRow>,
+): Promise<void> {
+  // Ricalcolo totali se cambia qty o prezzi unitari
+  if (patch.quantita !== undefined || patch.prezzo_unitario_costo !== undefined || patch.prezzo_unitario_vendita !== undefined) {
+    // Devo recuperare i valori attuali per i campi non in patch
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: orig } = await (supabase as any)
+      .from("sr_manodopera_progetto").select("quantita, prezzo_unitario_costo, prezzo_unitario_vendita").eq("id", id).maybeSingle();
+    const q = patch.quantita ?? orig?.quantita ?? 1;
+    const pc = patch.prezzo_unitario_costo ?? orig?.prezzo_unitario_costo;
+    const pv = patch.prezzo_unitario_vendita ?? orig?.prezzo_unitario_vendita;
+    if (pc != null) patch.prezzo_totale_costo = Number(pc) * q;
+    if (pv != null) patch.prezzo_totale_vendita = Number(pv) * q;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("sr_manodopera_progetto").update(patch).eq("id", id);
+  if (error) throw new Error("Modifica manodopera fallita");
+}
+
+export async function deleteManodopera(id: string): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("sr_manodopera_progetto").delete().eq("id", id);
+  if (error) throw new Error("Eliminazione manodopera fallita");
 }
 
 // ─── LISTINO PRODOTTI (article_families + listino_griglia) ─────────────────

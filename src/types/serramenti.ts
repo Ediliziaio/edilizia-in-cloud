@@ -228,6 +228,25 @@ export interface SrSerramentoRow {
   updated_at: string;
 }
 
+export interface SrManodoperaRow {
+  id: string;
+  progetto_id: string;
+  company_id: string;
+  position: number;
+  tariffa_id: string | null;
+  variante_id: string | null;
+  descrizione: string;
+  unita: string | null;
+  quantita: number;
+  prezzo_unitario_costo: number | null;
+  prezzo_unitario_vendita: number | null;
+  prezzo_totale_costo: number | null;
+  prezzo_totale_vendita: number | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SrAccessorioRow {
   id: string;
   progetto_id: string;
@@ -318,6 +337,7 @@ export interface SrProgettoDetail {
   accessori: SrAccessorioRow[];
   media: SrMediaRow[];
   risparmio: SrCalcoloRisparmioRow | null;
+  manodopera: SrManodoperaRow[];
 }
 
 // ─── Wizard step ─────────────────────────────────────────────────────────────

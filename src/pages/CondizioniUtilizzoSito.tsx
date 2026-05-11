@@ -11,7 +11,7 @@ export default function CondizioniUtilizzoSito() {
     >
       <p>
         Le presenti Condizioni Generali di Utilizzo disciplinano l&apos;accesso e la navigazione del
-        sito <strong>www.ediliziaincloud.it</strong> da parte di qualsiasi visitatore. Sono distinte
+        sito <strong>www.ediliziaincloud.com</strong> da parte di qualsiasi visitatore. Sono distinte
         e indipendenti dai Termini e Condizioni contrattuali del software-as-a-service
         &laquo;Edilizia in Cloud&raquo;, applicabili ai soli Clienti registrati.
       </p>
@@ -22,7 +22,7 @@ export default function CondizioniUtilizzoSito() {
       </p>
 
       <p>
-        L&apos;accesso al sito <strong>www.ediliziaincloud.it</strong> (il &laquo;Sito&raquo;) e a
+        L&apos;accesso al sito <strong>www.ediliziaincloud.com</strong> (il &laquo;Sito&raquo;) e a
         qualsiasi suo contenuto, per qualunque finalità, comporta l&apos;accettazione integrale e
         senza riserve delle presenti Condizioni Generali di Utilizzo (le &laquo;Condizioni&raquo;).
         Qualora l&apos;Utente non intenda accettarle, in tutto o in parte, è invitato a non
@@ -236,7 +236,7 @@ export default function CondizioniUtilizzoSito() {
         <strong>6.4</strong> Nei casi in cui la legge consenta una libera utilizzazione dei
         Contenuti (es. citazioni a fini di critica, recensione o rassegna stampa, ai sensi degli
         artt. 65 e ss. L. 633/1941), l&apos;Utente si impegna a indicare sempre la fonte
-        (&laquo;Fonte: Edilizia in Cloud — www.ediliziaincloud.it&raquo;), il nome
+        (&laquo;Fonte: Edilizia in Cloud — www.ediliziaincloud.com&raquo;), il nome
         dell&apos;autore (ove indicato) e a inserire un link ipertestuale alla pagina originale,
         ove possibile.
       </p>

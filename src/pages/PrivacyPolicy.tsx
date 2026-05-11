@@ -44,10 +44,10 @@ export default function PrivacyPolicy() {
         dati personali degli utenti che:
       </p>
       <ul>
-        <li>visitano il sito web www.ediliziaincloud.it e i relativi sotto-domini (il "Sito");</li>
+        <li>visitano il sito web www.ediliziaincloud.com e i relativi sotto-domini (il "Sito");</li>
         <li>
           accedono e utilizzano la piattaforma applicativa accessibile all'indirizzo
-          app.ediliziaincloud.it e ai relativi sotto-domini operativi, incluso il portale operai
+          app.ediliziaincloud.com e ai relativi sotto-domini operativi, incluso il portale operai
           lavori.ediliziaincloud.com (la "Piattaforma");
         </li>
         <li>

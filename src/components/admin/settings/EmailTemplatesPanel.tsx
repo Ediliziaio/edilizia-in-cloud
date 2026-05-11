@@ -205,14 +205,14 @@ const ACCESS_USER_PLACEHOLDERS: PlaceholderDef[] = [
   {
     key: "user.login_url",
     label: "Link accesso piattaforma",
-    example: "https://app.ediliziaincloud.it/login",
+    example: "https://app.ediliziaincloud.com/login",
     required: false,
     category: "link",
   },
   {
     key: "user.invite_url",
     label: "Link accettazione invito",
-    example: "https://app.ediliziaincloud.it/invito?token=abc",
+    example: "https://app.ediliziaincloud.com/invito?token=abc",
     required: false,
     category: "link",
   },
@@ -552,7 +552,7 @@ function getPreviewMockProps(meta: TemplateMeta | undefined): Record<string, str
     ...(meta?.mockProps ?? {}),
   };
   const recipient = splitMockName(legacy.recipientName ?? legacy["contact.full_name"] ?? "Marco Rossi");
-  const loginUrl = legacy.loginUrl ?? legacy.acceptUrl ?? legacy.verifyUrl ?? legacy.resetUrl ?? "https://app.ediliziaincloud.it/login";
+  const loginUrl = legacy.loginUrl ?? legacy.acceptUrl ?? legacy.verifyUrl ?? legacy.resetUrl ?? "https://app.ediliziaincloud.com/login";
   return {
     ...legacy,
     userFirstName: recipient.first,
