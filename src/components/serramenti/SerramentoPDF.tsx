@@ -1303,6 +1303,7 @@ export function SerramentoPDF({
             (c) wrap={false} sulla Page — clip dell'eventuale overflow, NO split. */}
       <Page
         size="A4"
+        wrap={false}
         style={[
           styles.cover,
           coverBgColor ? { backgroundColor: coverBgColor } : undefined,
