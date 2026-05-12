@@ -572,13 +572,29 @@ export default function RenderNewV2() {
   const progressValue = ((step - 1) / (STEP_LABELS.length - 1)) * 100;
 
   return (
-    <div className="mx-auto max-w-5xl pb-8">
-      <div className="mb-6 rounded-b-2xl bg-gradient-to-br from-slate-800 to-slate-700 px-5 py-5 text-white">
-        <div className="flex items-center justify-between">
-          {/* In embed mode il bottone "Indietro" navigherebbe la pagina
-              PARENT fuori dal Dialog -> dropped. L'utente chiude il
-              Dialog con X o tasto Esc. */}
-          {!isEmbed && (
+    <div className={cn("mx-auto pb-8", isEmbed ? "max-w-5xl" : "max-w-5xl")}>
+      {/* HEADER:
+          - modalita' standalone: header completo con titolo + descrizione
+            promozionale + step counter + progress bar
+          - modalita' EMBED (Dialog): header compatto SOLO progress +
+            step labels (l'header del Dialog gia' fornisce titolo).
+            Niente descrizione promozionale che ruba spazio verticale
+            prezioso dentro il modale. */}
+      {isEmbed ? (
+        <div className="mb-4 rounded-b-2xl bg-gradient-to-br from-slate-800 to-slate-700 px-5 py-3 text-white">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-white/80">
+              Step {step} / {STEP_LABELS.length} · {STEP_LABELS[step - 1] ?? ""}
+            </span>
+            <Badge variant="secondary" className="gap-1 bg-white/15 text-white hover:bg-white/20 text-[10px] py-0">
+              <Zap className="h-2.5 w-2.5" /> Render AI
+            </Badge>
+          </div>
+          <Progress value={progressValue} className="h-1 bg-white/20" />
+        </div>
+      ) : (
+        <div className="mb-6 rounded-b-2xl bg-gradient-to-br from-slate-800 to-slate-700 px-5 py-5 text-white">
+          <div className="flex items-center justify-between">
             <button
               onClick={() => navigate(-1)}
               className="flex items-center gap-1 text-xs opacity-70 transition hover:opacity-100"
@@ -586,51 +602,50 @@ export default function RenderNewV2() {
               <ArrowLeft className="h-3.5 w-3.5" />
               Indietro
             </button>
-          )}
-          {isEmbed && <div />}
-          <Badge variant="secondary" className="gap-1 bg-white/15 text-white hover:bg-white/20">
-            <Zap className="h-3 w-3" />
-            Render AI — Infissi
-          </Badge>
-        </div>
-
-        <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-widest opacity-70">
-              Sostituzione serramenti fotorealistica
-            </div>
-            <div className="text-2xl font-bold">
-              Stessa casa, stessa foto, nuovi infissi
-            </div>
-            <div className="mt-1 max-w-2xl text-sm text-white/70">
-              Guidiamo l'AI a sostituire solo le aperture selezionate, mantenendo ambiente, prospettiva,
-              arredi, luce e formato della foto esattamente coerenti con l'originale.
-            </div>
+            <Badge variant="secondary" className="gap-1 bg-white/15 text-white hover:bg-white/20">
+              <Zap className="h-3 w-3" />
+              Render AI — Infissi
+            </Badge>
           </div>
-          <div className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80">
-            Step {step} / {STEP_LABELS.length}
-          </div>
-        </div>
 
-        <div className="mt-4">
-          <Progress value={progressValue} className="h-1.5 bg-white/20" />
-          <div className="mt-2 grid grid-cols-7 gap-2">
-            {STEP_LABELS.map((label, index) => (
-              <div key={label} className="text-center">
-                <div
-                  className={cn(
-                    "mx-auto mb-1 h-2 w-2 rounded-full transition-colors",
-                    step >= index + 1 ? "bg-orange-400" : "bg-white/30",
-                  )}
-                />
-                <div className={cn("text-[10px] font-semibold", step >= index + 1 ? "text-white" : "text-white/40")}>
-                  {label}
-                </div>
+          <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-widest opacity-70">
+                Sostituzione serramenti fotorealistica
               </div>
-            ))}
+              <div className="text-2xl font-bold">
+                Stessa casa, stessa foto, nuovi infissi
+              </div>
+              <div className="mt-1 max-w-2xl text-sm text-white/70">
+                Guidiamo l'AI a sostituire solo le aperture selezionate, mantenendo ambiente, prospettiva,
+                arredi, luce e formato della foto esattamente coerenti con l'originale.
+              </div>
+            </div>
+            <div className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80">
+              Step {step} / {STEP_LABELS.length}
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <Progress value={progressValue} className="h-1.5 bg-white/20" />
+            <div className="mt-2 grid grid-cols-7 gap-2">
+              {STEP_LABELS.map((label, index) => (
+                <div key={label} className="text-center">
+                  <div
+                    className={cn(
+                      "mx-auto mb-1 h-2 w-2 rounded-full transition-colors",
+                      step >= index + 1 ? "bg-orange-400" : "bg-white/30",
+                    )}
+                  />
+                  <div className={cn("text-[10px] font-semibold", step >= index + 1 ? "text-white" : "text-white/40")}>
+                    {label}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="space-y-4 px-4">
         <RenderCreditGate />
