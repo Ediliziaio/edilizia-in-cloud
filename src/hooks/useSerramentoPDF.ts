@@ -32,6 +32,8 @@ export interface SerramentoPdfConsulente {
 
 export interface SerramentoPdfFamilyData {
   id: string;
+  nome: string | null;
+  descrizione: string | null;
   immagine_url: string | null;
   custom_field_values: Record<string, unknown>;
   macrocategoria_id: string | null;
@@ -126,12 +128,14 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: famRows } = await (supabase as any)
       .from("article_families")
-      .select("id, immagine_url, custom_field_values, categoria_id")
+      .select("id, nome, descrizione, immagine_url, custom_field_values, categoria_id")
       .in("id", familyIds);
-    ((famRows ?? []) as Array<{ id: string; immagine_url: string | null; custom_field_values: Record<string, unknown> | null; categoria_id: string | null }>)
+    ((famRows ?? []) as Array<{ id: string; nome: string | null; descrizione: string | null; immagine_url: string | null; custom_field_values: Record<string, unknown> | null; categoria_id: string | null }>)
       .forEach((f) => {
         familiesById[f.id] = {
           id: f.id,
+          nome: f.nome,
+          descrizione: f.descrizione,
           immagine_url: f.immagine_url,
           custom_field_values: f.custom_field_values ?? {},
           macrocategoria_id: null, // popolato sotto

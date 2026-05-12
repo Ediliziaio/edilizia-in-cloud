@@ -359,15 +359,30 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       alignItems: "flex-start",
     },
     tableThumb: {
-      width: 44, height: 44, borderRadius: 4,
+      width: 60, height: 60, borderRadius: 4,
       objectFit: "cover" as const,
       marginRight: 10,
       borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
     },
     tableThumbPh: {
-      width: 44, height: 44, borderRadius: 4,
+      width: 60, height: 60, borderRadius: 4,
       backgroundColor: C.gray100, marginRight: 10,
       alignItems: "center", justifyContent: "center",
+    },
+    tableRowNumber: {
+      width: 28,
+      paddingTop: 6,
+    },
+    tableRowNumberText: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: C.gray900,
+    },
+    tableTechDesc: {
+      fontSize: 8.5,
+      color: C.gray700,
+      marginTop: 3,
+      lineHeight: 1.45,
     },
     tableCellStrong: { fontSize: 10, fontWeight: 700, color: C.gray900 },
     tableCellMuted: { fontSize: 9, color: C.gray500, marginTop: 2, lineHeight: 1.4 },
@@ -554,7 +569,8 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       overflow: "hidden",
       backgroundColor: C.gray100,
     },
-    renderImg: { width: "100%", height: "100%", objectFit: "cover" as const },
+    renderImg: { width: "100%", height: "100%", objectFit: "contain" as const },
+    renderImgCover: { width: "100%", height: "100%", objectFit: "cover" as const },
 
     // Testimonianze
     testimonialBox: {
@@ -1027,7 +1043,10 @@ export function SerramentoPDF({
   const piani = (Array.isArray(p.fin_piani) ? p.fin_piani : []) as SrPianoFinanziamento[];
   const schemaPagamento = p.schema_pagamento ?? "tre_step";
   const schemaCfg = SR_SCHEMI_PAGAMENTO[schemaPagamento as keyof typeof SR_SCHEMI_PAGAMENTO];
+  // Prima & Dopo: situazione (foto attuale del cliente) vs render (AI)
+  const primaUrls = detail.media.filter((m) => m.kind === "situazione" && m.url).map((m) => m.url!);
   const renderUrls = detail.media.filter((m) => m.kind === "render" && m.url).map((m) => m.url!);
+  const hasPrimaDopo = primaUrls.length > 0 && renderUrls.length > 0;
   const serramentiGrouped = groupSerramentiAdvanced(detail.serramenti);
 
   // Cronoprogramma fasi
@@ -1193,87 +1212,6 @@ export function SerramentoPDF({
               })}
             </View>
           )}
-          <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
-        </Page>
-      )}
-
-      {/* ─── PAGINA "IL TUO PERCORSO" — fasi + step in cards verticali ─────
-          Sostituisce il vecchio cronoprogramma timeline. Layout: hero con
-          numero step totali, poi grid di card scure (1 per fase) con elenco
-          dei passaggi numerati. Editabile dal template editor. */}
-      {percorsoAttivo && percorso.fasi.length > 0 && (
-        <Page size="A4" style={styles.page}>
-          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-
-          {/* Hero centrato */}
-          <View style={{ alignItems: "center", marginBottom: 16, marginTop: 6 }}>
-            <View style={styles.percorsoBadge}>
-              <Text style={styles.percorsoBadgeText}>Il tuo percorso</Text>
-            </View>
-            <Text style={styles.percorsoBigNumber}>{percorsoTotaleStep}</Text>
-            <Text style={{
-              fontSize: 18, fontWeight: 700, color: C.gray900,
-              textAlign: "center" as const, marginTop: 4, letterSpacing: -0.3,
-            }}>
-              {percorso.titolo === SR_PERCORSO_DEFAULT.titolo
-                ? `passaggi curati nei minimi dettagli`
-                : percorso.titolo}
-            </Text>
-            <Text style={{
-              fontSize: 10, color: C.gray500, textAlign: "center" as const,
-              marginTop: 6, maxWidth: 380,
-            }}>
-              {percorso.sottotitolo}
-            </Text>
-          </View>
-
-          {/* Grid 2×2 di cards scure con fasi */}
-          <View style={{
-            flexDirection: "row", flexWrap: "wrap",
-            gap: 10,
-            marginTop: 8,
-          }}>
-            {percorso.fasi.map((fase, fi) => {
-              const roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][fi] ?? `${fi + 1}`;
-              return (
-                <View
-                  key={fi}
-                  style={[styles.percorsoFaseCard, {
-                    width: percorso.fasi.length <= 4 ? "48%" : "100%",
-                  }]}
-                  wrap={false}
-                >
-                  <View style={styles.percorsoFaseHeader}>
-                    <View style={styles.percorsoFaseRomanBox}>
-                      <Text style={styles.percorsoFaseRomanText}>{roman}</Text>
-                    </View>
-                    <View>
-                      <Text style={styles.percorsoFaseLabel}>Fase {fi + 1}</Text>
-                      <Text style={styles.percorsoFaseName}>{fase.nome.toUpperCase()}</Text>
-                    </View>
-                  </View>
-                  {/* Numerazione globale step dentro la fase */}
-                  {(() => {
-                    const stepBefore = percorso.fasi.slice(0, fi).reduce((acc, f) => acc + f.step.length, 0);
-                    return fase.step.map((step, si) => {
-                      const globalIdx = stepBefore + si + 1;
-                      return (
-                        <View key={si} style={styles.percorsoStepRow}>
-                          <View style={styles.percorsoStepIdx}>
-                            <Text style={styles.percorsoStepIdxText}>
-                              {String(globalIdx).padStart(2, "0")}
-                            </Text>
-                          </View>
-                          <Text style={styles.percorsoStepText}>{step}</Text>
-                        </View>
-                      );
-                    });
-                  })()}
-                </View>
-              );
-            })}
-          </View>
-
           <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
         </Page>
       )}
@@ -1614,13 +1552,12 @@ export function SerramentoPDF({
         <Text style={styles.sectionTitle}>Composizione serramenti · {numSerr} pezzi</Text>
         <View style={styles.table}>
           <View style={styles.tableHeader}>
-            <View style={{ width: 50 }}><Text style={styles.tableHeaderText}>Foto</Text></View>
-            <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Descrizione</Text></View>
-            <View style={{ width: 60, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Largh.</Text></View>
-            <View style={{ width: 60, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Altezza</Text></View>
-            <View style={{ width: 36, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
+            <View style={{ width: 28 }}><Text style={styles.tableHeaderText}>#</Text></View>
+            <View style={{ width: 70 }}><Text style={styles.tableHeaderText}>Foto</Text></View>
+            <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Descrizione &amp; Specifiche tecniche</Text></View>
+            <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
           </View>
-          {serramentiGrouped.map((g) => {
+          {serramentiGrouped.map((g, idx) => {
             const family = g.family_id ? familiesById[g.family_id] : null;
             const macroId = family?.macrocategoria_id;
             const fields = macroId ? (fieldsByMacro[macroId] ?? []) : [];
@@ -1632,16 +1569,29 @@ export function SerramentoPDF({
                 if (display) specs.push({ label: f.field_label, value: display, unit: f.field_unit });
               }
             }
+            // Titolo: nome reale della famiglia se disponibile, altrimenti tipologia generica
+            const titolo = family?.nome?.trim() || g.tipologia;
+            // Dimensioni nella prima riga muted
+            const dimensioni = g.larghezza && g.altezza
+              ? `${g.larghezza} × ${g.altezza} mm`
+              : g.larghezza ? `L ${g.larghezza} mm`
+              : g.altezza ? `H ${g.altezza} mm`
+              : null;
+            // Descrizione tecnica del listino
+            const techDesc = family?.descrizione?.trim() || null;
             return (
               <View key={g.key} style={styles.tableRow} wrap={false}>
-                <View style={{ width: 50 }}>
+                {/* Numero progressivo */}
+                <View style={styles.tableRowNumber}>
+                  <Text style={styles.tableRowNumberText}>{idx + 1}</Text>
+                </View>
+                {/* Foto reale */}
+                <View style={{ width: 70 }}>
                   {family?.immagine_url ? (
                     <Image src={family.immagine_url} style={styles.tableThumb} />
                   ) : (
                     <View style={styles.tableThumbPh}>
-                      {/* Mini SVG finestra al posto dell'emoji (Helvetica
-                          non rende emoji unicode). */}
-                      <Svg viewBox="0 0 24 24" style={{ width: 20, height: 20 } as never}>
+                      <Svg viewBox="0 0 24 24" style={{ width: 24, height: 24 } as never}>
                         <Rect x={3} y={3} width={18} height={18} rx={1.5} stroke={C.gray500} strokeWidth={1.5} fill="none" />
                         <Path d="M 12 4 L 12 20" stroke={C.gray500} strokeWidth={1} />
                         <Path d="M 4 12 L 20 12" stroke={C.gray500} strokeWidth={1} />
@@ -1649,16 +1599,20 @@ export function SerramentoPDF({
                     </View>
                   )}
                 </View>
+                {/* Descrizione + dimensioni + descrizione tecnica + specs */}
                 <View style={{ flex: 1, paddingRight: 6 }}>
                   <Text style={styles.tableCellStrong}>
-                    {g.tipologia}
+                    {titolo}
                     {g.ambiente ? <Text style={{ color: C.gray500, fontWeight: 400 }}> · {g.ambiente}</Text> : null}
                   </Text>
-                  {(g.materiale !== "—" || g.serie || g.vetro) && (
-                    <Text style={styles.tableCellMuted}>
-                      {[g.materiale !== "—" ? g.materiale : null, g.serie, g.vetro].filter(Boolean).join(" · ")}
-                    </Text>
-                  )}
+                  <Text style={[styles.tableCellMuted, { fontWeight: 700, color: C.gray700 }]}>
+                    {[
+                      dimensioni,
+                      g.materiale !== "—" ? g.materiale : null,
+                      g.serie,
+                      g.vetro,
+                    ].filter(Boolean).join(" · ")}
+                  </Text>
                   {(g.colore_interno || g.colore_esterno) && (
                     <Text style={styles.tableCellMuted}>
                       Colore: {[
@@ -1667,9 +1621,13 @@ export function SerramentoPDF({
                       ].filter(Boolean).join(" · ")}
                     </Text>
                   )}
+                  {/* Descrizione tecnica dal listino prodotti */}
+                  {techDesc && (
+                    <Text style={styles.tableTechDesc}>{techDesc}</Text>
+                  )}
                   {specs.length > 0 && (
                     <View style={styles.specChips}>
-                      {specs.slice(0, 6).map((sp, si) => (
+                      {specs.slice(0, 8).map((sp, si) => (
                         <View key={si} style={styles.specChip}>
                           <Text style={{ fontSize: 8.5 }}>
                             <Text style={styles.specChipLabel}>{sp.label}: </Text>
@@ -1681,17 +1639,8 @@ export function SerramentoPDF({
                     </View>
                   )}
                 </View>
-                <View style={{ width: 60, alignItems: "flex-end", paddingTop: 4 }}>
-                  <Text style={styles.tableCellNum}>
-                    {g.larghezza ? `${g.larghezza} mm` : "—"}
-                  </Text>
-                </View>
-                <View style={{ width: 60, alignItems: "flex-end", paddingTop: 4 }}>
-                  <Text style={styles.tableCellNum}>
-                    {g.altezza ? `${g.altezza} mm` : "—"}
-                  </Text>
-                </View>
-                <View style={{ width: 36, alignItems: "flex-end", paddingTop: 4 }}>
+                {/* Quantità */}
+                <View style={{ width: 50, alignItems: "flex-end", paddingTop: 6 }}>
                   <Text style={styles.tableCellNum}>{g.quantita}</Text>
                 </View>
               </View>
@@ -1732,8 +1681,7 @@ export function SerramentoPDF({
           </>
         )}
 
-        <Text style={styles.sectionTitle}>Cronoprogramma indicativo</Text>
-        <GanttSvg fases={cronoFasi} totalDays={totalDays} primary={primaryColor} accent={C.accent} />
+        {/* Cronoprogramma rimosso — sostituito dalla pagina dedicata "Il tuo percorso" */}
 
         {/* La tua consulenza — il consulente è SEMPRE l'utente che ha
             fatto il preventivo (hook fa fallback a auth.user). Mai il
@@ -1816,6 +1764,88 @@ export function SerramentoPDF({
         </Page>
       ))}
 
+      {/* ─── PAGINA "IL TUO PERCORSO" — fasi + step in cards verticali ─────
+          Posizionata RIGHT BEFORE la CTA "Pronti per partire" come anteprima
+          del workflow. Layout: hero con numero step totali + grid di card
+          scure (1 per fase) con elenco passaggi numerati. Editabile dal
+          template editor. */}
+      {percorsoAttivo && percorso.fasi.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+
+          {/* Hero centrato */}
+          <View style={{ alignItems: "center", marginBottom: 16, marginTop: 6 }}>
+            <View style={styles.percorsoBadge}>
+              <Text style={styles.percorsoBadgeText}>Il tuo percorso</Text>
+            </View>
+            <Text style={styles.percorsoBigNumber}>{percorsoTotaleStep}</Text>
+            <Text style={{
+              fontSize: 18, fontWeight: 700, color: C.gray900,
+              textAlign: "center" as const, marginTop: 4, letterSpacing: -0.3,
+            }}>
+              {percorso.titolo === SR_PERCORSO_DEFAULT.titolo
+                ? `passaggi curati nei minimi dettagli`
+                : percorso.titolo}
+            </Text>
+            <Text style={{
+              fontSize: 10, color: C.gray500, textAlign: "center" as const,
+              marginTop: 6, maxWidth: 380,
+            }}>
+              {percorso.sottotitolo}
+            </Text>
+          </View>
+
+          {/* Grid 2×2 di cards scure con fasi */}
+          <View style={{
+            flexDirection: "row", flexWrap: "wrap",
+            gap: 10,
+            marginTop: 8,
+          }}>
+            {percorso.fasi.map((fase, fi) => {
+              const roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][fi] ?? `${fi + 1}`;
+              return (
+                <View
+                  key={fi}
+                  style={[styles.percorsoFaseCard, {
+                    width: percorso.fasi.length <= 4 ? "48%" : "100%",
+                  }]}
+                  wrap={false}
+                >
+                  <View style={styles.percorsoFaseHeader}>
+                    <View style={styles.percorsoFaseRomanBox}>
+                      <Text style={styles.percorsoFaseRomanText}>{roman}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.percorsoFaseLabel}>Fase {fi + 1}</Text>
+                      <Text style={styles.percorsoFaseName}>{fase.nome.toUpperCase()}</Text>
+                    </View>
+                  </View>
+                  {/* Numerazione globale step dentro la fase */}
+                  {(() => {
+                    const stepBefore = percorso.fasi.slice(0, fi).reduce((acc, f) => acc + f.step.length, 0);
+                    return fase.step.map((step, si) => {
+                      const globalIdx = stepBefore + si + 1;
+                      return (
+                        <View key={si} style={styles.percorsoStepRow}>
+                          <View style={styles.percorsoStepIdx}>
+                            <Text style={styles.percorsoStepIdxText}>
+                              {String(globalIdx).padStart(2, "0")}
+                            </Text>
+                          </View>
+                          <Text style={styles.percorsoStepText}>{step}</Text>
+                        </View>
+                      );
+                    });
+                  })()}
+                </View>
+              );
+            })}
+          </View>
+
+          <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+        </Page>
+      )}
+
       {/* ─── PAGINA FINALE — CTA + RENDER + TESTIMONIANZE ───────────────── */}
       <Page size="A4" style={styles.page}>
         <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
@@ -1856,8 +1886,12 @@ export function SerramentoPDF({
       </Page>
 
       {/* ─── PAGINA RENDER AI in LANDSCAPE (orizzontale) per dare massimo
-            risalto al PRIMA/DOPO. Solo se ci sono almeno 1 render. ───────── */}
-      {renderUrls.length > 0 && (
+            risalto al PRIMA/DOPO.
+            Logica:
+            - "Prima" = foto reale dello stato attuale (media.kind = situazione)
+            - "Dopo"  = render AI generato (media.kind = render)
+            Si mostra solo se almeno uno dei due è presente. */}
+      {(primaUrls.length > 0 || renderUrls.length > 0) && (
         <Page size="A4" orientation="landscape" style={{
           ...styles.page,
           paddingTop: 30, paddingBottom: 48,
@@ -1893,21 +1927,58 @@ export function SerramentoPDF({
             Visualizza il confronto tra come appare oggi e come sarà dopo l'intervento.
           </Text>
 
-          {/* Layout 2 colonne landscape (~700pt usabili larghezza) */}
-          {renderUrls.length >= 2 ? (
+          {/* Layout 2 colonne landscape: foto attuale | render AI
+              Le immagini usano objectFit "contain" per non venire tagliate. */}
+          {hasPrimaDopo ? (
             <>
               <View style={{ flexDirection: "row", marginBottom: 6 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Prima</Text>
+                  <Text style={[styles.renderPairLabel, { fontSize: 11, color: C.gray700 }]}>
+                    Prima · foto attuale
+                  </Text>
                 </View>
                 <View style={{ width: 14 }} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Dopo · render AI</Text>
+                  <Text style={[styles.renderPairLabel, { fontSize: 11, color: primaryColor }]}>
+                    Dopo · render AI
+                  </Text>
                 </View>
               </View>
               <View style={{ flexDirection: "row" }} wrap={false}>
                 <View style={{
-                  flex: 1, aspectRatio: 1.5,
+                  flex: 1, aspectRatio: 1.4,
+                  borderRadius: 10, overflow: "hidden",
+                  backgroundColor: C.gray100,
+                  borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
+                }}>
+                  <Image src={primaUrls[0]} style={styles.renderImg} />
+                </View>
+                <View style={{ width: 14 }} />
+                <View style={{
+                  flex: 1, aspectRatio: 1.4,
+                  borderRadius: 10, overflow: "hidden",
+                  backgroundColor: C.gray100,
+                  borderWidth: 0.5, borderColor: primaryColor, borderStyle: "solid",
+                }}>
+                  <Image src={renderUrls[0]} style={styles.renderImg} />
+                </View>
+              </View>
+            </>
+          ) : renderUrls.length >= 2 ? (
+            // Fallback: nessuna foto situazione ma almeno 2 render → mostra due render
+            <>
+              <View style={{ flexDirection: "row", marginBottom: 6 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Render AI · vista 1</Text>
+                </View>
+                <View style={{ width: 14 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Render AI · vista 2</Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: "row" }} wrap={false}>
+                <View style={{
+                  flex: 1, aspectRatio: 1.4,
                   borderRadius: 10, overflow: "hidden",
                   backgroundColor: C.gray100,
                 }}>
@@ -1915,7 +1986,7 @@ export function SerramentoPDF({
                 </View>
                 <View style={{ width: 14 }} />
                 <View style={{
-                  flex: 1, aspectRatio: 1.5,
+                  flex: 1, aspectRatio: 1.4,
                   borderRadius: 10, overflow: "hidden",
                   backgroundColor: C.gray100,
                 }}>
@@ -1924,12 +1995,21 @@ export function SerramentoPDF({
               </View>
             </>
           ) : (
-            <View style={{
-              width: "100%", aspectRatio: 2.2,
-              borderRadius: 10, overflow: "hidden", backgroundColor: C.gray100,
-            }} wrap={false}>
-              <Image src={renderUrls[0]} style={styles.renderImg} />
-            </View>
+            // Una sola immagine disponibile (render o situazione)
+            <>
+              <Text style={[styles.renderPairLabel, { fontSize: 11, marginBottom: 6 }]}>
+                {renderUrls.length > 0 ? "Dopo · render AI" : "Foto attuale"}
+              </Text>
+              <View style={{
+                width: "100%", aspectRatio: 2.0,
+                borderRadius: 10, overflow: "hidden", backgroundColor: C.gray100,
+              }} wrap={false}>
+                <Image
+                  src={renderUrls[0] ?? primaUrls[0]}
+                  style={styles.renderImg}
+                />
+              </View>
+            </>
           )}
 
           {/* Disclaimer legale OBBLIGATORIO sotto i render AI */}

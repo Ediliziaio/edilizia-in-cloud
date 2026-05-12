@@ -1,17 +1,19 @@
 /**
- * StepConsulenza — Step 7 wizard: appuntamento + consulente + cronoprogramma.
+ * StepConsulenza — Step 7 wizard: appuntamento + consulente + prossimi passi.
+ *
+ * Note: il cronoprogramma (timeline produzione/posa/collaudo) è stato rimosso
+ * dal wizard e dal PDF. La narrazione del workflow al cliente avviene tramite
+ * la pagina "Il tuo percorso" del template, configurabile in Impostazioni.
  */
-import { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Calendar, Clock, MapPin, ListChecks } from "lucide-react";
+import { Calendar, MapPin, ListChecks } from "lucide-react";
 import type { SrProgettoRow, SrProgettoDetail } from "@/types/serramenti";
-import { SrCard, SrKpi, SR_GREEN } from "@/lib/serramenti/wizardUI";
-import { generaCrono, durataTotaleGiorni } from "@/lib/serramenti/crono";
+import { SrCard } from "@/lib/serramenti/wizardUI";
 
 interface Props {
   form: Partial<SrProgettoRow>;
@@ -20,34 +22,8 @@ interface Props {
 }
 
 export function StepConsulenza({ form, onChange, detail }: Props) {
-  const numSerramenti = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
-
-  // Suggerimento giorni posa: solo come hint (NON applicato automaticamente).
-  // Il consulente deve inserire un valore proprio in base al cantiere reale
-  // (accesso, ponteggio, complessità, n. operai, ecc.).
-  const giorniPosaSuggeriti = Math.max(1, Math.ceil((numSerramenti || 1) * 0.8));
-  const giorniPosaEffettivi = form.crono_giorni_posa ?? giorniPosaSuggeriti;
-
-  const crono = useMemo(() => generaCrono({
-    num_serramenti: numSerramenti,
-    giorni_produzione: form.crono_giorni_produzione ?? 90,
-    // ↓ ora i giorni posa NON sono più auto-calcolati: leggiamo quelli inseriti
-    // dal consulente. Se non c'è valore, fallback al suggerimento (≈0.8 × pz).
-    // Calcoliamo giorni_posa_per_pezzo "inverso" per compatibilità con generaCrono
-    // che attende un per-pezzo.
-    giorni_posa_per_pezzo: numSerramenti > 0 ? giorniPosaEffettivi / numSerramenti : 0.8,
-    giorni_collaudo: form.crono_giorni_collaudo ?? 1,
-  }), [numSerramenti, form.crono_giorni_produzione, giorniPosaEffettivi, form.crono_giorni_collaudo]);
-
-  const durata = durataTotaleGiorni(crono);
-
-  // Calcola data fine cantiere se c'è data consulenza
-  const dataFineCantiere = useMemo(() => {
-    if (!form.consulenza_at) return null;
-    const inizio = new Date(form.consulenza_at);
-    const fine = new Date(inizio.getTime() + durata * 86400000);
-    return fine;
-  }, [form.consulenza_at, durata]);
+  const _numSerramenti = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
+  void _numSerramenti;
 
   // Prossimi passi (default + custom)
   const prossimiPassi = (form.prossimi_passi ?? [
@@ -102,82 +78,9 @@ export function StepConsulenza({ form, onChange, detail }: Props) {
         </div>
       </SrCard>
 
-      {/* Cronoprogramma */}
-      <SrCard
-        title="Cronoprogramma lavori"
-        description="Imposta produzione, posa e collaudo. Il consulente stima i giorni posa in base al cantiere (accesso, ponteggio, n. operai)."
-        icon={<Clock className="h-4 w-4" />}
-      >
-        <div className="grid grid-cols-12 gap-3 mb-3">
-          <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Giorni produzione</Label>
-            <Input
-              type="number"
-              min={1}
-              defaultValue={form.crono_giorni_produzione ?? 90}
-              onBlur={(e) => onChange("crono_giorni_produzione", Number(e.target.value) || 90)}
-              className="h-9 text-xs"
-            />
-            <p className="text-[10px] text-muted-foreground mt-0.5">Default 90 gg lavorativi</p>
-          </div>
-          <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Giorni posa</Label>
-            <Input
-              type="number"
-              min={1}
-              defaultValue={form.crono_giorni_posa ?? giorniPosaSuggeriti}
-              onBlur={(e) => {
-                const v = Math.max(1, Number(e.target.value) || giorniPosaSuggeriti);
-                onChange("crono_giorni_posa", v);
-              }}
-              className="h-9 text-xs"
-              title="Inserisci i giorni di posa stimati per questo cantiere"
-            />
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              Suggerito: {giorniPosaSuggeriti} (×0,8 per pezzo)
-            </p>
-          </div>
-          <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Giorni collaudo</Label>
-            <Input
-              type="number"
-              min={0}
-              defaultValue={form.crono_giorni_collaudo ?? 1}
-              onBlur={(e) => onChange("crono_giorni_collaudo", Number(e.target.value) || 1)}
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Durata totale</Label>
-            <div className="h-9 px-3 flex items-center text-sm bg-emerald-50 rounded-md border border-emerald-200 font-bold text-emerald-700">
-              {durata} giorni
-            </div>
-          </div>
-        </div>
-
-        {/* Gantt visuale */}
-        <CronogantsSvg fasi={crono} durata={durata} />
-
-        {dataFineCantiere && (
-          <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
-            <SrKpi
-              label="Inizio cantiere"
-              value={new Date(form.consulenza_at!).toLocaleDateString("it-IT")}
-              hint="Da data consulenza"
-            />
-            <SrKpi
-              label="Fine cantiere stimata"
-              value={dataFineCantiere.toLocaleDateString("it-IT")}
-              variant="success"
-            />
-            <SrKpi
-              label="Durata totale"
-              value={durata}
-              unit="giorni lavorativi"
-            />
-          </div>
-        )}
-      </SrCard>
+      {/* Cronoprogramma rimosso — sostituito dalla pagina dedicata "Il tuo percorso"
+          configurabile dal template. La timeline lineare non aggiungeva valore
+          rispetto alle 4 fasi narrative del percorso cliente. */}
 
       {/* Prossimi passi */}
       <SrCard
@@ -220,58 +123,5 @@ export function StepConsulenza({ form, onChange, detail }: Props) {
   );
 }
 
-// ─── Gantt SVG ──────────────────────────────────────────────────────────────
-
-import type { FaseCrono } from "@/lib/serramenti/crono";
-
-function CronogantsSvg({ fasi, durata }: { fasi: FaseCrono[]; durata: number }) {
-  const W = 600, ROW_H = 28, PAD_L = 140, PAD_T = 10, BAR_H = 18;
-  const innerW = W - PAD_L - 40;
-  const H = PAD_T * 2 + fasi.length * ROW_H + 30;
-
-  const xScale = (g: number) => PAD_L + ((g - 1) / Math.max(durata - 1, 1)) * innerW;
-
-  return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-3xl border border-emerald-100 rounded-md bg-white">
-        {/* Griglia giorni */}
-        {[0, 0.25, 0.5, 0.75, 1].map((p) => (
-          <line
-            key={p}
-            x1={PAD_L + p * innerW}
-            x2={PAD_L + p * innerW}
-            y1={PAD_T}
-            y2={H - 20}
-            stroke="#e2e8f0" strokeDasharray="2,3"
-          />
-        ))}
-        {/* Fasi */}
-        {fasi.map((f, idx) => {
-          const y = PAD_T + idx * ROW_H;
-          const x1 = xScale(f.giorno_inizio);
-          const x2 = xScale(f.giorno_fine + 1);
-          const w = Math.max(8, x2 - x1);
-          return (
-            <g key={f.key}>
-              <text x={PAD_L - 8} y={y + BAR_H / 2 + 4} fontSize="11" textAnchor="end" fill="#1e293b">
-                {f.emoji} {f.label}
-              </text>
-              <rect
-                x={x1} y={y}
-                width={w} height={BAR_H}
-                rx={3} ry={3}
-                fill={SR_GREEN} opacity={0.85}
-              />
-              <text x={x1 + w / 2} y={y + BAR_H / 2 + 4} fontSize="10" textAnchor="middle" fill="white" fontWeight="600">
-                {f.durata > 2 ? `g.${f.giorno_inizio}-${f.giorno_fine}` : `g.${f.giorno_inizio}`}
-              </text>
-            </g>
-          );
-        })}
-        {/* Asse */}
-        <text x={PAD_L} y={H - 6} fontSize="9" fill="#64748b">Giorno 1</text>
-        <text x={W - 30} y={H - 6} fontSize="9" textAnchor="end" fill="#64748b">Giorno {durata}</text>
-      </svg>
-    </div>
-  );
-}
+// Gantt SVG rimosso: il cronoprogramma non viene più mostrato al cliente.
+// Per la timeline visiva si usa la pagina "Il tuo percorso" del PDF.
