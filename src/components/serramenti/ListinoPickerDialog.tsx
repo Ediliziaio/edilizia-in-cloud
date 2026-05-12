@@ -27,13 +27,17 @@ import {
 } from "lucide-react";
 import {
   useListinoFamilies, useListinoGriglia, useTariffeManodopera,
-  useMacrocategorie, useCategorieByMacro, useArticleVariants,
+  useMacrocategorie, useCategorieByMacro,
 } from "@/lib/serramenti/queries";
 import type {
   ListinoFamily, ListinoMacrocategoria, ListinoCategoria,
 } from "@/lib/serramenti/api";
-import type { ArticleVariantRow, SrSerramentoVarianteSnapshot } from "@/types/serramenti";
-import { Checkbox } from "@/components/ui/checkbox";
+import { useFamily } from "@/hooks/useFamilies";
+import { calcolaPrezzoFamiglia } from "@/hooks/useFamilyPricing";
+import type { FamilyWithAxes, AxisSelection } from "@/types/articleFamily";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { DynamicFieldsRenderer } from "@/components/listino/DynamicFieldsRenderer";
 
 export interface ListinoPickResult {
@@ -47,34 +51,10 @@ export interface ListinoPickResult {
   prezzo_posa: number | null;
   griglia_id?: string | null;
   note?: string | null;
-  /** Varianti scelte nel picker (es. vetro triplo, colore antracite).
-   *  Snapshot perche' se il listino cambia, il preventivo non cambia. */
-  varianti_selezionate: SrSerramentoVarianteSnapshot[];
-}
-
-/**
- * Applica le varianti al prezzo (sommando percentuali e fissi).
- *   - "percentuale": prezzo *= (1 + valore/100)
- *   - "fisso":       prezzo += valore (per UNITA', quindi * quantita)
- *
- * NB: percentuali e fissi vengono sommati nella stessa "lista" di modificatori
- * applicati al prezzo PRODOTTO base. La posa NON e' moltiplicata dalle varianti
- * (e' una tariffa indipendente dalla configurazione prodotto).
- */
-export function applyVariantiPrezzo(
-  prezzoBaseProdotto: number,
-  quantita: number,
-  varianti: { modificatore_tipo: "percentuale" | "fisso"; modificatore_valore: number }[],
-): number {
-  let p = prezzoBaseProdotto;
-  for (const v of varianti) {
-    if (v.modificatore_tipo === "percentuale") {
-      p = p * (1 + Number(v.modificatore_valore) / 100);
-    } else {
-      p = p + Number(v.modificatore_valore) * quantita;
-    }
-  }
-  return p;
+  /** Snapshot scelte sugli ASSI (variabili prodotto) della family.
+   *  Mappa { axis_codice -> axis_value_id }. Se l'azienda modifica le
+   *  maggiorazioni dopo, il preventivo gia' inviato non cambia. */
+  valori_assi: Record<string, string>;
 }
 
 interface Props {
@@ -235,8 +215,10 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
   const [larghezza, setLarghezza] = useState<string>("");
   const [altezza, setAltezza] = useState<string>("");
   const [quantita, setQuantita] = useState<string>("1");
-  // Set di id varianti scelte. Reset al cambio famiglia / chiusura dialog.
-  const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
+  // Selezione assi (variabili prodotto): mappa axis.codice -> axis_value.id.
+  // Pre-popolata con `is_default` quando la family viene caricata.
+  // Reset al cambio famiglia / chiusura dialog.
+  const [axisSelection, setAxisSelection] = useState<AxisSelection>({});
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
@@ -252,7 +234,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
       setSearch(""); setDebounced("");
       setSelectedMacro(null); setSelectedCategoria(null); setSelectedFamily(null);
       setLarghezza(""); setAltezza(""); setQuantita("1");
-      setSelectedVariantIds(new Set());
+      setAxisSelection({});
     }
   }, [open]);
 
@@ -271,9 +253,36 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
     categoriaId: !isSearching && selectedCategoria ? selectedCategoria.id : undefined,
   });
   const { data: griglia = [], isLoading: loadingGriglia } = useListinoGriglia(selectedFamily?.id);
-  // Varianti prezzo della family selezionata (es. "Vetro triplo +€80",
-  // "Colore antracite +5%"). Caricate solo allo step "misure".
-  const { data: variantiFamily = [] } = useArticleVariants(selectedFamily?.id);
+  // FamilyWithAxes: carica family + assi + valori. Serve per:
+  //   - mostrare i dropdown delle variabili prodotto (assi) nel picker
+  //   - applicare le maggiorazioni dei valori scelti al prezzo
+  // Caricata solo allo step "misure" (selectedFamily presente).
+  const { family: familyWithAxes, isLoading: loadingFamily } = useFamily(selectedFamily?.id);
+  const axes = useMemo(
+    () => (familyWithAxes?.axes ?? []).slice().sort((a, b) => a.sort_order - b.sort_order),
+    [familyWithAxes],
+  );
+
+  // Pre-popolamento default sugli assi al primo caricamento della family.
+  // Pattern: per ogni asse, se non c'e' selezione e c'e' un value.is_default,
+  // usalo. NON sovrascrive le scelte utente fatte in seguito.
+  useEffect(() => {
+    if (!familyWithAxes || axes.length === 0) return;
+    setAxisSelection((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const a of axes) {
+        if (next[a.codice]) continue;
+        const def = a.values.find((v) => v.is_default && v.attivo);
+        if (def) {
+          next[a.codice] = def.id;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    // axes-deps via familyWithAxes.id evita loop infinito su axes ref instabili
+  }, [familyWithAxes, axes]);
   const { data: tariffe = [] } = useTariffeManodopera();
 
   const tariffePrezzi = useMemo(() => {
@@ -283,41 +292,62 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
   }, [tariffe]);
 
   // ─── Calcolo prezzo live ────────────────────────────────────────────────
-  // Varianti scelte ordinate come arrivano dal listino (sort_order).
-  const varianteScelteOrdered = useMemo<ArticleVariantRow[]>(
-    () => variantiFamily.filter((v) => selectedVariantIds.has(v.id)),
-    [variantiFamily, selectedVariantIds],
-  );
-
   const calcolo = useMemo(() => {
     if (!selectedFamily) return null;
     const l = larghezza ? Number(larghezza) : null;
     const h = altezza ? Number(altezza) : null;
     const q = Math.max(1, Number(quantita) || 1);
 
+    // 1. Range check + matchedGrigliaId via helper esistente (per la UX
+    //    "Misura non producibile" + matchedGrigliaId per il pdf).
     const calc = calcolaPrezzoProdotto(selectedFamily, l, h, q, griglia);
-    // Applica varianti SOLO al prezzo prodotto, non alla posa (la posa
-    // e' una tariffa indipendente dalla configurazione prodotto).
-    const prezzoConVarianti = applyVariantiPrezzo(calc.prezzo, q, varianteScelteOrdered);
-    const prezzoPosa = calcolaPosaInclusa(selectedFamily, q, tariffePrezzi);
 
-    const totale = prezzoConVarianti + prezzoPosa;
+    // 2. Prezzo prodotto + maggiorazioni assi via il sistema esistente
+    //    `calcolaPrezzoFamiglia` (variabili prodotto, NON varianti custom).
+    //    Se familyWithAxes ancora in loading, ricade sul prezzo prodotto
+    //    base senza maggiorazioni.
+    let prezzoProdottoPerUnita = calc.prezzo / q; // base unitaria
+    if (familyWithAxes) {
+      const pricing = calcolaPrezzoFamiglia(
+        {
+          family: familyWithAxes,
+          selections: axisSelection,
+          larghezza_mm: l,
+          altezza_mm: h,
+          lunghezza_ml: null,
+          quantita: q,
+        },
+        // mapping griglia LISTINO -> GridPoint[]: il helper esistente
+        // usa la stessa struttura {valore_x,valore_y,prezzo_vendita}.
+        griglia.map((g) => ({
+          valore_x: g.valore_x ?? 0,
+          valore_y: g.valore_y ?? 0,
+          prezzo_vendita: Number(g.prezzo_vendita ?? 0),
+          prezzo_acquisto_netto: null,
+        })),
+      );
+      prezzoProdottoPerUnita = pricing.prezzo_unitario_vendita;
+    }
+
+    const prezzoProdotto = prezzoProdottoPerUnita * q;
+    const extraAssi = prezzoProdotto - calc.prezzo;
+    const prezzoPosa = calcolaPosaInclusa(selectedFamily, q, tariffePrezzi);
+    const totale = prezzoProdotto + prezzoPosa;
     const unitario = q > 0 ? totale / q : 0;
-    const extraVarianti = prezzoConVarianti - calc.prezzo;
 
     return {
       larghezza: l, altezza: h, quantita: q,
       prezzo_prodotto_base: calc.prezzo,
-      prezzo_prodotto: prezzoConVarianti,
+      prezzo_prodotto: prezzoProdotto,
       prezzo_posa: prezzoPosa,
-      extra_varianti: extraVarianti,
+      extra_assi: extraAssi,
       totale, unitario,
       matchedGrigliaId: calc.matchedGrigliaId,
       note: calc.note,
       fuoriRange: calc.fuoriRange ?? false,
       range: calc.range,
     };
-  }, [selectedFamily, larghezza, altezza, quantita, griglia, tariffePrezzi, varianteScelteOrdered]);
+  }, [selectedFamily, familyWithAxes, axisSelection, larghezza, altezza, quantita, griglia, tariffePrezzi]);
 
   const richiedeMisure = selectedFamily && (
     selectedFamily.modalita_prezzo_base === "mq" ||
@@ -339,8 +369,9 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
   const handleSelectFamily = (f: ListinoFamily) => {
     setSelectedFamily(f);
     setStep("misure");
-    // Reset varianti su cambio famiglia (sono family-specific).
-    setSelectedVariantIds(new Set());
+    // Reset selezione assi su cambio famiglia (gli assi sono family-specific).
+    // I default verranno applicati quando familyDetailWithAxes carica.
+    setAxisSelection({});
   };
 
   const handleBack = () => {
@@ -358,14 +389,6 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
 
   const handleConferma = () => {
     if (!selectedFamily || !calcolo) return;
-    // Snapshot varianti scelte: salvato sulla riga BOM in modo che modifiche
-    // future al listino NON cambino i preventivi gia' inviati al cliente.
-    const variantiSnapshot: SrSerramentoVarianteSnapshot[] = varianteScelteOrdered.map((v) => ({
-      variant_id: v.id,
-      nome: v.nome,
-      modificatore_tipo: v.modificatore_tipo,
-      modificatore_valore: Number(v.modificatore_valore),
-    }));
     onSelect({
       family_id: selectedFamily.id,
       family_nome: selectedFamily.nome,
@@ -377,7 +400,9 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
       prezzo_posa: calcolo.prezzo_posa / calcolo.quantita,
       griglia_id: calcolo.matchedGrigliaId,
       note: calcolo.note,
-      varianti_selezionate: variantiSnapshot,
+      // Snapshot scelte assi: salvato sulla riga BOM in modo che modifiche
+      // future al listino NON cambino i preventivi gia' inviati.
+      valori_assi: { ...axisSelection },
     });
     onOpenChange(false);
   };
@@ -685,55 +710,64 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
               </p>
             )}
 
-            {/* Varianti articolo: checkbox per ognuna delle opzioni
-                configurate sulla family (es. vetro triplo, colore antracite).
-                Si nasconde se la family non ha varianti attive. */}
-            {variantiFamily.length > 0 && (
+            {/* Variabili Prodotto (axes): dropdown per ogni asse con i suoi
+                valori. Mostra la maggiorazione associata al valore (es.
+                "Antracite (+5%)"). Si nasconde se la family non ha assi.
+                I valori default (is_default) sono pre-selezionati. */}
+            {axes.length > 0 && (
               <Card className="border-slate-200 bg-white p-3">
                 <p className="text-[11px] uppercase tracking-wide text-slate-700 font-semibold mb-2">
-                  Varianti / opzioni
+                  Variabili Prodotto
                 </p>
-                <div className="space-y-1.5">
-                  {variantiFamily.map((v) => {
-                    const checked = selectedVariantIds.has(v.id);
-                    const modificatore = v.modificatore_tipo === "percentuale"
-                      ? `+${v.modificatore_valore}%`
-                      : `+${v.modificatore_valore.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`;
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {axes.map((axis) => {
+                    const currentId = axisSelection[axis.codice];
+                    const isMissing = axis.obbligatorio && !currentId;
                     return (
-                      <label
-                        key={v.id}
-                        className={
-                          "flex items-start gap-2.5 rounded-md border px-2.5 py-2 cursor-pointer transition " +
-                          (checked
-                            ? "border-blue-300 bg-blue-50/40"
-                            : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/30")
-                        }
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => {
-                            setSelectedVariantIds((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(v.id)) next.delete(v.id); else next.add(v.id);
-                              return next;
-                            });
-                          }}
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <span className="text-xs font-semibold text-slate-900">{v.nome}</span>
-                            <span className="text-[11px] font-semibold text-orange-600 tabular-nums">{modificatore}</span>
-                          </div>
-                          {v.descrizione && (
-                            <p className="text-[10px] text-slate-600 mt-0.5">{v.descrizione}</p>
-                          )}
-                        </div>
-                      </label>
+                      <div key={axis.id} className="space-y-1">
+                        <Label className={
+                          "text-[11px] flex items-center gap-1 " +
+                          (isMissing ? "text-rose-700 font-semibold" : "text-slate-700")
+                        }>
+                          {axis.nome}
+                          {axis.obbligatorio && <span className="text-rose-500">*</span>}
+                        </Label>
+                        <Select
+                          value={currentId ?? ""}
+                          onValueChange={(v) => setAxisSelection((prev) => ({ ...prev, [axis.codice]: v }))}
+                        >
+                          <SelectTrigger className={
+                            "h-9 text-xs " + (isMissing ? "border-rose-300" : "")
+                          }>
+                            <SelectValue placeholder={isMissing ? "Da scegliere…" : "Seleziona…"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {axis.values.filter((v) => v.attivo).map((v) => {
+                              const magg = v.maggiorazione_tipo === "none" || !v.maggiorazione_valore
+                                ? ""
+                                : v.maggiorazione_tipo === "percentuale"
+                                  ? ` (+${v.maggiorazione_valore}%)`
+                                  : ` (+€${Number(v.maggiorazione_valore).toLocaleString("it-IT", { minimumFractionDigits: 2 })}${v.maggiorazione_tipo === "fisso_mq" ? "/m²" : v.maggiorazione_tipo === "fisso_ml" ? "/ml" : ""})`;
+                              return (
+                                <SelectItem key={v.id} value={v.id} className="text-xs">
+                                  {v.label}{magg}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     );
                   })}
                 </div>
               </Card>
+            )}
+
+            {/* Loading state della family con assi: mostra hint mentre carica */}
+            {loadingFamily && axes.length === 0 && (
+              <p className="text-[10px] text-muted-foreground flex items-center gap-1 italic">
+                <Loader2 className="h-3 w-3 animate-spin" /> Caricamento configurazione articolo…
+              </p>
             )}
 
             {/* Riepilogo calcolo — il commerciale vede solo il totale, niente posa esposta */}
@@ -746,9 +780,11 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                   {calcolo.note && (
                     <p className="text-[10px] text-muted-foreground italic">{calcolo.note}</p>
                   )}
-                  {calcolo.extra_varianti > 0 && (
+                  {calcolo.extra_assi !== 0 && (
                     <p className="text-[10px] text-blue-800">
-                      Varianti selezionate: <span className="font-semibold">+€ {calcolo.extra_varianti.toLocaleString("it-IT", { minimumFractionDigits: 2 })}</span>
+                      Variabili prodotto: <span className="font-semibold">
+                        {calcolo.extra_assi > 0 ? "+" : ""}€ {calcolo.extra_assi.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                      </span>
                     </p>
                   )}
                   <div className="border-t border-orange-300 pt-2 mt-2 flex justify-between items-center">
@@ -801,6 +837,8 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                   || !calcolo || calcolo.totale <= 0
                   // Blocca aggiunta se misure fuori range producibile.
                   || calcolo.fuoriRange === true
+                  // Blocca se ci sono assi obbligatori senza scelta.
+                  || axes.some((a) => a.obbligatorio && !axisSelection[a.codice])
                 }
               >
                 Aggiungi al preventivo

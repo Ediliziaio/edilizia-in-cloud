@@ -18,8 +18,6 @@ import {
   listMacroFields, createMacroField, updateMacroField, deleteMacroField,
   seedMacroFieldsFromVertical,
   listTariffeManodopera, addManodopera, updateManodopera, deleteManodopera,
-  listVariantsByFamily, listVariantsByFamilyIds,
-  createArticleVariant, updateArticleVariant, deleteArticleVariant,
   type SrCreateProgettoInput,
   type UploadMediaInput,
   type ListinoMacroField,
@@ -512,67 +510,3 @@ export function useUpsertTemplatePdf() {
   });
 }
 
-// ─── Article Variants (varianti prezzo famiglie listino) ───────────────────
-
-export function useArticleVariants(family_id: string | null | undefined) {
-  return useQuery({
-    queryKey: ["sr-article-variants", family_id],
-    queryFn: () => listVariantsByFamily(family_id!),
-    enabled: !!family_id,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-/** Batch fetch varianti per piu' famiglie (es. BOM con N righe diverse).
- *  Sort dei IDs prima del queryKey per caching stabile. */
-export function useArticleVariantsByFamilyIds(family_ids: string[]) {
-  const sortedIds = [...family_ids].sort();
-  return useQuery({
-    queryKey: ["sr-article-variants-by-family-ids", sortedIds],
-    queryFn: () => listVariantsByFamilyIds(sortedIds),
-    enabled: sortedIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useCreateArticleVariant(family_id: string | undefined) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (v: Partial<import("@/types/serramenti").ArticleVariantRow>) => {
-      if (!family_id) throw new Error("family_id mancante");
-      return createArticleVariant(family_id, v);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["sr-article-variants", family_id] });
-      qc.invalidateQueries({ queryKey: ["sr-article-variants-by-family-ids"] });
-      toast.success("Variante creata");
-    },
-    onError: (e) => toast.error("Creazione variante fallita", { description: String(e) }),
-  });
-}
-
-export function useUpdateArticleVariant(family_id: string | undefined) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Partial<import("@/types/serramenti").ArticleVariantRow> }) =>
-      updateArticleVariant(id, patch),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["sr-article-variants", family_id] });
-      qc.invalidateQueries({ queryKey: ["sr-article-variants-by-family-ids"] });
-    },
-    onError: (e) => toast.error("Modifica variante fallita", { description: String(e) }),
-  });
-}
-
-export function useDeleteArticleVariant(family_id: string | undefined) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => deleteArticleVariant(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["sr-article-variants", family_id] });
-      qc.invalidateQueries({ queryKey: ["sr-article-variants-by-family-ids"] });
-      toast.success("Variante eliminata");
-    },
-    onError: (e) => toast.error("Eliminazione fallita", { description: String(e) }),
-  });
-}

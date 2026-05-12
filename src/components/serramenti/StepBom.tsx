@@ -21,7 +21,9 @@ import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle, Pac
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ListinoPickerDialog, type ListinoPickResult, calcolaPrezzoProdotto, calcolaPosaInclusa, applyVariantiPrezzo } from "./ListinoPickerDialog";
+import { ListinoPickerDialog, type ListinoPickResult, calcolaPrezzoProdotto, calcolaPosaInclusa } from "./ListinoPickerDialog";
+import { useFamily } from "@/hooks/useFamilies";
+import { calcolaPrezzoFamiglia } from "@/hooks/useFamilyPricing";
 import { ServiziSection } from "./ServiziSection";
 import { AccessoriSection } from "./AccessoriSection";
 import {
@@ -119,7 +121,7 @@ export function StepBom({ progettoId, detail }: Props) {
         position: serramenti.length,
         family_id: item.family_id,
         listino_voce_id: item.griglia_id ?? null,
-        varianti_selezionate: item.varianti_selezionate ?? [],
+        valori_assi: item.valori_assi ?? {},
         note: item.note ?? `Da listino: ${item.family_nome}`,
       },
       { onSuccess: (created) => setExpanded(created.id) },
@@ -165,7 +167,7 @@ export function StepBom({ progettoId, detail }: Props) {
       family_id: s.family_id,
       listino_voce_id: s.listino_voce_id,
       macrocategoria_override_id: s.macrocategoria_override_id,
-      varianti_selezionate: s.varianti_selezionate ?? [],
+      valori_assi: s.valori_assi ?? {},
       position: serramenti.length,
       note: s.note,
     });
@@ -451,17 +453,23 @@ function SerramentoRow({
   const { data: griglia = [] } = useListinoGriglia(family?.id);
   const isFromListino = !!family;
 
+  // Carica family completa (con axes+values) per applicare le maggiorazioni
+  // delle Variabili Prodotto al ricalcolo prezzo. Solo per righe listino.
+  const { family: familyWithAxes } = useFamily(family?.id);
+
   /**
-   * Ricalcola prezzo unitario in base a L/A/Q correnti, leggendo dal listino.
+   * Ricalcola prezzo unitario in base a L/A/Q correnti + Variabili Prodotto
+   * (axes) snapshotted sulla riga. Usa il sistema esistente
+   * `calcolaPrezzoFamiglia` (stesso del wizard preventivatore generico).
    *
-   * IMPORTANTE: somma il prezzo prodotto (da griglia) + VARIANTI applicate
-   * sul prodotto (es. vetro triplo +€80) + POSA inclusa (da tariffe).
-   * Prima la posa veniva sottratta silenziosamente al ricalcolo e le
-   * varianti non c'erano -> margine eroso.
+   * Include: prezzo base (griglia/mq/pz) + maggiorazioni assi (percentuale
+   * e fisse mq/ml/pz) + posa inclusa (tariffe). Prima la posa scompariva
+   * dal ricalcolo -> margine eroso.
    *
-   * PROTEZIONE: se modalita="griglia" e la griglia non e' ancora caricata
-   * (loading), ritorna null per non scrivere un prezzo_base errato.
-   * Il prezzo precedente resta finche' la griglia non e' disponibile.
+   * PROTEZIONI:
+   *   - modalita="griglia" e griglia vuota (loading) -> return null
+   *     (prezzo precedente resta finche' griglia non disponibile).
+   *   - family completa con axes ancora in loading -> return null.
    */
   const ricalcolaPrezzoUnitario = (
     L: number | null,
@@ -471,16 +479,38 @@ function SerramentoRow({
     if (!family) return null;
     if (family.modalita_prezzo_base === "griglia" && griglia.length === 0) return null;
     const Qsafe = Q || 1;
-    const result = calcolaPrezzoProdotto(family, L, H, Qsafe, griglia);
-    // Applica varianti snapshot SALVATE sulla riga BOM (non quelle correnti
-    // del listino, che potrebbero essere cambiate): le varianti scelte al
-    // momento del preventivo restano fisse.
-    const prezzoConVarianti = applyVariantiPrezzo(
-      result.prezzo, Qsafe, s.varianti_selezionate ?? [],
+
+    // Se la family completa con axes non e' ancora caricata, calcolo base
+    // (prodotto + posa) senza maggiorazioni — meglio del nulla. Le
+    // maggiorazioni verranno applicate al prossimo render quando arriva.
+    if (!familyWithAxes) {
+      const result = calcolaPrezzoProdotto(family, L, H, Qsafe, griglia);
+      const posa = calcolaPosaInclusa(family, Qsafe, tariffePrezzi);
+      const totale = result.prezzo + posa;
+      return Qsafe > 0 ? totale / Qsafe : totale;
+    }
+
+    // Pricing completo con maggiorazioni assi via helper esistente.
+    const pricing = calcolaPrezzoFamiglia(
+      {
+        family: familyWithAxes,
+        selections: (s.valori_assi ?? {}) as Record<string, string>,
+        larghezza_mm: L ?? undefined,
+        altezza_mm: H ?? undefined,
+        lunghezza_ml: undefined,
+        quantita: Qsafe,
+      },
+      griglia.map((g) => ({
+        valore_x: g.valore_x ?? 0,
+        valore_y: g.valore_y ?? 0,
+        prezzo_vendita: Number(g.prezzo_vendita ?? 0),
+        prezzo_acquisto_netto: null,
+      })),
     );
+    // pricing.prezzo_unitario_vendita e' SOLO prodotto (no posa) -> aggiungo
+    // posa indipendente sopra (tariffa cantiere, non scala con maggiorazioni).
     const posa = calcolaPosaInclusa(family, Qsafe, tariffePrezzi);
-    const totale = prezzoConVarianti + posa;
-    return Qsafe > 0 ? totale / Qsafe : totale;
+    return pricing.prezzo_unitario_vendita + (Qsafe > 0 ? posa / Qsafe : posa);
   };
 
   /**
@@ -641,32 +671,42 @@ function SerramentoRow({
             </div>
           )}
 
-          {/* Varianti scelte: snapshot delle opzioni configurate al momento
-              della selezione dal listino (es. "Vetro triplo +€80"). Solo
-              visualizzazione: per cambiarle bisogna eliminare e ricreare
-              la riga dal listino (cosi' il commerciale e' consapevole della
-              modifica prezzo). */}
-          {isFromListino && (s.varianti_selezionate?.length ?? 0) > 0 && (
+          {/* Variabili Prodotto scelte: snapshot delle opzioni configurate
+              al momento della selezione dal listino (es. "Profilo: Etrum",
+              "Colore: Antracite"). Read-only nella riga BOM: per cambiarle
+              elimina la riga e ricreala dal picker. */}
+          {isFromListino && familyWithAxes && Object.keys(s.valori_assi ?? {}).length > 0 && (
             <div className="col-span-12">
               <div className="rounded-md border border-blue-100 bg-blue-50/40 p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-blue-800 font-semibold mb-1.5">
-                  Varianti selezionate
+                  Variabili Prodotto
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {(s.varianti_selezionate ?? []).map((v) => (
-                    <Badge
-                      key={v.variant_id}
-                      variant="outline"
-                      className="bg-white border-blue-200 text-blue-900 text-[10.5px] font-normal py-0.5"
-                    >
-                      <span className="font-semibold mr-1">{v.nome}</span>
-                      <span className="text-orange-600">
-                        {v.modificatore_tipo === "percentuale"
-                          ? `+${v.modificatore_valore}%`
-                          : `+€${v.modificatore_valore.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`}
-                      </span>
-                    </Badge>
-                  ))}
+                  {familyWithAxes.axes
+                    .slice()
+                    .sort((a, b) => a.sort_order - b.sort_order)
+                    .map((axis) => {
+                      const valId = (s.valori_assi ?? {})[axis.codice];
+                      if (!valId) return null;
+                      const val = axis.values.find((v) => v.id === valId);
+                      if (!val) return null;
+                      const magg = val.maggiorazione_tipo === "none" || !val.maggiorazione_valore
+                        ? null
+                        : val.maggiorazione_tipo === "percentuale"
+                          ? `+${val.maggiorazione_valore}%`
+                          : `+€${Number(val.maggiorazione_valore).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+                      return (
+                        <Badge
+                          key={axis.id}
+                          variant="outline"
+                          className="bg-white border-blue-200 text-blue-900 text-[10.5px] font-normal py-0.5"
+                        >
+                          <span className="font-semibold mr-1">{axis.nome}:</span>
+                          <span>{val.label}</span>
+                          {magg && <span className="ml-1 text-orange-600">{magg}</span>}
+                        </Badge>
+                      );
+                    })}
                 </div>
               </div>
             </div>

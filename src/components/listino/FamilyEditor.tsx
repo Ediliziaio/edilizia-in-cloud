@@ -82,7 +82,6 @@ import { FamilyGridEditor } from "./FamilyGridEditor";
 import { FamilyPricePreview } from "./FamilyPricePreview";
 import { MacroCategorieManager } from "./MacroCategorieManager";
 import { DynamicFieldsRenderer, type DynamicFieldValues } from "./DynamicFieldsRenderer";
-import { ArticleVariantsEditor } from "./ArticleVariantsEditor";
 import type {
   ModalitaPrezzoBase,
   PrezzoBaseMode,
@@ -1171,23 +1170,6 @@ export function FamilyEditor() {
                 </Card>
               )}
 
-              {/* Varianti / opzioni prezzo. Disponibile solo dopo il primo
-                  salvataggio (serve family.id per la FK su article_variants).
-                  Per famiglie nuove, l'utente vede un hint che lo invita
-                  a salvare prima di gestire le varianti. */}
-              {!isNew && family && (
-                <ArticleVariantsEditor familyId={family.id} />
-              )}
-              {isNew && (
-                <Card className="border-dashed">
-                  <CardContent className="p-4 text-center">
-                    <p className="text-xs text-muted-foreground">
-                      Le <strong>varianti prezzo</strong> (es. vetro triplo +€80, colore antracite +5%)
-                      potrai aggiungerle dopo il primo salvataggio dell'articolo.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
 
               <div className="flex justify-end">
                 <Button

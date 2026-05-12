@@ -247,9 +247,11 @@ export interface SrSerramentoRow {
   listino_voce_id: string | null;
   prezzo_unitario: number | null;
   prezzo_totale: number | null;
-  /** Snapshot delle varianti scelte sulla riga (es. vetro triplo +€80).
-   *  Snapshot perche' se il listino cambia, il preventivo non cambia. */
-  varianti_selezionate: SrSerramentoVarianteSnapshot[];
+  /** Snapshot delle scelte sugli ASSI (variabili prodotto) della family al
+   *  momento del preventivo. Mappa { axis_codice -> axis_value_id }.
+   *  Snapshot: se l'azienda modifica le maggiorazioni dopo, i preventivi
+   *  gia' creati conservano il prezzo originale. */
+  valori_assi: Record<string, string>;
   foto_storage_path: string | null;
   foto_render_path: string | null;
   note: string | null;
@@ -287,39 +289,6 @@ export interface SrServizioRow {
 
 /** @deprecated usare SrServizioRow */
 export type SrManodoperaRow = SrServizioRow;
-
-/**
- * Variante prezzo di una famiglia listino. Le varianti permettono di
- * modificare il prezzo finale senza duplicare l'articolo a catalogo.
- * Esempi: colore antracite +5%, vetro triplo +€80, ferramenta antieffrazione.
- *
- * Modificatore:
- *   - "percentuale": modificatore_valore = X -> prezzo *= (1 + X/100)
- *   - "fisso":       modificatore_valore = Y -> prezzo += Y per unita'
- */
-export interface ArticleVariantRow {
-  id: string;
-  family_id: string;
-  company_id: string;
-  nome: string;
-  descrizione: string | null;
-  modificatore_tipo: "percentuale" | "fisso";
-  modificatore_valore: number;
-  modificatore_costo: number | null;
-  attivo: boolean;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
-}
-
-/** Snapshot di una variante salvato sulla riga BOM, per non perdere dato
- *  se l'azienda modifica le varianti dopo il preventivo. */
-export interface SrSerramentoVarianteSnapshot {
-  variant_id: string;
-  nome: string;
-  modificatore_tipo: "percentuale" | "fisso";
-  modificatore_valore: number;
-}
 
 export interface SrAccessorioRow {
   id: string;
