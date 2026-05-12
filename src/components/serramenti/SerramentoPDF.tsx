@@ -1907,17 +1907,18 @@ export function SerramentoPDF({
           </View>
 
           <Text style={styles.pageEyebrow}>Anteprima visiva · Render AI</Text>
-          <Text style={[styles.pageTitle, { fontSize: 28, marginBottom: 4 }]}>
+          <Text style={[styles.pageTitle, { fontSize: 22, marginBottom: 2 }]}>
             Prima &amp; Dopo
           </Text>
-          <Text style={[styles.pageSubtitle, { marginBottom: 12 }]}>
+          <Text style={[styles.pageSubtitle, { marginBottom: 10, fontSize: 10 }]}>
             Visualizza il confronto tra come appare oggi e come sarà dopo l'intervento.
           </Text>
 
-          {/* Layout 2 colonne landscape: foto attuale | render AI
-              Le immagini usano objectFit "contain" per non venire tagliate. */}
+          {/* Layout landscape: usable height ~470pt dopo header+title+disclaimer.
+              CRITICO: label + immagini in singolo View con wrap={false} così
+              react-pdf NON le separa su pagine diverse (bug visto nei PDF prima). */}
           {hasPrimaDopo ? (
-            <>
+            <View wrap={false}>
               <View style={{ flexDirection: "row", marginBottom: 6 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.renderPairLabel, { fontSize: 11, color: C.gray700 }]}>
@@ -1931,29 +1932,29 @@ export function SerramentoPDF({
                   </Text>
                 </View>
               </View>
-              <View style={{ flexDirection: "row" }} wrap={false}>
+              <View style={{ flexDirection: "row" }}>
                 <View style={{
-                  flex: 1, aspectRatio: 1.4,
+                  flex: 1, height: 360,
                   borderRadius: 10, overflow: "hidden",
                   backgroundColor: C.gray100,
                   borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
                 }}>
-                  <Image src={primaUrls[0]} style={styles.renderImg} />
+                  <Image src={primaUrls[0]} style={styles.renderImg} cache={false} />
                 </View>
                 <View style={{ width: 14 }} />
                 <View style={{
-                  flex: 1, aspectRatio: 1.4,
+                  flex: 1, height: 360,
                   borderRadius: 10, overflow: "hidden",
                   backgroundColor: C.gray100,
                   borderWidth: 0.5, borderColor: primaryColor, borderStyle: "solid",
                 }}>
-                  <Image src={renderUrls[0]} style={styles.renderImg} />
+                  <Image src={renderUrls[0]} style={styles.renderImg} cache={false} />
                 </View>
               </View>
-            </>
+            </View>
           ) : renderUrls.length >= 2 ? (
             // Fallback: nessuna foto situazione ma almeno 2 render → mostra due render
-            <>
+            <View wrap={false}>
               <View style={{ flexDirection: "row", marginBottom: 6 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Render AI · vista 1</Text>
@@ -1963,40 +1964,48 @@ export function SerramentoPDF({
                   <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Render AI · vista 2</Text>
                 </View>
               </View>
-              <View style={{ flexDirection: "row" }} wrap={false}>
+              <View style={{ flexDirection: "row" }}>
                 <View style={{
-                  flex: 1, aspectRatio: 1.4,
+                  flex: 1, height: 360,
                   borderRadius: 10, overflow: "hidden",
                   backgroundColor: C.gray100,
                 }}>
-                  <Image src={renderUrls[0]} style={styles.renderImg} />
+                  <Image src={renderUrls[0]} style={styles.renderImg} cache={false} />
                 </View>
                 <View style={{ width: 14 }} />
                 <View style={{
-                  flex: 1, aspectRatio: 1.4,
+                  flex: 1, height: 360,
                   borderRadius: 10, overflow: "hidden",
                   backgroundColor: C.gray100,
                 }}>
-                  <Image src={renderUrls[1]} style={styles.renderImg} />
+                  <Image src={renderUrls[1]} style={styles.renderImg} cache={false} />
                 </View>
               </View>
-            </>
+            </View>
           ) : (
-            // Una sola immagine disponibile (render o situazione)
-            <>
-              <Text style={[styles.renderPairLabel, { fontSize: 11, marginBottom: 6 }]}>
+            // Una sola immagine disponibile (render o situazione) — full width hero
+            <View wrap={false}>
+              <Text style={[styles.renderPairLabel, {
+                fontSize: 11,
+                marginBottom: 6,
+                color: renderUrls.length > 0 ? primaryColor : C.gray700,
+              }]}>
                 {renderUrls.length > 0 ? "Dopo · render AI" : "Foto attuale"}
               </Text>
               <View style={{
-                width: "100%", aspectRatio: 2.0,
+                width: "100%", height: 380,
                 borderRadius: 10, overflow: "hidden", backgroundColor: C.gray100,
-              }} wrap={false}>
+                borderWidth: 0.5,
+                borderColor: renderUrls.length > 0 ? primaryColor : C.gray200,
+                borderStyle: "solid",
+              }}>
                 <Image
                   src={renderUrls[0] ?? primaUrls[0]}
                   style={styles.renderImg}
+                  cache={false}
                 />
               </View>
-            </>
+            </View>
           )}
 
           {/* Disclaimer legale OBBLIGATORIO sotto i render AI */}
@@ -2085,18 +2094,18 @@ export function SerramentoPDF({
             </View>
           </View>
           <Text style={styles.pageEyebrow}>Render AI · vista aggiuntiva</Text>
-          <Text style={[styles.pageTitle, { fontSize: 24, marginBottom: 12 }]}>
+          <Text style={[styles.pageTitle, { fontSize: 22, marginBottom: 10 }]}>
             Altre prospettive
           </Text>
           <View style={{ flexDirection: "row" }} wrap={false}>
             {coppia.map((url, i) => (
               <View key={i} style={{
-                flex: 1, aspectRatio: 1.5,
+                flex: 1, height: 380,
                 borderRadius: 10, overflow: "hidden",
                 backgroundColor: C.gray100,
                 marginRight: i < coppia.length - 1 ? 14 : 0,
               }}>
-                <Image src={url} style={styles.renderImg} />
+                <Image src={url} style={styles.renderImg} cache={false} />
               </View>
             ))}
           </View>
