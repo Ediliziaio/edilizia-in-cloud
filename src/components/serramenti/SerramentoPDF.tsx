@@ -18,7 +18,7 @@
  * Font: tenta Inter via Google Fonts CDN (HTTPS, no auth). Se la registrazione
  * fallisce (CORS, network) il renderer fa fallback automatico a Helvetica.
  */
-import { Document, Page, Text, View, StyleSheet, Image, Svg, Path, Rect, Circle, G } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image, Svg, Path, Rect, Circle, G, Font } from "@react-pdf/renderer";
 import type {
   SrProgettoDetail, SrSerramentoRow, SrPagamentoMilestone,
   SrPianoFinanziamento, SrEsigenza, SrSoluzioneItem, SrTestimonianza,
@@ -38,6 +38,12 @@ import type {
 // PDF (react-pdf è strict: se un font registrato non scarica → throw).
 // Helvetica è elegante per documenti business e supporta i 4 pesi che servono.
 const FF = "Helvetica";
+
+// Disabilita hyphenation built-in di react-pdf: tagliava parole italiane
+// in modo brutto (es. "cal-do" invece di "caldo") sul titolo cover quando
+// la riga era stretta. Restituendo `[word]` impediamo qualsiasi spezzamento
+// → la parola intera va a capo se non c'entra.
+Font.registerHyphenationCallback((word) => [word]);
 
 // ─── Palette default (override dinamico da template.colore_primario) ──────
 const DEFAULT_PRIMARY = "#2D7D5C";
@@ -97,7 +103,10 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       backgroundColor: C.coverBg,
       flexDirection: "column",
       justifyContent: "space-between",
-      height: "100%",
+      // Bug react-pdf: `height: "100%"` su Page genera una pagina vuota
+      // extra all'inizio del documento. Page A4 ha già altezza implicita
+      // (842pt), non serve impostarla. Bug riprodotto sui PDF di test prima
+      // di rimuovere height.
     },
 
     // Header
@@ -158,18 +167,20 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
 
     coverEyebrow: {
       fontSize: 10,
-      color: C.accent,
+      // Eyebrow usa il colore primario (allineato con la preview editor che
+      // mostra "LA TUA PROPOSTA PERSONALIZZATA" nel colore primario del brand).
+      color: C.primary,
       fontWeight: 700,
       letterSpacing: 1.6,
       textTransform: "uppercase" as const,
       marginBottom: 16,
     },
     coverTitle: {
-      fontSize: 46,
+      fontSize: 40,
       fontWeight: 800,
-      lineHeight: 1.04,
+      lineHeight: 1.05,
       marginBottom: 18,
-      letterSpacing: -0.5,
+      letterSpacing: -0.3,
     },
     coverSubtitle: {
       fontSize: 13,
@@ -452,31 +463,34 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     macroPageContent: { fontSize: 11, color: C.gray700, lineHeight: 1.65 },
 
     // Chi siamo
-    // L'immagine usa objectFit "contain" e altezza max generosa: così
-    // l'azienda può caricare foto orizzontali, verticali o panoramiche
-    // senza che vengano croppate. Container ha aspetto centrato.
+    // L'immagine usa objectFit "contain" + height ESPLICITA. In react-pdf
+    // `maxHeight` non funziona come in CSS (viene ignorata sull'<Image>),
+    // serve un height fisso altrimenti l'immagine collassa a 0 e non
+    // appare. 240pt = ~50% di pagina A4, ragionevole per chi siamo.
     chiSiamoHeroWrap: {
       width: "100%",
-      maxHeight: 360,
+      height: 240,
       borderRadius: 10,
       backgroundColor: C.gray100,
       alignItems: "center", justifyContent: "center",
       overflow: "hidden",
-      marginBottom: 18,
+      marginBottom: 14,
     },
     chiSiamoHero: {
       width: "100%",
-      maxHeight: 360,
+      height: 240,
       objectFit: "contain" as const,
     },
     chiSiamoHeroPh: {
-      width: "100%", height: 220,
+      width: "100%", height: 180,
       borderRadius: 10,
       backgroundColor: C.gray100,
       alignItems: "center", justifyContent: "center",
-      marginBottom: 18,
+      marginBottom: 14,
     },
-    chiSiamoText: { fontSize: 11, color: C.gray700, lineHeight: 1.65 },
+    // Testo Chi siamo compatto: 10pt invece di 11pt, line-height 1.5 invece
+    // di 1.65 → il testo lungo non occupa più 2 pagine intere.
+    chiSiamoText: { fontSize: 10, color: C.gray700, lineHeight: 1.5 },
 
     // Percorso cliente — step cards
     percorsoBigNumber: {
@@ -962,7 +976,7 @@ export function SerramentoPDF({
     : 0.65;
   const coverBgColor = tpl.pdf_cover_bg_color || null; // null = usa C.coverBg default
   const coverEyebrowSize = typeof tpl.pdf_cover_eyebrow_size === "number" ? tpl.pdf_cover_eyebrow_size : 10;
-  const coverTitleSize = typeof tpl.pdf_cover_title_size === "number" ? tpl.pdf_cover_title_size : 46;
+  const coverTitleSize = typeof tpl.pdf_cover_title_size === "number" ? tpl.pdf_cover_title_size : 40;
   const coverSubtitleSize = typeof tpl.pdf_cover_subtitle_size === "number" ? tpl.pdf_cover_subtitle_size : 13;
   const coverTextColor = tpl.pdf_cover_text_color || "#FFFFFF";
   const coverShowDecoration = tpl.pdf_cover_show_decoration !== false;
@@ -1086,10 +1100,13 @@ export function SerramentoPDF({
             }}
           />
         )}
-        {/* Decoro SVG finestra in alto a destra (toggle template) */}
+        {/* Decoro SVG finestra in alto a destra (toggle template).
+            Usa il colore PRIMARIO (non l'accent) per coerenza con la preview
+            visuale del template editor, che mostra appunto un blocco accent
+            del colore primario in quella posizione. */}
         {coverShowDecoration && (
           <View style={styles.coverDecoSvg}>
-            <CoverDecorationSvg color={C.accent} />
+            <CoverDecorationSvg color={primaryColor} />
           </View>
         )}
 
@@ -1144,10 +1161,17 @@ export function SerramentoPDF({
         <Page size="A4" style={styles.page}>
           <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
           <Text style={styles.pageEyebrow}>Chi siamo</Text>
-          <Text style={styles.pageTitle}>{chiSiamoTitolo}</Text>
+          {/* Titolo compatto rispetto a pageTitle (che è 28pt+): chi-siamo
+              spesso ha titoli lunghi tipo "Da oltre 20 Anni al fianco delle
+              Famiglie Italiane", a 28pt occuperebbero 3 righe. */}
+          <Text style={[styles.pageTitle, { fontSize: 22, marginBottom: 12 }]}>{chiSiamoTitolo}</Text>
           {chiSiamoFotoUrl ? (
             <View style={styles.chiSiamoHeroWrap}>
-              <Image src={chiSiamoFotoUrl} style={styles.chiSiamoHero} />
+              <Image
+                src={chiSiamoFotoUrl}
+                style={styles.chiSiamoHero}
+                cache={false}
+              />
             </View>
           ) : (
             <View style={styles.chiSiamoHeroPh}>
@@ -1161,17 +1185,17 @@ export function SerramentoPDF({
                 const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
                 if (allBullets) {
                   return (
-                    <View key={i} style={{ marginBottom: 10 }}>
+                    <View key={i} style={{ marginBottom: 8 }}>
                       {lines.map((l, li) => (
                         <View key={li} style={styles.bulletItem} wrap={false}>
                           <View style={styles.bulletDot} />
-                          <Text style={styles.bulletText}>{l.replace(/^[-•]\s*/, "")}</Text>
+                          <Text style={[styles.bulletText, { fontSize: 10 }]}>{l.replace(/^[-•]\s*/, "")}</Text>
                         </View>
                       ))}
                     </View>
                   );
                 }
-                return <Text key={i} style={[styles.chiSiamoText, { marginBottom: 10 }]}>{para}</Text>;
+                return <Text key={i} style={[styles.chiSiamoText, { marginBottom: 8 }]}>{para}</Text>;
               })}
             </View>
           )}

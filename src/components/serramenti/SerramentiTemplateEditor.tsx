@@ -910,7 +910,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                       <div
                         className="font-bold leading-tight whitespace-pre-wrap mb-1.5"
                         style={{
-                          fontSize: `${(form.pdf_cover_title_size ?? 38) * 0.5}px`,
+                          fontSize: `${(form.pdf_cover_title_size ?? 40) * 0.5}px`,
                         }}
                       >
                         {form.pdf_cover_hero ||
@@ -1138,7 +1138,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                   <Label className="text-[11px] flex items-center justify-between mb-1">
                     <span>Titolo hero</span>
                     <span className="font-mono text-muted-foreground">
-                      {form.pdf_cover_title_size ?? 38}pt
+                      {form.pdf_cover_title_size ?? 40}pt
                     </span>
                   </Label>
                   <input
@@ -1146,7 +1146,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                     min={22}
                     max={64}
                     step={1}
-                    value={form.pdf_cover_title_size ?? 38}
+                    value={form.pdf_cover_title_size ?? 40}
                     onChange={(e) => update("pdf_cover_title_size", Number(e.target.value))}
                     className="w-full accent-orange-500"
                   />
