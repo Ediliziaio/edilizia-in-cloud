@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -15,7 +15,9 @@ import {
   Inbox,
   Eye,
   MoreHorizontal,
+  Loader2,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -198,6 +200,15 @@ export default function QuoteApprovals() {
   }, [decided]);
   const pendingValue = pending.reduce((s, a) => s + a.importo_preventivo, 0);
 
+  // Tab pending/history persistente in URL (refresh + back/forward friendly)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const subTab = searchParams.get("status") === "history" ? "history" : "pending";
+  const setSubTab = (v: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (v === "history") next.set("status", "history"); else next.delete("status");
+    setSearchParams(next, { replace: true });
+  };
+
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{
     open: boolean;
@@ -232,6 +243,7 @@ export default function QuoteApprovals() {
       qc.invalidateQueries({
         queryKey: ["quote-approvals-quotes", quoteIds],
       });
+      qc.invalidateQueries({ queryKey: ["quote-approvals-pending-count", companyId] });
       toast.success("Decisione registrata");
       setDialog({ open: false, approval: null, mode: null });
       setNote("");
@@ -240,17 +252,31 @@ export default function QuoteApprovals() {
     onError: (e: Error) => toast.error(`Errore: ${e.message}`),
   });
 
+  /** Approval id correntemente in attesa di server response (per disabilitare i suoi pulsanti). */
+  const pendingApprovalId = decideMutation.isPending ? dialog.approval?.id ?? null : null;
+
   const openDecide = (
     a: QuoteApproval,
     mode: "approve" | "reject" | "counter"
   ) => {
     setDialog({ open: true, approval: a, mode });
-    setCounterPct(Math.floor(a.sconto_richiesto_pct * 0.7 * 10) / 10);
+    // Default counter-proposta: 70% del richiesto (clamp 0 ≤ x ≤ richiesto)
+    const def = Math.max(0, Math.min(a.sconto_richiesto_pct, Math.floor(a.sconto_richiesto_pct * 0.7 * 10) / 10));
+    setCounterPct(def);
     setNote("");
   };
 
+  // Validazione client: in reject la nota è obbligatoria (motivazione per il commerciale)
+  const noteRequiredMissing = dialog.mode === "reject" && note.trim().length === 0;
+  // Counter: counterPct deve essere numero finito tra 0 e sconto_richiesto
+  const counterMax = dialog.approval?.sconto_richiesto_pct ?? 100;
+  const counterInvalid =
+    dialog.mode === "counter" &&
+    (!Number.isFinite(counterPct) || counterPct < 0 || counterPct > counterMax);
+
   const confirmDecide = () => {
     if (!dialog.approval || !dialog.mode) return;
+    if (noteRequiredMissing || counterInvalid) return;
     const decision =
       dialog.mode === "approve"
         ? "approved"
@@ -261,7 +287,7 @@ export default function QuoteApprovals() {
       approval_id: dialog.approval.id,
       decision,
       sconto_autorizzato_pct: dialog.mode === "counter" ? counterPct : null,
-      p_note: note || null,
+      p_note: note.trim() || null,
     });
   };
 
@@ -282,6 +308,7 @@ export default function QuoteApprovals() {
   const renderRow = (a: QuoteApproval, idx: number) => {
     const q = quotesById.get(a.quote_id);
     const isPending = a.decision === null;
+    const isThisRowPending = pendingApprovalId === a.id;
     return (
       <TableRow
         key={a.id}
@@ -393,8 +420,9 @@ export default function QuoteApprovals() {
                   size="sm"
                   className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
                   onClick={() => openDecide(a, "approve")}
+                  disabled={isThisRowPending}
                 >
-                  <Check className="h-3 w-3 mr-1" />
+                  {isThisRowPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
                   Approva
                 </Button>
                 <Button
@@ -402,6 +430,8 @@ export default function QuoteApprovals() {
                   variant="outline"
                   className="h-7 text-xs"
                   onClick={() => openDecide(a, "counter")}
+                  disabled={isThisRowPending}
+                  title="Contro-proposta"
                 >
                   <Send className="h-3 w-3 mr-1" />
                   Contro
@@ -411,6 +441,7 @@ export default function QuoteApprovals() {
                   variant="outline"
                   className="h-7 text-xs text-destructive border-destructive/30"
                   onClick={() => openDecide(a, "reject")}
+                  disabled={isThisRowPending}
                 >
                   <XCircle className="h-3 w-3 mr-1" />
                   Rifiuta
@@ -451,28 +482,38 @@ export default function QuoteApprovals() {
             ) : (
               <>
                 {q && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    title="Anteprima margini"
-                    onClick={() => setQuickViewId(q.id)}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        aria-label="Anteprima margini"
+                        onClick={() => setQuickViewId(q.id)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Anteprima margini</TooltipContent>
+                  </Tooltip>
                 )}
                 {q && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    asChild
-                    className="h-7 w-7"
-                    title="Apri preventivo"
-                  >
-                    <Link to={`/azienda/marketing/preventivi/${q.id}`}>
-                      <ExternalLink className="h-4 w-4" />
-                    </Link>
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        asChild
+                        className="h-7 w-7"
+                        aria-label="Apri preventivo"
+                      >
+                        <Link to={`/azienda/marketing/preventivi/${q.id}`}>
+                          <ExternalLink className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Apri preventivo</TooltipContent>
+                  </Tooltip>
                 )}
               </>
             )}
@@ -483,26 +524,120 @@ export default function QuoteApprovals() {
   };
 
   const renderTable = (rows: QuoteApproval[]) => (
-    <div className="border rounded-lg overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead>Preventivo</TableHead>
-            <TableHead>Commerciale</TableHead>
-            <TableHead className="text-right">Importo</TableHead>
-            <TableHead className="text-right">Sconto</TableHead>
-            <TableHead className="text-right">Margine</TableHead>
-            <TableHead>Nota richiesta</TableHead>
-            <TableHead>Stato</TableHead>
-            <TableHead className="text-right">Azioni</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>{rows.map((r, idx) => renderRow(r, idx))}</TableBody>
-      </Table>
-    </div>
+    <>
+      {/* Desktop tabella */}
+      <div className="hidden md:block border rounded-lg overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Preventivo</TableHead>
+              <TableHead>Commerciale</TableHead>
+              <TableHead className="text-right">Importo</TableHead>
+              <TableHead className="text-right">Sconto</TableHead>
+              <TableHead className="text-right">Margine</TableHead>
+              <TableHead>Nota richiesta</TableHead>
+              <TableHead>Stato</TableHead>
+              <TableHead className="text-right">Azioni</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>{rows.map((r, idx) => renderRow(r, idx))}</TableBody>
+        </Table>
+      </div>
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {rows.map((a) => renderMobileCard(a))}
+      </div>
+    </>
   );
 
+  // ─── Card mobile per ogni approval
+  const renderMobileCard = (a: QuoteApproval) => {
+    const q = quotesById.get(a.quote_id);
+    const isPending = a.decision === null;
+    const isThisRowPending = pendingApprovalId === a.id;
+    return (
+      <div key={a.id} className="rounded-lg border p-3 space-y-2 bg-card">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="font-mono text-xs font-medium truncate">{q?.quote_number ?? "—"}</p>
+            <p className="text-[11px] text-muted-foreground truncate">
+              {q?.client_name ?? q?.title ?? "—"}
+              {q?.salesperson_id && (
+                <> · {salespersonNameById.get(q.salesperson_id) ?? "—"}</>
+              )}
+            </p>
+          </div>
+          {a.decision === "approved" && <Badge className="bg-emerald-600 hover:bg-emerald-600 gap-1 text-[10px]"><Check className="h-3 w-3" />OK</Badge>}
+          {a.decision === "rejected" && <Badge variant="destructive" className="gap-1 text-[10px]"><XCircle className="h-3 w-3" />KO</Badge>}
+          {a.decision === "counter_proposed" && <Badge className="bg-blue-600 hover:bg-blue-600 gap-1 text-[10px]"><Send className="h-3 w-3" />Contro</Badge>}
+          {isPending && <Badge variant="outline" className="border-orange-500 text-orange-600 gap-1 text-[10px] bg-orange-50"><Clock className="h-3 w-3" />Pending</Badge>}
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <div>
+            <p className="text-[9px] uppercase text-muted-foreground">Importo</p>
+            <p className="font-semibold tabular-nums">{formatCurrency(a.importo_preventivo)}</p>
+          </div>
+          <div>
+            <p className="text-[9px] uppercase text-muted-foreground">Sconto</p>
+            <p className="font-semibold text-orange-700 tabular-nums">
+              {a.sconto_richiesto_pct.toFixed(1)}%
+              {a.decision === "counter_proposed" && a.sconto_autorizzato_pct != null && (
+                <span className="text-blue-600"> → {a.sconto_autorizzato_pct.toFixed(1)}%</span>
+              )}
+            </p>
+          </div>
+          <div>
+            <p className="text-[9px] uppercase text-muted-foreground">Margine</p>
+            <p className={`font-semibold tabular-nums ${
+              a.margine_stimato_pct == null ? "text-muted-foreground" :
+              a.margine_stimato_pct < 15 ? "text-red-600" :
+              a.margine_stimato_pct < 25 ? "text-orange-600" : "text-emerald-600"
+            }`}>
+              {a.margine_stimato_pct != null ? `${a.margine_stimato_pct.toFixed(1)}%` : "—"}
+            </p>
+          </div>
+        </div>
+
+        {a.note_richiesta && (
+          <p className="text-[11px] italic text-muted-foreground">"{a.note_richiesta}"</p>
+        )}
+
+        {isPending && (
+          <div className="grid grid-cols-3 gap-1 pt-1">
+            <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => openDecide(a, "approve")} disabled={isThisRowPending}>
+              {isThisRowPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+              Approva
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs"
+              onClick={() => openDecide(a, "counter")} disabled={isThisRowPending}>
+              <Send className="h-3 w-3 mr-1" />Contro
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs text-destructive border-destructive/30"
+              onClick={() => openDecide(a, "reject")} disabled={isThisRowPending}>
+              <XCircle className="h-3 w-3 mr-1" />Rifiuta
+            </Button>
+          </div>
+        )}
+        {!isPending && q && (
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" onClick={() => setQuickViewId(q.id)}>
+              <Eye className="h-3.5 w-3.5 mr-1.5" />Anteprima
+            </Button>
+            <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" asChild>
+              <Link to={`/azienda/marketing/preventivi/${q.id}`}>
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />Apri
+              </Link>
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -608,8 +743,8 @@ export default function QuoteApprovals() {
         </Card>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="pending">
+      {/* Tabs (persistenti in URL ?status=) */}
+      <Tabs value={subTab} onValueChange={setSubTab}>
         <TabsList className="h-9">
           <TabsTrigger value="pending" className="gap-1.5 text-xs">
             Da decidere
@@ -667,7 +802,11 @@ export default function QuoteApprovals() {
       {/* Dialog decisione */}
       <Dialog
         open={dialog.open}
-        onOpenChange={(o) => setDialog({ ...dialog, open: o })}
+        onOpenChange={(o) => {
+          // Non chiudere se sta salvando (evita perdita decisione + race)
+          if (!o && decideMutation.isPending) return;
+          setDialog({ ...dialog, open: o });
+        }}
       >
         <DialogContent>
           <DialogHeader>
@@ -717,21 +856,38 @@ export default function QuoteApprovals() {
           <div className="space-y-3">
             {dialog.mode === "counter" && (
               <div>
-                <Label>Sconto autorizzato (%)</Label>
+                <Label>
+                  Sconto autorizzato (%) ·{" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    range 0 – {counterMax.toFixed(1)}%
+                  </span>
+                </Label>
                 <Input
                   type="number"
                   step="0.1"
                   min="0"
-                  max="100"
-                  value={counterPct}
-                  onChange={(e) => setCounterPct(Number(e.target.value))}
+                  max={counterMax}
+                  inputMode="decimal"
+                  value={Number.isFinite(counterPct) ? counterPct : ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "") { setCounterPct(NaN); return; }
+                    const n = Number(v);
+                    setCounterPct(Number.isFinite(n) ? n : NaN);
+                  }}
+                  className={counterInvalid ? "border-red-400 focus-visible:ring-red-400" : ""}
                 />
+                {counterInvalid && (
+                  <p className="text-[11px] text-red-600 mt-1">
+                    Inserisci un valore tra 0 e {counterMax.toFixed(1)}%
+                  </p>
+                )}
               </div>
             )}
             <div>
               <Label>
                 {dialog.mode === "reject"
-                  ? "Motivazione rifiuto"
+                  ? "Motivazione rifiuto *"
                   : "Nota per il commerciale (opzionale)"}
               </Label>
               <Textarea
@@ -740,24 +896,29 @@ export default function QuoteApprovals() {
                 onChange={(e) => setNote(e.target.value)}
                 placeholder={
                   dialog.mode === "reject"
-                    ? "Spiega perché non puoi autorizzare..."
+                    ? "Spiega perché non puoi autorizzare (visibile al commerciale)…"
                     : "Nota (facoltativa)"
                 }
+                className={noteRequiredMissing ? "border-red-400 focus-visible:ring-red-400" : ""}
               />
+              {noteRequiredMissing && (
+                <p className="text-[11px] text-red-600 mt-1">
+                  Motivazione obbligatoria per un rifiuto.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() =>
-                setDialog({ open: false, approval: null, mode: null })
-              }
+              onClick={() => setDialog({ open: false, approval: null, mode: null })}
+              disabled={decideMutation.isPending}
             >
               Annulla
             </Button>
             <Button
               onClick={confirmDecide}
-              disabled={decideMutation.isPending}
+              disabled={decideMutation.isPending || noteRequiredMissing || counterInvalid}
               className={
                 dialog.mode === "reject"
                   ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -766,7 +927,8 @@ export default function QuoteApprovals() {
                   : ""
               }
             >
-              {decideMutation.isPending ? "Invio..." : "Conferma"}
+              {decideMutation.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+              {decideMutation.isPending ? "Invio…" : "Conferma"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -780,5 +942,6 @@ export default function QuoteApprovals() {
         }}
       />
     </div>
+    </TooltipProvider>
   );
 }
