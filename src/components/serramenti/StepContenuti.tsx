@@ -134,7 +134,7 @@ function ObjectItemsPicker({
                 className={
                   "flex items-start gap-3 rounded-md border p-3 cursor-pointer transition " +
                   (isSelected
-                    ? "border-slate-300 bg-slate-50/60"
+                    ? "border-blue-300 bg-blue-50/40"
                     : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/30")
                 }
               >
@@ -295,7 +295,7 @@ function StringItemsPicker({
                 className={
                   "flex items-start gap-3 rounded-md border p-2.5 cursor-pointer transition " +
                   (isSelected
-                    ? "border-slate-300 bg-slate-50/60"
+                    ? "border-blue-300 bg-blue-50/40"
                     : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/30")
                 }
               >
@@ -496,14 +496,14 @@ export function StepContenuti({ form, onChange }: Props) {
 
   return (
     <div className="space-y-3">
-      {/* Box intro: design neutro con accent solo sul border-left per non
-          generare "arancione su arancione" col bottone CTA + le card selezionate
-          sottostanti (che sono già bg-orange-50/50). */}
-      <Card className="border-l-4 border-l-orange-600 border-slate-200">
+      {/* Box intro: design neutro con accent blu navy (brand secondary)
+          sul border-left. Le card di selezione sottostanti usano blu
+          tenue per il selected state -> palette coerente. */}
+      <Card className="border-l-4 border-l-[#173b67] border-slate-200">
         <CardContent className="p-4 flex items-start gap-3 flex-wrap">
           <div className="flex-1 min-w-[220px]">
             <div className="flex items-center gap-2 mb-1">
-              <MessageCircle className="h-4 w-4 text-slate-700" />
+              <MessageCircle className="h-4 w-4 text-[#173b67]" />
               <span className="text-sm font-semibold text-slate-900">Contenuti del preventivo</span>
             </div>
             <p className="text-[11px] text-muted-foreground mb-1.5 leading-snug">

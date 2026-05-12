@@ -34,7 +34,7 @@ const STATI_LABEL: Record<string, { label: string; className: string }> = {
   bozza:           { label: "Bozza",          className: "bg-slate-100 text-slate-700" },
   da_consegnare:   { label: "Da consegnare",  className: "bg-amber-100 text-amber-700" },
   consegnato:      { label: "Consegnato",     className: "bg-sky-100 text-sky-700" },
-  in_valutazione:  { label: "In valutazione", className: "bg-indigo-100 text-indigo-700" },
+  in_valutazione:  { label: "In valutazione", className: "bg-blue-50 text-[#173b67] border border-blue-200" },
   accettato:       { label: "Accettato",      className: "bg-orange-100 text-orange-600" },
   rifiutato:       { label: "Rifiutato",      className: "bg-rose-100 text-rose-700" },
   scaduto:         { label: "Scaduto",        className: "bg-slate-100 text-slate-500" },
@@ -121,10 +121,13 @@ export default function SerramentiIndex() {
             <p className="text-2xl font-bold mt-1 text-slate-600">{stats.bozze}</p>
           </CardContent>
         </Card>
-        <Card>
+        {/* "In valutazione" usa il blu navy brand (#173b67) come accent
+            sul border-left, coerente con il "blu di stato neutro" della
+            piattaforma (vs. arancione = chiusura positiva). */}
+        <Card className="border-l-4 border-l-[#173b67] border-slate-200">
           <CardContent className="p-4">
             <p className="text-[11px] text-muted-foreground uppercase tracking-wide">In valutazione</p>
-            <p className="text-2xl font-bold mt-1 text-sky-700">{stats.consegnati}</p>
+            <p className="text-2xl font-bold mt-1 text-[#173b67]">{stats.consegnati}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-orange-50 to-white border-orange-200">
