@@ -116,7 +116,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
         <Button
           onClick={() => setTariffaPickerOpen(true)}
           variant="outline"
-          className="flex-1 gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+          className="flex-1 gap-1 border-orange-300 text-orange-600 hover:bg-orange-50"
           disabled={addMut.isPending}
         >
           <Settings className="h-4 w-4" /> Da listino tariffe
@@ -186,7 +186,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
                         className="h-8 text-xs w-24"
                       />
                     </TableCell>
-                    <TableCell className="text-xs font-semibold text-orange-700">
+                    <TableCell className="text-xs font-semibold text-orange-600">
                       {formatEuro(r.prezzo_totale_vendita)}
                     </TableCell>
                     <TableCell>
@@ -323,7 +323,7 @@ function TariffaPickerDialog({
                       </div>
                       <div className="text-right shrink-0">
                         {t.prezzo_vendita != null && (
-                          <p className="text-sm font-bold text-orange-700 tabular-nums">
+                          <p className="text-sm font-bold text-orange-600 tabular-nums">
                             € {Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
                           </p>
                         )}

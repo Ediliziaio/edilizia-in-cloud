@@ -6,7 +6,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   listProgetti, getProgetto, createProgetto, updateProgetto, deleteProgetto,
-  createProgettoDaSopralluogo,
   addSerramento, updateSerramento, deleteSerramento,
   addAccessorio, updateAccessorio, deleteAccessorio,
   getTemplatePdf, upsertTemplatePdf,
@@ -17,7 +16,7 @@ import {
   listListinoFamilies, listGrigliaByFamily,
   listMacrocategorie, listCategorieByMacro,
   listMacroFields, createMacroField, updateMacroField, deleteMacroField,
-  seedMacroFieldsFromVertical, updateMacrocategoriaVerticali,
+  seedMacroFieldsFromVertical,
   listTariffeManodopera, addManodopera, updateManodopera, deleteManodopera,
   type SrCreateProgettoInput,
   type UploadMediaInput,
@@ -60,19 +59,6 @@ export function useCreateProgetto() {
       toast.success("Progetto creato");
     },
     onError: (e) => toast.error("Creazione progetto fallita", { description: String(e) }),
-  });
-}
-
-export function useCreateProgettoDaSopralluogo() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ sopralluogo_id, cliente_id }: { sopralluogo_id: string; cliente_id?: string }) =>
-      createProgettoDaSopralluogo(sopralluogo_id, cliente_id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["sr-progetti"] });
-      toast.success("Progetto creato dal sopralluogo");
-    },
-    onError: (e) => toast.error("Creazione da sopralluogo fallita", { description: String(e) }),
   });
 }
 
@@ -342,19 +328,6 @@ export function useSeedMacroFields(macroId: string | null | undefined) {
       toast.success(`${count} campi standard aggiunti alla scheda tecnica`);
     },
     onError: (e) => toast.error("Bootstrap scheda tecnica fallito", { description: String(e) }),
-  });
-}
-
-export function useUpdateMacroVerticali() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ macroId, verticali }: { macroId: string; verticali: string[] }) =>
-      updateMacrocategoriaVerticali(macroId, verticali),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["sr-listino-macrocategorie"] });
-      toast.success("Verticali aggiornati");
-    },
-    onError: (e) => toast.error("Aggiornamento verticali fallito", { description: String(e) }),
   });
 }
 

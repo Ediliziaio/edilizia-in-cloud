@@ -116,7 +116,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
             variant="outline"
             className="flex-1 gap-2 border-orange-300 hover:bg-orange-50"
           >
-            <Sparkles className="h-4 w-4 text-orange-700" />
+            <Sparkles className="h-4 w-4 text-orange-600" />
             Importa render esistente
           </Button>
           <Button asChild variant="outline" className="flex-1 gap-2">
@@ -145,7 +145,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
                 >
                   <X className="h-3 w-3" />
                 </button>
-                <div className="absolute bottom-0 left-0 right-0 bg-orange-700/90 text-white text-[10px] px-2 py-0.5 font-semibold">
+                <div className="absolute bottom-0 left-0 right-0 bg-orange-500/90 text-white text-[10px] px-2 py-0.5 font-semibold">
                   ✨ Render AI
                 </div>
               </div>
@@ -280,7 +280,7 @@ function ImportRenderDialog({
             <p className="text-sm text-muted-foreground mb-3">
               Non hai ancora generato nessun render. Vai al modulo Render Infissi per crearne uno.
             </p>
-            <Button asChild className="bg-orange-700 hover:bg-orange-800">
+            <Button asChild className="bg-orange-500 hover:bg-orange-600">
               <a href="/azienda/render/nuovo" target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-1" />
                 Apri modulo Render

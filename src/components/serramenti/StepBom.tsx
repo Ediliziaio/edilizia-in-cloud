@@ -201,7 +201,7 @@ export function StepBom({ progettoId, detail }: Props) {
         <div className="flex flex-col sm:flex-row gap-2 mb-3">
           <Button
             onClick={() => setListinoOpen(true)}
-            className="flex-1 bg-orange-700 hover:bg-orange-800 gap-1"
+            className="flex-1 bg-orange-500 hover:bg-orange-600 gap-1"
             disabled={addMut.isPending}
           >
             <Package className="h-4 w-4" /> Aggiungi dal listino
@@ -348,7 +348,7 @@ export function StepBom({ progettoId, detail }: Props) {
               Aggiungi in coda
             </Button>
             <AlertDialogAction
-              className="bg-orange-700 hover:bg-orange-800"
+              className="bg-orange-500 hover:bg-orange-600"
               disabled={importMut.isPending}
               onClick={(e) => {
                 e.preventDefault();
@@ -444,7 +444,7 @@ function SerramentoRow({
             className="flex items-center gap-2 flex-wrap flex-1 min-w-0 text-left cursor-pointer"
             aria-expanded={expanded}
           >
-            <span className="h-6 w-6 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-[11px] font-bold shrink-0">
+            <span className="h-6 w-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-[11px] font-bold shrink-0">
               {index + 1}
             </span>
             <span className="flex-1 min-w-0">
@@ -461,12 +461,12 @@ function SerramentoRow({
               </span>
             )}
             {mq > 0 && (
-              <span className="text-[11px] font-normal text-orange-700">
+              <span className="text-[11px] font-normal text-orange-600">
                 {mq.toFixed(2)} m²
               </span>
             )}
             {s.prezzo_totale && (
-              <span className="font-semibold text-orange-700">{formatEuro(s.prezzo_totale)}</span>
+              <span className="font-semibold text-orange-600">{formatEuro(s.prezzo_totale)}</span>
             )}
           </button>
 
@@ -527,7 +527,7 @@ function SerramentoRow({
           {isFromListino && macroId && family && Object.keys(family.custom_field_values ?? {}).length > 0 && (
             <div className="col-span-12">
               <div className="rounded-md border border-orange-100 bg-orange-50/40 p-2.5">
-                <div className="text-[10px] uppercase tracking-wide text-orange-700 font-semibold mb-1.5 flex items-center gap-1">
+                <div className="text-[10px] uppercase tracking-wide text-orange-600 font-semibold mb-1.5 flex items-center gap-1">
                   <Sparkles className="h-3 w-3" />
                   Caratteristiche da listino
                 </div>
@@ -649,7 +649,7 @@ function SerramentoRow({
             <Label className="text-xs flex items-center justify-between">
               <span>Prezzo unitario (€)</span>
               {isFromListino && (
-                <Badge variant="outline" className="text-[10px] h-4 px-1 border-orange-200 bg-orange-50 text-orange-700">
+                <Badge variant="outline" className="text-[10px] h-4 px-1 border-orange-200 bg-orange-50 text-orange-600">
                   da listino
                 </Badge>
               )}

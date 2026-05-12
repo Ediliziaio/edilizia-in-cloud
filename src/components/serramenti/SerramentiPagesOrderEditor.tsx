@@ -121,14 +121,14 @@ function SerramentiPagesOrderEditorImpl({ value, onChange }: Props) {
         <div className="h-9 w-9 rounded-md bg-orange-500 text-white flex items-center justify-center font-bold text-sm shrink-0">
           1
         </div>
-        <ImageIcon className="h-4 w-4 text-orange-700 shrink-0" />
+        <ImageIcon className="h-4 w-4 text-orange-600 shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-xs font-semibold">Cover (copertina)</div>
           <div className="text-[10px] text-muted-foreground">
             Sempre la prima pagina del PDF. Personalizzabile dalla tab "Cover".
           </div>
         </div>
-        <span className="text-[10px] text-orange-700 bg-orange-100 rounded px-1.5 py-0.5 font-medium shrink-0">
+        <span className="text-[10px] text-orange-600 bg-orange-100 rounded px-1.5 py-0.5 font-medium shrink-0">
           Fissa
         </span>
       </div>
@@ -221,7 +221,7 @@ function SortablePageItem({
       {/* Numero posizione */}
       <div className={
         "h-8 w-8 rounded-md flex items-center justify-center font-bold text-xs shrink-0 " +
-        (item.visible ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-400")
+        (item.visible ? "bg-orange-100 text-orange-600" : "bg-slate-100 text-slate-400")
       }>
         {item.visible ? position : "—"}
       </div>
@@ -231,7 +231,7 @@ function SortablePageItem({
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs font-semibold">{meta.label}</span>
           {meta.obbligatoria && (
-            <span className="text-[9px] text-orange-700 bg-orange-100 rounded px-1 py-0.5 font-medium">
+            <span className="text-[9px] text-orange-600 bg-orange-100 rounded px-1 py-0.5 font-medium">
               Obbligatoria
             </span>
           )}
@@ -277,7 +277,7 @@ function SortablePageItem({
           disabled={meta.obbligatoria}
           className={
             "h-7 w-7 " +
-            (meta.obbligatoria ? "" : item.visible ? "text-orange-700" : "text-slate-400")
+            (meta.obbligatoria ? "" : item.visible ? "text-orange-600" : "text-slate-400")
           }
           aria-label={item.visible ? "Nascondi pagina" : "Mostra pagina"}
           title={

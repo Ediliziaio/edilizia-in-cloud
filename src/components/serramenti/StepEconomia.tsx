@@ -302,7 +302,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
         {/* Regola sconto aziendale — auto-popola il campo "Sconto %" */}
         {discountRules.length > 0 && (
           <div className="mb-3 rounded-md border border-orange-200 bg-orange-50/50 p-3 space-y-2">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-orange-700">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-orange-600">
               <Tag className="h-3.5 w-3.5" />
               Regola sconto applicata
             </div>
@@ -334,7 +334,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
               </SelectContent>
             </Select>
             {selectedDiscountRule && (
-              <p className="text-[11px] text-orange-700">
+              <p className="text-[11px] text-orange-600">
                 Margine minimo richiesto: {selectedDiscountRule.margine_min_pct}% ·
                 Sconto max: {selectedDiscountRule.sconto_max_pct}%
                 {selectedDiscountRule.approva_oltre_pct != null
@@ -396,7 +396,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
                 {formatEuro(forbice.min)} – {formatEuro(forbice.max)}
                 <span className="text-xs font-normal opacity-70 ml-2">IVA inclusa</span>
               </p>
-              <p className="text-[10px] text-orange-700 mt-1">Media: {formatEuro(forbice.media)}</p>
+              <p className="text-[10px] text-orange-600 mt-1">Media: {formatEuro(forbice.media)}</p>
             </div>
           </div>
         </div>
@@ -410,7 +410,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
       >
         {/* Schema di alto livello — guida il template */}
         <div className="mb-4 rounded-md border border-orange-200 bg-orange-50/40 p-3 space-y-2">
-          <Label className="text-xs font-semibold text-orange-700 flex items-center gap-1.5">
+          <Label className="text-xs font-semibold text-orange-600 flex items-center gap-1.5">
             <CreditCard className="h-3.5 w-3.5" />
             Schema pagamento
           </Label>
@@ -426,7 +426,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
               ))}
             </SelectContent>
           </Select>
-          <p className="text-[11px] text-orange-700">{schemaCfg.description}</p>
+          <p className="text-[11px] text-orange-600">{schemaCfg.description}</p>
         </div>
 
         <div className="space-y-2">
@@ -500,7 +500,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
               <Plus className="h-3.5 w-3.5" /> Aggiungi step
             </Button>
             <div
-              className={`text-sm font-bold inline-flex items-center gap-1.5 ${milestonesOk ? "text-orange-700" : "text-amber-600"}`}
+              className={`text-sm font-bold inline-flex items-center gap-1.5 ${milestonesOk ? "text-orange-600" : "text-amber-600"}`}
               role="status"
               aria-live="polite"
             >
@@ -532,7 +532,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
             role="tab"
             aria-selected={finModalita === "tabella"}
             onClick={() => setFinModalita("tabella")}
-            className={`px-3 py-1 text-xs rounded transition-colors ${finModalita === "tabella" ? "bg-white shadow-sm font-semibold text-orange-700" : "text-muted-foreground hover:text-foreground"}`}
+            className={`px-3 py-1 text-xs rounded transition-colors ${finModalita === "tabella" ? "bg-white shadow-sm font-semibold text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
           >
             Da tabella configurata
           </button>
@@ -541,7 +541,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
             role="tab"
             aria-selected={finModalita === "manuale"}
             onClick={() => setFinModalita("manuale")}
-            className={`px-3 py-1 text-xs rounded transition-colors ${finModalita === "manuale" ? "bg-white shadow-sm font-semibold text-orange-700" : "text-muted-foreground hover:text-foreground"}`}
+            className={`px-3 py-1 text-xs rounded transition-colors ${finModalita === "manuale" ? "bg-white shadow-sm font-semibold text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
           >
             Manuale (TAN libero)
           </button>
@@ -563,7 +563,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
           </div>
           <div className="col-span-6 md:col-span-9">
             <Label className="text-xs">Importo finanziato</Label>
-            <div className="h-9 px-3 flex items-center text-sm font-semibold text-orange-700 bg-orange-50 rounded-md border border-orange-200">
+            <div className="h-9 px-3 flex items-center text-sm font-semibold text-orange-600 bg-orange-50 rounded-md border border-orange-200">
               {formatEuro(importoFinanziato)}
             </div>
           </div>
@@ -625,32 +625,32 @@ export function StepEconomia({ detail, form, onChange }: Props) {
                 <div className="col-span-12 mt-2 rounded-md border border-orange-300 bg-orange-50/50 p-3">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
                     <div>
-                      <p className="text-[10px] uppercase text-orange-700 font-semibold">Rata mensile</p>
+                      <p className="text-[10px] uppercase text-orange-600 font-semibold">Rata mensile</p>
                       <p className="text-2xl font-bold text-orange-900 tabular-nums">
                         {formatEuro(rigaTabellaScelta.importo_rata, 0)}
                       </p>
-                      <p className="text-[10px] text-orange-700">× {rigaTabellaScelta.numero_rate} rate</p>
+                      <p className="text-[10px] text-orange-600">× {rigaTabellaScelta.numero_rate} rate</p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase text-orange-700 font-semibold">TAN</p>
+                      <p className="text-[10px] uppercase text-orange-600 font-semibold">TAN</p>
                       <p className="text-lg font-bold text-orange-900 tabular-nums">
                         {rigaTabellaScelta.tan != null ? `${rigaTabellaScelta.tan}%` : "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase text-orange-700 font-semibold">TAEG</p>
+                      <p className="text-[10px] uppercase text-orange-600 font-semibold">TAEG</p>
                       <p className="text-lg font-bold text-orange-900 tabular-nums">
                         {rigaTabellaScelta.taeg != null ? `${rigaTabellaScelta.taeg}%` : "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase text-orange-700 font-semibold">Totale dovuto</p>
+                      <p className="text-[10px] uppercase text-orange-600 font-semibold">Totale dovuto</p>
                       <p className="text-lg font-bold text-orange-900 tabular-nums">
                         {formatEuro(rigaTabellaScelta.importo_totale_dovuto ?? rigaTabellaScelta.importo_rata * rigaTabellaScelta.numero_rate, 0)}
                       </p>
                     </div>
                   </div>
-                  <p className="text-[10px] text-center text-orange-700/80 mt-2">
+                  <p className="text-[10px] text-center text-orange-600/80 mt-2">
                     Valori letti dalla tabella ufficiale: TAN e TAEG sono pre-calcolati, niente input manuali.
                   </p>
                 </div>
@@ -673,7 +673,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
                 </div>
                 <div className="col-span-4 md:col-span-6">
                   <Label className="text-xs">Rata mensile</Label>
-                  <div className="h-9 px-3 flex items-center text-sm font-bold text-orange-700 bg-orange-50 rounded-md border border-orange-200">
+                  <div className="h-9 px-3 flex items-center text-sm font-bold text-orange-600 bg-orange-50 rounded-md border border-orange-200">
                     {formatEuro(finCalc.piani[0]?.rata_mese, 0)}/mese
                   </div>
                 </div>
@@ -692,7 +692,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
                 </div>
                 <div className="col-span-4 md:col-span-6">
                   <Label className="text-xs">Rata mensile</Label>
-                  <div className="h-9 px-3 flex items-center text-sm font-bold text-orange-700 bg-orange-50 rounded-md border border-orange-200">
+                  <div className="h-9 px-3 flex items-center text-sm font-bold text-orange-600 bg-orange-50 rounded-md border border-orange-200">
                     {formatEuro(finCalc.piani[1]?.rata_mese, 0)}/mese
                   </div>
                 </div>
@@ -906,9 +906,9 @@ export function StepEconomia({ detail, form, onChange }: Props) {
                     <TableCell className="text-xs font-semibold">{r.anno}</TableCell>
                     <TableCell className="text-xs">{formatEuro(r.risparmio_bolletta)}</TableCell>
                     <TableCell className="text-xs">{formatEuro(r.detrazione)}</TableCell>
-                    <TableCell className="text-xs font-semibold text-orange-700">{formatEuro(r.flusso_anno)}</TableCell>
+                    <TableCell className="text-xs font-semibold text-orange-600">{formatEuro(r.flusso_anno)}</TableCell>
                     <TableCell className="text-xs">{formatEuro(r.cumulato)}</TableCell>
-                    <TableCell className={`text-xs font-semibold ${r.netto >= 0 ? "text-orange-700" : "text-rose-600"}`}>
+                    <TableCell className={`text-xs font-semibold ${r.netto >= 0 ? "text-orange-600" : "text-rose-600"}`}>
                       {r.netto >= 0 ? "+" : ""}{formatEuro(r.netto)}
                     </TableCell>
                   </TableRow>
@@ -920,7 +920,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
       )}
 
       <div className="flex justify-end">
-        <Button onClick={handleSalvaCalcoli} className="bg-orange-700 hover:bg-orange-800">
+        <Button onClick={handleSalvaCalcoli} className="bg-orange-500 hover:bg-orange-600">
           Applica calcoli al progetto
         </Button>
       </div>

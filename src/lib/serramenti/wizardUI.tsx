@@ -5,7 +5,6 @@
  * coerenza estetica (tema verde elegante #2D7D5C come da PDF reference).
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
@@ -31,7 +30,7 @@ export function SrCard({ title, description, icon, className, children, variant 
       {(title || icon) && (
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base flex items-center gap-2">
-            {icon && <span className="text-orange-700">{icon}</span>}
+            {icon && <span className="text-orange-600">{icon}</span>}
             {title}
           </CardTitle>
           {description && (
@@ -106,28 +105,6 @@ export function SrCallout({ variant = "info", icon, title, children, className }
   );
 }
 
-// ─── SrBadgeStato: badge stato progetto ─────────────────────────────────────
-
-export const SR_STATO_BADGE: Record<string, { label: string; className: string }> = {
-  bozza:           { label: "Bozza",          className: "bg-slate-100 text-slate-700 border-slate-200" },
-  da_consegnare:   { label: "Da consegnare",  className: "bg-amber-100 text-amber-700 border-amber-200" },
-  consegnato:      { label: "Consegnato",     className: "bg-sky-100 text-sky-700 border-sky-200" },
-  in_valutazione:  { label: "In valutazione", className: "bg-indigo-100 text-indigo-700 border-indigo-200" },
-  accettato:       { label: "Accettato",      className: "bg-orange-100 text-orange-700 border-orange-200" },
-  rifiutato:       { label: "Rifiutato",      className: "bg-rose-100 text-rose-700 border-rose-200" },
-  scaduto:         { label: "Scaduto",        className: "bg-slate-100 text-slate-500 border-slate-200" },
-  archiviato:      { label: "Archiviato",     className: "bg-slate-100 text-slate-400 border-slate-200" },
-};
-
-export function SrBadgeStato({ stato }: { stato: string }) {
-  const cfg = SR_STATO_BADGE[stato] ?? SR_STATO_BADGE.bozza;
-  return (
-    <Badge variant="outline" className={cn("text-[10px]", cfg.className)}>
-      {cfg.label}
-    </Badge>
-  );
-}
-
 // ─── Format helpers ─────────────────────────────────────────────────────────
 
 export const formatEuro = (n: number | null | undefined, decimals = 0): string => {
@@ -154,6 +131,3 @@ export const formatNumero = (n: number | null | undefined, decimals = 0): string
   });
 };
 
-// Colore primario del modulo Serramenti (verde elegante dal PDF reference)
-export const SR_GREEN = "#2D7D5C";
-export const SR_GREEN_LIGHT = "#E8F3EE";

@@ -300,7 +300,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" className="gap-1 border-orange-300 text-orange-700 hover:bg-orange-50">
+          <Button size="sm" variant="outline" className="gap-1 border-orange-300 text-orange-600 hover:bg-orange-50">
             <Wand2 className="h-3.5 w-3.5" />
             {label}
           </Button>
@@ -373,7 +373,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       <div className="space-y-2">
         {items.map((item, idx) => (
           <div key={idx} className="flex items-start gap-2">
-            <span className="h-7 w-7 mt-1 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-bold shrink-0">
+            <span className="h-7 w-7 mt-1 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold shrink-0">
               {idx + 1}
             </span>
             <Input
@@ -470,7 +470,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             onClick={() => setPreviewOpen(true)}
             variant="outline"
             size="sm"
-            className="gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
+            className="gap-1.5 border-orange-300 text-orange-600 hover:bg-orange-50"
           >
             <Eye className="h-4 w-4" />
             <span className="hidden sm:inline">Anteprima PDF</span>
@@ -479,7 +479,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
           <Button
             onClick={handleSave}
             disabled={!dirty || upsertMut.isPending}
-            className="bg-orange-600 hover:bg-orange-700 gap-1"
+            className="bg-orange-600 hover:bg-orange-500 gap-1"
             size="sm"
           >
             {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -526,7 +526,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
               )}
               {uploadingLogo && (
                 <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin text-orange-700" />
+                  <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
                 </div>
               )}
             </div>
@@ -719,7 +719,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         <div className="flex justify-end mb-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="gap-1 border-orange-300 text-orange-700 hover:bg-orange-50">
+              <Button size="sm" variant="outline" className="gap-1 border-orange-300 text-orange-600 hover:bg-orange-50">
                 <Wand2 className="h-3.5 w-3.5" />
                 Carica recensioni di esempio
               </Button>
@@ -783,7 +783,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
           {testimonianze.map((t, idx) => (
             <Card key={idx} className="bg-orange-50/30 border-orange-200">
               <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs uppercase tracking-wide text-orange-700">
+                <CardTitle className="text-xs uppercase tracking-wide text-orange-600">
                   Recensione {idx + 1}
                 </CardTitle>
                 <Button size="sm" variant="ghost" onClick={() => setDelTestIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
@@ -1191,7 +1191,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
 
             {/* ─── Tipografia & layout cover ────────────────────────────── */}
             <div className="mt-2 rounded-lg border bg-muted/20 p-3 space-y-3">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-700">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-600">
                 Tipografia &amp; layout
               </div>
               <div className="grid grid-cols-12 gap-3">
@@ -1341,7 +1341,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
           {/* ═══ CHI SIAMO ═══════════════════════════════════════════════════ */}
           <TabsContent value="chi-siamo" className="mt-4 space-y-2">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+              <div className="text-xs font-semibold uppercase tracking-wide text-orange-600">
                 Pagina "Chi siamo" (opzionale, dopo cover)
               </div>
               <label className="flex items-center gap-1.5 cursor-pointer text-xs">
@@ -1451,7 +1451,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
 
           {/* ═══ CONSULENTE ══════════════════════════════════════════════════ */}
           <TabsContent value="consulente" className="mt-4 space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+            <div className="text-xs font-semibold uppercase tracking-wide text-orange-600">
               Sezione "La tua consulenza"
             </div>
             <Label className="text-xs">Descrizione del consulente (mostrata sotto nome + ruolo)</Label>
@@ -1472,7 +1472,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
           {/* ═══ RECENSIONI ══════════════════════════════════════════════════ */}
           <TabsContent value="recensioni" className="mt-4 space-y-1">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+              <div className="text-xs font-semibold uppercase tracking-wide text-orange-600">
                 Recensioni nel PDF
               </div>
               <label className="flex items-center gap-1.5 cursor-pointer text-xs">
@@ -1493,7 +1493,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
 
           {/* ═══ RENDER AI ═══════════════════════════════════════════════════ */}
           <TabsContent value="render" className="mt-4 space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+            <div className="text-xs font-semibold uppercase tracking-wide text-orange-600">
               Disclaimer Render AI
             </div>
             <Label className="text-xs">Testo legale sotto i render AI (lascia vuoto per il default)</Label>
@@ -1508,7 +1508,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
 
           {/* ═══ CTA FINALE ══════════════════════════════════════════════════ */}
           <TabsContent value="cta" className="mt-4 space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+            <div className="text-xs font-semibold uppercase tracking-wide text-orange-600">
               Box CTA finale "Cosa fare adesso"
             </div>
             <div className="grid grid-cols-12 gap-3">
@@ -1736,7 +1736,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
           {/* ═══ ORDINE PAGINE ═══════════════════════════════════════════════ */}
           <TabsContent value="ordine-pagine" className="mt-4">
             <div className="space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+              <div className="text-xs font-semibold uppercase tracking-wide text-orange-600">
                 Ordine e visibilità delle pagine
               </div>
               <p className="text-[11px] text-muted-foreground">
@@ -1827,7 +1827,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         <Button
           onClick={handleSave}
           disabled={!dirty || upsertMut.isPending}
-          className="bg-orange-600 hover:bg-orange-700 gap-1 shadow-lg"
+          className="bg-orange-600 hover:bg-orange-500 gap-1 shadow-lg"
           size="lg"
         >
           {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

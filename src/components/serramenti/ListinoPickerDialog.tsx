@@ -300,10 +300,10 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             )}
-            {effectiveStep === "macro" && <Layers className="h-4 w-4 text-orange-700 shrink-0" />}
-            {effectiveStep === "categoria" && <FolderOpen className="h-4 w-4 text-orange-700 shrink-0" />}
-            {effectiveStep === "famiglia" && <Package className="h-4 w-4 text-orange-700 shrink-0" />}
-            {effectiveStep === "misure" && <Ruler className="h-4 w-4 text-orange-700 shrink-0" />}
+            {effectiveStep === "macro" && <Layers className="h-4 w-4 text-orange-600 shrink-0" />}
+            {effectiveStep === "categoria" && <FolderOpen className="h-4 w-4 text-orange-600 shrink-0" />}
+            {effectiveStep === "famiglia" && <Package className="h-4 w-4 text-orange-600 shrink-0" />}
+            {effectiveStep === "misure" && <Ruler className="h-4 w-4 text-orange-600 shrink-0" />}
             <span className="flex-1">
               {effectiveStep === "macro" && "Scegli macrocategoria"}
               {effectiveStep === "categoria" && (selectedMacro?.nome ?? "Scegli categoria")}
@@ -383,7 +383,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                           <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{m.descrizione}</p>
                         )}
                       </div>
-                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-700 mt-1 shrink-0" />
+                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-600 mt-1 shrink-0" />
                     </div>
                   </button>
                 ))}
@@ -434,7 +434,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                           <p className="text-[11px] text-muted-foreground line-clamp-1">{c.descrizione}</p>
                         )}
                       </div>
-                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-700 mt-0.5 shrink-0" />
+                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-600 mt-0.5 shrink-0" />
                     </div>
                   </button>
                 ))}
@@ -481,7 +481,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                         <p className="text-[10px] text-muted-foreground line-clamp-2 leading-tight">{f.descrizione}</p>
                       )}
                       <div className="flex flex-wrap gap-1 mt-auto pt-1 text-[9px]">
-                        <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">
+                        <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">
                           {MODALITA_LABEL[f.modalita_prezzo_base ?? "pz"]}
                         </span>
                         {f.prezzo_base_vendita != null && Number(f.prezzo_base_vendita) > 0 && (
@@ -502,7 +502,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
         {effectiveStep === "misure" && selectedFamily && (
           <div className="space-y-3">
             <Card className="bg-orange-50/30 border-orange-200 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-orange-700 font-semibold mb-1">
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 font-semibold mb-1">
                 Listino: {MODALITA_LABEL[selectedFamily.modalita_prezzo_base ?? "pz"]}
               </p>
               <p className="text-xs text-orange-900">
@@ -570,7 +570,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
             {/* Riepilogo calcolo — il commerciale vede solo il totale, niente posa esposta */}
             {calcolo && (
               <Card className="border-orange-300 bg-orange-50/50 p-4">
-                <p className="text-[11px] uppercase tracking-wide text-orange-700 font-semibold mb-2 flex items-center gap-1">
+                <p className="text-[11px] uppercase tracking-wide text-orange-600 font-semibold mb-2 flex items-center gap-1">
                   <Calculator className="h-3.5 w-3.5" /> Calcolo prezzo
                 </p>
                 <div className="space-y-1 text-xs">
@@ -579,7 +579,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                   )}
                   <div className="border-t border-orange-300 pt-2 mt-2 flex justify-between items-center">
                     <span className="font-bold text-orange-900">Totale posizione</span>
-                    <span className="text-xl font-bold text-orange-700 tabular-nums">
+                    <span className="text-xl font-bold text-orange-600 tabular-nums">
                       € {calcolo.totale.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -606,7 +606,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
             {effectiveStep === "misure" && (
               <Button
                 onClick={handleConferma}
-                className="bg-orange-700 hover:bg-orange-800"
+                className="bg-orange-500 hover:bg-orange-600"
                 disabled={
                   (richiedeMisure && (!larghezza || !altezza))
                   || !calcolo || calcolo.totale <= 0

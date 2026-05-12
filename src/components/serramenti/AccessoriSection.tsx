@@ -107,7 +107,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
                 <Button
                   size="sm"
                   onClick={() => setCopyDialogOpen(true)}
-                  className="bg-orange-700 hover:bg-orange-800 gap-1.5"
+                  className="bg-orange-500 hover:bg-orange-600 gap-1.5"
                 >
                   <Copy className="h-4 w-4" />
                   Copia misure dai serramenti ({serramenti.length})
@@ -234,7 +234,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
                           className="h-8 text-xs w-24"
                         />
                       </TableCell>
-                      <TableCell className="text-xs font-semibold text-orange-700">
+                      <TableCell className="text-xs font-semibold text-orange-600">
                         {formatEuro(a.prezzo_totale)}
                       </TableCell>
                       <TableCell>
@@ -378,7 +378,7 @@ function CopyMisureDialog({
         <DialogHeader>
           <div className="flex items-start gap-3">
             <div className="h-9 w-9 rounded-lg bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center shrink-0">
-              <Layers className="h-4.5 w-4.5 text-orange-700 dark:text-orange-400" />
+              <Layers className="h-4.5 w-4.5 text-orange-600 dark:text-orange-400" />
             </div>
             <div>
               <DialogTitle>Copia misure dai serramenti</DialogTitle>
@@ -474,7 +474,7 @@ function CopyMisureDialog({
           <Button
             onClick={handleCopy}
             disabled={selected.size === 0 || addMut.isPending}
-            className="bg-orange-700 hover:bg-orange-800 gap-1.5"
+            className="bg-orange-500 hover:bg-orange-600 gap-1.5"
           >
             {addMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             <Copy className="h-4 w-4" />

@@ -421,7 +421,7 @@ function SerramentiConversionEditorImpl({ form, update }: Props) {
           {faqItems.map((f, idx) => (
             <div key={idx} className="rounded-lg border bg-card p-2.5 space-y-2">
               <div className="flex items-center gap-2">
-                <span className="h-6 w-6 rounded-full bg-orange-100 text-orange-700 text-xs font-bold flex items-center justify-center shrink-0">
+                <span className="h-6 w-6 rounded-full bg-orange-100 text-orange-600 text-xs font-bold flex items-center justify-center shrink-0">
                   {idx + 1}
                 </span>
                 <Input

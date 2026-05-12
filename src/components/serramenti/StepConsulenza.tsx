@@ -92,7 +92,7 @@ export function StepConsulenza({ form, onChange }: Props) {
         <div className="space-y-2">
           {[0, 1, 2, 3].map((idx) => (
             <div key={idx} className="flex items-center gap-2">
-              <span className="h-7 w-7 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-bold shrink-0">
+              <span className="h-7 w-7 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold shrink-0">
                 {idx + 1}
               </span>
               <Input

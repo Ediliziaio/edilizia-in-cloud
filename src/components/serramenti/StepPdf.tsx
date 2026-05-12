@@ -141,18 +141,18 @@ export function StepPdf({ progettoId, detail }: Props) {
           </div>
           <div className="border-l-4 border-orange-200 pl-3 py-1">
             <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Pagina 2 — Investimento</p>
-            <p className="text-sm font-bold text-orange-700">
+            <p className="text-sm font-bold text-orange-600">
               {p.totale_min && p.totale_max
                 ? `${formatEuro(p.totale_min)} – ${formatEuro(p.totale_max)}`
                 : "(da calcolare)"}
             </p>
             {p.risparmio_calcolato && p.risparmio_eur_anno && (
-              <p className="text-xs text-orange-700 mt-1">
+              <p className="text-xs text-orange-600 mt-1">
                 ⚡ Risparmio: {formatEuro(p.risparmio_eur_anno)}/anno
               </p>
             )}
             {p.detrazione_aliquota && (
-              <p className="text-xs text-orange-700">
+              <p className="text-xs text-orange-600">
                 🏛 Detrazione {formatNumero(p.detrazione_aliquota)}%: {formatEuro(p.detrazione_eur_totale)}
               </p>
             )}
@@ -202,7 +202,7 @@ export function StepPdf({ progettoId, detail }: Props) {
           <Button
             onClick={handleDownloadNative}
             disabled={!ready || isGeneratingPdf}
-            className="flex-1 bg-orange-700 hover:bg-orange-800 gap-2"
+            className="flex-1 bg-orange-500 hover:bg-orange-600 gap-2"
             size="lg"
           >
             {isGeneratingPdf ? (
@@ -242,7 +242,7 @@ export function StepPdf({ progettoId, detail }: Props) {
           <Button
             onClick={() => generaPdfMut.mutate()}
             disabled={!ready || generaPdfMut.isPending}
-            className="flex-1 bg-orange-700 hover:bg-orange-800 gap-2"
+            className="flex-1 bg-orange-500 hover:bg-orange-600 gap-2"
           >
             {generaPdfMut.isPending
               ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -290,7 +290,7 @@ export function StepPdf({ progettoId, detail }: Props) {
                 </a>
               </Button>
             </div>
-            <p className="text-[10px] text-orange-700 mt-1.5">
+            <p className="text-[10px] text-orange-600 mt-1.5">
               Il cliente può aprire il preventivo senza login e firmare digitalmente. Il QR code è già nel PDF.
             </p>
           </div>
@@ -313,7 +313,7 @@ export function StepPdf({ progettoId, detail }: Props) {
         {p.ordine_id ? (
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <p className="text-sm font-semibold flex items-center gap-1.5 text-orange-700">
+              <p className="text-sm font-semibold flex items-center gap-1.5 text-orange-600">
                 <Check className="h-4 w-4" /> Già convertita in commessa
               </p>
               <p className="text-[11px] text-muted-foreground">Stato progetto: <strong>{p.stato}</strong></p>
@@ -332,7 +332,7 @@ export function StepPdf({ progettoId, detail }: Props) {
             <Button
               onClick={() => convertiMut.mutate()}
               disabled={convertiMut.isPending || !ready}
-              className="w-full bg-orange-700 hover:bg-orange-800 gap-2"
+              className="w-full bg-orange-500 hover:bg-orange-600 gap-2"
             >
               {convertiMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
               Crea commessa da questa stima

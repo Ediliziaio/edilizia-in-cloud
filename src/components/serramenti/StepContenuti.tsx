@@ -143,7 +143,7 @@ function ObjectItemsPicker({
                   <p className={"text-sm font-semibold " + (isSelected ? "text-orange-900" : "text-slate-900")}>
                     {emoji} {it.titolo || <span className="italic text-muted-foreground">(senza titolo)</span>}
                   </p>
-                  <p className={"text-xs mt-0.5 " + (isSelected ? "text-orange-700" : "text-slate-600")}>
+                  <p className={"text-xs mt-0.5 " + (isSelected ? "text-orange-600" : "text-slate-600")}>
                     {it.descrizione}
                   </p>
                 </div>
@@ -398,7 +398,7 @@ export function StepContenuti({ form, onChange }: Props) {
       key: "esigenze",
       title: "Esigenze del cliente",
       emoji: "💬",
-      icon: <MessageCircle className="h-4 w-4 text-orange-700" />,
+      icon: <MessageCircle className="h-4 w-4 text-orange-600" />,
       count: selEsigenze.length,
       total: templateEsigenze.length,
       body: (
@@ -417,7 +417,7 @@ export function StepContenuti({ form, onChange }: Props) {
       key: "soluzione",
       title: "Soluzione proposta",
       emoji: "✨",
-      icon: <Sparkles className="h-4 w-4 text-orange-700" />,
+      icon: <Sparkles className="h-4 w-4 text-orange-600" />,
       count: selSoluzione.length,
       total: templateSoluzione.length,
       body: (
@@ -436,7 +436,7 @@ export function StepContenuti({ form, onChange }: Props) {
       key: "perche_noi",
       title: "Perché scegliere noi (USP)",
       emoji: "🏆",
-      icon: <ListChecks className="h-4 w-4 text-orange-700" />,
+      icon: <ListChecks className="h-4 w-4 text-orange-600" />,
       count: selPercheNoi.length,
       total: templatePercheNoi.length,
       body: (
@@ -454,7 +454,7 @@ export function StepContenuti({ form, onChange }: Props) {
       key: "incluso",
       title: "Cosa è incluso nell'investimento",
       emoji: "✅",
-      icon: <ListChecks className="h-4 w-4 text-orange-700" />,
+      icon: <ListChecks className="h-4 w-4 text-orange-600" />,
       count: selIncluso.length,
       total: templateIncluso.length,
       body: (
@@ -472,7 +472,7 @@ export function StepContenuti({ form, onChange }: Props) {
       key: "prossimi_passi",
       title: "Prossimi passi",
       emoji: "👣",
-      icon: <ListChecks className="h-4 w-4 text-orange-700" />,
+      icon: <ListChecks className="h-4 w-4 text-orange-600" />,
       count: selPassi.length,
       total: templatePassi.length,
       body: (
@@ -515,7 +515,7 @@ export function StepContenuti({ form, onChange }: Props) {
             <Button
               size="sm"
               onClick={preselezionaTutto}
-              className="bg-orange-700 hover:bg-orange-800 gap-1 shrink-0"
+              className="bg-orange-500 hover:bg-orange-600 gap-1 shrink-0"
             >
               <ChevronRight className="h-3.5 w-3.5" />
               {hasAnySelection ? "Riapplica tutto" : "Applica tutto"}
@@ -542,7 +542,7 @@ export function StepContenuti({ form, onChange }: Props) {
                     <span className={
                       "text-[10px] px-2 py-0.5 rounded-full font-semibold ml-auto mr-2 " +
                       (s.count > 0
-                        ? "bg-orange-100 text-orange-700"
+                        ? "bg-orange-100 text-orange-600"
                         : "bg-slate-100 text-slate-500")
                     }>
                       {s.count} di {s.total + Math.max(0, s.count - s.total)} scelte

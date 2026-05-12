@@ -35,7 +35,7 @@ const STATI_LABEL: Record<string, { label: string; className: string }> = {
   da_consegnare:   { label: "Da consegnare",  className: "bg-amber-100 text-amber-700" },
   consegnato:      { label: "Consegnato",     className: "bg-sky-100 text-sky-700" },
   in_valutazione:  { label: "In valutazione", className: "bg-indigo-100 text-indigo-700" },
-  accettato:       { label: "Accettato",      className: "bg-orange-100 text-orange-700" },
+  accettato:       { label: "Accettato",      className: "bg-orange-100 text-orange-600" },
   rifiutato:       { label: "Rifiutato",      className: "bg-rose-100 text-rose-700" },
   scaduto:         { label: "Scaduto",        className: "bg-slate-100 text-slate-500" },
   archiviato:      { label: "Archiviato",     className: "bg-slate-100 text-slate-400" },
@@ -79,7 +79,7 @@ export default function SerramentiIndex() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <RectangleVertical className="h-6 w-6 text-orange-700" />
+            <RectangleVertical className="h-6 w-6 text-orange-600" />
             Stima Serramenti
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -98,7 +98,7 @@ export default function SerramentiIndex() {
           </Button>
           <Button
             onClick={() => navigate("/azienda/serramenti/nuovo")}
-            className="bg-orange-700 hover:bg-orange-800 gap-2"
+            className="bg-orange-500 hover:bg-orange-600 gap-2"
             size="lg"
           >
             <Plus className="h-4 w-4" />
@@ -130,7 +130,7 @@ export default function SerramentiIndex() {
         <Card className="bg-gradient-to-br from-orange-50 to-white border-orange-200">
           <CardContent className="p-4">
             <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Accettati</p>
-            <p className="text-2xl font-bold mt-1 text-orange-700">{stats.accettati}</p>
+            <p className="text-2xl font-bold mt-1 text-orange-600">{stats.accettati}</p>
             {stats.valore > 0 && (
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 € {stats.valore.toLocaleString("it-IT", { maximumFractionDigits: 0 })}
@@ -214,7 +214,7 @@ export default function SerramentiIndex() {
                 <div className="flex gap-2 justify-center flex-wrap">
                   <Button
                     onClick={() => navigate("/azienda/serramenti/nuovo")}
-                    className="bg-orange-700 hover:bg-orange-800 gap-2"
+                    className="bg-orange-500 hover:bg-orange-600 gap-2"
                   >
                     <Plus className="h-4 w-4" /> Crea la prima stima
                   </Button>
@@ -269,7 +269,7 @@ export default function SerramentiIndex() {
                         className="cursor-pointer hover:bg-orange-50/30"
                         onClick={() => navigate(`/azienda/serramenti/${p.id}/modifica`)}
                       >
-                        <TableCell className="font-mono text-xs font-semibold text-orange-700">
+                        <TableCell className="font-mono text-xs font-semibold text-orange-600">
                           {p.code}
                         </TableCell>
                         <TableCell className="text-xs">
@@ -304,7 +304,7 @@ export default function SerramentiIndex() {
                             {p.pdf_url && (
                               <Button asChild size="icon" variant="ghost" className="h-7 w-7">
                                 <a href={p.pdf_url} target="_blank" rel="noopener noreferrer" title="PDF">
-                                  <ExternalLink className="h-3.5 w-3.5 text-orange-700" />
+                                  <ExternalLink className="h-3.5 w-3.5 text-orange-600" />
                                 </a>
                               </Button>
                             )}
