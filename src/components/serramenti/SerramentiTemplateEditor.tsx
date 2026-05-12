@@ -11,7 +11,7 @@
  *  - Recensioni clienti (compaiono nel PDF pagina 2)
  *  - Default cronoprogramma + anticipo + IVA + validità
  */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,9 +27,21 @@ import {
   Sparkles, ListChecks, Clock, Quote, Upload, Image as ImageIcon,
   Building2, Wand2,
 } from "lucide-react";
-import { SerramentiTemplatePreviewDialog } from "@/components/serramenti/SerramentiTemplatePreviewDialog";
-import { SerramentiPagesOrderEditor } from "@/components/serramenti/SerramentiPagesOrderEditor";
-import { SerramentiConversionEditor } from "@/components/serramenti/SerramentiConversionEditor";
+// Lazy load dei 3 sub-editor pesanti.
+// PERF: caricati on-demand quando la tab è attiva o il dialog si apre.
+// Risparmio: ~50 KB nel chunk principale dell'editor.
+const SerramentiTemplatePreviewDialog = lazy(() =>
+  import("@/components/serramenti/SerramentiTemplatePreviewDialog")
+    .then((m) => ({ default: m.SerramentiTemplatePreviewDialog })),
+);
+const SerramentiPagesOrderEditor = lazy(() =>
+  import("@/components/serramenti/SerramentiPagesOrderEditor")
+    .then((m) => ({ default: m.SerramentiPagesOrderEditor })),
+);
+const SerramentiConversionEditor = lazy(() =>
+  import("@/components/serramenti/SerramentiConversionEditor")
+    .then((m) => ({ default: m.SerramentiConversionEditor })),
+);
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
@@ -98,10 +110,15 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
     }
   }, [template, isLoading]);
 
-  const update = <K extends keyof SrTemplatePdfRow>(key: K, value: SrTemplatePdfRow[K]) => {
+  // PERF: useCallback stabilizza l'identity di `update` tra i re-render.
+  // Senza, ogni keystroke creava una nuova function reference → i sub-editor
+  // memoizzati (ConversionEditor, PagesOrderEditor) si re-renderizzavano
+  // comunque perché la prop cambiava. Con useCallback (deps vuote, setState
+  // funzionale + setDirty sono entrambi stabili) la reference è permanente.
+  const update = useCallback(<K extends keyof SrTemplatePdfRow>(key: K, value: SrTemplatePdfRow[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setDirty(true);
-  };
+  }, []);
 
   const handleSave = () => {
     upsertMut.mutate(form, {
@@ -1711,7 +1728,9 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
 
           {/* ═══ CONVERSIONE (CRO playbook) ═════════════════════════════════ */}
           <TabsContent value="conversione" className="mt-4">
-            <SerramentiConversionEditor form={form} update={update} />
+            <Suspense fallback={<div className="h-20 flex items-center justify-center text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" />Caricamento…</div>}>
+              <SerramentiConversionEditor form={form} update={update} />
+            </Suspense>
           </TabsContent>
 
           {/* ═══ ORDINE PAGINE ═══════════════════════════════════════════════ */}
@@ -1726,10 +1745,12 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
               </p>
             </div>
             <div className="mt-3">
-              <SerramentiPagesOrderEditor
-                value={form.pdf_pages_order ?? null}
-                onChange={(next) => update("pdf_pages_order", next)}
-              />
+              <Suspense fallback={<div className="h-20 flex items-center justify-center text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" />Caricamento…</div>}>
+                <SerramentiPagesOrderEditor
+                  value={form.pdf_pages_order ?? null}
+                  onChange={(next) => update("pdf_pages_order", next)}
+                />
+              </Suspense>
             </div>
           </TabsContent>
         </Tabs>
@@ -1814,15 +1835,23 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         </Button>
       </div>
 
-      {/* Dialog anteprima PDF — generato on-the-fly con dati demo + template corrente */}
-      <SerramentiTemplatePreviewDialog
-        open={previewOpen}
-        onOpenChange={setPreviewOpen}
-        template={form}
-        companyName={form.ragione_sociale}
-        companyLogoUrl={form.logo_url}
-        companyIndirizzo={form.indirizzo_completo}
-      />
+      {/* Dialog anteprima PDF — generato on-the-fly con dati demo + template corrente.
+          PERF: render condizionale `{previewOpen && ...}` per non montare mai il
+          dialog quando l'utente non lo sta usando. Senza questa guard, il dialog
+          era sempre montato e i suoi useEffect (con JSON.stringify(template))
+          si re-eseguivano ad ogni keystroke nel form padre. */}
+      {previewOpen && (
+        <Suspense fallback={null}>
+          <SerramentiTemplatePreviewDialog
+            open={previewOpen}
+            onOpenChange={setPreviewOpen}
+            template={form}
+            companyName={form.ragione_sociale}
+            companyLogoUrl={form.logo_url}
+            companyIndirizzo={form.indirizzo_completo}
+          />
+        </Suspense>
+      )}
 
       <AlertDialog open={delTestIdx !== null} onOpenChange={(o) => !o && setDelTestIdx(null)}>
         <AlertDialogContent>

@@ -152,18 +152,26 @@ export function SerramentiTemplatePreviewDialog({
     };
   }, [state]);
 
-  // Generate al mount + ad ogni cambio template (debounced)
+  // Generate UNA VOLTA all'apertura del dialog.
+  //
+  // PERF FIX: rimosso il live-update su `JSON.stringify(template)` che faceva
+  // serializzare l'intero template ad ogni keystroke nel form padre →
+  // re-render + rigenerazione PDF (740 KB di runtime) ad ogni carattere
+  // digitato. Latenza inputs orribile.
+  //
+  // Comportamento nuovo: alla apertura genera UNA volta; per aggiornare
+  // l'anteprima dopo modifiche, l'utente clicca esplicitamente "Aggiorna".
   useEffect(() => {
     if (!open) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       void generate();
-    }, 300);
+    }, 100);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, JSON.stringify(template)]);
+  }, [open]);
 
   // Cleanup blob URL alla chiusura del dialog
   useEffect(() => {
@@ -198,8 +206,8 @@ export function SerramentiTemplatePreviewDialog({
               <DialogTitle className="text-base">Anteprima PDF preventivo</DialogTitle>
               <DialogDescription className="text-xs mt-0.5">
                 Generato con dati cliente fittizi e tutte le personalizzazioni
-                correnti del template (anche quelle non ancora salvate). Si aggiorna
-                automaticamente quando modifichi i campi.
+                correnti del template (anche quelle non ancora salvate). Clicca
+                "Aggiorna" per rigenerare con le ultime modifiche.
               </DialogDescription>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">

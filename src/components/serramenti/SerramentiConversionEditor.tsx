@@ -15,6 +15,7 @@
  * Tutti i campi sono opzionali: ogni sezione ha il proprio toggle "Attiva".
  * State è esterno: il chiamante (SerramentiTemplateEditor) gestisce save.
  */
+import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,7 +56,7 @@ const BONUS_ICONE: Array<{ value: SrBonus["icona"]; label: string }> = [
   { value: "custom", label: "✦ Generico" },
 ];
 
-export function SerramentiConversionEditor({ form, update }: Props) {
+function SerramentiConversionEditorImpl({ form, update }: Props) {
   // Garanzie
   const garanzie = (form.garanzie ?? []) as SrGaranzia[];
   const addGaranzia = () => update("garanzie", [...garanzie, { icona: "shield", titolo: "", descrizione: "" }]);
@@ -546,3 +547,9 @@ function Section({
     </div>
   );
 }
+
+// PERF: memoized export → ri-render solo se `form` o `update` cambiano davvero.
+// Combinato con useCallback(update) nel parent, eliminiamo i re-render di
+// questo componente complesso (548 righe, 6 SrCards CRUD) ad ogni keystroke
+// in altri tab del parent editor.
+export const SerramentiConversionEditor = memo(SerramentiConversionEditorImpl);

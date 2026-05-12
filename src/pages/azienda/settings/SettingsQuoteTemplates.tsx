@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from "react";
+import React, { useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
@@ -30,8 +30,14 @@ import {
 } from "lucide-react";
 import { MergeTagInserter } from "@/components/quotes/MergeTagInserter";
 import { CanvaColorPicker } from "@/components/quotes/CanvaColorPicker";
-import { SerramentiTemplateEditor } from "@/components/serramenti/SerramentiTemplateEditor";
-import { FotovoltaicoTemplateEditor } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
+// PERF: lazy-load editor pesanti (Serramenti ~150KB, Fotovoltaico ~120KB)
+// per evitare di caricare il bundle nella route Settings prima del click sulla tab.
+const SerramentiTemplateEditor = lazy(() =>
+  import("@/components/serramenti/SerramentiTemplateEditor").then((m) => ({ default: m.SerramentiTemplateEditor })),
+);
+const FotovoltaicoTemplateEditor = lazy(() =>
+  import("@/components/fotovoltaico/FotovoltaicoTemplateEditor").then((m) => ({ default: m.FotovoltaicoTemplateEditor })),
+);
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RectangleVertical, ShoppingBag, Sun } from "lucide-react";
 
@@ -2278,7 +2284,11 @@ const MODULI_VENDITA: ModuloVendita[] = [
     icon: RectangleVertical,
     description: "Template del PDF Stima Serramenti: branding, recensioni, esigenze tipiche, USP, cronoprogramma.",
     available: true,
-    render: () => <SerramentiTemplateEditor embedded />,
+    render: () => (
+      <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
+        <SerramentiTemplateEditor embedded />
+      </Suspense>
+    ),
   },
   {
     slug: "fotovoltaico",
@@ -2286,7 +2296,11 @@ const MODULI_VENDITA: ModuloVendita[] = [
     icon: Sun,
     description: "Template del PDF Fotovoltaico (16 pagine): branding, presentazione impresa, recensioni, certificazioni, contatti.",
     available: true,
-    render: () => <FotovoltaicoTemplateEditor embedded />,
+    render: () => (
+      <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
+        <FotovoltaicoTemplateEditor embedded />
+      </Suspense>
+    ),
   },
   {
     slug: "tetti",

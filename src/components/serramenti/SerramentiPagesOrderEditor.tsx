@@ -12,6 +12,7 @@
  *
  * State è esterno: il chiamante (SerramentiTemplateEditor) gestisce salvataggio.
  */
+import { memo } from "react";
 import { GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +34,7 @@ interface Props {
   onChange: (next: SrPdfPageOrderItem[]) => void;
 }
 
-export function SerramentiPagesOrderEditor({ value, onChange }: Props) {
+function SerramentiPagesOrderEditorImpl({ value, onChange }: Props) {
   // Normalizziamo sempre: garantisce che tutte le pagine canoniche siano
   // presenti e che le obbligatorie abbiano visible=true.
   const items = normalizePdfPagesOrder(value);
@@ -291,3 +292,7 @@ function SortablePageItem({
     </div>
   );
 }
+
+
+// PERF: memoized export — re-render solo su cambio `value`/`onChange`.
+export const SerramentiPagesOrderEditor = memo(SerramentiPagesOrderEditorImpl);
