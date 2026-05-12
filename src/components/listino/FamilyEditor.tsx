@@ -1841,15 +1841,6 @@ export function FamilyEditor() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between border-b pb-1">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
-    </div>
-  );
-}
-
 // ── STEP 4: Manodopera (ex "Posa") ─────────────────────────────────────────
 //
 // Estratta in componente proprio per leggibilità: la logica ha tre branch

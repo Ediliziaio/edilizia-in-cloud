@@ -42,13 +42,22 @@ export function StepAccessori({ progettoId, detail }: Props) {
   //   - type='sr-render-completed' + sessionId -> chiude dialog + importa.
   // Sicurezza: filtro su `event.origin === window.location.origin`
   // (stessa origin per evitare injection cross-domain).
+  //
+  // PERF: il mutate viene letto via ref per evitare che il listener si
+  // ri-registri ad ogni render (importRenderMut e' un oggetto nuovo a
+  // ogni render del componente -> deps instabile).
+  const importRenderMutateRef = useRef(importRenderMut.mutate);
+  useEffect(() => {
+    importRenderMutateRef.current = importRenderMut.mutate;
+  }, [importRenderMut.mutate]);
+
   useEffect(() => {
     if (!builderDialogOpen) return;
     const handler = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return;
-      const data = e.data as { type?: string; sessionId?: string } | null;
+      const data = e.data as { type?: string; sessionId?: string; error?: string } | null;
       if (data?.type === "sr-render-completed" && data.sessionId) {
-        importRenderMut.mutate(
+        importRenderMutateRef.current(
           { render_session_id: data.sessionId, result_index: 0 },
           {
             onSuccess: () => {
@@ -58,10 +67,18 @@ export function StepAccessori({ progettoId, detail }: Props) {
           },
         );
       }
+      // Render fallito nell'iframe -> notifico l'utente nel parent ma
+      // NON chiudo il Dialog (cosi' l'utente puo' eventualmente riprovare
+      // dallo stesso wizard, o chiudere quando vuole).
+      if (data?.type === "sr-render-failed") {
+        toast.error("Render fallito", {
+          description: data.error ?? "Generazione del render non riuscita. Riprova o contatta il supporto.",
+        });
+      }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [builderDialogOpen, importRenderMut]);
+  }, [builderDialogOpen]);
 
   /**
    * handleFiles — accetta solo immagini ragionevoli (< 10 MB).

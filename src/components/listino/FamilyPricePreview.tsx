@@ -567,8 +567,6 @@ export function FamilyPricePreview({ family }: Props) {
             info={result.gridLookupInfo}
             requestedW={wMm}
             requestedH={hMm}
-            availableWidths={availableWidths}
-            availableHeights={availableHeights}
             onUseMax={
               result.outOfRange && availableWidths.length > 0 && availableHeights.length > 0
                 ? () => {
@@ -891,15 +889,11 @@ function GridStatusBanner({
   info,
   requestedW,
   requestedH,
-  availableWidths,
-  availableHeights,
   onUseMax,
 }: {
   info: GridLookupResult;
   requestedW: number;
   requestedH: number;
-  availableWidths?: number[];
-  availableHeights?: number[];
   onUseMax?: () => void;
 }) {
   if (info.kind === "exact") {

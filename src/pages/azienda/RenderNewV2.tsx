@@ -376,6 +376,19 @@ export default function RenderNewV2() {
         stopPolling();
         setGenerating(false);
         setGenerateError("Render fallito");
+        // EMBED MODE: notifica anche in caso di fallimento -> il parent
+        // (Dialog StepAccessori) puo' mostrare un banner errore e
+        // consentire all'utente di chiudere/riprovare.
+        if (isEmbed && typeof window !== "undefined" && window.parent !== window) {
+          try {
+            window.parent.postMessage(
+              { type: "sr-render-failed", sessionId: sid, error: "Render fallito" },
+              window.location.origin,
+            );
+          } catch (e) {
+            console.warn("[render-embed] postMessage failed", e);
+          }
+        }
         return;
       }
 
@@ -562,13 +575,19 @@ export default function RenderNewV2() {
     <div className="mx-auto max-w-5xl pb-8">
       <div className="mb-6 rounded-b-2xl bg-gradient-to-br from-slate-800 to-slate-700 px-5 py-5 text-white">
         <div className="flex items-center justify-between">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1 text-xs opacity-70 transition hover:opacity-100"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Indietro
-          </button>
+          {/* In embed mode il bottone "Indietro" navigherebbe la pagina
+              PARENT fuori dal Dialog -> dropped. L'utente chiude il
+              Dialog con X o tasto Esc. */}
+          {!isEmbed && (
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-1 text-xs opacity-70 transition hover:opacity-100"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Indietro
+            </button>
+          )}
+          {isEmbed && <div />}
           <Badge variant="secondary" className="gap-1 bg-white/15 text-white hover:bg-white/20">
             <Zap className="h-3 w-3" />
             Render AI — Infissi
