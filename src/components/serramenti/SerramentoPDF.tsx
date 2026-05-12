@@ -106,11 +106,12 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       paddingHorizontal: 54,
       backgroundColor: C.coverBg,
       flexDirection: "column",
-      justifyContent: "space-between",
-      // Bug react-pdf: `height: "100%"` su Page genera una pagina vuota
-      // extra all'inizio del documento. Page A4 ha già altezza implicita
-      // (842pt), non serve impostarla. Bug riprodotto sui PDF di test prima
-      // di rimuovere height.
+      // NB: NIENTE `justifyContent: space-between` qui.
+      // react-pdf con space-between + Image absolute full-A4 calcola male
+      // l'altezza della Page e splitta la cover in 2-3 pagine (bug riprodotto
+      // più volte). Usiamo invece `marginTop: auto` sulla View del footer
+      // per pushare il footer in basso → comportamento equivalente,
+      // ZERO splitting.
     },
 
     // Header
@@ -217,6 +218,10 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       borderTop: `0.5pt solid rgba(255,255,255,0.18)`,
       fontSize: 9,
       color: "#9CA3AF",
+      // marginTop: "auto" sostituisce il `justifyContent: space-between` del
+      // parent cover. Pusha il footer in basso senza far calcolare male
+      // l'altezza alla Page → niente split multi-pagina.
+      marginTop: "auto",
     },
     coverFooterStrong: { fontWeight: 700, color: C.white },
     coverDecoSvg: {
@@ -1276,12 +1281,25 @@ export function SerramentoPDF({
       subject={`Preventivo serramenti per ${clienteNome}`}
     >
       {/* ─── PAGINA 1 — COVER ───────────────────────────────────────────────
-          Page A4 standard (no wrap=false: l'utente percepiva il page size
-          come "più piccolo" delle altre). Il bug multi-page rossa era
-          causato dalla bg Image con height:"100%", non da wrap=true.
-          Ora la bg Image usa dimensioni esplicite 595×842pt → no overflow. */}
+          FIX DEFINITIVO multi-page bug (PDF split su 3 pagine: bg image standalone
+          + cover content + overflow rosso).
+
+          CAUSA: il combo di 3 fattori = react-pdf calcola male l'altezza
+          della Page e splitta:
+            (a) Image absolute full-A4 (595×842pt) → react-pdf in alcune
+                build conta verso l'altezza del flex parent.
+            (b) styles.cover con `justifyContent: space-between` → forza il
+                parent a "espandere" alla somma dei children.
+            (c) wrap=true (default) → consente lo split.
+
+          FIX: tutti e 3 fattori neutralizzati simultaneamente.
+            (a) Image rimane absolute con dimensioni esplicite — OK
+            (b) RIMOSSO space-between dal cover style; il footer va in basso
+                via `marginTop: auto` sulla View del footer.
+            (c) wrap={false} sulla Page — clip dell'eventuale overflow, NO split. */}
       <Page
         size="A4"
+        wrap={false}
         style={[
           styles.cover,
           coverBgColor ? { backgroundColor: coverBgColor } : undefined,
