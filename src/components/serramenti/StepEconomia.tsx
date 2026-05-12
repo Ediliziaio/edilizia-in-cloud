@@ -23,8 +23,10 @@ import {
 import {
   Euro, TrendingUp, Leaf, Calculator, Calendar, HelpCircle,
   Wallet, Tag, CreditCard, Plus, Trash2,
+  CheckCircle2, AlertTriangle, ShieldAlert, Info,
 } from "lucide-react";
 import { useDiscountRules } from "@/hooks/useDiscountRules";
+import { evaluateDiscountRules, classifyDiscount } from "@/lib/serramenti/discountRules";
 import {
   useTabelleFinanziamentoAttive,
   useTabellaFinanziamentoRighe,
@@ -92,13 +94,35 @@ export function StepEconomia({ detail, form, onChange }: Props) {
   }, [forbice.min, forbice.max]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Sconto: collegamento alle regole azienda ────────────────────────────
+  // Replica client-side del compute_max_discount SQL: valuta in tempo reale
+  // quale regola scatta sulla base di importo + tipo lavoro + (opz.) tags
+  // cliente. L'utente vede il verdetto live mentre digita lo sconto.
   const { data: discountRules = [] } = useDiscountRules();
-  // Quando l'utente seleziona una regola, auto-applichiamo sconto_max_pct
-  // come default editabile (l'utente può comunque alzare/abbassare).
-  const selectedDiscountRule = useMemo(
-    () => discountRules.find((r) => r.id === form.discount_rule_id) ?? null,
-    [discountRules, form.discount_rule_id],
+  const discountEval = useMemo(
+    () =>
+      evaluateDiscountRules(discountRules, {
+        importo: totaleCalc.imponibile_netto + totaleCalc.sconto, // subtotal pre-sconto
+        tipoLavoro: "serramenti",
+        // salespersonId/clientTags: non disponibili sul progetto serramenti,
+        // per ora solo regole "globale" e "per_cliente_cat" senza tag matchano.
+      }),
+    [discountRules, totaleCalc.imponibile_netto, totaleCalc.sconto],
   );
+  const scontoPctCorrente = Number(form.sconto_percentuale ?? 0);
+  const discountVerdict = useMemo(
+    () => classifyDiscount(scontoPctCorrente, discountEval),
+    [scontoPctCorrente, discountEval],
+  );
+
+  // Auto-bind la regola principale al progetto: salva discount_rule_id ↔
+  // primaryRule.id quando cambia. Permette al PDF e all'audit di sapere
+  // QUALE regola era attiva al momento del salvataggio.
+  useEffect(() => {
+    const targetId = discountEval.primaryRule?.id ?? null;
+    if ((form.discount_rule_id ?? null) !== targetId) {
+      onChange("discount_rule_id", targetId);
+    }
+  }, [discountEval.primaryRule?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Finanziamento ────────────────────────────────────────────────────────
   const [anticipoPct, setAnticipoPct] = useState(form.fin_anticipo_pct ?? 40);
@@ -347,58 +371,69 @@ export function StepEconomia({ detail, form, onChange }: Props) {
         description="Il prezzo definitivo si fissa con sopralluogo e scelta materiali. Mostra una forbice indicativa."
         icon={<Euro className="h-4 w-4" />}
       >
-        {/* Regola sconto aziendale — auto-popola il campo "Sconto %".
-            Blocco INFORMATIVO -> blu navy soft (non e' un CTA, non
-            deve competere con il box "Il tuo investimento stimato"
-            qui sotto che e' arancione). */}
-        {discountRules.length > 0 && (
-          <div className="mb-3 rounded-md border border-slate-200 bg-slate-50/60 border-l-4 border-l-[#173b67] p-3 space-y-2">
+        {/* ─── Regole scontistica aziendale ───────────────────────────────
+            Auto-binding live (mirror del compute_max_discount SQL):
+            mostra max sconto, soglia approvazione, margine min in base
+            all'importo del preventivo + tipo lavoro. Configurabile in
+            /azienda/impostazioni/scontistica. */}
+        <div className="mb-3 rounded-md border border-slate-200 bg-slate-50/60 border-l-4 border-l-[#173b67] p-3 space-y-2">
+          <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-[#173b67]">
               <Tag className="h-3.5 w-3.5" />
-              Regola sconto applicata
+              Regole scontistica aziendale
+              {discountEval.isFallback ? (
+                <span className="ml-1 text-[10px] font-normal text-slate-500">
+                  · fallback (nessuna regola matcha → max 10%)
+                </span>
+              ) : (
+                <span className="ml-1 text-[10px] font-normal text-slate-500">
+                  · {discountEval.matchingRules.length} regol{discountEval.matchingRules.length > 1 ? "e" : "a"} attiv{discountEval.matchingRules.length > 1 ? "e" : "a"}
+                </span>
+              )}
             </div>
-            <Select
-              value={form.discount_rule_id ?? "none"}
-              onValueChange={(v) => {
-                if (v === "none") {
-                  onChange("discount_rule_id", null);
-                } else {
-                  onChange("discount_rule_id", v);
-                  const rule = discountRules.find((r) => r.id === v);
-                  if (rule) {
-                    // Imposta lo sconto al massimo consentito dalla regola
-                    onChange("sconto_percentuale", rule.sconto_max_pct);
-                  }
-                }
-              }}
+            <a
+              href="/azienda/impostazioni/scontistica"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[10px] text-[#173b67] underline hover:no-underline"
             >
-              <SelectTrigger className="bg-white">
-                <SelectValue placeholder="Nessuna regola (sconto manuale)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Nessuna regola (sconto manuale) —</SelectItem>
-                {discountRules.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {r.name} — max {r.sconto_max_pct}%
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedDiscountRule && (
-              <p className="text-[11px] text-slate-600">
-                Margine minimo richiesto: {selectedDiscountRule.margine_min_pct}% ·
-                Sconto max: {selectedDiscountRule.sconto_max_pct}%
-                {selectedDiscountRule.approva_oltre_pct != null
-                  ? ` · Approvazione oltre ${selectedDiscountRule.approva_oltre_pct}%`
-                  : ""}
-              </p>
-            )}
+              Configura regole →
+            </a>
           </div>
-        )}
+
+          {/* KPI binding: max / approva oltre / margine min */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded bg-white border border-slate-200 px-2 py-1.5">
+              <p className="text-[9px] uppercase tracking-wide text-slate-500 font-medium">Sconto max</p>
+              <p className="text-sm font-bold text-slate-800 tabular-nums">{discountEval.scontoMaxPct.toFixed(1)}%</p>
+            </div>
+            <div className="rounded bg-white border border-slate-200 px-2 py-1.5">
+              <p className="text-[9px] uppercase tracking-wide text-slate-500 font-medium">Approva oltre</p>
+              <p className="text-sm font-bold text-slate-800 tabular-nums">
+                {discountEval.approvaOltrePct != null ? `${discountEval.approvaOltrePct.toFixed(1)}%` : "—"}
+              </p>
+            </div>
+            <div className="rounded bg-white border border-slate-200 px-2 py-1.5">
+              <p className="text-[9px] uppercase tracking-wide text-slate-500 font-medium">Margine min</p>
+              <p className="text-sm font-bold text-slate-800 tabular-nums">{discountEval.margineMinPct.toFixed(1)}%</p>
+            </div>
+          </div>
+
+          {/* Regole matchanti (nome) */}
+          {discountEval.matchingRules.length > 0 && (
+            <p className="text-[10px] text-slate-600 leading-tight">
+              <Info className="inline h-3 w-3 mr-0.5 -mt-0.5" />
+              Applicate: {discountEval.matchingRules.map((r) => r.name).join(" · ")}
+              {discountEval.primaryRule && discountEval.matchingRules.length > 1 && (
+                <span className="text-slate-500"> (principale: {discountEval.primaryRule.name})</span>
+              )}
+            </p>
+          )}
+        </div>
+
         {/* Grid 4 input + box riepilogo full-width. Tutte le label hanno
             stessa altezza (h-4 fisso) cosi' la riga input e' perfettamente
-            allineata. Warning "supera regola" spostato SOTTO l'input per
-            non alterare l'altezza della label. */}
+            allineata. Warning verdetto sotto l'input. */}
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-6 md:col-span-3">
             <Label className="text-xs block h-4">Sconto %</Label>
@@ -408,10 +443,31 @@ export function StepEconomia({ detail, form, onChange }: Props) {
               key={`sconto-${form.sconto_percentuale}`}
               defaultValue={form.sconto_percentuale ?? 0}
               onBlur={(e) => onChange("sconto_percentuale", Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-              className="h-9 text-xs mt-1"
+              className={`h-9 text-xs mt-1 ${
+                discountVerdict === "blocked"
+                  ? "border-red-400 focus-visible:ring-red-400"
+                  : discountVerdict === "approve"
+                  ? "border-amber-400 focus-visible:ring-amber-400"
+                  : ""
+              }`}
             />
-            {selectedDiscountRule && (form.sconto_percentuale ?? 0) > selectedDiscountRule.sconto_max_pct && (
-              <p className="text-[10px] text-amber-600 mt-1">⚠ supera regola</p>
+            {discountVerdict === "blocked" && (
+              <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
+                <ShieldAlert className="h-3 w-3" />
+                Oltre max {discountEval.scontoMaxPct.toFixed(1)}% — serve override admin
+              </p>
+            )}
+            {discountVerdict === "approve" && (
+              <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                Oltre {discountEval.approvaOltrePct?.toFixed(1)}% — richiede approvazione admin
+              </p>
+            )}
+            {discountVerdict === "ok" && scontoPctCorrente > 0 && (
+              <p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Entro le regole aziendali
+              </p>
             )}
           </div>
           <div className="col-span-6 md:col-span-3">
