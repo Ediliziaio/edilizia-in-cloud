@@ -25,7 +25,7 @@ import type {
   SrPianoFinanziamento, SrEsigenza, SrSoluzioneItem, SrTestimonianza,
   SrTemplatePdfRow,
 } from "@/types/serramenti";
-import { SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI, SR_SCHEMI_PAGAMENTO, SR_PERCORSO_DEFAULT, normalizePdfPagesOrder } from "@/types/serramenti";
+import { SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI, SR_SCHEMI_PAGAMENTO, SR_PERCORSO_DEFAULT, normalizePdfPagesOrder, SR_GARANZIE_DEFAULT, SR_CONFRONTO_DEFAULT, SR_CERTIFICAZIONI_DEFAULT, SR_BONUS_DEFAULT, SR_FAQ_DEFAULT } from "@/types/serramenti";
 import type {
   SrPercorsoCliente, SrPdfPageId, SrPdfPageOrderItem,
   SrGaranzia, SrConfrontoRiga, SrCertificazione, SrBonus, SrFaq,
@@ -1139,7 +1139,7 @@ export function SerramentoPDF({
   const tpl = (template ?? {}) as any;
   const coverHero = tpl.pdf_cover_hero || "La tua casa,\nfinalmente al caldo.";
   const coverSubhero = tpl.pdf_cover_subhero || sintesi;
-  const coverEyebrow = tpl.pdf_cover_eyebrow || "★ La tua proposta personalizzata";
+  const coverEyebrow = tpl.pdf_cover_eyebrow || "LA TUA PROPOSTA PERSONALIZZATA";
   const coverImageUrl = tpl.pdf_cover_image_url || null;
   const coverOverlayOpacity = typeof tpl.pdf_cover_overlay_opacity === "number"
     ? Math.max(0, Math.min(100, tpl.pdf_cover_overlay_opacity)) / 100
@@ -1184,24 +1184,28 @@ export function SerramentoPDF({
   const percorsoAttivo = percorso.attivo;
 
   // ─── Blocchi conversione (CRO playbook) ──────────────────────────────────
-  const garanzie = (Array.isArray(tpl.garanzie) ? tpl.garanzie : []) as SrGaranzia[];
-  const garanzieAttiva = garanzie.length > 0;
+  // Pattern: se l'utente ha attivato la pagina in "Ordine pagine" ma non ha
+  // popolato i dati, usiamo i DEFAULT pronti all'uso. Così le pagine nuove
+  // appaiono SUBITO nel PDF appena attivate, senza richiedere configurazione
+  // manuale di ogni voce. L'admin può poi personalizzare nel tab Conversione.
+  const garanzieRaw = (Array.isArray(tpl.garanzie) ? tpl.garanzie : []) as SrGaranzia[];
+  const garanzie: SrGaranzia[] = garanzieRaw.length > 0 ? garanzieRaw : SR_GARANZIE_DEFAULT;
   const urgenzaAttiva = !!tpl.urgenza_attiva;
   const urgenzaTitolo = (tpl.urgenza_titolo as string | null) || "Offerta valida fino a";
   const urgenzaDescrizione = (tpl.urgenza_descrizione as string | null) || null;
   const earlyBirdAttivo = !!tpl.early_bird_attivo;
   const earlyBirdPct = Number(tpl.early_bird_pct ?? 0);
   const earlyBirdGiorni = Number(tpl.early_bird_giorni ?? 0);
-  const confrontoAttivo = !!tpl.confronto_attivo;
   const confrontoTitolo = (tpl.confronto_titolo as string | null) || "Il salto di qualità che otterrai";
-  const confrontoRighe = (Array.isArray(tpl.confronto_righe) ? tpl.confronto_righe : []) as SrConfrontoRiga[];
-  const certificazioni = (Array.isArray(tpl.certificazioni) ? tpl.certificazioni : []) as SrCertificazione[];
-  const bonus = (Array.isArray(tpl.bonus_aggiuntivi) ? tpl.bonus_aggiuntivi : []) as SrBonus[];
-  const faqItems = (Array.isArray(tpl.faq_items) ? tpl.faq_items : []) as SrFaq[];
-  const faqAttiva = faqItems.length > 0;
-  const brandFooterAttivo = !!tpl.brand_footer_attivo;
+  const confrontoRigheRaw = (Array.isArray(tpl.confronto_righe) ? tpl.confronto_righe : []) as SrConfrontoRiga[];
+  const confrontoRighe: SrConfrontoRiga[] = confrontoRigheRaw.length > 0 ? confrontoRigheRaw : SR_CONFRONTO_DEFAULT;
+  const certificazioniRaw = (Array.isArray(tpl.certificazioni) ? tpl.certificazioni : []) as SrCertificazione[];
+  const certificazioni: SrCertificazione[] = certificazioniRaw.length > 0 ? certificazioniRaw : SR_CERTIFICAZIONI_DEFAULT;
+  const bonusRaw = (Array.isArray(tpl.bonus_aggiuntivi) ? tpl.bonus_aggiuntivi : []) as SrBonus[];
+  const bonus: SrBonus[] = bonusRaw.length > 0 ? bonusRaw : SR_BONUS_DEFAULT;
+  const faqItemsRaw = (Array.isArray(tpl.faq_items) ? tpl.faq_items : []) as SrFaq[];
+  const faqItems: SrFaq[] = faqItemsRaw.length > 0 ? faqItemsRaw : SR_FAQ_DEFAULT;
   const brandFooterTesto = (tpl.brand_footer_testo as string | null) || null;
-  const condizioniLegaliAttivo = !!tpl.condizioni_legali_attivo;
   const condizioniLegaliTesto = (tpl.condizioni_legali_testo as string | null) || null;
 
   // Validità con countdown calcolato (per box urgenza)
@@ -1299,7 +1303,6 @@ export function SerramentoPDF({
             (c) wrap={false} sulla Page — clip dell'eventuale overflow, NO split. */}
       <Page
         size="A4"
-        wrap={false}
         style={[
           styles.cover,
           coverBgColor ? { backgroundColor: coverBgColor } : undefined,
@@ -1386,14 +1389,14 @@ export function SerramentoPDF({
               marginTop: 18,
             }]}>
               <Text style={[styles.urgenzaLabel, { color: C.accent }]}>
-                ⏰ Offerta valida fino al
+                  Offerta valida fino al
               </Text>
               <Text style={[styles.urgenzaScadenza, { color: coverTextColor, fontSize: 16 }]}>
                 {scadenzaPreventivo}
               </Text>
               {earlyBirdAttivo && scadenzaEarlyBird && (
                 <Text style={[styles.urgenzaDesc, { color: coverTextColor, opacity: 0.85 }]}>
-                  💡 Sconto −{earlyBirdPct}% extra se firmi entro il {scadenzaEarlyBird}
+                  Sconto -{earlyBirdPct}% extra se firmi entro il {scadenzaEarlyBird}
                 </Text>
               )}
             </View>
@@ -1864,7 +1867,7 @@ export function SerramentoPDF({
               {/* Box urgenza/scadenza prezzo + early bird (CRO) */}
               {urgenzaAttiva && (
                 <View style={styles.urgenzaBox} wrap={false}>
-                  <Text style={styles.urgenzaLabel}>⏰ {urgenzaTitolo}</Text>
+                  <Text style={styles.urgenzaLabel}>  {urgenzaTitolo}</Text>
                   <Text style={styles.urgenzaScadenza}>
                     {scadenzaPreventivo}
                   </Text>
@@ -1873,7 +1876,7 @@ export function SerramentoPDF({
                   )}
                   {earlyBirdAttivo && scadenzaEarlyBird && (
                     <Text style={[styles.urgenzaDesc, { color: C.primary, fontWeight: 700, marginTop: 6 }]}>
-                      💡 Sconto extra −{earlyBirdPct}% se firmi entro il {scadenzaEarlyBird}
+                      Sconto extra -{earlyBirdPct}% se firmi entro il {scadenzaEarlyBird}
                     </Text>
                   )}
                 </View>
@@ -1896,7 +1899,7 @@ export function SerramentoPDF({
                         </View>
                         <View style={styles.payStepRight}>
                           <Text style={styles.payStepPct}>{m.percentuale}%</Text>
-                          <Text style={styles.payStepAmount}>≈ € {fmtEuro(amount)}</Text>
+                          <Text style={styles.payStepAmount}>circa € {fmtEuro(amount)}</Text>
                         </View>
                       </View>
                     );
@@ -1939,7 +1942,7 @@ export function SerramentoPDF({
                       € {fmtEuro(p.detrazione_eur_totale)}
                     </Text>
                     <Text style={[styles.finCardSub, { color: C.successText }]}>
-                      ≈ € {fmtEuro(p.detrazione_eur_anno)} / anno per 10 anni
+                      circa € {fmtEuro(p.detrazione_eur_anno)} / anno per 10 anni
                     </Text>
                   </View>
                 </>
@@ -1985,7 +1988,7 @@ export function SerramentoPDF({
                         >
                           <View style={{ width: 38 }}>
                             <Text style={{ fontSize: 9, fontWeight: 700, color: C.gray900 }}>
-                              A{y.year}{isBreakEven ? " ★" : ""}
+                              A{y.year}{isBreakEven ? " *" : ""}
                             </Text>
                           </View>
                           <View style={{ flex: 1, alignItems: "flex-end" }}>
@@ -2007,7 +2010,7 @@ export function SerramentoPDF({
                     })}
                   </View>
                   <Text style={{ fontSize: 8, color: C.gray500, marginTop: 5, fontStyle: "italic" }}>
-                    ★ Anno di break-even — l'investimento iniziale è completamente ripagato dal risparmio + detrazione.
+                    * Anno di break-even — l'investimento iniziale è completamente ripagato dal risparmio + detrazione.
                   </Text>
                 </>
               )}
@@ -2037,7 +2040,7 @@ export function SerramentoPDF({
                         </View>
                         <View style={styles.finCard}>
                           <Text style={styles.finCardTitle}>Risparmio + detrazione</Text>
-                          <Text style={[styles.finCardValue, { color: C.successText }]}>− € {fmtEuro(beneficioMese)}</Text>
+                          <Text style={[styles.finCardValue, { color: C.successText }]}>- € {fmtEuro(beneficioMese)}</Text>
                           <Text style={styles.finCardSub}>al mese (media 10 anni)</Text>
                         </View>
                         <View style={[styles.finCard, {
@@ -2091,7 +2094,7 @@ export function SerramentoPDF({
               {bonus.length > 0 && (
                 <>
                   <Text style={[styles.sectionTitle, { color: C.successText }]}>
-                    🎁 In più, in regalo
+                    In più, in regalo
                   </Text>
                   {bonus.map((b, i) => (
                     <View key={i} style={styles.bonusBox} wrap={false}>
@@ -2381,7 +2384,7 @@ export function SerramentoPDF({
 
               {/* CTA box */}
               <View style={styles.ctaBox}>
-                <Text style={styles.ctaTitle}>✓ {ctaTitle}</Text>
+                <Text style={styles.ctaTitle}>{ctaTitle}</Text>
                 {ctaSteps.slice(0, 5).map((step, i) => (
                   <View key={i} style={styles.ctaStep} wrap={false}>
                     <Text style={styles.ctaCheck}>{i + 1}</Text>
@@ -2413,7 +2416,7 @@ export function SerramentoPDF({
 
               {/* Brand legitimacy footer in CTA: dati legali in piccolo,
                   segnala professionalità + protezione legale. */}
-              {brandFooterAttivo && brandFooterTesto && !condizioniLegaliAttivo && (
+              {brandFooterTesto && !condizioniLegaliTesto && (
                 <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
               )}
 
@@ -2424,7 +2427,7 @@ export function SerramentoPDF({
           // ─── PAGINA GARANZIE (CRO) ─────────────────────────────────────
           garanzie: (
             <>
-            {garanzieAttiva && (
+            {garanzie.length > 0 && (
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Le nostre garanzie</Text>
@@ -2451,7 +2454,7 @@ export function SerramentoPDF({
           // ─── PAGINA CONFRONTO PRIMA/DOPO NUMERICO ──────────────────────
           confronto: (
             <>
-            {confrontoAttivo && confrontoRighe.length > 0 && (
+            {confrontoRighe.length > 0 && (
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Confronto tecnico · Prima &amp; Dopo</Text>
@@ -2502,7 +2505,7 @@ export function SerramentoPDF({
           // ─── PAGINA FAQ ────────────────────────────────────────────────
           faq: (
             <>
-            {faqAttiva && (
+            {faqItems.length > 0 && (
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Domande frequenti</Text>
@@ -2526,7 +2529,7 @@ export function SerramentoPDF({
           // ─── PAGINA CONDIZIONI LEGALI ──────────────────────────────────
           condizioni: (
             <>
-            {condizioniLegaliAttivo && condizioniLegaliTesto && (
+            {condizioniLegaliTesto && (
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Appendice legale</Text>
@@ -2541,7 +2544,7 @@ export function SerramentoPDF({
                     </Text>
                   ))}
                 </View>
-                {brandFooterAttivo && brandFooterTesto && (
+                {brandFooterTesto && (
                   <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
                 )}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
