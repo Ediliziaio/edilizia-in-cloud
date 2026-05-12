@@ -120,41 +120,94 @@ export function StepAccessori({ progettoId, detail }: Props) {
             Importa render esistente
           </Button>
           <Button asChild variant="outline" className="flex-1 gap-2">
-            <a href="/azienda/render/nuovo" target="_blank" rel="noopener noreferrer">
+            <a href="/azienda/render/infissi/new" target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-4 w-4" />
               Genera nuovo render (apre modulo Render)
             </a>
           </Button>
         </div>
 
-        {/* Anteprima render già importati */}
-        {detail.media.filter((m) => m.kind === "render").length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">
-            {detail.media.filter((m) => m.kind === "render").map((m) => (
-              <div key={m.id} className="relative group rounded-md overflow-hidden border bg-muted aspect-video">
-                {m.url ? (
-                  <img src={m.url} alt={m.caption ?? "render"} className="w-full h-full object-cover" />
-                ) : (
-                  <Sparkles className="h-6 w-6 mx-auto text-orange-300 mt-8" />
-                )}
-                <button
-                  onClick={() => setMediaToDelete(m)}
-                  className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
-                  title="Rimuovi"
-                  aria-label="Rimuovi media"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-                <div className="absolute bottom-0 left-0 right-0 bg-orange-500/90 text-white text-[10px] px-2 py-0.5 font-semibold">
-                  ✨ Render AI
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Anteprima render già importati. Mostra anche la foto situazione
+            originale accoppiata (se importata insieme al render): comunica
+            visivamente che nel PDF cliente sara' confronto prima/dopo. */}
+        {(() => {
+          const renders = detail.media.filter((m) => m.kind === "render");
+          const situazioni = detail.media.filter((m) => m.kind === "situazione");
+          if (renders.length === 0 && situazioni.length === 0) return null;
+          return (
+            <div className="space-y-3 mt-3">
+              {renders.map((render) => {
+                // Trova la foto "prima" associata: stesso render-session in
+                // storage_path. Es. "render-session:<id>:0" -> "render-session:<id>:original"
+                const sessionId = render.storage_path?.split(":")[1] ?? null;
+                const prima = sessionId
+                  ? situazioni.find((s) => s.storage_path?.startsWith(`render-session:${sessionId}:`))
+                  : null;
+                return (
+                  <div key={render.id} className="grid grid-cols-2 gap-2">
+                    {/* PRIMA — foto originale */}
+                    <div className="relative group rounded-md overflow-hidden border bg-muted aspect-video">
+                      {prima?.url ? (
+                        <img src={prima.url} alt="prima" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground italic">
+                          Foto originale mancante
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 bg-slate-800/90 text-white text-[10px] px-2 py-0.5 font-semibold uppercase tracking-wide">
+                        Prima
+                      </div>
+                    </div>
+                    {/* DOPO — render AI */}
+                    <div className="relative group rounded-md overflow-hidden border bg-muted aspect-video">
+                      {render.url ? (
+                        <img src={render.url} alt={render.caption ?? "render"} className="w-full h-full object-cover" />
+                      ) : (
+                        <Sparkles className="h-6 w-6 mx-auto text-orange-300 mt-8" />
+                      )}
+                      <button
+                        onClick={() => setMediaToDelete(render)}
+                        className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                        title="Rimuovi"
+                        aria-label="Rimuovi render"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                      <div className="absolute bottom-0 left-0 right-0 bg-orange-500/90 text-white text-[10px] px-2 py-0.5 font-semibold uppercase tracking-wide">
+                        Dopo · Render AI
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Situazioni "orfane" (importate senza render abbinato) */}
+              {situazioni
+                .filter((s) => {
+                  const sid = s.storage_path?.split(":")[1] ?? null;
+                  return !sid || !renders.some((r) => r.storage_path?.includes(`:${sid}:`));
+                })
+                .map((m) => (
+                  <div key={m.id} className="relative group rounded-md overflow-hidden border bg-muted aspect-video max-w-xs">
+                    {m.url && <img src={m.url} alt="prima" className="w-full h-full object-cover" />}
+                    <button
+                      onClick={() => setMediaToDelete(m)}
+                      className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                      title="Rimuovi"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-slate-800/90 text-white text-[10px] px-2 py-0.5 font-semibold uppercase tracking-wide">
+                      Prima · senza render
+                    </div>
+                  </div>
+                ))}
+            </div>
+          );
+        })()}
 
         <SrCallout variant="info" className="mt-3">
-          💡 I render compaiono nella pagina 3 del PDF cliente (sezione "Anteprima foto-realistica"). Massimo 4 visibili nel PDF.
+          💡 I render compaiono nella pagina 3 del PDF cliente come confronto <strong>prima / dopo</strong>.
+          Massimo 4 coppie visibili nel PDF.
         </SrCallout>
       </SrCard>
 
@@ -282,7 +335,7 @@ function ImportRenderDialog({
               Non hai ancora generato nessun render. Vai al modulo Render Infissi per crearne uno.
             </p>
             <Button asChild className="bg-orange-500 hover:bg-orange-600">
-              <a href="/azienda/render/nuovo" target="_blank" rel="noopener noreferrer">
+              <a href="/azienda/render/infissi/new" target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-1" />
                 Apri modulo Render
               </a>

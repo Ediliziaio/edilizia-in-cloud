@@ -874,10 +874,11 @@ export async function importRender(input: {
   const companyId = (prog as any)?.company_id;
   if (!companyId) throw new Error("Progetto non trovato");
 
+  // Carico la session completa: serve `original_photo_url` per il "PRIMA".
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: rs, error: rsErr } = await (supabase as any)
     .from("render_sessions")
-    .select("id, company_id, result_urls, status")
+    .select("id, company_id, result_urls, original_photo_url, status")
     .eq("id", input.render_session_id)
     .maybeSingle();
   if (rsErr || !rs) throw new Error("Render non trovato");
@@ -886,11 +887,12 @@ export async function importRender(input: {
     throw new Error("Render senza immagini disponibili");
   }
   const idx = input.result_index ?? 0;
-  const url = rs.result_urls[idx] ?? rs.result_urls[0];
+  const renderUrl = rs.result_urls[idx] ?? rs.result_urls[0];
+  const originalUrl: string | null = rs.original_photo_url ?? null;
 
-  // Insert direttamente come media kind='render'. Storage path = "render-session:<id>:<idx>"
-  // (sentinel: la edge function PDF saprà che è un riferimento esterno e non
-  // tenterà di rinfrescare la signed URL sul bucket sr-progetti).
+  // Insert del RENDER (dopo). Storage path = "render-session:<id>:<idx>"
+  // (sentinel: l'edge function PDF saprà che è un riferimento esterno e
+  // non tenterà di rinfrescare la signed URL sul bucket sr-progetti).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("sr_progetti_media")
@@ -899,7 +901,7 @@ export async function importRender(input: {
       company_id: companyId,
       kind: "render",
       storage_path: `render-session:${rs.id}:${idx}`,
-      url,
+      url: renderUrl,
       caption: input.caption ?? null,
       posizione_pdf: "pag3_render",
       position: 0,
@@ -907,6 +909,42 @@ export async function importRender(input: {
     .select("*")
     .single();
   if (error) throw new Error("Aggiunta render al progetto fallita");
+
+  // Insert anche della FOTO ORIGINALE (prima) come kind='situazione' se
+  // presente. Il PDF la accoppia con il render via `hasPrimaDopo`
+  // (vedi SerramentoPDF.tsx:1250-1252). Senza, viene mostrato solo il
+  // "dopo" e l'utente non vede l'effetto "prima/dopo".
+  // Idempotente: se la stessa session_id e' gia' stata importata, non
+  // duplichiamo (check via storage_path sentinel).
+  if (originalUrl) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existing } = await (supabase as any)
+      .from("sr_progetti_media")
+      .select("id")
+      .eq("progetto_id", input.progetto_id)
+      .eq("storage_path", `render-session:${rs.id}:original`)
+      .maybeSingle();
+    if (!existing) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: errOrig } = await (supabase as any)
+        .from("sr_progetti_media")
+        .insert({
+          progetto_id: input.progetto_id,
+          company_id: companyId,
+          kind: "situazione",
+          storage_path: `render-session:${rs.id}:original`,
+          url: originalUrl,
+          caption: input.caption ? `${input.caption} (prima)` : "Foto situazione attuale",
+          posizione_pdf: "pag3_situazione",
+          position: 0,
+        });
+      if (errOrig) {
+        // Non-fatale: il render principale e' stato salvato. Loggo soltanto.
+        console.warn("[serramenti] importRender: salvataggio foto originale fallito", errOrig);
+      }
+    }
+  }
+
   return data as import("@/types/serramenti").SrMediaRow;
 }
 
