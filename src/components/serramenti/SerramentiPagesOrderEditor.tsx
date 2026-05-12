@@ -74,8 +74,30 @@ export function SerramentiPagesOrderEditor({ value, onChange }: Props) {
 
   const visibiliCount = items.filter((i) => i.visible).length;
 
+  // Indica se l'ordine corrente è custom o default (per messaggio chiaro
+  // all'utente: capisce subito se le sue modifiche sono state persistite).
+  const isCustomOrder = value !== null && value !== undefined;
+
   return (
     <div className="space-y-3">
+      {/* Banner stato: serve per capire SUBITO se l'utente sta vedendo
+          l'ordine default o uno custom (e quindi se deve salvare). */}
+      <div className={
+        "rounded-md border px-3 py-2 text-xs flex items-start gap-2 " +
+        (isCustomOrder
+          ? "border-emerald-200 bg-emerald-50/50 text-emerald-900"
+          : "border-blue-200 bg-blue-50/50 text-blue-900")
+      }>
+        <div className="font-semibold">
+          {isCustomOrder ? "✓ Ordine personalizzato" : "ℹ Ordine di default"}
+        </div>
+        <div className="flex-1">
+          {isCustomOrder
+            ? "Stai vedendo un ordine personalizzato. Ricorda di cliccare \"Salva impostazioni\" in basso a destra per applicarlo ai prossimi PDF."
+            : "Stai vedendo l'ordine di default. Trascina o usa le frecce per personalizzarlo, poi clicca \"Salva impostazioni\"."}
+        </div>
+      </div>
+
       {/* Intro + reset */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="text-xs text-muted-foreground">

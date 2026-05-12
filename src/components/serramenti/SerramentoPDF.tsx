@@ -1085,15 +1085,12 @@ export function SerramentoPDF({
       subject={`Preventivo serramenti per ${clienteNome}`}
     >
       {/* ─── PAGINA 1 — COVER ───────────────────────────────────────────────
-          wrap={false} CRITICO: con default wrap=true, se il content della
-          cover supera A4 (o react-pdf calcola male l'altezza con justifyContent
-          space-between + absolute children), genera pagine extra COLORATE
-          della stessa bg → si vedono 2-3 pagine rosse di fila prima del vero
-          contenuto. wrap=false forza la cover a stare in UNA SOLA pagina.
-          Eventuale overflow viene clippato (accettabile per una cover). */}
+          Page A4 standard (no wrap=false: l'utente percepiva il page size
+          come "più piccolo" delle altre). Il bug multi-page rossa era
+          causato dalla bg Image con height:"100%", non da wrap=true.
+          Ora la bg Image usa dimensioni esplicite 595×842pt → no overflow. */}
       <Page
         size="A4"
-        wrap={false}
         style={[
           styles.cover,
           coverBgColor ? { backgroundColor: coverBgColor } : undefined,

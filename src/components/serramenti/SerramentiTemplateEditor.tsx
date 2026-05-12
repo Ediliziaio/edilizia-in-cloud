@@ -1731,49 +1731,25 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       {/* SEZIONE: Default tecnici */}
       <SectionHeader
         title="5. Default tecnici"
-        description="Valori di partenza usati su ogni nuovo preventivo: giorni produzione/posa, IVA, anticipo, validità."
+        description="Valori di partenza usati su ogni nuovo preventivo: validità offerta, anticipo, IVA."
         number={5}
       />
 
-      <SrCard title="Default cronoprogramma + economia" icon={<Clock className="h-4 w-4" />}>
+      <SrCard title="Default economia" icon={<Clock className="h-4 w-4" />}>
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Giorni produzione</Label>
-            <Input
-              type="number"
-              value={form.crono_giorni_produzione_default ?? 30}
-              onChange={(e) => update("crono_giorni_produzione_default", Number(e.target.value) || 30)}
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Giorni posa / pezzo</Label>
-            <Input
-              type="number" step={0.1}
-              value={form.crono_giorni_posa_per_pezzo_default ?? 0.8}
-              onChange={(e) => update("crono_giorni_posa_per_pezzo_default", Number(e.target.value) || 0.8)}
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Giorni collaudo</Label>
-            <Input
-              type="number"
-              value={form.crono_giorni_collaudo_default ?? 1}
-              onChange={(e) => update("crono_giorni_collaudo_default", Number(e.target.value) || 1)}
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Validità (giorni)</Label>
+          <div className="col-span-12 md:col-span-4">
+            <Label className="text-xs">Validità offerta (giorni)</Label>
             <Input
               type="number"
               value={form.valido_giorni_default ?? 15}
               onChange={(e) => update("valido_giorni_default", Number(e.target.value) || 15)}
               className="h-9 text-xs"
             />
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Numero giorni di validità del preventivo dopo l'invio al cliente.
+            </p>
           </div>
-          <div className="col-span-6 md:col-span-3">
+          <div className="col-span-12 md:col-span-4">
             <Label className="text-xs">Anticipo % default</Label>
             <Input
               type="number" min={0} max={100} step={5}
@@ -1781,8 +1757,11 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
               onChange={(e) => update("anticipo_pct_default", Number(e.target.value) || 40)}
               className="h-9 text-xs"
             />
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Percentuale di acconto pre-impostata in ogni nuovo preventivo.
+            </p>
           </div>
-          <div className="col-span-6 md:col-span-3">
+          <div className="col-span-12 md:col-span-4">
             <Label className="text-xs">IVA % default</Label>
             <Input
               type="number"
@@ -1790,7 +1769,14 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
               onChange={(e) => update("iva_percentuale_default", Number(e.target.value) || 22)}
               className="h-9 text-xs"
             />
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Aliquota IVA standard (22% in Italia). Personalizzabile per ristrutturazioni 10%.
+            </p>
           </div>
+          {/* Campi giorni produzione/posa/collaudo rimossi: dopo aver tolto
+              il cronoprogramma dal PDF e dal wizard (Fase 1), questi default
+              non hanno più destinazione user-facing. Restano nel DB ma il
+              consulente non li vede né li modifica. */}
         </div>
       </SrCard>
 
