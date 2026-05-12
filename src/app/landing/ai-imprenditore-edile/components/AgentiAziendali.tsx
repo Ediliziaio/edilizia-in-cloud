@@ -48,6 +48,18 @@ const groupTone: Record<string, string> = {
 
 const detailIcons = [Calculator, ReceiptText, Building2, FileSearch, Gavel, ClipboardCheck];
 
+const mobileAgentPositions = [
+  { key: "silvio", x: 50, y: 49, core: true },
+  { key: "cfo", x: 20, y: 14 },
+  { key: "controller", x: 20, y: 36 },
+  { key: "pm_cantiere", x: 20, y: 64 },
+  { key: "acquisti", x: 28, y: 84 },
+  { key: "direttore_vendite", x: 77, y: 14 },
+  { key: "sales", x: 80, y: 37 },
+  { key: "amministrazione", x: 80, y: 64 },
+  { key: "brain", x: 70, y: 84 },
+];
+
 function getPosition(index: number, total: number) {
   const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
   const radiusX = index % 2 === 0 ? 39 : 32;
@@ -68,7 +80,7 @@ export function AgentiAziendali() {
     const motion = gsap.matchMedia();
 
     motion.add("(prefers-reduced-motion: reduce)", () => {
-      gsap.set(".agents-shell, .agents-core, .agent-persona-node, .agent-persona-line, .agent-orbit", {
+      gsap.set(".agents-shell, .agents-core, .agent-persona-node, .agent-persona-line, .agent-orbit, .agent-mobile-node, .agent-mobile-line, .agent-mobile-core", {
         opacity: 1,
         scale: 1,
         x: 0,
@@ -96,9 +108,17 @@ export function AgentiAziendali() {
           y: 12,
           duration: 0.42,
           stagger: { each: 0.022, from: "center" },
-        }, 0.28);
+        }, 0.28)
+        .from(".agent-mobile-core", { scale: 0.9, duration: 0.42 }, 0.06)
+        .from(".agent-mobile-line", { opacity: 0, strokeDashoffset: 160, duration: 0.75, stagger: 0.025 }, 0.2)
+        .from(".agent-mobile-node", {
+          scale: 0.9,
+          y: 8,
+          duration: 0.38,
+          stagger: { each: 0.03, from: "center" },
+        }, 0.26);
 
-      gsap.to(".agent-persona-line", {
+      gsap.to(".agent-persona-line, .agent-mobile-line", {
         strokeDashoffset: "-=180",
         duration: 7.8,
         repeat: -1,
@@ -120,6 +140,15 @@ export function AgentiAziendali() {
         yoyo: true,
         ease: "sine.inOut",
         stagger: 0.045,
+      });
+
+      gsap.to(".agent-mobile-node", {
+        y: (index) => (index % 2 === 0 ? -3 : 3),
+        duration: 3.6,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        stagger: 0.065,
       });
     });
 
@@ -252,30 +281,117 @@ export function AgentiAziendali() {
               </div>
             </div>
 
-            <div className="relative z-[3] grid gap-3 md:hidden">
-              {companyAgents.groups.map((group, index) => {
-                const Icon = detailIcons[index % detailIcons.length];
-                return (
-                  <div key={group.label} className="rounded-md border border-white/12 bg-white/[0.055] p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-eic-orange text-white">
-                        <Icon className="h-5 w-5" strokeWidth={1.5} />
-                      </span>
-                      <div>
-                        <h3 className="font-black text-white">{group.label}</h3>
-                        <p className="mt-1 text-sm text-white/58">{group.summary}</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {group.agents.map((agent) => (
-                        <span key={agent} className="rounded-full border border-white/10 bg-white/[0.08] px-3 py-1 text-xs font-bold text-white/72">
-                          {agent}
+            <div className="relative z-[3] md:hidden">
+              <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.055] px-3 py-2">
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange">Silvio coordina 19 specialisti AI</span>
+                <span className="rounded-full bg-eic-orange/18 px-2.5 py-1 text-[11px] font-black text-eic-orange">Tap</span>
+              </div>
+
+              <div className="relative h-[520px] overflow-hidden rounded-md border border-white/12 bg-[#08111f]/88 shadow-2xl shadow-black/25">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_49%,rgba(249,115,22,.20),transparent_24%),radial-gradient(circle_at_20%_65%,rgba(56,189,248,.13),transparent_28%),radial-gradient(circle_at_80%_35%,rgba(16,185,129,.12),transparent_26%)]" />
+                <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                  <circle cx="50" cy="49" r="28" fill="none" stroke="rgba(255,255,255,.10)" strokeDasharray="1 4" />
+                  <circle cx="50" cy="49" r="38" fill="none" stroke="rgba(249,115,22,.18)" strokeDasharray="2 5" />
+                  {mobileAgentPositions
+                    .filter((position) => !position.core)
+                    .map((position) => {
+                      const agent = agents.find((item) => item.key === position.key);
+                      const active = activeAgentKey === position.key || agent?.group === activeAgent.group;
+                      return (
+                        <line
+                          key={`mobile-agent-line-${position.key}`}
+                          className="agent-mobile-line transition-all duration-300"
+                          x1="50"
+                          y1="49"
+                          x2={position.x}
+                          y2={position.y}
+                          stroke={active ? "rgba(249,115,22,.88)" : "rgba(255,255,255,.15)"}
+                          strokeWidth={active ? 0.5 : 0.22}
+                          strokeDasharray={active ? "3 2.4" : "1.4 3.4"}
+                        />
+                      );
+                    })}
+                </svg>
+
+                {mobileAgentPositions.map((position) => {
+                  const agent = agents.find((item) => item.key === position.key) ?? agents[0];
+                  const Icon = iconByGroup[agent.group] ?? Bot;
+                  const active = activeAgentKey === agent.key;
+                  const related = active || agent.group === activeAgent.group || agent.key === "silvio";
+                  return (
+                    <button
+                      key={position.key}
+                      type="button"
+                      onClick={() => setActiveAgentKey(agent.key)}
+                      className={cn(
+                        "absolute z-[5] -translate-x-1/2 -translate-y-1/2 border text-left shadow-xl backdrop-blur transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-eic-orange",
+                        position.core
+                          ? "agent-mobile-core flex h-28 w-28 flex-col items-center justify-center rounded-full border-eic-orange/55 bg-eic-navy text-center shadow-[0_0_54px_rgba(249,115,22,.28)]"
+                          : "agent-mobile-node w-[112px] rounded-md border-white/14 bg-white/[0.92] px-2.5 py-2 text-eic-navy",
+                        active && !position.core && "z-[8] scale-105 border-eic-orange bg-white shadow-eic-orange/25",
+                        active && position.core && "scale-105",
+                        !related && "opacity-54",
+                      )}
+                      style={{ left: `${position.x}%`, top: `${position.y}%` }}
+                      aria-label={`${agent.name}: ${agent.role}. ${agent.detail}`}
+                    >
+                      {position.core ? (
+                        <>
+                          <BrainCircuit className="h-9 w-9 text-eic-orange" strokeWidth={1.45} />
+                          <strong className="mt-2 text-base text-white">{companyAgents.center.label}</strong>
+                          <span className="px-3 text-[10px] font-bold uppercase tracking-[0.13em] text-white/55">{companyAgents.center.role}</span>
+                        </>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-eic-orange text-white">
+                            <Icon className="h-4 w-4" strokeWidth={1.5} />
+                          </span>
+                          <span className="min-w-0">
+                            <strong className="block truncate text-xs text-eic-navy">{agent.name}</strong>
+                            <span className="block truncate text-[10px] text-eic-navy/58">{agent.role}</span>
+                          </span>
                         </span>
-                      ))}
-                    </div>
-                  </div>
+                      )}
+                    </button>
+                  );
+                })}
+
+              </div>
+
+              <div className="mt-3 rounded-md border border-eic-orange/18 bg-eic-orange/10 p-4 text-sm leading-6 text-white/76">
+                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-eic-orange">{activeAgent.group}</span>
+                <strong className="mt-1 block text-white">{activeAgent.name}</strong>
+                {activeAgent.detail}
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {companyAgents.groups.slice(0, 6).map((group, index) => {
+                  const Icon = detailIcons[index % detailIcons.length];
+                  const firstAgent = agents.find((agent) => agent.group === group.label || group.agents.includes(agent.name));
+                  const active = group.label === activeAgent.group || group.agents.includes(activeAgent.name);
+                return (
+                  <button
+                    key={group.label}
+                    type="button"
+                    onClick={() => firstAgent && setActiveAgentKey(firstAgent.key)}
+                    className={cn(
+                      "rounded-md border px-3 py-2 text-left transition",
+                      active ? "border-eic-orange bg-eic-orange/15" : "border-white/10 bg-white/[0.055]",
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/10 text-eic-orange">
+                        <Icon className="h-4 w-4" strokeWidth={1.5} />
+                      </span>
+                      <span>
+                        <strong className="block text-xs text-white">{group.label}</strong>
+                        <span className="block text-[10px] leading-4 text-white/54">{group.agents.length} agenti</span>
+                      </span>
+                    </span>
+                  </button>
                 );
               })}
+              </div>
             </div>
           </div>
 
