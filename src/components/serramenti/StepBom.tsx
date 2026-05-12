@@ -21,9 +21,8 @@ import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle, Pac
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ListinoPickerDialog, type ListinoPickResult, calcolaPrezzoProdotto, calcolaPosaInclusa } from "./ListinoPickerDialog";
+import { ListinoPickerDialog, type ListinoPickResult, calcolaPrezzoProdotto, calcolaPosaInclusa, applyMaggiorazioniAssi } from "./ListinoPickerDialog";
 import { useFamily } from "@/hooks/useFamilies";
-import { calcolaPrezzoFamiglia } from "@/hooks/useFamilyPricing";
 import { ServiziSection } from "./ServiziSection";
 import { AccessoriSection } from "./AccessoriSection";
 import {
@@ -503,41 +502,21 @@ function SerramentoRow({
     const Qsafe = Q || 1;
     const sels = selections ?? (s.valori_assi ?? {}) as Record<string, string>;
 
-    // Se la family completa con axes non e' ancora caricata, calcolo base
-    // (prodotto + posa) senza maggiorazioni — meglio del nulla. Le
-    // maggiorazioni verranno applicate al prossimo render quando arriva.
-    if (!familyWithAxes) {
-      const result = calcolaPrezzoProdotto(family, L, H, Qsafe, griglia);
-      const posa = calcolaPosaInclusa(family, Qsafe, tariffePrezzi);
-      const totale = result.prezzo + posa;
-      return Qsafe > 0 ? totale / Qsafe : totale;
-    }
+    // 1. Prezzo BASE prodotto via la stessa strategia del picker
+    //    (calcolaPrezzoProdotto: filter quadrante che contiene le misure,
+    //    min prezzo). Source of truth coerente.
+    const result = calcolaPrezzoProdotto(family, L, H, Qsafe, griglia);
 
-    // Pricing completo con maggiorazioni assi via helper esistente.
-    const pricing = calcolaPrezzoFamiglia(
-      {
-        family: familyWithAxes,
-        selections: sels,
-        larghezza_mm: L ?? undefined,
-        altezza_mm: H ?? undefined,
-        lunghezza_ml: undefined,
-        quantita: Qsafe,
-      },
-      griglia.map((g) => ({
-        valore_x: g.valore_x ?? 0,
-        valore_y: g.valore_y ?? 0,
-        prezzo_vendita: Number(g.prezzo_vendita ?? 0),
-        prezzo_acquisto_netto: null,
-      })),
-    );
-    // pricing.unit_price_vendita e' SOLO prodotto (no posa) -> aggiungo
-    // posa indipendente sopra (tariffa cantiere, non scala con maggiorazioni).
-    // BUG FIX: prima leggevo `prezzo_unitario_vendita` che NON esiste
-    // (la funzione esporta `unit_price_vendita`). Risultato: undefined+posa
-    // = NaN -> ricalcolo silenziosamente fallito -> prezzo non si aggiornava
-    // su cambio variabile prodotto.
+    // 2. Maggiorazioni assi (Variabili Prodotto) applicate sopra il prezzo
+    //    base. Se familyWithAxes ancora in loading, skip (uso prezzo base).
+    const prezzoProdotto = familyWithAxes
+      ? applyMaggiorazioniAssi(result.prezzo, sels, familyWithAxes.axes, L, H, Qsafe)
+      : result.prezzo;
+
+    // 3. Posa indipendente (tariffa cantiere, non scala con maggiorazioni).
     const posa = calcolaPosaInclusa(family, Qsafe, tariffePrezzi);
-    return pricing.unit_price_vendita + (Qsafe > 0 ? posa / Qsafe : posa);
+    const totale = prezzoProdotto + posa;
+    return Qsafe > 0 ? totale / Qsafe : totale;
   };
 
   /**

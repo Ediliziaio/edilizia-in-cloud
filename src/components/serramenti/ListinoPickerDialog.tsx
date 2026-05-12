@@ -33,7 +33,6 @@ import type {
   ListinoFamily, ListinoMacrocategoria, ListinoCategoria,
 } from "@/lib/serramenti/api";
 import { useFamily } from "@/hooks/useFamilies";
-import { calcolaPrezzoFamiglia } from "@/hooks/useFamilyPricing";
 import type { AxisSelection } from "@/types/articleFamily";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -64,6 +63,76 @@ interface Props {
 }
 
 // ─── Helpers calcolo prezzo (esportati per riuso in StepBom row) ───────────
+
+/**
+ * Applica le maggiorazioni degli ASSI (Variabili Prodotto) al prezzo base
+ * prodotto. Replica la logica di `calcolaPrezzoFamiglia` (in useFamilyPricing)
+ * ma sopra un prezzo BASE gia' calcolato (es. da `calcolaPrezzoProdotto`),
+ * cosi' la strategia di lookup griglia resta coerente col picker (filtro
+ * "quadrante che contiene le misure", min prezzo) invece di switchare a
+ * nearestGrid (punto piu' vicino) che dava risultati molto diversi.
+ *
+ * Ordine applicazione (stesso pattern del helper esistente):
+ *   1. Tutte le percentuali (`maggiorazione_tipo='percentuale'`)
+ *   2. Tutti i fissi (fisso_pz, fisso_mq, fisso_ml)
+ *
+ * Ritorna prezzo TOTALE (gia' moltiplicato per quantita), come
+ * `calcolaPrezzoProdotto` -> divide /Q nel chiamante per ottenere unitario.
+ */
+export function applyMaggiorazioniAssi(
+  prezzoBaseTotale: number,
+  selections: Record<string, string>,
+  axes: Array<{
+    codice: string;
+    values: Array<{
+      id: string;
+      maggiorazione_tipo: "none" | "percentuale" | "fisso_pz" | "fisso_mq" | "fisso_ml" | "fisso_mc";
+      maggiorazione_valore: number;
+    }>;
+  }>,
+  L: number | null,
+  H: number | null,
+  quantita: number,
+): number {
+  let pv = prezzoBaseTotale;
+  const mq = L != null && H != null ? (L / 1000) * (H / 1000) * quantita : null;
+  // Nessuna misura "lunghezza_ml" disponibile su serramenti -> ml=null,
+  // maggiorazioni fisso_ml vengono ignorate (skip silenzioso).
+  const ml = null;
+
+  // 1. Prima le percentuali (si applicano in cascata sul prezzo corrente).
+  for (const axis of axes) {
+    const valueId = selections[axis.codice];
+    if (!valueId) continue;
+    const val = axis.values.find((v) => v.id === valueId);
+    if (!val || val.maggiorazione_tipo !== "percentuale") continue;
+    pv = pv * (1 + Number(val.maggiorazione_valore) / 100);
+  }
+
+  // 2. Poi i fissi (additivi).
+  for (const axis of axes) {
+    const valueId = selections[axis.codice];
+    if (!valueId) continue;
+    const val = axis.values.find((v) => v.id === valueId);
+    if (!val || val.maggiorazione_tipo === "none" || val.maggiorazione_tipo === "percentuale") continue;
+    const valoreNum = Number(val.maggiorazione_valore);
+    switch (val.maggiorazione_tipo) {
+      case "fisso_pz":
+        pv += valoreNum * quantita;
+        break;
+      case "fisso_mq":
+        if (mq != null) pv += valoreNum * mq;
+        break;
+      case "fisso_ml":
+        if (ml != null) pv += valoreNum * ml;
+        break;
+      case "fisso_mc":
+        // mc non supportato per serramenti.
+        break;
+    }
+  }
+  return pv;
+}
 
 /**
  * Estrae le misure MIN e MAX disponibili nella griglia listino. Usate per
@@ -298,43 +367,20 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
     const h = altezza ? Number(altezza) : null;
     const q = Math.max(1, Number(quantita) || 1);
 
-    // 1. Range check + matchedGrigliaId via helper esistente (per la UX
-    //    "Misura non producibile" + matchedGrigliaId per il pdf).
+    // 1. Prezzo BASE prodotto via la strategia consolidata
+    //    `calcolaPrezzoProdotto` (filter "quadrante che contiene le misure",
+    //    min prezzo). Resta source of truth per griglia/mq/pz.
     const calc = calcolaPrezzoProdotto(selectedFamily, l, h, q, griglia);
 
-    // 2. Prezzo prodotto + maggiorazioni assi via il sistema esistente
-    //    `calcolaPrezzoFamiglia` (variabili prodotto, NON varianti custom).
-    //    Se familyWithAxes ancora in loading, ricade sul prezzo prodotto
-    //    base senza maggiorazioni.
-    let prezzoProdottoPerUnita = calc.prezzo / q; // base unitaria
-    if (familyWithAxes) {
-      const pricing = calcolaPrezzoFamiglia(
-        {
-          family: familyWithAxes,
-          selections: axisSelection,
-          larghezza_mm: l,
-          altezza_mm: h,
-          lunghezza_ml: null,
-          quantita: q,
-        },
-        // mapping griglia LISTINO -> GridPoint[]: il helper esistente
-        // usa la stessa struttura {valore_x,valore_y,prezzo_vendita}.
-        griglia.map((g) => ({
-          valore_x: g.valore_x ?? 0,
-          valore_y: g.valore_y ?? 0,
-          prezzo_vendita: Number(g.prezzo_vendita ?? 0),
-          prezzo_acquisto_netto: null,
-        })),
-      );
-      // BUG FIX: l'helper esporta `unit_price_vendita`, non
-      // `prezzo_unitario_vendita`. Prima leggevo la chiave sbagliata ->
-      // undefined -> prezzo nella card riepilogo NON cambiava al cambio
-      // variabile prodotto.
-      prezzoProdottoPerUnita = pricing.unit_price_vendita;
-    }
-
-    const prezzoProdotto = prezzoProdottoPerUnita * q;
+    // 2. Maggiorazioni assi (Variabili Prodotto) applicate SOPRA il prezzo
+    //    base via `applyMaggiorazioniAssi` (replica della logica di
+    //    `calcolaPrezzoFamiglia` ma senza switchare la strategia di lookup
+    //    griglia che dava risultati incoerenti).
+    const prezzoProdotto = familyWithAxes
+      ? applyMaggiorazioniAssi(calc.prezzo, axisSelection, familyWithAxes.axes, l, h, q)
+      : calc.prezzo;
     const extraAssi = prezzoProdotto - calc.prezzo;
+
     const prezzoPosa = calcolaPosaInclusa(selectedFamily, q, tariffePrezzi);
     const totale = prezzoProdotto + prezzoPosa;
     const unitario = q > 0 ? totale / q : 0;
