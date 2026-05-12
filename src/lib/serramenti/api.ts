@@ -107,10 +107,24 @@ export async function createProgettoDaSopralluogo(
 }
 
 export async function listProgetti(opts?: { stato?: SrStatoProgetto; limit?: number }) {
+  // SELECT esteso: aggiunge campi usati dai filtri avanzati della lista
+  // (commerciale, provincia, m², bonus, pagamento, link CRM/ordini).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
     .from("sr_progetti")
-    .select("id, code, stato, cliente_nome, cliente_cognome, cantiere_citta, totale_min, totale_max, totale_serramenti, tipo_intervento, materiale_principale, created_at, updated_at, consulenza_at, pdf_url")
+    .select([
+      "id, code, stato",
+      "cliente_id, cliente_nome, cliente_cognome",
+      "cantiere_citta, cantiere_provincia, cantiere_zona_climatica, cantiere_condominio",
+      "totale_min, totale_max, totale_serramenti, metri_quadri_totali",
+      "tipo_intervento, materiale_principale",
+      "consulente_id, consulenza_at",
+      "detrazione_aliquota, schema_pagamento, fin_anticipo_pct",
+      "opportunita_id, ordine_id, sopralluogo_id",
+      "firmato_il",
+      "created_at, updated_at",
+      "pdf_url, pdf_generated_at",
+    ].join(", "))
     .order("created_at", { ascending: false });
   if (opts?.stato) q = q.eq("stato", opts.stato);
   if (opts?.limit) q = q.limit(opts.limit);

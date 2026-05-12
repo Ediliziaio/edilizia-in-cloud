@@ -13,6 +13,9 @@
  */
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,7 +39,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   RectangleVertical, Plus, Search, Trash2, ExternalLink, Loader2,
   ChevronRight, ChevronLeft, Settings, TrendingUp, FileText, Layers, Trophy,
-  XCircle, Wallet, SlidersHorizontal, X,
+  XCircle, Wallet, SlidersHorizontal, X, User, MapPin, Package2, Sparkles,
+  Briefcase, ClipboardList, FileSignature,
 } from "lucide-react";
 import { useProgetti, useDeleteProgetto } from "@/lib/serramenti/queries";
 import { cn } from "@/lib/utils";
@@ -82,6 +86,32 @@ const TIPI_INTERVENTO: Array<{ value: string; label: string }> = [
   { value: "manutenzione", label: "Manutenzione" },
 ];
 
+const SCHEMI_PAGAMENTO_LABELS: Record<string, string> = {
+  tutto_finanziato: "Tutto finanziato",
+  acconto_finanziato: "Acconto + finanziato",
+  due_acconti_finanziato: "2 acconti + finanziato",
+  due_acconti_saldo: "2 acconti + saldo",
+  tre_step: "3 step (firma + merce + saldo)",
+  personalizzato: "Personalizzato",
+};
+
+const BONUS_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "any", label: "Tutti" },
+  { value: "50", label: "Ecobonus 50%" },
+  { value: "65", label: "Ecobonus 65%" },
+  { value: "none", label: "Senza bonus" },
+];
+
+const PROVINCE_IT: string[] = [
+  "AG","AL","AN","AO","AP","AQ","AR","AT","AV","BA","BG","BI","BL","BN","BO","BR","BS","BT","BZ",
+  "CA","CB","CE","CH","CL","CN","CO","CR","CS","CT","CZ","EN","FC","FE","FG","FI","FM","FR","GE","GO","GR",
+  "IM","IS","KR","LC","LE","LI","LO","LT","LU","MB","MC","ME","MI","MN","MO","MS","MT","NA","NO","NU",
+  "OR","PA","PC","PD","PE","PG","PI","PN","PO","PR","PT","PU","PV","PZ","RA","RC","RE","RG","RI","RM","RN","RO",
+  "SA","SI","SO","SP","SR","SS","SU","SV","TA","TE","TN","TO","TP","TR","TS","TV","UD","VA","VB","VC","VE","VI","VR","VT","VV",
+];
+
+type TriState = "all" | "yes" | "no";
+
 type SortKey = "recent" | "value_desc" | "value_asc" | "code_asc";
 const SORT_LABELS: Record<SortKey, string> = {
   recent: "Più recenti",
@@ -98,10 +128,35 @@ const fmtEur = (n: number) =>
 export default function SerramentiIndex() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const companyId = useEffectiveCompanyId();
   const { data: progetti = [], isLoading, isError, refetch } = useProgetti();
   const deleteMut = useDeleteProgetto();
 
-  // Filtri
+  // Lista commerciali/consulenti dal team aziendale (profiles).
+  // Usata sia per il dropdown filtro sia per mostrare il nome nella tabella.
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ["sr-team-members", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email")
+        .eq("company_id", companyId!)
+        .order("first_name");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>;
+    },
+  });
+  const teamById = useMemo(() => {
+    const m = new Map<string, string>();
+    teamMembers.forEach((t) => {
+      const name = [t.first_name, t.last_name].filter(Boolean).join(" ") || t.email || t.id.slice(0, 6);
+      m.set(t.id, name);
+    });
+    return m;
+  }, [teamMembers]);
+
+  // Filtri base
   const [search, setSearch] = useState("");
   const [statoGroup, setStatoGroup] = useState<string>(searchParams.get("gruppo") ?? "all");
   const [filtroStato, setFiltroStato] = useState<string>("all");
@@ -111,6 +166,22 @@ export default function SerramentiIndex() {
   const [importoMax, setImportoMax] = useState<string>("");
   const [materialeFiltro, setMaterialeFiltro] = useState<string>("all");
   const [tipoInterventoFiltro, setTipoInterventoFiltro] = useState<string>("all");
+
+  // Filtri commerciali avanzati
+  const [consulenteFiltro, setConsulenteFiltro] = useState<string>("all");
+  const [provinciaFiltro, setProvinciaFiltro] = useState<string>("all");
+  const [pezziMin, setPezziMin] = useState<string>("");
+  const [pezziMax, setPezziMax] = useState<string>("");
+  const [mqMin, setMqMin] = useState<string>("");
+  const [mqMax, setMqMax] = useState<string>("");
+  const [bonusFiltro, setBonusFiltro] = useState<string>("any");
+  const [schemaFiltro, setSchemaFiltro] = useState<string>("all");
+  const [opportunitaFiltro, setOpportunitaFiltro] = useState<TriState>("all");
+  const [convertitoFiltro, setConvertitoFiltro] = useState<TriState>("all");
+  const [pdfFiltro, setPdfFiltro] = useState<TriState>("all");
+  const [firmatoFiltro, setFirmatoFiltro] = useState<TriState>("all");
+  const [sopralluogoFiltro, setSopralluogoFiltro] = useState<TriState>("all");
+
   const [page, setPage] = useState<number>(1);
 
   // Sheet filtri aperto/chiuso
@@ -141,14 +212,33 @@ export default function SerramentiIndex() {
     if (importoMax.trim() !== "") n++;
     if (materialeFiltro !== "all") n++;
     if (tipoInterventoFiltro !== "all") n++;
+    if (consulenteFiltro !== "all") n++;
+    if (provinciaFiltro !== "all") n++;
+    if (pezziMin.trim() !== "") n++;
+    if (pezziMax.trim() !== "") n++;
+    if (mqMin.trim() !== "") n++;
+    if (mqMax.trim() !== "") n++;
+    if (bonusFiltro !== "any") n++;
+    if (schemaFiltro !== "all") n++;
+    if (opportunitaFiltro !== "all") n++;
+    if (convertitoFiltro !== "all") n++;
+    if (pdfFiltro !== "all") n++;
+    if (firmatoFiltro !== "all") n++;
+    if (sopralluogoFiltro !== "all") n++;
     return n;
-  }, [statoGroup, filtroStato, periodo, sortBy, importoMin, importoMax, materialeFiltro, tipoInterventoFiltro]);
+  }, [statoGroup, filtroStato, periodo, sortBy, importoMin, importoMax, materialeFiltro, tipoInterventoFiltro,
+    consulenteFiltro, provinciaFiltro, pezziMin, pezziMax, mqMin, mqMax, bonusFiltro, schemaFiltro,
+    opportunitaFiltro, convertitoFiltro, pdfFiltro, firmatoFiltro, sopralluogoFiltro]);
 
   // Lista filtrata + sortata
   const progettiFiltrati = useMemo(() => {
     const s = search.trim().toLowerCase();
     const min = importoMin.trim() === "" ? null : Number(importoMin);
     const max = importoMax.trim() === "" ? null : Number(importoMax);
+    const pMin = pezziMin.trim() === "" ? null : Number(pezziMin);
+    const pMax = pezziMax.trim() === "" ? null : Number(pezziMax);
+    const mMin = mqMin.trim() === "" ? null : Number(mqMin);
+    const mMax = mqMax.trim() === "" ? null : Number(mqMax);
 
     let out = progetti.filter((p) => {
       // Gruppo stato
@@ -167,9 +257,42 @@ export default function SerramentiIndex() {
       if (materialeFiltro !== "all" && p.materiale_principale !== materialeFiltro) return false;
       // Tipo intervento
       if (tipoInterventoFiltro !== "all" && p.tipo_intervento !== tipoInterventoFiltro) return false;
+      // Commerciale / Consulente
+      if (consulenteFiltro !== "all") {
+        if (consulenteFiltro === "none") {
+          if (p.consulente_id) return false;
+        } else if (p.consulente_id !== consulenteFiltro) return false;
+      }
+      // Provincia cantiere
+      if (provinciaFiltro !== "all" && p.cantiere_provincia !== provinciaFiltro) return false;
+      // N° pezzi
+      const pezzi = Number(p.totale_serramenti ?? 0);
+      if (pMin != null && Number.isFinite(pMin) && pezzi < pMin) return false;
+      if (pMax != null && Number.isFinite(pMax) && pezzi > pMax) return false;
+      // m²
+      const mq = Number(p.metri_quadri_totali ?? 0);
+      if (mMin != null && Number.isFinite(mMin) && mq < mMin) return false;
+      if (mMax != null && Number.isFinite(mMax) && mq > mMax) return false;
+      // Bonus Ecobonus
+      if (bonusFiltro === "50" && p.detrazione_aliquota !== 50) return false;
+      if (bonusFiltro === "65" && p.detrazione_aliquota !== 65) return false;
+      if (bonusFiltro === "none" && p.detrazione_aliquota != null) return false;
+      // Schema pagamento
+      if (schemaFiltro !== "all" && p.schema_pagamento !== schemaFiltro) return false;
+      // Linking CRM / Ordini / Documenti (TriState)
+      if (opportunitaFiltro === "yes" && !p.opportunita_id) return false;
+      if (opportunitaFiltro === "no" && p.opportunita_id) return false;
+      if (convertitoFiltro === "yes" && !p.ordine_id) return false;
+      if (convertitoFiltro === "no" && p.ordine_id) return false;
+      if (pdfFiltro === "yes" && !p.pdf_url) return false;
+      if (pdfFiltro === "no" && p.pdf_url) return false;
+      if (firmatoFiltro === "yes" && !p.firmato_il) return false;
+      if (firmatoFiltro === "no" && p.firmato_il) return false;
+      if (sopralluogoFiltro === "yes" && !p.sopralluogo_id) return false;
+      if (sopralluogoFiltro === "no" && p.sopralluogo_id) return false;
       // Search
       if (s) {
-        const blob = `${p.code ?? ""} ${p.cliente_nome ?? ""} ${p.cliente_cognome ?? ""} ${p.cantiere_citta ?? ""}`.toLowerCase();
+        const blob = `${p.code ?? ""} ${p.cliente_nome ?? ""} ${p.cliente_cognome ?? ""} ${p.cantiere_citta ?? ""} ${p.cantiere_provincia ?? ""}`.toLowerCase();
         if (!blob.includes(s)) return false;
       }
       return true;
@@ -184,14 +307,20 @@ export default function SerramentiIndex() {
       return tb - ta;
     });
     return out;
-  }, [progetti, search, statoGroup, filtroStato, cutoff, sortBy, importoMin, importoMax, materialeFiltro, tipoInterventoFiltro]);
+  }, [progetti, search, statoGroup, filtroStato, cutoff, sortBy, importoMin, importoMax,
+    materialeFiltro, tipoInterventoFiltro, consulenteFiltro, provinciaFiltro,
+    pezziMin, pezziMax, mqMin, mqMax, bonusFiltro, schemaFiltro,
+    opportunitaFiltro, convertitoFiltro, pdfFiltro, firmatoFiltro, sopralluogoFiltro]);
 
   // Reset pagina quando cambiano i filtri o la ricerca (no jumping su pagine
   // inesistenti dopo restringimento dataset). Eseguito come effect: side
   // effect setState dentro useMemo violava le regole di purity di React.
   useEffect(() => {
     setPage(1);
-  }, [search, statoGroup, filtroStato, periodo, sortBy, importoMin, importoMax, materialeFiltro, tipoInterventoFiltro]);
+  }, [search, statoGroup, filtroStato, periodo, sortBy, importoMin, importoMax,
+    materialeFiltro, tipoInterventoFiltro, consulenteFiltro, provinciaFiltro,
+    pezziMin, pezziMax, mqMin, mqMax, bonusFiltro, schemaFiltro,
+    opportunitaFiltro, convertitoFiltro, pdfFiltro, firmatoFiltro, sopralluogoFiltro]);
 
   // Paginazione
   const totalPages = Math.max(1, Math.ceil(progettiFiltrati.length / PAGE_SIZE));
@@ -242,6 +371,19 @@ export default function SerramentiIndex() {
     setImportoMax("");
     setMaterialeFiltro("all");
     setTipoInterventoFiltro("all");
+    setConsulenteFiltro("all");
+    setProvinciaFiltro("all");
+    setPezziMin("");
+    setPezziMax("");
+    setMqMin("");
+    setMqMax("");
+    setBonusFiltro("any");
+    setSchemaFiltro("all");
+    setOpportunitaFiltro("all");
+    setConvertitoFiltro("all");
+    setPdfFiltro("all");
+    setFirmatoFiltro("all");
+    setSopralluogoFiltro("all");
     const next = new URLSearchParams(searchParams);
     next.delete("gruppo");
     setSearchParams(next, { replace: true });
@@ -408,6 +550,69 @@ export default function SerramentiIndex() {
                 onClear={() => setTipoInterventoFiltro("all")}
               />
             )}
+            {consulenteFiltro !== "all" && (
+              <FilterChip
+                label={`Commerciale: ${consulenteFiltro === "none" ? "non assegnato" : (teamById.get(consulenteFiltro) ?? "—")}`}
+                onClear={() => setConsulenteFiltro("all")}
+              />
+            )}
+            {provinciaFiltro !== "all" && (
+              <FilterChip label={`Provincia: ${provinciaFiltro}`} onClear={() => setProvinciaFiltro("all")} />
+            )}
+            {pezziMin.trim() !== "" && (
+              <FilterChip label={`Pezzi ≥ ${pezziMin}`} onClear={() => setPezziMin("")} />
+            )}
+            {pezziMax.trim() !== "" && (
+              <FilterChip label={`Pezzi ≤ ${pezziMax}`} onClear={() => setPezziMax("")} />
+            )}
+            {mqMin.trim() !== "" && (
+              <FilterChip label={`m² ≥ ${mqMin}`} onClear={() => setMqMin("")} />
+            )}
+            {mqMax.trim() !== "" && (
+              <FilterChip label={`m² ≤ ${mqMax}`} onClear={() => setMqMax("")} />
+            )}
+            {bonusFiltro !== "any" && (
+              <FilterChip
+                label={`Bonus: ${BONUS_OPTIONS.find((b) => b.value === bonusFiltro)?.label ?? bonusFiltro}`}
+                onClear={() => setBonusFiltro("any")}
+              />
+            )}
+            {schemaFiltro !== "all" && (
+              <FilterChip
+                label={`Pagamento: ${SCHEMI_PAGAMENTO_LABELS[schemaFiltro] ?? schemaFiltro}`}
+                onClear={() => setSchemaFiltro("all")}
+              />
+            )}
+            {opportunitaFiltro !== "all" && (
+              <FilterChip
+                label={opportunitaFiltro === "yes" ? "Con opportunità" : "Senza opportunità"}
+                onClear={() => setOpportunitaFiltro("all")}
+              />
+            )}
+            {convertitoFiltro !== "all" && (
+              <FilterChip
+                label={convertitoFiltro === "yes" ? "Convertito in commessa" : "Non convertito"}
+                onClear={() => setConvertitoFiltro("all")}
+              />
+            )}
+            {pdfFiltro !== "all" && (
+              <FilterChip
+                label={pdfFiltro === "yes" ? "Con PDF" : "Senza PDF"}
+                onClear={() => setPdfFiltro("all")}
+              />
+            )}
+            {firmatoFiltro !== "all" && (
+              <FilterChip
+                label={firmatoFiltro === "yes" ? "Firmato" : "Non firmato"}
+                onClear={() => setFirmatoFiltro("all")}
+              />
+            )}
+            {sopralluogoFiltro !== "all" && (
+              <FilterChip
+                label={sopralluogoFiltro === "yes" ? "Da sopralluogo" : "Senza sopralluogo"}
+                onClear={() => setSopralluogoFiltro("all")}
+              />
+            )}
           </div>
         )}
 
@@ -440,6 +645,7 @@ export default function SerramentiIndex() {
                       <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Codice</TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Cliente</TableHead>
+                        <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600 hidden lg:table-cell">Commerciale</TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Cantiere</TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600 text-right">N° pezzi</TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600 text-right">Importo</TableHead>
@@ -467,8 +673,16 @@ export default function SerramentiIndex() {
                                 {cliente || <span className="text-muted-foreground">—</span>}
                               </div>
                             </TableCell>
+                            <TableCell className="text-xs text-slate-600 hidden lg:table-cell">
+                              {p.consulente_id
+                                ? <span className="truncate inline-block max-w-[140px]">{teamById.get(p.consulente_id) ?? "—"}</span>
+                                : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
                             <TableCell className="text-xs text-slate-600">
                               {p.cantiere_citta ?? <span className="text-muted-foreground">—</span>}
+                              {p.cantiere_provincia && (
+                                <span className="text-muted-foreground"> ({p.cantiere_provincia})</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-xs text-right tabular-nums">{p.totale_serramenti ?? 0}</TableCell>
                             <TableCell className="text-xs text-right tabular-nums font-medium">
@@ -640,116 +854,195 @@ export default function SerramentiIndex() {
             </SheetDescription>
           </SheetHeader>
 
-          <div className="space-y-5 py-5">
-            {/* Gruppo stato — quick toggle */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Gruppo</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: "all", label: "Tutti", tone: "" },
-                  { value: "aperti", label: "Aperti", tone: "border-[#173b67] text-[#173b67] bg-blue-50" },
-                  { value: "vinti", label: "Vinti", tone: "border-orange-500 text-orange-600 bg-orange-50" },
-                  { value: "persi", label: "Persi", tone: "border-rose-400 text-rose-700 bg-rose-50" },
-                ].map((g) => (
-                  <Button
-                    key={g.value}
-                    variant={statoGroup === g.value ? "default" : "outline"}
-                    size="sm"
-                    className={cn("h-9 text-xs", statoGroup === g.value && g.tone)}
-                    onClick={() => setStatoGroup(g.value)}
-                  >
-                    {g.label}
-                  </Button>
-                ))}
+          <div className="space-y-6 py-5">
+            {/* ─── STATO & TEMPO ─── */}
+            <FilterSection icon={<Layers className="h-3.5 w-3.5" />} title="Stato & Tempo">
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground">Gruppo</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: "all", label: "Tutti", tone: "" },
+                    { value: "aperti", label: "Aperti", tone: "border-[#173b67] text-[#173b67] bg-blue-50" },
+                    { value: "vinti", label: "Vinti", tone: "border-orange-500 text-orange-600 bg-orange-50" },
+                    { value: "persi", label: "Persi", tone: "border-rose-400 text-rose-700 bg-rose-50" },
+                  ].map((g) => (
+                    <Button
+                      key={g.value}
+                      variant={statoGroup === g.value ? "default" : "outline"}
+                      size="sm"
+                      className={cn("h-9 text-xs", statoGroup === g.value && g.tone)}
+                      onClick={() => setStatoGroup(g.value)}
+                    >
+                      {g.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
-            </div>
-
-            {/* Stato specifico */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Stato specifico</Label>
-              <Select value={filtroStato} onValueChange={setFiltroStato}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti gli stati</SelectItem>
-                  {(Object.keys(STATI_LABEL) as SrStatoProgetto[]).map((k) => (
-                    <SelectItem key={k} value={k}>{STATI_LABEL[k].label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Periodo */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Periodo</Label>
-              <Select value={periodo} onValueChange={(v) => setPeriodo(v as PeriodKey)}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(PERIOD_LABELS) as PeriodKey[]).map((k) => (
-                    <SelectItem key={k} value={k}>{PERIOD_LABELS[k]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Range importo */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Importo (€)</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  type="number" placeholder="Min" inputMode="decimal"
-                  value={importoMin}
-                  onChange={(e) => setImportoMin(e.target.value)}
-                  className="h-9"
-                />
-                <Input
-                  type="number" placeholder="Max" inputMode="decimal"
-                  value={importoMax}
-                  onChange={(e) => setImportoMax(e.target.value)}
-                  className="h-9"
-                />
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground">Stato specifico</Label>
+                <Select value={filtroStato} onValueChange={setFiltroStato}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti gli stati</SelectItem>
+                    {(Object.keys(STATI_LABEL) as SrStatoProgetto[]).map((k) => (
+                      <SelectItem key={k} value={k}>{STATI_LABEL[k].label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground">Periodo aggiornamento</Label>
+                <Select value={periodo} onValueChange={(v) => setPeriodo(v as PeriodKey)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(PERIOD_LABELS) as PeriodKey[]).map((k) => (
+                      <SelectItem key={k} value={k}>{PERIOD_LABELS[k]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </FilterSection>
 
-            {/* Materiale */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Materiale principale</Label>
-              <Select value={materialeFiltro} onValueChange={setMaterialeFiltro}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti i materiali</SelectItem>
-                  {MATERIALI.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* ─── COMMERCIALI ─── */}
+            <FilterSection icon={<User className="h-3.5 w-3.5" />} title="Commerciali">
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground">Consulente / commerciale</Label>
+                <Select value={consulenteFiltro} onValueChange={setConsulenteFiltro}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti i commerciali</SelectItem>
+                    <SelectItem value="none">Non assegnato</SelectItem>
+                    {teamMembers.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {[m.first_name, m.last_name].filter(Boolean).join(" ") || m.email || m.id.slice(0, 6)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+                  <MapPin className="h-3 w-3" /> Provincia cantiere
+                </Label>
+                <Select value={provinciaFiltro} onValueChange={setProvinciaFiltro}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="all">Tutte le province</SelectItem>
+                    {PROVINCE_IT.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </FilterSection>
 
-            {/* Tipo intervento */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Tipo intervento</Label>
-              <Select value={tipoInterventoFiltro} onValueChange={setTipoInterventoFiltro}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti i tipi</SelectItem>
-                  {TIPI_INTERVENTO.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* ─── PRODOTTI & TECNICO ─── */}
+            <FilterSection icon={<Package2 className="h-3.5 w-3.5" />} title="Prodotti & Tecnico">
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground">Materiale principale</Label>
+                <Select value={materialeFiltro} onValueChange={setMaterialeFiltro}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti i materiali</SelectItem>
+                    {MATERIALI.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground">Tipo intervento</Label>
+                <Select value={tipoInterventoFiltro} onValueChange={setTipoInterventoFiltro}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti i tipi</SelectItem>
+                    {TIPI_INTERVENTO.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground">N° pezzi</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input type="number" placeholder="Min" inputMode="numeric" min="0"
+                    value={pezziMin} onChange={(e) => setPezziMin(e.target.value)} className="h-9" />
+                  <Input type="number" placeholder="Max" inputMode="numeric" min="0"
+                    value={pezziMax} onChange={(e) => setPezziMax(e.target.value)} className="h-9" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground">m² totali</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input type="number" placeholder="Min" inputMode="decimal" min="0" step="0.1"
+                    value={mqMin} onChange={(e) => setMqMin(e.target.value)} className="h-9" />
+                  <Input type="number" placeholder="Max" inputMode="decimal" min="0" step="0.1"
+                    value={mqMax} onChange={(e) => setMqMax(e.target.value)} className="h-9" />
+                </div>
+              </div>
+            </FilterSection>
 
-            {/* Ordinamento */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Ordina per</Label>
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
-                    <SelectItem key={k} value={k}>{SORT_LABELS[k]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* ─── ECONOMIA ─── */}
+            <FilterSection icon={<Wallet className="h-3.5 w-3.5" />} title="Economia">
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground">Importo totale (€)</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input type="number" placeholder="Min" inputMode="decimal"
+                    value={importoMin} onChange={(e) => setImportoMin(e.target.value)} className="h-9" />
+                  <Input type="number" placeholder="Max" inputMode="decimal"
+                    value={importoMax} onChange={(e) => setImportoMax(e.target.value)} className="h-9" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" /> Ecobonus
+                </Label>
+                <Select value={bonusFiltro} onValueChange={setBonusFiltro}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {BONUS_OPTIONS.map((b) => (
+                      <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground">Schema pagamento</Label>
+                <Select value={schemaFiltro} onValueChange={setSchemaFiltro}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti gli schemi</SelectItem>
+                    {Object.entries(SCHEMI_PAGAMENTO_LABELS).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </FilterSection>
+
+            {/* ─── LINKING / WORKFLOW ─── */}
+            <FilterSection icon={<Briefcase className="h-3.5 w-3.5" />} title="Workflow & Linking">
+              <TriStateRow label="Opportunità CRM" icon={<Briefcase className="h-3 w-3" />} value={opportunitaFiltro} onChange={setOpportunitaFiltro} />
+              <TriStateRow label="Sopralluogo collegato" icon={<ClipboardList className="h-3 w-3" />} value={sopralluogoFiltro} onChange={setSopralluogoFiltro} />
+              <TriStateRow label="Convertito in commessa" icon={<ClipboardList className="h-3 w-3" />} value={convertitoFiltro} onChange={setConvertitoFiltro} />
+              <TriStateRow label="PDF generato" icon={<FileText className="h-3 w-3" />} value={pdfFiltro} onChange={setPdfFiltro} />
+              <TriStateRow label="Firmato dal cliente" icon={<FileSignature className="h-3 w-3" />} value={firmatoFiltro} onChange={setFirmatoFiltro} />
+            </FilterSection>
+
+            {/* ─── ORDINAMENTO ─── */}
+            <FilterSection icon={<TrendingUp className="h-3.5 w-3.5" />} title="Ordinamento">
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium text-muted-foreground">Ordina per</Label>
+                <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                      <SelectItem key={k} value={k}>{SORT_LABELS[k]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </FilterSection>
           </div>
 
           <SheetFooter className="gap-2 sm:gap-0 border-t pt-4">
@@ -837,6 +1130,57 @@ function KpiCard({
       {hint && (
         <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{hint}</p>
       )}
+    </div>
+  );
+}
+
+function FilterSection({
+  icon, title, children,
+}: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100">
+        <span className="text-orange-600">{icon}</span>
+        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">{title}</h4>
+      </div>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
+function TriStateRow({
+  label, icon, value, onChange,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  value: TriState;
+  onChange: (v: TriState) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1 truncate">
+        {icon}
+        {label}
+      </Label>
+      <div className="flex gap-1 shrink-0">
+        {(["all", "yes", "no"] as TriState[]).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onChange(v)}
+            className={cn(
+              "h-7 px-2.5 text-[10px] font-medium rounded transition-colors",
+              value === v
+                ? v === "yes" ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                : v === "no" ? "bg-rose-100 text-rose-700 border border-rose-300"
+                : "bg-slate-200 text-slate-700 border border-slate-300"
+                : "bg-white text-muted-foreground border border-slate-200 hover:bg-slate-50"
+            )}
+          >
+            {v === "all" ? "Tutti" : v === "yes" ? "Sì" : "No"}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
