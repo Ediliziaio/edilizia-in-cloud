@@ -1,5 +1,26 @@
+/**
+ * SettingsScontistica — gestione regole di sconto aziendali.
+ *
+ * Funzionalità principali:
+ *  - CRUD regole (nome, scope, fascia importo, sconto max, approva oltre,
+ *    margine min, priorità)
+ *  - Toggle attiva/disattiva da tabella senza aprire dialog
+ *  - Simulatore live (replica compute_max_discount SQL) per testare combinazioni
+ *    importo × commerciale × tag cliente × tipo lavoro
+ *
+ * Validazioni cross-field:
+ *  - importo_max ≥ importo_min
+ *  - approva_oltre_pct ≤ sconto_max_pct
+ *  - salesperson_id obbligatorio se scope=per_commerciale
+ *  - client_category obbligatorio se scope=per_cliente_cat
+ *
+ * Responsive: tabella su md+, card view su mobile.
+ */
 import { useState, useMemo } from "react";
-import { Plus, Pencil, Trash2, Percent, AlertCircle, Info, Calculator, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Percent, AlertCircle, Info, Calculator,
+  CheckCircle2, XCircle, AlertTriangle, Loader2, ChevronRight,
+} from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -28,6 +49,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import {
   useDiscountRules, useUpsertDiscountRule, useDeleteDiscountRule,
@@ -35,26 +57,77 @@ import {
 } from "@/hooks/useDiscountRules";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
-const schema = z.object({
-  name: z.string().min(1, "Nome obbligatorio"),
-  scope: z.enum(["globale", "per_commerciale", "per_cliente_cat"]),
-  salesperson_id: z.string().nullable().optional(),
-  client_category: z.string().nullable().optional(),
-  tipo_lavoro: z.string().nullable().optional(),
-  importo_min: z.coerce.number().min(0).nullable().optional(),
-  importo_max: z.coerce.number().min(0).nullable().optional(),
-  margine_min_pct: z.coerce.number().min(0).max(100),
-  sconto_max_pct: z.coerce.number().min(0).max(100),
-  approva_oltre_pct: z.coerce.number().min(0).max(100).nullable().optional(),
-  priority: z.coerce.number().int().min(1).max(1000),
-  is_active: z.boolean(),
-});
+/** Sentinel per Radix Select: "nessun valore" → null al salvataggio. */
+const SELECT_NONE = "__none__";
+
+/** Converte input number → number | null gestendo stringa vuota / NaN. */
+function toNumOrNull(v: unknown): number | null {
+  if (v === "" || v == null) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+function toNum(v: unknown, fallback = 0): number {
+  const n = toNumOrNull(v);
+  return n ?? fallback;
+}
+
+const schema = z
+  .object({
+    name: z.string().trim().min(1, "Nome obbligatorio").max(100, "Max 100 caratteri"),
+    scope: z.enum(["globale", "per_commerciale", "per_cliente_cat"]),
+    salesperson_id: z.string().nullable().optional(),
+    client_category: z.string().trim().nullable().optional(),
+    tipo_lavoro: z.string().trim().nullable().optional(),
+    importo_min: z.coerce.number().min(0, "Min ≥ 0").nullable().optional(),
+    importo_max: z.coerce.number().min(0, "Max ≥ 0").nullable().optional(),
+    margine_min_pct: z.coerce.number().min(0).max(100),
+    sconto_max_pct: z.coerce.number().min(0).max(100),
+    approva_oltre_pct: z.coerce.number().min(0).max(100).nullable().optional(),
+    priority: z.coerce.number().int().min(1).max(1000),
+    is_active: z.boolean(),
+  })
+  // Cross-validation: importo_max ≥ importo_min
+  .refine(
+    (v) => v.importo_max == null || (v.importo_min ?? 0) <= v.importo_max,
+    { path: ["importo_max"], message: "Max deve essere ≥ Min" },
+  )
+  // approva_oltre ≤ sconto_max (sennò approvazione non scatta mai)
+  .refine(
+    (v) => v.approva_oltre_pct == null || v.approva_oltre_pct <= v.sconto_max_pct,
+    { path: ["approva_oltre_pct"], message: "Deve essere ≤ Sconto max" },
+  )
+  // salesperson obbligatorio quando scope=per_commerciale
+  .refine(
+    (v) => v.scope !== "per_commerciale" || (v.salesperson_id != null && v.salesperson_id !== ""),
+    { path: ["salesperson_id"], message: "Seleziona un commerciale" },
+  )
+  // client_category obbligatorio quando scope=per_cliente_cat
+  .refine(
+    (v) => v.scope !== "per_cliente_cat" || (v.client_category != null && v.client_category.trim() !== ""),
+    { path: ["client_category"], message: "Inserisci il tag categoria cliente" },
+  );
+
 type FormValues = z.infer<typeof schema>;
 
 const SCOPE_LABELS: Record<DiscountRuleScope, string> = {
   globale: "Globale",
   per_commerciale: "Per commerciale",
   per_cliente_cat: "Per categoria cliente",
+};
+
+const DEFAULT_VALUES: FormValues = {
+  name: "",
+  scope: "globale",
+  salesperson_id: null,
+  client_category: null,
+  tipo_lavoro: null,
+  importo_min: 0,
+  importo_max: null,
+  margine_min_pct: 15,
+  sconto_max_pct: 10,
+  approva_oltre_pct: null,
+  priority: 100,
+  is_active: true,
 };
 
 export default function SettingsScontistica() {
@@ -66,7 +139,7 @@ export default function SettingsScontistica() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<DiscountRule | null>(null);
 
-  const { data: salespeople = [] } = useQuery({
+  const { data: salespeople = [], isLoading: salespeopleLoading } = useQuery({
     queryKey: ["salespeople-active", companyId],
     enabled: !!companyId,
     queryFn: async () => {
@@ -83,38 +156,13 @@ export default function SettingsScontistica() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      name: "",
-      scope: "globale",
-      salesperson_id: null,
-      client_category: null,
-      tipo_lavoro: null,
-      importo_min: 0,
-      importo_max: null,
-      margine_min_pct: 15,
-      sconto_max_pct: 10,
-      approva_oltre_pct: null,
-      priority: 100,
-      is_active: true,
-    },
+    defaultValues: DEFAULT_VALUES,
+    mode: "onBlur",
   });
 
   const openNew = () => {
     setEditing(null);
-    form.reset({
-      name: "",
-      scope: "globale",
-      salesperson_id: null,
-      client_category: null,
-      tipo_lavoro: null,
-      importo_min: 0,
-      importo_max: null,
-      margine_min_pct: 15,
-      sconto_max_pct: 10,
-      approva_oltre_pct: null,
-      priority: 100,
-      is_active: true,
-    });
+    form.reset(DEFAULT_VALUES);
     setDialogOpen(true);
   };
 
@@ -142,8 +190,12 @@ export default function SettingsScontistica() {
       {
         id: editing?.id,
         ...values,
+        // Cleanup: se scope non li usa, nulla i campi correlati per evitare
+        // dati orfani che confondono il matcher SQL.
         salesperson_id: values.scope === "per_commerciale" ? values.salesperson_id ?? null : null,
         client_category: values.scope === "per_cliente_cat" ? values.client_category ?? null : null,
+        // tipo_lavoro: stringa vuota → null
+        tipo_lavoro: values.tipo_lavoro?.trim() ? values.tipo_lavoro.trim() : null,
       },
       {
         onSuccess: () => {
@@ -155,409 +207,599 @@ export default function SettingsScontistica() {
   };
 
   const scope = form.watch("scope");
+  const activeCount = rules.filter((r) => r.is_active).length;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <Percent className="h-5 w-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Regole di scontistica</h1>
-            <p className="text-sm text-muted-foreground">
-              Limiti di sconto per i commerciali: {rules.length} regole configurate · {rules.filter((r) => r.is_active).length} attive.
-            </p>
-          </div>
-        </div>
-        <Button onClick={openNew} size="sm">
-          <Plus className="h-4 w-4 mr-1.5" />
-          Nuova regola
-        </Button>
-      </div>
-
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertTitle>Come funziona</AlertTitle>
-        <AlertDescription className="text-sm">
-          Ogni regola che corrisponde al preventivo (commerciale + categoria cliente + importo + tipo di lavoro)
-          contribuisce. Il sistema applica il limite <strong>più basso</strong> tra tutte le regole matchanti.
-          Se il commerciale prova a superare <em>approva oltre %</em>, scatta il workflow di autorizzazione admin.
-          Se invece prova a superare <em>sconto max</em>, il sistema non permette di applicarlo senza approvazione.
-          Il <strong>margine minimo</strong> è un vincolo trasversale: se lo sconto lo farebbe scendere sotto,
-          viene limitato automaticamente.
-        </AlertDescription>
-      </Alert>
-
-      {/* ─── Simulatore sconto ─────────────────────────────────────── */}
-      <DiscountSimulator rules={rules} salespeople={salespeople} />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Regole attive</CardTitle>
-          <CardDescription>{rules.length} regole configurate</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="p-8 text-center text-muted-foreground">Caricamento…</div>
-          ) : rules.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground border rounded-lg">
-              <AlertCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p>Nessuna regola configurata.</p>
-              <p className="text-sm">
-                In assenza di regole il limite di sconto è <strong>10%</strong> per tutti.
+    <TooltipProvider delayDuration={200}>
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <Percent className="h-5 w-5 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold leading-tight">Regole di scontistica</h1>
+              <p className="text-sm text-muted-foreground">
+                Limiti di sconto per i commerciali — <strong>{rules.length}</strong> configurate,{" "}
+                <strong>{activeCount}</strong> attive.
               </p>
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Scope</TableHead>
-                  <TableHead>Fascia importo</TableHead>
-                  <TableHead className="text-right">Margine min</TableHead>
-                  <TableHead className="text-right">Sconto max</TableHead>
-                  <TableHead className="text-right">Approva oltre</TableHead>
-                  <TableHead className="text-right">Prio</TableHead>
-                  <TableHead>Attiva</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rules.map((r) => (
-                  <TableRow key={r.id} className={!r.is_active ? "opacity-50" : ""}>
-                    <TableCell className="font-medium">
-                      {r.name}
-                      {r.scope === "per_commerciale" && r.salesperson_id && (
-                        <div className="text-xs text-muted-foreground">
-                          {salespeople.find((s) => s.id === r.salesperson_id)
-                            ? `${salespeople.find((s) => s.id === r.salesperson_id)!.first_name} ${salespeople.find((s) => s.id === r.salesperson_id)!.last_name}`
-                            : "—"}
-                        </div>
-                      )}
-                      {r.scope === "per_cliente_cat" && r.client_category && (
-                        <div className="text-xs text-muted-foreground">Tag: {r.client_category}</div>
-                      )}
-                      {r.tipo_lavoro && (
-                        <div className="text-xs text-muted-foreground">Tipo lavoro: {r.tipo_lavoro}</div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{SCOPE_LABELS[r.scope]}</Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      €{(r.importo_min ?? 0).toLocaleString("it-IT")} –{" "}
-                      {r.importo_max ? `€${r.importo_max.toLocaleString("it-IT")}` : "∞"}
-                    </TableCell>
-                    <TableCell className="text-right">{r.margine_min_pct}%</TableCell>
-                    <TableCell className="text-right font-medium">{r.sconto_max_pct}%</TableCell>
-                    <TableCell className="text-right">
-                      {r.approva_oltre_pct != null ? `${r.approva_oltre_pct}%` : "—"}
-                    </TableCell>
-                    <TableCell className="text-right text-xs">{r.priority}</TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={r.is_active}
-                        onCheckedChange={(checked) =>
-                          upsert.mutate({ id: r.id, is_active: checked })
-                        }
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex gap-1 justify-end">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Eliminare la regola?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                La regola <strong>{r.name}</strong> sarà rimossa. I preventivi
-                                esistenti non saranno toccati, ma i nuovi non la applicheranno più.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Annulla</AlertDialogCancel>
-                              <AlertDialogAction
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                onClick={() => del.mutate(r.id)}
-                              >
-                                Elimina
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+          <Button onClick={openNew} size="sm" className="w-full sm:w-auto">
+            <Plus className="h-4 w-4 mr-1.5" />
+            Nuova regola
+          </Button>
+        </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Modifica regola" : "Nuova regola di sconto"}</DialogTitle>
-            <DialogDescription>
-              Definisci le condizioni e i limiti di sconto.
-            </DialogDescription>
-          </DialogHeader>
+        {/* "Come funziona" — più scannabile */}
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>Come funziona</AlertTitle>
+          <AlertDescription className="text-sm space-y-1">
+            <ul className="list-disc ml-5 space-y-0.5">
+              <li>Ogni preventivo matcha tutte le regole con scope + fascia importo + tipo lavoro coerenti.</li>
+              <li>Il sistema applica il limite <strong>più basso</strong> tra le regole matchanti (binding).</li>
+              <li>Oltre <em>approva oltre %</em> → richiede approvazione admin.</li>
+              <li>Oltre <em>sconto max %</em> → bloccato senza override admin.</li>
+              <li>Il <strong>margine minimo</strong> non si scende mai sotto: lo sconto viene limitato in automatico.</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome regola *</FormLabel>
-                    <FormControl>
-                      <Input placeholder='es. "Sconto gold cliente fino 10k"' {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        {/* Simulatore */}
+        <DiscountSimulator rules={rules} salespeople={salespeople} />
 
-              <FormField
-                control={form.control}
-                name="scope"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo di regola</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="globale">Globale (tutti i commerciali + tutti i clienti)</SelectItem>
-                        <SelectItem value="per_commerciale">Per commerciale specifico</SelectItem>
-                        <SelectItem value="per_cliente_cat">Per categoria / tag cliente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        {/* Tabella / Card list */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Regole attive</CardTitle>
+            <CardDescription>Ordinate per priorità crescente (più basso = valutato prima)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="p-8 text-center text-muted-foreground flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Caricamento…
+              </div>
+            ) : rules.length === 0 ? (
+              <div className="p-8 text-center border rounded-lg border-dashed">
+                <AlertCircle className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                <p className="font-medium">Nessuna regola configurata</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  In assenza di regole il limite è <strong>10%</strong> per tutti.
+                </p>
+                <Button onClick={openNew} size="sm" className="mt-4">
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Crea la prima regola
+                </Button>
+              </div>
+            ) : (
+              <>
+                {/* Desktop: tabella */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Scope</TableHead>
+                        <TableHead>Fascia importo</TableHead>
+                        <TableHead className="text-right">Margine min</TableHead>
+                        <TableHead className="text-right">Sconto max</TableHead>
+                        <TableHead className="text-right">Approva oltre</TableHead>
+                        <TableHead className="text-right">Prio</TableHead>
+                        <TableHead>Attiva</TableHead>
+                        <TableHead className="text-right">Azioni</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rules.map((r) => (
+                        <RuleRow
+                          key={r.id}
+                          rule={r}
+                          salespeople={salespeople}
+                          onToggle={(checked) => upsert.mutate({ id: r.id, is_active: checked })}
+                          onEdit={() => openEdit(r)}
+                          onDelete={() => del.mutate(r.id)}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
 
-              {scope === "per_commerciale" && (
+                {/* Mobile: card list */}
+                <div className="md:hidden space-y-2">
+                  {rules.map((r) => (
+                    <RuleCard
+                      key={r.id}
+                      rule={r}
+                      salespeople={salespeople}
+                      onToggle={(checked) => upsert.mutate({ id: r.id, is_active: checked })}
+                      onEdit={() => openEdit(r)}
+                      onDelete={() => del.mutate(r.id)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Dialog crea/modifica */}
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          // Evita di chiudere accidentalmente in pending: se sta salvando, blocca.
+          if (!open && upsert.isPending) return;
+          setDialogOpen(open);
+        }}>
+          <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Modifica regola" : "Nuova regola di sconto"}</DialogTitle>
+              <DialogDescription>
+                Definisci condizioni di applicazione e limiti.
+              </DialogDescription>
+            </DialogHeader>
+
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
                   control={form.control}
-                  name="salesperson_id"
+                  name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Commerciale</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <FormLabel>Nome regola *</FormLabel>
+                      <FormControl>
+                        <Input placeholder='es. "Sconto gold cliente fino 10k"' {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="scope"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo di regola</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Seleziona commerciale" />
+                            <SelectValue />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {salespeople.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.first_name} {s.last_name}
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="globale">Globale (tutti i commerciali + tutti i clienti)</SelectItem>
+                          <SelectItem value="per_commerciale">Per commerciale specifico</SelectItem>
+                          <SelectItem value="per_cliente_cat">Per categoria / tag cliente</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              )}
 
-              {scope === "per_cliente_cat" && (
-                <FormField
-                  control={form.control}
-                  name="client_category"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tag / categoria cliente</FormLabel>
-                      <FormControl>
-                        <Input placeholder="es. gold, silver, bronze" {...field} value={field.value ?? ""} />
-                      </FormControl>
-                      <FormDescription className="text-xs">
-                        Deve corrispondere a un tag presente sui contatti (marketing_contacts.tags).
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-
-              <FormField
-                control={form.control}
-                name="tipo_lavoro"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo di lavoro (opzionale)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="es. serramenti, ristrutturazione" {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      Se impostato, la regola si applica solo a preventivi con questo tipo di lavoro.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
+                {scope === "per_commerciale" && (
+                  <FormField
+                    control={form.control}
+                    name="salesperson_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Commerciale *</FormLabel>
+                        <Select
+                          onValueChange={(v) => field.onChange(v === SELECT_NONE ? null : v)}
+                          value={field.value ?? SELECT_NONE}
+                          disabled={salespeopleLoading}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder={salespeopleLoading ? "Caricamento…" : "Seleziona commerciale"} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value={SELECT_NONE}>— Seleziona —</SelectItem>
+                            {salespeople.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.first_name} {s.last_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {salespeople.length === 0 && !salespeopleLoading && (
+                          <FormDescription className="text-xs text-amber-600">
+                            ⚠ Nessun commerciale attivo. Aggiungili in Impostazioni › Commerciali.
+                          </FormDescription>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 )}
-              />
 
-              <div className="grid grid-cols-2 gap-4">
+                {scope === "per_cliente_cat" && (
+                  <FormField
+                    control={form.control}
+                    name="client_category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tag / categoria cliente *</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="es. gold, silver, bronze"
+                            {...field}
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value || null)}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          Deve corrispondere a un tag presente sui contatti.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 <FormField
                   control={form.control}
-                  name="importo_min"
+                  name="tipo_lavoro"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Importo min (€)</FormLabel>
+                      <FormLabel>Tipo di lavoro (opzionale)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" min="0" {...field} value={field.value ?? 0} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="importo_max"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Importo max (€, vuoto = ∞)</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" min="0" {...field}
+                        <Input
+                          placeholder="es. serramenti, ristrutturazione"
+                          {...field}
                           value={field.value ?? ""}
-                          onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="margine_min_pct"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Margine minimo post-sconto (%)</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.1" min="0" max="100" {...field} />
-                      </FormControl>
-                      <FormDescription className="text-xs">
-                        Il margine non può scendere sotto questa soglia.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="sconto_max_pct"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sconto max consentito (%)</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.1" min="0" max="100" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="approva_oltre_pct"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Approva oltre (%)</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.1" min="0" max="100" {...field}
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))}
+                          onChange={(e) => field.onChange(e.target.value || null)}
                         />
                       </FormControl>
                       <FormDescription className="text-xs">
-                        Oltre questa soglia serve autorizzazione admin.
+                        Vuoto = la regola si applica a qualsiasi tipo di lavoro.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="importo_min"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Importo min (€)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number" step="0.01" min="0" inputMode="decimal"
+                            value={field.value ?? 0}
+                            onChange={(e) => field.onChange(toNum(e.target.value, 0))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="importo_max"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Importo max (€)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number" step="0.01" min="0" inputMode="decimal"
+                            placeholder="∞ (vuoto)"
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(toNumOrNull(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">Vuoto = nessun limite</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="margine_min_pct"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Margine min post-sconto (%)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number" step="0.1" min="0" max="100" inputMode="decimal"
+                            value={field.value ?? 0}
+                            onChange={(e) => field.onChange(toNum(e.target.value, 0))}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">Non si scende sotto.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="sconto_max_pct"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sconto max consentito (%)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number" step="0.1" min="0" max="100" inputMode="decimal"
+                            value={field.value ?? 0}
+                            onChange={(e) => field.onChange(toNum(e.target.value, 0))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="approva_oltre_pct"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Approva oltre (%)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number" step="0.1" min="0" max="100" inputMode="decimal"
+                            placeholder="— (nessuna soglia)"
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(toNumOrNull(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          Oltre → autorizzazione admin.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="priority"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Priorità</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number" step="1" min="1" max="1000" inputMode="numeric"
+                            value={field.value ?? 100}
+                            onChange={(e) => field.onChange(toNum(e.target.value, 100))}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">Più basso = valutato prima.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
                 <FormField
                   control={form.control}
-                  name="priority"
+                  name="is_active"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Priorità</FormLabel>
+                    <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <FormLabel>Regola attiva</FormLabel>
+                        <FormDescription className="text-xs">
+                          Se disattiva, non viene considerata.
+                        </FormDescription>
+                      </div>
                       <FormControl>
-                        <Input type="number" step="1" min="1" max="1000" {...field} />
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
                       </FormControl>
-                      <FormDescription className="text-xs">Più basso = valutato prima.</FormDescription>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
 
-              <FormField
-                control={form.control}
-                name="is_active"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                    <div>
-                      <FormLabel>Regola attiva</FormLabel>
-                      <FormDescription className="text-xs">
-                        Se disattiva, la regola non viene considerata.
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button
+                    type="button" variant="outline"
+                    onClick={() => setDialogOpen(false)}
+                    disabled={upsert.isPending}
+                  >
+                    Annulla
+                  </Button>
+                  <Button type="submit" disabled={upsert.isPending}>
+                    {upsert.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+                    {editing ? "Salva modifiche" : "Crea regola"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </TooltipProvider>
+  );
+}
 
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                  Annulla
-                </Button>
-                <Button type="submit" disabled={upsert.isPending}>
-                  {editing ? "Salva" : "Crea regola"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+/* ─── Riga tabella (desktop) ──────────────────────────────────────────── */
+function RuleRow({
+  rule, salespeople, onToggle, onEdit, onDelete,
+}: {
+  rule: DiscountRule;
+  salespeople: Array<{ id: string; first_name: string; last_name: string }>;
+  onToggle: (checked: boolean) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const salesperson = rule.scope === "per_commerciale" && rule.salesperson_id
+    ? salespeople.find((s) => s.id === rule.salesperson_id)
+    : null;
+
+  return (
+    <TableRow className={!rule.is_active ? "opacity-50" : ""}>
+      <TableCell className="font-medium">
+        {rule.name}
+        {salesperson && (
+          <div className="text-xs text-muted-foreground">
+            {salesperson.first_name} {salesperson.last_name}
+          </div>
+        )}
+        {rule.scope === "per_cliente_cat" && rule.client_category && (
+          <div className="text-xs text-muted-foreground">Tag: {rule.client_category}</div>
+        )}
+        {rule.tipo_lavoro && (
+          <div className="text-xs text-muted-foreground">Tipo: {rule.tipo_lavoro}</div>
+        )}
+      </TableCell>
+      <TableCell>
+        <Badge variant="outline">{SCOPE_LABELS[rule.scope]}</Badge>
+      </TableCell>
+      <TableCell className="text-sm">
+        €{(rule.importo_min ?? 0).toLocaleString("it-IT")} –{" "}
+        {rule.importo_max ? `€${rule.importo_max.toLocaleString("it-IT")}` : "∞"}
+      </TableCell>
+      <TableCell className="text-right">{rule.margine_min_pct}%</TableCell>
+      <TableCell className="text-right font-medium">{rule.sconto_max_pct}%</TableCell>
+      <TableCell className="text-right">
+        {rule.approva_oltre_pct != null ? `${rule.approva_oltre_pct}%` : "—"}
+      </TableCell>
+      <TableCell className="text-right text-xs">{rule.priority}</TableCell>
+      <TableCell>
+        <Switch checked={rule.is_active} onCheckedChange={onToggle} />
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex gap-1 justify-end">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Modifica regola">
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Modifica</TooltipContent>
+          </Tooltip>
+          <DeleteRuleButton rule={rule} onDelete={onDelete} />
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/* ─── Card mobile ─────────────────────────────────────────────────────── */
+function RuleCard({
+  rule, salespeople, onToggle, onEdit, onDelete,
+}: {
+  rule: DiscountRule;
+  salespeople: Array<{ id: string; first_name: string; last_name: string }>;
+  onToggle: (checked: boolean) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const salesperson = rule.scope === "per_commerciale" && rule.salesperson_id
+    ? salespeople.find((s) => s.id === rule.salesperson_id)
+    : null;
+
+  return (
+    <div className={`rounded-lg border p-3 space-y-2 ${!rule.is_active ? "opacity-50" : ""}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-medium text-sm truncate">{rule.name}</p>
+            <Badge variant="outline" className="text-[10px]">{SCOPE_LABELS[rule.scope]}</Badge>
+          </div>
+          {salesperson && (
+            <p className="text-[11px] text-muted-foreground">{salesperson.first_name} {salesperson.last_name}</p>
+          )}
+          {rule.scope === "per_cliente_cat" && rule.client_category && (
+            <p className="text-[11px] text-muted-foreground">Tag: {rule.client_category}</p>
+          )}
+          {rule.tipo_lavoro && (
+            <p className="text-[11px] text-muted-foreground">Tipo: {rule.tipo_lavoro}</p>
+          )}
+        </div>
+        <Switch checked={rule.is_active} onCheckedChange={onToggle} />
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <div>
+          <p className="text-[9px] uppercase text-muted-foreground">Sconto max</p>
+          <p className="font-semibold">{rule.sconto_max_pct}%</p>
+        </div>
+        <div>
+          <p className="text-[9px] uppercase text-muted-foreground">Approva oltre</p>
+          <p className="font-semibold">{rule.approva_oltre_pct != null ? `${rule.approva_oltre_pct}%` : "—"}</p>
+        </div>
+        <div>
+          <p className="text-[9px] uppercase text-muted-foreground">Margine min</p>
+          <p className="font-semibold">{rule.margine_min_pct}%</p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+        <span>
+          €{(rule.importo_min ?? 0).toLocaleString("it-IT")} – {rule.importo_max ? `€${rule.importo_max.toLocaleString("it-IT")}` : "∞"}
+        </span>
+        <span>prio {rule.priority}</span>
+      </div>
+
+      <div className="flex gap-2 pt-1">
+        <Button variant="outline" size="sm" onClick={onEdit} className="flex-1 h-8">
+          <Pencil className="h-3.5 w-3.5 mr-1.5" />
+          Modifica
+        </Button>
+        <DeleteRuleButton rule={rule} onDelete={onDelete} mobile />
+      </div>
     </div>
   );
 }
 
+/* ─── Bottone elimina con conferma ────────────────────────────────────── */
+function DeleteRuleButton({
+  rule, onDelete, mobile = false,
+}: { rule: DiscountRule; onDelete: () => void; mobile?: boolean }) {
+  return (
+    <AlertDialog>
+      {mobile ? (
+        <AlertDialogTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8">
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          </Button>
+        </AlertDialogTrigger>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Elimina regola">
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </AlertDialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Elimina</TooltipContent>
+        </Tooltip>
+      )}
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Eliminare la regola?</AlertDialogTitle>
+          <AlertDialogDescription>
+            La regola <strong>{rule.name}</strong> sarà rimossa. I preventivi esistenti
+            non saranno toccati; i nuovi non la applicheranno più.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Annulla</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={onDelete}
+          >
+            Elimina
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────────────
- * Simulatore di sconto — live preview di quale regola si applica
- *
- * Data una combinazione (commerciale × categoria × importo × tipo lavoro),
- * trova tutte le regole matchanti, mostra la "binding" (quella con lo
- * sconto max più basso) e il risultato del check.
- *
- * Replica in-browser la stessa logica che il backend applicherà al
- * preventivatore reale, così admin può testare le regole prima di farle
- * ai venditori.
+ * Simulatore di sconto — live preview di quale regola si applica.
+ * Replica in-browser la logica del backend (compute_max_discount RPC).
  * ─────────────────────────────────────────────────────────────────────
  */
 function DiscountSimulator({
@@ -574,7 +816,6 @@ function DiscountSimulator({
   const [simTipoLavoro, setSimTipoLavoro] = useState<string>("");
 
   const evaluation = useMemo(() => {
-    // Filtra regole matchanti
     const active = rules.filter((r) => r.is_active);
     const matching = active.filter((r) => {
       // Scope
@@ -598,7 +839,6 @@ function DiscountSimulator({
     });
 
     if (matching.length === 0) {
-      // Fallback = 10% (come da UI empty-state)
       return {
         matchingRules: [] as DiscountRule[],
         bindingSconto: 10,
@@ -608,11 +848,13 @@ function DiscountSimulator({
       };
     }
 
-    // Binding = regola più restrittiva
     const minSconto = Math.min(...matching.map((r) => r.sconto_max_pct));
     const minApprova = matching
       .filter((r) => r.approva_oltre_pct != null)
-      .reduce<number | null>((acc, r) => (acc == null ? r.approva_oltre_pct! : Math.min(acc, r.approva_oltre_pct!)), null);
+      .reduce<number | null>(
+        (acc, r) => (acc == null ? r.approva_oltre_pct! : Math.min(acc, r.approva_oltre_pct!)),
+        null,
+      );
     const maxMargine = Math.max(...matching.map((r) => r.margine_min_pct));
 
     return {
@@ -624,28 +866,38 @@ function DiscountSimulator({
     };
   }, [rules, simImporto, simSalesperson, simCategoria, simTipoLavoro]);
 
-  // Verdetto finale
   const verdict = useMemo(() => {
     const s = simSconto;
     const cap = evaluation.bindingSconto;
     const approva = evaluation.bindingApprova;
-    if (s > cap) return { kind: "blocked" as const, label: `Sconto oltre il limite (${cap}%) — richiede override admin` };
-    if (approva != null && s > approva) return { kind: "approve" as const, label: `Sconto oltre ${approva}% — richiede approvazione` };
+    if (s > cap) return { kind: "blocked" as const, label: `Oltre il limite (${cap}%) — richiede override admin` };
+    if (approva != null && s > approva) return { kind: "approve" as const, label: `Oltre ${approva}% — richiede approvazione admin` };
     return { kind: "ok" as const, label: `Applicabile liberamente dal commerciale` };
   }, [simSconto, evaluation.bindingSconto, evaluation.bindingApprova]);
+
+  const hasActiveRules = rules.some((r) => r.is_active);
 
   return (
     <Card className="border-l-4 border-l-primary">
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Calculator className="h-4 w-4 text-primary" />
-          Simulatore — verifica come si applicano le regole
+          Simulatore — verifica le regole
         </CardTitle>
         <CardDescription>
-          Inserisci uno scenario reale e scopri quale regola scatta, qual è il tetto di sconto, se serve approvazione.
+          Testa uno scenario reale: quale regola scatta, qual è il tetto, se serve approvazione.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {!hasActiveRules && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Nessuna regola attiva: il simulatore usa il fallback predefinito (10%).
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Commerciale</label>
@@ -662,7 +914,7 @@ function DiscountSimulator({
             </Select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Categoria cliente (tag)</label>
+            <label className="text-xs font-medium text-muted-foreground">Categoria cliente</label>
             <Input
               value={simCategoria}
               onChange={(e) => setSimCategoria(e.target.value)}
@@ -680,26 +932,26 @@ function DiscountSimulator({
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Importo preventivo €</label>
+            <label className="text-xs font-medium text-muted-foreground">Importo € (subtotal)</label>
             <Input
-              type="number"
+              type="number" min="0" inputMode="decimal"
               value={simImporto}
-              onChange={(e) => setSimImporto(Number(e.target.value) || 0)}
+              onChange={(e) => setSimImporto(toNum(e.target.value, 0))}
               className="h-9 text-xs"
             />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Sconto richiesto %</label>
             <Input
-              type="number"
+              type="number" min="0" max="100" step="0.1" inputMode="decimal"
               value={simSconto}
-              onChange={(e) => setSimSconto(Number(e.target.value) || 0)}
+              onChange={(e) => setSimSconto(toNum(e.target.value, 0))}
               className="h-9 text-xs"
             />
           </div>
         </div>
 
-        {/* Risultato */}
+        {/* KPI binding */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-lg border p-3 bg-muted/30">
             <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Regole matchanti</p>
@@ -724,7 +976,7 @@ function DiscountSimulator({
           </div>
           <div className="rounded-lg border p-3 bg-muted/30">
             <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Tetto sconto (binding)</p>
-            <p className="text-lg font-bold mt-0.5">{evaluation.bindingSconto}%</p>
+            <p className="text-lg font-bold mt-0.5 tabular-nums">{evaluation.bindingSconto}%</p>
             {evaluation.bindingApprova != null && (
               <p className="text-[10px] text-muted-foreground">
                 Approvazione oltre {evaluation.bindingApprova}%
@@ -733,7 +985,7 @@ function DiscountSimulator({
           </div>
           <div className="rounded-lg border p-3 bg-muted/30">
             <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Margine minimo</p>
-            <p className="text-lg font-bold mt-0.5">{evaluation.bindingMargine}%</p>
+            <p className="text-lg font-bold mt-0.5 tabular-nums">{evaluation.bindingMargine}%</p>
             <p className="text-[10px] text-muted-foreground">Non si scende sotto</p>
           </div>
         </div>
@@ -759,6 +1011,7 @@ function DiscountSimulator({
             </p>
             <p className="text-muted-foreground">{verdict.label}</p>
           </div>
+          <ChevronRight className="h-4 w-4 text-muted-foreground/40 ml-auto shrink-0 mt-0.5 hidden sm:block" />
         </div>
       </CardContent>
     </Card>
