@@ -293,6 +293,11 @@ export interface SrAccessorioRow {
   tipo: string;
   descrizione: string | null;
   quantita: number;
+  // Misure: aggiunte dalla migration 20270312000000_sr_accessori_misure.sql
+  // (use case: dialog "Copia misure dai serramenti"). Prima erano scritte
+  // via `as any` cast -> il type system non proteggeva refactor.
+  larghezza_mm: number | null;
+  altezza_mm: number | null;
   prezzo_unitario: number | null;
   prezzo_totale: number | null;
   listino_voce_id: string | null;

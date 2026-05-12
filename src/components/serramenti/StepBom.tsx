@@ -21,12 +21,12 @@ import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle, Pac
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ListinoPickerDialog, type ListinoPickResult, calcolaPrezzoProdotto } from "./ListinoPickerDialog";
+import { ListinoPickerDialog, type ListinoPickResult, calcolaPrezzoProdotto, calcolaPosaInclusa } from "./ListinoPickerDialog";
 import { ServiziSection } from "./ServiziSection";
 import { AccessoriSection } from "./AccessoriSection";
 import {
   useAddSerramento, useUpdateSerramento, useDeleteSerramento, useImportDaSopralluogo,
-  useListinoFamiliesByIds, useListinoGriglia,
+  useListinoFamiliesByIds, useListinoGriglia, useTariffeManodopera,
 } from "@/lib/serramenti/queries";
 import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
 import {
@@ -74,6 +74,17 @@ export function StepBom({ progettoId, detail }: Props) {
     allFamilies.forEach((f) => m.set(f.id, f));
     return m;
   }, [allFamilies]);
+
+  // Mappa tariffaId -> prezzo vendita, per ricalcolare la POSA inclusa nel
+  // prezzo unitario quando l'utente modifica L/A/Q in una riga BOM da listino.
+  // Senza, la posa configurata sull'articolo veniva sottratta silenziosamente
+  // dal ricalcolo -> margine eroso.
+  const { data: tariffe = [] } = useTariffeManodopera();
+  const tariffePrezzi = useMemo(() => {
+    const m = new Map<string, number>();
+    tariffe.forEach((t) => { if (t.prezzo_vendita != null) m.set(t.id, Number(t.prezzo_vendita)); });
+    return m;
+  }, [tariffe]);
 
   // Mappa categoria → macrocategoria_id per lookup scheda tecnica nella row.
   const { categorie } = useListinoCategorie();
@@ -126,6 +137,10 @@ export function StepBom({ progettoId, detail }: Props) {
   };
 
   const handleDuplicate = (s: SrSerramentoRow) => {
+    // Duplica TUTTI i campi rilevanti, inclusi i link al listino. Prima
+    // family_id / listino_voce_id / macrocategoria_override_id / metri_quadri
+    // venivano persi -> duplicando una riga "da listino" la copia finiva
+    // off-listino (stessa root cause del bug INSERT in api.ts).
     addMut.mutate({
       tipologia: s.tipologia,
       tipologia_label: s.tipologia_label,
@@ -139,7 +154,12 @@ export function StepBom({ progettoId, detail }: Props) {
       larghezza_mm: s.larghezza_mm,
       altezza_mm: s.altezza_mm,
       quantita: s.quantita,
+      metri_quadri: s.metri_quadri,
       prezzo_unitario: s.prezzo_unitario,
+      prezzo_totale: s.prezzo_totale,
+      family_id: s.family_id,
+      listino_voce_id: s.listino_voce_id,
+      macrocategoria_override_id: s.macrocategoria_override_id,
       position: serramenti.length,
       note: s.note,
     });
@@ -248,6 +268,7 @@ export function StepBom({ progettoId, detail }: Props) {
                   onDelete={() => setToDelete(s)}
                   family={family}
                   macroId={macroId}
+                  tariffePrezzi={tariffePrezzi}
                 />
               );
             })}
@@ -381,7 +402,7 @@ export function StepBom({ progettoId, detail }: Props) {
 
 function SerramentoRow({
   serramento: s, index, expanded, onToggle, onPatch, onDuplicate, onDelete,
-  family, macroId,
+  family, macroId, tariffePrezzi,
 }: {
   serramento: SrSerramentoRow;
   index: number;
@@ -394,6 +415,8 @@ function SerramentoRow({
   family?: ListinoFamily;
   /** macroId della family per leggere lo schema scheda tecnica. */
   macroId?: string;
+  /** Mappa tariffe → prezzo vendita per ricalcolare posa nel prezzo unitario. */
+  tariffePrezzi: Map<string, number>;
 }) {
   const tipoLabel = SR_TIPOLOGIE_SERRAMENTO.find((t) => t.value === s.tipologia)?.label ?? s.tipologia;
   const matLabel = s.materiale ? SR_MATERIALI.find((m) => m.value === s.materiale)?.label : null;
@@ -406,8 +429,13 @@ function SerramentoRow({
 
   /**
    * Ricalcola prezzo unitario in base a L/A/Q correnti, leggendo dal listino.
-   * Ritorna `null` se la family non è disponibile o se non ci sono dati
-   * sufficienti per il calcolo.
+   *
+   * IMPORTANTE: somma il prezzo prodotto (da griglia) + la POSA inclusa
+   * (da tariffe). Prima la posa veniva sottratta silenziosamente al
+   * ricalcolo -> il commerciale modificava una misura e il prezzo
+   * scendeva senza spiegazione (margine eroso).
+   *
+   * Ritorna `null` se la family non è disponibile.
    */
   const ricalcolaPrezzoUnitario = (
     L: number | null,
@@ -415,9 +443,11 @@ function SerramentoRow({
     Q: number,
   ): number | null => {
     if (!family) return null;
-    const result = calcolaPrezzoProdotto(family, L, H, Q || 1, griglia);
-    // calcolaPrezzoProdotto ritorna TOTALE → dividiamo per Q per ottenere unitario.
-    return Q > 0 ? result.prezzo / Q : result.prezzo;
+    const Qsafe = Q || 1;
+    const result = calcolaPrezzoProdotto(family, L, H, Qsafe, griglia);
+    const posa = calcolaPosaInclusa(family, Qsafe, tariffePrezzi);
+    const totale = result.prezzo + posa;
+    return Qsafe > 0 ? totale / Qsafe : totale;
   };
 
   /**
@@ -473,8 +503,14 @@ function SerramentoRow({
                 {mq.toFixed(2)} m²
               </span>
             )}
-            {s.prezzo_totale && (
+            {s.prezzo_totale ? (
               <span className="font-semibold text-orange-600">{formatEuro(s.prezzo_totale)}</span>
+            ) : (
+              // Warning visibile se la riga non ha prezzo: previene che entri
+              // nel totale come "0,00 €" senza che il commerciale se ne accorga.
+              <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">
+                Prezzo da impostare
+              </span>
             )}
           </button>
 

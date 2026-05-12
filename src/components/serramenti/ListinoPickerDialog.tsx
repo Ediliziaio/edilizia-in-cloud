@@ -106,7 +106,12 @@ export function calcolaPrezzoProdotto(
   }
 }
 
-function calcolaPosaInclusa(
+/**
+ * Calcolo posa inclusa nel prezzo della posizione. Esportata perche'
+ * usata anche da StepBom quando ricalcola il prezzo unitario dopo
+ * modifica L/A/Q (altrimenti la posa sparisce silenziosamente).
+ */
+export function calcolaPosaInclusa(
   family: ListinoFamily,
   quantita: number,
   tariffePrezzi: Map<string, number>,

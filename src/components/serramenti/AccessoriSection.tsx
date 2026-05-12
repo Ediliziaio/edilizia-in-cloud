@@ -364,10 +364,9 @@ function CopyMisureDialog({
           descrizione: descrizionePresetByTipo.trim() ||
             (s.ambiente ? `${tipoLabel(tipoAccessorio)} ${s.ambiente}` : null),
           quantita: s.quantita ?? 1,
-          // Cast: aggiungiamo larghezza/altezza che il DB accetta come campi
-          // accessori (migration esistente). Il tipo non è ancora rigenerato.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ...({ larghezza_mm: s.larghezza_mm, altezza_mm: s.altezza_mm, serramento_id: s.id } as any),
+          larghezza_mm: s.larghezza_mm,
+          altezza_mm: s.altezza_mm,
+          serramento_id: s.id,
           position: position + count,
         });
         count++;
