@@ -23,10 +23,11 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Save, Plus, Trash2, Loader2, MessageCircle,
+  Save, Plus, Trash2, Loader2, MessageCircle, Eye,
   Sparkles, ListChecks, Clock, Quote, Upload, Image as ImageIcon,
   Building2, Wand2,
 } from "lucide-react";
+import { SerramentiTemplatePreviewDialog } from "@/components/serramenti/SerramentiTemplatePreviewDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
@@ -67,6 +68,10 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
   const chiSiamoInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
+  // Anteprima PDF live: il bottone "Anteprima PDF" apre un dialog con il
+  // template renderizzato + dati cliente demo. Aggiornamento auto su edit
+  // (debounced 300ms) — vedi SerramentiTemplatePreviewDialog.
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (template) {
@@ -1707,9 +1712,19 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         </div>
       </SrCard>
 
-      {/* Save sticky bottom */}
+      {/* Sticky bottom: Anteprima PDF + Salva. Due bottoni a sinistra/destra
+          così l'utente può sempre vedere come verrà il PDF prima di salvare. */}
       {!embedded && (
-        <div className="sticky bottom-4 flex justify-end">
+        <div className="sticky bottom-4 flex justify-between gap-3">
+          <Button
+            onClick={() => setPreviewOpen(true)}
+            variant="outline"
+            className="bg-white shadow-lg gap-1.5 border-orange-300 hover:bg-orange-50"
+            size="lg"
+          >
+            <Eye className="h-4 w-4" />
+            Anteprima PDF
+          </Button>
           <Button
             onClick={handleSave}
             disabled={!dirty || upsertMut.isPending}
@@ -1721,6 +1736,16 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
           </Button>
         </div>
       )}
+
+      {/* Dialog anteprima PDF — generato on-the-fly con dati demo + template corrente */}
+      <SerramentiTemplatePreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        template={form}
+        companyName={form.ragione_sociale}
+        companyLogoUrl={form.logo_url}
+        companyIndirizzo={form.indirizzo_completo}
+      />
 
       <AlertDialog open={delTestIdx !== null} onOpenChange={(o) => !o && setDelTestIdx(null)}>
         <AlertDialogContent>
