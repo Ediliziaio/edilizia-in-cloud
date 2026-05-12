@@ -79,6 +79,11 @@ export interface SerramentoPdfEnriched {
   /** Mappa macrocategoria_id → immagine_url. Usata come fallback nelle righe
    *  della composizione serramenti quando la famiglia non ha immagine propria. */
   macroImageById: Record<string, string | null>;
+  /** macro_id da usare come default per i BOM senza family_id e senza
+   *  macrocategoria_override_id. Solo se l'azienda ha una macro attiva con
+   *  pagina dedicata (o, in subordine, una sola macro attiva). NULL = nessun
+   *  fallback. */
+  autoFallbackMacroId: string | null;
 }
 
 export interface SerramentoPdfPayload {
@@ -87,11 +92,40 @@ export interface SerramentoPdfPayload {
   company?: SerramentoPdfEnriched["company"];
 }
 
+// ─── Helper: pre-fetch immagini in data URL ────────────────────────────────
+//
+// react-pdf ha problemi noti a caricare alcuni Supabase signed URL (grandi
+// foto fallano silenziosamente). Pre-fetchando in data URL (base64) prima di
+// passare il template alla generazione PDF, l'immagine arriva inline e non
+// dipende da una fetch runtime nel renderer.
+//
+// Best-effort: in caso di errore fetch (CORS, 404, timeout), ritorna l'URL
+// originale → comportamento attuale, niente peggioramento.
+async function toDataUrl(url: string | null | undefined): Promise<string | null> {
+  if (!url) return null;
+  // Se è già un data URL, niente da fare
+  if (url.startsWith("data:")) return url;
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) return url;
+    const blob = await res.blob();
+    return await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(typeof reader.result === "string" ? reader.result : url);
+      reader.onerror = () => resolve(url);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return url;
+  }
+}
+
 // ─── Helper pre-fetch ──────────────────────────────────────────────────────
 
 async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEnriched> {
   const { detail, template, company } = opts;
   const prog = detail.progetto;
+  const companyId = prog.company_id;
 
   // 1. Consulente (profiles). Strategia in cascata:
   //    a) Se prog.consulente_id è settato → usa quello
@@ -198,8 +232,14 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   // Sorgenti macro_id per serramento (in ordine di priorità):
   //   1. family.categoria.macrocategoria_id (BOM da listino)
   //   2. macrocategoria_override_id (BOM manuale con scelta esplicita)
+  //   3. AUTO-FALLBACK: se ci sono serramenti senza famiglia e senza override,
+  //      ma esiste UNA SOLA macrocategoria attiva del verticale "serramentista"
+  //      con mostra_pagina_dedicata_pdf=true, la usiamo come default → l'admin
+  //      che configura una sola linea prodotto (es. INFISSI WND) non deve
+  //      cliccare nulla su ogni serramento manuale.
   const macroIdsBomOrdine: string[] = [];
   const seen = new Set<string>();
+  let hasUnassignedSerramento = false;
   for (const s of detail.serramenti) {
     let macroId: string | null = null;
     if (s.family_id) {
@@ -211,8 +251,34 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     if (macroId && !seen.has(macroId)) {
       seen.add(macroId);
       macroIdsBomOrdine.push(macroId);
+    } else if (!macroId) {
+      hasUnassignedSerramento = true;
     }
   }
+
+  // Fallback automatico: cerca macro candidate per serramenti senza assegnazione
+  let autoFallbackMacroId: string | null = null;
+  if (hasUnassignedSerramento && companyId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: candidateMacros } = await (supabase as any)
+      .from("listino_macrocategorie")
+      .select("id, mostra_pagina_dedicata_pdf, attivo")
+      .eq("company_id", companyId)
+      .eq("attivo", true)
+      .order("sort_order", { ascending: true });
+    const candidates = (candidateMacros ?? []) as Array<{
+      id: string; mostra_pagina_dedicata_pdf: boolean | null; attivo: boolean;
+    }>;
+    // Preferenza: macro con pagina dedicata attiva → quella che l'admin ha
+    // esplicitamente preparato per il PDF. Altrimenti la prima attiva.
+    const withDedicata = candidates.find((c) => c.mostra_pagina_dedicata_pdf);
+    autoFallbackMacroId = withDedicata?.id ?? candidates[0]?.id ?? null;
+    if (autoFallbackMacroId && !seen.has(autoFallbackMacroId)) {
+      seen.add(autoFallbackMacroId);
+      macroIdsBomOrdine.push(autoFallbackMacroId);
+    }
+  }
+
   const macroImageById: Record<string, string | null> = {};
   let macroPagineDedicate: SerramentoPdfMacroPagina[] = [];
   if (macroIdsBomOrdine.length > 0) {
@@ -245,15 +311,77 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
       .map((id) => macroMap.get(id)!);
   }
 
+  // 6. Pre-fetch in parallelo delle immagini critiche → data URL.
+  //    react-pdf ha problemi a caricare alcuni signed URL Supabase grandi
+  //    durante la generazione; pre-caricandole ora come base64 le iniettiamo
+  //    inline nel PDF e non dipendiamo da una fetch nel renderer.
+  //    Best-effort: in caso di errore l'URL originale resta inalterato.
+  const [
+    inlinedLogo,
+    inlinedChiSiamoFoto,
+    inlinedConsulenteFoto,
+    inlinedCoverImage,
+    ...inlinedFamilyImages
+  ] = await Promise.all([
+    toDataUrl(template?.logo_url ?? company?.logo_url ?? null),
+    toDataUrl(template?.chi_siamo_foto_url ?? null),
+    toDataUrl(consulente?.foto_url ?? null),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    toDataUrl((template as any)?.pdf_cover_image_url ?? null),
+    ...Object.values(familiesById).map((f) => toDataUrl(f.immagine_url)),
+  ]);
+
+  // Applica i data URL pre-caricati ai rispettivi oggetti
+  const inlinedTemplate = template ? {
+    ...template,
+    logo_url: inlinedLogo ?? template.logo_url,
+    chi_siamo_foto_url: inlinedChiSiamoFoto ?? template.chi_siamo_foto_url,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pdf_cover_image_url: inlinedCoverImage ?? (template as any).pdf_cover_image_url,
+  } : null;
+  const inlinedCompany = company ? {
+    ...company,
+    logo_url: inlinedLogo ?? company.logo_url,
+  } : null;
+  const inlinedConsulente = consulente ? {
+    ...consulente,
+    foto_url: inlinedConsulenteFoto ?? consulente.foto_url,
+  } : null;
+  const familyIdsArr = Object.keys(familiesById);
+  const inlinedFamilies: Record<string, SerramentoPdfFamilyData> = {};
+  familyIdsArr.forEach((fid, idx) => {
+    inlinedFamilies[fid] = {
+      ...familiesById[fid],
+      immagine_url: inlinedFamilyImages[idx] ?? familiesById[fid].immagine_url,
+    };
+  });
+
+  // Pre-fetch macro images in parallelo (sempre best-effort)
+  const macroImageEntries = await Promise.all(
+    Object.entries(macroImageById).map(async ([id, url]) =>
+      [id, await toDataUrl(url)] as [string, string | null],
+    ),
+  );
+  const inlinedMacroImageById: Record<string, string | null> = Object.fromEntries(macroImageEntries);
+
+  // Pre-fetch macro pagine dedicate hero images
+  const inlinedMacroPagine = await Promise.all(
+    macroPagineDedicate.map(async (mp) => ({
+      ...mp,
+      immagine_url: (await toDataUrl(mp.immagine_url)) ?? mp.immagine_url,
+    })),
+  );
+
   return {
     detail,
-    template: template ?? null,
-    company: company ?? null,
-    consulente,
-    familiesById,
+    template: inlinedTemplate,
+    company: inlinedCompany,
+    consulente: inlinedConsulente,
+    familiesById: inlinedFamilies,
     fieldsByMacro,
-    macroPagineDedicate,
-    macroImageById,
+    macroPagineDedicate: inlinedMacroPagine,
+    macroImageById: inlinedMacroImageById,
+    autoFallbackMacroId,
   };
 }
 

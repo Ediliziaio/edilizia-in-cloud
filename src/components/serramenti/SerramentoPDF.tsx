@@ -949,6 +949,8 @@ export interface SerramentoPDFProps {
   /** Mappa macrocategoria_id → immagine_url. Fallback per la composizione
    *  serramenti quando la famiglia non ha immagine propria. */
   macroImageById?: Record<string, string | null>;
+  /** Macro_id default per BOM senza family e senza override esplicito. */
+  autoFallbackMacroId?: string | null;
 }
 
 // ─── Componente principale ─────────────────────────────────────────────────
@@ -957,6 +959,7 @@ export function SerramentoPDF({
   detail, template, company,
   consulente, familiesById, fieldsByMacro, macroPagineDedicate,
   macroImageById = {},
+  autoFallbackMacroId = null,
 }: SerramentoPDFProps) {
   const p = detail.progetto;
   const companyName = template?.ragione_sociale || company?.ragione_sociale || company?.name || "Azienda";
@@ -1090,7 +1093,10 @@ export function SerramentoPDF({
           { color: coverTextColor },
         ]}
       >
-        {/* Immagine di sfondo opzionale */}
+        {/* Immagine di sfondo opzionale.
+            Dimensioni in pt esplicite (A4 = 595×842pt) invece di "100%" perché
+            react-pdf ha un bug noto: width/height "100%" su Image absolute-positioned
+            genera una pagina vuota extra ALL'INIZIO del documento. */}
         {coverImageUrl && (
           <Image
             src={coverImageUrl}
@@ -1098,10 +1104,8 @@ export function SerramentoPDF({
               position: "absolute",
               top: 0,
               left: 0,
-              right: 0,
-              bottom: 0,
-              width: "100%",
-              height: "100%",
+              width: 595,
+              height: 842,
               objectFit: "cover" as const,
             }}
           />
@@ -1113,8 +1117,8 @@ export function SerramentoPDF({
               position: "absolute",
               top: 0,
               left: 0,
-              right: 0,
-              bottom: 0,
+              width: 595,
+              height: 842,
               backgroundColor: "#000000",
               opacity: coverOverlayOpacity,
             }}
@@ -1201,7 +1205,7 @@ export function SerramentoPDF({
                     <Image
                       src={chiSiamoFotoUrl}
                       style={styles.chiSiamoHero}
-                      cache={false}
+                     
                     />
                   </View>
                 ) : (
@@ -1355,7 +1359,18 @@ export function SerramentoPDF({
                   const family = g.family_id ? familiesById[g.family_id] : null;
                   // macroId con fallback: prima la macro della family (se BOM da listino),
                   // poi l'override manuale (se il consulente ha selezionato la macro).
-                  const macroId = family?.macrocategoria_id ?? g.macrocategoria_override_id ?? null;
+                  // macroId con fallback gerarchico:
+                  //   1. family.categoria.macrocategoria_id (BOM da listino)
+                  //   2. macrocategoria_override_id (BOM manuale con scelta esplicita)
+                  //   3. autoFallbackMacroId (default azienda: macro con pagina dedicata,
+                  //      o prima macro attiva) → permette al PDF di mostrare foto +
+                  //      pagina macrocategoria anche se l'admin non ha cliccato
+                  //      manualmente su ogni serramento.
+                  const macroId =
+                    family?.macrocategoria_id
+                    ?? g.macrocategoria_override_id
+                    ?? autoFallbackMacroId
+                    ?? null;
                   const fields = macroId ? (fieldsByMacro[macroId] ?? []) : [];
                   const specs: Array<{ label: string; value: string; unit: string | null }> = [];
                   if (family && fields.length > 0) {
@@ -1976,7 +1991,7 @@ export function SerramentoPDF({
                         backgroundColor: C.gray100,
                         borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
                       }}>
-                        <Image src={primaUrls[0]} style={styles.renderImg} cache={false} />
+                        <Image src={primaUrls[0]} style={styles.renderImg} />
                       </View>
                       <View style={{ width: 14 }} />
                       <View style={{
@@ -1985,7 +2000,7 @@ export function SerramentoPDF({
                         backgroundColor: C.gray100,
                         borderWidth: 0.5, borderColor: primaryColor, borderStyle: "solid",
                       }}>
-                        <Image src={renderUrls[0]} style={styles.renderImg} cache={false} />
+                        <Image src={renderUrls[0]} style={styles.renderImg} />
                       </View>
                     </View>
                   </View>
@@ -2007,7 +2022,7 @@ export function SerramentoPDF({
                         borderRadius: 10, overflow: "hidden",
                         backgroundColor: C.gray100,
                       }}>
-                        <Image src={renderUrls[0]} style={styles.renderImg} cache={false} />
+                        <Image src={renderUrls[0]} style={styles.renderImg} />
                       </View>
                       <View style={{ width: 14 }} />
                       <View style={{
@@ -2015,7 +2030,7 @@ export function SerramentoPDF({
                         borderRadius: 10, overflow: "hidden",
                         backgroundColor: C.gray100,
                       }}>
-                        <Image src={renderUrls[1]} style={styles.renderImg} cache={false} />
+                        <Image src={renderUrls[1]} style={styles.renderImg} />
                       </View>
                     </View>
                   </View>
@@ -2039,7 +2054,7 @@ export function SerramentoPDF({
                       <Image
                         src={renderUrls[0] ?? primaUrls[0]}
                         style={styles.renderImg}
-                        cache={false}
+                       
                       />
                     </View>
                   </View>
@@ -2152,7 +2167,7 @@ export function SerramentoPDF({
                 backgroundColor: C.gray100,
                 marginRight: i < coppia.length - 1 ? 14 : 0,
               }}>
-                <Image src={url} style={styles.renderImg} cache={false} />
+                <Image src={url} style={styles.renderImg} />
               </View>
             ))}
           </View>

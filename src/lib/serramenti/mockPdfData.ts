@@ -333,5 +333,6 @@ export function buildMockPdfData(opts: {
     fieldsByMacro,
     macroPagineDedicate,
     macroImageById,
+    autoFallbackMacroId: null,
   };
 }
