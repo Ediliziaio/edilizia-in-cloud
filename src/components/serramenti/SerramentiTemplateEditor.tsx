@@ -91,6 +91,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     if (template) {
       setForm(template);
       setDirty(false);
+      // Reset UID delle bullet list: dopo "Scarta modifiche" / reload
+      // dal server, le posizioni degli item potrebbero non coincidere
+      // piu' con gli UID accumulati -> rebuild lazy al prossimo render.
+      listUidsRef.current = {};
     } else if (!isLoading) {
       setForm({
         colore_primario: "#2D7D5C",
