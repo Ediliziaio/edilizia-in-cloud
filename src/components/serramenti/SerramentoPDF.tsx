@@ -108,7 +108,11 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       paddingBottom: 12,
       borderBottom: `1pt solid ${C.gray200}`,
     },
-    headerLogo: { width: 34, height: 34, marginRight: 10 },
+    headerLogo: {
+      maxWidth: 100, height: 34,
+      objectFit: "contain" as const,
+      marginRight: 10,
+    },
     headerLeft: { flexDirection: "row", alignItems: "center" },
     headerName: { fontSize: 11, fontWeight: 700, color: C.primary },
     headerRight: { fontSize: 8, color: C.gray500, textAlign: "right" as const },
@@ -140,7 +144,14 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       alignItems: "center", justifyContent: "center",
       marginRight: 14,
     },
-    coverLogoImage: { width: 56, height: 56, borderRadius: 12, objectFit: "cover" as const, marginRight: 14 },
+    /** Logo container ampio: aspect-ratio flessibile (4:1 max) per loghi
+     *  larghi/rettangolari tipo "KE Bei Serramenti". `objectFit: contain`
+     *  evita di tagliare gli angoli del logo. */
+    coverLogoImage: {
+      maxWidth: 220, height: 70,
+      objectFit: "contain" as const,
+      marginRight: 16,
+    },
     coverCompanyName: { fontSize: 18, fontWeight: 700 },
     coverCompanyTag: { fontSize: 9.5, color: "#9CA3AF", marginTop: 2 },
 
@@ -294,20 +305,23 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     },
     payStep: {
       flexDirection: "row",
-      paddingVertical: 8,
+      paddingVertical: 10,
       borderBottom: `0.5pt solid ${C.gray100}`,
-      alignItems: "center",
+      alignItems: "flex-start",
     },
-    payStepIdx: {
+    payStepIdxBox: {
       width: 24, height: 24, borderRadius: 12,
-      backgroundColor: C.primary, color: C.white,
-      fontSize: 10, fontWeight: 700,
-      textAlign: "center" as const, paddingTop: 5, marginRight: 12,
+      backgroundColor: C.primary,
+      alignItems: "center", justifyContent: "center",
+      marginRight: 12,
     },
-    payStepLabel: { flex: 1, fontSize: 10, fontWeight: 700, color: C.gray900 },
-    payStepWhen: { fontSize: 9, color: C.gray500, marginTop: 1 },
-    payStepPct: { fontSize: 12, fontWeight: 700, color: C.primary },
-    payStepAmount: { fontSize: 8.5, color: C.gray500, marginTop: 1 },
+    payStepIdxText: { color: C.white, fontSize: 10, fontWeight: 700 },
+    payStepBody: { flex: 1, paddingRight: 8 },
+    payStepLabel: { fontSize: 10.5, fontWeight: 700, color: C.gray900 },
+    payStepWhen: { fontSize: 9, color: C.gray500, marginTop: 2 },
+    payStepRight: { width: 95, alignItems: "flex-end" },
+    payStepPct: { fontSize: 13, fontWeight: 700, color: C.primary },
+    payStepAmount: { fontSize: 8.5, color: C.gray500, marginTop: 2 },
 
     // Finanziamento
     finBox: { flexDirection: "row", gap: 12, marginTop: 6 },
@@ -358,17 +372,17 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     tableCellMuted: { fontSize: 9, color: C.gray500, marginTop: 2, lineHeight: 1.4 },
     tableCellNum: { fontSize: 10, fontWeight: 700, color: C.gray900, textAlign: "right" as const },
 
-    // Scheda tecnica chips
-    specChips: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 4 },
+    // Scheda tecnica chips (box View, non Text inline → react-pdf-friendly)
+    specChips: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
     specChip: {
       backgroundColor: C.gray100,
       paddingHorizontal: 6, paddingVertical: 2,
       borderRadius: 3,
-      fontSize: 8.5, color: C.gray700,
+      marginRight: 4, marginBottom: 3,
     },
-    specChipLabel: { color: C.gray500, fontWeight: 600 },
+    specChipLabel: { color: C.gray500, fontWeight: 500 },
     specChipValue: { color: C.gray900, fontWeight: 700 },
-    specChipUnit: { color: C.gray500, fontSize: 8 },
+    specChipUnit: { color: C.gray500, fontWeight: 400 },
 
     // Consulenza
     consBox: {
@@ -408,6 +422,57 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       alignItems: "center", justifyContent: "center",
     },
     macroPageContent: { flex: 1, fontSize: 11, color: C.gray700, lineHeight: 1.65 },
+
+    // Chi siamo
+    chiSiamoHero: {
+      width: "100%", height: 220,
+      borderRadius: 10,
+      objectFit: "cover" as const,
+      marginBottom: 18,
+    },
+    chiSiamoHeroPh: {
+      width: "100%", height: 220,
+      borderRadius: 10,
+      backgroundColor: C.gray100,
+      alignItems: "center", justifyContent: "center",
+      marginBottom: 18,
+    },
+    chiSiamoText: { fontSize: 11, color: C.gray700, lineHeight: 1.65 },
+
+    // Render disclaimer
+    renderDisclaimerBox: {
+      backgroundColor: C.accentLight,
+      borderLeft: `3pt solid ${C.accent}`,
+      padding: 10,
+      borderRadius: 4,
+      marginTop: 10,
+    },
+    renderDisclaimerLabel: {
+      fontSize: 8.5, fontWeight: 700,
+      color: C.accentText,
+      textTransform: "uppercase" as const,
+      letterSpacing: 0.5,
+      marginBottom: 4,
+    },
+    renderDisclaimerText: {
+      fontSize: 8.5, color: C.gray700, lineHeight: 1.5,
+    },
+    renderPair: {
+      flexDirection: "row", gap: 10, marginTop: 10,
+    },
+    renderPairItem: {
+      flex: 1,
+      aspectRatio: 1.4,
+      borderRadius: 8, overflow: "hidden",
+      backgroundColor: C.gray100,
+    },
+    renderPairLabel: {
+      fontSize: 9, fontWeight: 700,
+      color: C.gray500,
+      textTransform: "uppercase" as const,
+      letterSpacing: 0.5,
+      marginBottom: 4,
+    },
 
     // CTA finale
     ctaBox: {
@@ -478,22 +543,34 @@ function materialeLabel(m: string | null | undefined): string {
   return SR_MATERIALI.find((x) => x.value === m)?.label ?? m;
 }
 
-// Raggruppa serramenti per family_id (per mostrare scheda tecnica + foto).
-// Se la riga non ha family_id, fallback al raggruppamento tipologia+materiale.
+// Raggruppa serramenti per (family_id, tipologia, materiale, serie, vetro,
+// L, H). Serramenti con stesse misure si sommano. Misure diverse → righe
+// distinte: importante per il documento tecnico (l'installatore deve
+// vedere ogni "lotto misure" separato).
 function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
   key: string;
   tipologia: string;
   materiale: string;
   serie: string;
   vetro: string;
+  ambiente: string;
+  larghezza: number | null;
+  altezza: number | null;
   quantita: number;
   family_id: string | null;
 }> {
-  const map = new Map<string, { key: string; tipologia: string; materiale: string; serie: string; vetro: string; quantita: number; family_id: string | null }>();
+  const map = new Map<string, {
+    key: string; tipologia: string; materiale: string; serie: string;
+    vetro: string; ambiente: string; larghezza: number | null;
+    altezza: number | null; quantita: number; family_id: string | null;
+  }>();
   for (const s of serr) {
-    const key = s.family_id
+    const L = s.larghezza_mm ?? null;
+    const H = s.altezza_mm ?? null;
+    const baseKey = s.family_id
       ? `fam-${s.family_id}__${s.tipologia}`
       : `oth-${s.tipologia}__${s.materiale ?? ""}__${s.serie ?? ""}__${s.vetro ?? ""}`;
+    const key = `${baseKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}`;
     const existing = map.get(key);
     if (existing) existing.quantita += s.quantita ?? 1;
     else map.set(key, {
@@ -502,6 +579,9 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
       materiale: materialeLabel(s.materiale),
       serie: s.serie ?? "",
       vetro: s.vetro ?? "",
+      ambiente: s.ambiente ?? "",
+      larghezza: L,
+      altezza: H,
       quantita: s.quantita ?? 1,
       family_id: s.family_id ?? null,
     });
@@ -618,67 +698,118 @@ function GanttSvg({ fases, totalDays, primary, accent }: {
 
 // ─── SVG: Cashflow 10 anni ─────────────────────────────────────────────────
 
-function CashflowSvg({ years, primary }: {
+function CashflowSvg({ years, primary, breakEvenColor = "#15803D" }: {
   years: Array<{ year: number; cumulato: number }>;
   primary: string;
+  breakEvenColor?: string;
 }) {
   if (years.length === 0) return null;
-  const W = 480;
-  const H = 160;
-  const padX = 40;
-  const padY = 24;
-  const chartW = W - 2 * padX;
-  const chartH = H - 2 * padY;
-  const maxAbs = Math.max(...years.map((y) => Math.abs(y.cumulato)), 1);
-  const xStep = chartW / (years.length - 1 || 1);
-  const yOf = (v: number) => padY + chartH / 2 - (v / maxAbs) * (chartH / 2);
-  const points = years.map((y, i) => `${padX + i * xStep},${yOf(y.cumulato)}`).join(" ");
+  const W = 520;
+  const H = 180;
+  const padL = 50;   // più spazio a sx per label Y
+  const padR = 16;
+  const padT = 18;
+  const padB = 28;   // spazio per label X (A1..A10)
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
 
-  // Trovo year di break-even (primo cumulato >= 0)
-  const breakIdx = years.findIndex((y) => y.cumulato >= 0);
+  // Asse Y: scala simmetrica intorno a zero, basata sul min e max reali
+  const cumulati = years.map((y) => y.cumulato);
+  const yMin = Math.min(0, ...cumulati);
+  const yMax = Math.max(0, ...cumulati);
+  const range = Math.max(yMax - yMin, 1);
+  const yOf = (v: number) => padT + chartH - ((v - yMin) / range) * chartH;
+  const xStep = chartW / Math.max(years.length - 1, 1);
+  const xOf = (i: number) => padL + i * xStep;
+
+  const points = years.map((y, i) => `${xOf(i)},${yOf(y.cumulato)}`).join(" ");
+  const zeroY = yOf(0);
+
+  // Break-even: anno in cui cumulato passa da negativo a positivo (interpolato).
+  let breakX: number | null = null;
+  let breakYear: number | null = null;
+  for (let i = 1; i < years.length; i++) {
+    const a = years[i - 1].cumulato;
+    const b = years[i].cumulato;
+    if (a < 0 && b >= 0) {
+      const t = a === b ? 0 : -a / (b - a);
+      breakX = xOf(i - 1) + t * xStep;
+      // Stima dell'anno con 1 decimale
+      breakYear = years[i - 1].year + t * (years[i].year - years[i - 1].year);
+      break;
+    }
+  }
+  if (breakX === null && years[0]?.cumulato >= 0) {
+    breakX = xOf(0);
+    breakYear = years[0].year;
+  }
+
+  // Tick Y a multipli sensati
+  const yTicks = [yMin, (yMin + yMax) / 2, yMax].filter((v, i, arr) => arr.indexOf(v) === i);
+
+  // Area: chiude sotto la linea zero (per evidenziare la perdita iniziale)
+  // e sopra quando recupera.
+  const areaPath =
+    `M ${xOf(0)},${zeroY} ` +
+    years.map((y, i) => `L ${xOf(i)},${yOf(y.cumulato)}`).join(" ") +
+    ` L ${xOf(years.length - 1)},${zeroY} Z`;
 
   return (
     <Svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H } as never}>
-      {/* Asse zero */}
-      <Path d={`M ${padX} ${padY + chartH / 2} L ${W - padX} ${padY + chartH / 2}`} stroke="#CBD5E1" strokeWidth={0.5} strokeDasharray="2 2" />
-      {/* Area sotto curva */}
-      <Path
-        d={`M ${padX},${padY + chartH / 2} L ${points} L ${W - padX},${padY + chartH / 2} Z`}
-        fill={primary}
-        opacity={0.15}
-      />
-      {/* Curva */}
-      <Path d={`M ${points}`} stroke={primary} strokeWidth={2} fill="none" />
-      {/* Punti + label Y */}
+      {/* Linea zero (orizzontale) */}
+      <Path d={`M ${padL} ${zeroY} L ${W - padR} ${zeroY}`} stroke="#94A3B8" strokeWidth={0.5} />
+      {/* Label "0" sulla linea zero */}
+      <Text x={padL - 6} y={zeroY + 3} fill="#64748B" style={{ fontSize: 7, textAnchor: "end" } as never}>0</Text>
+      {/* Tick Y min/max */}
+      {yTicks.map((v, i) => (
+        <G key={`yt-${i}`}>
+          <Path d={`M ${padL - 3} ${yOf(v)} L ${padL} ${yOf(v)}`} stroke="#94A3B8" strokeWidth={0.5} />
+          <Text x={padL - 6} y={yOf(v) + 3} fill="#64748B" style={{ fontSize: 7, textAnchor: "end" } as never}>
+            € {Math.round(v / 1000)}k
+          </Text>
+        </G>
+      ))}
+      {/* Area sotto curva (rosso/area negativa, verde dopo break-even) */}
+      <Path d={areaPath} fill={primary} opacity={0.12} />
+      {/* Curva principale */}
+      <Path d={`M ${points}`} stroke={primary} strokeWidth={1.8} fill="none" />
+      {/* Punti */}
+      {years.map((y, i) => (
+        <Circle key={`p-${i}`} cx={xOf(i)} cy={yOf(y.cumulato)} r={2.2} fill={primary} />
+      ))}
+      {/* Label X (A1, A3, A5...) */}
       {years.map((y, i) => {
-        const cx = padX + i * xStep;
-        const cy = yOf(y.cumulato);
-        const showLabel = i % 2 === 0 || i === years.length - 1;
+        const showLabel = i === 0 || i === years.length - 1 || (i + 1) % 2 === 0;
+        if (!showLabel) return null;
         return (
-          <G key={i}>
-            <Circle cx={cx} cy={cy} r={2} fill={primary} />
-            {showLabel && (
-              <Text x={cx} y={H - 4} fill="#64748B" style={{ fontSize: 7, textAnchor: "middle" } as never}>
-                A{y.year}
-              </Text>
-            )}
-          </G>
+          <Text
+            key={`x-${i}`}
+            x={xOf(i)} y={H - 8}
+            fill="#64748B"
+            style={{ fontSize: 7, textAnchor: "middle" } as never}
+          >
+            A{y.year}
+          </Text>
         );
       })}
-      {/* Break-even line */}
-      {breakIdx >= 0 && (
+      {/* Linea break-even verticale */}
+      {breakX !== null && breakYear !== null && (
         <G>
           <Path
-            d={`M ${padX + breakIdx * xStep} ${padY} L ${padX + breakIdx * xStep} ${padY + chartH}`}
-            stroke="#15803D" strokeWidth={1} strokeDasharray="3 3"
+            d={`M ${breakX} ${padT} L ${breakX} ${padT + chartH}`}
+            stroke={breakEvenColor} strokeWidth={1} strokeDasharray="3 2"
+          />
+          <Rect
+            x={Math.max(padL, breakX - 38)} y={padT + 2}
+            width={76} height={14} rx={3}
+            fill={breakEvenColor}
           />
           <Text
-            x={padX + breakIdx * xStep + 4}
-            y={padY + 10}
-            fill="#15803D"
-            style={{ fontSize: 8, fontWeight: 700 } as never}
+            x={Math.max(padL + 38, breakX)} y={padT + 12}
+            fill="#FFFFFF"
+            style={{ fontSize: 8, fontWeight: 700, textAnchor: "middle" } as never}
           >
-            Break-even A{years[breakIdx].year}
+            Break-even A{breakYear.toFixed(1)}
           </Text>
         </G>
       )}
@@ -791,6 +922,19 @@ export function SerramentoPDF({
         "Diamo il via alla produzione e cantiere",
       ];
 
+  // "Chi siamo" — pagina opzionale subito dopo la cover
+  const chiSiamoAttivo = !!tpl.chi_siamo_attivo;
+  const chiSiamoFotoUrl = tpl.chi_siamo_foto_url || null;
+  const chiSiamoTitolo = tpl.chi_siamo_titolo || `Chi siamo · ${companyName}`;
+  const chiSiamoTesto = tpl.chi_siamo_testo || null;
+
+  // Recensioni — toggle
+  const recensioniAttivo = tpl.recensioni_attivo !== false;
+
+  // Render — disclaimer custom o default IT
+  const renderDisclaimer = tpl.render_disclaimer ||
+    "Render generato con intelligenza artificiale a scopo esclusivamente dimostrativo e illustrativo. L'immagine non rappresenta il risultato finale dell'intervento, che potrà variare in base a rilievi tecnici, materiali scelti, misure reali, condizioni dell'ambiente e fattibilità esecutiva.";
+
   const totaleMin = Number(p.totale_min ?? 0);
   const totaleMax = Number(p.totale_max ?? 0);
   const totaleMedia = (totaleMin + totaleMax) / 2;
@@ -894,6 +1038,44 @@ export function SerramentoPDF({
         </View>
       </Page>
 
+      {/* ─── PAGINA "CHI SIAMO" (opzionale, opt-in via template) ─────────── */}
+      {chiSiamoAttivo && (
+        <Page size="A4" style={styles.page}>
+          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+          <Text style={styles.pageEyebrow}>Chi siamo</Text>
+          <Text style={styles.pageTitle}>{chiSiamoTitolo}</Text>
+          {chiSiamoFotoUrl ? (
+            <Image src={chiSiamoFotoUrl} style={styles.chiSiamoHero} />
+          ) : (
+            <View style={styles.chiSiamoHeroPh}>
+              <Text style={{ fontSize: 14, color: C.gray500, fontWeight: 700 }}>{companyName}</Text>
+            </View>
+          )}
+          {chiSiamoTesto && (
+            <View>
+              {chiSiamoTesto.split(/\n\n+/).map((para, i) => {
+                const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
+                const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
+                if (allBullets) {
+                  return (
+                    <View key={i} style={{ marginBottom: 10 }}>
+                      {lines.map((l, li) => (
+                        <View key={li} style={styles.bulletItem} wrap={false}>
+                          <View style={styles.bulletDot} />
+                          <Text style={styles.bulletText}>{l.replace(/^[-•]\s*/, "")}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                }
+                return <Text key={i} style={[styles.chiSiamoText, { marginBottom: 10 }]}>{para}</Text>;
+              })}
+            </View>
+          )}
+          <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+        </Page>
+      )}
+
       {/* ─── PAGINA 2 — PROPOSTA INTERVENTO ──────────────────────────────── */}
       <Page size="A4" style={styles.page}>
         <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
@@ -906,9 +1088,33 @@ export function SerramentoPDF({
 
         <Text style={styles.sectionTitle}>Anagrafica cliente</Text>
         <View style={styles.kvRow}><Text style={styles.kvKey}>Intestatario</Text><Text style={styles.kvValue}>{clienteNome}</Text></View>
-        {p.cliente_indirizzo && <View style={styles.kvRow}><Text style={styles.kvKey}>Indirizzo</Text><Text style={styles.kvValue}>{p.cliente_indirizzo}</Text></View>}
+        {p.cliente_indirizzo && (
+          <View style={styles.kvRow}>
+            <Text style={styles.kvKey}>Indirizzo</Text>
+            <Text style={styles.kvValue}>{p.cliente_indirizzo}</Text>
+          </View>
+        )}
+        {(p.cliente_citta || p.cliente_cap || p.cliente_provincia) && (
+          <View style={styles.kvRow}>
+            <Text style={styles.kvKey}>Città</Text>
+            <Text style={styles.kvValue}>
+              {[p.cliente_cap, p.cliente_citta, p.cliente_provincia ? `(${p.cliente_provincia})` : null]
+                .filter(Boolean).join(" ")}
+            </Text>
+          </View>
+        )}
         {p.cliente_telefono && <View style={styles.kvRow}><Text style={styles.kvKey}>Telefono</Text><Text style={styles.kvValue}>{p.cliente_telefono}</Text></View>}
         {p.cliente_email && <View style={styles.kvRow}><Text style={styles.kvKey}>Email</Text><Text style={styles.kvValue}>{p.cliente_email}</Text></View>}
+        {/* Cantiere se diverso dal cliente */}
+        {p.cantiere_indirizzo && p.cantiere_indirizzo !== p.cliente_indirizzo && (
+          <View style={styles.kvRow}>
+            <Text style={styles.kvKey}>Cantiere</Text>
+            <Text style={styles.kvValue}>
+              {[p.cantiere_indirizzo, p.cantiere_citta, p.cantiere_piano ? `· piano ${p.cantiere_piano}` : null]
+                .filter(Boolean).join(", ")}
+            </Text>
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>L'intervento in sintesi</Text>
         <Text style={styles.sintesiBox}>{sintesi}</Text>
@@ -994,12 +1200,14 @@ export function SerramentoPDF({
               const amount = (totaleMedia * (Number(m.percentuale) || 0)) / 100;
               return (
                 <View key={i} style={styles.payStep} wrap={false}>
-                  <Text style={styles.payStepIdx}>{i + 1}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.payStepLabel}>{m.label}</Text>
-                    {m.when && <Text style={styles.payStepWhen}>{m.when}</Text>}
+                  <View style={styles.payStepIdxBox}>
+                    <Text style={styles.payStepIdxText}>{i + 1}</Text>
                   </View>
-                  <View style={{ width: 90, alignItems: "flex-end" }}>
+                  <View style={styles.payStepBody}>
+                    <Text style={styles.payStepLabel}>{m.label}</Text>
+                    {m.when ? <Text style={styles.payStepWhen}>{m.when}</Text> : null}
+                  </View>
+                  <View style={styles.payStepRight}>
                     <Text style={styles.payStepPct}>{m.percentuale}%</Text>
                     <Text style={styles.payStepAmount}>≈ € {fmtEuro(amount)}</Text>
                   </View>
@@ -1030,7 +1238,13 @@ export function SerramentoPDF({
         {p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0 && (
           <>
             <Text style={styles.sectionTitle}>Detrazione fiscale</Text>
-            <View style={[styles.finCard, { backgroundColor: C.successBg, borderColor: "#86EFAC" }]}>
+            {/* NOTE: niente flex:1 — usiamo View standalone con padding fisso
+                (lo style finCard ha flex:1 perché pensato per layout 2 colonne) */}
+            <View style={{
+              backgroundColor: C.successBg,
+              borderColor: "#86EFAC", borderWidth: 0.5, borderStyle: "solid",
+              borderRadius: 8, padding: 14, marginTop: 6,
+            }}>
               <Text style={[styles.finCardTitle, { color: C.successText }]}>
                 Detrazione {p.detrazione_aliquota}% recuperabile in 10 quote annuali
               </Text>
@@ -1088,15 +1302,16 @@ export function SerramentoPDF({
         <Text style={styles.sectionTitle}>Composizione serramenti · {numSerr} pezzi</Text>
         <View style={styles.table}>
           <View style={styles.tableHeader}>
-            <View style={{ width: 54 }}><Text style={styles.tableHeaderText}>Foto</Text></View>
-            <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Tipologia · Caratteristiche</Text></View>
-            <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
+            <View style={{ width: 50 }}><Text style={styles.tableHeaderText}>Foto</Text></View>
+            <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Descrizione</Text></View>
+            <View style={{ width: 60, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Largh.</Text></View>
+            <View style={{ width: 60, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Altezza</Text></View>
+            <View style={{ width: 36, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
           </View>
           {serramentiGrouped.map((g) => {
             const family = g.family_id ? familiesById[g.family_id] : null;
             const macroId = family?.macrocategoria_id;
             const fields = macroId ? (fieldsByMacro[macroId] ?? []) : [];
-            // Specs chip = solo field con show_in_pdf=true e valore non vuoto
             const specs: Array<{ label: string; value: string; unit: string | null }> = [];
             if (family && fields.length > 0) {
               for (const f of fields) {
@@ -1107,17 +1322,20 @@ export function SerramentoPDF({
             }
             return (
               <View key={g.key} style={styles.tableRow} wrap={false}>
-                <View style={{ width: 54 }}>
+                <View style={{ width: 50 }}>
                   {family?.immagine_url ? (
                     <Image src={family.immagine_url} style={styles.tableThumb} />
                   ) : (
                     <View style={styles.tableThumbPh}>
-                      <Text style={{ fontSize: 18 }}>🪟</Text>
+                      <Text style={{ fontSize: 16 }}>🪟</Text>
                     </View>
                   )}
                 </View>
                 <View style={{ flex: 1, paddingRight: 6 }}>
-                  <Text style={styles.tableCellStrong}>{g.tipologia}</Text>
+                  <Text style={styles.tableCellStrong}>
+                    {g.tipologia}
+                    {g.ambiente ? <Text style={{ color: C.gray500, fontWeight: 400 }}> · {g.ambiente}</Text> : null}
+                  </Text>
                   {(g.materiale !== "—" || g.serie || g.vetro) && (
                     <Text style={styles.tableCellMuted}>
                       {[g.materiale !== "—" ? g.materiale : null, g.serie, g.vetro].filter(Boolean).join(" · ")}
@@ -1125,17 +1343,29 @@ export function SerramentoPDF({
                   )}
                   {specs.length > 0 && (
                     <View style={styles.specChips}>
-                      {specs.slice(0, 6).map((sp, si) => (
-                        <Text key={si} style={styles.specChip}>
-                          <Text style={styles.specChipLabel}>{sp.label}: </Text>
-                          <Text style={styles.specChipValue}>{sp.value}</Text>
-                          {sp.unit && <Text style={styles.specChipUnit}> {sp.unit}</Text>}
-                        </Text>
+                      {specs.slice(0, 5).map((sp, si) => (
+                        <View key={si} style={styles.specChip}>
+                          <Text style={{ fontSize: 8.5 }}>
+                            <Text style={styles.specChipLabel}>{sp.label}: </Text>
+                            <Text style={styles.specChipValue}>{sp.value}</Text>
+                            {sp.unit ? <Text style={styles.specChipUnit}> {sp.unit}</Text> : null}
+                          </Text>
+                        </View>
                       ))}
                     </View>
                   )}
                 </View>
-                <View style={{ width: 50, alignItems: "flex-end", paddingTop: 4 }}>
+                <View style={{ width: 60, alignItems: "flex-end", paddingTop: 4 }}>
+                  <Text style={styles.tableCellNum}>
+                    {g.larghezza ? `${g.larghezza} mm` : "—"}
+                  </Text>
+                </View>
+                <View style={{ width: 60, alignItems: "flex-end", paddingTop: 4 }}>
+                  <Text style={styles.tableCellNum}>
+                    {g.altezza ? `${g.altezza} mm` : "—"}
+                  </Text>
+                </View>
+                <View style={{ width: 36, alignItems: "flex-end", paddingTop: 4 }}>
                   <Text style={styles.tableCellNum}>{g.quantita}</Text>
                 </View>
               </View>
@@ -1179,30 +1409,33 @@ export function SerramentoPDF({
         <Text style={styles.sectionTitle}>Cronoprogramma indicativo</Text>
         <GanttSvg fases={cronoFasi} totalDays={totalDays} primary={primaryColor} accent={C.accent} />
 
-        {consulente && (
-          <>
-            <Text style={styles.sectionTitle}>La tua consulenza</Text>
-            <View style={styles.consBox}>
-              {consulente.foto_url ? (
-                <Image src={consulente.foto_url} style={styles.consPhoto} />
-              ) : (
-                <View style={styles.consPhotoPh}>
-                  <Text style={{ color: "#FFFFFF", fontSize: 24, fontWeight: 700 }}>
-                    {consulente.nome.charAt(0)}
-                  </Text>
-                </View>
-              )}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.consName}>{consulente.nome}</Text>
-                <Text style={styles.consRole}>{consulente.ruolo}</Text>
-                <Text style={styles.consContact}>
-                  {p.consulenza_at ? `Appuntamento: ${fmtDateTime(p.consulenza_at)}\n` : ""}
-                  {[consulente.telefono, consulente.email].filter(Boolean).join(" · ")}
-                </Text>
-              </View>
+        {/* La tua consulenza — sempre mostrata. Se manca un consulente
+            specifico (progetti vecchi), fallback ai dati azienda. */}
+        <Text style={styles.sectionTitle}>La tua consulenza</Text>
+        <View style={styles.consBox}>
+          {consulente?.foto_url ? (
+            <Image src={consulente.foto_url} style={styles.consPhoto} />
+          ) : (
+            <View style={styles.consPhotoPh}>
+              <Text style={{ color: "#FFFFFF", fontSize: 22, fontWeight: 700 }}>
+                {(() => {
+                  const name = consulente?.nome ?? companyName;
+                  const parts = name.trim().split(/\s+/);
+                  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+                  return name.slice(0, 2).toUpperCase();
+                })()}
+              </Text>
             </View>
-          </>
-        )}
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.consName}>{consulente?.nome ?? companyName}</Text>
+            <Text style={styles.consRole}>{consulente?.ruolo ?? "Consulente tecnico"}</Text>
+            <Text style={styles.consContact}>
+              {p.consulenza_at ? `Appuntamento: ${fmtDateTime(p.consulenza_at)}\n` : ""}
+              {[consulente?.telefono ?? telefono, consulente?.email ?? email].filter(Boolean).join(" · ")}
+            </Text>
+          </View>
+        </View>
 
         <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
       </Page>
@@ -1272,22 +1505,8 @@ export function SerramentoPDF({
           ))}
         </View>
 
-        {/* Render foto-realistici */}
-        {renderUrls.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Anteprima dei serramenti</Text>
-            <View style={styles.rendersGrid}>
-              {renderUrls.slice(0, 4).map((url, i) => (
-                <View key={i} style={styles.renderItem}>
-                  <Image src={url} style={styles.renderImg} />
-                </View>
-              ))}
-            </View>
-          </>
-        )}
-
-        {/* Testimonianze */}
-        {testimonianze.length > 0 && (
+        {/* Testimonianze rapide nella stessa CTA page se attive */}
+        {recensioniAttivo && testimonianze.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Cosa dicono i nostri clienti</Text>
             {testimonianze.slice(0, 3).map((t, i) => (
@@ -1303,6 +1522,67 @@ export function SerramentoPDF({
 
         <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
       </Page>
+
+      {/* ─── PAGINA RENDER AI (opzionale, solo se ci sono render) ───────── */}
+      {renderUrls.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+          <Text style={styles.pageEyebrow}>Anteprima visiva · Render AI</Text>
+          <Text style={styles.pageTitle}>La tua casa,{"\n"}rinnovata.</Text>
+          <Text style={styles.pageSubtitle}>
+            Rendering foto-realistici generati con intelligenza artificiale per
+            aiutarti a immaginare il risultato. Vedi sotto per i limiti del render.
+          </Text>
+
+          {/* Se ho 2+ render: layout PRIMA/DOPO affiancato. Se 1, full width. */}
+          {renderUrls.length >= 2 ? (
+            <>
+              <View style={{ flexDirection: "row", marginBottom: 6 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.renderPairLabel}>Prima</Text>
+                </View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.renderPairLabel}>Dopo (render AI)</Text>
+                </View>
+              </View>
+              <View style={styles.renderPair} wrap={false}>
+                <View style={styles.renderPairItem}>
+                  <Image src={renderUrls[0]} style={styles.renderImg} />
+                </View>
+                <View style={styles.renderPairItem}>
+                  <Image src={renderUrls[1]} style={styles.renderImg} />
+                </View>
+              </View>
+              {/* Eventuali altri 2 render in seconda riga */}
+              {renderUrls.length >= 4 && (
+                <View style={[styles.renderPair, { marginTop: 10 }]} wrap={false}>
+                  <View style={styles.renderPairItem}>
+                    <Image src={renderUrls[2]} style={styles.renderImg} />
+                  </View>
+                  <View style={styles.renderPairItem}>
+                    <Image src={renderUrls[3]} style={styles.renderImg} />
+                  </View>
+                </View>
+              )}
+            </>
+          ) : (
+            <View style={{
+              width: "100%", aspectRatio: 1.5,
+              borderRadius: 10, overflow: "hidden", backgroundColor: C.gray100,
+            }}>
+              <Image src={renderUrls[0]} style={styles.renderImg} />
+            </View>
+          )}
+
+          {/* Disclaimer legale OBBLIGATORIO sotto i render AI */}
+          <View style={styles.renderDisclaimerBox} wrap={false}>
+            <Text style={styles.renderDisclaimerLabel}>⚠ Disclaimer render AI</Text>
+            <Text style={styles.renderDisclaimerText}>{renderDisclaimer}</Text>
+          </View>
+
+          <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+        </Page>
+      )}
     </Document>
   );
 }
