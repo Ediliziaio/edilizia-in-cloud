@@ -147,6 +147,11 @@ const proofMetrics = [
   { value: "0 Excel", label: "per leggere margini, DDT, fatture e priorita' reali" },
 ];
 
+const landingImages = {
+  entrepreneur: "/images/ai-edilizia/imprenditore-ai-cantiere.jpg",
+  siteTeam: "/images/ai-edilizia/squadra-cantiere-ai.jpg",
+};
+
 function CTAButton({ children, dark = false }: { children: string; dark?: boolean }) {
   return (
     <a
@@ -256,6 +261,14 @@ function HeroAI() {
         </div>
 
         <div className="relative min-h-[560px] overflow-hidden rounded-md border border-white/14 bg-[#0b1728]/90 p-4 shadow-2xl shadow-black/30 md:min-h-[540px]">
+          <img
+            src={landingImages.entrepreneur}
+            alt="Imprenditore edile che controlla margini e cassa da un tablet in ufficio cantiere"
+            className="absolute inset-0 h-full w-full object-cover opacity-34"
+            loading="eager"
+            fetchPriority="high"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#061020]/95 via-[#061020]/70 to-[#061020]/35" />
           <div className="ai-scan pointer-events-none absolute inset-y-0 left-0 z-[2] w-28 bg-gradient-to-r from-transparent via-eic-orange/18 to-transparent mix-blend-screen" />
           <div className="absolute inset-x-4 top-4 z-[3] flex items-center justify-between rounded-md border border-white/10 bg-white/[0.06] px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-white/52 backdrop-blur">
             <span>Cruscotto AI live</span>
@@ -333,6 +346,63 @@ function ProofStrip() {
             <p className="mt-2 text-sm font-semibold leading-6 text-white/68">{metric.label}</p>
           </div>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function FieldRealitySection() {
+  return (
+    <section id="cantiere-ai" className="bg-white px-5 py-20 md:px-8 lg:py-28">
+      <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1.06fr_0.94fr] lg:items-center">
+        <FadeUp>
+          <div className="ai-photo-frame relative overflow-hidden rounded-md border border-eic-border bg-eic-navy shadow-2xl shadow-eic-navy/12">
+            <img
+              src={landingImages.siteTeam}
+              alt="Squadra in cantiere che controlla materiali, DDT e avanzamento lavori con tablet"
+              className="h-[430px] w-full object-cover md:h-[560px]"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-eic-navy/88 via-eic-navy/12 to-transparent" />
+            <div className="absolute bottom-4 left-4 right-4 grid gap-3 sm:grid-cols-3">
+              {[
+                ["DDT", "collegati"],
+                ["Foto", "dal campo"],
+                ["Margine", "aggiornato"],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-md border border-white/14 bg-white/12 p-3 text-white backdrop-blur">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-eic-orange">{label}</p>
+                  <p className="mt-1 text-sm font-black">{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </FadeUp>
+
+        <FadeUp transition={{ delay: 0.08 }}>
+          <p className="text-sm font-black uppercase tracking-[0.22em] text-eic-orange">Dal cantiere ai numeri</p>
+          <h2 className="mt-4 text-[clamp(2rem,8vw,4.8rem)] font-black leading-[1.03] tracking-[-0.035em] text-eic-navy md:tracking-[-0.045em]">
+            Le foto, i materiali e i DDT non restano pezzi sparsi.
+          </h2>
+          <p className="mt-5 text-lg leading-8 text-eic-muted">
+            Silvio collega quello che succede in cantiere con commesse, margini, magazzino, fatture e incassi. Tu non devi
+            interpretare dieci chat diverse: vedi cosa manca, cosa costa e cosa fare prima che diventi un problema.
+          </p>
+          <div className="mt-8 grid gap-3">
+            {[
+              "La squadra carica foto e rapportini dal campo.",
+              "Il DDT viene collegato alla commessa e ai materiali corretti.",
+              "Il margine si aggiorna mentre il lavoro avanza, non mesi dopo.",
+            ].map((item) => (
+              <div key={item} className="ai-motion-card flex gap-3 rounded-md border border-eic-border bg-eic-slate p-4">
+                <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-eic-orange text-white">
+                  <Check className="h-4 w-4" strokeWidth={2} />
+                </span>
+                <p className="font-bold leading-7 text-eic-navy">{item}</p>
+              </div>
+            ))}
+          </div>
+        </FadeUp>
       </div>
     </section>
   );
@@ -715,6 +785,17 @@ export default function AiEdiliziaPage() {
         });
       });
 
+      gsap.utils.toArray<HTMLElement>(".ai-photo-frame").forEach((frame) => {
+        gsap.from(frame, {
+          scrollTrigger: { trigger: frame, start: "top 82%", once: true },
+          y: 36,
+          scale: 0.97,
+          opacity: 0,
+          duration: 0.8,
+          ease: "power3.out",
+        });
+      });
+
       gsap.from(".ai-flow-card", {
         scrollTrigger: { trigger: "#sistema", start: "top 70%", once: true },
         x: 28,
@@ -744,6 +825,7 @@ export default function AiEdiliziaPage() {
       <ProofStrip />
       <PainSection />
       <SystemSection />
+      <FieldRealitySection />
       <AziendaBrain />
       <AgentiAziendali />
       <ResultSection />
