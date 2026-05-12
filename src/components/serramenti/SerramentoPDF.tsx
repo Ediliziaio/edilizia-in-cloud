@@ -1120,7 +1120,7 @@ export interface SerramentoPDFProps {
 export function SerramentoPDF({
   detail, template, company,
   consulente, familiesById, fieldsByMacro, macroPagineDedicate,
-  macroImageById = {},
+  macroImageById: _macroImageById = {},
   autoFallbackMacroId = null,
 }: SerramentoPDFProps) {
   const p = detail.progetto;

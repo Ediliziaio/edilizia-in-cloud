@@ -12,7 +12,7 @@
  * × quantità). Risolve il workflow "ho 10 finestre, voglio 10 tapparelle
  * con le stesse misure senza re-inserirle tutte".
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -322,6 +322,15 @@ function CopyMisureDialog({
   const [tipoAccessorio, setTipoAccessorio] = useState<string>("tapparella");
   const [selected, setSelected] = useState<Set<string>>(() => new Set(serramenti.map((s) => s.id)));
   const [descrizionePresetByTipo, setDescrizionePresetByTipo] = useState<string>("");
+
+  // Reset selezione quando il dialog si apre o cambia la lista serramenti:
+  // prima il `useState(() => new Set(...))` era lazy-initialized SOLO al
+  // primo mount -> riaprendo il dialog dopo aver aggiunto/eliminato un
+  // serramento, `selected` aveva ID stale o mancavano gli ID nuovi e il
+  // checkbox "tutti selezionati" mentiva all'utente.
+  useEffect(() => {
+    if (open) setSelected(new Set(serramenti.map((s) => s.id)));
+  }, [open, serramenti]);
 
   const allSelected = serramenti.length > 0 && selected.size === serramenti.length;
   const someSelected = selected.size > 0 && !allSelected;

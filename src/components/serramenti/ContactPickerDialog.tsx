@@ -5,7 +5,7 @@
  *
  * Cerca per nome/cognome/email/telefono/azienda con debounce 300ms.
  */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -40,8 +40,6 @@ export function ContactPickerDialog({ open, onOpenChange, onSelect }: Props) {
 
   const { data: contacts = [], isLoading } = useCrmContacts(debounced);
 
-  const filtered = useMemo(() => contacts, [contacts]);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -69,7 +67,7 @@ export function ContactPickerDialog({ open, onOpenChange, onSelect }: Props) {
               <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
               Caricamento contatti…
             </div>
-          ) : filtered.length === 0 ? (
+          ) : contacts.length === 0 ? (
             <div className="py-8 text-center">
               <User className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
               <p className="text-sm text-muted-foreground">
@@ -83,7 +81,7 @@ export function ContactPickerDialog({ open, onOpenChange, onSelect }: Props) {
             </div>
           ) : (
             <ul className="divide-y">
-              {filtered.map((c) => {
+              {contacts.map((c) => {
                 const fullName = [c.first_name, c.last_name].filter(Boolean).join(" ");
                 const labelName = fullName || c.email || c.company_name || "—";
                 return (

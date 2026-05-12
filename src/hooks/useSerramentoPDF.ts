@@ -408,6 +408,11 @@ export function useSerramentoPDF() {
       const blob = await pdf(element).toBlob();
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
+      // Cleanup blob URL: schedulato a 60s (sufficiente perche' il tab
+      // appena aperto abbia caricato il blob). Prima il blob restava in
+      // memoria fino al reload pagina -> memory leak ~1 MB per anteprima.
+      const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };
+      window.setTimeout(revoke, 60_000);
       if (!win) {
         toast.success("PDF generato", {
           description: "Apertura bloccata dal browser.",

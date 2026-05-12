@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTemplatePdf } from "@/lib/serramenti/queries";
-import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
+import { SrCallout } from "@/lib/serramenti/wizardUI";
 import type {
   SrProgettoRow, SrEsigenza, SrSoluzioneItem, SrTemplatePdfRow,
 } from "@/types/serramenti";

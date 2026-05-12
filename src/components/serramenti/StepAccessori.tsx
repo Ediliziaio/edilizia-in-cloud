@@ -194,9 +194,10 @@ export function StepAccessori({ progettoId, detail }: Props) {
                   </div>
                 )}
                 <button
-                  onClick={() => deleteMediaMut.mutate(m.id)}
+                  onClick={() => setMediaToDelete(m)}
                   className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
                   title="Elimina"
+                  aria-label="Elimina foto"
                 >
                   <X className="h-3 w-3" />
                 </button>

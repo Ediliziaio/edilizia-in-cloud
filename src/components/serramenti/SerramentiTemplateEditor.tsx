@@ -69,7 +69,7 @@ interface SerramentiTemplateEditorProps {
   embedded?: boolean;
 }
 
-export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplateEditorProps) {
+export function SerramentiTemplateEditor({ embedded: _embedded = false }: SerramentiTemplateEditorProps) {
   const { data: template, isLoading } = useTemplatePdf();
   const upsertMut = useUpsertTemplatePdf();
 

@@ -253,6 +253,11 @@ export function useListinoFamilies(opts?: { searchQuery?: string; categoriaId?: 
  * dall'ordine in cui arrivano.
  */
 export function useListinoFamiliesByIds(ids: string[]) {
+  // Stabilizza la queryKey: il sort crea un nuovo array reference, ma
+  // tanstack-query confronta queryKey via JSON deep-equal -> stesso
+  // contenuto = stessa cache. Il sort serve a tollerare ordering diverso
+  // negli IDs in input senza buster cache inutilmente.
+  // Non serve useMemo: tanstack lo gestisce.
   const sortedIds = [...ids].sort();
   return useQuery({
     queryKey: ["sr-listino-families-by-ids", sortedIds],

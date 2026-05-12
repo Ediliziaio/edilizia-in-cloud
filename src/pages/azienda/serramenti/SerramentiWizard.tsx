@@ -78,7 +78,7 @@ export default function SerramentiWizard() {
   const [creating, setCreating] = useState(false);
   const [pendingStep, setPendingStep] = useState<SrWizardStep | null>(null);
 
-  const { data: detail, isLoading } = useProgetto(id);
+  const { data: detail, isLoading, isError, refetch } = useProgetto(id);
   const updateMut = useUpdateProgetto(id);
   const createMut = useCreateProgetto();
 
@@ -223,6 +223,32 @@ export default function SerramentiWizard() {
       <div className="container mx-auto p-4 max-w-4xl space-y-3">
         <Skeleton className="h-12" />
         <Skeleton className="h-64" />
+      </div>
+    );
+  }
+
+  // Error state con retry: prima se la query falliva l'utente vedeva
+  // solo l'header del wizard senza children (perche' tutti gli step
+  // sono condizionati a `id && detail`) -> percepito come bug/freeze.
+  if (!isNew && (isError || (!isLoading && !detail))) {
+    return (
+      <div className="container mx-auto p-4 max-w-4xl">
+        <div className="rounded-lg border border-rose-200 bg-rose-50/40 p-6 text-center space-y-3">
+          <p className="text-sm font-semibold text-rose-800">
+            Impossibile caricare questa stima.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            La stima potrebbe essere stata eliminata o c'e' un problema di connessione.
+          </p>
+          <div className="flex items-center gap-2 justify-center flex-wrap">
+            <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-1">
+              <Loader2 className="h-3.5 w-3.5" /> Riprova
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => navigate("/azienda/serramenti")} className="gap-1">
+              <ArrowLeft className="h-3.5 w-3.5" /> Torna alle stime
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }

@@ -43,7 +43,7 @@ const STATI_LABEL: Record<string, { label: string; className: string }> = {
 
 export default function SerramentiIndex() {
   const navigate = useNavigate();
-  const { data: progetti = [], isLoading } = useProgetti();
+  const { data: progetti = [], isLoading, isError, refetch } = useProgetti();
   const deleteMut = useDeleteProgetto();
 
   const [search, setSearch] = useState("");
@@ -182,6 +182,18 @@ export default function SerramentiIndex() {
               <Skeleton className="h-10" />
               <Skeleton className="h-10" />
               <Skeleton className="h-10" />
+            </div>
+          ) : isError ? (
+            <div className="p-8 text-center space-y-3">
+              <p className="text-sm text-rose-700 font-medium">
+                Impossibile caricare le stime.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Controlla la connessione e riprova. Se il problema persiste, contattaci.
+              </p>
+              <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-1">
+                <Loader2 className="h-3.5 w-3.5" /> Riprova
+              </Button>
             </div>
           ) : progettiFiltrati.length === 0 ? (
             progetti.length === 0 ? (
