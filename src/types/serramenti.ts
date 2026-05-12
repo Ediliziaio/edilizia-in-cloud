@@ -373,9 +373,51 @@ export interface SrTemplatePdfRow {
   recensioni_attivo: boolean;
   render_disclaimer: string | null;
   consulente_descrizione_default: string | null;
+  percorso_cliente: SrPercorsoCliente | null;
   created_at: string;
   updated_at: string;
 }
+
+/** Pagina "Il tuo percorso" del PDF preventivo. Fasi + step editabili. */
+export interface SrPercorsoCliente {
+  attivo: boolean;
+  titolo: string;
+  sottotitolo: string;
+  fasi: SrPercorsoFase[];
+}
+export interface SrPercorsoFase {
+  /** Nome della fase, mostrato in maiuscolo (es. "CONSULENZA"). */
+  nome: string;
+  /** Icona key: chiamata | proposta | produzione | montaggio | custom. */
+  icona: "chiamata" | "proposta" | "produzione" | "montaggio" | "custom";
+  /** Lista step della fase (5 max consigliato per leggibilità PDF). */
+  step: string[];
+}
+
+/** Template di default (mostrato la prima volta nell'editor). */
+export const SR_PERCORSO_DEFAULT: SrPercorsoCliente = {
+  attivo: true,
+  titolo: "Il tuo percorso",
+  sottotitolo: "Dalla prima chiamata alla consegna chiavi in mano: ogni fase è documentata.",
+  fasi: [
+    {
+      nome: "Consulenza", icona: "chiamata",
+      step: ["Chiamata conoscitiva", "Primo appuntamento", "Comprensione esigenze"],
+    },
+    {
+      nome: "Proposta", icona: "proposta",
+      step: ["Ricerca prodotto", "Proposta soluzione", "Offerta personalizzata", "Firma contratto"],
+    },
+    {
+      nome: "Produzione", icona: "produzione",
+      step: ["Presa misure", "Produzione", "Consegna magazzino", "Fissaggio data posa"],
+    },
+    {
+      nome: "Montaggio", icona: "montaggio",
+      step: ["Preparazione area", "Montaggio", "Pulizia finale", "Collaudo", "Pratica ENEA"],
+    },
+  ],
+};
 
 export interface SrProgettoDetail {
   progetto: SrProgettoRow;

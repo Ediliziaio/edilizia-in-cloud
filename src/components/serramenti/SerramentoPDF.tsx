@@ -24,7 +24,8 @@ import type {
   SrPianoFinanziamento, SrEsigenza, SrSoluzioneItem, SrTestimonianza,
   SrTemplatePdfRow,
 } from "@/types/serramenti";
-import { SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI, SR_SCHEMI_PAGAMENTO } from "@/types/serramenti";
+import { SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI, SR_SCHEMI_PAGAMENTO, SR_PERCORSO_DEFAULT } from "@/types/serramenti";
+import type { SrPercorsoCliente } from "@/types/serramenti";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
@@ -438,6 +439,55 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       marginBottom: 18,
     },
     chiSiamoText: { fontSize: 11, color: C.gray700, lineHeight: 1.65 },
+
+    // Percorso cliente — step cards
+    percorsoBigNumber: {
+      fontSize: 86, fontWeight: 800, color: C.primary,
+      textAlign: "center" as const, lineHeight: 1.0,
+    },
+    percorsoBadge: {
+      backgroundColor: hexToTint(C.primary, 0.85),
+      paddingHorizontal: 12, paddingVertical: 4,
+      borderRadius: 999,
+      alignSelf: "center" as const,
+      marginBottom: 10,
+    },
+    percorsoBadgeText: {
+      fontSize: 9, fontWeight: 700,
+      color: C.primary, letterSpacing: 1.2,
+      textTransform: "uppercase" as const,
+    },
+    percorsoFaseCard: {
+      backgroundColor: "#0F172A",
+      borderRadius: 10,
+      padding: 12,
+      flex: 1,
+      minHeight: 130,
+    },
+    percorsoFaseHeader: {
+      flexDirection: "row", alignItems: "center", gap: 8,
+      marginBottom: 12, paddingBottom: 8,
+      borderBottomWidth: 0.5, borderBottomColor: "rgba(255,255,255,0.12)", borderBottomStyle: "solid",
+    },
+    percorsoFaseRomanBox: {
+      width: 28, height: 28, borderRadius: 4,
+      backgroundColor: C.primary,
+      alignItems: "center", justifyContent: "center",
+    },
+    percorsoFaseRomanText: { color: "#FFFFFF", fontSize: 11, fontWeight: 700 },
+    percorsoFaseLabel: {
+      fontSize: 8, color: C.primary, fontWeight: 700,
+      letterSpacing: 1.2, textTransform: "uppercase" as const,
+    },
+    percorsoFaseName: { fontSize: 13, fontWeight: 700, color: "#FFFFFF", marginTop: 1 },
+    percorsoStepRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+    percorsoStepIdx: {
+      width: 22, height: 22, borderRadius: 11,
+      backgroundColor: C.primary,
+      alignItems: "center", justifyContent: "center",
+    },
+    percorsoStepIdxText: { color: "#FFFFFF", fontSize: 8.5, fontWeight: 700 },
+    percorsoStepText: { fontSize: 10, color: "#CBD5E1", flex: 1, lineHeight: 1.4 },
 
     // Render disclaimer
     renderDisclaimerBox: {
@@ -947,6 +997,11 @@ export function SerramentoPDF({
   const consulenteDescrizione = tpl.consulente_descrizione_default ||
     "Ti accompagnerò personalmente dal primo sopralluogo fino al collaudo finale. Per qualunque domanda o necessità durante il preventivo, sono il tuo punto di riferimento.";
 
+  // Percorso cliente — pagina dedicata con fasi/step (default sensato se nullo)
+  const percorso: SrPercorsoCliente = (tpl.percorso_cliente as SrPercorsoCliente | null) ?? SR_PERCORSO_DEFAULT;
+  const percorsoAttivo = percorso.attivo;
+  const percorsoTotaleStep = percorso.fasi.reduce((acc, f) => acc + f.step.length, 0);
+
   const totaleMin = Number(p.totale_min ?? 0);
   const totaleMax = Number(p.totale_max ?? 0);
   const totaleMedia = (totaleMin + totaleMax) / 2;
@@ -1084,6 +1139,87 @@ export function SerramentoPDF({
               })}
             </View>
           )}
+          <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+        </Page>
+      )}
+
+      {/* ─── PAGINA "IL TUO PERCORSO" — fasi + step in cards verticali ─────
+          Sostituisce il vecchio cronoprogramma timeline. Layout: hero con
+          numero step totali, poi grid di card scure (1 per fase) con elenco
+          dei passaggi numerati. Editabile dal template editor. */}
+      {percorsoAttivo && percorso.fasi.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+
+          {/* Hero centrato */}
+          <View style={{ alignItems: "center", marginBottom: 16, marginTop: 6 }}>
+            <View style={styles.percorsoBadge}>
+              <Text style={styles.percorsoBadgeText}>Il tuo percorso</Text>
+            </View>
+            <Text style={styles.percorsoBigNumber}>{percorsoTotaleStep}</Text>
+            <Text style={{
+              fontSize: 18, fontWeight: 700, color: C.gray900,
+              textAlign: "center" as const, marginTop: 4, letterSpacing: -0.3,
+            }}>
+              {percorso.titolo === SR_PERCORSO_DEFAULT.titolo
+                ? `passaggi curati nei minimi dettagli`
+                : percorso.titolo}
+            </Text>
+            <Text style={{
+              fontSize: 10, color: C.gray500, textAlign: "center" as const,
+              marginTop: 6, maxWidth: 380,
+            }}>
+              {percorso.sottotitolo}
+            </Text>
+          </View>
+
+          {/* Grid 2×2 di cards scure con fasi */}
+          <View style={{
+            flexDirection: "row", flexWrap: "wrap",
+            gap: 10,
+            marginTop: 8,
+          }}>
+            {percorso.fasi.map((fase, fi) => {
+              const roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][fi] ?? `${fi + 1}`;
+              return (
+                <View
+                  key={fi}
+                  style={[styles.percorsoFaseCard, {
+                    width: percorso.fasi.length <= 4 ? "48%" : "100%",
+                  }]}
+                  wrap={false}
+                >
+                  <View style={styles.percorsoFaseHeader}>
+                    <View style={styles.percorsoFaseRomanBox}>
+                      <Text style={styles.percorsoFaseRomanText}>{roman}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.percorsoFaseLabel}>Fase {fi + 1}</Text>
+                      <Text style={styles.percorsoFaseName}>{fase.nome.toUpperCase()}</Text>
+                    </View>
+                  </View>
+                  {/* Numerazione globale step dentro la fase */}
+                  {(() => {
+                    const stepBefore = percorso.fasi.slice(0, fi).reduce((acc, f) => acc + f.step.length, 0);
+                    return fase.step.map((step, si) => {
+                      const globalIdx = stepBefore + si + 1;
+                      return (
+                        <View key={si} style={styles.percorsoStepRow}>
+                          <View style={styles.percorsoStepIdx}>
+                            <Text style={styles.percorsoStepIdxText}>
+                              {String(globalIdx).padStart(2, "0")}
+                            </Text>
+                          </View>
+                          <Text style={styles.percorsoStepText}>{step}</Text>
+                        </View>
+                      );
+                    });
+                  })()}
+                </View>
+              );
+            })}
+          </View>
+
           <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
         </Page>
       )}

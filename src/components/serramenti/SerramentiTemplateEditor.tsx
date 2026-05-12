@@ -33,7 +33,8 @@ import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
 import { FileText } from "lucide-react";
-import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza } from "@/types/serramenti";
+import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza, SrPercorsoCliente, SrPercorsoFase } from "@/types/serramenti";
+import { SR_PERCORSO_DEFAULT } from "@/types/serramenti";
 import {
   PRESET_ESIGENZE, PRESET_ESIGENZE_ALT, PRESET_ESIGENZE_FAMIGLIA,
   PRESET_SOLUZIONE, PRESET_SOLUZIONE_PREMIUM,
@@ -61,6 +62,8 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
   const [delTestIdx, setDelTestIdx] = useState<number | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingChiSiamo, setUploadingChiSiamo] = useState(false);
+  const chiSiamoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (template) {
@@ -140,6 +143,56 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
     } finally {
       setUploadingLogo(false);
       if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  };
+
+  /**
+   * Upload diretto foto "Chi siamo" — riusa lo stesso pattern del logo
+   * (bucket sr-progetti, signed URL 1 anno). Salva in chi_siamo_foto_url.
+   */
+  const handleChiSiamoUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Carica un file immagine (PNG, JPG, WebP)");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File troppo grande (max 5 MB)");
+      return;
+    }
+    setUploadingChiSiamo(true);
+    try {
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) throw new Error("Non autenticato");
+      const { data: profile } = await supabase
+        .from("profiles" as never)
+        .select("company_id")
+        .eq("id", userId)
+        .maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const companyId = (profile as any)?.company_id;
+      if (!companyId) throw new Error("Profilo senza azienda");
+
+      const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
+      const storagePath = `${companyId}/template-chi-siamo/${crypto.randomUUID()}.${ext}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from("sr-progetti")
+        .upload(storagePath, file, { contentType: file.type, upsert: false });
+      if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
+
+      const { data: signed } = await supabase.storage
+        .from("sr-progetti")
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
+      const url = signed?.signedUrl ?? "";
+
+      update("chi_siamo_foto_url", url);
+      toast.success("Foto azienda caricata. Salva per applicare.");
+    } catch (e) {
+      console.error("[serramenti-template-editor] chi-siamo upload", e);
+      toast.error("Errore upload foto", { description: String(e) });
+    } finally {
+      setUploadingChiSiamo(false);
+      if (chiSiamoInputRef.current) chiSiamoInputRef.current.value = "";
     }
   };
 
@@ -758,39 +811,87 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             </div>
             {form.chi_siamo_attivo && (
               <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-12 md:col-span-6">
-                  <Label className="text-xs">URL foto azienda</Label>
-                  <Input
-                    value={form.chi_siamo_foto_url ?? ""}
-                    onChange={(e) => update("chi_siamo_foto_url", e.target.value || null)}
-                    placeholder="https://... (foto sede/showroom/team)"
-                    className="h-9 text-xs"
+                {/* Foto azienda — upload diretto (no più URL incollato) */}
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-xs mb-1 block">Foto azienda</Label>
+                  <input
+                    ref={chiSiamoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && handleChiSiamoUpload(e.target.files[0])}
                   />
+                  <div
+                    className="aspect-[4/3] rounded-md border-2 border-dashed border-slate-200 bg-muted/20 hover:border-orange-300 hover:bg-orange-50/30 cursor-pointer flex items-center justify-center overflow-hidden relative"
+                    onClick={() => !uploadingChiSiamo && chiSiamoInputRef.current?.click()}
+                  >
+                    {form.chi_siamo_foto_url ? (
+                      // eslint-disable-next-line jsx-a11y/img-redundant-alt
+                      <img src={form.chi_siamo_foto_url} alt="Foto azienda" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center p-3">
+                        <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
+                        <p className="text-[10px] text-muted-foreground">Clicca per caricare</p>
+                      </div>
+                    )}
+                    {uploadingChiSiamo && (
+                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                        <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-1 mt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => chiSiamoInputRef.current?.click()}
+                      disabled={uploadingChiSiamo}
+                      className="flex-1 h-7 text-[11px]"
+                    >
+                      <Upload className="h-3 w-3 mr-1" />
+                      {form.chi_siamo_foto_url ? "Cambia" : "Carica"}
+                    </Button>
+                    {form.chi_siamo_foto_url && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => update("chi_siamo_foto_url", null)}
+                        className="h-7 text-[11px] text-rose-600"
+                      >
+                        Rimuovi
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">PNG/JPG max 5 MB</p>
                 </div>
-                <div className="col-span-12 md:col-span-6">
-                  <Label className="text-xs">Titolo pagina</Label>
-                  <Input
-                    value={form.chi_siamo_titolo ?? ""}
-                    onChange={(e) => update("chi_siamo_titolo", e.target.value || null)}
-                    placeholder="Es. 15 anni di artigianato a Milano"
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-12">
-                  <Label className="text-xs">Testo descrizione azienda</Label>
-                  <Textarea
-                    value={form.chi_siamo_testo ?? ""}
-                    onChange={(e) => update("chi_siamo_testo", e.target.value || null)}
-                    rows={6}
-                    placeholder={
-                      "Es.\n\nDal 2010 produciamo serramenti su misura per il residenziale.\n\nLavoriamo solo con materiali italiani:\n- Profili PVC a 7 camere\n- Vetri triplo basso-emissivi\n- Pose certificate UNI 11673"
-                    }
-                    className="text-xs font-normal"
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    A capo doppio per paragrafi. Righe che iniziano con
-                    "<code className="font-mono">- </code>" diventano bullet nel PDF.
-                  </p>
+
+                {/* Titolo + testo a destra */}
+                <div className="col-span-12 md:col-span-8 space-y-2">
+                  <div>
+                    <Label className="text-xs">Titolo pagina</Label>
+                    <Input
+                      value={form.chi_siamo_titolo ?? ""}
+                      onChange={(e) => update("chi_siamo_titolo", e.target.value || null)}
+                      placeholder="Es. 15 anni di artigianato a Milano"
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Testo descrizione azienda</Label>
+                    <Textarea
+                      value={form.chi_siamo_testo ?? ""}
+                      onChange={(e) => update("chi_siamo_testo", e.target.value || null)}
+                      rows={6}
+                      placeholder={
+                        "Es.\n\nDal 2010 produciamo serramenti su misura per il residenziale.\n\nLavoriamo solo con materiali italiani:\n- Profili PVC a 7 camere\n- Vetri triplo basso-emissivi\n- Pose certificate UNI 11673"
+                      }
+                      className="text-xs font-normal"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      A capo doppio per paragrafi. Righe che iniziano con
+                      "<code className="font-mono">- </code>" diventano bullet nel PDF.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -892,6 +993,196 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       </SrCard>
 
       {/* Crono + Economia */}
+      {/* Percorso cliente — pagina PDF dedicata "Il tuo percorso" con fasi/step */}
+      {(() => {
+        const percorso = (form.percorso_cliente as SrPercorsoCliente | null) ?? SR_PERCORSO_DEFAULT;
+        const updatePercorso = (next: SrPercorsoCliente) => update("percorso_cliente", next);
+        const ICONE: Array<{ value: SrPercorsoFase["icona"]; label: string }> = [
+          { value: "chiamata", label: "📞 Consulenza" },
+          { value: "proposta", label: "📄 Proposta" },
+          { value: "produzione", label: "🏭 Produzione" },
+          { value: "montaggio", label: "🔧 Montaggio" },
+          { value: "custom", label: "✦ Generica" },
+        ];
+        const totalStep = percorso.fasi.reduce((acc, f) => acc + f.step.length, 0);
+        return (
+          <SrCard
+            title="Percorso cliente (pagina PDF)"
+            description="Pagina dedicata nel PDF preventivo con tutte le fasi e i passaggi del lavoro. Editabile per ogni azienda."
+            icon={<FileText className="h-4 w-4" />}
+          >
+            <div className="space-y-4">
+              {/* Toggle attivo + titolo + sottotitolo + counter */}
+              <div className="flex items-center justify-between gap-2 pb-3 border-b">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!percorso.attivo}
+                    onChange={(e) => updatePercorso({ ...percorso, attivo: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm font-medium">Mostra pagina nel PDF</span>
+                </label>
+                <span className="text-xs text-muted-foreground">
+                  {percorso.fasi.length} {percorso.fasi.length === 1 ? "fase" : "fasi"} ·{" "}
+                  {totalStep} {totalStep === 1 ? "passaggio" : "passaggi"}
+                </span>
+              </div>
+
+              {percorso.attivo && (
+                <>
+                  <div className="grid grid-cols-12 gap-3">
+                    <div className="col-span-12 md:col-span-5">
+                      <Label className="text-xs">Titolo pagina</Label>
+                      <Input
+                        value={percorso.titolo}
+                        onChange={(e) => updatePercorso({ ...percorso, titolo: e.target.value })}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div className="col-span-12 md:col-span-7">
+                      <Label className="text-xs">Sottotitolo</Label>
+                      <Input
+                        value={percorso.sottotitolo}
+                        onChange={(e) => updatePercorso({ ...percorso, sottotitolo: e.target.value })}
+                        className="h-9 text-xs"
+                        placeholder="Frase breve sotto al titolo"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Lista fasi */}
+                  <div className="space-y-3">
+                    {percorso.fasi.map((fase, fi) => (
+                      <div key={fi} className="rounded-lg border bg-card p-3 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="h-7 w-7 rounded-full bg-orange-500 text-white flex items-center justify-center text-xs font-bold">
+                            {fi + 1}
+                          </span>
+                          <Input
+                            value={fase.nome}
+                            onChange={(e) => {
+                              const next = [...percorso.fasi];
+                              next[fi] = { ...next[fi], nome: e.target.value };
+                              updatePercorso({ ...percorso, fasi: next });
+                            }}
+                            className="h-8 text-sm font-semibold flex-1 min-w-[180px]"
+                            placeholder="Nome fase"
+                          />
+                          <select
+                            value={fase.icona}
+                            onChange={(e) => {
+                              const next = [...percorso.fasi];
+                              next[fi] = { ...next[fi], icona: e.target.value as SrPercorsoFase["icona"] };
+                              updatePercorso({ ...percorso, fasi: next });
+                            }}
+                            className="h-8 text-xs rounded-md border border-input bg-background px-2"
+                          >
+                            {ICONE.map((ic) => (
+                              <option key={ic.value} value={ic.value}>{ic.label}</option>
+                            ))}
+                          </select>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              const next = percorso.fasi.filter((_, i) => i !== fi);
+                              updatePercorso({ ...percorso, fasi: next });
+                            }}
+                            disabled={percorso.fasi.length <= 1}
+                            className="h-8 w-8 text-rose-600"
+                            title="Elimina fase"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                        {/* Step della fase */}
+                        <div className="space-y-1 pl-9">
+                          {fase.step.map((step, si) => (
+                            <div key={si} className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono text-muted-foreground w-6">
+                                {String(si + 1).padStart(2, "0")}
+                              </span>
+                              <Input
+                                value={step}
+                                onChange={(e) => {
+                                  const nextFasi = [...percorso.fasi];
+                                  const nextStep = [...nextFasi[fi].step];
+                                  nextStep[si] = e.target.value;
+                                  nextFasi[fi] = { ...nextFasi[fi], step: nextStep };
+                                  updatePercorso({ ...percorso, fasi: nextFasi });
+                                }}
+                                className="h-7 text-xs"
+                                placeholder="Es. Chiamata conoscitiva"
+                              />
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => {
+                                  const nextFasi = [...percorso.fasi];
+                                  nextFasi[fi] = {
+                                    ...nextFasi[fi],
+                                    step: nextFasi[fi].step.filter((_, i) => i !== si),
+                                  };
+                                  updatePercorso({ ...percorso, fasi: nextFasi });
+                                }}
+                                disabled={fase.step.length <= 1}
+                                className="h-7 w-7 text-rose-600"
+                                title="Elimina step"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              const nextFasi = [...percorso.fasi];
+                              nextFasi[fi] = { ...nextFasi[fi], step: [...nextFasi[fi].step, ""] };
+                              updatePercorso({ ...percorso, fasi: nextFasi });
+                            }}
+                            className="h-7 text-[11px] text-muted-foreground hover:text-foreground"
+                          >
+                            <Plus className="h-3 w-3 mr-1" /> Aggiungi step
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        updatePercorso({
+                          ...percorso,
+                          fasi: [
+                            ...percorso.fasi,
+                            { nome: "Nuova fase", icona: "custom", step: [""] },
+                          ],
+                        });
+                      }}
+                      className="w-full gap-1 border-dashed border-2"
+                    >
+                      <Plus className="h-4 w-4" /> Aggiungi fase
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => updatePercorso(SR_PERCORSO_DEFAULT)}
+                      className="text-xs text-muted-foreground"
+                    >
+                      Ripristina template di default
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </SrCard>
+        );
+      })()}
+
       <SrCard title="Default cronoprogramma + economia" icon={<Clock className="h-4 w-4" />}>
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-6 md:col-span-3">

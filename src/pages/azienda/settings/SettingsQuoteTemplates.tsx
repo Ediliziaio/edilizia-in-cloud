@@ -2323,7 +2323,7 @@ function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
   const header = (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div className="flex items-start gap-3 min-w-0">
-        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center shrink-0 shadow-sm">
+        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
           <ShoppingBag className="h-5 w-5 text-white" />
         </div>
         <div className="min-w-0">
@@ -2368,13 +2368,13 @@ function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
                   "text-left rounded-xl border-2 p-4 transition-all group focus:outline-none " +
                   (isDisabled
                     ? "bg-slate-50 border-slate-200 cursor-not-allowed opacity-60"
-                    : "bg-white border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/20 hover:shadow-md focus:ring-2 focus:ring-emerald-400 cursor-pointer")
+                    : "bg-white border-slate-200 hover:border-orange-300 hover:bg-orange-50/30 hover:shadow-md focus:ring-2 focus:ring-orange-400 cursor-pointer")
                 }
               >
                 <div className="flex items-start gap-3">
                   <div className={
                     "h-11 w-11 rounded-lg flex items-center justify-center shrink-0 " +
-                    (isDisabled ? "bg-slate-200" : "bg-gradient-to-br from-emerald-500 to-teal-400 text-white shadow-sm")
+                    (isDisabled ? "bg-slate-200" : "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm")
                   }>
                     <Icon className={isDisabled ? "h-5 w-5 text-slate-400" : "h-5 w-5 text-white"} />
                   </div>
@@ -2387,7 +2387,7 @@ function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
                         </span>
                       )}
                       {!isDisabled && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
                           Disponibile
                         </span>
                       )}
@@ -2398,7 +2398,7 @@ function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
                 {!isDisabled && (
                   <div className="mt-3 pt-3 border-t flex items-center justify-between text-xs">
                     <span className="text-slate-500">Configura logo, recensioni, USP…</span>
-                    <span className="font-semibold text-emerald-700 group-hover:translate-x-0.5 transition-transform">
+                    <span className="font-semibold text-orange-700 group-hover:translate-x-0.5 transition-transform">
                       Apri →
                     </span>
                   </div>
