@@ -13,7 +13,7 @@ import {
   uploadMedia, deleteMedia,
   listRenderSessions, importRender,
   listCrmContacts,
-  listListinoFamilies, listGrigliaByFamily,
+  listListinoFamilies, listListinoFamiliesByIds, listGrigliaByFamily,
   listMacrocategorie, listCategorieByMacro,
   listMacroFields, createMacroField, updateMacroField, deleteMacroField,
   seedMacroFieldsFromVertical,
@@ -238,6 +238,26 @@ export function useListinoFamilies(opts?: { searchQuery?: string; categoriaId?: 
   return useQuery({
     queryKey: ["sr-listino-families", opts?.searchQuery ?? "", opts?.categoriaId ?? null],
     queryFn: () => listListinoFamilies(opts),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Fetch mirato delle famiglie listino per IDs noti. Da usare quando si
+ * ha gia' una lista di family_id (es. righe BOM di un preventivo) e
+ * serve recuperare i dati completi. Evita il LIMIT 100 di
+ * useListinoFamilies() senza parametri, che falliva quando una riga BOM
+ * referenziava un articolo oltre i primi 100 ordine alfabetico.
+ *
+ * Sort dei IDs prima del queryKey -> caching stabile indipendente
+ * dall'ordine in cui arrivano.
+ */
+export function useListinoFamiliesByIds(ids: string[]) {
+  const sortedIds = [...ids].sort();
+  return useQuery({
+    queryKey: ["sr-listino-families-by-ids", sortedIds],
+    queryFn: () => listListinoFamiliesByIds(sortedIds),
+    enabled: sortedIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 }

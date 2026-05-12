@@ -26,7 +26,7 @@ import { ServiziSection } from "./ServiziSection";
 import { AccessoriSection } from "./AccessoriSection";
 import {
   useAddSerramento, useUpdateSerramento, useDeleteSerramento, useImportDaSopralluogo,
-  useListinoFamilies, useListinoGriglia,
+  useListinoFamiliesByIds, useListinoGriglia,
 } from "@/lib/serramenti/queries";
 import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
 import {
@@ -58,9 +58,17 @@ export function StepBom({ progettoId, detail }: Props) {
 
   const serramenti = detail.serramenti;
 
-  // Pre-fetch families per ricalcolo prezzo on-the-fly. Cached da React Query
-  // (5 min staleTime su useListinoFamilies) → costo bassissimo.
-  const { data: allFamilies = [] } = useListinoFamilies();
+  // Pre-fetch SOLO le famiglie referenziate dalle righe BOM correnti.
+  // useListinoFamilies() senza parametri ritornava LIMIT 100 → se l'utente
+  // aveva 200 articoli e la riga referenziava una family oltre i primi
+  // 100 ordine alfabetico, `family` era undefined → la riga appariva come
+  // "off-listino" mostrando i campi Materiale/Serie/Vetro/Colore (bug
+  // segnalato dall'utente: "non dovrebbero esserci").
+  const familyIdsBOM = useMemo(
+    () => Array.from(new Set(serramenti.map((s) => s.family_id).filter(Boolean) as string[])),
+    [serramenti],
+  );
+  const { data: allFamilies = [] } = useListinoFamiliesByIds(familyIdsBOM);
   const familiesById = useMemo(() => {
     const m = new Map<string, ListinoFamily>();
     allFamilies.forEach((f) => m.set(f.id, f));
@@ -650,38 +658,60 @@ function SerramentoRow({
               <span>Prezzo unitario (€)</span>
               {isFromListino && (
                 <Badge variant="outline" className="text-[10px] h-4 px-1 border-orange-200 bg-orange-50 text-orange-600">
-                  da listino
+                  da listino · auto
                 </Badge>
               )}
             </Label>
+            {/* Prezzo unitario:
+                - off-listino: editabile (commerciale lo definisce a mano)
+                - da listino: READ-ONLY. Cambia solo modificando L/A/Q (la
+                  griglia listino ricalcola). Il commerciale non puo' alterare
+                  i prezzi vendita a mano per coerenza con la marginalita'. */}
             <Input
               type="number"
               step="0.01"
               key={`P-${s.id}-${s.prezzo_unitario ?? ""}`}
               defaultValue={s.prezzo_unitario ?? ""}
-              onBlur={(e) => onPatch({ prezzo_unitario: e.target.value ? Number(e.target.value) : null })}
-              className="h-9 text-xs"
-              title={isFromListino ? "Auto-aggiornato in base a L/A/Q. Puoi sovrascrivere manualmente per offerte speciali." : ""}
+              onBlur={(e) => {
+                if (isFromListino) return; // read-only per listino
+                onPatch({ prezzo_unitario: e.target.value ? Number(e.target.value) : null });
+              }}
+              readOnly={isFromListino}
+              tabIndex={isFromListino ? -1 : undefined}
+              className={
+                "h-9 text-xs " +
+                (isFromListino ? "bg-slate-50 cursor-not-allowed text-slate-700" : "")
+              }
+              title={isFromListino
+                ? "Calcolato automaticamente dalla griglia del listino in base a larghezza/altezza/quantita'."
+                : ""}
             />
           </div>
-          <div className="col-span-6 md:col-span-4">
-            <Label className="text-xs">Colore interno</Label>
-            <Input
-              defaultValue={s.colore_interno ?? ""}
-              onBlur={(e) => onPatch({ colore_interno: e.target.value || null })}
-              placeholder="Bianco RAL 9010"
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="col-span-6 md:col-span-4">
-            <Label className="text-xs">Colore esterno</Label>
-            <Input
-              defaultValue={s.colore_esterno ?? ""}
-              onBlur={(e) => onPatch({ colore_esterno: e.target.value || null })}
-              placeholder="Antracite RAL 7016"
-              className="h-9 text-xs"
-            />
-          </div>
+
+          {/* Colore interno/esterno: SOLO off-listino. Per i prodotti del
+              listino il colore appartiene alla scheda tecnica della famiglia. */}
+          {!isFromListino && (
+            <>
+              <div className="col-span-6 md:col-span-4">
+                <Label className="text-xs">Colore interno</Label>
+                <Input
+                  defaultValue={s.colore_interno ?? ""}
+                  onBlur={(e) => onPatch({ colore_interno: e.target.value || null })}
+                  placeholder="Bianco RAL 9010"
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="col-span-6 md:col-span-4">
+                <Label className="text-xs">Colore esterno</Label>
+                <Input
+                  defaultValue={s.colore_esterno ?? ""}
+                  onBlur={(e) => onPatch({ colore_esterno: e.target.value || null })}
+                  placeholder="Antracite RAL 7016"
+                  className="h-9 text-xs"
+                />
+              </div>
+            </>
+          )}
           {/* Duplica/Elimina sono ora sempre visibili nell'header (icone) —
               evitiamo bottoni duplicati nel dettaglio espanso. */}
         </CardContent>

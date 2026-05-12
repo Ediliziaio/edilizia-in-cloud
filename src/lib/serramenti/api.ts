@@ -696,6 +696,33 @@ export interface ListinoGrigliaItem {
   note: string | null;
 }
 
+/**
+ * Recupera famiglie listino per IDs noti (es. quelle referenziate dai
+ * serramenti di un preventivo). Indipendente dal LIMIT 100 di
+ * listListinoFamilies(): se l'utente ha 200 articoli nel listino e il
+ * preventivo referenzia una famiglia oltre i primi 100 ordine alfabetico,
+ * va recuperata esplicitamente. Senza questo, family resta undefined e
+ * la riga appare come "off-listino" mostrando campi che non dovrebbe.
+ */
+export async function listListinoFamiliesByIds(ids: string[]): Promise<ListinoFamily[]> {
+  if (!ids || ids.length === 0) return [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("article_families")
+    .select(`
+      id, nome, descrizione, immagine_url, vertical, prezzo_base_vendita, vat_rate,
+      modalita_prezzo_base, categoria_id, custom_field_values,
+      manodopera_modalita, posa_tariffa_default_id, posa_quantita_default, posa_linked,
+      manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita
+    `)
+    .in("id", ids);
+  if (error) {
+    console.error("[serramenti] listListinoFamiliesByIds failed", error);
+    throw new Error("Errore caricamento famiglie listino");
+  }
+  return (data ?? []) as ListinoFamily[];
+}
+
 export async function listListinoFamilies(opts?: {
   searchQuery?: string;
   categoriaId?: string | null;
