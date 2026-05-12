@@ -159,19 +159,27 @@ export async function getProgetto(id: string): Promise<SrProgettoDetail> {
   // di storage salvato erroneamente in passato — segnalato dall'utente
   // per la foto "PRIMA" del render) firmiamo qui.
   //
-  // Strategia: batch `createSignedUrls` per evitare N round-trip.
-  // Storage path "render-session:*" sono sentinel di render esterni
-  // (URL gia' nel campo `url` dal bucket render) -> NON re-firmati.
+  // Due categorie:
+  //   A) Media bucket sr-progetti (kind=situazione/render con storage_path
+  //      "company_id/progetto_id/photos/..."): firma batch in 1 round-trip.
+  //   B) Media legacy render-session (kind=situazione con storage_path
+  //      "render-session:<id>:original" e url=path del bucket render-originals
+  //      non firmato): firma individualmente via createRenderOriginalSignedUrl.
   const mediaList = (media ?? []) as SrMediaRow[];
-  const mediaToResign = mediaList.filter((m) => {
-    if (!m.storage_path) return false;
-    // Sentinel render esterno -> non e' un path sr-progetti, skip.
-    if (m.storage_path.startsWith("render-session:")) return false;
-    return true;
-  });
-  if (mediaToResign.length > 0) {
+  const mediaSrProgetti = mediaList.filter((m) =>
+    m.storage_path && !m.storage_path.startsWith("render-session:"),
+  );
+  const mediaRenderLegacy = mediaList.filter((m) =>
+    m.kind === "situazione"
+    && m.storage_path?.startsWith("render-session:")
+    && m.url
+    && !m.url.startsWith("http"),
+  );
+
+  // A) Batch sign media bucket sr-progetti
+  if (mediaSrProgetti.length > 0) {
     try {
-      const paths = mediaToResign.map((m) => m.storage_path as string);
+      const paths = mediaSrProgetti.map((m) => m.storage_path as string);
       const { data: signedList, error: signErr } = await supabase.storage
         .from("sr-progetti")
         .createSignedUrls(paths, SR_MEDIA_TTL_SEC);
@@ -194,6 +202,28 @@ export async function getProgetto(id: string): Promise<SrProgettoDetail> {
       }
     } catch (err) {
       console.warn("[serramenti] getProgetto media re-sign exception", err);
+    }
+  }
+
+  // B) Re-sign legacy render-originals (foto PRIMA importate prima del
+  // fix 3e7c4216 dove il `url` salvato era il path raw, non l'URL).
+  // Una signed URL per ogni record (no batch API cross-bucket).
+  if (mediaRenderLegacy.length > 0) {
+    try {
+      const { createRenderOriginalSignedUrl } = await import("@/lib/render/renderStorage");
+      await Promise.all(mediaRenderLegacy.map(async (m) => {
+        if (!m.url) return;
+        try {
+          const fresh = await createRenderOriginalSignedUrl(
+            "render-originals", m.url, SR_MEDIA_TTL_SEC,
+          );
+          if (fresh) m.url = fresh;
+        } catch (e) {
+          console.warn("[serramenti] getProgetto legacy render orig sign failed", m.id, e);
+        }
+      }));
+    } catch (err) {
+      console.warn("[serramenti] getProgetto legacy render orig import failed", err);
     }
   }
 
