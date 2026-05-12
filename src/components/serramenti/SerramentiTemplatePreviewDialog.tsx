@@ -180,11 +180,53 @@ export function SerramentiTemplatePreviewDialog({
             </div>
           )}
           {state.status === "ready" && (
-            <iframe
-              src={state.blobUrl}
-              title="Anteprima PDF preventivo"
-              className="w-full h-full border-0"
-            />
+            <>
+              {/* Usiamo <object> invece di <iframe> per la preview PDF.
+                  Motivo: Brave Shields, alcuni ad blocker e Chrome con
+                  estensioni privacy aggressive bloccano gli iframe con blob:
+                  URL → l'utente vede "Questi contenuti sono bloccati".
+                  <object> non viene filtrato dalle stesse regole anti-tracking. */}
+              <object
+                data={state.blobUrl}
+                type="application/pdf"
+                title="Anteprima PDF preventivo"
+                className="w-full h-full border-0"
+              >
+                {/* Fallback se il browser non sa renderizzare PDF inline
+                    (es. Firefox con plugin PDF disattivato, Brave con shield
+                    massimo). Mostriamo CTA per aprire in nuova tab. */}
+                <div className="absolute inset-0 flex items-center justify-center p-6">
+                  <div className="flex flex-col items-center gap-3 max-w-md text-center">
+                    <AlertCircle className="h-8 w-8 text-orange-600" />
+                    <p className="text-sm font-semibold">
+                      Il browser ha bloccato l'anteprima inline
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Alcuni browser (Brave, Chrome con shield/ad-blocker)
+                      bloccano il rendering PDF nei dialog. Puoi aprirlo in
+                      una nuova scheda o scaricarlo.
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        size="sm"
+                        onClick={() => window.open(state.blobUrl, "_blank")}
+                        className="bg-orange-600 hover:bg-orange-700"
+                      >
+                        Apri in nuova scheda
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleDownload}
+                      >
+                        <Download className="h-3.5 w-3.5 mr-1" />
+                        Scarica
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </object>
+            </>
           )}
           {state.status === "idle" && (
             <div className="absolute inset-0 flex items-center justify-center">
