@@ -326,7 +326,11 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
           prezzo_acquisto_netto: null,
         })),
       );
-      prezzoProdottoPerUnita = pricing.prezzo_unitario_vendita;
+      // BUG FIX: l'helper esporta `unit_price_vendita`, non
+      // `prezzo_unitario_vendita`. Prima leggevo la chiave sbagliata ->
+      // undefined -> prezzo nella card riepilogo NON cambiava al cambio
+      // variabile prodotto.
+      prezzoProdottoPerUnita = pricing.unit_price_vendita;
     }
 
     const prezzoProdotto = prezzoProdottoPerUnita * q;

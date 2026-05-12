@@ -530,10 +530,14 @@ function SerramentoRow({
         prezzo_acquisto_netto: null,
       })),
     );
-    // pricing.prezzo_unitario_vendita e' SOLO prodotto (no posa) -> aggiungo
+    // pricing.unit_price_vendita e' SOLO prodotto (no posa) -> aggiungo
     // posa indipendente sopra (tariffa cantiere, non scala con maggiorazioni).
+    // BUG FIX: prima leggevo `prezzo_unitario_vendita` che NON esiste
+    // (la funzione esporta `unit_price_vendita`). Risultato: undefined+posa
+    // = NaN -> ricalcolo silenziosamente fallito -> prezzo non si aggiornava
+    // su cambio variabile prodotto.
     const posa = calcolaPosaInclusa(family, Qsafe, tariffePrezzi);
-    return pricing.prezzo_unitario_vendita + (Qsafe > 0 ? posa / Qsafe : posa);
+    return pricing.unit_price_vendita + (Qsafe > 0 ? posa / Qsafe : posa);
   };
 
   /**
