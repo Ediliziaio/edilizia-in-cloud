@@ -368,30 +368,41 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                 text="Nessuna macrocategoria configurata. Vai in Impostazioni → Listino prodotti per crearle."
               />
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              /* Card macrocategoria: layout verticale "catalog card".
+                 - Foto IN ALTO 4:3 con object-contain (no crop) su bg
+                   neutro -> articoli verticali (finestre/porte) si
+                   vedono interi.
+                 - Testo sotto con titolo + descrizione clampata.
+                 - Frecciachevron in basso destra come affordance di
+                   navigazione. */
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {macros.map((m) => (
                   <button
                     key={m.id}
                     onClick={() => handleSelectMacro(m)}
-                    className="text-left p-3 rounded-md border-2 border-slate-200 hover:border-orange-400 hover:bg-orange-50/30 focus:outline-none focus:ring-2 focus:ring-orange-400 transition group"
+                    className="text-left rounded-lg border-2 border-slate-200 hover:border-orange-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-400 transition group overflow-hidden bg-white flex flex-col"
                   >
-                    <div className="flex items-start gap-3">
-                      {m.immagine_url ? (
+                    {m.immagine_url ? (
+                      <div className="relative aspect-[4/3] bg-slate-50 border-b border-slate-100">
                         <img
                           src={m.immagine_url}
                           alt={m.nome}
-                          className="h-12 w-12 shrink-0 rounded-md object-cover border bg-slate-50"
+                          className="absolute inset-0 w-full h-full object-contain p-2"
                         />
-                      ) : (
-                        <IconBox colore={m.colore} iconText={m.icona ? "📦" : "📦"} />
-                      )}
+                      </div>
+                    ) : (
+                      <div className="relative aspect-[4/3] bg-slate-50 border-b border-slate-100 flex items-center justify-center">
+                        <IconBox colore={m.colore} iconText="📦" />
+                      </div>
+                    )}
+                    <div className="flex-1 p-3 flex items-start gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-slate-900 truncate">{m.nome}</p>
+                        <p className="text-sm font-bold text-slate-900 truncate group-hover:text-orange-700 transition-colors">{m.nome}</p>
                         {m.descrizione && (
-                          <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{m.descrizione}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-snug">{m.descrizione}</p>
                         )}
                       </div>
-                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-600 mt-1 shrink-0" />
+                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-600 mt-0.5 shrink-0 transition-colors" />
                     </div>
                   </button>
                 ))}
@@ -411,22 +422,27 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                 text={`Nessuna categoria in "${selectedMacro?.nome ?? ""}". Configura le categorie nelle Impostazioni → Listino prodotti.`}
               />
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              /* Stesso pattern catalog card delle macro: foto aspect 4:3
+                 con object-contain (no crop) per non distorcere articoli
+                 verticali. */
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {categorie.map((c) => (
                   <button
                     key={c.id}
                     onClick={() => handleSelectCategoria(c)}
-                    className="text-left rounded-md border-2 border-slate-200 hover:border-orange-400 hover:bg-orange-50/30 focus:outline-none focus:ring-2 focus:ring-orange-400 transition overflow-hidden group"
+                    className="text-left rounded-lg border-2 border-slate-200 hover:border-orange-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-400 transition overflow-hidden group bg-white flex flex-col"
                   >
                     {c.immagine_url ? (
-                      <img
-                        src={c.immagine_url}
-                        alt={c.nome}
-                        className="w-full h-24 object-cover bg-muted"
-                      />
+                      <div className="relative aspect-[4/3] bg-slate-50 border-b border-slate-100">
+                        <img
+                          src={c.immagine_url}
+                          alt={c.nome}
+                          className="absolute inset-0 w-full h-full object-contain p-2"
+                        />
+                      </div>
                     ) : (
                       <div
-                        className="w-full h-24 flex items-center justify-center text-3xl"
+                        className="relative aspect-[4/3] flex items-center justify-center text-3xl border-b border-slate-100"
                         style={{
                           backgroundColor: c.colore ? `${c.colore}22` : "#10b98122",
                           color: c.colore ?? "#10b981",
@@ -435,14 +451,14 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                         📁
                       </div>
                     )}
-                    <div className="p-2.5 flex items-start gap-2">
+                    <div className="flex-1 p-2.5 flex items-start gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{c.nome}</p>
+                        <p className="text-sm font-semibold text-slate-900 truncate group-hover:text-orange-700 transition-colors">{c.nome}</p>
                         {c.descrizione && (
-                          <p className="text-[11px] text-muted-foreground line-clamp-1">{c.descrizione}</p>
+                          <p className="text-[11px] text-muted-foreground line-clamp-1 leading-snug">{c.descrizione}</p>
                         )}
                       </div>
-                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-600 mt-0.5 shrink-0" />
+                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-600 mt-0.5 shrink-0 transition-colors" />
                     </div>
                   </button>
                 ))}
