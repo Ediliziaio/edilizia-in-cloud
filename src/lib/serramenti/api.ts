@@ -888,7 +888,33 @@ export async function importRender(input: {
   }
   const idx = input.result_index ?? 0;
   const renderUrl = rs.result_urls[idx] ?? rs.result_urls[0];
-  const originalUrl: string | null = rs.original_photo_url ?? null;
+  // BUG FIX (segnalato dall'utente: "il PRIMA non si vede"):
+  // `render_sessions.original_photo_url` salva un STORAGE PATH del bucket
+  // render-originals, NON un URL firmato. Se lo salvavamo direttamente
+  // come `m.url`, il browser cercava di GET-arlo come URL HTTPS -> 404 ->
+  // immagine rotta nel preventivo.
+  //
+  // Fix: firmiamo qui (TTL 7 giorni allineato con gli altri media). Se il
+  // valore e' gia' un URL HTTPS (legacy/migrazione) lo lasciamo invariato.
+  const originalPath: string | null = rs.original_photo_url ?? null;
+  let originalUrl: string | null = null;
+  if (originalPath) {
+    if (originalPath.startsWith("http")) {
+      originalUrl = originalPath;
+    } else {
+      try {
+        const { createRenderOriginalSignedUrl } = await import("@/lib/render/renderStorage");
+        originalUrl = await createRenderOriginalSignedUrl(
+          "render-originals",
+          originalPath,
+          60 * 60 * 24 * 7, // 7 giorni
+        );
+      } catch (e) {
+        console.warn("[serramenti] importRender: signed URL foto originale fallita", e);
+        originalUrl = null;
+      }
+    }
+  }
 
   // Insert del RENDER (dopo). Storage path = "render-session:<id>:<idx>"
   // (sentinel: l'edge function PDF saprà che è un riferimento esterno e
