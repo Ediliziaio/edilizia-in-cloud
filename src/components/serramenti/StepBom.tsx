@@ -426,7 +426,14 @@ function SerramentoRow({
   /** Mappa tariffe → prezzo vendita per ricalcolare posa nel prezzo unitario. */
   tariffePrezzi: Map<string, number>;
 }) {
-  const tipoLabel = SR_TIPOLOGIE_SERRAMENTO.find((t) => t.value === s.tipologia)?.label ?? s.tipologia;
+  // Label header riga:
+  //   - off-listino: usa SR_TIPOLOGIE_SERRAMENTO (Finestra a 1 anta, ecc.)
+  //   - da listino: usa il nome dell'articolo (es. "COSTRUZIONE 3 IT —
+  //     PORTA BALCONE 1 ANTA"). family.nome e' gia' salvato in
+  //     s.tipologia_label dal picker quindi e' preferito.
+  const tipoLabel = family
+    ? (family.nome || s.tipologia_label || s.tipologia)
+    : (SR_TIPOLOGIE_SERRAMENTO.find((t) => t.value === s.tipologia)?.label ?? s.tipologia);
   // Materiale label: per righe da listino legge dalla scheda tecnica della
   // family (`custom_field_values.materiale_profilo`) -> sempre coerente con
   // quello che il commerciale vede nel blocco "Caratteristiche da listino".
@@ -644,25 +651,39 @@ function SerramentoRow({
       </CardHeader>
       {expanded && (
         <CardContent className="p-3 pt-0 grid grid-cols-12 gap-2 border-t">
-          <div className="col-span-12 md:col-span-6">
-            <Label className="text-xs">Tipologia</Label>
-            <Select
-              value={s.tipologia}
-              onValueChange={(v) => {
-                const lbl = SR_TIPOLOGIE_SERRAMENTO.find((t) => t.value === v)?.label;
-                onPatch({ tipologia: v, tipologia_label: lbl });
-              }}
-            >
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SR_TIPOLOGIE_SERRAMENTO.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Tipologia editabile SOLO off-listino. Per le righe da listino
+              la "tipologia" coincide con il nome dell'articolo (gia' nella
+              riga 1 dell'header) -> il dropdown sarebbe ridondante e
+              confondente (es. articolo "PORTA BALCONE 1 ANTA" mostrava la
+              dropdown delle tipologie generiche). */}
+          {isFromListino ? (
+            <div className="col-span-12 md:col-span-6">
+              <Label className="text-xs text-muted-foreground">Articolo (da listino)</Label>
+              <div className="h-9 rounded-md border bg-slate-50 border-slate-200 px-3 flex items-center text-xs font-medium text-slate-800 truncate">
+                {family?.nome ?? s.tipologia_label ?? "—"}
+              </div>
+            </div>
+          ) : (
+            <div className="col-span-12 md:col-span-6">
+              <Label className="text-xs">Tipologia</Label>
+              <Select
+                value={s.tipologia}
+                onValueChange={(v) => {
+                  const lbl = SR_TIPOLOGIE_SERRAMENTO.find((t) => t.value === v)?.label;
+                  onPatch({ tipologia: v, tipologia_label: lbl });
+                }}
+              >
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SR_TIPOLOGIE_SERRAMENTO.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="col-span-12 md:col-span-6">
             <Label className="text-xs">Ambiente</Label>
             <Input
