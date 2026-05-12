@@ -121,6 +121,10 @@ function ObjectItemsPicker({
             </div>
           </div>
 
+          {/* Selezione "calma": testo sempre nero/slate, bordo sottile,
+              background leggerissimo. Il segnale di selezione e' il
+              checkbox + bg-slate-50 sottile, non testo+bordo arancione
+              saturo (era percepito come warning). */}
           {templateItems.map((it, idx) => {
             const k = keyOf(it);
             const isSelected = selectedKeys.has(k);
@@ -130,8 +134,8 @@ function ObjectItemsPicker({
                 className={
                   "flex items-start gap-3 rounded-md border p-3 cursor-pointer transition " +
                   (isSelected
-                    ? "border-orange-400 bg-white shadow-[inset_3px_0_0_0] shadow-orange-500"
-                    : "border-slate-200 hover:border-orange-200 hover:bg-muted/30")
+                    ? "border-slate-300 bg-slate-50/60"
+                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/30")
                 }
               >
                 <Checkbox
@@ -140,10 +144,10 @@ function ObjectItemsPicker({
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className={"text-sm font-semibold " + (isSelected ? "text-orange-900" : "text-slate-900")}>
+                  <p className="text-sm font-semibold text-slate-900">
                     {emoji} {it.titolo || <span className="italic text-muted-foreground">(senza titolo)</span>}
                   </p>
-                  <p className={"text-xs mt-0.5 " + (isSelected ? "text-orange-600" : "text-slate-600")}>
+                  <p className="text-xs mt-0.5 text-slate-600">
                     {it.descrizione}
                   </p>
                 </div>
@@ -198,7 +202,7 @@ function ObjectItemsPicker({
         onClick={addCustom}
         variant="outline"
         size="sm"
-        className="w-full border-dashed border-2 border-amber-300 hover:bg-amber-50 text-amber-700 gap-1"
+        className="w-full border-dashed border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-600 gap-1"
       >
         <Plus className="h-3.5 w-3.5" /> Aggiungi {label.toLowerCase()} personalizzata per questo cliente
       </Button>
@@ -291,8 +295,8 @@ function StringItemsPicker({
                 className={
                   "flex items-start gap-3 rounded-md border p-2.5 cursor-pointer transition " +
                   (isSelected
-                    ? "border-orange-400 bg-white shadow-[inset_3px_0_0_0] shadow-orange-500"
-                    : "border-slate-200 hover:border-orange-200 hover:bg-muted/30")
+                    ? "border-slate-300 bg-slate-50/60"
+                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/30")
                 }
               >
                 <Checkbox
@@ -300,7 +304,7 @@ function StringItemsPicker({
                   onCheckedChange={() => toggleTemplate(it)}
                   className="mt-0.5"
                 />
-                <span className={"text-xs flex-1 " + (isSelected ? "text-orange-900 font-medium" : "text-slate-700")}>
+                <span className={"text-xs flex-1 text-slate-800 " + (isSelected ? "font-medium" : "")}>
                   {emoji} {it || <span className="italic text-muted-foreground">(vuota)</span>}
                 </span>
               </label>
@@ -345,7 +349,7 @@ function StringItemsPicker({
         onClick={addCustom}
         variant="outline"
         size="sm"
-        className="w-full border-dashed border-2 border-amber-300 hover:bg-amber-50 text-amber-700 gap-1"
+        className="w-full border-dashed border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-600 gap-1"
       >
         <Plus className="h-3.5 w-3.5" /> Aggiungi voce personalizzata per questo cliente
       </Button>
