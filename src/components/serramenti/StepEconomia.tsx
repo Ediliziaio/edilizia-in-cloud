@@ -166,6 +166,42 @@ export function StepEconomia({ detail, form, onChange }: Props) {
     setMilestones(incoming);
     milestoneUidsRef.current = []; // reset: dati nuovi da server
   }, [formMilestonesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sync stati locali con form server post-invalidate ────────────────────
+  // Stessa logica usata per milestones (vedi sopra): se il progetto viene
+  // ri-fetched (autosave da altra tab, refresh, navigate back/forward) gli
+  // stati useState locali restano stale -> l'utente clicca "Applica calcoli"
+  // salvando valori vecchi. Risolto con resync esplicito.
+  // Chiavi JSON per evitare loop su reference diverse stesso contenuto.
+  const formAnticipoPctKey = String(form.fin_anticipo_pct ?? "");
+  useEffect(() => {
+    setAnticipoPct(form.fin_anticipo_pct ?? 40);
+  }, [formAnticipoPctKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const formTabellaIdKey = String(form.fin_tabella_id ?? "");
+  useEffect(() => {
+    setTabellaId(form.fin_tabella_id ?? null);
+    setFinModalita(form.fin_tabella_id ? "tabella" : "manuale");
+  }, [formTabellaIdKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const formSchemaPagamentoKey = String(form.schema_pagamento ?? "");
+  useEffect(() => {
+    if (form.schema_pagamento) {
+      setSchemaPagamento(form.schema_pagamento as SrSchemaPagamento);
+    }
+  }, [formSchemaPagamentoKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const formDetrazioneAliquotaKey = String(form.detrazione_aliquota ?? "");
+  useEffect(() => {
+    setBonusAttivo((form.detrazione_aliquota ?? 50) > 0);
+    setAliquota(form.detrazione_aliquota === 65 ? 65 : 50);
+  }, [formDetrazioneAliquotaKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const formRisparmioCalcolatoKey = String(form.risparmio_calcolato ?? "");
+  useEffect(() => {
+    setRisparmioAttivo(form.risparmio_calcolato ?? false);
+  }, [formRisparmioCalcolatoKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const milestonesTotale = milestones.reduce((acc, m) => acc + (Number(m.percentuale) || 0), 0);
   const milestonesOk = milestonesTotale === 100;
 
