@@ -135,7 +135,11 @@ export default function SerramentiWizard() {
       await updateMut.mutateAsync(form);
       setDirty(false);
       return true;
-    } catch {
+    } catch (e) {
+      // Prima: silent catch -> utente cliccava "Salva e continua" e non
+      // succedeva nulla. Ora notifica chiara.
+      const msg = e instanceof Error ? e.message : "Errore sconosciuto";
+      toast.error("Salvataggio fallito", { description: msg });
       return false;
     }
   };

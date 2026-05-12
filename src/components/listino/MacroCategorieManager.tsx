@@ -412,7 +412,7 @@ export function MacroCategorieManager() {
             variant="outline"
             size="sm"
             onClick={() => openForm({ kind: "cat-new", macrocategoriaId: null })}
-            className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
+            className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
           >
             <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
             Nuova categoria

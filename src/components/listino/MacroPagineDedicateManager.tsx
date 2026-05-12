@@ -142,7 +142,7 @@ export function MacroPagineDedicateManager({ vertical }: Props) {
                     {isActive && (
                       <Badge
                         variant="outline"
-                        className="text-[10px] h-5 border-orange-200 bg-orange-100/50 text-orange-700 dark:bg-orange-950/40 dark:border-orange-900/50 dark:text-orange-300"
+                        className="text-[10px] h-5 border-orange-200 bg-orange-100/50 text-orange-600 dark:bg-orange-950/40 dark:border-orange-900/50 dark:text-orange-300"
                       >
                         <Sparkles className="h-2.5 w-2.5 mr-0.5" />
                         Attiva

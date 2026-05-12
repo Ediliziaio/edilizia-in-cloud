@@ -834,7 +834,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                 </h3>
                 <Badge
                   variant="outline"
-                  className="ml-1 border-orange-200 bg-orange-50/50 text-orange-700 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-300 shrink-0"
+                  className="ml-1 border-orange-200 bg-orange-50/50 text-orange-600 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-300 shrink-0"
                 >
                   {macroGroup.totalItems}{" "}
                   {macroGroup.totalItems === 1 ? "articolo" : "articoli"}

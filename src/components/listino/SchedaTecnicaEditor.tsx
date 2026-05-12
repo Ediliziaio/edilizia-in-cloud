@@ -238,7 +238,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                     variant="outline"
                     onClick={() => setShowSeedPanel((v) => !v)}
                     disabled={seedFields.isPending}
-                    className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
+                    className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
                   >
                     <Wand2 className="h-4 w-4 mr-1.5" />
                     {fields.length === 0 ? "Inizia con uno standard" : "Genera standard"}
@@ -377,7 +377,7 @@ export function SchedaTecnicaEditor({ macroId, macroNome, open, onClose }: Props
                             {(f.field_options ?? []).slice(0, 6).map((o) => (
                               <span
                                 key={o.value}
-                                className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-800 border border-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:border-orange-900/40"
+                                className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:border-orange-900/40"
                               >
                                 {o.label}
                               </span>

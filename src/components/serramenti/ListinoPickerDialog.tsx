@@ -34,7 +34,7 @@ import type {
 } from "@/lib/serramenti/api";
 import { useFamily } from "@/hooks/useFamilies";
 import { calcolaPrezzoFamiglia } from "@/hooks/useFamilyPricing";
-import type { FamilyWithAxes, AxisSelection } from "@/types/articleFamily";
+import type { AxisSelection } from "@/types/articleFamily";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";

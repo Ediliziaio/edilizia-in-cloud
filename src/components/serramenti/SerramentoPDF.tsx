@@ -1111,6 +1111,9 @@ export interface SerramentoPDFProps {
   /** Mappa macrocategoria_id → immagine_url. Fallback per la composizione
    *  serramenti quando la famiglia non ha immagine propria. */
   macroImageById?: Record<string, string | null>;
+  /** Mappa macrocategoria_id → nome. Renderizzato come breadcrumb
+   *  "MACROCATEGORIA · Articolo" nella composizione serramenti del PDF. */
+  macroNomeById?: Record<string, string>;
   /** Macro_id default per BOM senza family e senza override esplicito. */
   autoFallbackMacroId?: string | null;
 }
@@ -1121,6 +1124,7 @@ export function SerramentoPDF({
   detail, template, company,
   consulente, familiesById, fieldsByMacro, macroPagineDedicate,
   macroImageById: _macroImageById = {},
+  macroNomeById = {},
   autoFallbackMacroId = null,
 }: SerramentoPDFProps) {
   const p = detail.progetto;
@@ -1631,6 +1635,9 @@ export function SerramentoPDF({
                   }
                   // Titolo: nome reale della famiglia se disponibile, altrimenti tipologia generica
                   const titolo = family?.nome?.trim() || g.tipologia;
+                  // Breadcrumb macrocategoria. Stampato in piccolo sopra il
+                  // titolo della riga (es. "INFISSI WND > Articolo PVC 70").
+                  const macroNomeRow = macroId ? (macroNomeById[macroId] || null) : null;
                   // Dimensioni nella prima riga muted
                   const dimensioni = g.larghezza && g.altezza
                     ? `${g.larghezza} × ${g.altezza} mm`
@@ -1667,6 +1674,15 @@ export function SerramentoPDF({
                       </View>
                       {/* Descrizione + dimensioni + descrizione tecnica + specs */}
                       <View style={{ flex: 1, paddingRight: 6 }}>
+                        {/* Breadcrumb macrocategoria sopra al nome articolo:
+                            "INFISSI WND". Stampato uppercase mini-caps in
+                            primary color per separare visivamente categoria
+                            e articolo specifico. */}
+                        {macroNomeRow && (
+                          <Text style={{ fontSize: 7.5, fontWeight: 700, color: C.primary, letterSpacing: 0.8, marginBottom: 1 }}>
+                            {macroNomeRow.toUpperCase()}
+                          </Text>
+                        )}
                         <Text style={styles.tableCellStrong}>
                           {titolo}
                           {g.ambiente ? <Text style={{ color: C.gray500, fontWeight: 400 }}> · {g.ambiente}</Text> : null}

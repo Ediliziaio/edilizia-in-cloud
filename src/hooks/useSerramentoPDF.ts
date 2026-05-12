@@ -80,6 +80,9 @@ export interface SerramentoPdfEnriched {
   /** Mappa macrocategoria_id → immagine_url. Usata come fallback nelle righe
    *  della composizione serramenti quando la famiglia non ha immagine propria. */
   macroImageById: Record<string, string | null>;
+  /** Mappa macrocategoria_id → nome. Renderizzato nel BOM PDF come breadcrumb
+   *  davanti al nome articolo: "MACROCATEGORIA · Articolo". */
+  macroNomeById: Record<string, string>;
   /** macro_id da usare come default per i BOM senza family_id e senza
    *  macrocategoria_override_id. Solo se l'azienda ha una macro attiva con
    *  pagina dedicata (o, in subordine, una sola macro attiva). NULL = nessun
@@ -253,6 +256,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   }
 
   const macroImageById: Record<string, string | null> = {};
+  const macroNomeById: Record<string, string> = {};
   let macroPagineDedicate: SerramentoPdfMacroPagina[] = [];
   if (macroIdsBomOrdine.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -268,6 +272,9 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     }>).forEach((m) => {
       // Sempre popolato per fallback immagine BOM
       macroImageById[m.id] = m.immagine_url;
+      // Nome macro: per breadcrumb "MACROCATEGORIA · Articolo" nella
+      // composizione del PDF preventivo cliente.
+      macroNomeById[m.id] = m.nome;
       // Pagina dedicata solo se flag + descrizione presente
       if (!m.mostra_pagina_dedicata_pdf) return;
       const desc = (m.descrizione_estesa ?? m.descrizione ?? "").trim();
@@ -354,6 +361,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     fieldsByMacro,
     macroPagineDedicate: inlinedMacroPagine,
     macroImageById: inlinedMacroImageById,
+    macroNomeById,
     autoFallbackMacroId,
   };
 }

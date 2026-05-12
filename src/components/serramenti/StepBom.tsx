@@ -98,6 +98,16 @@ export function StepBom({ progettoId, detail }: Props) {
     return m;
   }, [categorie]);
 
+  // Mappa macroId → nome macrocategoria per breadcrumb header riga
+  // ("MACROCATEGORIA · ARTICOLO"). Le macro sono gia' fetched in alto
+  // tramite useListinoMacrocategorie (caching React Query).
+  const { data: macrosAll = [] } = useListinoMacrocategorie();
+  const macroIdToNome = useMemo(() => {
+    const m = new Map<string, string>();
+    macrosAll.forEach((mc) => m.set(mc.id, mc.nome));
+    return m;
+  }, [macrosAll]);
+
   // Nuovo flow: ListinoPicker ritorna già misure + prezzo unitario calcolato
   // (incluso eventuale posa configurata sul prodotto). Niente più auto-create
   // riga manodopera separata — la posa è dentro il prezzo della posizione.
@@ -264,6 +274,7 @@ export function StepBom({ progettoId, detail }: Props) {
             {serramenti.map((s, idx) => {
               const family = s.family_id ? familiesById.get(s.family_id) : undefined;
               const macroId = family?.categoria_id ? catToMacro.get(family.categoria_id) : undefined;
+              const macroNome = macroId ? macroIdToNome.get(macroId) : undefined;
               return (
                 <SerramentoRow
                   key={s.id}
@@ -276,6 +287,7 @@ export function StepBom({ progettoId, detail }: Props) {
                   onDelete={() => setToDelete(s)}
                   family={family}
                   macroId={macroId}
+                  macroNome={macroNome}
                   tariffePrezzi={tariffePrezzi}
                 />
               );
@@ -410,7 +422,7 @@ export function StepBom({ progettoId, detail }: Props) {
 
 function SerramentoRow({
   serramento: s, index, expanded, onToggle, onPatch, onDuplicate, onDelete,
-  family, macroId, tariffePrezzi,
+  family, macroId, macroNome, tariffePrezzi,
 }: {
   serramento: SrSerramentoRow;
   index: number;
@@ -423,6 +435,8 @@ function SerramentoRow({
   family?: ListinoFamily;
   /** macroId della family per leggere lo schema scheda tecnica. */
   macroId?: string;
+  /** Nome macrocategoria per breadcrumb header riga BOM. */
+  macroNome?: string;
   /** Mappa tariffe → prezzo vendita per ricalcolare posa nel prezzo unitario. */
   tariffePrezzi: Map<string, number>;
 }) {
@@ -576,6 +590,13 @@ function SerramentoRow({
               {index + 1}
             </span>
             <span className="flex-1 min-w-0">
+              {/* Breadcrumb: Macrocategoria > Articolo. La macro viene
+                  visualizzata in stile pillola/uppercase per gerarchia. */}
+              {macroNome && (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-800 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 mr-1.5">
+                  {macroNome}
+                </span>
+              )}
               {tipoLabel}
               {matLabel && <span className="text-muted-foreground font-normal"> · {matLabel}</span>}
               {s.serie && <span className="text-muted-foreground font-normal"> · {s.serie}</span>}

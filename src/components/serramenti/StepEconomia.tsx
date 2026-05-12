@@ -9,7 +9,7 @@
  *  - Calcolo risparmio energetico
  *  - Grafico cashflow 10 anni
  */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -139,11 +139,23 @@ export function StepEconomia({ detail, form, onChange }: Props) {
   const [milestones, setMilestones] = useState<Milestone[]>(
     (form.pagamento_milestones as Milestone[] | null) ?? milestoneDefault,
   );
+  // UID stabili per le key React delle milestone. Map id->uid evitiamo
+  // `key={idx}` che causa input "scivolanti" quando si rimuove uno step
+  // centrale (gli input mantengono i valori del posto precedente).
+  // Stato locale: cresce con le milestone, non viene persistito.
+  const milestoneUidsRef = useRef<string[]>([]);
+  const getUid = (idx: number) => {
+    if (!milestoneUidsRef.current[idx]) {
+      milestoneUidsRef.current[idx] = `ms-${Math.random().toString(36).slice(2, 10)}`;
+    }
+    return milestoneUidsRef.current[idx];
+  };
   // Quando l'utente cambia schema, ripopoliamo le milestone con il template.
   const applySchema = (next: SrSchemaPagamento) => {
     setSchemaPagamento(next);
     onChange("schema_pagamento", next);
     setMilestones(SR_SCHEMI_PAGAMENTO[next].milestones);
+    milestoneUidsRef.current = []; // reset UIDs: tutto nuovo
   };
   // Sync con prop: se il progetto viene re-fetchato (es. dopo refresh, edit
   // su altra tab), aggiorniamo lo state locale per non mostrare valori stale.
@@ -152,6 +164,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
   useEffect(() => {
     const incoming = (form.pagamento_milestones as Milestone[] | null) ?? milestoneDefault;
     setMilestones(incoming);
+    milestoneUidsRef.current = []; // reset: dati nuovi da server
   }, [formMilestonesKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const milestonesTotale = milestones.reduce((acc, m) => acc + (Number(m.percentuale) || 0), 0);
   const milestonesOk = milestonesTotale === 100;
@@ -431,7 +444,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
 
         <div className="space-y-2">
           {milestones.map((m, idx) => (
-            <div key={idx} className="grid grid-cols-12 gap-2 items-end">
+            <div key={getUid(idx)} className="grid grid-cols-12 gap-2 items-end">
               <div className="col-span-5">
                 <Label className="text-xs">Step {idx + 1}</Label>
                 <Input
