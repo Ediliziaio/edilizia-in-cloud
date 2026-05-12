@@ -1,20 +1,17 @@
 /**
  * SerramentiIndex — landing del modulo Preventivatore Serramenti.
  *
- * Layout V3 ispirato a FotovoltaicoIndex:
+ * Layout V4 — pensato per scalare a migliaia di preventivi:
  *  - Hero header gradient navy + accent arancione brand
- *  - 6 KPI: totale, aperti (pipeline), vinti, persi, tasso conversione,
- *    valore pipeline aperta
- *  - Filtri estesi: search + stato + periodo + sort
- *  - Tabella desktop + card view mobile
- *
- * Categorie di stato (gruppi logici):
- *  - APERTI (in lavorazione): bozza, da_consegnare, consegnato, in_valutazione
- *  - VINTI (contratti chiusi): accettato
- *  - PERSI: rifiutato, scaduto
- *  - ARCHIVIATI: archiviato
+ *  - 6 KPI informativi (no più cliccabili — distrazione)
+ *  - Search inline + bottone "Filtri" che apre Sheet laterale
+ *  - Tutti i filtri avanzati (stato, periodo, importo, materiale, tipo
+ *    intervento, sort) dentro lo Sheet
+ *  - Tabella desktop + card view mobile, con paginazione client-side
+ *    (50 per pagina) — riduce DOM e mantiene UI fluida su dataset grandi
+ *  - Badge "n filtri attivi" sul bottone Filtri
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,11 +28,15 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   RectangleVertical, Plus, Search, Trash2, ExternalLink, Loader2,
-  ChevronRight, Settings, TrendingUp, FileText, Layers, Trophy,
-  XCircle, Wallet, Filter,
+  ChevronRight, ChevronLeft, Settings, TrendingUp, FileText, Layers, Trophy,
+  XCircle, Wallet, SlidersHorizontal, X,
 } from "lucide-react";
 import { useProgetti, useDeleteProgetto } from "@/lib/serramenti/queries";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,30 @@ const PERIOD_LABELS: Record<PeriodKey, string> = {
   ytd: "Anno corrente",
 };
 
+const MATERIALI: Array<{ value: string; label: string }> = [
+  { value: "alluminio", label: "Alluminio" },
+  { value: "pvc", label: "PVC" },
+  { value: "legno", label: "Legno" },
+  { value: "legno_alluminio", label: "Legno-Alluminio" },
+];
+
+const TIPI_INTERVENTO: Array<{ value: string; label: string }> = [
+  { value: "sostituzione", label: "Sostituzione" },
+  { value: "nuova_costruzione", label: "Nuova costruzione" },
+  { value: "ristrutturazione", label: "Ristrutturazione" },
+  { value: "manutenzione", label: "Manutenzione" },
+];
+
+type SortKey = "recent" | "value_desc" | "value_asc" | "code_asc";
+const SORT_LABELS: Record<SortKey, string> = {
+  recent: "Più recenti",
+  value_desc: "Importo (alto → basso)",
+  value_asc: "Importo (basso → alto)",
+  code_asc: "Codice (A → Z)",
+};
+
+const PAGE_SIZE = 50;
+
 const fmtEur = (n: number) =>
   `€ ${Number(n).toLocaleString("it-IT", { maximumFractionDigits: 0 })}`;
 
@@ -76,22 +101,22 @@ export default function SerramentiIndex() {
   const { data: progetti = [], isLoading, isError, refetch } = useProgetti();
   const deleteMut = useDeleteProgetto();
 
-  // Filtri (statoGroup persistente in URL ?gruppo=)
-  const initialGroup = searchParams.get("gruppo") ?? "all";
+  // Filtri
   const [search, setSearch] = useState("");
-  const [statoGroup, setStatoGroupState] = useState<string>(initialGroup);
+  const [statoGroup, setStatoGroup] = useState<string>(searchParams.get("gruppo") ?? "all");
   const [filtroStato, setFiltroStato] = useState<string>("all");
   const [periodo, setPeriodo] = useState<PeriodKey>("all");
-  const [sortBy, setSortBy] = useState<"recent" | "value_desc" | "value_asc">("recent");
-  const [toDelete, setToDelete] = useState<{ id: string; code: string } | null>(null);
+  const [sortBy, setSortBy] = useState<SortKey>("recent");
+  const [importoMin, setImportoMin] = useState<string>("");
+  const [importoMax, setImportoMax] = useState<string>("");
+  const [materialeFiltro, setMaterialeFiltro] = useState<string>("all");
+  const [tipoInterventoFiltro, setTipoInterventoFiltro] = useState<string>("all");
+  const [page, setPage] = useState<number>(1);
 
-  const setStatoGroup = (v: string) => {
-    setStatoGroupState(v);
-    setFiltroStato("all"); // reset stato specifico quando cambia gruppo
-    const next = new URLSearchParams(searchParams);
-    if (v === "all") next.delete("gruppo"); else next.set("gruppo", v);
-    setSearchParams(next, { replace: true });
-  };
+  // Sheet filtri aperto/chiuso
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const [toDelete, setToDelete] = useState<{ id: string; code: string } | null>(null);
 
   // Cutoff date in base al periodo
   const cutoff = useMemo(() => {
@@ -105,9 +130,26 @@ export default function SerramentiIndex() {
     }
   }, [periodo]);
 
+  // Conta filtri attivi (search escluso — è inline)
+  const activeFiltersCount = useMemo(() => {
+    let n = 0;
+    if (statoGroup !== "all") n++;
+    if (filtroStato !== "all") n++;
+    if (periodo !== "all") n++;
+    if (sortBy !== "recent") n++;
+    if (importoMin.trim() !== "") n++;
+    if (importoMax.trim() !== "") n++;
+    if (materialeFiltro !== "all") n++;
+    if (tipoInterventoFiltro !== "all") n++;
+    return n;
+  }, [statoGroup, filtroStato, periodo, sortBy, importoMin, importoMax, materialeFiltro, tipoInterventoFiltro]);
+
   // Lista filtrata + sortata
   const progettiFiltrati = useMemo(() => {
     const s = search.trim().toLowerCase();
+    const min = importoMin.trim() === "" ? null : Number(importoMin);
+    const max = importoMax.trim() === "" ? null : Number(importoMax);
+
     let out = progetti.filter((p) => {
       // Gruppo stato
       if (statoGroup === "aperti" && !STATI_APERTI.includes(p.stato as SrStatoProgetto)) return false;
@@ -115,8 +157,16 @@ export default function SerramentiIndex() {
       if (statoGroup === "persi" && !STATI_PERSI.includes(p.stato as SrStatoProgetto)) return false;
       // Stato specifico
       if (filtroStato !== "all" && p.stato !== filtroStato) return false;
-      // Periodo (su updated_at)
+      // Periodo
       if (cutoff && p.updated_at && new Date(p.updated_at) < cutoff) return false;
+      // Importo: usiamo totale_max come riferimento
+      const importoRef = Number(p.totale_max ?? p.totale_min ?? 0);
+      if (min != null && Number.isFinite(min) && importoRef < min) return false;
+      if (max != null && Number.isFinite(max) && importoRef > max) return false;
+      // Materiale
+      if (materialeFiltro !== "all" && p.materiale_principale !== materialeFiltro) return false;
+      // Tipo intervento
+      if (tipoInterventoFiltro !== "all" && p.tipo_intervento !== tipoInterventoFiltro) return false;
       // Search
       if (s) {
         const blob = `${p.code ?? ""} ${p.cliente_nome ?? ""} ${p.cliente_cognome ?? ""} ${p.cantiere_citta ?? ""}`.toLowerCase();
@@ -125,16 +175,31 @@ export default function SerramentiIndex() {
       return true;
     });
 
-    // Sort
     out = [...out].sort((a, b) => {
       if (sortBy === "value_desc") return Number(b.totale_max ?? 0) - Number(a.totale_max ?? 0);
       if (sortBy === "value_asc") return Number(a.totale_max ?? 0) - Number(b.totale_max ?? 0);
+      if (sortBy === "code_asc") return (a.code ?? "").localeCompare(b.code ?? "");
       const ta = a.updated_at ? new Date(a.updated_at).getTime() : 0;
       const tb = b.updated_at ? new Date(b.updated_at).getTime() : 0;
       return tb - ta;
     });
     return out;
-  }, [progetti, search, statoGroup, filtroStato, cutoff, sortBy]);
+  }, [progetti, search, statoGroup, filtroStato, cutoff, sortBy, importoMin, importoMax, materialeFiltro, tipoInterventoFiltro]);
+
+  // Reset pagina quando cambiano i filtri o la ricerca (no jumping su pagine
+  // inesistenti dopo restringimento dataset). Eseguito come effect: side
+  // effect setState dentro useMemo violava le regole di purity di React.
+  useEffect(() => {
+    setPage(1);
+  }, [search, statoGroup, filtroStato, periodo, sortBy, importoMin, importoMax, materialeFiltro, tipoInterventoFiltro]);
+
+  // Paginazione
+  const totalPages = Math.max(1, Math.ceil(progettiFiltrati.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginaCorrente = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return progettiFiltrati.slice(start, start + PAGE_SIZE);
+  }, [progettiFiltrati, currentPage]);
 
   // KPI globali (sempre sul dataset completo + filtro periodo)
   const stats = useMemo(() => {
@@ -146,7 +211,6 @@ export default function SerramentiIndex() {
     const persi = inPeriod.filter((p) => STATI_PERSI.includes(p.stato as SrStatoProgetto));
     const decisi = vinti.length + persi.length;
     const conv = decisi > 0 ? Math.round((vinti.length / decisi) * 100) : null;
-    // Valore pipeline aperta: media di (min+max)/2 sugli aperti
     const valorePipeline = aperti.reduce(
       (acc, p) => acc + (Number(p.totale_min ?? 0) + Number(p.totale_max ?? 0)) / 2,
       0,
@@ -174,26 +238,28 @@ export default function SerramentiIndex() {
     setFiltroStato("all");
     setPeriodo("all");
     setSortBy("recent");
+    setImportoMin("");
+    setImportoMax("");
+    setMaterialeFiltro("all");
+    setTipoInterventoFiltro("all");
+    const next = new URLSearchParams(searchParams);
+    next.delete("gruppo");
+    setSearchParams(next, { replace: true });
   };
 
   return (
     <TooltipProvider delayDuration={200}>
     <div className="min-h-screen bg-slate-50">
-      {/* HERO HEADER gradient navy + accent arancione */}
+      {/* HERO HEADER */}
       <div
         className="relative overflow-hidden text-white"
         style={{ background: "linear-gradient(135deg, #1E3A5F 0%, #2C5184 100%)" }}
       >
         <div
           className="absolute -top-1/3 -right-10 w-2/5 h-[160%] pointer-events-none"
-          style={{
-            background: "radial-gradient(circle, rgba(249,115,22,0.20) 0%, transparent 60%)",
-          }}
+          style={{ background: "radial-gradient(circle, rgba(249,115,22,0.20) 0%, transparent 60%)" }}
         />
-        <div
-          className="absolute right-8 top-6 opacity-10 select-none"
-          aria-hidden
-        >
+        <div className="absolute right-8 top-6 opacity-10 select-none" aria-hidden>
           <RectangleVertical className="h-28 w-28" strokeWidth={1.5} />
         </div>
         <div className="relative max-w-[1400px] mx-auto px-4 sm:px-8 py-6 sm:py-8 flex items-center justify-between flex-wrap gap-4">
@@ -212,8 +278,7 @@ export default function SerramentiIndex() {
           <div className="flex gap-2 w-full sm:w-auto">
             <Button
               onClick={() => navigate("/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti")}
-              size="lg"
-              variant="outline"
+              size="lg" variant="outline"
               className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20 flex-1 sm:flex-initial"
             >
               <Settings className="h-4 w-4 mr-1.5" />
@@ -232,24 +297,15 @@ export default function SerramentiIndex() {
       </div>
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-5 sm:py-6 space-y-4 sm:space-y-5">
-        {/* KPI Dashboard — 6 KPI, brand-coerent */}
+        {/* KPI Dashboard — informativi, non cliccabili */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <KpiCard
-            label="Totale preventivi"
-            value={stats.totale}
-            icon={<FileText className="h-4 w-4" />}
-            tone="slate"
-            onClick={() => setStatoGroup("all")}
-            active={statoGroup === "all"}
-          />
+          <KpiCard label="Totale preventivi" value={stats.totale} icon={<FileText className="h-4 w-4" />} tone="slate" />
           <KpiCard
             label="Aperte (pipeline)"
             value={stats.aperti}
             icon={<Layers className="h-4 w-4" />}
             tone="navy"
             hint={stats.valorePipeline > 0 ? fmtEur(stats.valorePipeline) : undefined}
-            onClick={() => setStatoGroup("aperti")}
-            active={statoGroup === "aperti"}
           />
           <KpiCard
             label="Vinte (contratti)"
@@ -257,17 +313,8 @@ export default function SerramentiIndex() {
             icon={<Trophy className="h-4 w-4" />}
             tone="orange"
             hint={stats.valoreVinti > 0 ? fmtEur(stats.valoreVinti) : undefined}
-            onClick={() => setStatoGroup("vinti")}
-            active={statoGroup === "vinti"}
           />
-          <KpiCard
-            label="Perse"
-            value={stats.persi}
-            icon={<XCircle className="h-4 w-4" />}
-            tone="rose"
-            onClick={() => setStatoGroup("persi")}
-            active={statoGroup === "persi"}
-          />
+          <KpiCard label="Perse" value={stats.persi} icon={<XCircle className="h-4 w-4" />} tone="rose" />
           <KpiCard
             label="Tasso conversione"
             value={stats.conv != null ? `${stats.conv}` : "—"}
@@ -286,7 +333,7 @@ export default function SerramentiIndex() {
           />
         </div>
 
-        {/* Filtri */}
+        {/* Toolbar: Search inline + Filtri sheet trigger */}
         <Card>
           <CardContent className="p-3 flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[200px]">
@@ -298,48 +345,71 @@ export default function SerramentiIndex() {
                 className="pl-8 h-9"
               />
             </div>
-            <Select value={filtroStato} onValueChange={setFiltroStato}>
-              <SelectTrigger className="w-full sm:w-44 h-9">
-                <SelectValue placeholder="Stato" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti gli stati</SelectItem>
-                {(Object.keys(STATI_LABEL) as SrStatoProgetto[]).map((k) => (
-                  <SelectItem key={k} value={k}>{STATI_LABEL[k].label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={periodo} onValueChange={(v) => setPeriodo(v as PeriodKey)}>
-              <SelectTrigger className="w-full sm:w-40 h-9">
-                <SelectValue placeholder="Periodo" />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(PERIOD_LABELS) as PeriodKey[]).map((k) => (
-                  <SelectItem key={k} value={k}>{PERIOD_LABELS[k]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
-              <SelectTrigger className="w-full sm:w-44 h-9">
-                <SelectValue placeholder="Ordina" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recent">Più recenti</SelectItem>
-                <SelectItem value="value_desc">Importo (alto → basso)</SelectItem>
-                <SelectItem value="value_asc">Importo (basso → alto)</SelectItem>
-              </SelectContent>
-            </Select>
-            <span className="text-xs text-muted-foreground ml-auto">
-              {progettiFiltrati.length} di {progetti.length}
-            </span>
-            {(search || statoGroup !== "all" || filtroStato !== "all" || periodo !== "all" || sortBy !== "recent") && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5"
+              onClick={() => setFiltersOpen(true)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filtri
+              {activeFiltersCount > 0 && (
+                <Badge className="ml-1 h-5 px-1.5 bg-orange-500 hover:bg-orange-500 text-[10px]">
+                  {activeFiltersCount}
+                </Badge>
+              )}
+            </Button>
+            {(search || activeFiltersCount > 0) && (
               <Button variant="ghost" size="sm" onClick={resetFiltri} className="h-9 text-xs gap-1">
-                <Filter className="h-3.5 w-3.5" />
-                Azzera filtri
+                <X className="h-3.5 w-3.5" />
+                Azzera
               </Button>
             )}
+            <span className="text-xs text-muted-foreground ml-auto">
+              {progettiFiltrati.length} di {progetti.length}
+              {totalPages > 1 && ` · pag ${currentPage}/${totalPages}`}
+            </span>
           </CardContent>
         </Card>
+
+        {/* Chip filtri attivi (visibili anche fuori sheet) */}
+        {activeFiltersCount > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {statoGroup !== "all" && (
+              <FilterChip label={`Gruppo: ${statoGroup}`} onClear={() => setStatoGroup("all")} />
+            )}
+            {filtroStato !== "all" && (
+              <FilterChip
+                label={`Stato: ${STATI_LABEL[filtroStato as SrStatoProgetto]?.label ?? filtroStato}`}
+                onClear={() => setFiltroStato("all")}
+              />
+            )}
+            {periodo !== "all" && (
+              <FilterChip label={`Periodo: ${PERIOD_LABELS[periodo]}`} onClear={() => setPeriodo("all")} />
+            )}
+            {sortBy !== "recent" && (
+              <FilterChip label={`Ordina: ${SORT_LABELS[sortBy]}`} onClear={() => setSortBy("recent")} />
+            )}
+            {importoMin.trim() !== "" && (
+              <FilterChip label={`Min: €${importoMin}`} onClear={() => setImportoMin("")} />
+            )}
+            {importoMax.trim() !== "" && (
+              <FilterChip label={`Max: €${importoMax}`} onClear={() => setImportoMax("")} />
+            )}
+            {materialeFiltro !== "all" && (
+              <FilterChip
+                label={`Materiale: ${MATERIALI.find((m) => m.value === materialeFiltro)?.label ?? materialeFiltro}`}
+                onClear={() => setMaterialeFiltro("all")}
+              />
+            )}
+            {tipoInterventoFiltro !== "all" && (
+              <FilterChip
+                label={`Tipo: ${TIPI_INTERVENTO.find((t) => t.value === tipoInterventoFiltro)?.label ?? tipoInterventoFiltro}`}
+                onClear={() => setTipoInterventoFiltro("all")}
+              />
+            )}
+          </div>
+        )}
 
         {/* Tabella / Lista */}
         <Card>
@@ -353,9 +423,6 @@ export default function SerramentiIndex() {
             ) : isError ? (
               <div className="p-8 text-center space-y-3">
                 <p className="text-sm text-rose-700 font-medium">Impossibile caricare i preventivi.</p>
-                <p className="text-xs text-muted-foreground">
-                  Controlla la connessione e riprova.
-                </p>
                 <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-1">
                   <Loader2 className="h-3.5 w-3.5" /> Riprova
                 </Button>
@@ -363,7 +430,7 @@ export default function SerramentiIndex() {
             ) : progetti.length === 0 ? (
               <EmptyStateFirstTime onCreate={() => navigate("/azienda/serramenti/nuovo")} onConfig={() => navigate("/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti")} />
             ) : progettiFiltrati.length === 0 ? (
-              <EmptyStateNoMatches onReset={resetFiltri} />
+              <EmptyStateNoMatches onReset={resetFiltri} onOpenFilters={() => setFiltersOpen(true)} />
             ) : (
               <>
                 {/* Desktop tabella */}
@@ -382,7 +449,7 @@ export default function SerramentiIndex() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {progettiFiltrati.map((p) => {
+                      {paginaCorrente.map((p) => {
                         const statoCfg = STATI_LABEL[p.stato as SrStatoProgetto] ?? STATI_LABEL.bozza;
                         const cliente = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ");
                         const isAperto = STATI_APERTI.includes(p.stato as SrStatoProgetto);
@@ -462,7 +529,7 @@ export default function SerramentiIndex() {
 
                 {/* Mobile card list */}
                 <div className="md:hidden p-2 space-y-2">
-                  {progettiFiltrati.map((p) => {
+                  {paginaCorrente.map((p) => {
                     const statoCfg = STATI_LABEL[p.stato as SrStatoProgetto] ?? STATI_LABEL.bozza;
                     const cliente = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ");
                     const isAperto = STATI_APERTI.includes(p.stato as SrStatoProgetto);
@@ -519,18 +586,187 @@ export default function SerramentiIndex() {
                     );
                   })}
                 </div>
+
+                {/* Paginazione */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between gap-2 p-3 border-t bg-slate-50/40">
+                    <span className="text-xs text-muted-foreground">
+                      {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, progettiFiltrati.length)} di {progettiFiltrati.length}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline" size="sm" className="h-8 w-8 p-0"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        aria-label="Pagina precedente"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-xs px-2 tabular-nums">
+                        Pag {currentPage} / {totalPages}
+                      </span>
+                      <Button
+                        variant="outline" size="sm" className="h-8 w-8 p-0"
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        aria-label="Pagina successiva"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </CardContent>
         </Card>
       </div>
 
+      {/* Sheet Filtri laterale */}
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4 text-orange-600" />
+              Filtri avanzati
+              {activeFiltersCount > 0 && (
+                <Badge className="bg-orange-500 hover:bg-orange-500 text-[10px]">
+                  {activeFiltersCount} attivi
+                </Badge>
+              )}
+            </SheetTitle>
+            <SheetDescription>
+              Affina la lista per stato, periodo, importo, materiale e tipo di intervento.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="space-y-5 py-5">
+            {/* Gruppo stato — quick toggle */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Gruppo</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: "all", label: "Tutti", tone: "" },
+                  { value: "aperti", label: "Aperti", tone: "border-[#173b67] text-[#173b67] bg-blue-50" },
+                  { value: "vinti", label: "Vinti", tone: "border-orange-500 text-orange-600 bg-orange-50" },
+                  { value: "persi", label: "Persi", tone: "border-rose-400 text-rose-700 bg-rose-50" },
+                ].map((g) => (
+                  <Button
+                    key={g.value}
+                    variant={statoGroup === g.value ? "default" : "outline"}
+                    size="sm"
+                    className={cn("h-9 text-xs", statoGroup === g.value && g.tone)}
+                    onClick={() => setStatoGroup(g.value)}
+                  >
+                    {g.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Stato specifico */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Stato specifico</Label>
+              <Select value={filtroStato} onValueChange={setFiltroStato}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli stati</SelectItem>
+                  {(Object.keys(STATI_LABEL) as SrStatoProgetto[]).map((k) => (
+                    <SelectItem key={k} value={k}>{STATI_LABEL[k].label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Periodo */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Periodo</Label>
+              <Select value={periodo} onValueChange={(v) => setPeriodo(v as PeriodKey)}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(PERIOD_LABELS) as PeriodKey[]).map((k) => (
+                    <SelectItem key={k} value={k}>{PERIOD_LABELS[k]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Range importo */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Importo (€)</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="number" placeholder="Min" inputMode="decimal"
+                  value={importoMin}
+                  onChange={(e) => setImportoMin(e.target.value)}
+                  className="h-9"
+                />
+                <Input
+                  type="number" placeholder="Max" inputMode="decimal"
+                  value={importoMax}
+                  onChange={(e) => setImportoMax(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+            </div>
+
+            {/* Materiale */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Materiale principale</Label>
+              <Select value={materialeFiltro} onValueChange={setMaterialeFiltro}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i materiali</SelectItem>
+                  {MATERIALI.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Tipo intervento */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Tipo intervento</Label>
+              <Select value={tipoInterventoFiltro} onValueChange={setTipoInterventoFiltro}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i tipi</SelectItem>
+                  {TIPI_INTERVENTO.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Ordinamento */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Ordina per</Label>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                    <SelectItem key={k} value={k}>{SORT_LABELS[k]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <SheetFooter className="gap-2 sm:gap-0 border-t pt-4">
+            <Button variant="ghost" onClick={resetFiltri} className="text-xs gap-1">
+              <X className="h-3.5 w-3.5" /> Azzera tutti
+            </Button>
+            <Button onClick={() => setFiltersOpen(false)} className="bg-orange-500 hover:bg-orange-600">
+              Mostra {progettiFiltrati.length} risultat{progettiFiltrati.length === 1 ? "o" : "i"}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
       {/* Confirm delete */}
       <AlertDialog
         open={!!toDelete}
-        onOpenChange={(o) => {
-          if (!o && !deleteMut.isPending) setToDelete(null);
-        }}
+        onOpenChange={(o) => { if (!o && !deleteMut.isPending) setToDelete(null); }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -547,9 +783,7 @@ export default function SerramentiIndex() {
               onClick={(e) => {
                 e.preventDefault();
                 if (!toDelete) return;
-                deleteMut.mutate(toDelete.id, {
-                  onSettled: () => setToDelete(null),
-                });
+                deleteMut.mutate(toDelete.id, { onSettled: () => setToDelete(null) });
               }}
             >
               {deleteMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
@@ -576,7 +810,7 @@ const TONE_CLASS: Record<KpiTone, { border: string; iconBg: string; iconText: st
 };
 
 function KpiCard({
-  label, value, unit, icon, tone = "slate", hint, onClick, active,
+  label, value, unit, icon, tone = "slate", hint,
 }: {
   label: string;
   value: string | number;
@@ -584,24 +818,10 @@ function KpiCard({
   icon: React.ReactNode;
   tone?: KpiTone;
   hint?: string;
-  onClick?: () => void;
-  active?: boolean;
 }) {
   const c = TONE_CLASS[tone];
-  const clickable = !!onClick;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!clickable}
-      className={cn(
-        "text-left bg-white border-l-4 rounded-lg shadow-sm transition-all p-3 sm:p-4",
-        c.border,
-        clickable && "hover:shadow-md hover:-translate-y-0.5 cursor-pointer",
-        !clickable && "cursor-default",
-        active && "ring-2 ring-offset-1 ring-orange-300",
-      )}
-    >
+    <div className={cn("bg-white border-l-4 rounded-lg shadow-sm p-3 sm:p-4", c.border)}>
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate">
           {label}
@@ -617,6 +837,19 @@ function KpiCard({
       {hint && (
         <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{hint}</p>
       )}
+    </div>
+  );
+}
+
+function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClear}
+      className="inline-flex items-center gap-1 rounded-full bg-orange-100 hover:bg-orange-200 text-orange-700 text-[11px] px-2.5 py-1 transition-colors"
+    >
+      {label}
+      <X className="h-3 w-3" />
     </button>
   );
 }
@@ -662,23 +895,28 @@ function EmptyStateFirstTime({
           <Settings className="h-4 w-4" /> Configura template
         </Button>
       </div>
-      <p className="text-[11px] text-muted-foreground mt-4">
-        💡 <strong>Suggerimento:</strong> imposta logo, recensioni e USP nel template — ogni preventivo li userà automaticamente.
-      </p>
     </div>
   );
 }
 
-function EmptyStateNoMatches({ onReset }: { onReset: () => void }) {
+function EmptyStateNoMatches({
+  onReset, onOpenFilters,
+}: { onReset: () => void; onOpenFilters: () => void }) {
   return (
     <div className="p-10 text-center">
       <Search className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
       <p className="text-sm font-medium">Nessun risultato con i filtri attuali</p>
-      <p className="text-xs text-muted-foreground mt-1">Prova a modificare i criteri di ricerca o azzera i filtri.</p>
-      <Button variant="ghost" size="sm" onClick={onReset} className="mt-3 text-xs gap-1">
-        <Filter className="h-3.5 w-3.5" />
-        Azzera filtri
-      </Button>
+      <p className="text-xs text-muted-foreground mt-1">Prova a modificare i criteri o azzera i filtri.</p>
+      <div className="flex gap-2 justify-center mt-3">
+        <Button variant="outline" size="sm" onClick={onOpenFilters} className="text-xs gap-1">
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          Modifica filtri
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onReset} className="text-xs gap-1">
+          <X className="h-3.5 w-3.5" />
+          Azzera tutto
+        </Button>
+      </div>
     </div>
   );
 }
