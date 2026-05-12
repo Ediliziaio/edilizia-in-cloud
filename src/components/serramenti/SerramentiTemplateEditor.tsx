@@ -120,6 +120,36 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     setDirty(true);
   }, []);
 
+  // UID stabili per le bullet/object list dei renderListEditor /
+  // renderBulletObjectEditor. Prima usavano key={idx} -> rimuovendo una
+  // bullet centrale gli input "scivolavano" coi valori del posto
+  // precedente (perdita focus + valori sbagliati). Con UID stabili ogni
+  // riga conserva identita' React indipendentemente da add/remove.
+  // L'array UID viene tenuto in sync via pushListItemUid/removeListItemUid.
+  const listUidsRef = useRef<Record<string, string[]>>({});
+  const ensureListItemUids = useCallback((listKey: string, length: number) => {
+    const uids = listUidsRef.current[listKey] ?? [];
+    while (uids.length < length) {
+      uids.push(`li-${Math.random().toString(36).slice(2, 10)}`);
+    }
+    listUidsRef.current[listKey] = uids;
+    return uids;
+  }, []);
+  const getListItemUid = useCallback((listKey: string, idx: number, currentLength: number): string => {
+    const uids = ensureListItemUids(listKey, currentLength);
+    return uids[idx] ?? `li-fallback-${idx}`;
+  }, [ensureListItemUids]);
+  const removeListItemUid = useCallback((listKey: string, idx: number) => {
+    const uids = listUidsRef.current[listKey];
+    if (!uids) return;
+    uids.splice(idx, 1);
+  }, []);
+  const pushListItemUid = useCallback((listKey: string) => {
+    const uids = listUidsRef.current[listKey] ?? [];
+    uids.push(`li-${Math.random().toString(36).slice(2, 10)}`);
+    listUidsRef.current[listKey] = uids;
+  }, []);
+
   const handleSave = () => {
     upsertMut.mutate(form, {
       onSuccess: () => setDirty(false),
@@ -364,15 +394,17 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       update(key, next);
     };
     const removeItem = (idx: number) => {
+      removeListItemUid(key, idx);
       update(key, items.filter((_, i) => i !== idx));
     };
     const addItem = () => {
+      pushListItemUid(key);
       update(key, [...items, ""]);
     };
     return (
       <div className="space-y-2">
         {items.map((item, idx) => (
-          <div key={idx} className="flex items-start gap-2">
+          <div key={getListItemUid(key, idx, items.length)} className="flex items-start gap-2">
             <span className="h-7 w-7 mt-1 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold shrink-0">
               {idx + 1}
             </span>
@@ -406,15 +438,17 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       update(key, next);
     };
     const removeItem = (idx: number) => {
+      removeListItemUid(key, idx);
       update(key, items.filter((_, i) => i !== idx));
     };
     const addItem = () => {
+      pushListItemUid(key);
       update(key, [...items, { titolo: "", descrizione: "" }]);
     };
     return (
       <div className="space-y-3">
         {items.map((item, idx) => (
-          <div key={idx} className="border-l-4 border-orange-200 pl-3 py-1">
+          <div key={getListItemUid(key, idx, items.length)} className="border-l-4 border-orange-200 pl-3 py-1">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-xs">Titolo</Label>
               <Button size="sm" variant="ghost" onClick={() => removeItem(idx)} className="h-7 px-2 text-xs text-rose-600">
