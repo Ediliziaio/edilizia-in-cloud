@@ -173,29 +173,9 @@ export function StepAccessori({ progettoId, detail }: Props) {
         }}
         importing={importRenderMut.isPending}
       />
-
-      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare l'accessorio?</AlertDialogTitle>
-            <AlertDialogDescription>
-              L'operazione non è reversibile.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-rose-600 hover:bg-rose-700"
-              onClick={() => {
-                if (toDelete) deleteMut.mutate(toDelete.id);
-                setToDelete(null);
-              }}
-            >
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Dialog eliminazione accessorio rimosso: gli accessori sono ora
+          gestiti dentro Composizione offerta (Step BOM) col proprio
+          AlertDialog. Questo step ora si occupa solo di foto + render AI. */}
     </div>
   );
 }
