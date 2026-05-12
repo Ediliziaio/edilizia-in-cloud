@@ -92,32 +92,66 @@ export interface SerramentoPdfPayload {
   company?: SerramentoPdfEnriched["company"];
 }
 
-// ─── Helper: pre-fetch immagini in data URL ────────────────────────────────
+// ─── Helper: pre-fetch immagini e conversione a PNG via canvas ────────────
 //
-// react-pdf ha problemi noti a caricare alcuni Supabase signed URL (grandi
-// foto fallano silenziosamente). Pre-fetchando in data URL (base64) prima di
-// passare il template alla generazione PDF, l'immagine arriva inline e non
-// dipende da una fetch runtime nel renderer.
+// react-pdf supporta SOLO JPG e PNG. NON WebP, NON AVIF, NON GIF.
+// I file caricati dagli utenti (foto chi siamo, cover, etc.) spesso sono
+// .webp (default Supabase preserva il content-type all'upload).
+// → tutte le immagini venivano renderizzate come box vuoti nel PDF.
 //
-// Best-effort: in caso di errore fetch (CORS, 404, timeout), ritorna l'URL
-// originale → comportamento attuale, niente peggioramento.
+// Soluzione: passiamo l'URL attraverso un <img> HTML in memoria, poi lo
+// disegnamo su un canvas e ne estraiamo un data URL PNG. Il browser sa
+// decodificare praticamente qualsiasi formato; il canvas → PNG produce
+// output che react-pdf è certo di poter renderizzare.
+//
+// Best-effort: in caso di errore (CORS, formato non decodificabile, network
+// timeout), ritorna l'URL originale come fallback.
 async function toDataUrl(url: string | null | undefined): Promise<string | null> {
   if (!url) return null;
-  // Se è già un data URL, niente da fare
   if (url.startsWith("data:")) return url;
-  try {
-    const res = await fetch(url, { mode: "cors" });
-    if (!res.ok) return url;
-    const blob = await res.blob();
-    return await new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(typeof reader.result === "string" ? reader.result : url);
-      reader.onerror = () => resolve(url);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return url;
-  }
+  return new Promise<string | null>((resolve) => {
+    const img = new globalThis.Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        // Limitiamo dimensioni a 1600px lato lungo per non gonfiare il PDF:
+        // foto da 4000px sarebbero un waste totale di kB su un PDF A4.
+        const MAX = 1600;
+        let w = img.naturalWidth;
+        let h = img.naturalHeight;
+        if (w > MAX || h > MAX) {
+          const scale = MAX / Math.max(w, h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(url);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        // JPEG quality 0.85 → buon compromesso peso/qualità su foto.
+        // Per immagini con trasparenza (loghi PNG), usare PNG; altrimenti JPEG.
+        // Euristica: se l'URL termina in .png o ha alpha, usa PNG.
+        const isPng = /\.png(\?|$)/i.test(url) || url.includes("logo");
+        const dataUrl = isPng
+          ? canvas.toDataURL("image/png")
+          : canvas.toDataURL("image/jpeg", 0.85);
+        resolve(dataUrl);
+      } catch (e) {
+        console.warn("[pdf] toDataUrl canvas failed:", e);
+        resolve(url);
+      }
+    };
+    img.onerror = () => {
+      console.warn("[pdf] toDataUrl image load failed:", url.substring(0, 80));
+      resolve(url);
+    };
+    img.src = url;
+  });
 }
 
 // ─── Helper pre-fetch ──────────────────────────────────────────────────────

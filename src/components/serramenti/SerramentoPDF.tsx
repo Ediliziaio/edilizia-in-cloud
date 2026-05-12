@@ -1084,9 +1084,16 @@ export function SerramentoPDF({
       author={companyName}
       subject={`Preventivo serramenti per ${clienteNome}`}
     >
-      {/* ─── PAGINA 1 — COVER ─────────────────────────────────────────────── */}
+      {/* ─── PAGINA 1 — COVER ───────────────────────────────────────────────
+          wrap={false} CRITICO: con default wrap=true, se il content della
+          cover supera A4 (o react-pdf calcola male l'altezza con justifyContent
+          space-between + absolute children), genera pagine extra COLORATE
+          della stessa bg → si vedono 2-3 pagine rosse di fila prima del vero
+          contenuto. wrap=false forza la cover a stare in UNA SOLA pagina.
+          Eventuale overflow viene clippato (accettabile per una cover). */}
       <Page
         size="A4"
+        wrap={false}
         style={[
           styles.cover,
           coverBgColor ? { backgroundColor: coverBgColor } : undefined,
@@ -1390,14 +1397,12 @@ export function SerramentoPDF({
                     : null;
                   // Descrizione tecnica del listino
                   const techDesc = family?.descrizione?.trim() || null;
-                  // Immagine prodotto con fallback gerarchico:
-                  //   1. family.immagine_url (foto specifica del modello)
-                  //   2. macroImageById[macroId] — funziona anche per BOM manuali
-                  //      con macrocategoria_override_id (vedi macroId sopra)
-                  //   3. placeholder SVG
-                  const prodottoImageUrl = family?.immagine_url
-                    || (macroId ? macroImageById[macroId] : null)
-                    || null;
+                  // Immagine prodotto nel BOM: SOLO foto specifica della
+                  // famiglia. Niente fallback macro (la foto della macro va
+                  // sulla pagina dedicata macrocategoria, NON nella listing
+                  // prodotti — feedback utente esplicito). Se famiglia non
+                  // ha foto → placeholder SVG.
+                  const prodottoImageUrl = family?.immagine_url || null;
                   return (
                     <View key={g.key} style={styles.tableRow} wrap={false}>
                       {/* Numero progressivo */}
