@@ -1,23 +1,38 @@
 /**
  * Generazione automatica del testo "Sintesi dell'intervento" del preventivo
- * serramenti, basata sul BOM (serramenti + accessori).
+ * serramenti, basata sul BOM (serramenti + accessori) + tipo intervento.
  *
- * Esempio output:
- *   "Sostituzione di 4 finestre, 2 porte-finestre, più 6 tapparelle, 6 cassonetti e 6 zanzariere."
+ * Esempi output per tipo intervento:
+ *   sostituzione      -> "Sostituzione di 4 finestre e 2 porte-finestre, con
+ *                         l'aggiunta di 6 tapparelle, 6 cassonetti e 6 zanzariere."
+ *   nuova_costruzione -> "Fornitura e posa di 4 finestre e 2 porte-finestre,
+ *                         oltre a 6 tapparelle, 6 cassonetti e 6 zanzariere."
+ *   ristrutturazione  -> "Riqualificazione con 4 nuove finestre e 2
+ *                         porte-finestre, completate da 6 tapparelle..."
+ *   manutenzione      -> "Intervento di manutenzione su 4 finestre e
+ *                         2 porte-finestre, con 6 tapparelle..."
  *
  * Logica:
- *  - Raggruppa serramenti per "famiglia tipologica" (es. finestra_*, portafinestra_*,
- *    scorrevole, alzante, fisso, lucernario…) per non avere "4 finestre a 1 anta +
- *    2 finestre a 2 ante" ma un più naturale "6 finestre".
- *  - Singolare/plurale automatico (1 finestra vs 2 finestre).
- *  - Accessori raggruppati per tipo (tapparelle, cassonetti…) col loro plurale.
- *  - Connettore "più" tra serramenti e accessori se entrambi presenti.
- *  - Connettore "e" prima dell'ultimo elemento.
+ *  - Raggruppa serramenti per "famiglia tipologica" (es. finestra_1ante +
+ *    finestra_2ante = "X finestre"). Singolare/plurale italiani corretti.
+ *  - Connettore italiano naturale: ", " e " e " per le enumerazioni
+ *    (al posto del "più" precedente, percepito troppo informale).
+ *  - Prefisso narrativo coerente con il tipo intervento (no sempre
+ *    "Sostituzione di..." anche per nuova costruzione).
  *
- * Pura, no side-effect, no DB: si usa sia dal client (form preview) sia dall'edge
- * function PDF (ri-genera al volo per non dipendere da uno snapshot stale).
+ * Pura, no side-effect, no DB: si usa sia dal client (auto-fill form) sia
+ * dal componente PDF (fallback se snapshot stale o vuoto).
  */
 import { SR_ACCESSORI_TIPI } from "@/types/serramenti";
+
+/** Tipo intervento del progetto, per dispatch del prefisso narrativo. */
+export type SintesiTipoIntervento =
+  | "sostituzione"
+  | "nuova_costruzione"
+  | "ristrutturazione"
+  | "manutenzione"
+  | null
+  | undefined;
 
 type Serramento = {
   tipologia: string;
@@ -80,11 +95,14 @@ function describeGroup(qty: number, sing: string, plural: string): string {
  *
  * @param serramenti Array di serramenti del progetto (almeno tipologia + quantita).
  * @param accessori  Array di accessori del progetto (almeno tipo + quantita).
+ * @param tipoIntervento Tipo di intervento (per dispatch del prefisso narrativo).
+ *                       Default: "sostituzione" se omesso (retro-compat).
  * @returns Stringa narrativa pronta per il PDF. Se BOM vuoto, ritorna stringa vuota.
  */
 export function generateInterventoSintesi(
   serramenti: Serramento[],
   accessori: Accessorio[],
+  tipoIntervento: SintesiTipoIntervento = "sostituzione",
 ): string {
   // ── 1. Raggruppa serramenti per categoria narrativa ───────────────────────
   const serramentiCounts = new Map<string, number>();
@@ -151,13 +169,49 @@ export function generateInterventoSintesi(
     return "";
   }
 
+  // Prefissi narrativi per tipo intervento. Italiano naturale, da preventivo.
+  //   - sostituzione      -> "Sostituzione di ..."         (default)
+  //   - nuova_costruzione -> "Fornitura e posa di ..."
+  //   - ristrutturazione  -> "Riqualificazione con ..."
+  //   - manutenzione      -> "Intervento di manutenzione su ..."
+  const tipo = tipoIntervento ?? "sostituzione";
+  const prefisso = (() => {
+    switch (tipo) {
+      case "nuova_costruzione": return "Fornitura e posa di";
+      case "ristrutturazione":  return "Riqualificazione con";
+      case "manutenzione":      return "Intervento di manutenzione su";
+      default:                  return "Sostituzione di";
+    }
+  })();
+
+  // Connettore tra serramenti e accessori, anch'esso dipendente dal tipo.
+  // "più" e' troppo informale -> sostituito con "con l'aggiunta di" /
+  // "oltre a" / "completate da", secondo il contesto narrativo.
+  const connettoreAccessori = (() => {
+    switch (tipo) {
+      case "nuova_costruzione": return "oltre a";
+      case "ristrutturazione":  return "completate da";
+      case "manutenzione":      return "con";
+      default:                  return "con l'aggiunta di";
+    }
+  })();
+
+  // Per ristrutturazione, l'aggettivo "nuove/nuovi" davanti al serramento e'
+  // ridondante con "Riqualificazione" -> lo omettiamo per non appesantire.
+  // (in passato avevamo "Riqualificazione con 4 nuove finestre" — meglio
+  //  "Riqualificazione con 4 finestre" che e' piu' fluido).
+
   const parts: string[] = [];
   if (serramentoPieces.length > 0) {
-    parts.push(`Sostituzione di ${joinItalian(serramentoPieces)}`);
+    parts.push(`${prefisso} ${joinItalian(serramentoPieces)}`);
+  } else {
+    // Caso edge: solo accessori, niente serramenti. Usiamo "Fornitura di"
+    // come prefisso indipendente (es. "Fornitura di 6 tapparelle.").
+    parts.push(`Fornitura di ${joinItalian(accessorioPieces)}`);
+    return parts.join("") + ".";
   }
   if (accessorioPieces.length > 0) {
-    const connector = serramentoPieces.length > 0 ? "più" : "Fornitura di";
-    parts.push(`${connector} ${joinItalian(accessorioPieces)}`);
+    parts.push(`${connettoreAccessori} ${joinItalian(accessorioPieces)}`);
   }
 
   return parts.join(", ") + ".";

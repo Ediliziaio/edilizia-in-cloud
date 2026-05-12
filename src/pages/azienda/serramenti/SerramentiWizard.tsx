@@ -25,7 +25,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -46,8 +45,6 @@ import { SR_WIZARD_STEPS } from "@/types/serramenti";
 import type { SrProgettoRow, SrWizardStep, SrTipoIntervento } from "@/types/serramenti";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { StepBom } from "@/components/serramenti/StepBom";
-import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
-import { Sparkles } from "lucide-react";
 import { StepAccessori } from "@/components/serramenti/StepAccessori";
 import { StepEconomia } from "@/components/serramenti/StepEconomia";
 import { StepConsulenza } from "@/components/serramenti/StepConsulenza";
@@ -354,7 +351,7 @@ export default function SerramentiWizard() {
               <StepCliente form={form} onChange={onChange} />
             )}
             {currentStep === "immobile" && (
-              <StepImmobile form={form} onChange={onChange} detail={detail ?? null} />
+              <StepImmobile form={form} onChange={onChange} />
             )}
             {currentStep === "esigenze" && (
               <StepContenuti form={form} onChange={onChange} />
@@ -576,22 +573,15 @@ function StepCliente({
 }
 
 function StepImmobile({
-  form, onChange, detail,
+  form, onChange,
 }: {
   form: Partial<SrProgettoRow>;
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
-  detail: import("@/types/serramenti").SrProgettoDetail | null;
 }) {
-  const sintesiAuto = useMemo(
-    () => detail
-      ? generateInterventoSintesi(detail.serramenti, detail.accessori)
-      : "",
-    [detail],
-  );
   return (
     <SrCard
       title="Cantiere e intervento"
-      description="Indirizzo del cantiere (se diverso dal cliente), tipo di intervento e sintesi che compare in alto al PDF."
+      description="Indirizzo del cantiere (se diverso dal cliente) e tipo di intervento. La sintesi narrativa si genera automaticamente dal BOM."
       icon={<Home className="h-4 w-4" />}
     >
       <div className="grid grid-cols-12 gap-3">
@@ -651,38 +641,10 @@ function StepImmobile({
             className="h-9"
           />
         </div>
-        <div className="col-span-12">
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <Label className="text-xs">Sintesi dell'intervento</Label>
-            {sintesiAuto && sintesiAuto !== (form.intervento_sintesi ?? "") && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-[11px] gap-1 border-orange-200 hover:bg-orange-50 hover:text-orange-600"
-                onClick={() => onChange("intervento_sintesi", sintesiAuto)}
-                title="Genera dal BOM (serramenti + accessori già inseriti)"
-              >
-                <Sparkles className="h-3 w-3" />
-                Genera dal BOM
-              </Button>
-            )}
-          </div>
-          <Textarea
-            value={form.intervento_sintesi ?? ""}
-            onChange={(e) => onChange("intervento_sintesi", e.target.value)}
-            placeholder={sintesiAuto
-              ? `Suggerimento: "${sintesiAuto}" — clicca "Genera dal BOM" per usarlo`
-              : "Es. Sostituzione di 4 finestre, 2 porte-finestre, più 6 avvolgibili, 6 cassonetti e 6 zanzariere."}
-            rows={3}
-          />
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            Comparirà in alto al PDF — "L'intervento in sintesi".
-            {sintesiAuto
-              ? " Auto-generabile dal BOM con il bottone in alto a destra."
-              : " Si auto-genera quando aggiungi serramenti e accessori al preventivo."}
-          </p>
-        </div>
+        {/* Campo "Sintesi dell'intervento" rimosso intenzionalmente.
+            E' generato in automatico da `generateInterventoSintesi` partendo
+            dal BOM (serramenti + accessori) e dal tipo intervento. Comparira'
+            in alto al PDF — "L'intervento in sintesi". */}
       </div>
     </SrCard>
   );

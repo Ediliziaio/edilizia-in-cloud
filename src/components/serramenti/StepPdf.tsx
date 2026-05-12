@@ -15,6 +15,7 @@ import { SrCard, SrCallout, SrKpi, formatEuro, formatNumero } from "@/lib/serram
 import { useGeneraPdf, useConvertiInOrdine, useTemplatePdf } from "@/lib/serramenti/queries";
 import { ClipboardList } from "lucide-react";
 import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";
+import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +36,11 @@ export function StepPdf({ progettoId, detail }: Props) {
   const generaPdfMut = useGeneraPdf(progettoId);
   const convertiMut = useConvertiInOrdine(progettoId);
   const numSerramenti = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
+  // Sintesi intervento: ora generata SEMPRE dinamicamente dal BOM + tipo
+  // intervento. Il campo persistito `p.intervento_sintesi` rimane come
+  // fallback/snapshot, ma l'utente non lo edita piu' a mano.
+  const sintesiCalcolata = p.intervento_sintesi?.trim()
+    || generateInterventoSintesi(detail.serramenti, detail.accessori, p.tipo_intervento);
 
   // PDF nativo A4 client-side (@react-pdf/renderer, code-split via dynamic import)
   const { downloadPDF, previewPDF, isGenerating: isGeneratingPdf } = useSerramentoPDF();
@@ -73,12 +79,13 @@ export function StepPdf({ progettoId, detail }: Props) {
       hint: !p.cantiere_indirizzo && !p.cliente_indirizzo ? "Aggiungi almeno un indirizzo" : undefined,
     },
     {
-      // La sintesi viene auto-generata dal BOM se vuota → questo check non blocca
-      // più la generazione del PDF. Resta come "promemoria utile" se vuoto.
-      ok: !!p.intervento_sintesi || numSerramenti > 0,
+      // La sintesi viene SEMPRE auto-generata da BOM + tipo intervento.
+      // Il check verifica che ci sia almeno qualcosa nel BOM, altrimenti
+      // la sintesi sarebbe vuota.
+      ok: !!sintesiCalcolata,
       label: "Sintesi intervento",
-      hint: !p.intervento_sintesi
-        ? "Verrà auto-generata dal BOM. Puoi personalizzarla nello step Immobile."
+      hint: !sintesiCalcolata
+        ? "Aggiungi almeno un serramento o accessorio: la sintesi si genera da li."
         : undefined,
     },
     {
@@ -136,7 +143,7 @@ export function StepPdf({ progettoId, detail }: Props) {
               {numSerramenti > 0 && ` · ${numSerramenti} serramenti`}
             </p>
             <p className="text-xs text-muted-foreground mt-1 italic">
-              {p.intervento_sintesi || "(intervento_sintesi mancante)"}
+              {sintesiCalcolata || "Aggiungi serramenti o accessori per generare la sintesi"}
             </p>
           </div>
           <div className="border-l-4 border-orange-200 pl-3 py-1">

@@ -1132,7 +1132,7 @@ export function SerramentoPDF({
 
   const clienteNome = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente";
   const sintesi = p.intervento_sintesi?.trim()
-    || generateInterventoSintesi(detail.serramenti, detail.accessori)
+    || generateInterventoSintesi(detail.serramenti, detail.accessori, p.tipo_intervento)
     || "Intervento da definire";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
