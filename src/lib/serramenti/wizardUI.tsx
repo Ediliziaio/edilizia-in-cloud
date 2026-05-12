@@ -21,16 +21,20 @@ interface SrCardProps {
 }
 
 export function SrCard({ title, description, icon, className, children, variant = "default" }: SrCardProps) {
+  // Variant "highlight" usa ora il blu navy brand (#173b67) come accent
+  // border-left invece di arancione pieno -> evita la saturazione "tutto
+  // arancione" denunciata dall'utente. L'arancione resta per CTA + KPI
+  // primary (es. "IVA inclusa").
   return (
     <Card className={cn(
-      variant === "highlight" && "border-orange-300 bg-orange-50/30",
+      variant === "highlight" && "border-l-4 border-l-[#173b67] border-slate-200",
       variant === "muted" && "bg-muted/30",
       className,
     )}>
       {(title || icon) && (
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base flex items-center gap-2">
-            {icon && <span className="text-orange-600">{icon}</span>}
+            {icon && <span className={variant === "highlight" ? "text-[#173b67]" : "text-slate-700"}>{icon}</span>}
             {title}
           </CardTitle>
           {description && (
@@ -57,10 +61,16 @@ interface SrKpiProps {
 }
 
 export function SrKpi({ label, value, unit, hint, variant = "default", className }: SrKpiProps) {
+  // Differenziazione semantica dei colori (prima `success` era identico a
+  // `primary` -> tutto arancione monocromatico):
+  //   - default: neutro (slate/bianco)
+  //   - primary: arancione brand (KPI principale, es. "IVA inclusa")
+  //   - success: verde emerald (valori positivi: detrazioni, risparmi)
+  //   - warning: ambra (attenzione)
   const colors = {
-    default: "bg-muted/30 text-foreground",
+    default: "bg-white text-slate-900 border-slate-200",
     primary: "bg-orange-50 text-orange-900 border-orange-200",
-    success: "bg-orange-50 text-orange-900 border-orange-200",
+    success: "bg-emerald-50 text-emerald-900 border-emerald-200",
     warning: "bg-amber-50 text-amber-900 border-amber-200",
   };
   return (
@@ -86,9 +96,11 @@ interface SrCalloutProps {
 }
 
 export function SrCallout({ variant = "info", icon, title, children, className }: SrCalloutProps) {
+  // success ora e' VERDE (era arancione, identico a primary -> nessuna
+  // differenziazione semantica). Pattern coerente con SrKpi.success.
   const colors = {
     info:    "bg-sky-50 border-sky-200 text-sky-900",
-    success: "bg-orange-50 border-orange-200 text-orange-900",
+    success: "bg-emerald-50 border-emerald-200 text-emerald-900",
     warning: "bg-amber-50 border-amber-200 text-amber-900",
     danger:  "bg-rose-50 border-rose-200 text-rose-900",
   };

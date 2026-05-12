@@ -347,10 +347,13 @@ export function StepEconomia({ detail, form, onChange }: Props) {
         description="Il prezzo definitivo si fissa con sopralluogo e scelta materiali. Mostra una forbice indicativa."
         icon={<Euro className="h-4 w-4" />}
       >
-        {/* Regola sconto aziendale — auto-popola il campo "Sconto %" */}
+        {/* Regola sconto aziendale — auto-popola il campo "Sconto %".
+            Blocco INFORMATIVO -> blu navy soft (non e' un CTA, non
+            deve competere con il box "Il tuo investimento stimato"
+            qui sotto che e' arancione). */}
         {discountRules.length > 0 && (
-          <div className="mb-3 rounded-md border border-orange-200 bg-orange-50/50 p-3 space-y-2">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-orange-600">
+          <div className="mb-3 rounded-md border border-slate-200 bg-slate-50/60 border-l-4 border-l-[#173b67] p-3 space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-[#173b67]">
               <Tag className="h-3.5 w-3.5" />
               Regola sconto applicata
             </div>
@@ -382,7 +385,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
               </SelectContent>
             </Select>
             {selectedDiscountRule && (
-              <p className="text-[11px] text-orange-600">
+              <p className="text-[11px] text-slate-600">
                 Margine minimo richiesto: {selectedDiscountRule.margine_min_pct}% ·
                 Sconto max: {selectedDiscountRule.sconto_max_pct}%
                 {selectedDiscountRule.approva_oltre_pct != null
@@ -456,9 +459,10 @@ export function StepEconomia({ detail, form, onChange }: Props) {
         description="Scegli prima il pattern di pagamento, poi personalizza gli step. Compare nel PDF come piano concordato."
         icon={<Wallet className="h-4 w-4" />}
       >
-        {/* Schema di alto livello — guida il template */}
-        <div className="mb-4 rounded-md border border-orange-200 bg-orange-50/40 p-3 space-y-2">
-          <Label className="text-xs font-semibold text-orange-600 flex items-center gap-1.5">
+        {/* Schema di alto livello — guida il template. Blocco INFORMATIVO
+            -> blu navy soft (non e' un valore chiave da evidenziare). */}
+        <div className="mb-4 rounded-md border border-slate-200 bg-slate-50/60 border-l-4 border-l-[#173b67] p-3 space-y-2">
+          <Label className="text-xs font-semibold text-[#173b67] flex items-center gap-1.5">
             <CreditCard className="h-3.5 w-3.5" />
             Schema pagamento
           </Label>
@@ -474,7 +478,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
               ))}
             </SelectContent>
           </Select>
-          <p className="text-[11px] text-orange-600">{schemaCfg.description}</p>
+          <p className="text-[11px] text-slate-600">{schemaCfg.description}</p>
         </div>
 
         <div className="space-y-2">
@@ -548,12 +552,12 @@ export function StepEconomia({ detail, form, onChange }: Props) {
               <Plus className="h-3.5 w-3.5" /> Aggiungi step
             </Button>
             <div
-              className={`text-sm font-bold inline-flex items-center gap-1.5 ${milestonesOk ? "text-orange-600" : "text-amber-600"}`}
+              className={`text-sm font-bold inline-flex items-center gap-1.5 ${milestonesOk ? "text-emerald-700" : "text-amber-600"}`}
               role="status"
               aria-live="polite"
             >
               {milestonesOk && (
-                <span className="h-1.5 w-1.5 rounded-full bg-orange-500" aria-hidden="true" />
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
               )}
               Totale: {milestonesTotale}%
               {!milestonesOk && (
