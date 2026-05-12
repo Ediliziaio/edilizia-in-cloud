@@ -153,12 +153,56 @@ export async function getProgetto(id: string): Promise<SrProgettoDetail> {
     console.warn("[serramenti] getProgetto risparmio missing", e5);
   }
 
+  // Re-sign delle signed URL dei media: garantisce che le foto cantiere
+  // caricate >7gg fa restino visibili (le signed URL scadono con
+  // SR_MEDIA_TTL_SEC=7gg). Per i record con `url` NON-http (es. path
+  // di storage salvato erroneamente in passato — segnalato dall'utente
+  // per la foto "PRIMA" del render) firmiamo qui.
+  //
+  // Strategia: batch `createSignedUrls` per evitare N round-trip.
+  // Storage path "render-session:*" sono sentinel di render esterni
+  // (URL gia' nel campo `url` dal bucket render) -> NON re-firmati.
+  const mediaList = (media ?? []) as SrMediaRow[];
+  const mediaToResign = mediaList.filter((m) => {
+    if (!m.storage_path) return false;
+    // Sentinel render esterno -> non e' un path sr-progetti, skip.
+    if (m.storage_path.startsWith("render-session:")) return false;
+    return true;
+  });
+  if (mediaToResign.length > 0) {
+    try {
+      const paths = mediaToResign.map((m) => m.storage_path as string);
+      const { data: signedList, error: signErr } = await supabase.storage
+        .from("sr-progetti")
+        .createSignedUrls(paths, SR_MEDIA_TTL_SEC);
+      if (!signErr && signedList) {
+        const urlByPath = new Map<string, string>();
+        signedList.forEach((s, i) => {
+          if (s.signedUrl && !s.error) urlByPath.set(paths[i], s.signedUrl);
+        });
+        // Sostituisce l'url in memoria (NON salvato in DB: la signed URL
+        // resta valida per 7gg dal page load; al prossimo getProgetto si
+        // rigenera). Lasciamo il DB pulito.
+        mediaList.forEach((m) => {
+          if (m.storage_path) {
+            const fresh = urlByPath.get(m.storage_path);
+            if (fresh) m.url = fresh;
+          }
+        });
+      } else if (signErr) {
+        console.warn("[serramenti] getProgetto batch sign media failed", signErr);
+      }
+    } catch (err) {
+      console.warn("[serramenti] getProgetto media re-sign exception", err);
+    }
+  }
+
   const serviziList = (manodopera ?? []) as import("@/types/serramenti").SrServizioRow[];
   return {
     progetto: progetto as SrProgettoRow,
     serramenti: (serramenti ?? []) as SrSerramentoRow[],
     accessori: (accessori ?? []) as SrAccessorioRow[],
-    media: (media ?? []) as SrMediaRow[],
+    media: mediaList,
     risparmio: (risparmio ?? null) as SrCalcoloRisparmioRow | null,
     servizi: serviziList,
     manodopera: serviziList, // alias retrocompat
