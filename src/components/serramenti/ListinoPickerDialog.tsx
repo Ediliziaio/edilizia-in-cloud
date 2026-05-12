@@ -23,15 +23,17 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import {
   Loader2, Search, Package, ArrowLeft, Ruler, Calculator, ChevronRight,
-  Layers, FolderOpen,
+  Layers, FolderOpen, AlertCircle,
 } from "lucide-react";
 import {
   useListinoFamilies, useListinoGriglia, useTariffeManodopera,
-  useMacrocategorie, useCategorieByMacro,
+  useMacrocategorie, useCategorieByMacro, useArticleVariants,
 } from "@/lib/serramenti/queries";
 import type {
   ListinoFamily, ListinoMacrocategoria, ListinoCategoria,
 } from "@/lib/serramenti/api";
+import type { ArticleVariantRow, SrSerramentoVarianteSnapshot } from "@/types/serramenti";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DynamicFieldsRenderer } from "@/components/listino/DynamicFieldsRenderer";
 
 export interface ListinoPickResult {
@@ -45,6 +47,34 @@ export interface ListinoPickResult {
   prezzo_posa: number | null;
   griglia_id?: string | null;
   note?: string | null;
+  /** Varianti scelte nel picker (es. vetro triplo, colore antracite).
+   *  Snapshot perche' se il listino cambia, il preventivo non cambia. */
+  varianti_selezionate: SrSerramentoVarianteSnapshot[];
+}
+
+/**
+ * Applica le varianti al prezzo (sommando percentuali e fissi).
+ *   - "percentuale": prezzo *= (1 + valore/100)
+ *   - "fisso":       prezzo += valore (per UNITA', quindi * quantita)
+ *
+ * NB: percentuali e fissi vengono sommati nella stessa "lista" di modificatori
+ * applicati al prezzo PRODOTTO base. La posa NON e' moltiplicata dalle varianti
+ * (e' una tariffa indipendente dalla configurazione prodotto).
+ */
+export function applyVariantiPrezzo(
+  prezzoBaseProdotto: number,
+  quantita: number,
+  varianti: { modificatore_tipo: "percentuale" | "fisso"; modificatore_valore: number }[],
+): number {
+  let p = prezzoBaseProdotto;
+  for (const v of varianti) {
+    if (v.modificatore_tipo === "percentuale") {
+      p = p * (1 + Number(v.modificatore_valore) / 100);
+    } else {
+      p = p + Number(v.modificatore_valore) * quantita;
+    }
+  }
+  return p;
 }
 
 interface Props {
@@ -55,13 +85,41 @@ interface Props {
 
 // ─── Helpers calcolo prezzo (esportati per riuso in StepBom row) ───────────
 
+/**
+ * Estrae le misure MIN e MAX disponibili nella griglia listino. Usate per
+ * comunicare chiaramente all'utente quali misure sono producibili.
+ * Esempio: "Disponibile da 500×600 mm a 2400×2400 mm".
+ */
+export function getGrigliaRange(
+  griglia: Array<{ valore_x: number | null; valore_y: number | null; prezzo_vendita: number | null }>,
+): { minL: number | null; maxL: number | null; minH: number | null; maxH: number | null } {
+  const xs = griglia.map((g) => g.valore_x).filter((v): v is number => v != null);
+  const ys = griglia.map((g) => g.valore_y).filter((v): v is number => v != null);
+  return {
+    minL: xs.length ? Math.min(...xs) : null,
+    maxL: xs.length ? Math.max(...xs) : null,
+    minH: ys.length ? Math.min(...ys) : null,
+    maxH: ys.length ? Math.max(...ys) : null,
+  };
+}
+
+export type CalcoloPrezzoResult = {
+  prezzo: number;
+  matchedGrigliaId: string | null;
+  note: string | null;
+  /** True se la misura inserita e' fuori range producibile (max o min). */
+  fuoriRange?: boolean;
+  /** Range disponibile dalla griglia listino, se applicabile. */
+  range?: { minL: number | null; maxL: number | null; minH: number | null; maxH: number | null };
+};
+
 export function calcolaPrezzoProdotto(
   family: ListinoFamily,
   larghezza: number | null,
   altezza: number | null,
   quantita: number,
   griglia: Array<{ id: string; valore_x: number | null; valore_y: number | null; prezzo_vendita: number | null }>,
-): { prezzo: number; matchedGrigliaId: string | null; note: string | null } {
+): CalcoloPrezzoResult {
   const base = Number(family.prezzo_base_vendita ?? 0);
   const modalita = family.modalita_prezzo_base ?? "pz";
 
@@ -78,18 +136,30 @@ export function calcolaPrezzoProdotto(
     case "misura_libera":
       return { prezzo: base * quantita, matchedGrigliaId: null, note: "Prezzo a corpo, misure indicative" };
     case "griglia": {
+      const range = getGrigliaRange(griglia);
       if (!larghezza || !altezza) {
-        return { prezzo: base * quantita, matchedGrigliaId: null, note: "Inserisci misure per leggere griglia" };
+        return {
+          prezzo: base * quantita, matchedGrigliaId: null,
+          note: "Inserisci misure per leggere griglia",
+          range,
+        };
       }
       const candidates = griglia.filter((g) =>
         g.valore_x != null && g.valore_y != null && g.prezzo_vendita != null
         && g.valore_x >= larghezza && g.valore_y >= altezza
       );
       if (candidates.length === 0) {
-        const maxPrezzo = griglia.reduce((m, g) => Math.max(m, Number(g.prezzo_vendita ?? 0)), 0);
+        // Misura FUORI RANGE: l'articolo non e' producibile a queste misure.
+        // Prima si applicava silenziosamente il prezzo max -> rischio di
+        // vendere a un prezzo qualunque misure che la fabbrica non puo' fare.
+        // Ora segnaliamo esplicitamente con `fuoriRange=true` e il range
+        // disponibile, cosi' la UI puo' bloccare/avvisare l'utente.
+        const fmtMis = (x: number | null, y: number | null) =>
+          x != null && y != null ? `${x}×${y} mm` : "—";
+        const noteMsg = `Misura non producibile. Range disponibile: da ${fmtMis(range.minL, range.minH)} a ${fmtMis(range.maxL, range.maxH)}.`;
         return {
-          prezzo: maxPrezzo * quantita, matchedGrigliaId: null,
-          note: `Misure fuori griglia — applicato prezzo max €${maxPrezzo.toFixed(2)}`,
+          prezzo: 0, matchedGrigliaId: null, note: noteMsg,
+          fuoriRange: true, range,
         };
       }
       const best = candidates.reduce((min, g) =>
@@ -99,6 +169,7 @@ export function calcolaPrezzoProdotto(
       return {
         prezzo: prezzoBest * quantita, matchedGrigliaId: best.id,
         note: `Griglia ${best.valore_x}×${best.valore_y}mm @ €${prezzoBest.toFixed(2)}`,
+        range,
       };
     }
     default:
@@ -164,6 +235,8 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
   const [larghezza, setLarghezza] = useState<string>("");
   const [altezza, setAltezza] = useState<string>("");
   const [quantita, setQuantita] = useState<string>("1");
+  // Set di id varianti scelte. Reset al cambio famiglia / chiusura dialog.
+  const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
@@ -179,6 +252,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
       setSearch(""); setDebounced("");
       setSelectedMacro(null); setSelectedCategoria(null); setSelectedFamily(null);
       setLarghezza(""); setAltezza(""); setQuantita("1");
+      setSelectedVariantIds(new Set());
     }
   }, [open]);
 
@@ -197,6 +271,9 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
     categoriaId: !isSearching && selectedCategoria ? selectedCategoria.id : undefined,
   });
   const { data: griglia = [], isLoading: loadingGriglia } = useListinoGriglia(selectedFamily?.id);
+  // Varianti prezzo della family selezionata (es. "Vetro triplo +€80",
+  // "Colore antracite +5%"). Caricate solo allo step "misure".
+  const { data: variantiFamily = [] } = useArticleVariants(selectedFamily?.id);
   const { data: tariffe = [] } = useTariffeManodopera();
 
   const tariffePrezzi = useMemo(() => {
@@ -206,25 +283,41 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
   }, [tariffe]);
 
   // ─── Calcolo prezzo live ────────────────────────────────────────────────
+  // Varianti scelte ordinate come arrivano dal listino (sort_order).
+  const varianteScelteOrdered = useMemo<ArticleVariantRow[]>(
+    () => variantiFamily.filter((v) => selectedVariantIds.has(v.id)),
+    [variantiFamily, selectedVariantIds],
+  );
+
   const calcolo = useMemo(() => {
     if (!selectedFamily) return null;
     const l = larghezza ? Number(larghezza) : null;
     const h = altezza ? Number(altezza) : null;
     const q = Math.max(1, Number(quantita) || 1);
 
-    const { prezzo: prezzoProdotto, matchedGrigliaId, note } =
-      calcolaPrezzoProdotto(selectedFamily, l, h, q, griglia);
+    const calc = calcolaPrezzoProdotto(selectedFamily, l, h, q, griglia);
+    // Applica varianti SOLO al prezzo prodotto, non alla posa (la posa
+    // e' una tariffa indipendente dalla configurazione prodotto).
+    const prezzoConVarianti = applyVariantiPrezzo(calc.prezzo, q, varianteScelteOrdered);
     const prezzoPosa = calcolaPosaInclusa(selectedFamily, q, tariffePrezzi);
 
-    const totale = prezzoProdotto + prezzoPosa;
+    const totale = prezzoConVarianti + prezzoPosa;
     const unitario = q > 0 ? totale / q : 0;
+    const extraVarianti = prezzoConVarianti - calc.prezzo;
 
     return {
       larghezza: l, altezza: h, quantita: q,
-      prezzo_prodotto: prezzoProdotto, prezzo_posa: prezzoPosa,
-      totale, unitario, matchedGrigliaId, note,
+      prezzo_prodotto_base: calc.prezzo,
+      prezzo_prodotto: prezzoConVarianti,
+      prezzo_posa: prezzoPosa,
+      extra_varianti: extraVarianti,
+      totale, unitario,
+      matchedGrigliaId: calc.matchedGrigliaId,
+      note: calc.note,
+      fuoriRange: calc.fuoriRange ?? false,
+      range: calc.range,
     };
-  }, [selectedFamily, larghezza, altezza, quantita, griglia, tariffePrezzi]);
+  }, [selectedFamily, larghezza, altezza, quantita, griglia, tariffePrezzi, varianteScelteOrdered]);
 
   const richiedeMisure = selectedFamily && (
     selectedFamily.modalita_prezzo_base === "mq" ||
@@ -246,6 +339,8 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
   const handleSelectFamily = (f: ListinoFamily) => {
     setSelectedFamily(f);
     setStep("misure");
+    // Reset varianti su cambio famiglia (sono family-specific).
+    setSelectedVariantIds(new Set());
   };
 
   const handleBack = () => {
@@ -263,6 +358,14 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
 
   const handleConferma = () => {
     if (!selectedFamily || !calcolo) return;
+    // Snapshot varianti scelte: salvato sulla riga BOM in modo che modifiche
+    // future al listino NON cambino i preventivi gia' inviati al cliente.
+    const variantiSnapshot: SrSerramentoVarianteSnapshot[] = varianteScelteOrdered.map((v) => ({
+      variant_id: v.id,
+      nome: v.nome,
+      modificatore_tipo: v.modificatore_tipo,
+      modificatore_valore: Number(v.modificatore_valore),
+    }));
     onSelect({
       family_id: selectedFamily.id,
       family_nome: selectedFamily.nome,
@@ -274,6 +377,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
       prezzo_posa: calcolo.prezzo_posa / calcolo.quantita,
       griglia_id: calcolo.matchedGrigliaId,
       note: calcolo.note,
+      varianti_selezionate: variantiSnapshot,
     });
     onOpenChange(false);
   };
@@ -572,8 +676,68 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
               </Card>
             )}
 
+            {/* Range disponibile griglia: SEMPRE visibile in modalita' griglia,
+                anche prima di inserire misure. Comunica subito al commerciale
+                quali misure puo' offrire al cliente. */}
+            {selectedFamily.modalita_prezzo_base === "griglia" && calcolo?.range && calcolo.range.minL != null && (
+              <p className="text-[11px] text-blue-800 bg-blue-50 border border-blue-200 rounded px-2.5 py-1.5">
+                <span className="font-semibold">Misure disponibili:</span> da {calcolo.range.minL}×{calcolo.range.minH} mm a {calcolo.range.maxL}×{calcolo.range.maxH} mm
+              </p>
+            )}
+
+            {/* Varianti articolo: checkbox per ognuna delle opzioni
+                configurate sulla family (es. vetro triplo, colore antracite).
+                Si nasconde se la family non ha varianti attive. */}
+            {variantiFamily.length > 0 && (
+              <Card className="border-slate-200 bg-white p-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-700 font-semibold mb-2">
+                  Varianti / opzioni
+                </p>
+                <div className="space-y-1.5">
+                  {variantiFamily.map((v) => {
+                    const checked = selectedVariantIds.has(v.id);
+                    const modificatore = v.modificatore_tipo === "percentuale"
+                      ? `+${v.modificatore_valore}%`
+                      : `+${v.modificatore_valore.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`;
+                    return (
+                      <label
+                        key={v.id}
+                        className={
+                          "flex items-start gap-2.5 rounded-md border px-2.5 py-2 cursor-pointer transition " +
+                          (checked
+                            ? "border-blue-300 bg-blue-50/40"
+                            : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/30")
+                        }
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => {
+                            setSelectedVariantIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(v.id)) next.delete(v.id); else next.add(v.id);
+                              return next;
+                            });
+                          }}
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-xs font-semibold text-slate-900">{v.nome}</span>
+                            <span className="text-[11px] font-semibold text-orange-600 tabular-nums">{modificatore}</span>
+                          </div>
+                          {v.descrizione && (
+                            <p className="text-[10px] text-slate-600 mt-0.5">{v.descrizione}</p>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+
             {/* Riepilogo calcolo — il commerciale vede solo il totale, niente posa esposta */}
-            {calcolo && (
+            {calcolo && !calcolo.fuoriRange && (
               <Card className="border-orange-300 bg-orange-50/50 p-4">
                 <p className="text-[11px] uppercase tracking-wide text-orange-600 font-semibold mb-2 flex items-center gap-1">
                   <Calculator className="h-3.5 w-3.5" /> Calcolo prezzo
@@ -581,6 +745,11 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                 <div className="space-y-1 text-xs">
                   {calcolo.note && (
                     <p className="text-[10px] text-muted-foreground italic">{calcolo.note}</p>
+                  )}
+                  {calcolo.extra_varianti > 0 && (
+                    <p className="text-[10px] text-blue-800">
+                      Varianti selezionate: <span className="font-semibold">+€ {calcolo.extra_varianti.toLocaleString("it-IT", { minimumFractionDigits: 2 })}</span>
+                    </p>
                   )}
                   <div className="border-t border-orange-300 pt-2 mt-2 flex justify-between items-center">
                     <span className="font-bold text-orange-900">Totale posizione</span>
@@ -592,6 +761,21 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                     Prezzo unitario: € {calcolo.unitario.toLocaleString("it-IT", { minimumFractionDigits: 2 })} × {calcolo.quantita} pz
                   </p>
                 </div>
+              </Card>
+            )}
+
+            {/* Stato OUT-OF-RANGE: misure non producibili dal listino.
+                Blocca l'aggiunta al preventivo evitando vendita di articolo
+                non realizzabile. */}
+            {calcolo?.fuoriRange && (
+              <Card className="border-rose-300 bg-rose-50 p-4">
+                <p className="text-sm font-bold text-rose-800 mb-1 flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4" /> Misura non producibile
+                </p>
+                <p className="text-xs text-rose-700 leading-relaxed">
+                  La misura inserita ({calcolo.larghezza}×{calcolo.altezza} mm) e' fuori dal range disponibile per questo articolo.
+                  Modifica le misure entro l'intervallo indicato sopra.
+                </p>
               </Card>
             )}
           </div>
@@ -615,6 +799,8 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                 disabled={
                   (richiedeMisure && (!larghezza || !altezza))
                   || !calcolo || calcolo.totale <= 0
+                  // Blocca aggiunta se misure fuori range producibile.
+                  || calcolo.fuoriRange === true
                 }
               >
                 Aggiungi al preventivo

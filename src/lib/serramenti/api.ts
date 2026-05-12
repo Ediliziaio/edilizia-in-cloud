@@ -225,6 +225,7 @@ export async function addSerramento(
       family_id: serramento.family_id ?? null,
       listino_voce_id: serramento.listino_voce_id ?? null,
       macrocategoria_override_id: serramento.macrocategoria_override_id ?? null,
+      varianti_selezionate: serramento.varianti_selezionate ?? [],
       note: serramento.note ?? null,
     })
     .select("*")
@@ -1058,4 +1059,89 @@ export async function upsertTemplatePdf(patch: Partial<SrTemplatePdfRow>): Promi
     console.error("[serramenti] upsertTemplatePdf failed", error);
     throw new Error("Salvataggio template fallito");
   }
+}
+
+// ─── ARTICLE VARIANTS — varianti prezzo per famiglie listino ──────────────
+
+/** Carica le varianti attive di una famiglia listino, ordinate per sort_order. */
+export async function listVariantsByFamily(family_id: string): Promise<import("@/types/serramenti").ArticleVariantRow[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("article_variants")
+    .select("id, family_id, company_id, nome, descrizione, modificatore_tipo, modificatore_valore, modificatore_costo, attivo, sort_order, created_at, updated_at")
+    .eq("family_id", family_id)
+    .eq("attivo", true)
+    .order("sort_order", { ascending: true });
+  if (error) {
+    console.error("[serramenti] listVariantsByFamily failed", error);
+    throw new Error("Errore caricamento varianti");
+  }
+  return (data ?? []) as import("@/types/serramenti").ArticleVariantRow[];
+}
+
+/** Carica varianti per piu' famiglie in batch — evita N+1 quando in BOM
+ *  ci sono N righe diverse. */
+export async function listVariantsByFamilyIds(family_ids: string[]): Promise<import("@/types/serramenti").ArticleVariantRow[]> {
+  if (!family_ids || family_ids.length === 0) return [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("article_variants")
+    .select("id, family_id, company_id, nome, descrizione, modificatore_tipo, modificatore_valore, modificatore_costo, attivo, sort_order, created_at, updated_at")
+    .in("family_id", family_ids)
+    .eq("attivo", true)
+    .order("sort_order", { ascending: true });
+  if (error) {
+    console.error("[serramenti] listVariantsByFamilyIds failed", error);
+    throw new Error("Errore caricamento varianti");
+  }
+  return (data ?? []) as import("@/types/serramenti").ArticleVariantRow[];
+}
+
+export async function createArticleVariant(
+  family_id: string,
+  v: Partial<import("@/types/serramenti").ArticleVariantRow>,
+): Promise<import("@/types/serramenti").ArticleVariantRow> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: family } = await (supabase as any)
+    .from("article_families").select("company_id").eq("id", family_id).maybeSingle();
+  const company_id = family?.company_id;
+  if (!company_id) throw new Error("Famiglia non trovata");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("article_variants")
+    .insert({
+      family_id,
+      company_id,
+      nome: v.nome ?? "Variante",
+      descrizione: v.descrizione ?? null,
+      modificatore_tipo: v.modificatore_tipo ?? "percentuale",
+      modificatore_valore: v.modificatore_valore ?? 0,
+      modificatore_costo: v.modificatore_costo ?? null,
+      attivo: v.attivo ?? true,
+      sort_order: v.sort_order ?? 0,
+    })
+    .select("*")
+    .single();
+  if (error) {
+    console.error("[serramenti] createArticleVariant failed", error);
+    throw new Error("Creazione variante fallita");
+  }
+  return data as import("@/types/serramenti").ArticleVariantRow;
+}
+
+export async function updateArticleVariant(
+  id: string,
+  patch: Partial<import("@/types/serramenti").ArticleVariantRow>,
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("article_variants").update(patch).eq("id", id);
+  if (error) throw new Error("Modifica variante fallita");
+}
+
+export async function deleteArticleVariant(id: string): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("article_variants").delete().eq("id", id);
+  if (error) throw new Error("Eliminazione variante fallita");
 }

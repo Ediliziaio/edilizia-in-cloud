@@ -21,7 +21,7 @@ import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle, Pac
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ListinoPickerDialog, type ListinoPickResult, calcolaPrezzoProdotto, calcolaPosaInclusa } from "./ListinoPickerDialog";
+import { ListinoPickerDialog, type ListinoPickResult, calcolaPrezzoProdotto, calcolaPosaInclusa, applyVariantiPrezzo } from "./ListinoPickerDialog";
 import { ServiziSection } from "./ServiziSection";
 import { AccessoriSection } from "./AccessoriSection";
 import {
@@ -119,6 +119,7 @@ export function StepBom({ progettoId, detail }: Props) {
         position: serramenti.length,
         family_id: item.family_id,
         listino_voce_id: item.griglia_id ?? null,
+        varianti_selezionate: item.varianti_selezionate ?? [],
         note: item.note ?? `Da listino: ${item.family_nome}`,
       },
       { onSuccess: (created) => setExpanded(created.id) },
@@ -164,6 +165,7 @@ export function StepBom({ progettoId, detail }: Props) {
       family_id: s.family_id,
       listino_voce_id: s.listino_voce_id,
       macrocategoria_override_id: s.macrocategoria_override_id,
+      varianti_selezionate: s.varianti_selezionate ?? [],
       position: serramenti.length,
       note: s.note,
     });
@@ -452,9 +454,10 @@ function SerramentoRow({
   /**
    * Ricalcola prezzo unitario in base a L/A/Q correnti, leggendo dal listino.
    *
-   * IMPORTANTE: somma il prezzo prodotto (da griglia) + la POSA inclusa
-   * (da tariffe). Prima la posa veniva sottratta silenziosamente al
-   * ricalcolo -> margine eroso.
+   * IMPORTANTE: somma il prezzo prodotto (da griglia) + VARIANTI applicate
+   * sul prodotto (es. vetro triplo +€80) + POSA inclusa (da tariffe).
+   * Prima la posa veniva sottratta silenziosamente al ricalcolo e le
+   * varianti non c'erano -> margine eroso.
    *
    * PROTEZIONE: se modalita="griglia" e la griglia non e' ancora caricata
    * (loading), ritorna null per non scrivere un prezzo_base errato.
@@ -469,8 +472,14 @@ function SerramentoRow({
     if (family.modalita_prezzo_base === "griglia" && griglia.length === 0) return null;
     const Qsafe = Q || 1;
     const result = calcolaPrezzoProdotto(family, L, H, Qsafe, griglia);
+    // Applica varianti snapshot SALVATE sulla riga BOM (non quelle correnti
+    // del listino, che potrebbero essere cambiate): le varianti scelte al
+    // momento del preventivo restano fisse.
+    const prezzoConVarianti = applyVariantiPrezzo(
+      result.prezzo, Qsafe, s.varianti_selezionate ?? [],
+    );
     const posa = calcolaPosaInclusa(family, Qsafe, tariffePrezzi);
-    const totale = result.prezzo + posa;
+    const totale = prezzoConVarianti + posa;
     return Qsafe > 0 ? totale / Qsafe : totale;
   };
 
@@ -628,6 +637,37 @@ function SerramentoRow({
                   values={family.custom_field_values ?? {}}
                   mode="display"
                 />
+              </div>
+            </div>
+          )}
+
+          {/* Varianti scelte: snapshot delle opzioni configurate al momento
+              della selezione dal listino (es. "Vetro triplo +€80"). Solo
+              visualizzazione: per cambiarle bisogna eliminare e ricreare
+              la riga dal listino (cosi' il commerciale e' consapevole della
+              modifica prezzo). */}
+          {isFromListino && (s.varianti_selezionate?.length ?? 0) > 0 && (
+            <div className="col-span-12">
+              <div className="rounded-md border border-blue-100 bg-blue-50/40 p-2.5">
+                <div className="text-[10px] uppercase tracking-wide text-blue-800 font-semibold mb-1.5">
+                  Varianti selezionate
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(s.varianti_selezionate ?? []).map((v) => (
+                    <Badge
+                      key={v.variant_id}
+                      variant="outline"
+                      className="bg-white border-blue-200 text-blue-900 text-[10.5px] font-normal py-0.5"
+                    >
+                      <span className="font-semibold mr-1">{v.nome}</span>
+                      <span className="text-orange-600">
+                        {v.modificatore_tipo === "percentuale"
+                          ? `+${v.modificatore_valore}%`
+                          : `+€${v.modificatore_valore.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`}
+                      </span>
+                    </Badge>
+                  ))}
+                </div>
               </div>
             </div>
           )}
