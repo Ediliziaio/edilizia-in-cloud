@@ -33,7 +33,12 @@ export function StepConsulenza({ form, onChange }: Props) {
     const next = [...prossimiPassi];
     while (next.length <= idx) next.push("");
     next[idx] = value;
-    onChange("prossimi_passi", next);
+    // Filtra stringhe vuote in coda così non finiscono nel PDF: se l'utente
+    // edita lo step 4 senza compilare 1-3, gli step vuoti precedenti restano
+    // ma non viene salvato un trailing di vuoti inutili.
+    let lastNonEmpty = next.length - 1;
+    while (lastNonEmpty >= 0 && next[lastNonEmpty].trim() === "") lastNonEmpty--;
+    onChange("prossimi_passi", next.slice(0, lastNonEmpty + 1));
   };
 
   return (
@@ -118,6 +123,3 @@ export function StepConsulenza({ form, onChange }: Props) {
     </div>
   );
 }
-
-// Gantt SVG rimosso: il cronoprogramma non viene più mostrato al cliente.
-// Per la timeline visiva si usa la pagina "Il tuo percorso" del PDF.

@@ -13,7 +13,12 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import type { SrProgettoDetail } from "@/types/serramenti";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import type { SrProgettoDetail, SrMediaRow } from "@/types/serramenti";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 
 interface Props {
@@ -26,21 +31,60 @@ export function StepAccessori({ progettoId, detail }: Props) {
   const deleteMediaMut = useDeleteMedia(progettoId);
   const importRenderMut = useImportRender(progettoId);
   const [renderDialogOpen, setRenderDialogOpen] = useState(false);
+  const [mediaToDelete, setMediaToDelete] = useState<SrMediaRow | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  /**
+   * handleFiles — accetta solo immagini ragionevoli (< 10 MB).
+   * Differenza dalla versione precedente: notifica esplicitamente l'utente
+   * quando uno o più file vengono scartati (prima venivano ignorati in
+   * silenzio, creando confusione).
+   */
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    Array.from(files).slice(0, 10).forEach((file, idx) => {
-      // Solo immagini ragionevoli (< 10 MB)
-      if (!file.type.startsWith("image/")) return;
-      if (file.size > 10 * 1024 * 1024) return;
+    const all = Array.from(files).slice(0, 10);
+    const skippedNonImage: string[] = [];
+    const skippedTooBig: string[] = [];
+    let accepted = 0;
+    all.forEach((file, idx) => {
+      if (!file.type.startsWith("image/")) {
+        skippedNonImage.push(file.name);
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        skippedTooBig.push(file.name);
+        return;
+      }
       uploadMediaMut.mutate({
         file,
         kind: "situazione",
         position: detail.media.length + idx,
       });
+      accepted++;
     });
+    if (skippedNonImage.length > 0) {
+      toast.warning(
+        `${skippedNonImage.length} file non sono immagini — saltati`,
+        { description: skippedNonImage.slice(0, 3).join(", ") + (skippedNonImage.length > 3 ? "…" : "") },
+      );
+    }
+    if (skippedTooBig.length > 0) {
+      toast.warning(
+        `${skippedTooBig.length} file > 10 MB — saltati`,
+        { description: skippedTooBig.slice(0, 3).join(", ") + (skippedTooBig.length > 3 ? "…" : "") },
+      );
+    }
+    if (accepted === 0 && (skippedNonImage.length > 0 || skippedTooBig.length > 0)) {
+      toast.error("Nessun file caricato");
+    }
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const confirmDeleteMedia = () => {
+    if (!mediaToDelete) return;
+    deleteMediaMut.mutate(mediaToDelete.id, {
+      onSettled: () => setMediaToDelete(null),
+    });
   };
 
   const accessori = detail.accessori;
@@ -94,9 +138,10 @@ export function StepAccessori({ progettoId, detail }: Props) {
                   <Sparkles className="h-6 w-6 mx-auto text-orange-300 mt-8" />
                 )}
                 <button
-                  onClick={() => deleteMediaMut.mutate(m.id)}
+                  onClick={() => setMediaToDelete(m)}
                   className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
                   title="Rimuovi"
+                  aria-label="Rimuovi media"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -171,9 +216,33 @@ export function StepAccessori({ progettoId, detail }: Props) {
         }}
         importing={importRenderMut.isPending}
       />
-      {/* Dialog eliminazione accessorio rimosso: gli accessori sono ora
-          gestiti dentro Composizione offerta (Step BOM) col proprio
-          AlertDialog. Questo step ora si occupa solo di foto + render AI. */}
+      {/* AlertDialog conferma eliminazione media — protegge dai click
+          accidentali su render AI (costosi da rigenerare) e foto cantiere. */}
+      <AlertDialog open={!!mediaToDelete} onOpenChange={(open) => !open && setMediaToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {mediaToDelete?.kind === "render" ? "Eliminare il render?" : "Eliminare la foto?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {mediaToDelete?.kind === "render"
+                ? "Il render AI verrà rimosso dal preventivo. Per averlo di nuovo dovrai rigenerarlo dal modulo Render Infissi."
+                : "La foto verrà rimossa dal preventivo. Questa azione non può essere annullata."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMediaMut.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteMedia}
+              disabled={deleteMediaMut.isPending}
+              className="bg-rose-600 hover:bg-rose-700"
+            >
+              {deleteMediaMut.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

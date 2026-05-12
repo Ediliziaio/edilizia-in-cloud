@@ -8,7 +8,7 @@
  *  4. Serramenti (BOM)   — composizione, materiale, vetro, misure
  *  5. Accessori          — avvolgibili, cassonetti, zanzariere
  *  6. Economia           — forbice min/max, sconto, varianti, finanziamento, ROI
- *  7. Consulenza         — appuntamento, consulente, cronoprogramma
+ *  7. Consulenza         — appuntamento, consulente, prossimi passi
  *  8. PDF                — genera HTML preventivo (Wave 4)
  *
  * Fix Wave 3:
@@ -16,7 +16,7 @@
  *  - Dirty check: avviso AlertDialog se cambio step con modifiche non salvate
  *  - beforeunload guard
  */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useIsMutating } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -88,27 +88,32 @@ export default function SerramentiWizard() {
   const [form, setForm] = useState<Partial<SrProgettoRow>>({});
   const [dirty, setDirty] = useState(false);
 
-  // Sync form con dati server al primo load / cambio progetto
+  // Sync form con dati server al primo load / cambio progetto.
+  // Null-safe contro flicker tra refetch (detail può diventare temporaneamente
+  // undefined durante invalidate → poi torna).
   useEffect(() => {
     if (detail?.progetto) {
       setForm(detail.progetto);
       setDirty(false);
     }
-  }, [detail?.progetto.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [detail?.progetto?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Bug fix: dopo creazione (auto-advance step quando si carica un nuovo id appena creato)
-  // → quando arriviamo qui con un id appena creato, advance allo step 2
+  // Auto-advance Step 1 → Step 2 dopo creazione iniziale.
+  // Si attiva UNA SOLA VOLTA per sessione di editing: subito dopo il primo
+  // load del progetto. Su refresh successivi (anche con cliente_nome già
+  // popolato) l'utente resta dove sta, e può tornare allo Step 1 liberamente.
+  const didAutoAdvanceRef = useRef(false);
   useEffect(() => {
-    if (id && detail?.progetto && currentStep === "cliente") {
-      // Se il progetto ha cliente_nome compilato, l'utente probabilmente ha
-      // già fatto step 1 → portiamolo allo step 2.
-      const hasStep1Data = detail.progetto.cliente_nome || detail.progetto.cliente_cognome;
-      if (hasStep1Data) {
-        setCurrentStep("immobile");
-      }
+    if (didAutoAdvanceRef.current) return;
+    if (!id || !detail?.progetto) return;
+    didAutoAdvanceRef.current = true;
+    const hasStep1Data = detail.progetto.cliente_nome || detail.progetto.cliente_cognome;
+    if (currentStep === "cliente" && hasStep1Data) {
+      setCurrentStep("immobile");
     }
-    // Solo al primo load del progetto
-  }, [detail?.progetto.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Volutamente non includiamo detail.progetto in deps: il ref guard sopra
+    // garantisce single-fire per sessione → exhaustive-deps non si applica.
+  }, [detail?.progetto?.id, id, currentStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onChange = <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -656,7 +661,3 @@ function StepImmobile({
     </SrCard>
   );
 }
-
-// StepEsigenze rimosso: ora il contenuto è gestito da
-// @/components/serramenti/StepContenuti (picker dal template + custom inline,
-// per esigenze + soluzione + perché noi + incluso + prossimi passi).

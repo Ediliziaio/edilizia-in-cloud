@@ -295,7 +295,9 @@ export default function SerramentiIndex() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-[11px] text-muted-foreground">
-                          {format(new Date(p.updated_at), "d MMM yyyy", { locale: it })}
+                          {p.updated_at
+                            ? format(new Date(p.updated_at), "d MMM yyyy", { locale: it })
+                            : "—"}
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1 justify-end">
@@ -326,8 +328,15 @@ export default function SerramentiIndex() {
         </CardContent>
       </Card>
 
-      {/* Confirm delete */}
-      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+      {/* Confirm delete — il dialog resta aperto mentre la mutation è in
+          corso, così l'utente vede lo spinner sul bottone Elimina e capisce
+          che l'azione sta procedendo. Si chiude solo a mutation completata. */}
+      <AlertDialog
+        open={!!toDelete}
+        onOpenChange={(o) => {
+          if (!o && !deleteMut.isPending) setToDelete(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare la stima {toDelete?.code}?</AlertDialogTitle>
@@ -336,15 +345,19 @@ export default function SerramentiIndex() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMut.isPending}>Annulla</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 hover:bg-rose-700"
-              onClick={() => {
-                if (toDelete) deleteMut.mutate(toDelete.id);
-                setToDelete(null);
+              disabled={deleteMut.isPending}
+              onClick={(e) => {
+                e.preventDefault(); // evita auto-close del dialog
+                if (!toDelete) return;
+                deleteMut.mutate(toDelete.id, {
+                  onSettled: () => setToDelete(null),
+                });
               }}
             >
-              {deleteMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              {deleteMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
               Elimina
             </AlertDialogAction>
           </AlertDialogFooter>

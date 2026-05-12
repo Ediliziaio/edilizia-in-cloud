@@ -51,6 +51,9 @@ export function StepBom({ progettoId, detail }: Props) {
   const [toDelete, setToDelete] = useState<SrSerramentoRow | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [listinoOpen, setListinoOpen] = useState(false);
+  // Conferma import sopralluogo: invece di `confirm()` nativo (UX scadente,
+  // bloccante, brutto su mobile) usiamo un AlertDialog gestito.
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const serramenti = detail.serramenti;
 
@@ -174,12 +177,17 @@ export function StepBom({ progettoId, detail }: Props) {
               disabled={importMut.isPending}
               onClick={() => {
                 if (!detail.progetto.sopralluogo_id) return;
-                importMut.mutate({
-                  sopralluogo_id: detail.progetto.sopralluogo_id,
-                  replace: serramenti.length > 0
-                    ? confirm("Esistono già serramenti in lista. Vuoi sostituirli con quelli del sopralluogo? (Annulla = aggiungi in coda)")
-                    : false,
-                });
+                // Se ci sono già serramenti chiediamo all'utente cosa fare
+                // tramite AlertDialog gestito (vedi sotto). Altrimenti import
+                // diretto senza domande inutili.
+                if (serramenti.length > 0) {
+                  setImportDialogOpen(true);
+                } else {
+                  importMut.mutate({
+                    sopralluogo_id: detail.progetto.sopralluogo_id,
+                    replace: false,
+                  });
+                }
               }}
             >
               {importMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
@@ -272,7 +280,12 @@ export function StepBom({ progettoId, detail }: Props) {
           La manodopera/posa è inclusa nel prezzo del singolo prodotto. */}
       <ServiziSection progettoId={progettoId} detail={detail} />
 
-      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+      <AlertDialog
+        open={!!toDelete}
+        onOpenChange={(o) => {
+          if (!o && !deleteMut.isPending) setToDelete(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare {toDelete?.tipologia_label ?? "serramento"}?</AlertDialogTitle>
@@ -281,15 +294,72 @@ export function StepBom({ progettoId, detail }: Props) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMut.isPending}>Annulla</AlertDialogCancel>
             <AlertDialogAction
               className="bg-rose-600 hover:bg-rose-700"
-              onClick={() => {
-                if (toDelete) deleteMut.mutate(toDelete.id);
-                setToDelete(null);
+              disabled={deleteMut.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!toDelete) return;
+                deleteMut.mutate(toDelete.id, {
+                  onSettled: () => setToDelete(null),
+                });
               }}
             >
+              {deleteMut.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
               Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* AlertDialog: import sopralluogo con serramenti già esistenti.
+          Tre opzioni esplicite (Annulla / Aggiungi in coda / Sostituisci tutto)
+          → niente più `confirm()` ambiguo "OK=sostituisci, Annulla=appendi". */}
+      <AlertDialog
+        open={importDialogOpen}
+        onOpenChange={(o) => {
+          if (!o && !importMut.isPending) setImportDialogOpen(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Importa serramenti dal sopralluogo</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hai già {serramenti.length} {serramenti.length === 1 ? "serramento" : "serramenti"} in composizione.
+              Come vuoi unire l'import del sopralluogo?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel disabled={importMut.isPending}>Annulla</AlertDialogCancel>
+            <Button
+              variant="outline"
+              disabled={importMut.isPending}
+              onClick={() => {
+                if (!detail.progetto.sopralluogo_id) return;
+                importMut.mutate(
+                  { sopralluogo_id: detail.progetto.sopralluogo_id, replace: false },
+                  { onSettled: () => setImportDialogOpen(false) },
+                );
+              }}
+            >
+              {importMut.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+              Aggiungi in coda
+            </Button>
+            <AlertDialogAction
+              className="bg-orange-700 hover:bg-orange-800"
+              disabled={importMut.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!detail.progetto.sopralluogo_id) return;
+                importMut.mutate(
+                  { sopralluogo_id: detail.progetto.sopralluogo_id, replace: true },
+                  { onSettled: () => setImportDialogOpen(false) },
+                );
+              }}
+            >
+              {importMut.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+              Sostituisci tutto
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -531,11 +601,16 @@ function SerramentoRow({
             </>
           )}
 
+          {/* Note: `key` rimossa dagli input numerici sotto. Prima la key
+              includeva il valore corrente del campo → ad ogni patch l'input si
+              re-montava, perdendo focus e caret. Ora usiamo `key={s.id}-*` solo
+              dove serve un reset cross-record (cambio serramento), così il
+              caret resta dove l'utente sta scrivendo. */}
           <div className="col-span-4 md:col-span-3">
             <Label className="text-xs">Largh. (mm)</Label>
             <Input
               type="number"
-              key={`L-${s.id}-${s.larghezza_mm ?? ""}`}
+              key={`L-${s.id}`}
               defaultValue={s.larghezza_mm ?? ""}
               onBlur={(e) => handleMisurePatch({ larghezza_mm: e.target.value ? Number(e.target.value) : null })}
               className="h-9 text-xs"
@@ -545,7 +620,7 @@ function SerramentoRow({
             <Label className="text-xs">Altezza (mm)</Label>
             <Input
               type="number"
-              key={`H-${s.id}-${s.altezza_mm ?? ""}`}
+              key={`H-${s.id}`}
               defaultValue={s.altezza_mm ?? ""}
               onBlur={(e) => handleMisurePatch({ altezza_mm: e.target.value ? Number(e.target.value) : null })}
               className="h-9 text-xs"
@@ -556,7 +631,7 @@ function SerramentoRow({
             <Input
               type="number"
               min={1}
-              key={`Q-${s.id}-${s.quantita}`}
+              key={`Q-${s.id}`}
               defaultValue={s.quantita}
               onBlur={(e) => handleMisurePatch({ quantita: Math.max(1, Number(e.target.value) || 1) })}
               className="h-9 text-xs"

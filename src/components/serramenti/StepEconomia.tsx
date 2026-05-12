@@ -76,12 +76,18 @@ export function StepEconomia({ detail, form, onChange }: Props) {
 
   const forbice = useMemo(() => forbicePrezzo(totaleCalc.totale_iva_inclusa, 12), [totaleCalc.totale_iva_inclusa]);
 
-  // Salva totale_min/max nel progetto quando cambia il calc
+  // Salva totale_min/max nel progetto quando cambia il calcolo.
+  // Tolleranza 0.5 € per evitare il "dirty fantasma": float imprecisi possono
+  // far apparire differenze submillesimali tra forbice.min e form.totale_min
+  // anche se nessun utente ha toccato nulla, marcando il progetto come dirty
+  // ad ogni re-render.
   useEffect(() => {
-    if (forbice.min !== Number(form.totale_min ?? 0)) {
+    const currentMin = Number(form.totale_min ?? 0);
+    const currentMax = Number(form.totale_max ?? 0);
+    if (Math.abs(forbice.min - currentMin) > 0.5) {
       onChange("totale_min", forbice.min);
     }
-    if (forbice.max !== Number(form.totale_max ?? 0)) {
+    if (Math.abs(forbice.max - currentMax) > 0.5) {
       onChange("totale_max", forbice.max);
     }
   }, [forbice.min, forbice.max]); // eslint-disable-line react-hooks/exhaustive-deps

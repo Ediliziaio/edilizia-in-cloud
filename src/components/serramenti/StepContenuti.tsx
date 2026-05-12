@@ -241,21 +241,28 @@ function StringItemsPicker({
   const selectAllTemplate = () => onChange([...templateItems, ...customItems]);
   const clearAll = () => onChange([]);
 
+  // customItemsWithIdx: ogni voce custom con la sua posizione assoluta in
+  // selectedItems. Questo evita il bug di duplicati: due voci custom con
+  // stesso testo (es. due stringhe vuote) non vengono più confuse da indexOf.
+  const customItemsWithIdx = useMemo(
+    () => selectedItems
+      .map((value, realIdx) => ({ value, realIdx }))
+      .filter(({ value }) => !templateSet.has(value)),
+    [selectedItems, templateSet],
+  );
+
   const addCustom = () => {
     onChange([...selectedItems, ""]);
   };
-  const updateCustom = (origIdx: number, value: string) => {
-    // origIdx riferito all'array customItems → trovare l'indice in selectedItems
-    const custom = customItems[origIdx];
-    const realIdx = selectedItems.indexOf(custom);
-    if (realIdx === -1) return;
+  const updateCustom = (realIdx: number, value: string) => {
+    if (realIdx < 0 || realIdx >= selectedItems.length) return;
     const next = [...selectedItems];
     next[realIdx] = value;
     onChange(next);
   };
-  const removeCustom = (origIdx: number) => {
-    const custom = customItems[origIdx];
-    onChange(selectedItems.filter((s) => s !== custom));
+  const removeCustom = (realIdx: number) => {
+    if (realIdx < 0 || realIdx >= selectedItems.length) return;
+    onChange(selectedItems.filter((_, i) => i !== realIdx));
   };
 
   return (
@@ -306,25 +313,25 @@ function StringItemsPicker({
         </SrCallout>
       )}
 
-      {customItems.length > 0 && (
+      {customItemsWithIdx.length > 0 && (
         <div className="space-y-2 pt-2 border-t">
           <p className="text-[11px] text-muted-foreground">
-            Voci personalizzate <strong>solo per questo cliente</strong> ({customItems.length})
+            Voci personalizzate <strong>solo per questo cliente</strong> ({customItemsWithIdx.length})
           </p>
-          {customItems.map((it, idx) => (
-            <div key={idx} className="flex items-center gap-2">
+          {customItemsWithIdx.map(({ value, realIdx }, displayIdx) => (
+            <div key={realIdx} className="flex items-center gap-2">
               <span className="h-7 w-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold shrink-0">
-                {idx + 1}
+                {displayIdx + 1}
               </span>
               <Input
-                value={it}
-                onChange={(e) => updateCustom(idx, e.target.value)}
+                value={value}
+                onChange={(e) => updateCustom(realIdx, e.target.value)}
                 placeholder={placeholder}
                 className="h-9 text-xs flex-1"
               />
               <Button
                 size="icon" variant="ghost"
-                onClick={() => removeCustom(idx)}
+                onClick={() => removeCustom(realIdx)}
                 className="h-9 w-9 shrink-0"
               >
                 <Trash2 className="h-3.5 w-3.5 text-rose-600" />
