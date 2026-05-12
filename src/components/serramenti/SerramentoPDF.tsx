@@ -970,6 +970,12 @@ export function SerramentoPDF({
   const tpl = (template ?? {}) as any;
   const coverHero = tpl.pdf_cover_hero || "La tua casa,\nfinalmente al caldo.";
   const coverSubhero = tpl.pdf_cover_subhero || sintesi;
+  const coverEyebrow = tpl.pdf_cover_eyebrow || "★ La tua proposta personalizzata";
+  const coverImageUrl = tpl.pdf_cover_image_url || null;
+  const coverOverlayOpacity = typeof tpl.pdf_cover_overlay_opacity === "number"
+    ? Math.max(0, Math.min(100, tpl.pdf_cover_overlay_opacity)) / 100
+    : 0.65;
+  const coverBgColor = tpl.pdf_cover_bg_color || null; // null = usa C.coverBg default
   const ctaTitle = tpl.pdf_cta_finale_titolo || "Cosa fare adesso";
   const ctaSteps = (Array.isArray(tpl.pdf_cta_finale_passi) && tpl.pdf_cta_finale_passi.length > 0)
     ? tpl.pdf_cta_finale_passi as string[]
@@ -1055,7 +1061,43 @@ export function SerramentoPDF({
       subject={`Preventivo serramenti per ${clienteNome}`}
     >
       {/* ─── PAGINA 1 — COVER ─────────────────────────────────────────────── */}
-      <Page size="A4" style={styles.cover}>
+      <Page
+        size="A4"
+        style={[
+          styles.cover,
+          coverBgColor ? { backgroundColor: coverBgColor } : undefined,
+        ]}
+      >
+        {/* Immagine di sfondo opzionale */}
+        {coverImageUrl && (
+          <Image
+            src={coverImageUrl}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover" as const,
+            }}
+          />
+        )}
+        {/* Overlay scuro sopra immagine per leggibilità */}
+        {coverImageUrl && (
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "#000000",
+              opacity: coverOverlayOpacity,
+            }}
+          />
+        )}
         {/* Decoro SVG finestra in alto a destra */}
         <View style={styles.coverDecoSvg}>
           <CoverDecorationSvg color={C.accent} />
@@ -1078,7 +1120,7 @@ export function SerramentoPDF({
             </View>
           </View>
 
-          <Text style={styles.coverEyebrow}>★ La tua proposta personalizzata</Text>
+          <Text style={styles.coverEyebrow}>{coverEyebrow}</Text>
           <Text style={styles.coverTitle}>{coverHero}</Text>
           <Text style={styles.coverSubtitle}>{coverSubhero}</Text>
 

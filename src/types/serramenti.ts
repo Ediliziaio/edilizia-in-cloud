@@ -364,6 +364,10 @@ export interface SrTemplatePdfRow {
   // Personalizzazione PDF avanzata (migration 20270315000000 + 20270317000000 + 20270318000000)
   pdf_cover_hero: string | null;
   pdf_cover_subhero: string | null;
+  pdf_cover_eyebrow: string | null;
+  pdf_cover_image_url: string | null;
+  pdf_cover_overlay_opacity: number | null;
+  pdf_cover_bg_color: string | null;
   pdf_cta_finale_titolo: string | null;
   pdf_cta_finale_passi: string[] | null;
   chi_siamo_attivo: boolean;

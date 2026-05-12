@@ -64,6 +64,8 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadingChiSiamo, setUploadingChiSiamo] = useState(false);
   const chiSiamoInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (template) {
@@ -193,6 +195,56 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
     } finally {
       setUploadingChiSiamo(false);
       if (chiSiamoInputRef.current) chiSiamoInputRef.current.value = "";
+    }
+  };
+
+  /**
+   * Upload immagine di sfondo cover (pagina 1 del PDF).
+   * Stesso pattern logo/chi-siamo: bucket sr-progetti + signed URL 1 anno.
+   */
+  const handleCoverUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Carica un file immagine (PNG, JPG, WebP)");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("File troppo grande (max 8 MB)");
+      return;
+    }
+    setUploadingCover(true);
+    try {
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) throw new Error("Non autenticato");
+      const { data: profile } = await supabase
+        .from("profiles" as never)
+        .select("company_id")
+        .eq("id", userId)
+        .maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const companyId = (profile as any)?.company_id;
+      if (!companyId) throw new Error("Profilo senza azienda");
+
+      const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
+      const storagePath = `${companyId}/template-cover/${crypto.randomUUID()}.${ext}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from("sr-progetti")
+        .upload(storagePath, file, { contentType: file.type, upsert: false });
+      if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
+
+      const { data: signed } = await supabase.storage
+        .from("sr-progetti")
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
+      const url = signed?.signedUrl ?? "";
+
+      update("pdf_cover_image_url", url);
+      toast.success("Immagine cover caricata. Salva per applicare.");
+    } catch (e) {
+      console.error("[serramenti-template-editor] cover upload", e);
+      toast.error("Errore upload cover", { description: String(e) });
+    } finally {
+      setUploadingCover(false);
+      if (coverInputRef.current) coverInputRef.current.value = "";
     }
   };
 
@@ -760,35 +812,271 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         icon={<FileText className="h-4 w-4" />}
       >
         <div className="space-y-5">
-          {/* COVER */}
-          <div className="space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-              Cover (pagina 1)
+          {/* COVER — editor visuale con preview live */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+                Cover (pagina 1)
+              </div>
+              <span className="text-[10px] text-muted-foreground">
+                Editor visuale · preview in tempo reale
+              </span>
             </div>
-            <div className="grid grid-cols-12 gap-3">
-              <div className="col-span-12">
-                <Label className="text-xs">Frase hero della cover</Label>
-                <Textarea
-                  value={form.pdf_cover_hero ?? ""}
-                  onChange={(e) => update("pdf_cover_hero", e.target.value || null)}
-                  placeholder="Es. La tua casa, finalmente al caldo."
-                  rows={2}
-                  className="text-sm"
-                />
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Titolo grande mostrato in cover. A capo per andare su due righe.
-                  Lascia vuoto per usare il default IT.
+
+            <div className="grid grid-cols-12 gap-4">
+              {/* PREVIEW LIVE — formato A4 portrait scalato */}
+              <div className="col-span-12 md:col-span-5">
+                <Label className="text-xs mb-1.5 block">Anteprima cover</Label>
+                <div
+                  className="relative w-full overflow-hidden rounded-lg border-2 border-slate-200 shadow-sm"
+                  style={{
+                    aspectRatio: "210/297",
+                    backgroundColor: form.pdf_cover_bg_color || "#0F2A2E",
+                  }}
+                >
+                  {/* Immagine di sfondo */}
+                  {form.pdf_cover_image_url && (
+                    <img
+                      src={form.pdf_cover_image_url}
+                      alt="cover bg"
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  )}
+                  {/* Overlay scuro su immagine */}
+                  {form.pdf_cover_image_url && (
+                    <div
+                      className="absolute inset-0 bg-black pointer-events-none"
+                      style={{
+                        opacity:
+                          (form.pdf_cover_overlay_opacity ?? 65) / 100,
+                      }}
+                    />
+                  )}
+                  {/* Decoro accent in alto a destra */}
+                  <div
+                    className="absolute top-3 right-3 w-12 h-12 rounded-md opacity-70"
+                    style={{
+                      backgroundColor: form.colore_primario || "#2D7D5C",
+                    }}
+                  />
+                  {/* Contenuto testuale */}
+                  <div className="absolute inset-0 p-4 flex flex-col text-white">
+                    {/* Logo + company name */}
+                    <div className="flex items-center gap-2 mb-auto">
+                      {form.logo_url ? (
+                        <img
+                          src={form.logo_url}
+                          alt="logo"
+                          className="h-7 w-7 object-contain rounded bg-white/10 p-0.5"
+                        />
+                      ) : (
+                        <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">
+                          A
+                        </div>
+                      )}
+                      <span className="text-[10px] font-semibold uppercase tracking-wide">
+                        {form.indirizzo_completo ? "Azienda" : "Il tuo brand"}
+                      </span>
+                    </div>
+
+                    {/* Eyebrow + Title + Subtitle */}
+                    <div className="mb-4">
+                      <div
+                        className="text-[9px] font-semibold uppercase tracking-wider mb-2"
+                        style={{
+                          color: form.colore_primario || "#2D7D5C",
+                        }}
+                      >
+                        {form.pdf_cover_eyebrow ||
+                          "★ La tua proposta personalizzata"}
+                      </div>
+                      <div className="text-lg font-bold leading-tight whitespace-pre-wrap mb-1.5">
+                        {form.pdf_cover_hero ||
+                          "La tua casa,\nfinalmente al caldo."}
+                      </div>
+                      <div className="text-[10px] opacity-80 line-clamp-2">
+                        {form.pdf_cover_subhero ||
+                          "Sintesi auto-generata del preventivo"}
+                      </div>
+                      <div className="mt-3 bg-white/10 rounded-md p-2 backdrop-blur-sm">
+                        <div className="text-[8px] uppercase opacity-70">
+                          Preparato per
+                        </div>
+                        <div className="text-xs font-semibold">
+                          Mario Rossi
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1.5">
+                  Anteprima approssimativa · il PDF finale può differire
+                  leggermente per tipografia
                 </p>
               </div>
-              <div className="col-span-12">
-                <Label className="text-xs">Sottotitolo cover (opzionale)</Label>
-                <Textarea
-                  value={form.pdf_cover_subhero ?? ""}
-                  onChange={(e) => update("pdf_cover_subhero", e.target.value || null)}
-                  placeholder="Lascia vuoto per usare la sintesi auto-generata del preventivo"
-                  rows={2}
-                  className="text-sm"
-                />
+
+              {/* CONTROLLI EDITOR */}
+              <div className="col-span-12 md:col-span-7 space-y-3">
+                {/* Immagine di sfondo */}
+                <div>
+                  <Label className="text-xs mb-1 block">
+                    Immagine di sfondo cover (opzionale)
+                  </Label>
+                  <input
+                    ref={coverInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) =>
+                      e.target.files?.[0] && handleCoverUpload(e.target.files[0])
+                    }
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => coverInputRef.current?.click()}
+                      disabled={uploadingCover}
+                      className="flex-1 h-8 text-xs"
+                    >
+                      {uploadingCover ? (
+                        <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                      ) : (
+                        <Upload className="h-3 w-3 mr-1.5" />
+                      )}
+                      {form.pdf_cover_image_url
+                        ? "Cambia immagine"
+                        : "Carica immagine"}
+                    </Button>
+                    {form.pdf_cover_image_url && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => update("pdf_cover_image_url", null)}
+                        className="h-8 text-xs text-rose-600"
+                      >
+                        Rimuovi
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Senza immagine viene usato il colore di sfondo solido.
+                    PNG/JPG max 8 MB.
+                  </p>
+                </div>
+
+                {/* Overlay opacity — visibile solo se c'è un'immagine */}
+                {form.pdf_cover_image_url && (
+                  <div>
+                    <Label className="text-xs flex items-center justify-between mb-1">
+                      <span>Opacità overlay scuro</span>
+                      <span className="font-mono text-muted-foreground">
+                        {form.pdf_cover_overlay_opacity ?? 65}%
+                      </span>
+                    </Label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={form.pdf_cover_overlay_opacity ?? 65}
+                      onChange={(e) =>
+                        update(
+                          "pdf_cover_overlay_opacity",
+                          Number(e.target.value),
+                        )
+                      }
+                      className="w-full accent-orange-500"
+                    />
+                  </div>
+                )}
+
+                {/* Colore di sfondo (solo quando non c'è immagine) */}
+                {!form.pdf_cover_image_url && (
+                  <div>
+                    <Label className="text-xs mb-1 block">
+                      Colore di sfondo cover
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={form.pdf_cover_bg_color || "#0F2A2E"}
+                        onChange={(e) =>
+                          update("pdf_cover_bg_color", e.target.value)
+                        }
+                        className="h-8 w-12 rounded border cursor-pointer"
+                      />
+                      <Input
+                        value={form.pdf_cover_bg_color ?? ""}
+                        onChange={(e) =>
+                          update(
+                            "pdf_cover_bg_color",
+                            e.target.value || null,
+                          )
+                        }
+                        placeholder="#0F2A2E"
+                        className="h-8 text-xs font-mono flex-1"
+                      />
+                      {form.pdf_cover_bg_color && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => update("pdf_cover_bg_color", null)}
+                          className="h-8 text-[11px]"
+                        >
+                          Reset
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Eyebrow */}
+                <div>
+                  <Label className="text-xs mb-1 block">
+                    Eyebrow (testo piccolo sopra il titolo)
+                  </Label>
+                  <Input
+                    value={form.pdf_cover_eyebrow ?? ""}
+                    onChange={(e) =>
+                      update("pdf_cover_eyebrow", e.target.value || null)
+                    }
+                    placeholder="★ La tua proposta personalizzata"
+                    className="h-8 text-xs"
+                  />
+                </div>
+
+                {/* Titolo */}
+                <div>
+                  <Label className="text-xs mb-1 block">
+                    Titolo hero (a capo per due righe)
+                  </Label>
+                  <Textarea
+                    value={form.pdf_cover_hero ?? ""}
+                    onChange={(e) =>
+                      update("pdf_cover_hero", e.target.value || null)
+                    }
+                    placeholder="La tua casa, finalmente al caldo."
+                    rows={2}
+                    className="text-sm"
+                  />
+                </div>
+
+                {/* Sottotitolo */}
+                <div>
+                  <Label className="text-xs mb-1 block">
+                    Sottotitolo (opzionale)
+                  </Label>
+                  <Textarea
+                    value={form.pdf_cover_subhero ?? ""}
+                    onChange={(e) =>
+                      update("pdf_cover_subhero", e.target.value || null)
+                    }
+                    placeholder="Lascia vuoto per usare la sintesi auto-generata del preventivo"
+                    rows={2}
+                    className="text-sm"
+                  />
+                </div>
               </div>
             </div>
           </div>
