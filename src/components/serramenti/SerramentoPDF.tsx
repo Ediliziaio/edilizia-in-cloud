@@ -976,6 +976,13 @@ export function SerramentoPDF({
     ? Math.max(0, Math.min(100, tpl.pdf_cover_overlay_opacity)) / 100
     : 0.65;
   const coverBgColor = tpl.pdf_cover_bg_color || null; // null = usa C.coverBg default
+  const coverEyebrowSize = typeof tpl.pdf_cover_eyebrow_size === "number" ? tpl.pdf_cover_eyebrow_size : 10;
+  const coverTitleSize = typeof tpl.pdf_cover_title_size === "number" ? tpl.pdf_cover_title_size : 46;
+  const coverSubtitleSize = typeof tpl.pdf_cover_subtitle_size === "number" ? tpl.pdf_cover_subtitle_size : 13;
+  const coverTextColor = tpl.pdf_cover_text_color || "#FFFFFF";
+  const coverShowDecoration = tpl.pdf_cover_show_decoration !== false;
+  const coverShowClientCard = tpl.pdf_cover_show_client_card !== false;
+  const coverTextAlign = (tpl.pdf_cover_text_align === "center" ? "center" : "left") as "left" | "center";
   const ctaTitle = tpl.pdf_cta_finale_titolo || "Cosa fare adesso";
   const ctaSteps = (Array.isArray(tpl.pdf_cta_finale_passi) && tpl.pdf_cta_finale_passi.length > 0)
     ? tpl.pdf_cta_finale_passi as string[]
@@ -1066,6 +1073,7 @@ export function SerramentoPDF({
         style={[
           styles.cover,
           coverBgColor ? { backgroundColor: coverBgColor } : undefined,
+          { color: coverTextColor },
         ]}
       >
         {/* Immagine di sfondo opzionale */}
@@ -1098,12 +1106,14 @@ export function SerramentoPDF({
             }}
           />
         )}
-        {/* Decoro SVG finestra in alto a destra */}
-        <View style={styles.coverDecoSvg}>
-          <CoverDecorationSvg color={C.accent} />
-        </View>
+        {/* Decoro SVG finestra in alto a destra (toggle template) */}
+        {coverShowDecoration && (
+          <View style={styles.coverDecoSvg}>
+            <CoverDecorationSvg color={C.accent} />
+          </View>
+        )}
 
-        <View>
+        <View style={{ alignItems: coverTextAlign === "center" ? "center" : "flex-start" }}>
           <View style={styles.coverLogoBox}>
             {logoUrl ? (
               <Image src={logoUrl} style={styles.coverLogoImage} />
@@ -1115,22 +1125,24 @@ export function SerramentoPDF({
               </View>
             )}
             <View>
-              <Text style={styles.coverCompanyName}>{companyName}</Text>
+              <Text style={[styles.coverCompanyName, { color: coverTextColor }]}>{companyName}</Text>
               {company?.indirizzo && <Text style={styles.coverCompanyTag}>{company.indirizzo}</Text>}
             </View>
           </View>
 
-          <Text style={styles.coverEyebrow}>{coverEyebrow}</Text>
-          <Text style={styles.coverTitle}>{coverHero}</Text>
-          <Text style={styles.coverSubtitle}>{coverSubhero}</Text>
+          <Text style={[styles.coverEyebrow, { fontSize: coverEyebrowSize, textAlign: coverTextAlign }]}>{coverEyebrow}</Text>
+          <Text style={[styles.coverTitle, { fontSize: coverTitleSize, color: coverTextColor, textAlign: coverTextAlign }]}>{coverHero}</Text>
+          <Text style={[styles.coverSubtitle, { fontSize: coverSubtitleSize, textAlign: coverTextAlign }]}>{coverSubhero}</Text>
 
-          <View style={styles.coverCard}>
-            <Text style={styles.coverLabel}>Preparato per</Text>
-            <Text style={styles.coverClientName}>{clienteNome}</Text>
-            <Text style={styles.coverClientAddr}>
-              {[p.cliente_indirizzo, p.cantiere_citta || p.cliente_citta].filter(Boolean).join(", ")}
-            </Text>
-          </View>
+          {coverShowClientCard && (
+            <View style={styles.coverCard}>
+              <Text style={styles.coverLabel}>Preparato per</Text>
+              <Text style={[styles.coverClientName, { color: coverTextColor }]}>{clienteNome}</Text>
+              <Text style={styles.coverClientAddr}>
+                {[p.cliente_indirizzo, p.cantiere_citta || p.cliente_citta].filter(Boolean).join(", ")}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.coverFooter}>

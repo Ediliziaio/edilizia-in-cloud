@@ -47,6 +47,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface SerramentiTemplateEditorProps {
   /** Se true, nasconde lo sticky bottom save (usato dentro Tabs con bottone proprio) */
@@ -275,7 +276,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" className="gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+          <Button size="sm" variant="outline" className="gap-1 border-orange-300 text-orange-700 hover:bg-orange-50">
             <Wand2 className="h-3.5 w-3.5" />
             {label}
           </Button>
@@ -348,7 +349,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       <div className="space-y-2">
         {items.map((item, idx) => (
           <div key={idx} className="flex items-start gap-2">
-            <span className="h-7 w-7 mt-1 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">
+            <span className="h-7 w-7 mt-1 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-bold shrink-0">
               {idx + 1}
             </span>
             <Input
@@ -389,7 +390,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
     return (
       <div className="space-y-3">
         {items.map((item, idx) => (
-          <div key={idx} className="border-l-4 border-emerald-200 pl-3 py-1">
+          <div key={idx} className="border-l-4 border-orange-200 pl-3 py-1">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-xs">Titolo</Label>
               <Button size="sm" variant="ghost" onClick={() => removeItem(idx)} className="h-7 px-2 text-xs text-rose-600">
@@ -430,7 +431,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         <Button
           onClick={handleSave}
           disabled={!dirty || upsertMut.isPending}
-          className="bg-emerald-700 hover:bg-emerald-800 gap-1"
+          className="bg-orange-600 hover:bg-orange-700 gap-1"
         >
           {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Salva
@@ -455,7 +456,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
               onChange={(e) => e.target.files?.[0] && handleLogoUpload(e.target.files[0])}
             />
             <div
-              className="aspect-square rounded-md border-2 border-dashed border-slate-200 bg-muted/20 hover:border-emerald-300 hover:bg-emerald-50/30 cursor-pointer flex items-center justify-center overflow-hidden relative"
+              className="aspect-square rounded-md border-2 border-dashed border-slate-200 bg-muted/20 hover:border-orange-300 hover:bg-orange-50/30 cursor-pointer flex items-center justify-center overflow-hidden relative"
               onClick={() => !uploadingLogo && logoInputRef.current?.click()}
             >
               {form.logo_url ? (
@@ -469,7 +470,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
               )}
               {uploadingLogo && (
                 <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin text-emerald-700" />
+                  <Loader2 className="h-5 w-5 animate-spin text-orange-700" />
                 </div>
               )}
             </div>
@@ -655,7 +656,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         <div className="flex justify-end mb-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+              <Button size="sm" variant="outline" className="gap-1 border-orange-300 text-orange-700 hover:bg-orange-50">
                 <Wand2 className="h-3.5 w-3.5" />
                 Carica recensioni di esempio
               </Button>
@@ -717,9 +718,9 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             </SrCallout>
           )}
           {testimonianze.map((t, idx) => (
-            <Card key={idx} className="bg-emerald-50/30 border-emerald-200">
+            <Card key={idx} className="bg-orange-50/30 border-orange-200">
               <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs uppercase tracking-wide text-emerald-700">
+                <CardTitle className="text-xs uppercase tracking-wide text-orange-700">
                   Recensione {idx + 1}
                 </CardTitle>
                 <Button size="sm" variant="ghost" onClick={() => setDelTestIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
@@ -769,7 +770,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
           <Button
             onClick={addTestimonianza}
             variant="outline"
-            className="w-full border-dashed border-2 border-emerald-300 hover:bg-emerald-50 gap-1"
+            className="w-full border-dashed border-2 border-orange-300 hover:bg-orange-50 gap-1"
           >
             <Plus className="h-4 w-4" /> Aggiungi recensione
           </Button>
@@ -805,22 +806,29 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         <MacroPagineDedicateManager vertical="serramentista" />
       </SrCard>
 
-      {/* Personalizzazione PDF: cover, chi siamo, consulente, render, CTA */}
+      {/* Personalizzazione PDF: cover, chi siamo, consulente, render, CTA, percorso — tabbed */}
       <SrCard
         title="Personalizzazione PDF preventivo"
-        description="Hero della cover, pagina aziendale 'Chi siamo', descrizione consulente, disclaimer render AI e box CTA finale."
+        description="Editor centralizzato per tutte le pagine del PDF: cover, chi siamo, consulente, percorso, recensioni, render e CTA finale."
         icon={<FileText className="h-4 w-4" />}
       >
-        <div className="space-y-5">
-          {/* COVER — editor visuale con preview live */}
-          <div className="space-y-3">
+        <Tabs defaultValue="cover" className="w-full">
+          <TabsList className="w-full flex flex-wrap h-auto justify-start gap-1 bg-muted/30 p-1">
+            <TabsTrigger value="cover" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Cover</TabsTrigger>
+            <TabsTrigger value="chi-siamo" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Chi siamo</TabsTrigger>
+            <TabsTrigger value="percorso" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Il tuo percorso</TabsTrigger>
+            <TabsTrigger value="consulente" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Consulente</TabsTrigger>
+            <TabsTrigger value="recensioni" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Recensioni</TabsTrigger>
+            <TabsTrigger value="render" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Render AI</TabsTrigger>
+            <TabsTrigger value="cta" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">CTA finale</TabsTrigger>
+          </TabsList>
+
+          {/* ═══ COVER ═══════════════════════════════════════════════════════ */}
+          <TabsContent value="cover" className="mt-4 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
-                Cover (pagina 1)
+              <div className="text-xs text-muted-foreground">
+                Editor visuale · anteprima in tempo reale · tutti i parametri sotto
               </div>
-              <span className="text-[10px] text-muted-foreground">
-                Editor visuale · preview in tempo reale
-              </span>
             </div>
 
             <div className="grid grid-cols-12 gap-4">
@@ -852,15 +860,24 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                       }}
                     />
                   )}
-                  {/* Decoro accent in alto a destra */}
-                  <div
-                    className="absolute top-3 right-3 w-12 h-12 rounded-md opacity-70"
-                    style={{
-                      backgroundColor: form.colore_primario || "#2D7D5C",
-                    }}
-                  />
+                  {/* Decoro accent in alto a destra (toggle) */}
+                  {form.pdf_cover_show_decoration !== false && (
+                    <div
+                      className="absolute top-3 right-3 w-12 h-12 rounded-md opacity-70"
+                      style={{
+                        backgroundColor: form.colore_primario || "#2D7D5C",
+                      }}
+                    />
+                  )}
                   {/* Contenuto testuale */}
-                  <div className="absolute inset-0 p-4 flex flex-col text-white">
+                  <div
+                    className="absolute inset-0 p-4 flex flex-col"
+                    style={{
+                      color: form.pdf_cover_text_color || "#FFFFFF",
+                      textAlign: form.pdf_cover_text_align === "center" ? "center" : "left",
+                      alignItems: form.pdf_cover_text_align === "center" ? "center" : "flex-start",
+                    }}
+                  >
                     {/* Logo + company name */}
                     <div className="flex items-center gap-2 mb-auto">
                       {form.logo_url ? (
@@ -880,32 +897,45 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                     </div>
 
                     {/* Eyebrow + Title + Subtitle */}
-                    <div className="mb-4">
+                    <div className="mb-4 w-full">
                       <div
-                        className="text-[9px] font-semibold uppercase tracking-wider mb-2"
+                        className="font-semibold uppercase tracking-wider mb-2"
                         style={{
                           color: form.colore_primario || "#2D7D5C",
+                          fontSize: `${(form.pdf_cover_eyebrow_size ?? 11) * 0.6}px`,
                         }}
                       >
                         {form.pdf_cover_eyebrow ||
                           "★ La tua proposta personalizzata"}
                       </div>
-                      <div className="text-lg font-bold leading-tight whitespace-pre-wrap mb-1.5">
+                      <div
+                        className="font-bold leading-tight whitespace-pre-wrap mb-1.5"
+                        style={{
+                          fontSize: `${(form.pdf_cover_title_size ?? 38) * 0.5}px`,
+                        }}
+                      >
                         {form.pdf_cover_hero ||
                           "La tua casa,\nfinalmente al caldo."}
                       </div>
-                      <div className="text-[10px] opacity-80 line-clamp-2">
+                      <div
+                        className="opacity-80 line-clamp-2"
+                        style={{
+                          fontSize: `${(form.pdf_cover_subtitle_size ?? 13) * 0.6}px`,
+                        }}
+                      >
                         {form.pdf_cover_subhero ||
                           "Sintesi auto-generata del preventivo"}
                       </div>
-                      <div className="mt-3 bg-white/10 rounded-md p-2 backdrop-blur-sm">
-                        <div className="text-[8px] uppercase opacity-70">
-                          Preparato per
+                      {form.pdf_cover_show_client_card !== false && (
+                        <div className="mt-3 bg-white/10 rounded-md p-2 backdrop-blur-sm text-left">
+                          <div className="text-[8px] uppercase opacity-70">
+                            Preparato per
+                          </div>
+                          <div className="text-xs font-semibold">
+                            Mario Rossi
+                          </div>
                         </div>
-                        <div className="text-xs font-semibold">
-                          Mario Rossi
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1079,12 +1109,160 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* CHI SIAMO */}
-          <div className="space-y-2 pt-3 border-t">
+            {/* ─── Tipografia & layout cover ────────────────────────────── */}
+            <div className="mt-2 rounded-lg border bg-muted/20 p-3 space-y-3">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-700">
+                Tipografia &amp; layout
+              </div>
+              <div className="grid grid-cols-12 gap-3">
+                {/* Font size — Eyebrow */}
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-[11px] flex items-center justify-between mb-1">
+                    <span>Eyebrow</span>
+                    <span className="font-mono text-muted-foreground">
+                      {form.pdf_cover_eyebrow_size ?? 11}pt
+                    </span>
+                  </Label>
+                  <input
+                    type="range"
+                    min={8}
+                    max={20}
+                    step={1}
+                    value={form.pdf_cover_eyebrow_size ?? 11}
+                    onChange={(e) => update("pdf_cover_eyebrow_size", Number(e.target.value))}
+                    className="w-full accent-orange-500"
+                  />
+                </div>
+                {/* Font size — Titolo */}
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-[11px] flex items-center justify-between mb-1">
+                    <span>Titolo hero</span>
+                    <span className="font-mono text-muted-foreground">
+                      {form.pdf_cover_title_size ?? 38}pt
+                    </span>
+                  </Label>
+                  <input
+                    type="range"
+                    min={22}
+                    max={64}
+                    step={1}
+                    value={form.pdf_cover_title_size ?? 38}
+                    onChange={(e) => update("pdf_cover_title_size", Number(e.target.value))}
+                    className="w-full accent-orange-500"
+                  />
+                </div>
+                {/* Font size — Sottotitolo */}
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-[11px] flex items-center justify-between mb-1">
+                    <span>Sottotitolo</span>
+                    <span className="font-mono text-muted-foreground">
+                      {form.pdf_cover_subtitle_size ?? 13}pt
+                    </span>
+                  </Label>
+                  <input
+                    type="range"
+                    min={9}
+                    max={22}
+                    step={1}
+                    value={form.pdf_cover_subtitle_size ?? 13}
+                    onChange={(e) => update("pdf_cover_subtitle_size", Number(e.target.value))}
+                    className="w-full accent-orange-500"
+                  />
+                </div>
+
+                {/* Allineamento testo */}
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-[11px] mb-1 block">Allineamento</Label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Button
+                      size="sm"
+                      variant={(form.pdf_cover_text_align ?? "left") === "left" ? "default" : "outline"}
+                      onClick={() => update("pdf_cover_text_align", "left")}
+                      className={`h-7 text-[11px] ${(form.pdf_cover_text_align ?? "left") === "left" ? "bg-orange-500 hover:bg-orange-600" : ""}`}
+                    >
+                      Sinistra
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={form.pdf_cover_text_align === "center" ? "default" : "outline"}
+                      onClick={() => update("pdf_cover_text_align", "center")}
+                      className={`h-7 text-[11px] ${form.pdf_cover_text_align === "center" ? "bg-orange-500 hover:bg-orange-600" : ""}`}
+                    >
+                      Centro
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Colore testo override */}
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-[11px] mb-1 block">Colore testo</Label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="color"
+                      value={form.pdf_cover_text_color || "#FFFFFF"}
+                      onChange={(e) => update("pdf_cover_text_color", e.target.value)}
+                      className="h-7 w-9 rounded border cursor-pointer"
+                    />
+                    <Input
+                      value={form.pdf_cover_text_color ?? ""}
+                      onChange={(e) => update("pdf_cover_text_color", e.target.value || null)}
+                      placeholder="#FFFFFF"
+                      className="h-7 text-[11px] font-mono flex-1"
+                    />
+                  </div>
+                </div>
+
+                {/* Toggle decorazione + card cliente */}
+                <div className="col-span-12 md:col-span-4 space-y-1.5">
+                  <Label className="text-[11px] mb-1 block">Elementi visibili</Label>
+                  <label className="flex items-center gap-2 cursor-pointer text-[11px]">
+                    <input
+                      type="checkbox"
+                      checked={form.pdf_cover_show_decoration !== false}
+                      onChange={(e) => update("pdf_cover_show_decoration", e.target.checked)}
+                      className="h-3.5 w-3.5 accent-orange-500"
+                    />
+                    Decorazione SVG (alto destra)
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-[11px]">
+                    <input
+                      type="checkbox"
+                      checked={form.pdf_cover_show_client_card !== false}
+                      onChange={(e) => update("pdf_cover_show_client_card", e.target.checked)}
+                      className="h-3.5 w-3.5 accent-orange-500"
+                    />
+                    Card "Preparato per" (cliente)
+                  </label>
+                </div>
+
+                {/* Reset tipografia */}
+                <div className="col-span-12 flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      update("pdf_cover_eyebrow_size", null);
+                      update("pdf_cover_title_size", null);
+                      update("pdf_cover_subtitle_size", null);
+                      update("pdf_cover_text_color", null);
+                      update("pdf_cover_text_align", null);
+                      update("pdf_cover_show_decoration", null);
+                      update("pdf_cover_show_client_card", null);
+                    }}
+                    className="h-7 text-[11px] text-muted-foreground"
+                  >
+                    Ripristina default tipografia
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ═══ CHI SIAMO ═══════════════════════════════════════════════════ */}
+          <TabsContent value="chi-siamo" className="mt-4 space-y-2">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+              <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
                 Pagina "Chi siamo" (opzionale, dopo cover)
               </div>
               <label className="flex items-center gap-1.5 cursor-pointer text-xs">
@@ -1183,11 +1361,11 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                 </div>
               </div>
             )}
-          </div>
+          </TabsContent>
 
-          {/* CONSULENTE */}
-          <div className="space-y-2 pt-3 border-t">
-            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+          {/* ═══ CONSULENTE ══════════════════════════════════════════════════ */}
+          <TabsContent value="consulente" className="mt-4 space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
               Sezione "La tua consulenza"
             </div>
             <Label className="text-xs">Descrizione del consulente (mostrata sotto nome + ruolo)</Label>
@@ -1203,12 +1381,12 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
               vengono presi automaticamente dal profilo dell'utente che fa il preventivo
               (Impostazioni → Mio profilo → Foto).
             </p>
-          </div>
+          </TabsContent>
 
-          {/* RECENSIONI */}
-          <div className="space-y-1 pt-3 border-t">
+          {/* ═══ RECENSIONI ══════════════════════════════════════════════════ */}
+          <TabsContent value="recensioni" className="mt-4 space-y-1">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+              <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
                 Recensioni nel PDF
               </div>
               <label className="flex items-center gap-1.5 cursor-pointer text-xs">
@@ -1225,11 +1403,11 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
               Le testimonianze definite sopra ("Recensioni clienti") vengono incluse
               nella pagina finale del PDF solo se questa opzione è attiva.
             </p>
-          </div>
+          </TabsContent>
 
-          {/* DISCLAIMER RENDER */}
-          <div className="space-y-2 pt-3 border-t">
-            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+          {/* ═══ RENDER AI ═══════════════════════════════════════════════════ */}
+          <TabsContent value="render" className="mt-4 space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
               Disclaimer Render AI
             </div>
             <Label className="text-xs">Testo legale sotto i render AI (lascia vuoto per il default)</Label>
@@ -1240,11 +1418,11 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
               placeholder="Render generato con intelligenza artificiale a scopo esclusivamente dimostrativo e illustrativo..."
               className="text-xs font-normal"
             />
-          </div>
+          </TabsContent>
 
-          {/* CTA FINALE */}
-          <div className="space-y-2 pt-3 border-t">
-            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+          {/* ═══ CTA FINALE ══════════════════════════════════════════════════ */}
+          <TabsContent value="cta" className="mt-4 space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
               Box CTA finale "Cosa fare adesso"
             </div>
             <div className="grid grid-cols-12 gap-3">
@@ -1276,30 +1454,22 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                 </p>
               </div>
             </div>
-          </div>
-        </div>
-      </SrCard>
+          </TabsContent>
 
-      {/* Crono + Economia */}
-      {/* Percorso cliente — pagina PDF dedicata "Il tuo percorso" con fasi/step */}
-      {(() => {
-        const percorso = (form.percorso_cliente as SrPercorsoCliente | null) ?? SR_PERCORSO_DEFAULT;
-        const updatePercorso = (next: SrPercorsoCliente) => update("percorso_cliente", next);
-        const ICONE: Array<{ value: SrPercorsoFase["icona"]; label: string }> = [
-          { value: "chiamata", label: "📞 Consulenza" },
-          { value: "proposta", label: "📄 Proposta" },
-          { value: "produzione", label: "🏭 Produzione" },
-          { value: "montaggio", label: "🔧 Montaggio" },
-          { value: "custom", label: "✦ Generica" },
-        ];
-        const totalStep = percorso.fasi.reduce((acc, f) => acc + f.step.length, 0);
-        return (
-          <SrCard
-            title="Percorso cliente (pagina PDF)"
-            description="Pagina dedicata nel PDF preventivo con tutte le fasi e i passaggi del lavoro. Editabile per ogni azienda."
-            icon={<FileText className="h-4 w-4" />}
-          >
-            <div className="space-y-4">
+          {/* ═══ PERCORSO CLIENTE ═══════════════════════════════════════════ */}
+          {(() => {
+            const percorso = (form.percorso_cliente as SrPercorsoCliente | null) ?? SR_PERCORSO_DEFAULT;
+            const updatePercorso = (next: SrPercorsoCliente) => update("percorso_cliente", next);
+            const ICONE: Array<{ value: SrPercorsoFase["icona"]; label: string }> = [
+              { value: "chiamata", label: "📞 Consulenza" },
+              { value: "proposta", label: "📄 Proposta" },
+              { value: "produzione", label: "🏭 Produzione" },
+              { value: "montaggio", label: "🔧 Montaggio" },
+              { value: "custom", label: "✦ Generica" },
+            ];
+            const totalStep = percorso.fasi.reduce((acc, f) => acc + f.step.length, 0);
+            return (
+              <TabsContent value="percorso" className="mt-4 space-y-4">
               {/* Toggle attivo + titolo + sottotitolo + counter */}
               <div className="flex items-center justify-between gap-2 pb-3 border-b">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -1466,10 +1636,11 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                   </div>
                 </>
               )}
-            </div>
-          </SrCard>
-        );
-      })()}
+              </TabsContent>
+            );
+          })()}
+        </Tabs>
+      </SrCard>
 
       <SrCard title="Default cronoprogramma + economia" icon={<Clock className="h-4 w-4" />}>
         <div className="grid grid-cols-12 gap-3">
@@ -1536,7 +1707,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
           <Button
             onClick={handleSave}
             disabled={!dirty || upsertMut.isPending}
-            className="bg-emerald-700 hover:bg-emerald-800 gap-1 shadow-lg"
+            className="bg-orange-600 hover:bg-orange-700 gap-1 shadow-lg"
             size="lg"
           >
             {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

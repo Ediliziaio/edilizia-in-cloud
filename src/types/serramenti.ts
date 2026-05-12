@@ -368,6 +368,13 @@ export interface SrTemplatePdfRow {
   pdf_cover_image_url: string | null;
   pdf_cover_overlay_opacity: number | null;
   pdf_cover_bg_color: string | null;
+  pdf_cover_eyebrow_size: number | null;
+  pdf_cover_title_size: number | null;
+  pdf_cover_subtitle_size: number | null;
+  pdf_cover_text_color: string | null;
+  pdf_cover_show_decoration: boolean | null;
+  pdf_cover_show_client_card: boolean | null;
+  pdf_cover_text_align: string | null;
   pdf_cta_finale_titolo: string | null;
   pdf_cta_finale_passi: string[] | null;
   chi_siamo_attivo: boolean;
