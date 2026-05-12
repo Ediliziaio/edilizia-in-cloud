@@ -470,6 +470,7 @@ GRANT EXECUTE ON FUNCTION public.check_ai_credits_available(UUID, NUMERIC, TEXT,
 --    Utile per il SuperAdmin per decidere i markup senza fare calcoli
 -- ───────────────────────────────────────────────────────────────────────────
 
+DROP VIEW IF EXISTS public.v_markup_simulator;
 CREATE OR REPLACE VIEW public.v_markup_simulator AS
 SELECT
   m.task_kind,

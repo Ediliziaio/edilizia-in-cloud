@@ -45,5 +45,10 @@ DO $$ BEGIN
     );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-COMMENT ON COLUMN storage.buckets.id IS
-  'documenti-smart: bucket temporaneo per foto/audio AI preventivo. File eliminati dopo elaborazione.';
+DO $$
+BEGIN
+  COMMENT ON COLUMN storage.buckets.id IS
+    'documenti-smart: bucket temporaneo per foto/audio AI preventivo. File eliminati dopo elaborazione.';
+EXCEPTION
+  WHEN insufficient_privilege THEN NULL;
+END $$;
