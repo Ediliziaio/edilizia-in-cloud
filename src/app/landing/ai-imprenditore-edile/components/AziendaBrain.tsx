@@ -166,7 +166,7 @@ export function AziendaBrain() {
   }, { scope: sectionRef });
 
   return (
-    <section ref={sectionRef} className="relative overflow-hidden bg-eic-navy px-5 py-20 text-white md:px-8 lg:py-28">
+    <section ref={sectionRef} className="relative overflow-hidden bg-eic-navy px-5 py-16 text-white md:px-8 md:py-20 lg:py-28">
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.14]"
         style={{
@@ -180,14 +180,14 @@ export function AziendaBrain() {
       <div className="relative mx-auto max-w-6xl">
         <FadeUp className="mx-auto max-w-4xl text-center">
           <p className="text-sm font-black uppercase tracking-[0.22em] text-eic-orange">Il cervello operativo</p>
-          <h2 className="mt-5 text-[clamp(2.05rem,10vw,5.4rem)] font-black leading-[1.01] tracking-[-0.045em] md:tracking-[-0.055em]">
+          <h2 className="mt-4 text-[clamp(1.95rem,8vw,5.4rem)] font-black leading-[1.01] tracking-[-0.04em] md:mt-5 md:tracking-[-0.055em]">
             Tutte le informazioni della tua azienda dentro una sola mente operativa.
           </h2>
-          <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-white/68">
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-white/68 md:mt-6 md:text-lg md:leading-8">
             Passa sopra i nodi: Silvio evidenzia relazioni, documenti, commesse, cassa, magazzino e cantieri come una
             mappa viva della tua impresa.
           </p>
-          <div className="mx-auto mt-8 grid max-w-4xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mx-auto mt-8 hidden max-w-4xl gap-3 sm:grid-cols-2 md:grid lg:grid-cols-4">
             {["Dati collegati", "Zoom sulle relazioni", "Priorità automatiche", "Controllo da titolare"].map((item) => (
               <div key={item} className="rounded-md border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-bold text-white/78">
                 <span className="mr-2 text-eic-orange">✓</span>
@@ -197,7 +197,7 @@ export function AziendaBrain() {
           </div>
         </FadeUp>
 
-        <FadeUp transition={{ delay: 0.1 }} className="mt-10">
+        <FadeUp transition={{ delay: 0.1 }} className="mt-7 md:mt-10">
           <div
             className="brain-shell relative overflow-hidden rounded-md border border-white/12 bg-[#111827]/90 p-4 shadow-2xl shadow-black/25 backdrop-blur md:min-h-[680px] md:p-6"
           >

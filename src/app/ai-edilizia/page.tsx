@@ -5,10 +5,8 @@ import {
   Bot,
   BrainCircuit,
   Building2,
-  CalendarCheck,
   Check,
   Clock3,
-  Euro,
   FileText,
   LineChart,
   ShieldCheck,
@@ -142,12 +140,19 @@ const faqs = [
   },
 ];
 
+const proofMetrics = [
+  { value: "31 giorni", label: "per capire se il Sistema recupera piu' di quanto costa" },
+  { value: "90 giorni", label: "di visione cassa, cantieri, margini e scadenze" },
+  { value: "19 AI", label: "persone operative coordinate da Silvio sui tuoi dati" },
+  { value: "0 Excel", label: "per leggere margini, DDT, fatture e priorita' reali" },
+];
+
 function CTAButton({ children, dark = false }: { children: string; dark?: boolean }) {
   return (
     <a
       href={ctaHref}
       className={cn(
-        "group inline-flex min-h-14 items-center justify-center gap-3 rounded-md px-6 py-4 text-base font-black shadow-xl transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-eic-orange",
+        "group inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-md px-5 py-4 text-sm font-black shadow-xl transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-eic-orange sm:w-auto sm:px-6 sm:text-base",
         dark ? "bg-white text-eic-navy shadow-black/18 hover:bg-white/92" : "bg-eic-orange text-white shadow-eic-orange/25 hover:bg-orange-600",
       )}
     >
@@ -198,6 +203,7 @@ function HeroAI() {
     mm.add("(prefers-reduced-motion: no-preference)", () => {
       gsap.from(".ai-hero-copy > *", { opacity: 0, y: 26, duration: 0.7, stagger: 0.08, ease: "power3.out" });
       gsap.from(".ai-command-card", { opacity: 0, scale: 0.92, y: 34, duration: 0.8, stagger: 0.1, ease: "power3.out" });
+      gsap.fromTo(".ai-scan", { xPercent: -140 }, { xPercent: 230, duration: 3.2, repeat: -1, ease: "none" });
       gsap.to(".ai-data-line", { strokeDashoffset: "-=240", duration: 7, repeat: -1, ease: "none" });
       gsap.to(".ai-orb", { y: (index) => (index % 2 ? 18 : -18), x: (index) => (index % 2 ? -8 : 8), duration: 4, repeat: -1, yoyo: true, ease: "sine.inOut", stagger: 0.2 });
     });
@@ -205,7 +211,7 @@ function HeroAI() {
   }, { scope: ref });
 
   return (
-    <section ref={ref} id="hero" className="relative overflow-hidden bg-eic-navy px-5 py-20 text-white md:px-8 lg:min-h-screen lg:py-28">
+    <section ref={ref} id="hero" className="relative overflow-hidden bg-eic-navy px-5 pb-10 pt-14 text-white md:px-8 md:pb-24 md:pt-20 lg:pt-24">
       <div
         className="absolute inset-0 opacity-[0.13]"
         style={{
@@ -217,29 +223,29 @@ function HeroAI() {
       <div className="ai-orb absolute left-[-120px] top-24 h-[380px] w-[380px] rounded-full bg-eic-orange/18 blur-3xl" />
       <div className="ai-orb absolute right-[-90px] bottom-20 h-[420px] w-[420px] rounded-full bg-sky-400/14 blur-3xl" />
 
-      <div className="relative mx-auto grid max-w-7xl gap-12 lg:grid-cols-[1fr_0.9fr] lg:items-center">
+      <div className="relative mx-auto grid max-w-7xl gap-9 lg:grid-cols-[1.06fr_0.84fr] lg:items-center">
         <div className="ai-hero-copy">
-          <div className="inline-flex rounded-full border border-white/12 bg-white/[0.07] px-4 py-2 text-sm font-bold text-white/74">
+          <div className="inline-flex max-w-full rounded-full border border-white/12 bg-white/[0.07] px-4 py-2 text-sm font-bold leading-5 text-white/74">
             150+ imprese edili italiane stanno gia' usando il Sistema
           </div>
-          <p className="mt-7 text-sm font-black uppercase tracking-[0.22em] text-eic-orange">
+          <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-eic-orange md:text-sm md:tracking-[0.22em]">
             Il primo Sistema con AI per imprenditori edili italiani
           </p>
-          <h1 className="mt-5 max-w-5xl text-[clamp(3rem,7.3vw,7.5rem)] font-black leading-[0.92] tracking-[-0.06em]">
+          <h1 className="mt-4 max-w-5xl text-[clamp(2.75rem,7vw,5.55rem)] font-black leading-[0.94] tracking-[-0.045em] md:tracking-[-0.06em]">
             Smetti di scoprire a marzo dove sono finiti i soldi.
           </h1>
-          <p className="mt-6 max-w-2xl text-2xl font-bold leading-9 text-white">
+          <p className="mt-5 max-w-2xl text-xl font-bold leading-8 text-white md:text-2xl md:leading-9">
             Finisci di lavorare a sensazione. Inizia a comandare i numeri.
           </p>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-white/68">
+          <p className="mt-4 max-w-2xl text-base leading-7 text-white/68 md:text-lg md:leading-8">
             Edilizia in Cloud ti mostra il margine reale di ogni cantiere, la cassa a 90 giorni e dove stai perdendo soldi
             senza accorgertene. In tempo reale. Senza Excel. Senza aspettare il commercialista.
           </p>
-          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="mt-7 flex flex-col gap-4 sm:flex-row sm:items-center">
             <CTAButton>Voglio vedere i numeri veri</CTAButton>
             <span className="text-sm font-semibold text-white/66">30 minuti con un consulente, gratis. Zero pressione.</span>
           </div>
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {["31 giorni gratis", "Senza carta", "Setup in 48 ore", "Dati in Europa"].map((item) => (
               <div key={item} className="rounded-md border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-bold text-white/78">
                 <Check className="mr-2 inline h-4 w-4 text-eic-orange" strokeWidth={2} />
@@ -249,18 +255,23 @@ function HeroAI() {
           </div>
         </div>
 
-        <div className="relative min-h-[540px] overflow-hidden rounded-md border border-white/14 bg-[#0b1728]/90 p-4 shadow-2xl shadow-black/30">
+        <div className="relative min-h-[560px] overflow-hidden rounded-md border border-white/14 bg-[#0b1728]/90 p-4 shadow-2xl shadow-black/30 md:min-h-[540px]">
+          <div className="ai-scan pointer-events-none absolute inset-y-0 left-0 z-[2] w-28 bg-gradient-to-r from-transparent via-eic-orange/18 to-transparent mix-blend-screen" />
+          <div className="absolute inset-x-4 top-4 z-[3] flex items-center justify-between rounded-md border border-white/10 bg-white/[0.06] px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-white/52 backdrop-blur">
+            <span>Cruscotto AI live</span>
+            <span className="rounded-full bg-eic-orange/18 px-2 py-1 text-eic-orange">Silvio</span>
+          </div>
           <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             <line className="ai-data-line" x1="10" y1="20" x2="90" y2="76" stroke="rgba(249,115,22,.55)" strokeWidth=".35" strokeDasharray="2 3" />
             <line className="ai-data-line" x1="16" y1="78" x2="82" y2="18" stroke="rgba(255,255,255,.20)" strokeWidth=".25" strokeDasharray="1 3" />
             <line className="ai-data-line" x1="50" y1="8" x2="50" y2="92" stroke="rgba(56,189,248,.28)" strokeWidth=".25" strokeDasharray="1.5 3" />
           </svg>
 
-          <div className="ai-command-card absolute left-5 top-6 w-[calc(100%-2.5rem)] rounded-md border border-white/12 bg-white p-5 text-eic-navy shadow-xl md:left-8 md:top-8 md:w-[430px]">
+          <div className="ai-command-card absolute left-4 top-20 z-[4] w-[calc(100%-2rem)] rounded-md border border-white/12 bg-white p-4 text-eic-navy shadow-xl md:left-8 md:top-20 md:w-[430px] md:p-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange">Regia AI</p>
-                <h2 className="mt-1 text-2xl font-black">Silvio, priorita' di oggi</h2>
+                <h2 className="mt-1 text-xl font-black md:text-2xl">Silvio, priorita' di oggi</h2>
               </div>
               <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">Live</span>
             </div>
@@ -272,7 +283,7 @@ function HeroAI() {
               ].map(([label, value, sub]) => (
                 <div key={label} className="rounded-md bg-eic-navy px-3 py-4 text-white">
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/55">{label}</p>
-                  <p className="mt-2 text-2xl font-black">{value}</p>
+                  <p className="mt-2 text-xl font-black md:text-2xl">{value}</p>
                   <p className="text-xs text-white/58">{sub}</p>
                 </div>
               ))}
@@ -289,10 +300,10 @@ function HeroAI() {
           </div>
 
           {[
-            { label: "Fatture", icon: FileText, x: "8%", y: "58%" },
-            { label: "Cantieri", icon: Building2, x: "58%", y: "8%" },
-            { label: "Cassa", icon: Banknote, x: "62%", y: "68%" },
-            { label: "Squadre", icon: Users, x: "18%", y: "82%" },
+            { label: "Fatture", icon: FileText, x: "8%", y: "62%" },
+            { label: "Cantieri", icon: Building2, x: "59%", y: "13%" },
+            { label: "Cassa", icon: Banknote, x: "61%", y: "76%" },
+            { label: "Squadre", icon: Users, x: "15%", y: "86%" },
           ].map((node) => {
             const Icon = node.icon;
             return (
@@ -312,20 +323,35 @@ function HeroAI() {
   );
 }
 
+function ProofStrip() {
+  return (
+    <section className="relative z-10 -mt-1 bg-eic-navy px-5 pb-10 text-white md:-mt-14 md:px-8">
+      <div className="mx-auto grid max-w-7xl gap-3 rounded-md border border-white/12 bg-white/[0.06] p-3 shadow-2xl shadow-black/20 backdrop-blur md:grid-cols-4">
+        {proofMetrics.map((metric) => (
+          <div key={metric.value} className="ai-metric rounded-md border border-white/10 bg-black/14 p-4">
+            <p className="text-2xl font-black text-eic-orange">{metric.value}</p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-white/68">{metric.label}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function PainSection() {
   return (
     <section id="dolore" className="bg-white px-5 py-20 md:px-8 lg:py-28">
       <div className="mx-auto max-w-6xl">
         <FadeUp className="max-w-3xl">
           <p className="text-sm font-black uppercase tracking-[0.22em] text-eic-orange">Ti riconosci?</p>
-          <h2 className="mt-4 text-[clamp(2.2rem,5vw,5rem)] font-black leading-[1.02] tracking-[-0.045em] text-eic-navy">
+          <h2 className="mt-4 text-[clamp(2rem,9vw,5rem)] font-black leading-[1.03] tracking-[-0.035em] md:tracking-[-0.045em] text-eic-navy">
             Se si', non sei il problema. E' il metodo.
           </h2>
         </FadeUp>
         <div className="mt-12 divide-y divide-eic-border rounded-md border border-eic-border bg-white shadow-xl shadow-eic-navy/5">
           {painScenes.map((scene, index) => (
             <FadeUp key={scene.title} transition={{ delay: index * 0.035 }}>
-              <article className="grid gap-5 p-6 md:grid-cols-[120px_1fr] md:p-8">
+              <article className="ai-motion-card grid gap-5 p-6 md:grid-cols-[120px_1fr] md:p-8">
                 <span className="text-sm font-black uppercase tracking-[0.18em] text-eic-orange">Scena {String(index + 1).padStart(2, "0")}</span>
                 <div>
                   <h3 className="text-2xl font-black text-eic-navy">{scene.title}</h3>
@@ -347,7 +373,7 @@ function SystemSection() {
       <div className="mx-auto max-w-6xl">
         <FadeUp className="mx-auto max-w-4xl text-center">
           <p className="text-sm font-black uppercase tracking-[0.22em] text-eic-orange">La svolta</p>
-          <h2 className="mt-4 text-[clamp(2.2rem,5vw,5.2rem)] font-black leading-[1.02] tracking-[-0.045em] text-eic-navy">
+          <h2 className="mt-4 text-[clamp(2rem,9vw,5.2rem)] font-black leading-[1.03] tracking-[-0.035em] md:tracking-[-0.045em] text-eic-navy">
             Non sei diventato titolare per fare anche il commercialista, l'analista e il direttore HR.
           </h2>
           <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-eic-muted">
@@ -355,13 +381,13 @@ function SystemSection() {
           </p>
         </FadeUp>
 
-        <div className="mt-12 rounded-md border border-eic-orange/22 bg-white p-6 shadow-2xl shadow-eic-navy/8 md:p-8">
+        <div className="ai-motion-card mt-12 rounded-md border border-eic-orange/22 bg-white p-6 shadow-2xl shadow-eic-navy/8 md:p-8">
           <div className="grid gap-8 lg:grid-cols-[0.75fr_1fr] lg:items-center">
             <div>
               <span className="inline-flex rounded-full bg-eic-orange/10 px-4 py-2 text-sm font-black uppercase tracking-[0.16em] text-eic-orange">
                 Non un gestionale
               </span>
-              <h3 className="mt-5 text-4xl font-black leading-tight text-eic-navy">
+              <h3 className="mt-5 text-3xl md:text-4xl font-black leading-tight text-eic-navy">
                 E' un Sistema con AI che lavora 24 ore al giorno.
               </h3>
               <p className="mt-4 text-lg leading-8 text-eic-muted">
@@ -372,7 +398,7 @@ function SystemSection() {
               {aiActions.map((action) => {
                 const Icon = action.icon;
                 return (
-                  <div key={action.title} className="rounded-md border border-eic-border bg-eic-slate p-4">
+                  <div key={action.title} className="ai-flow-card rounded-md border border-eic-border bg-eic-slate p-4">
                     <div className="flex gap-4">
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-eic-orange text-white">
                         <Icon className="h-5 w-5" strokeWidth={1.6} />
@@ -399,14 +425,14 @@ function ResultSection() {
       <div className="mx-auto max-w-6xl">
         <FadeUp className="max-w-4xl">
           <p className="text-sm font-black uppercase tracking-[0.22em] text-eic-orange">Dopo 90 giorni</p>
-          <h2 className="mt-4 text-[clamp(2.2rem,5vw,5rem)] font-black leading-[1.02] tracking-[-0.045em] text-eic-navy">
+          <h2 className="mt-4 text-[clamp(2rem,9vw,5rem)] font-black leading-[1.03] tracking-[-0.035em] md:tracking-[-0.045em] text-eic-navy">
             La settimana cambia quando i numeri lavorano prima di te.
           </h2>
         </FadeUp>
         <div className="mt-12 grid gap-4 lg:grid-cols-3">
           {resultDays.map((day, index) => (
             <FadeUp key={day.when} transition={{ delay: index * 0.06 }}>
-              <article className="h-full rounded-md border border-eic-border bg-white p-6 shadow-xl shadow-eic-navy/5">
+              <article className="ai-motion-card h-full rounded-md border border-eic-border bg-white p-6 shadow-xl shadow-eic-navy/5">
                 <span className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange">{day.when}</span>
                 <h3 className="mt-4 text-2xl font-black text-eic-navy">{day.title}</h3>
                 <p className="mt-4 text-base leading-7 text-eic-muted">{day.text}</p>
@@ -415,7 +441,7 @@ function ResultSection() {
           ))}
         </div>
         <div className="mt-10 rounded-md bg-eic-navy p-8 text-center text-white">
-          <h3 className="text-3xl font-black">Stesso fatturato. Molto piu' compenso.</h3>
+          <h3 className="text-2xl md:text-3xl font-black">Stesso fatturato. Molto piu' compenso.</h3>
           <p className="mx-auto mt-3 max-w-2xl text-white/68">Non perche' lavori di piu'. Perche' smetti di regalare soldi su cantieri presi male, costi nascosti e cassa gestita tardi.</p>
         </div>
       </div>
@@ -430,7 +456,7 @@ function EconomicsSection() {
         <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <FadeUp>
             <p className="text-sm font-black uppercase tracking-[0.22em] text-eic-orange">Costo del non decidere</p>
-            <h2 className="mt-4 text-[clamp(2.2rem,5vw,5rem)] font-black leading-[1.02] tracking-[-0.045em]">
+            <h2 className="mt-4 text-[clamp(2rem,9vw,5rem)] font-black leading-[1.03] tracking-[-0.035em] md:tracking-[-0.045em]">
               Ogni mese senza Sistema e' un mese che non torna.
             </h2>
             <p className="mt-6 text-lg leading-8 text-white/68">
@@ -442,7 +468,7 @@ function EconomicsSection() {
           </FadeUp>
 
           <FadeUp transition={{ delay: 0.08 }}>
-            <div className="overflow-hidden rounded-md border border-white/12 bg-white text-eic-navy shadow-2xl shadow-black/25">
+            <div className="ai-motion-card overflow-hidden rounded-md border border-white/12 bg-white text-eic-navy shadow-2xl shadow-black/25">
               {[
                 ["Non conosci il margine reale di ogni cantiere", "5.000 - 30.000 euro"],
                 ["Non hai previsionale di cassa", "3.000 - 15.000 euro"],
@@ -473,14 +499,14 @@ function ModulesSection() {
       <div className="mx-auto max-w-6xl">
         <FadeUp className="mx-auto max-w-4xl text-center">
           <p className="text-sm font-black uppercase tracking-[0.22em] text-eic-orange">27 strumenti, un solo Sistema</p>
-          <h2 className="mt-4 text-[clamp(2.2rem,5vw,5rem)] font-black leading-[1.02] tracking-[-0.045em] text-eic-navy">
+          <h2 className="mt-4 text-[clamp(2rem,9vw,5rem)] font-black leading-[1.03] tracking-[-0.035em] md:tracking-[-0.045em] text-eic-navy">
             Tutto quello che ti serve per smettere di lavorare a sensazione.
           </h2>
         </FadeUp>
         <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {modules.map(([title, text], index) => (
             <FadeUp key={title} transition={{ delay: index * 0.025 }}>
-              <article className="h-full rounded-md border border-eic-border bg-white p-5 shadow-lg shadow-eic-navy/5 transition hover:-translate-y-1 hover:border-eic-orange/40">
+              <article className="ai-motion-card h-full rounded-md border border-eic-border bg-white p-5 shadow-lg shadow-eic-navy/5 transition hover:-translate-y-1 hover:border-eic-orange/40">
                 <span className="flex h-10 w-10 items-center justify-center rounded-md bg-eic-orange/10 text-eic-orange">
                   <Sparkles className="h-5 w-5" strokeWidth={1.6} />
                 </span>
@@ -498,10 +524,10 @@ function ModulesSection() {
 function FounderLetter() {
   return (
     <section id="lettera" className="bg-eic-slate px-5 py-20 md:px-8 lg:py-28">
-      <div className="mx-auto max-w-4xl rounded-md border border-eic-border bg-white p-6 shadow-2xl shadow-eic-navy/8 md:p-10">
+      <div className="ai-motion-card mx-auto max-w-4xl rounded-md border border-eic-border bg-white p-6 shadow-2xl shadow-eic-navy/8 md:p-10">
         <FadeUp>
           <p className="text-sm font-black uppercase tracking-[0.22em] text-eic-orange">Da imprenditore a imprenditore</p>
-          <h2 className="mt-4 text-4xl font-black text-eic-navy md:text-5xl">Lettera dal fondatore.</h2>
+          <h2 className="mt-4 text-3xl md:text-4xl font-black text-eic-navy md:text-5xl">Lettera dal fondatore.</h2>
           <div className="mt-8 space-y-5 text-lg leading-8 text-eic-muted">
             <p>Gestisco un'azienda vera, con operai veri, cantieri veri, fornitori che chiamano e clienti che vogliono tutto per ieri.</p>
             <p>Per anni ho fatto quello che fanno tanti titolari: fatturare, fatturare, fatturare. Convinto che il fatturato fosse la risposta.</p>
@@ -527,14 +553,14 @@ function CasesSection() {
       <div className="mx-auto max-w-6xl">
         <FadeUp className="text-center">
           <p className="text-sm font-black uppercase tracking-[0.22em] text-eic-orange">Casi studio</p>
-          <h2 className="mt-4 text-[clamp(2.2rem,5vw,5rem)] font-black leading-[1.02] tracking-[-0.045em] text-eic-navy">
+          <h2 className="mt-4 text-[clamp(2rem,9vw,5rem)] font-black leading-[1.03] tracking-[-0.035em] md:tracking-[-0.045em] text-eic-navy">
             Tre imprenditori edili. Tre vite cambiate.
           </h2>
         </FadeUp>
         <div className="mt-12 grid gap-5 lg:grid-cols-3">
           {cases.map((item, index) => (
             <FadeUp key={item.company} transition={{ delay: index * 0.05 }}>
-              <article className="h-full rounded-md border border-eic-border bg-white p-6 shadow-xl shadow-eic-navy/6">
+              <article className="ai-motion-card h-full rounded-md border border-eic-border bg-white p-6 shadow-xl shadow-eic-navy/6">
                 <div className="flex h-14 w-14 items-center justify-center rounded-md bg-eic-navy text-white">
                   <Building2 className="h-7 w-7" strokeWidth={1.5} />
                 </div>
@@ -560,7 +586,7 @@ function FitPricingFaq() {
       <div className="mx-auto max-w-6xl">
         <div className="grid gap-6 lg:grid-cols-2">
           <FadeUp>
-            <div id="per-chi" className="h-full rounded-md border border-eic-border bg-white p-6 shadow-xl shadow-eic-navy/6">
+            <div id="per-chi" className="ai-motion-card h-full rounded-md border border-eic-border bg-white p-6 shadow-xl shadow-eic-navy/6">
               <h2 className="text-3xl font-black text-eic-navy">Edilizia in Cloud non e' per tutti.</h2>
               <div className="mt-6 grid gap-4 md:grid-cols-2">
                 <div>
@@ -580,7 +606,7 @@ function FitPricingFaq() {
           </FadeUp>
 
           <FadeUp transition={{ delay: 0.06 }}>
-            <div className="h-full rounded-md border border-eic-border bg-white p-6 shadow-xl shadow-eic-navy/6">
+            <div className="ai-motion-card h-full rounded-md border border-eic-border bg-white p-6 shadow-xl shadow-eic-navy/6">
               <h2 className="text-3xl font-black text-eic-navy">Quanto costa il Sistema?</h2>
               <p className="mt-3 text-eic-muted">Tre piani. Uno solo ti servira' davvero: te lo diciamo in consulenza, senza forzare.</p>
               <div className="mt-6 grid gap-3">
@@ -601,7 +627,7 @@ function FitPricingFaq() {
         <div id="faq" className="mt-10 grid gap-4 lg:grid-cols-2">
           {faqs.map((item, index) => (
             <FadeUp key={item.q} transition={{ delay: index * 0.035 }}>
-              <article className="h-full rounded-md border border-eic-border bg-white p-5">
+              <article className="ai-motion-card h-full rounded-md border border-eic-border bg-white p-5">
                 <h3 className="font-black text-eic-navy">{item.q}</h3>
                 <p className="mt-3 text-sm leading-6 text-eic-muted">{item.a}</p>
               </article>
@@ -616,9 +642,9 @@ function FitPricingFaq() {
 function FinalCTA() {
   return (
     <section id="cta-finale" className="bg-eic-navy px-5 py-20 text-white md:px-8 lg:py-28">
-      <div className="mx-auto max-w-5xl rounded-md border border-white/12 bg-white/[0.06] p-8 text-center shadow-2xl shadow-black/25 md:p-12">
+      <div className="ai-motion-card mx-auto max-w-5xl rounded-md border border-white/12 bg-white/[0.06] p-8 text-center shadow-2xl shadow-black/25 md:p-12">
         <ShieldCheck className="mx-auto h-12 w-12 text-eic-orange" strokeWidth={1.5} />
-        <h2 className="mt-6 text-[clamp(2.4rem,5vw,5.4rem)] font-black leading-[1.02] tracking-[-0.045em]">
+        <h2 className="mt-6 text-[clamp(2rem,9vw,5.4rem)] font-black leading-[1.03] tracking-[-0.035em] md:tracking-[-0.045em]">
           Pronto a vedere i numeri veri della tua impresa?
         </h2>
         <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-white/68">
@@ -634,6 +660,7 @@ function FinalCTA() {
 }
 
 export default function AiEdiliziaPage() {
+  const pageRef = useRef<HTMLElement>(null);
   const sentScroll75 = useRef(false);
 
   useSEO({
@@ -661,10 +688,60 @@ export default function AiEdiliziaPage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useGSAP(() => {
+    const mm = gsap.matchMedia();
+
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      gsap.utils.toArray<HTMLElement>(".ai-metric").forEach((card, index) => {
+        gsap.from(card, {
+          scrollTrigger: { trigger: card, start: "top 92%", once: true },
+          y: 24,
+          scale: 0.96,
+          opacity: 0,
+          duration: 0.55,
+          delay: index * 0.035,
+          ease: "power3.out",
+        });
+      });
+
+      gsap.utils.toArray<HTMLElement>(".ai-motion-card").forEach((card) => {
+        gsap.from(card, {
+          scrollTrigger: { trigger: card, start: "top 88%", once: true },
+          y: 34,
+          scale: 0.985,
+          opacity: 0,
+          duration: 0.62,
+          ease: "power3.out",
+        });
+      });
+
+      gsap.from(".ai-flow-card", {
+        scrollTrigger: { trigger: "#sistema", start: "top 70%", once: true },
+        x: 28,
+        opacity: 0,
+        duration: 0.55,
+        ease: "power3.out",
+        stagger: 0.07,
+      });
+
+      gsap.to(".ai-command-card", {
+        y: (index) => (index % 2 === 0 ? -6 : 6),
+        duration: 3.4,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        stagger: 0.16,
+      });
+    });
+
+    return () => mm.revert();
+  }, { scope: pageRef });
+
   return (
-    <main className="min-h-screen bg-white font-sans text-eic-ink antialiased">
+    <main ref={pageRef} className="min-h-screen bg-white font-sans text-eic-ink antialiased">
       <JsonLd />
       <HeroAI />
+      <ProofStrip />
       <PainSection />
       <SystemSection />
       <AziendaBrain />
