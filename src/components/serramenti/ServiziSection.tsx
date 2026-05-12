@@ -14,7 +14,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -105,7 +104,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
               key={s.tipo}
               onClick={() => handleAddQuick(s)}
               disabled={addMut.isPending}
-              className="text-xs px-2.5 py-1.5 rounded-full border border-emerald-200 bg-white hover:bg-emerald-50 hover:border-emerald-300 transition disabled:opacity-50"
+              className="text-xs px-2.5 py-1.5 rounded-full border border-orange-200 bg-white hover:bg-orange-50 hover:border-orange-300 transition disabled:opacity-50"
             >
               {s.emoji} {s.label}
             </button>
@@ -117,7 +116,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
         <Button
           onClick={() => setTariffaPickerOpen(true)}
           variant="outline"
-          className="flex-1 gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+          className="flex-1 gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
           disabled={addMut.isPending}
         >
           <Settings className="h-4 w-4" /> Da listino tariffe
@@ -187,7 +186,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
                         className="h-8 text-xs w-24"
                       />
                     </TableCell>
-                    <TableCell className="text-xs font-semibold text-emerald-700">
+                    <TableCell className="text-xs font-semibold text-orange-700">
                       {formatEuro(r.prezzo_totale_vendita)}
                     </TableCell>
                     <TableCell>
@@ -305,7 +304,7 @@ function TariffaPickerDialog({
                 <li key={t.id}>
                   <button
                     onClick={() => onSelect(t)}
-                    className="w-full text-left p-3 rounded-md hover:bg-emerald-50/60 focus:bg-emerald-50 focus:outline-none transition"
+                    className="w-full text-left p-3 rounded-md hover:bg-orange-50/60 focus:bg-orange-50 focus:outline-none transition"
                   >
                     <div className="flex justify-between items-start gap-3">
                       <div className="flex-1 min-w-0">
@@ -324,7 +323,7 @@ function TariffaPickerDialog({
                       </div>
                       <div className="text-right shrink-0">
                         {t.prezzo_vendita != null && (
-                          <p className="text-sm font-bold text-emerald-700 tabular-nums">
+                          <p className="text-sm font-bold text-orange-700 tabular-nums">
                             € {Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
                           </p>
                         )}

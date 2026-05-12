@@ -14,7 +14,6 @@ import {
   Layers, FolderTree, Package, Settings2, Tag, Wand2, Info,
   ChevronDown, ChevronUp, Sparkles,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 const STORAGE_KEY = "listino-guide-collapsed-v1";

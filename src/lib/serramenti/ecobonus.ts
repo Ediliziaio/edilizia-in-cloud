@@ -16,8 +16,6 @@
  * effettive e i requisiti normativi vanno verificati al momento dell'invio
  * della pratica ENEA dal consulente.
  */
-import type { ZonaClimatica } from "./risparmio";
-
 export interface InputEcobonus {
   imponibile_eur: number;          // imponibile lavori (no IVA o con IVA, dipende dalla scelta)
   aliquota: 50 | 65;                // % di detrazione

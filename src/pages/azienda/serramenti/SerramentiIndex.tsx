@@ -5,7 +5,7 @@
  * Mirror dello stile di FotovoltaicoIndex ma più snello.
  */
 import { useMemo, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,8 +22,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  RectangleVertical, Plus, Search, FileText, Trash2, ExternalLink, Loader2,
-  Euro, ChevronRight, Settings,
+  RectangleVertical, Plus, Search, Trash2, ExternalLink, Loader2,
+  ChevronRight, Settings,
 } from "lucide-react";
 import { useProgetti, useDeleteProgetto } from "@/lib/serramenti/queries";
 import { cn } from "@/lib/utils";
@@ -35,7 +35,7 @@ const STATI_LABEL: Record<string, { label: string; className: string }> = {
   da_consegnare:   { label: "Da consegnare",  className: "bg-amber-100 text-amber-700" },
   consegnato:      { label: "Consegnato",     className: "bg-sky-100 text-sky-700" },
   in_valutazione:  { label: "In valutazione", className: "bg-indigo-100 text-indigo-700" },
-  accettato:       { label: "Accettato",      className: "bg-emerald-100 text-emerald-700" },
+  accettato:       { label: "Accettato",      className: "bg-orange-100 text-orange-700" },
   rifiutato:       { label: "Rifiutato",      className: "bg-rose-100 text-rose-700" },
   scaduto:         { label: "Scaduto",        className: "bg-slate-100 text-slate-500" },
   archiviato:      { label: "Archiviato",     className: "bg-slate-100 text-slate-400" },
@@ -79,7 +79,7 @@ export default function SerramentiIndex() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <RectangleVertical className="h-6 w-6 text-emerald-700" />
+            <RectangleVertical className="h-6 w-6 text-orange-700" />
             Stima Serramenti
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -98,7 +98,7 @@ export default function SerramentiIndex() {
           </Button>
           <Button
             onClick={() => navigate("/azienda/serramenti/nuovo")}
-            className="bg-emerald-700 hover:bg-emerald-800 gap-2"
+            className="bg-orange-700 hover:bg-orange-800 gap-2"
             size="lg"
           >
             <Plus className="h-4 w-4" />
@@ -109,7 +109,7 @@ export default function SerramentiIndex() {
 
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-emerald-100">
+        <Card className="border-orange-100">
           <CardContent className="p-4">
             <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Totale stime</p>
             <p className="text-2xl font-bold mt-1">{stats.totale}</p>
@@ -127,10 +127,10 @@ export default function SerramentiIndex() {
             <p className="text-2xl font-bold mt-1 text-sky-700">{stats.consegnati}</p>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-emerald-50 to-white border-emerald-200">
+        <Card className="bg-gradient-to-br from-orange-50 to-white border-orange-200">
           <CardContent className="p-4">
             <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Accettati</p>
-            <p className="text-2xl font-bold mt-1 text-emerald-700">{stats.accettati}</p>
+            <p className="text-2xl font-bold mt-1 text-orange-700">{stats.accettati}</p>
             {stats.valore > 0 && (
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 € {stats.valore.toLocaleString("it-IT", { maximumFractionDigits: 0 })}
@@ -184,8 +184,8 @@ export default function SerramentiIndex() {
             progetti.length === 0 ? (
               <div className="p-8 md:p-12 text-center">
                 <div className="relative inline-block mb-4">
-                  <div className="h-20 w-20 rounded-full bg-emerald-50 flex items-center justify-center">
-                    <RectangleVertical className="h-10 w-10 text-emerald-600" />
+                  <div className="h-20 w-20 rounded-full bg-orange-50 flex items-center justify-center">
+                    <RectangleVertical className="h-10 w-10 text-orange-600" />
                   </div>
                   <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-amber-100 border-2 border-white flex items-center justify-center">
                     <Plus className="h-4 w-4 text-amber-700" />
@@ -198,15 +198,15 @@ export default function SerramentiIndex() {
                   Crea un preventivo professionale di 3 pagine con BOM serramenti, calcolo Ecobonus, ROI 10 anni e firma digitale. Il cliente lo riceve in un link condivisibile e firma dal cellulare.
                 </p>
                 <div className="grid grid-cols-3 gap-2 max-w-md mx-auto mb-5 text-[11px] text-slate-600">
-                  <div className="rounded-md bg-emerald-50/50 border border-emerald-100 p-2">
+                  <div className="rounded-md bg-orange-50/50 border border-orange-100 p-2">
                     📋 BOM completo
                     <p className="text-[10px] text-muted-foreground mt-0.5">Tipologia, vetro, misure</p>
                   </div>
-                  <div className="rounded-md bg-emerald-50/50 border border-emerald-100 p-2">
+                  <div className="rounded-md bg-orange-50/50 border border-orange-100 p-2">
                     💰 ROI 10 anni
                     <p className="text-[10px] text-muted-foreground mt-0.5">Risparmio + Ecobonus</p>
                   </div>
-                  <div className="rounded-md bg-emerald-50/50 border border-emerald-100 p-2">
+                  <div className="rounded-md bg-orange-50/50 border border-orange-100 p-2">
                     ✍️ Firma digitale
                     <p className="text-[10px] text-muted-foreground mt-0.5">Cliente firma online</p>
                   </div>
@@ -214,7 +214,7 @@ export default function SerramentiIndex() {
                 <div className="flex gap-2 justify-center flex-wrap">
                   <Button
                     onClick={() => navigate("/azienda/serramenti/nuovo")}
-                    className="bg-emerald-700 hover:bg-emerald-800 gap-2"
+                    className="bg-orange-700 hover:bg-orange-800 gap-2"
                   >
                     <Plus className="h-4 w-4" /> Crea la prima stima
                   </Button>
@@ -266,10 +266,10 @@ export default function SerramentiIndex() {
                     return (
                       <TableRow
                         key={p.id}
-                        className="cursor-pointer hover:bg-emerald-50/30"
+                        className="cursor-pointer hover:bg-orange-50/30"
                         onClick={() => navigate(`/azienda/serramenti/${p.id}/modifica`)}
                       >
-                        <TableCell className="font-mono text-xs font-semibold text-emerald-700">
+                        <TableCell className="font-mono text-xs font-semibold text-orange-700">
                           {p.code}
                         </TableCell>
                         <TableCell className="text-xs">
@@ -302,7 +302,7 @@ export default function SerramentiIndex() {
                             {p.pdf_url && (
                               <Button asChild size="icon" variant="ghost" className="h-7 w-7">
                                 <a href={p.pdf_url} target="_blank" rel="noopener noreferrer" title="PDF">
-                                  <ExternalLink className="h-3.5 w-3.5 text-emerald-700" />
+                                  <ExternalLink className="h-3.5 w-3.5 text-orange-700" />
                                 </a>
                               </Button>
                             )}

@@ -706,69 +706,8 @@ function CoverDecorationSvg({ color }: { color: string }) {
   );
 }
 
-// ─── SVG: Gantt cronoprogramma ─────────────────────────────────────────────
-
-function GanttSvg({ fases, totalDays, primary, accent }: {
-  fases: Array<{ label: string; emoji: string; start: number; end: number }>;
-  totalDays: number;
-  primary: string;
-  accent: string;
-}) {
-  const W = 480;
-  const H = fases.length * 28 + 30;
-  const labelW = 130;
-  const chartX = labelW + 8;
-  const chartW = W - chartX - 8;
-  const dayW = chartW / Math.max(totalDays, 1);
-  // Tick ogni 15 gg
-  const ticks: number[] = [];
-  for (let d = 0; d <= totalDays; d += 15) ticks.push(d);
-
-  return (
-    <Svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H } as never}>
-      {/* Ticks verticali */}
-      {ticks.map((t, i) => (
-        <G key={i}>
-          <Path
-            d={`M ${chartX + t * dayW} 0 L ${chartX + t * dayW} ${H - 18}`}
-            stroke="#E2E8F0" strokeWidth={0.5}
-          />
-          <Text
-            x={chartX + t * dayW}
-            y={H - 6}
-            fill="#64748B"
-            style={{ fontSize: 7, textAnchor: "middle" } as never}
-          >
-            {t === 0 ? "Inizio" : `G${t}`}
-          </Text>
-        </G>
-      ))}
-      {/* Barre fasi */}
-      {fases.map((f, i) => {
-        const y = i * 28 + 8;
-        const x1 = chartX + (f.start - 1) * dayW;
-        const w = Math.max(2, (f.end - f.start + 1) * dayW);
-        const color = i === 0 ? accent : i === fases.length - 1 ? "#15803D" : primary;
-        return (
-          <G key={i}>
-            <Text x={4} y={y + 13} fill="#0F172A" style={{ fontSize: 9, fontWeight: 600 } as never}>
-              {f.label}
-            </Text>
-            <Rect x={x1} y={y + 4} width={w} height={14} fill={color} rx={3} />
-            <Text
-              x={x1 + w + 4}
-              y={y + 14}
-              fill="#64748B"
-              style={{ fontSize: 7 } as never}
-            >
-              {f.end - f.start + 1}gg
-            </Text>
-          </G>
-        );
-      })}
-    </Svg>
-  );
-}
+// GanttSvg (cronoprogramma) rimosso: la timeline è stata sostituita dalla
+// pagina "Il tuo percorso" configurabile dal template editor.
 
 // ─── SVG: Cashflow 10 anni ─────────────────────────────────────────────────
 
@@ -1051,17 +990,9 @@ export function SerramentoPDF({
 
   // Cronoprogramma fasi
   const numSerr = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
-  const gProd = p.crono_giorni_produzione ?? 90;
-  const gPosa = p.crono_giorni_posa ?? Math.max(1, Math.ceil(numSerr * 0.8));
-  const gColl = p.crono_giorni_collaudo ?? 1;
-  const cronoFasi = [
-    { label: "Conferma ordine", emoji: "", start: 1, end: 1 },
-    { label: "Produzione", emoji: "", start: 2, end: 1 + gProd },
-    { label: "Sopralluogo posa", emoji: "", start: Math.max(2, gProd - 2), end: Math.max(2, gProd - 2) },
-    { label: "Posa cantiere", emoji: "", start: 2 + gProd, end: 1 + gProd + gPosa },
-    { label: "Collaudo finale", emoji: "", start: 2 + gProd + gPosa, end: 1 + gProd + gPosa + gColl },
-  ];
-  const totalDays = 1 + gProd + gPosa + gColl;
+  // Cronoprogramma rimosso: i campi crono_giorni_* del progetto restano nel DB
+  // per compatibilità (alcune anagrafiche storiche li usano) ma non sono più
+  // renderizzati nel PDF. La narrazione passa per la pagina "Il tuo percorso".
 
   // Cashflow 10 anni
   const cashflowYears: Array<{ year: number; cumulato: number }> = [];

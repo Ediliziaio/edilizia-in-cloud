@@ -460,8 +460,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
               onClick={() => !uploadingLogo && logoInputRef.current?.click()}
             >
               {form.logo_url ? (
-                // eslint-disable-next-line jsx-a11y/img-redundant-alt
-                <img src={form.logo_url} alt="Logo azienda" className="w-full h-full object-contain p-2" />
+                <img src={form.logo_url} alt="" className="w-full h-full object-contain p-2" />
               ) : (
                 <div className="text-center p-3">
                   <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
@@ -1292,7 +1291,6 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                     onClick={() => !uploadingChiSiamo && chiSiamoInputRef.current?.click()}
                   >
                     {form.chi_siamo_foto_url ? (
-                      // eslint-disable-next-line jsx-a11y/img-redundant-alt
                       <img src={form.chi_siamo_foto_url} alt="Foto azienda" className="w-full h-full object-cover" />
                     ) : (
                       <div className="text-center p-3">

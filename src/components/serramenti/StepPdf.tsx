@@ -7,7 +7,7 @@
  * Per ora mostra solo l'anteprima dei dati che entreranno nel PDF e un
  * placeholder per la generazione effettiva.
  */
-import { FileText, Loader2, Sparkles, Check, AlertCircle, ExternalLink, Link2, Copy, Download, Eye } from "lucide-react";
+import { FileText, Loader2, Check, AlertCircle, ExternalLink, Link2, Copy, Download, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { SrProgettoDetail } from "@/types/serramenti";
@@ -128,7 +128,7 @@ export function StepPdf({ progettoId, detail }: Props) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-          <div className="border-l-4 border-emerald-200 pl-3 py-1">
+          <div className="border-l-4 border-orange-200 pl-3 py-1">
             <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Pagina 1 — Proposta</p>
             <p className="text-sm">
               {[p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "—"}
@@ -139,20 +139,20 @@ export function StepPdf({ progettoId, detail }: Props) {
               {p.intervento_sintesi || "(intervento_sintesi mancante)"}
             </p>
           </div>
-          <div className="border-l-4 border-emerald-200 pl-3 py-1">
+          <div className="border-l-4 border-orange-200 pl-3 py-1">
             <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Pagina 2 — Investimento</p>
-            <p className="text-sm font-bold text-emerald-700">
+            <p className="text-sm font-bold text-orange-700">
               {p.totale_min && p.totale_max
                 ? `${formatEuro(p.totale_min)} – ${formatEuro(p.totale_max)}`
                 : "(da calcolare)"}
             </p>
             {p.risparmio_calcolato && p.risparmio_eur_anno && (
-              <p className="text-xs text-emerald-700 mt-1">
+              <p className="text-xs text-orange-700 mt-1">
                 ⚡ Risparmio: {formatEuro(p.risparmio_eur_anno)}/anno
               </p>
             )}
             {p.detrazione_aliquota && (
-              <p className="text-xs text-emerald-700">
+              <p className="text-xs text-orange-700">
                 🏛 Detrazione {formatNumero(p.detrazione_aliquota)}%: {formatEuro(p.detrazione_eur_totale)}
               </p>
             )}
@@ -171,7 +171,7 @@ export function StepPdf({ progettoId, detail }: Props) {
           {checks.map((c, i) => (
             <div key={i} className="flex items-start gap-2 text-xs">
               {c.ok ? (
-                <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                <Check className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
               ) : (
                 <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
               )}
@@ -202,7 +202,7 @@ export function StepPdf({ progettoId, detail }: Props) {
           <Button
             onClick={handleDownloadNative}
             disabled={!ready || isGeneratingPdf}
-            className="flex-1 bg-emerald-700 hover:bg-emerald-800 gap-2"
+            className="flex-1 bg-orange-700 hover:bg-orange-800 gap-2"
             size="lg"
           >
             {isGeneratingPdf ? (
@@ -242,7 +242,7 @@ export function StepPdf({ progettoId, detail }: Props) {
           <Button
             onClick={() => generaPdfMut.mutate()}
             disabled={!ready || generaPdfMut.isPending}
-            className="flex-1 bg-emerald-700 hover:bg-emerald-800 gap-2"
+            className="flex-1 bg-orange-700 hover:bg-orange-800 gap-2"
           >
             {generaPdfMut.isPending
               ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -265,13 +265,13 @@ export function StepPdf({ progettoId, detail }: Props) {
         )}
 
         {p.public_url && (
-          <div className="mt-3 p-3 rounded-md bg-emerald-50 border border-emerald-200">
-            <p className="text-[11px] font-semibold text-emerald-900 mb-1 flex items-center gap-1.5">
+          <div className="mt-3 p-3 rounded-md bg-orange-50 border border-orange-200">
+            <p className="text-[11px] font-semibold text-orange-900 mb-1 flex items-center gap-1.5">
               <Link2 className="h-3.5 w-3.5" />
               Link condivisibile col cliente
             </p>
             <div className="flex items-center gap-2 flex-wrap">
-              <code className="text-xs bg-white px-2 py-1 rounded border border-emerald-200 flex-1 min-w-0 truncate font-mono">
+              <code className="text-xs bg-white px-2 py-1 rounded border border-orange-200 flex-1 min-w-0 truncate font-mono">
                 {p.public_url}
               </code>
               <Button
@@ -290,7 +290,7 @@ export function StepPdf({ progettoId, detail }: Props) {
                 </a>
               </Button>
             </div>
-            <p className="text-[10px] text-emerald-800 mt-1.5">
+            <p className="text-[10px] text-orange-700 mt-1.5">
               Il cliente può aprire il preventivo senza login e firmare digitalmente. Il QR code è già nel PDF.
             </p>
           </div>
@@ -313,7 +313,7 @@ export function StepPdf({ progettoId, detail }: Props) {
         {p.ordine_id ? (
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <p className="text-sm font-semibold flex items-center gap-1.5 text-emerald-700">
+              <p className="text-sm font-semibold flex items-center gap-1.5 text-orange-700">
                 <Check className="h-4 w-4" /> Già convertita in commessa
               </p>
               <p className="text-[11px] text-muted-foreground">Stato progetto: <strong>{p.stato}</strong></p>
@@ -332,7 +332,7 @@ export function StepPdf({ progettoId, detail }: Props) {
             <Button
               onClick={() => convertiMut.mutate()}
               disabled={convertiMut.isPending || !ready}
-              className="w-full bg-emerald-700 hover:bg-emerald-800 gap-2"
+              className="w-full bg-orange-700 hover:bg-orange-800 gap-2"
             >
               {convertiMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
               Crea commessa da questa stima

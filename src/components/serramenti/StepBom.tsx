@@ -192,7 +192,7 @@ export function StepBom({ progettoId, detail }: Props) {
         <div className="flex flex-col sm:flex-row gap-2 mb-3">
           <Button
             onClick={() => setListinoOpen(true)}
-            className="flex-1 bg-emerald-700 hover:bg-emerald-800 gap-1"
+            className="flex-1 bg-orange-700 hover:bg-orange-800 gap-1"
             disabled={addMut.isPending}
           >
             <Package className="h-4 w-4" /> Aggiungi dal listino
@@ -208,8 +208,8 @@ export function StepBom({ progettoId, detail }: Props) {
         </div>
 
         {serramenti.length === 0 ? (
-          <div className="border-2 border-dashed border-emerald-200 rounded-md p-6 text-center">
-            <RectangleVertical className="h-8 w-8 mx-auto text-emerald-300 mb-2" />
+          <div className="border-2 border-dashed border-orange-200 rounded-md p-6 text-center">
+            <RectangleVertical className="h-8 w-8 mx-auto text-orange-300 mb-2" />
             <p className="text-sm text-muted-foreground">
               Nessun serramento ancora. Usa <strong>"Aggiungi dal listino"</strong> per scegliere da catalogo (consigliato) o aggiungi a mano per casi speciali.
             </p>
@@ -238,7 +238,7 @@ export function StepBom({ progettoId, detail }: Props) {
               <Button
                 onClick={() => setListinoOpen(true)}
                 variant="outline"
-                className="flex-1 gap-1 border-dashed border-2 border-emerald-300 hover:bg-emerald-50"
+                className="flex-1 gap-1 border-dashed border-2 border-orange-300 hover:bg-orange-50"
                 disabled={addMut.isPending}
               >
                 <Package className="h-4 w-4" /> Aggiungi dal listino
@@ -364,8 +364,8 @@ function SerramentoRow({
   };
 
   return (
-    <Card className="border-emerald-100">
-      <CardHeader className="p-3 hover:bg-emerald-50/30">
+    <Card className="border-orange-100">
+      <CardHeader className="p-3 hover:bg-orange-50/30">
         <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
           <button
             type="button"
@@ -373,7 +373,7 @@ function SerramentoRow({
             className="flex items-center gap-2 flex-wrap flex-1 min-w-0 text-left cursor-pointer"
             aria-expanded={expanded}
           >
-            <span className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[11px] font-bold shrink-0">
+            <span className="h-6 w-6 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-[11px] font-bold shrink-0">
               {index + 1}
             </span>
             <span className="flex-1 min-w-0">
@@ -390,12 +390,12 @@ function SerramentoRow({
               </span>
             )}
             {mq > 0 && (
-              <span className="text-[11px] font-normal text-emerald-700">
+              <span className="text-[11px] font-normal text-orange-700">
                 {mq.toFixed(2)} m²
               </span>
             )}
             {s.prezzo_totale && (
-              <span className="font-semibold text-emerald-700">{formatEuro(s.prezzo_totale)}</span>
+              <span className="font-semibold text-orange-700">{formatEuro(s.prezzo_totale)}</span>
             )}
           </button>
 
@@ -455,8 +455,8 @@ function SerramentoRow({
               Uw…) non si modificano qui ma in Listino → Articolo. */}
           {isFromListino && macroId && family && Object.keys(family.custom_field_values ?? {}).length > 0 && (
             <div className="col-span-12">
-              <div className="rounded-md border border-emerald-100 bg-emerald-50/40 p-2.5">
-                <div className="text-[10px] uppercase tracking-wide text-emerald-700 font-semibold mb-1.5 flex items-center gap-1">
+              <div className="rounded-md border border-orange-100 bg-orange-50/40 p-2.5">
+                <div className="text-[10px] uppercase tracking-wide text-orange-700 font-semibold mb-1.5 flex items-center gap-1">
                   <Sparkles className="h-3 w-3" />
                   Caratteristiche da listino
                 </div>
@@ -505,7 +505,7 @@ function SerramentoRow({
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <button type="button" className="text-muted-foreground hover:text-emerald-600">
+                        <button type="button" className="text-muted-foreground hover:text-orange-600">
                           <HelpCircle className="h-3 w-3" />
                         </button>
                       </TooltipTrigger>
@@ -566,7 +566,7 @@ function SerramentoRow({
             <Label className="text-xs flex items-center justify-between">
               <span>Prezzo unitario (€)</span>
               {isFromListino && (
-                <Badge variant="outline" className="text-[10px] h-4 px-1 border-emerald-200 bg-emerald-50 text-emerald-700">
+                <Badge variant="outline" className="text-[10px] h-4 px-1 border-orange-200 bg-orange-50 text-orange-700">
                   da listino
                 </Badge>
               )}

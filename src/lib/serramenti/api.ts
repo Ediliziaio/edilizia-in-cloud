@@ -14,7 +14,6 @@ import type {
   SrTemplatePdfRow,
   SrProgettoDetail,
   SrStatoProgetto,
-  SrTipoIntervento,
 } from "@/types/serramenti";
 
 // ─── PROGETTI ───────────────────────────────────────────────────────────────

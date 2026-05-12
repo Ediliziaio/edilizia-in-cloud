@@ -6,13 +6,12 @@
  */
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Image as ImageIcon, Loader2, Upload, X, Sparkles, ExternalLink } from "lucide-react";
 import {
   useUploadMedia, useDeleteMedia, useRenderSessions, useImportRender,
 } from "@/lib/serramenti/queries";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import type { SrProgettoDetail } from "@/types/serramenti";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
@@ -71,9 +70,9 @@ export function StepAccessori({ progettoId, detail }: Props) {
           <Button
             onClick={() => setRenderDialogOpen(true)}
             variant="outline"
-            className="flex-1 gap-2 border-emerald-300 hover:bg-emerald-50"
+            className="flex-1 gap-2 border-orange-300 hover:bg-orange-50"
           >
-            <Sparkles className="h-4 w-4 text-emerald-700" />
+            <Sparkles className="h-4 w-4 text-orange-700" />
             Importa render esistente
           </Button>
           <Button asChild variant="outline" className="flex-1 gap-2">
@@ -92,7 +91,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
                 {m.url ? (
                   <img src={m.url} alt={m.caption ?? "render"} className="w-full h-full object-cover" />
                 ) : (
-                  <Sparkles className="h-6 w-6 mx-auto text-emerald-300 mt-8" />
+                  <Sparkles className="h-6 w-6 mx-auto text-orange-300 mt-8" />
                 )}
                 <button
                   onClick={() => deleteMediaMut.mutate(m.id)}
@@ -101,7 +100,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
                 >
                   <X className="h-3 w-3" />
                 </button>
-                <div className="absolute bottom-0 left-0 right-0 bg-emerald-700/90 text-white text-[10px] px-2 py-0.5 font-semibold">
+                <div className="absolute bottom-0 left-0 right-0 bg-orange-700/90 text-white text-[10px] px-2 py-0.5 font-semibold">
                   ✨ Render AI
                 </div>
               </div>
@@ -131,7 +130,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
         <Button
           onClick={() => fileInputRef.current?.click()}
           variant="outline"
-          className="w-full gap-1 border-dashed border-2 border-emerald-300 hover:bg-emerald-50"
+          className="w-full gap-1 border-dashed border-2 border-orange-300 hover:bg-orange-50"
           disabled={uploadMediaMut.isPending}
         >
           {uploadMediaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
@@ -143,7 +142,6 @@ export function StepAccessori({ progettoId, detail }: Props) {
             {detail.media.filter((m) => m.kind !== "render").map((m) => (
               <div key={m.id} className="relative group aspect-square rounded-md overflow-hidden border bg-muted">
                 {m.url ? (
-                  // eslint-disable-next-line jsx-a11y/img-redundant-alt
                   <img src={m.url} alt={m.caption ?? "foto"} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
@@ -209,11 +207,11 @@ function ImportRenderDialog({
           </div>
         ) : sessions.length === 0 ? (
           <div className="py-8 text-center">
-            <Sparkles className="h-10 w-10 mx-auto text-emerald-300 mb-2" />
+            <Sparkles className="h-10 w-10 mx-auto text-orange-300 mb-2" />
             <p className="text-sm text-muted-foreground mb-3">
               Non hai ancora generato nessun render. Vai al modulo Render Infissi per crearne uno.
             </p>
-            <Button asChild className="bg-emerald-700 hover:bg-emerald-800">
+            <Button asChild className="bg-orange-700 hover:bg-orange-800">
               <a href="/azienda/render/nuovo" target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-1" />
                 Apri modulo Render
@@ -231,7 +229,7 @@ function ImportRenderDialog({
                   key={s.id}
                   disabled={importing}
                   onClick={() => onSelect(s.id, 0)}
-                  className="group relative rounded-md overflow-hidden border bg-muted aspect-video text-left hover:ring-2 hover:ring-emerald-500 transition disabled:opacity-50"
+                  className="group relative rounded-md overflow-hidden border bg-muted aspect-video text-left hover:ring-2 hover:ring-orange-500 transition disabled:opacity-50"
                 >
                   <img src={url0} alt="render" className="w-full h-full object-cover" />
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[10px] px-2 py-1.5">

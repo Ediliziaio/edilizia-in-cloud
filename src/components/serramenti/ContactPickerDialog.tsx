@@ -93,7 +93,7 @@ export function ContactPickerDialog({ open, onOpenChange, onSelect }: Props) {
                         onSelect(c);
                         onOpenChange(false);
                       }}
-                      className="w-full text-left p-3 rounded-md hover:bg-emerald-50/60 focus:bg-emerald-50 focus:outline-none transition"
+                      className="w-full text-left p-3 rounded-md hover:bg-orange-50/60 focus:bg-orange-50 focus:outline-none transition"
                     >
                       <p className="text-sm font-semibold text-slate-900">
                         {labelName}

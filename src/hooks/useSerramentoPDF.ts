@@ -123,7 +123,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     detail.serramenti.map((s) => s.family_id).filter((v): v is string => !!v),
   ));
   const familiesById: Record<string, SerramentoPdfFamilyData> = {};
-  let categoriaToMacro: Record<string, string> = {};
+  const categoriaToMacro: Record<string, string> = {};
   if (familyIds.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: famRows } = await (supabase as any)
@@ -265,7 +265,6 @@ export function useSerramentoPDF() {
       toast.success("PDF scaricato", { description: filename });
       return { ok: true };
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error("Errore generazione PDF serramenti:", err);
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";
       toast.error("Errore nella generazione del PDF", { description: msg });
@@ -296,7 +295,6 @@ export function useSerramentoPDF() {
         });
       }
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error("Errore preview PDF serramenti:", err);
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";
       toast.error("Errore nella generazione del PDF", { description: msg });

@@ -24,14 +24,14 @@ interface SrCardProps {
 export function SrCard({ title, description, icon, className, children, variant = "default" }: SrCardProps) {
   return (
     <Card className={cn(
-      variant === "highlight" && "border-emerald-300 bg-emerald-50/30",
+      variant === "highlight" && "border-orange-300 bg-orange-50/30",
       variant === "muted" && "bg-muted/30",
       className,
     )}>
       {(title || icon) && (
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base flex items-center gap-2">
-            {icon && <span className="text-emerald-700">{icon}</span>}
+            {icon && <span className="text-orange-700">{icon}</span>}
             {title}
           </CardTitle>
           {description && (
@@ -60,8 +60,8 @@ interface SrKpiProps {
 export function SrKpi({ label, value, unit, hint, variant = "default", className }: SrKpiProps) {
   const colors = {
     default: "bg-muted/30 text-foreground",
-    primary: "bg-emerald-50 text-emerald-900 border-emerald-200",
-    success: "bg-emerald-50 text-emerald-900 border-emerald-200",
+    primary: "bg-orange-50 text-orange-900 border-orange-200",
+    success: "bg-orange-50 text-orange-900 border-orange-200",
     warning: "bg-amber-50 text-amber-900 border-amber-200",
   };
   return (
@@ -89,7 +89,7 @@ interface SrCalloutProps {
 export function SrCallout({ variant = "info", icon, title, children, className }: SrCalloutProps) {
   const colors = {
     info:    "bg-sky-50 border-sky-200 text-sky-900",
-    success: "bg-emerald-50 border-emerald-200 text-emerald-900",
+    success: "bg-orange-50 border-orange-200 text-orange-900",
     warning: "bg-amber-50 border-amber-200 text-amber-900",
     danger:  "bg-rose-50 border-rose-200 text-rose-900",
   };
@@ -113,7 +113,7 @@ export const SR_STATO_BADGE: Record<string, { label: string; className: string }
   da_consegnare:   { label: "Da consegnare",  className: "bg-amber-100 text-amber-700 border-amber-200" },
   consegnato:      { label: "Consegnato",     className: "bg-sky-100 text-sky-700 border-sky-200" },
   in_valutazione:  { label: "In valutazione", className: "bg-indigo-100 text-indigo-700 border-indigo-200" },
-  accettato:       { label: "Accettato",      className: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  accettato:       { label: "Accettato",      className: "bg-orange-100 text-orange-700 border-orange-200" },
   rifiutato:       { label: "Rifiutato",      className: "bg-rose-100 text-rose-700 border-rose-200" },
   scaduto:         { label: "Scaduto",        className: "bg-slate-100 text-slate-500 border-slate-200" },
   archiviato:      { label: "Archiviato",     className: "bg-slate-100 text-slate-400 border-slate-200" },

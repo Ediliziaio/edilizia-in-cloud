@@ -13,7 +13,7 @@
  *  - Le voci spuntate diventano l'array salvato nel progetto
  */
 import { useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,7 +39,6 @@ interface Props {
 
 // ─── Object items (esigenze, soluzione) ──────────────────────────────────────
 
-type ObjectKey = "esigenze" | "soluzione";
 
 function ObjectItemsPicker({
   label,
@@ -131,8 +130,8 @@ function ObjectItemsPicker({
                 className={
                   "flex items-start gap-3 rounded-md border p-3 cursor-pointer transition " +
                   (isSelected
-                    ? "border-emerald-500 bg-emerald-50/50"
-                    : "border-slate-200 hover:border-emerald-200 hover:bg-muted/30")
+                    ? "border-orange-500 bg-orange-50/50"
+                    : "border-slate-200 hover:border-orange-200 hover:bg-muted/30")
                 }
               >
                 <Checkbox
@@ -141,10 +140,10 @@ function ObjectItemsPicker({
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className={"text-sm font-semibold " + (isSelected ? "text-emerald-900" : "text-slate-900")}>
+                  <p className={"text-sm font-semibold " + (isSelected ? "text-orange-900" : "text-slate-900")}>
                     {emoji} {it.titolo || <span className="italic text-muted-foreground">(senza titolo)</span>}
                   </p>
-                  <p className={"text-xs mt-0.5 " + (isSelected ? "text-emerald-800" : "text-slate-600")}>
+                  <p className={"text-xs mt-0.5 " + (isSelected ? "text-orange-700" : "text-slate-600")}>
                     {it.descrizione}
                   </p>
                 </div>
@@ -285,8 +284,8 @@ function StringItemsPicker({
                 className={
                   "flex items-start gap-3 rounded-md border p-2.5 cursor-pointer transition " +
                   (isSelected
-                    ? "border-emerald-500 bg-emerald-50/50"
-                    : "border-slate-200 hover:border-emerald-200 hover:bg-muted/30")
+                    ? "border-orange-500 bg-orange-50/50"
+                    : "border-slate-200 hover:border-orange-200 hover:bg-muted/30")
                 }
               >
                 <Checkbox
@@ -294,7 +293,7 @@ function StringItemsPicker({
                   onCheckedChange={() => toggleTemplate(it)}
                   className="mt-0.5"
                 />
-                <span className={"text-xs flex-1 " + (isSelected ? "text-emerald-900 font-medium" : "text-slate-700")}>
+                <span className={"text-xs flex-1 " + (isSelected ? "text-orange-900 font-medium" : "text-slate-700")}>
                   {emoji} {it || <span className="italic text-muted-foreground">(vuota)</span>}
                 </span>
               </label>
@@ -392,7 +391,7 @@ export function StepContenuti({ form, onChange }: Props) {
       key: "esigenze",
       title: "Esigenze del cliente",
       emoji: "💬",
-      icon: <MessageCircle className="h-4 w-4 text-emerald-700" />,
+      icon: <MessageCircle className="h-4 w-4 text-orange-700" />,
       count: selEsigenze.length,
       total: templateEsigenze.length,
       body: (
@@ -411,7 +410,7 @@ export function StepContenuti({ form, onChange }: Props) {
       key: "soluzione",
       title: "Soluzione proposta",
       emoji: "✨",
-      icon: <Sparkles className="h-4 w-4 text-emerald-700" />,
+      icon: <Sparkles className="h-4 w-4 text-orange-700" />,
       count: selSoluzione.length,
       total: templateSoluzione.length,
       body: (
@@ -430,7 +429,7 @@ export function StepContenuti({ form, onChange }: Props) {
       key: "perche_noi",
       title: "Perché scegliere noi (USP)",
       emoji: "🏆",
-      icon: <ListChecks className="h-4 w-4 text-emerald-700" />,
+      icon: <ListChecks className="h-4 w-4 text-orange-700" />,
       count: selPercheNoi.length,
       total: templatePercheNoi.length,
       body: (
@@ -448,7 +447,7 @@ export function StepContenuti({ form, onChange }: Props) {
       key: "incluso",
       title: "Cosa è incluso nell'investimento",
       emoji: "✅",
-      icon: <ListChecks className="h-4 w-4 text-emerald-700" />,
+      icon: <ListChecks className="h-4 w-4 text-orange-700" />,
       count: selIncluso.length,
       total: templateIncluso.length,
       body: (
@@ -466,7 +465,7 @@ export function StepContenuti({ form, onChange }: Props) {
       key: "prossimi_passi",
       title: "Prossimi passi",
       emoji: "👣",
-      icon: <ListChecks className="h-4 w-4 text-emerald-700" />,
+      icon: <ListChecks className="h-4 w-4 text-orange-700" />,
       count: selPassi.length,
       total: templatePassi.length,
       body: (
@@ -493,7 +492,7 @@ export function StepContenuti({ form, onChange }: Props) {
         variant="highlight"
       >
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="text-xs text-emerald-900">
+          <div className="text-xs text-orange-900">
             <strong>Suggerimento:</strong> applica tutti i contenuti del template e poi rifinisci.
             Il commerciale risparmia tempo, il cliente riceve un preventivo completo.
           </div>
@@ -501,7 +500,7 @@ export function StepContenuti({ form, onChange }: Props) {
             <Button
               size="sm"
               onClick={preselezionaTutto}
-              className="bg-emerald-700 hover:bg-emerald-800 gap-1"
+              className="bg-orange-700 hover:bg-orange-800 gap-1"
             >
               <ChevronRight className="h-3.5 w-3.5" />
               {hasAnySelection ? "Riapplica tutti i contenuti template" : "Applica tutti i contenuti template"}
@@ -521,14 +520,14 @@ export function StepContenuti({ form, onChange }: Props) {
           <Accordion type="multiple" defaultValue={["esigenze"]} className="w-full">
             {sezioni.map((s) => (
               <AccordionItem key={s.key} value={s.key} className="border-b last:border-b-0">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-emerald-50/40">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-orange-50/40">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     {s.icon}
                     <span className="text-sm font-semibold text-slate-900">{s.title}</span>
                     <span className={
                       "text-[10px] px-2 py-0.5 rounded-full font-semibold ml-auto mr-2 " +
                       (s.count > 0
-                        ? "bg-emerald-100 text-emerald-700"
+                        ? "bg-orange-100 text-orange-700"
                         : "bg-slate-100 text-slate-500")
                     }>
                       {s.count} di {s.total + Math.max(0, s.count - s.total)} scelte

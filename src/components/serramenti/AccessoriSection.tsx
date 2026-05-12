@@ -87,8 +87,8 @@ export function AccessoriSection({ progettoId, detail }: Props) {
       >
         {/* Toolbar: aggiungi vuoto + copia da serramenti */}
         {accessori.length === 0 ? (
-          <div className="border-2 border-dashed border-emerald-200 rounded-md p-6 text-center space-y-3">
-            <ImageIcon className="h-8 w-8 mx-auto text-emerald-300" />
+          <div className="border-2 border-dashed border-orange-200 rounded-md p-6 text-center space-y-3">
+            <ImageIcon className="h-8 w-8 mx-auto text-orange-300" />
             <div>
               <p className="text-sm font-medium text-foreground">
                 Nessun accessorio aggiunto
@@ -107,7 +107,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
                 <Button
                   size="sm"
                   onClick={() => setCopyDialogOpen(true)}
-                  className="bg-emerald-700 hover:bg-emerald-800 gap-1.5"
+                  className="bg-orange-700 hover:bg-orange-800 gap-1.5"
                 >
                   <Copy className="h-4 w-4" />
                   Copia misure dai serramenti ({serramenti.length})
@@ -140,7 +140,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
                   size="sm"
                   variant="outline"
                   onClick={() => setCopyDialogOpen(true)}
-                  className="gap-1.5 border-emerald-300 hover:bg-emerald-50"
+                  className="gap-1.5 border-orange-300 hover:bg-orange-50"
                 >
                   <Copy className="h-3.5 w-3.5" />
                   Copia da serramenti
@@ -234,7 +234,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
                           className="h-8 text-xs w-24"
                         />
                       </TableCell>
-                      <TableCell className="text-xs font-semibold text-emerald-700">
+                      <TableCell className="text-xs font-semibold text-orange-700">
                         {formatEuro(a.prezzo_totale)}
                       </TableCell>
                       <TableCell>
@@ -254,7 +254,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
               <Button
                 onClick={handleAdd}
                 variant="outline"
-                className="w-full gap-1 mt-3 border-dashed border-2 border-emerald-300 hover:bg-emerald-50"
+                className="w-full gap-1 mt-3 border-dashed border-2 border-orange-300 hover:bg-orange-50"
                 disabled={addMut.isPending}
               >
                 {addMut.isPending ? (
@@ -377,8 +377,8 @@ function CopyMisureDialog({
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-start gap-3">
-            <div className="h-9 w-9 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center shrink-0">
-              <Layers className="h-4.5 w-4.5 text-emerald-700 dark:text-emerald-400" />
+            <div className="h-9 w-9 rounded-lg bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center shrink-0">
+              <Layers className="h-4.5 w-4.5 text-orange-700 dark:text-orange-400" />
             </div>
             <div>
               <DialogTitle>Copia misure dai serramenti</DialogTitle>
@@ -440,7 +440,7 @@ function CopyMisureDialog({
                   <label
                     key={s.id}
                     className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-accent/40 transition-colors ${
-                      isSel ? "bg-emerald-50/40 dark:bg-emerald-950/20" : ""
+                      isSel ? "bg-orange-50/40 dark:bg-orange-950/20" : ""
                     }`}
                   >
                     <Checkbox checked={isSel} onCheckedChange={() => toggleOne(s.id)} />
@@ -474,7 +474,7 @@ function CopyMisureDialog({
           <Button
             onClick={handleCopy}
             disabled={selected.size === 0 || addMut.isPending}
-            className="bg-emerald-700 hover:bg-emerald-800 gap-1.5"
+            className="bg-orange-700 hover:bg-orange-800 gap-1.5"
           >
             {addMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             <Copy className="h-4 w-4" />

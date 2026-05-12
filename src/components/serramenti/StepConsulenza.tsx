@@ -12,19 +12,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Calendar, MapPin, ListChecks } from "lucide-react";
-import type { SrProgettoRow, SrProgettoDetail } from "@/types/serramenti";
+import type { SrProgettoRow } from "@/types/serramenti";
 import { SrCard } from "@/lib/serramenti/wizardUI";
 
 interface Props {
   form: Partial<SrProgettoRow>;
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
-  detail: SrProgettoDetail;
 }
 
-export function StepConsulenza({ form, onChange, detail }: Props) {
-  const _numSerramenti = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
-  void _numSerramenti;
-
+export function StepConsulenza({ form, onChange }: Props) {
   // Prossimi passi (default + custom)
   const prossimiPassi = (form.prossimi_passi ?? [
     "Ci vediamo per la consulenza tecnica",
@@ -91,7 +87,7 @@ export function StepConsulenza({ form, onChange, detail }: Props) {
         <div className="space-y-2">
           {[0, 1, 2, 3].map((idx) => (
             <div key={idx} className="flex items-center gap-2">
-              <span className="h-7 w-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">
+              <span className="h-7 w-7 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-bold shrink-0">
                 {idx + 1}
               </span>
               <Input

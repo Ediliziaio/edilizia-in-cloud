@@ -20,7 +20,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useIsMutating } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -232,7 +232,7 @@ export default function SerramentiWizard() {
           </Button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <RectangleVertical className="h-4 w-4 text-emerald-700" />
+              <RectangleVertical className="h-4 w-4 text-orange-700" />
               <span className="font-semibold text-sm">
                 {isNew ? "Nuova stima" : detail?.progetto.code}
               </span>
@@ -257,7 +257,7 @@ export default function SerramentiWizard() {
         </div>
         <div className="h-1 bg-muted">
           <div
-            className="h-full bg-emerald-600 transition-all duration-300"
+            className="h-full bg-orange-600 transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -283,7 +283,7 @@ export default function SerramentiWizard() {
                         className={cn(
                           "w-full text-left px-2.5 py-2 rounded-md text-xs flex items-center gap-2 transition-colors",
                           isActive
-                            ? "bg-emerald-100 text-emerald-900 font-semibold"
+                            ? "bg-orange-100 text-orange-900 font-semibold"
                             : isPast
                             ? "text-foreground hover:bg-muted"
                             : "text-muted-foreground",
@@ -292,8 +292,8 @@ export default function SerramentiWizard() {
                       >
                         <span className={cn(
                           "h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold",
-                          isActive ? "bg-emerald-600 text-white" :
-                          isPast ? "bg-emerald-100 text-emerald-700" :
+                          isActive ? "bg-orange-600 text-white" :
+                          isPast ? "bg-orange-100 text-orange-700" :
                           "bg-muted text-muted-foreground",
                         )}>
                           {idx + 1}
@@ -338,7 +338,7 @@ export default function SerramentiWizard() {
               <StepEconomia progettoId={id} detail={detail} form={form} onChange={onChange} />
             )}
             {currentStep === "consulenza" && id && detail && (
-              <StepConsulenza form={form} onChange={onChange} detail={detail} />
+              <StepConsulenza form={form} onChange={onChange} />
             )}
             {currentStep === "pdf" && id && detail && (
               <StepPdf progettoId={id} detail={detail} />
@@ -353,7 +353,7 @@ export default function SerramentiWizard() {
               <Button
                 onClick={handleSaveAndContinue}
                 disabled={updateMut.isPending || creating}
-                className="bg-emerald-700 hover:bg-emerald-800 gap-1"
+                className="bg-orange-700 hover:bg-orange-800 gap-1"
               >
                 {(updateMut.isPending || creating) ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -385,7 +385,7 @@ export default function SerramentiWizard() {
               Scarta modifiche
             </Button>
             <AlertDialogAction
-              className="bg-emerald-700 hover:bg-emerald-800"
+              className="bg-orange-700 hover:bg-orange-800"
               onClick={() => confirmStepChange(true)}
             >
               Salva e continua
@@ -426,10 +426,10 @@ function StepCliente({
       description="Seleziona un contatto esistente dal CRM oppure compila a mano. I campi non obbligatori (telefono, email, indirizzo) compaiono nel PDF e nel microsito cliente."
       icon={<User className="h-4 w-4" />}
     >
-      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-md border border-dashed border-emerald-300 bg-emerald-50/40 p-3">
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-md border border-dashed border-orange-300 bg-orange-50/40 p-3">
         <div>
-          <p className="text-xs font-semibold text-emerald-900">Hai già un contatto nel CRM?</p>
-          <p className="text-[11px] text-emerald-800">
+          <p className="text-xs font-semibold text-orange-900">Hai già un contatto nel CRM?</p>
+          <p className="text-[11px] text-orange-700">
             {form.cliente_id
               ? "Contatto CRM selezionato — i dati sono pre-popolati dal record esistente."
               : "Selezionalo per pre-popolare nome, telefono, email e indirizzo."}
@@ -450,7 +450,7 @@ function StepCliente({
             size="sm"
             variant="outline"
             onClick={() => setPickerOpen(true)}
-            className="gap-1 border-emerald-400 text-emerald-700 hover:bg-emerald-100"
+            className="gap-1 border-orange-400 text-orange-700 hover:bg-orange-100"
           >
             <Users className="h-3.5 w-3.5" />
             {form.cliente_id ? "Cambia contatto" : "Seleziona da CRM"}
@@ -628,7 +628,7 @@ function StepImmobile({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-7 text-[11px] gap-1 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                className="h-7 text-[11px] gap-1 border-orange-200 hover:bg-orange-50 hover:text-orange-700"
                 onClick={() => onChange("intervento_sintesi", sintesiAuto)}
                 title="Genera dal BOM (serramenti + accessori già inseriti)"
               >

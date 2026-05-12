@@ -40,7 +40,6 @@ import {
   X as XIcon,
   ImageIcon,
   FileText,
-  Sparkles,
   FolderTree,
 } from "lucide-react";
 import { useRef } from "react";
@@ -87,7 +86,6 @@ import {
 } from "@/hooks/useListinoCategorie";
 import { translateListinoError } from "@/lib/listinoErrors";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
 import { SchedaTecnicaEditor } from "./SchedaTecnicaEditor";
 
 // Valori coerenti con companies_vertical_check + fotovoltaico (gestito a parte).
