@@ -768,6 +768,16 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
   family_id: string | null;
   /** Override macrocategoria per BOM manuali senza family_id */
   macrocategoria_override_id: string | null;
+  /** Note libere salvate sulla riga BOM (es. "🎁 OMAGGIO · Condizioni: ...",
+   *  oppure descrizione di una voce off-listino). */
+  note: string | null;
+  /** Snapshot scelte assi (Variabili Prodotto) della family. Usato dal PDF
+   *  per stampare la VERA configurazione scelta dal commerciale (es.
+   *  "Profilo: Square +8%") invece dei default della scheda tecnica family. */
+  valori_assi: Record<string, string>;
+  prezzo_totale: number;
+  /** True se la riga e' un omaggio commerciale (prezzo=0 + nota OMAGGIO). */
+  is_omaggio: boolean;
 }> {
   const map = new Map<string, {
     key: string; tipologia: string; materiale: string; serie: string;
@@ -775,18 +785,33 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     larghezza: number | null; altezza: number | null;
     quantita: number; family_id: string | null;
     macrocategoria_override_id: string | null;
+    note: string | null;
+    valori_assi: Record<string, string>;
+    prezzo_totale: number;
+    is_omaggio: boolean;
   }>();
   for (const s of serr) {
     const L = s.larghezza_mm ?? null;
     const H = s.altezza_mm ?? null;
     const ci = s.colore_interno ?? "";
     const ce = s.colore_esterno ?? "";
+    const noteVal = s.note ?? null;
+    const isOmaggio = (s.prezzo_totale ?? 0) === 0 && !!noteVal?.startsWith("🎁 OMAGGIO");
+    const assi = (s.valori_assi ?? {}) as Record<string, string>;
+    // KEY include anche valori_assi (snapshot scelte commerciale) e note
+    // (per non aggregare 2 righe identiche con condizioni diverse).
+    // Senza, due "PORTA BALCONE" con Profilo "Square" vs "Etrum" verrebbero
+    // mostrate come UNA riga ×2 con scheda tecnica ambigua nel PDF.
+    const assiKey = Object.entries(assi).sort().map(([k, v]) => `${k}=${v}`).join(";");
     const baseKey = s.family_id
       ? `fam-${s.family_id}__${s.tipologia}`
       : `oth-${s.tipologia}__${s.materiale ?? ""}__${s.serie ?? ""}__${s.vetro ?? ""}`;
-    const key = `${baseKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}__${ci}__${ce}`;
+    const key = `${baseKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}__${ci}__${ce}__${assiKey}__${noteVal ?? ""}`;
     const existing = map.get(key);
-    if (existing) existing.quantita += s.quantita ?? 1;
+    if (existing) {
+      existing.quantita += s.quantita ?? 1;
+      existing.prezzo_totale += Number(s.prezzo_totale ?? 0);
+    }
     else map.set(key, {
       key,
       tipologia: tipologiaLabel(s.tipologia),
@@ -801,6 +826,10 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
       quantita: s.quantita ?? 1,
       family_id: s.family_id ?? null,
       macrocategoria_override_id: s.macrocategoria_override_id ?? null,
+      note: noteVal,
+      valori_assi: assi,
+      prezzo_totale: Number(s.prezzo_totale ?? 0),
+      is_omaggio: isOmaggio,
     });
   }
   return Array.from(map.values());
@@ -1114,6 +1143,10 @@ export interface SerramentoPDFProps {
   /** Mappa macrocategoria_id → nome. Renderizzato come breadcrumb
    *  "MACROCATEGORIA · Articolo" nella composizione serramenti del PDF. */
   macroNomeById?: Record<string, string>;
+  /** Lookup label Variabili Prodotto: key="family_id|axis_codice|value_id".
+   *  Permette di stampare le SCELTE del commerciale (es. "Profilo: Square")
+   *  al posto del default scheda tecnica. */
+  axisLabelByKey?: Record<string, { axisLabel: string; valueLabel: string }>;
   /** Macro_id default per BOM senza family e senza override esplicito. */
   autoFallbackMacroId?: string | null;
 }
@@ -1125,6 +1158,7 @@ export function SerramentoPDF({
   consulente, familiesById, fieldsByMacro, macroPagineDedicate,
   macroImageById: _macroImageById = {},
   macroNomeById = {},
+  axisLabelByKey = {},
   autoFallbackMacroId = null,
 }: SerramentoPDFProps) {
   const p = detail.progetto;
@@ -1633,6 +1667,34 @@ export function SerramentoPDF({
                       if (display) specs.push({ label: f.field_label, value: display, unit: f.field_unit });
                     }
                   }
+                  // Override/aggiungi specs dalle Variabili Prodotto scelte
+                  // dal commerciale (snapshot valori_assi salvato sulla riga
+                  // BOM). Cosi' il PDF stampa la VERA configurazione (es.
+                  // "Profilo: Square") invece del default scheda tecnica
+                  // family che potrebbe non corrispondere alla scelta.
+                  // BUG FIX: senza, il prezzo aveva +8% ma sulla scheda
+                  // tecnica il cliente vedeva il profilo default -> contestabile.
+                  const assi: Array<{ label: string; value: string }> = [];
+                  if (g.family_id && g.valori_assi && Object.keys(g.valori_assi).length > 0) {
+                    for (const [axisCodice, valueId] of Object.entries(g.valori_assi)) {
+                      const lookup = axisLabelByKey[`${g.family_id}|${axisCodice}|${valueId}`];
+                      if (lookup) {
+                        assi.push({ label: lookup.axisLabel, value: lookup.valueLabel });
+                      }
+                    }
+                  }
+                  // Estrai condizioni regalo dalle note (formato:
+                  // "🎁 OMAGGIO · Condizioni: <...> · <descrizione>" oppure
+                  // "🎁 OMAGGIO · <descrizione>"). Ripulisce per il display.
+                  let noteCleaned: string | null = null;
+                  if (g.note) {
+                    if (g.is_omaggio) {
+                      // Rimuove prefisso "🎁 OMAGGIO · " per non duplicare il badge.
+                      noteCleaned = g.note.replace(/^🎁\s*OMAGGIO\s*·?\s*/, "").trim() || null;
+                    } else {
+                      noteCleaned = g.note;
+                    }
+                  }
                   // Titolo: nome reale della famiglia se disponibile, altrimenti tipologia generica
                   const titolo = family?.nome?.trim() || g.tipologia;
                   // Breadcrumb macrocategoria. Stampato in piccolo sopra il
@@ -1686,6 +1748,19 @@ export function SerramentoPDF({
                         <Text style={styles.tableCellStrong}>
                           {titolo}
                           {g.ambiente ? <Text style={{ color: C.gray500, fontWeight: 400 }}> · {g.ambiente}</Text> : null}
+                          {/* Badge OMAGGIO INLINE: chip verde subito accanto al
+                              nome cosi' il cliente vede a colpo d'occhio che e'
+                              gratis. Stampato come <Text> inline in
+                              tableCellStrong per allineamento naturale. */}
+                          {g.is_omaggio && (
+                            <Text style={{
+                              fontSize: 8.5, fontWeight: 700, color: "#065F46",
+                              backgroundColor: "#D1FAE5", paddingHorizontal: 4,
+                              paddingVertical: 1, marginLeft: 6, borderRadius: 3,
+                            }}>
+                              {" "}🎁 IN OMAGGIO{" "}
+                            </Text>
+                          )}
                         </Text>
                         <Text style={[styles.tableCellMuted, { fontWeight: 700, color: C.gray700 }]}>
                           {[
@@ -1719,6 +1794,32 @@ export function SerramentoPDF({
                               </View>
                             ))}
                           </View>
+                        )}
+                        {/* Variabili Prodotto scelte dal commerciale (es.
+                            "Profilo: Square", "Soglia: Ribassata"). Renderizzate
+                            come chip dello stesso stile delle specs ma con
+                            sfumatura primary -> indica "scelta personalizzata"
+                            vs scheda tecnica statica. */}
+                        {assi.length > 0 && (
+                          <View style={[styles.specChips, { marginTop: 2 }]}>
+                            {assi.map((a, si) => (
+                              <View key={`asse-${si}`} style={[styles.specChip, { backgroundColor: C.primaryLight }]}>
+                                <Text style={{ fontSize: 8.5 }}>
+                                  <Text style={[styles.specChipLabel, { color: C.primary }]}>{a.label}: </Text>
+                                  <Text style={[styles.specChipValue, { color: C.primary, fontWeight: 700 }]}>{a.value}</Text>
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                        {/* Note libere salvate sulla riga BOM:
+                            - per omaggio: "Condizioni: ..." dopo il prefisso "🎁 OMAGGIO"
+                            - per voci off-listino custom: descrizione libera
+                            Stampato in italic muted sotto specs/assi. */}
+                        {noteCleaned && (
+                          <Text style={[styles.tableCellMuted, { fontStyle: "italic", marginTop: 2 }]}>
+                            {noteCleaned}
+                          </Text>
                         )}
                       </View>
                       {/* Quantità */}

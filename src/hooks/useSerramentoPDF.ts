@@ -83,6 +83,11 @@ export interface SerramentoPdfEnriched {
   /** Mappa macrocategoria_id → nome. Renderizzato nel BOM PDF come breadcrumb
    *  davanti al nome articolo: "MACROCATEGORIA · Articolo". */
   macroNomeById: Record<string, string>;
+  /** Lookup label Variabili Prodotto: key = "family_id|axis_codice|value_id" ->
+   *  { axisLabel: "Profilo", valueLabel: "Square" }. Permette al PDF di
+   *  stampare le SCELTE effettive del commerciale (snapshot valori_assi)
+   *  invece dei default scheda tecnica della family. */
+  axisLabelByKey: Record<string, { axisLabel: string; valueLabel: string }>;
   /** macro_id da usare come default per i BOM senza family_id e senza
    *  macrocategoria_override_id. Solo se l'azienda ha una macro attiva con
    *  pagina dedicata (o, in subordine, una sola macro attiva). NULL = nessun
@@ -198,6 +203,42 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
       const arr = fieldsByMacro[f.macrocategoria_id] ?? [];
       arr.push(f);
       fieldsByMacro[f.macrocategoria_id] = arr;
+    });
+  }
+
+  // 4.bis Lookup label assi (Variabili Prodotto): le righe BOM hanno
+  // `valori_assi: { axis_codice -> value_id }`. Per stampare nel PDF
+  // "Profilo: Square (+8%)" servono le label di axis e value.
+  // Fetch batch di article_family_axes + values per tutte le family
+  // referenziate dal BOM.
+  const axisLabelByKey: Record<string, { axisLabel: string; valueLabel: string }> = {};
+  if (familyIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: axisRows } = await (supabase as any)
+      .from("article_family_axes")
+      .select("id, family_id, codice, nome, values:article_family_axis_values(id, valore, label)")
+      .in("family_id", familyIds);
+    // Struttura: { family_id -> { axis_codice -> { axisLabel, values: {value_id -> valueLabel} } } }
+    const byFamily: Record<string, Record<string, { axisLabel: string; values: Record<string, string> }>> = {};
+    ((axisRows ?? []) as Array<{
+      family_id: string; codice: string; nome: string;
+      values: Array<{ id: string; valore: string; label: string }>;
+    }>).forEach((a) => {
+      if (!byFamily[a.family_id]) byFamily[a.family_id] = {};
+      const valuesMap: Record<string, string> = {};
+      (a.values ?? []).forEach((v) => { valuesMap[v.id] = v.label || v.valore; });
+      byFamily[a.family_id][a.codice] = { axisLabel: a.nome, values: valuesMap };
+    });
+    // Flatten lookup: key = "family_id|axis_codice|value_id"
+    Object.entries(byFamily).forEach(([fid, axes]) => {
+      Object.entries(axes).forEach(([codice, info]) => {
+        Object.entries(info.values).forEach(([valueId, valueLabel]) => {
+          axisLabelByKey[`${fid}|${codice}|${valueId}`] = {
+            axisLabel: info.axisLabel,
+            valueLabel,
+          };
+        });
+      });
     });
   }
 
@@ -362,6 +403,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     macroPagineDedicate: inlinedMacroPagine,
     macroImageById: inlinedMacroImageById,
     macroNomeById,
+    axisLabelByKey,
     autoFallbackMacroId,
   };
 }
