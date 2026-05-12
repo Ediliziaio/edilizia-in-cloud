@@ -389,6 +389,8 @@ export interface SrTemplatePdfRow {
   render_disclaimer: string | null;
   consulente_descrizione_default: string | null;
   percorso_cliente: SrPercorsoCliente | null;
+  /** Ordine e visibilità delle pagine PDF. NULL = ordine default. */
+  pdf_pages_order: SrPdfPageOrderItem[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -433,6 +435,128 @@ export const SR_PERCORSO_DEFAULT: SrPercorsoCliente = {
     },
   ],
 };
+
+/**
+ * Identificatori delle pagine del PDF preventivo configurabili dall'admin
+ * via Template editor → Ordine pagine.
+ *
+ * NB: la "cover" è sempre la prima e non rientra qui. I render aggiuntivi
+ * (3°, 4° foto AI) escono dall'ordine configurabile: vanno sempre in coda.
+ */
+export type SrPdfPageId =
+  | "chi_siamo"
+  | "proposta"
+  | "allegato_tecnico"
+  | "macro_dedicate"
+  | "investimento"
+  | "percorso"
+  | "render"
+  | "cta";
+
+export interface SrPdfPageOrderItem {
+  id: SrPdfPageId;
+  visible: boolean;
+}
+
+/** Metadata user-facing per ogni pagina (label + descrizione + always-visible). */
+export interface SrPdfPageMeta {
+  id: SrPdfPageId;
+  label: string;
+  descrizione: string;
+  /** Se true, la pagina non può essere nascosta (toggle visible disabilitato). */
+  obbligatoria: boolean;
+}
+
+export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
+  {
+    id: "chi_siamo",
+    label: "Chi siamo",
+    descrizione: "Presentazione azienda (foto + testo descrittivo).",
+    obbligatoria: false,
+  },
+  {
+    id: "proposta",
+    label: "Proposta di intervento",
+    descrizione: "Anagrafica cliente, esigenze, soluzione, perché scegliere voi.",
+    obbligatoria: true,
+  },
+  {
+    id: "allegato_tecnico",
+    label: "Allegato tecnico",
+    descrizione: "Composizione serramenti (foto + scheda tecnica) + La tua consulenza.",
+    obbligatoria: true,
+  },
+  {
+    id: "macro_dedicate",
+    label: "Pagine dedicate macrocategoria",
+    descrizione: "Una pagina per ogni macrocategoria con mostra_pagina_dedicata_pdf=true.",
+    obbligatoria: false,
+  },
+  {
+    id: "investimento",
+    label: "L'investimento",
+    descrizione: "Prezzo, modalità pagamento, finanziamento, risparmio + cashflow, incluso.",
+    obbligatoria: true,
+  },
+  {
+    id: "percorso",
+    label: "Il tuo percorso",
+    descrizione: "Pagina con le 4 fasi e gli step (configurata sopra).",
+    obbligatoria: false,
+  },
+  {
+    id: "render",
+    label: "Prima & Dopo (render AI)",
+    descrizione: "Foto attuale vs render AI. Mostrata solo se ci sono media.",
+    obbligatoria: false,
+  },
+  {
+    id: "cta",
+    label: "Pronti per partire + recensioni",
+    descrizione: "Box CTA finale + testimonianze cliente (se attive).",
+    obbligatoria: true,
+  },
+];
+
+/** Ordine default delle pagine PDF (usato quando pdf_pages_order è NULL). */
+export const SR_PDF_PAGES_DEFAULT: SrPdfPageOrderItem[] = SR_PDF_PAGES_META.map((p) => ({
+  id: p.id,
+  visible: true,
+}));
+
+/**
+ * Merge robust: prende l'array salvato dall'utente e garantisce:
+ *  - tutte le pagine canoniche sono presenti (aggiunge le mancanti in coda)
+ *  - filtra id sconosciuti (es. pagina rimossa in futuro update)
+ *  - le pagine obbligatorie hanno sempre visible=true (anche se salvato false
+ *    da una versione precedente).
+ */
+export function normalizePdfPagesOrder(
+  saved: SrPdfPageOrderItem[] | null | undefined,
+): SrPdfPageOrderItem[] {
+  const validIds = new Set<SrPdfPageId>(SR_PDF_PAGES_META.map((p) => p.id));
+  const obbligatori = new Set<SrPdfPageId>(
+    SR_PDF_PAGES_META.filter((p) => p.obbligatoria).map((p) => p.id),
+  );
+  const out: SrPdfPageOrderItem[] = [];
+  const seen = new Set<SrPdfPageId>();
+  for (const item of saved ?? []) {
+    if (!item || !validIds.has(item.id) || seen.has(item.id)) continue;
+    seen.add(item.id);
+    out.push({
+      id: item.id,
+      visible: obbligatori.has(item.id) ? true : !!item.visible,
+    });
+  }
+  // Aggiungi le pagine mancanti in coda (es. nuova pagina rilasciata dopo
+  // che l'utente ha già salvato un ordine).
+  for (const meta of SR_PDF_PAGES_META) {
+    if (!seen.has(meta.id)) {
+      out.push({ id: meta.id, visible: true });
+    }
+  }
+  return out;
+}
 
 export interface SrProgettoDetail {
   progetto: SrProgettoRow;

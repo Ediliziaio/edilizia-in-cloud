@@ -18,14 +18,15 @@
  * Font: tenta Inter via Google Fonts CDN (HTTPS, no auth). Se la registrazione
  * fallisce (CORS, network) il renderer fa fallback automatico a Helvetica.
  */
+import * as React from "react";
 import { Document, Page, Text, View, StyleSheet, Image, Svg, Path, Rect, Circle, G, Font } from "@react-pdf/renderer";
 import type {
   SrProgettoDetail, SrSerramentoRow, SrPagamentoMilestone,
   SrPianoFinanziamento, SrEsigenza, SrSoluzioneItem, SrTestimonianza,
   SrTemplatePdfRow,
 } from "@/types/serramenti";
-import { SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI, SR_SCHEMI_PAGAMENTO, SR_PERCORSO_DEFAULT } from "@/types/serramenti";
-import type { SrPercorsoCliente } from "@/types/serramenti";
+import { SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI, SR_SCHEMI_PAGAMENTO, SR_PERCORSO_DEFAULT, normalizePdfPagesOrder } from "@/types/serramenti";
+import type { SrPercorsoCliente, SrPdfPageId, SrPdfPageOrderItem } from "@/types/serramenti";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
@@ -1067,6 +1068,13 @@ export function SerramentoPDF({
   const vat = template?.partita_iva || company?.partita_iva;
   const website = company?.website;
 
+  // Ordine pagine PDF configurato dall'admin nel template editor.
+  // normalizePdfPagesOrder garantisce robustezza: aggiunge pagine nuove
+  // mancanti, rimuove ID legacy, forza visible=true sulle obbligatorie.
+  const pdfPagesOrder = normalizePdfPagesOrder(
+    (tpl.pdf_pages_order ?? null) as SrPdfPageOrderItem[] | null,
+  );
+
   return (
     <Document
       title={`Stima ${p.code} - ${clienteNome}`}
@@ -1168,905 +1176,944 @@ export function SerramentoPDF({
         </View>
       </Page>
 
-      {/* ─── PAGINA "CHI SIAMO" (opzionale, opt-in via template) ─────────── */}
-      {chiSiamoAttivo && (
-        <Page size="A4" style={styles.page}>
-          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-          <Text style={styles.pageEyebrow}>Chi siamo</Text>
-          {/* Titolo compatto rispetto a pageTitle (che è 28pt+): chi-siamo
-              spesso ha titoli lunghi tipo "Da oltre 20 Anni al fianco delle
-              Famiglie Italiane", a 28pt occuperebbero 3 righe. */}
-          <Text style={[styles.pageTitle, { fontSize: 22, marginBottom: 12 }]}>{chiSiamoTitolo}</Text>
-          {chiSiamoFotoUrl ? (
-            <View style={styles.chiSiamoHeroWrap}>
-              <Image
-                src={chiSiamoFotoUrl}
-                style={styles.chiSiamoHero}
-                cache={false}
-              />
-            </View>
-          ) : (
-            <View style={styles.chiSiamoHeroPh}>
-              <Text style={{ fontSize: 14, color: C.gray500, fontWeight: 700 }}>{companyName}</Text>
-            </View>
-          )}
-          {chiSiamoTesto && (
-            <View>
-              {chiSiamoTesto.split(/\n\n+/).map((para, i) => {
-                const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
-                const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
-                if (allBullets) {
-                  return (
-                    <View key={i} style={{ marginBottom: 8 }}>
-                      {lines.map((l, li) => (
-                        <View key={li} style={styles.bulletItem} wrap={false}>
-                          <View style={styles.bulletDot} />
-                          <Text style={[styles.bulletText, { fontSize: 10 }]}>{l.replace(/^[-•]\s*/, "")}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  );
-                }
-                return <Text key={i} style={[styles.chiSiamoText, { marginBottom: 8 }]}>{para}</Text>;
-              })}
-            </View>
-          )}
-          <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
-        </Page>
-      )}
-
-      {/* ─── PAGINA 2 — PROPOSTA INTERVENTO ──────────────────────────────── */}
-      <Page size="A4" style={styles.page}>
-        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-
-        <Text style={styles.pageEyebrow}>Pagina 2 · Proposta di intervento</Text>
-        <Text style={styles.pageTitle}>Per {p.cliente_nome ?? clienteNome}</Text>
-        <Text style={styles.pageSubtitle}>
-          {[p.cantiere_citta || p.cliente_citta, `${numSerr} serramenti`, p.tipo_intervento].filter(Boolean).join(" · ")}
-        </Text>
-
-        <Text style={styles.sectionTitle}>Anagrafica cliente</Text>
-        <View style={styles.kvRow}><Text style={styles.kvKey}>Intestatario</Text><Text style={styles.kvValue}>{clienteNome}</Text></View>
-        {p.cliente_indirizzo && (
-          <View style={styles.kvRow}>
-            <Text style={styles.kvKey}>Indirizzo</Text>
-            <Text style={styles.kvValue}>{p.cliente_indirizzo}</Text>
-          </View>
-        )}
-        {(p.cliente_citta || p.cliente_cap || p.cliente_provincia) && (
-          <View style={styles.kvRow}>
-            <Text style={styles.kvKey}>Città</Text>
-            <Text style={styles.kvValue}>
-              {[p.cliente_cap, p.cliente_citta, p.cliente_provincia ? `(${p.cliente_provincia})` : null]
-                .filter(Boolean).join(" ")}
-            </Text>
-          </View>
-        )}
-        {p.cliente_telefono && <View style={styles.kvRow}><Text style={styles.kvKey}>Telefono</Text><Text style={styles.kvValue}>{p.cliente_telefono}</Text></View>}
-        {p.cliente_email && <View style={styles.kvRow}><Text style={styles.kvKey}>Email</Text><Text style={styles.kvValue}>{p.cliente_email}</Text></View>}
-        {/* Cantiere se diverso dal cliente */}
-        {p.cantiere_indirizzo && p.cantiere_indirizzo !== p.cliente_indirizzo && (
-          <View style={styles.kvRow}>
-            <Text style={styles.kvKey}>Cantiere</Text>
-            <Text style={styles.kvValue}>
-              {[p.cantiere_indirizzo, p.cantiere_citta, p.cantiere_piano ? `· piano ${p.cantiere_piano}` : null]
-                .filter(Boolean).join(", ")}
-            </Text>
-          </View>
-        )}
-
-        <Text style={styles.sectionTitle}>L'intervento in sintesi</Text>
-        <Text style={styles.sintesiBox}>{sintesi}</Text>
-
-        {esigenze.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Le tue esigenze</Text>
-            {esigenze.slice(0, 3).map((e, i) => (
-              <View key={i} style={styles.bulletItem} wrap={false}>
-                <View style={styles.bulletDot} />
-                <View style={styles.bulletContent}>
-                  <Text style={styles.bulletTitle}>{e.titolo}</Text>
-                  {e.descrizione && <Text style={styles.bulletText}>{e.descrizione}</Text>}
-                </View>
-              </View>
-            ))}
-          </>
-        )}
-
-        {soluzione.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>La soluzione per te</Text>
-            {soluzione.slice(0, 4).map((sol, i) => (
-              <View key={i} style={styles.bulletItem} wrap={false}>
-                <View style={styles.bulletDot} />
-                <View style={styles.bulletContent}>
-                  <Text style={styles.bulletTitle}>{sol.titolo}</Text>
-                  {sol.descrizione && <Text style={styles.bulletText}>{sol.descrizione}</Text>}
-                </View>
-              </View>
-            ))}
-          </>
-        )}
-
-        {percheNoi.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Perché {companyName}</Text>
-            {percheNoi.slice(0, 5).map((it, i) => {
-              const titolo = typeof it === "string" ? it : it.titolo;
-              const descrizione = typeof it === "string" ? null : it.descrizione;
-              return (
-                <View key={i} style={styles.bulletItem} wrap={false}>
-                  <View style={styles.bulletDot} />
-                  <View style={styles.bulletContent}>
-                    <Text style={styles.bulletTitle}>{titolo}</Text>
-                    {descrizione && <Text style={styles.bulletText}>{descrizione}</Text>}
+      {/* ───────────────────────────────────────────────────────────────────
+          Pagine PDF in ordine configurato dal template.
+          L'admin può riordinare e mostrare/nascondere singole pagine dal
+          template editor (tab "Ordine pagine"). normalizePdfPagesOrder
+          garantisce che eventuali ID legacy o nuovi siano gestiti senza
+          rompere PDF già esistenti.
+          ─────────────────────────────────────────────────────────────────── */}
+      {(() => {
+        const pageEls: Record<SrPdfPageId, React.ReactElement> = {
+          chi_siamo: (
+            <>
+            {/* ─── PAGINA "CHI SIAMO" (opzionale, opt-in via template) ─────────── */}
+            {chiSiamoAttivo && (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <Text style={styles.pageEyebrow}>Chi siamo</Text>
+                {/* Titolo compatto rispetto a pageTitle (che è 28pt+): chi-siamo
+                    spesso ha titoli lunghi tipo "Da oltre 20 Anni al fianco delle
+                    Famiglie Italiane", a 28pt occuperebbero 3 righe. */}
+                <Text style={[styles.pageTitle, { fontSize: 22, marginBottom: 12 }]}>{chiSiamoTitolo}</Text>
+                {chiSiamoFotoUrl ? (
+                  <View style={styles.chiSiamoHeroWrap}>
+                    <Image
+                      src={chiSiamoFotoUrl}
+                      style={styles.chiSiamoHero}
+                      cache={false}
+                    />
                   </View>
-                </View>
-              );
-            })}
-          </>
-        )}
-
-        <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
-      </Page>
-
-      {/* ─── PAGINA 3 — ALLEGATO TECNICO ────────────────────────────────── */}
-      <Page size="A4" style={styles.page}>
-        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-
-        <Text style={styles.pageEyebrow}>Pagina 3 · Allegato tecnico</Text>
-        <Text style={styles.pageTitle}>Cosa entra{"\n"}in cantiere.</Text>
-        <Text style={styles.pageSubtitle}>Composizione dettagliata dei serramenti e degli accessori previsti.</Text>
-
-        <Text style={styles.sectionTitle}>Composizione serramenti · {numSerr} pezzi</Text>
-        <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <View style={{ width: 28 }}><Text style={styles.tableHeaderText}>#</Text></View>
-            <View style={{ width: 70 }}><Text style={styles.tableHeaderText}>Foto</Text></View>
-            <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Descrizione &amp; Specifiche tecniche</Text></View>
-            <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
-          </View>
-          {serramentiGrouped.map((g, idx) => {
-            const family = g.family_id ? familiesById[g.family_id] : null;
-            // macroId con fallback: prima la macro della family (se BOM da listino),
-            // poi l'override manuale (se il consulente ha selezionato la macro).
-            const macroId = family?.macrocategoria_id ?? g.macrocategoria_override_id ?? null;
-            const fields = macroId ? (fieldsByMacro[macroId] ?? []) : [];
-            const specs: Array<{ label: string; value: string; unit: string | null }> = [];
-            if (family && fields.length > 0) {
-              for (const f of fields) {
-                const raw = family.custom_field_values[f.field_key];
-                const display = formatFieldDisplay(f, raw);
-                if (display) specs.push({ label: f.field_label, value: display, unit: f.field_unit });
-              }
-            }
-            // Titolo: nome reale della famiglia se disponibile, altrimenti tipologia generica
-            const titolo = family?.nome?.trim() || g.tipologia;
-            // Dimensioni nella prima riga muted
-            const dimensioni = g.larghezza && g.altezza
-              ? `${g.larghezza} × ${g.altezza} mm`
-              : g.larghezza ? `L ${g.larghezza} mm`
-              : g.altezza ? `H ${g.altezza} mm`
-              : null;
-            // Descrizione tecnica del listino
-            const techDesc = family?.descrizione?.trim() || null;
-            // Immagine prodotto con fallback gerarchico:
-            //   1. family.immagine_url (foto specifica del modello)
-            //   2. macroImageById[macroId] — funziona anche per BOM manuali
-            //      con macrocategoria_override_id (vedi macroId sopra)
-            //   3. placeholder SVG
-            const prodottoImageUrl = family?.immagine_url
-              || (macroId ? macroImageById[macroId] : null)
-              || null;
-            return (
-              <View key={g.key} style={styles.tableRow} wrap={false}>
-                {/* Numero progressivo */}
-                <View style={styles.tableRowNumber}>
-                  <Text style={styles.tableRowNumberText}>{idx + 1}</Text>
-                </View>
-                {/* Foto reale */}
-                <View style={{ width: 70 }}>
-                  {prodottoImageUrl ? (
-                    <Image src={prodottoImageUrl} style={styles.tableThumb} />
-                  ) : (
-                    <View style={styles.tableThumbPh}>
-                      <Svg viewBox="0 0 24 24" style={{ width: 24, height: 24 } as never}>
-                        <Rect x={3} y={3} width={18} height={18} rx={1.5} stroke={C.gray500} strokeWidth={1.5} fill="none" />
-                        <Path d="M 12 4 L 12 20" stroke={C.gray500} strokeWidth={1} />
-                        <Path d="M 4 12 L 20 12" stroke={C.gray500} strokeWidth={1} />
-                      </Svg>
-                    </View>
-                  )}
-                </View>
-                {/* Descrizione + dimensioni + descrizione tecnica + specs */}
-                <View style={{ flex: 1, paddingRight: 6 }}>
-                  <Text style={styles.tableCellStrong}>
-                    {titolo}
-                    {g.ambiente ? <Text style={{ color: C.gray500, fontWeight: 400 }}> · {g.ambiente}</Text> : null}
-                  </Text>
-                  <Text style={[styles.tableCellMuted, { fontWeight: 700, color: C.gray700 }]}>
-                    {[
-                      dimensioni,
-                      g.materiale !== "—" ? g.materiale : null,
-                      g.serie,
-                      g.vetro,
-                    ].filter(Boolean).join(" · ")}
-                  </Text>
-                  {(g.colore_interno || g.colore_esterno) && (
-                    <Text style={styles.tableCellMuted}>
-                      Colore: {[
-                        g.colore_interno ? `interno ${g.colore_interno}` : null,
-                        g.colore_esterno ? `esterno ${g.colore_esterno}` : null,
-                      ].filter(Boolean).join(" · ")}
-                    </Text>
-                  )}
-                  {/* Descrizione tecnica dal listino prodotti */}
-                  {techDesc && (
-                    <Text style={styles.tableTechDesc}>{techDesc}</Text>
-                  )}
-                  {specs.length > 0 && (
-                    <View style={styles.specChips}>
-                      {specs.slice(0, 8).map((sp, si) => (
-                        <View key={si} style={styles.specChip}>
-                          <Text style={{ fontSize: 8.5 }}>
-                            <Text style={styles.specChipLabel}>{sp.label}: </Text>
-                            <Text style={styles.specChipValue}>{sp.value}</Text>
-                            {sp.unit ? <Text style={styles.specChipUnit}> {sp.unit}</Text> : null}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-                {/* Quantità */}
-                <View style={{ width: 50, alignItems: "flex-end", paddingTop: 6 }}>
-                  <Text style={styles.tableCellNum}>{g.quantita}</Text>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-
-        {detail.accessori.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Accessori e complementi</Text>
-            <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Voce</Text></View>
-                <View style={{ width: 90 }}><Text style={styles.tableHeaderText}>Misure</Text></View>
-                <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
-              </View>
-              {detail.accessori.map((a, i) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const ax = a as any;
-                const misure = ax.larghezza_mm && ax.altezza_mm
-                  ? `${ax.larghezza_mm}×${ax.altezza_mm} mm`
-                  : "—";
-                return (
-                  <View key={i} style={styles.tableRow} wrap={false}>
-                    <View style={{ flex: 1, paddingRight: 6 }}>
-                      <Text style={styles.tableCellStrong}>{a.descrizione || a.tipo}</Text>
-                    </View>
-                    <View style={{ width: 90 }}>
-                      <Text style={styles.tableCellMuted}>{misure}</Text>
-                    </View>
-                    <View style={{ width: 50, alignItems: "flex-end" }}>
-                      <Text style={styles.tableCellNum}>{a.quantita ?? 1}</Text>
-                    </View>
+                ) : (
+                  <View style={styles.chiSiamoHeroPh}>
+                    <Text style={{ fontSize: 14, color: C.gray500, fontWeight: 700 }}>{companyName}</Text>
                   </View>
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        {/* Cronoprogramma rimosso — sostituito dalla pagina dedicata "Il tuo percorso" */}
-
-        {/* La tua consulenza — il consulente è SEMPRE l'utente che ha
-            fatto il preventivo (hook fa fallback a auth.user). Mai il
-            nome azienda nel campo nome consulente. */}
-        <Text style={styles.sectionTitle}>La tua consulenza</Text>
-        <View style={styles.consBox}>
-          {consulente?.foto_url ? (
-            <Image src={consulente.foto_url} style={styles.consPhoto} />
-          ) : (
-            <View style={styles.consPhotoPh}>
-              <Text style={{ color: "#FFFFFF", fontSize: 22, fontWeight: 700 }}>
-                {(() => {
-                  const name = consulente?.nome ?? "Consulente tecnico";
-                  const parts = name.trim().split(/\s+/);
-                  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-                  return name.slice(0, 2).toUpperCase();
-                })()}
-              </Text>
-            </View>
-          )}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.consName}>{consulente?.nome ?? "Consulente tecnico"}</Text>
-            <Text style={styles.consRole}>{consulente?.ruolo ?? "Consulente tecnico"}</Text>
-            {consulenteDescrizione && (
-              <Text style={{ fontSize: 9.5, color: C.gray700, lineHeight: 1.5, marginTop: 5 }}>
-                {consulenteDescrizione}
-              </Text>
-            )}
-            <Text style={styles.consContact}>
-              {p.consulenza_at ? `Appuntamento: ${fmtDateTime(p.consulenza_at)}\n` : ""}
-              {[consulente?.telefono, consulente?.email].filter(Boolean).join(" · ")}
-            </Text>
-          </View>
-        </View>
-
-        <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
-      </Page>
-
-      {/* ─── PAGINE DEDICATE MACROCATEGORIA (opzionali) ─────────────────── */}
-      {macroPagineDedicate.map((mp, mi) => (
-        <Page key={mp.macro_id} size="A4" style={styles.page}>
-          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-          <Text style={styles.pageEyebrow}>
-            Linea prodotto · {mi + 1} di {macroPagineDedicate.length}
-          </Text>
-          <Text style={styles.pageTitle}>{mp.nome}</Text>
-          <View style={styles.macroPageHero}>
-            {mp.immagine_url ? (
-              <View style={styles.macroPageImgWrap}>
-                <Image src={mp.immagine_url} style={styles.macroPageImg} />
-              </View>
-            ) : (
-              <View style={styles.macroPageImgPh}>
-                <Text style={{ fontSize: 12, color: C.gray500 }}>{mp.nome}</Text>
-              </View>
-            )}
-            <View style={styles.macroPageContent}>
-              {mp.descrizione_estesa.split(/\n\n+/).map((para, i) => {
-                const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
-                const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
-                if (allBullets) {
-                  return (
-                    <View key={i} style={{ marginBottom: 8 }}>
-                      {lines.map((l, li) => (
-                        <View key={li} style={styles.bulletItem}>
-                          <View style={styles.bulletDot} />
-                          <Text style={{ flex: 1, fontSize: 10.5, color: C.gray700, lineHeight: 1.55 }}>
-                            {l.replace(/^[-•]\s*/, "")}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  );
-                }
-                return (
-                  <Text key={i} style={{ marginBottom: 8, fontSize: 11, color: C.gray700, lineHeight: 1.65 }}>
-                    {para}
-                  </Text>
-                );
-              })}
-            </View>
-          </View>
-          <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
-        </Page>
-      ))}
-
-      {/* ─── PAGINA — INVESTIMENTO (spostata DOPO i prodotti) ──────────────
-          La pagina economica viene mostrata dopo l'allegato tecnico e le
-          pagine dedicate macrocategoria: il cliente vede prima COSA gli
-          stiamo proponendo (composizione + foto + descrizione macro), e
-          solo dopo QUANTO costa. Flusso narrativo: prodotto → valore. */}
-      <Page size="A4" style={styles.page}>
-        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-
-        <Text style={styles.pageEyebrow}>Pagina 4 · L'investimento</Text>
-        <Text style={styles.pageTitle}>Trasparenza{"\n"}totale.</Text>
-        <Text style={styles.pageSubtitle}>
-          Forbice indicativa basata sul primo contatto. Il prezzo definitivo si fissa con sopralluogo e scelta materiali.
-        </Text>
-
-        <View style={styles.priceBox}>
-          <Text style={styles.priceLabel}>Il tuo investimento stimato</Text>
-          <Text style={styles.priceValue}>
-            € {fmtEuro(totaleMin)} – € {fmtEuro(totaleMax)}
-            <Text style={styles.priceSuffix}>IVA inclusa</Text>
-          </Text>
-          <Text style={{ fontSize: 9, color: C.primary, marginTop: 4 }}>
-            Media: € {fmtEuro(totaleMedia)}
-          </Text>
-        </View>
-
-        {milestones.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Modalità di pagamento</Text>
-            <Text style={styles.paySchemaTag}>{schemaCfg?.label ?? "Personalizzato"}</Text>
-            {milestones.map((m, i) => {
-              const amount = (totaleMedia * (Number(m.percentuale) || 0)) / 100;
-              return (
-                <View key={i} style={styles.payStep} wrap={false}>
-                  <View style={styles.payStepIdxBox}>
-                    <Text style={styles.payStepIdxText}>{i + 1}</Text>
-                  </View>
-                  <View style={styles.payStepBody}>
-                    <Text style={styles.payStepLabel}>{m.label}</Text>
-                    {m.when ? <Text style={styles.payStepWhen}>{m.when}</Text> : null}
-                  </View>
-                  <View style={styles.payStepRight}>
-                    <Text style={styles.payStepPct}>{m.percentuale}%</Text>
-                    <Text style={styles.payStepAmount}>≈ € {fmtEuro(amount)}</Text>
-                  </View>
-                </View>
-              );
-            })}
-          </>
-        )}
-
-        {piani.length > 0 && schemaCfg?.hasFinanziamento && (
-          <>
-            <Text style={styles.sectionTitle}>Simulazione finanziamento</Text>
-            <View style={styles.finBox}>
-              {piani.slice(0, 2).map((piano, i) => (
-                <View key={i} style={styles.finCard}>
-                  <Text style={styles.finCardTitle}>{piano.nome} · {piano.mesi} mesi · TAN {piano.tasso}%</Text>
-                  <Text style={styles.finCardValue}>€ {fmtEuro(piano.rata_mese)}</Text>
-                  <Text style={styles.finCardSub}>/mese · finanziato € {fmtEuro(piano.finanziato)}</Text>
-                </View>
-              ))}
-            </View>
-            <Text style={{ fontSize: 7.5, color: C.gray500, marginTop: 6 }}>
-              Esempi a scopo informativo. Condizioni contrattuali definitive disponibili in sede.
-            </Text>
-          </>
-        )}
-
-        {p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Detrazione fiscale</Text>
-            {/* NOTE: niente flex:1 — usiamo View standalone con padding fisso
-                (lo style finCard ha flex:1 perché pensato per layout 2 colonne) */}
-            <View style={{
-              backgroundColor: C.successBg,
-              borderColor: "#86EFAC", borderWidth: 0.5, borderStyle: "solid",
-              borderRadius: 8, padding: 14, marginTop: 6,
-            }}>
-              <Text style={[styles.finCardTitle, { color: C.successText }]}>
-                Detrazione {p.detrazione_aliquota}% recuperabile in 10 quote annuali
-              </Text>
-              <Text style={[styles.finCardValue, { color: C.successText }]}>
-                € {fmtEuro(p.detrazione_eur_totale)}
-              </Text>
-              <Text style={[styles.finCardSub, { color: C.successText }]}>
-                ≈ € {fmtEuro(p.detrazione_eur_anno)} / anno per 10 anni
-              </Text>
-            </View>
-          </>
-        )}
-
-        {cashflowYears.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Cashflow 10 anni — rientro dell'investimento</Text>
-            <CashflowSvg years={cashflowYears} primary={primaryColor} />
-            <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 4 }}>
-              Risparmio bolletta + detrazione fiscale cumulati anno dopo anno.
-              La linea tratteggiata indica l'anno in cui l'investimento è
-              completamente ripagato (break-even).
-            </Text>
-
-            {/* TABELLA RISPARMIO 10 ANNI — dettaglio anno-per-anno */}
-            <View style={{ marginTop: 12 }}>
-              <View style={styles.tableHeader}>
-                <View style={{ width: 38 }}><Text style={styles.tableHeaderText}>Anno</Text></View>
-                <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Risparmio</Text></View>
-                <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Detrazione</Text></View>
-                <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Cumulato</Text></View>
-                <View style={{ width: 80, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Recupero</Text></View>
-              </View>
-              {cashflowYears.map((y, i) => {
-                const risp = Number(p.risparmio_eur_anno ?? 0);
-                const det = Number(p.detrazione_eur_anno ?? 0);
-                const cumulato = y.cumulato;
-                const recupero = totaleMedia > 0
-                  ? Math.min(100, Math.max(0, ((cumulato + totaleMedia) / totaleMedia) * 100))
-                  : 0;
-                const isBreakEven = cumulato >= 0 && (i === 0 || cashflowYears[i - 1].cumulato < 0);
-                return (
-                  <View
-                    key={i}
-                    style={{
-                      flexDirection: "row",
-                      paddingVertical: 5,
-                      borderBottom: `0.5pt solid ${C.gray100}`,
-                      backgroundColor: isBreakEven ? C.successBg : "transparent",
-                    }}
-                    wrap={false}
-                  >
-                    <View style={{ width: 38 }}>
-                      <Text style={{ fontSize: 9, fontWeight: 700, color: C.gray900 }}>
-                        A{y.year}{isBreakEven ? " ★" : ""}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1, alignItems: "flex-end" }}>
-                      <Text style={{ fontSize: 9, color: C.gray700 }}>€ {fmtEuro(risp)}</Text>
-                    </View>
-                    <View style={{ flex: 1, alignItems: "flex-end" }}>
-                      <Text style={{ fontSize: 9, color: C.gray700 }}>€ {fmtEuro(det)}</Text>
-                    </View>
-                    <View style={{ flex: 1, alignItems: "flex-end" }}>
-                      <Text style={{ fontSize: 9, fontWeight: cumulato >= 0 ? 700 : 400, color: cumulato >= 0 ? C.successText : C.gray500 }}>
-                        {cumulato >= 0 ? "+" : ""}€ {fmtEuro(Math.abs(cumulato))}
-                      </Text>
-                    </View>
-                    <View style={{ width: 80, alignItems: "flex-end" }}>
-                      <Text style={{ fontSize: 8, color: C.gray500 }}>{recupero.toFixed(0)}%</Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-            <Text style={{ fontSize: 8, color: C.gray500, marginTop: 5, fontStyle: "italic" }}>
-              ★ Anno di break-even — l'investimento iniziale è completamente ripagato dal risparmio + detrazione.
-            </Text>
-          </>
-        )}
-
-        {/* SE PAGHI A RATE — confronto rata vs risparmio mensile */}
-        {schemaCfg?.hasFinanziamento && piani.length > 0 && Number(p.risparmio_eur_anno ?? 0) > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Se paghi a rate — bilancio mensile</Text>
-            {(() => {
-              const piano = piani[0];
-              const rataMese = Number(piano.rata_mese ?? 0);
-              const risparmioMese = Number(p.risparmio_eur_anno ?? 0) / 12;
-              const detrazioneMese = Number(p.detrazione_eur_anno ?? 0) / 12;
-              const beneficioMese = risparmioMese + detrazioneMese;
-              const costoNetto = rataMese - beneficioMese;
-              const positivo = costoNetto <= 0;
-              return (
-                <View style={{
-                  flexDirection: "row",
-                  gap: 10,
-                  marginTop: 4,
-                }}>
-                  <View style={styles.finCard}>
-                    <Text style={styles.finCardTitle}>Rata mensile</Text>
-                    <Text style={[styles.finCardValue, { color: C.gray900 }]}>€ {fmtEuro(rataMese)}</Text>
-                    <Text style={styles.finCardSub}>{piano.mesi} mesi · TAN {piano.tasso}%</Text>
-                  </View>
-                  <View style={styles.finCard}>
-                    <Text style={styles.finCardTitle}>Risparmio + detrazione</Text>
-                    <Text style={[styles.finCardValue, { color: C.successText }]}>− € {fmtEuro(beneficioMese)}</Text>
-                    <Text style={styles.finCardSub}>al mese (media 10 anni)</Text>
-                  </View>
-                  <View style={[styles.finCard, {
-                    backgroundColor: positivo ? C.successBg : C.gray50,
-                    borderColor: positivo ? "#86EFAC" : C.gray200,
-                  }]}>
-                    <Text style={[styles.finCardTitle, { color: positivo ? C.successText : C.gray500 }]}>
-                      Costo netto / mese
-                    </Text>
-                    <Text style={[styles.finCardValue, { color: positivo ? C.successText : C.primary }]}>
-                      {positivo ? "Gratis o positivo" : `€ ${fmtEuro(costoNetto)}`}
-                    </Text>
-                    <Text style={[styles.finCardSub, { color: positivo ? C.successText : C.gray500 }]}>
-                      {positivo
-                        ? "Il risparmio copre la rata"
-                        : `Solo € ${fmtEuro(costoNetto)} reali di esborso`}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })()}
-            <Text style={{ fontSize: 8, color: C.gray500, marginTop: 6, fontStyle: "italic" }}>
-              Bilancio indicativo: la rata viene pagata oggi, il risparmio si concretizza nei prossimi
-              10 anni. Le condizioni finanziarie definitive sono nel contratto.
-            </Text>
-          </>
-        )}
-
-        {incluso.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Cosa è incluso</Text>
-            {incluso.slice(0, 6).map((it, i) => {
-              const titolo = typeof it === "string" ? it : it.titolo;
-              const descrizione = typeof it === "string" ? null : it.descrizione;
-              return (
-                <View key={i} style={styles.bulletItem} wrap={false}>
-                  <View style={styles.bulletDot} />
-                  <View style={styles.bulletContent}>
-                    <Text style={styles.bulletTitle}>{titolo}</Text>
-                    {descrizione && <Text style={styles.bulletText}>{descrizione}</Text>}
-                  </View>
-                </View>
-              );
-            })}
-          </>
-        )}
-
-        <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
-      </Page>
-
-      {/* ─── PAGINA "IL TUO PERCORSO" — fasi + step in cards verticali ─────
-          Posizionata RIGHT BEFORE la CTA "Pronti per partire" come anteprima
-          del workflow. Layout: hero con numero step totali + grid di card
-          scure (1 per fase) con elenco passaggi numerati. Editabile dal
-          template editor. */}
-      {percorsoAttivo && percorso.fasi.length > 0 && (
-        <Page size="A4" style={styles.page}>
-          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-
-          {/* Hero centrato */}
-          <View style={{ alignItems: "center", marginBottom: 16, marginTop: 6 }}>
-            <View style={styles.percorsoBadge}>
-              <Text style={styles.percorsoBadgeText}>Il tuo percorso</Text>
-            </View>
-            <Text style={styles.percorsoBigNumber}>{percorsoTotaleStep}</Text>
-            <Text style={{
-              fontSize: 18, fontWeight: 700, color: C.gray900,
-              textAlign: "center" as const, marginTop: 4, letterSpacing: -0.3,
-            }}>
-              {percorso.titolo === SR_PERCORSO_DEFAULT.titolo
-                ? `passaggi curati nei minimi dettagli`
-                : percorso.titolo}
-            </Text>
-            <Text style={{
-              fontSize: 10, color: C.gray500, textAlign: "center" as const,
-              marginTop: 6, maxWidth: 380,
-            }}>
-              {percorso.sottotitolo}
-            </Text>
-          </View>
-
-          {/* Grid responsive: 1 fase → 100%, 2 → 49%, 3 → 32%, 4+ → 23.5%
-              Layout intelligente che evita overflow del nome fase. */}
-          {(() => {
-            const cardWidth =
-              percorso.fasi.length === 1 ? "100%"
-              : percorso.fasi.length === 2 ? "49%"
-              : percorso.fasi.length === 3 ? "32%"
-              : percorso.fasi.length === 4 ? "23.5%"
-              : "48%"; // 5+ fasi → 2 per riga
-            return (
-          <View style={{
-            flexDirection: "row", flexWrap: "wrap",
-            gap: 8,
-            marginTop: 8,
-          }}>
-            {percorso.fasi.map((fase, fi) => {
-              const roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][fi] ?? `${fi + 1}`;
-              return (
-                <View
-                  key={fi}
-                  style={[styles.percorsoFaseCard, { width: cardWidth }]}
-                  wrap={false}
-                >
-                  <View style={styles.percorsoFaseHeader}>
-                    <View style={styles.percorsoFaseRomanBox}>
-                      <Text style={styles.percorsoFaseRomanText}>{roman}</Text>
-                    </View>
-                    <View>
-                      <Text style={styles.percorsoFaseLabel}>Fase {fi + 1}</Text>
-                      <Text style={styles.percorsoFaseName}>{fase.nome.toUpperCase()}</Text>
-                    </View>
-                  </View>
-                  {/* Numerazione globale step dentro la fase */}
-                  {(() => {
-                    const stepBefore = percorso.fasi.slice(0, fi).reduce((acc, f) => acc + f.step.length, 0);
-                    return fase.step.map((step, si) => {
-                      const globalIdx = stepBefore + si + 1;
-                      return (
-                        <View key={si} style={styles.percorsoStepRow}>
-                          <View style={styles.percorsoStepIdx}>
-                            <Text style={styles.percorsoStepIdxText}>
-                              {String(globalIdx).padStart(2, "0")}
-                            </Text>
+                )}
+                {chiSiamoTesto && (
+                  <View>
+                    {chiSiamoTesto.split(/\n\n+/).map((para, i) => {
+                      const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
+                      const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
+                      if (allBullets) {
+                        return (
+                          <View key={i} style={{ marginBottom: 8 }}>
+                            {lines.map((l, li) => (
+                              <View key={li} style={styles.bulletItem} wrap={false}>
+                                <View style={styles.bulletDot} />
+                                <Text style={[styles.bulletText, { fontSize: 10 }]}>{l.replace(/^[-•]\s*/, "")}</Text>
+                              </View>
+                            ))}
                           </View>
-                          <Text style={styles.percorsoStepText}>{step}</Text>
-                        </View>
-                      );
-                    });
-                  })()}
+                        );
+                      }
+                      return <Text key={i} style={[styles.chiSiamoText, { marginBottom: 8 }]}>{para}</Text>;
+                    })}
+                  </View>
+                )}
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+              </Page>
+            )}
+            </>
+          ),
+          proposta: (
+            <>
+            {/* ─── PAGINA 2 — PROPOSTA INTERVENTO ──────────────────────────────── */}
+            <Page size="A4" style={styles.page}>
+              <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+
+              <Text style={styles.pageEyebrow}>Pagina 2 · Proposta di intervento</Text>
+              <Text style={styles.pageTitle}>Per {p.cliente_nome ?? clienteNome}</Text>
+              <Text style={styles.pageSubtitle}>
+                {[p.cantiere_citta || p.cliente_citta, `${numSerr} serramenti`, p.tipo_intervento].filter(Boolean).join(" · ")}
+              </Text>
+
+              <Text style={styles.sectionTitle}>Anagrafica cliente</Text>
+              <View style={styles.kvRow}><Text style={styles.kvKey}>Intestatario</Text><Text style={styles.kvValue}>{clienteNome}</Text></View>
+              {p.cliente_indirizzo && (
+                <View style={styles.kvRow}>
+                  <Text style={styles.kvKey}>Indirizzo</Text>
+                  <Text style={styles.kvValue}>{p.cliente_indirizzo}</Text>
                 </View>
-              );
-            })}
-          </View>
-            );
-          })()}
-
-          <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
-        </Page>
-      )}
-
-      {/* ─── PAGINA RENDER AI in LANDSCAPE (orizzontale) per dare massimo
-            risalto al PRIMA/DOPO.
-            Logica:
-            - "Prima" = foto reale dello stato attuale (media.kind = situazione)
-            - "Dopo"  = render AI generato (media.kind = render)
-            Si mostra solo se almeno uno dei due è presente. */}
-      {(primaUrls.length > 0 || renderUrls.length > 0) && (
-        <Page size="A4" orientation="landscape" style={{
-          ...styles.page,
-          paddingTop: 30, paddingBottom: 48,
-          paddingHorizontal: 50,
-        }}>
-          <View style={styles.header} fixed>
-            <View style={styles.headerLeft}>
-              {logoUrl ? (
-                <Image src={logoUrl} style={styles.headerLogo} />
-              ) : (
-                <View style={[styles.headerLogo, { backgroundColor: primaryColor, alignItems: "center", justifyContent: "center" }]}>
-                  <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: 700 }}>
-                    {(companyName || "S").charAt(0).toUpperCase()}
+              )}
+              {(p.cliente_citta || p.cliente_cap || p.cliente_provincia) && (
+                <View style={styles.kvRow}>
+                  <Text style={styles.kvKey}>Città</Text>
+                  <Text style={styles.kvValue}>
+                    {[p.cliente_cap, p.cliente_citta, p.cliente_provincia ? `(${p.cliente_provincia})` : null]
+                      .filter(Boolean).join(" ")}
                   </Text>
                 </View>
               )}
-              <View>
-                <Text style={styles.headerName}>{companyName}</Text>
-                <Text style={{ fontSize: 7.5, color: C.gray500 }}>{clienteNome}</Text>
-              </View>
-            </View>
-            <View style={styles.headerRight}>
-              <Text>STIMA N.</Text>
-              <Text style={styles.headerStimaCode}>{p.code}</Text>
-            </View>
-          </View>
-
-          <Text style={styles.pageEyebrow}>Anteprima visiva · Render AI</Text>
-          <Text style={[styles.pageTitle, { fontSize: 22, marginBottom: 2 }]}>
-            Prima &amp; Dopo
-          </Text>
-          <Text style={[styles.pageSubtitle, { marginBottom: 10, fontSize: 10 }]}>
-            Visualizza il confronto tra come appare oggi e come sarà dopo l'intervento.
-          </Text>
-
-          {/* Layout landscape: usable height ~470pt dopo header+title+disclaimer.
-              CRITICO: label + immagini in singolo View con wrap={false} così
-              react-pdf NON le separa su pagine diverse (bug visto nei PDF prima). */}
-          {hasPrimaDopo ? (
-            <View wrap={false}>
-              <View style={{ flexDirection: "row", marginBottom: 6 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.renderPairLabel, { fontSize: 11, color: C.gray700 }]}>
-                    Prima · foto attuale
+              {p.cliente_telefono && <View style={styles.kvRow}><Text style={styles.kvKey}>Telefono</Text><Text style={styles.kvValue}>{p.cliente_telefono}</Text></View>}
+              {p.cliente_email && <View style={styles.kvRow}><Text style={styles.kvKey}>Email</Text><Text style={styles.kvValue}>{p.cliente_email}</Text></View>}
+              {/* Cantiere se diverso dal cliente */}
+              {p.cantiere_indirizzo && p.cantiere_indirizzo !== p.cliente_indirizzo && (
+                <View style={styles.kvRow}>
+                  <Text style={styles.kvKey}>Cantiere</Text>
+                  <Text style={styles.kvValue}>
+                    {[p.cantiere_indirizzo, p.cantiere_citta, p.cantiere_piano ? `· piano ${p.cantiere_piano}` : null]
+                      .filter(Boolean).join(", ")}
                   </Text>
                 </View>
-                <View style={{ width: 14 }} />
+              )}
+
+              <Text style={styles.sectionTitle}>L'intervento in sintesi</Text>
+              <Text style={styles.sintesiBox}>{sintesi}</Text>
+
+              {esigenze.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Le tue esigenze</Text>
+                  {esigenze.slice(0, 3).map((e, i) => (
+                    <View key={i} style={styles.bulletItem} wrap={false}>
+                      <View style={styles.bulletDot} />
+                      <View style={styles.bulletContent}>
+                        <Text style={styles.bulletTitle}>{e.titolo}</Text>
+                        {e.descrizione && <Text style={styles.bulletText}>{e.descrizione}</Text>}
+                      </View>
+                    </View>
+                  ))}
+                </>
+              )}
+
+              {soluzione.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>La soluzione per te</Text>
+                  {soluzione.slice(0, 4).map((sol, i) => (
+                    <View key={i} style={styles.bulletItem} wrap={false}>
+                      <View style={styles.bulletDot} />
+                      <View style={styles.bulletContent}>
+                        <Text style={styles.bulletTitle}>{sol.titolo}</Text>
+                        {sol.descrizione && <Text style={styles.bulletText}>{sol.descrizione}</Text>}
+                      </View>
+                    </View>
+                  ))}
+                </>
+              )}
+
+              {percheNoi.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Perché {companyName}</Text>
+                  {percheNoi.slice(0, 5).map((it, i) => {
+                    const titolo = typeof it === "string" ? it : it.titolo;
+                    const descrizione = typeof it === "string" ? null : it.descrizione;
+                    return (
+                      <View key={i} style={styles.bulletItem} wrap={false}>
+                        <View style={styles.bulletDot} />
+                        <View style={styles.bulletContent}>
+                          <Text style={styles.bulletTitle}>{titolo}</Text>
+                          {descrizione && <Text style={styles.bulletText}>{descrizione}</Text>}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </>
+              )}
+
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+            </Page>
+            </>
+          ),
+          allegato_tecnico: (
+            <>
+            {/* ─── PAGINA 3 — ALLEGATO TECNICO ────────────────────────────────── */}
+            <Page size="A4" style={styles.page}>
+              <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+
+              <Text style={styles.pageEyebrow}>Pagina 3 · Allegato tecnico</Text>
+              <Text style={styles.pageTitle}>Cosa entra{"\n"}in cantiere.</Text>
+              <Text style={styles.pageSubtitle}>Composizione dettagliata dei serramenti e degli accessori previsti.</Text>
+
+              <Text style={styles.sectionTitle}>Composizione serramenti · {numSerr} pezzi</Text>
+              <View style={styles.table}>
+                <View style={styles.tableHeader}>
+                  <View style={{ width: 28 }}><Text style={styles.tableHeaderText}>#</Text></View>
+                  <View style={{ width: 70 }}><Text style={styles.tableHeaderText}>Foto</Text></View>
+                  <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Descrizione &amp; Specifiche tecniche</Text></View>
+                  <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
+                </View>
+                {serramentiGrouped.map((g, idx) => {
+                  const family = g.family_id ? familiesById[g.family_id] : null;
+                  // macroId con fallback: prima la macro della family (se BOM da listino),
+                  // poi l'override manuale (se il consulente ha selezionato la macro).
+                  const macroId = family?.macrocategoria_id ?? g.macrocategoria_override_id ?? null;
+                  const fields = macroId ? (fieldsByMacro[macroId] ?? []) : [];
+                  const specs: Array<{ label: string; value: string; unit: string | null }> = [];
+                  if (family && fields.length > 0) {
+                    for (const f of fields) {
+                      const raw = family.custom_field_values[f.field_key];
+                      const display = formatFieldDisplay(f, raw);
+                      if (display) specs.push({ label: f.field_label, value: display, unit: f.field_unit });
+                    }
+                  }
+                  // Titolo: nome reale della famiglia se disponibile, altrimenti tipologia generica
+                  const titolo = family?.nome?.trim() || g.tipologia;
+                  // Dimensioni nella prima riga muted
+                  const dimensioni = g.larghezza && g.altezza
+                    ? `${g.larghezza} × ${g.altezza} mm`
+                    : g.larghezza ? `L ${g.larghezza} mm`
+                    : g.altezza ? `H ${g.altezza} mm`
+                    : null;
+                  // Descrizione tecnica del listino
+                  const techDesc = family?.descrizione?.trim() || null;
+                  // Immagine prodotto con fallback gerarchico:
+                  //   1. family.immagine_url (foto specifica del modello)
+                  //   2. macroImageById[macroId] — funziona anche per BOM manuali
+                  //      con macrocategoria_override_id (vedi macroId sopra)
+                  //   3. placeholder SVG
+                  const prodottoImageUrl = family?.immagine_url
+                    || (macroId ? macroImageById[macroId] : null)
+                    || null;
+                  return (
+                    <View key={g.key} style={styles.tableRow} wrap={false}>
+                      {/* Numero progressivo */}
+                      <View style={styles.tableRowNumber}>
+                        <Text style={styles.tableRowNumberText}>{idx + 1}</Text>
+                      </View>
+                      {/* Foto reale */}
+                      <View style={{ width: 70 }}>
+                        {prodottoImageUrl ? (
+                          <Image src={prodottoImageUrl} style={styles.tableThumb} />
+                        ) : (
+                          <View style={styles.tableThumbPh}>
+                            <Svg viewBox="0 0 24 24" style={{ width: 24, height: 24 } as never}>
+                              <Rect x={3} y={3} width={18} height={18} rx={1.5} stroke={C.gray500} strokeWidth={1.5} fill="none" />
+                              <Path d="M 12 4 L 12 20" stroke={C.gray500} strokeWidth={1} />
+                              <Path d="M 4 12 L 20 12" stroke={C.gray500} strokeWidth={1} />
+                            </Svg>
+                          </View>
+                        )}
+                      </View>
+                      {/* Descrizione + dimensioni + descrizione tecnica + specs */}
+                      <View style={{ flex: 1, paddingRight: 6 }}>
+                        <Text style={styles.tableCellStrong}>
+                          {titolo}
+                          {g.ambiente ? <Text style={{ color: C.gray500, fontWeight: 400 }}> · {g.ambiente}</Text> : null}
+                        </Text>
+                        <Text style={[styles.tableCellMuted, { fontWeight: 700, color: C.gray700 }]}>
+                          {[
+                            dimensioni,
+                            g.materiale !== "—" ? g.materiale : null,
+                            g.serie,
+                            g.vetro,
+                          ].filter(Boolean).join(" · ")}
+                        </Text>
+                        {(g.colore_interno || g.colore_esterno) && (
+                          <Text style={styles.tableCellMuted}>
+                            Colore: {[
+                              g.colore_interno ? `interno ${g.colore_interno}` : null,
+                              g.colore_esterno ? `esterno ${g.colore_esterno}` : null,
+                            ].filter(Boolean).join(" · ")}
+                          </Text>
+                        )}
+                        {/* Descrizione tecnica dal listino prodotti */}
+                        {techDesc && (
+                          <Text style={styles.tableTechDesc}>{techDesc}</Text>
+                        )}
+                        {specs.length > 0 && (
+                          <View style={styles.specChips}>
+                            {specs.slice(0, 8).map((sp, si) => (
+                              <View key={si} style={styles.specChip}>
+                                <Text style={{ fontSize: 8.5 }}>
+                                  <Text style={styles.specChipLabel}>{sp.label}: </Text>
+                                  <Text style={styles.specChipValue}>{sp.value}</Text>
+                                  {sp.unit ? <Text style={styles.specChipUnit}> {sp.unit}</Text> : null}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                      {/* Quantità */}
+                      <View style={{ width: 50, alignItems: "flex-end", paddingTop: 6 }}>
+                        <Text style={styles.tableCellNum}>{g.quantita}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+
+              {detail.accessori.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Accessori e complementi</Text>
+                  <View style={styles.table}>
+                    <View style={styles.tableHeader}>
+                      <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Voce</Text></View>
+                      <View style={{ width: 90 }}><Text style={styles.tableHeaderText}>Misure</Text></View>
+                      <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
+                    </View>
+                    {detail.accessori.map((a, i) => {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const ax = a as any;
+                      const misure = ax.larghezza_mm && ax.altezza_mm
+                        ? `${ax.larghezza_mm}×${ax.altezza_mm} mm`
+                        : "—";
+                      return (
+                        <View key={i} style={styles.tableRow} wrap={false}>
+                          <View style={{ flex: 1, paddingRight: 6 }}>
+                            <Text style={styles.tableCellStrong}>{a.descrizione || a.tipo}</Text>
+                          </View>
+                          <View style={{ width: 90 }}>
+                            <Text style={styles.tableCellMuted}>{misure}</Text>
+                          </View>
+                          <View style={{ width: 50, alignItems: "flex-end" }}>
+                            <Text style={styles.tableCellNum}>{a.quantita ?? 1}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+
+              {/* Cronoprogramma rimosso — sostituito dalla pagina dedicata "Il tuo percorso" */}
+
+              {/* La tua consulenza — il consulente è SEMPRE l'utente che ha
+                  fatto il preventivo (hook fa fallback a auth.user). Mai il
+                  nome azienda nel campo nome consulente. */}
+              <Text style={styles.sectionTitle}>La tua consulenza</Text>
+              <View style={styles.consBox}>
+                {consulente?.foto_url ? (
+                  <Image src={consulente.foto_url} style={styles.consPhoto} />
+                ) : (
+                  <View style={styles.consPhotoPh}>
+                    <Text style={{ color: "#FFFFFF", fontSize: 22, fontWeight: 700 }}>
+                      {(() => {
+                        const name = consulente?.nome ?? "Consulente tecnico";
+                        const parts = name.trim().split(/\s+/);
+                        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+                        return name.slice(0, 2).toUpperCase();
+                      })()}
+                    </Text>
+                  </View>
+                )}
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.renderPairLabel, { fontSize: 11, color: primaryColor }]}>
-                    Dopo · render AI
+                  <Text style={styles.consName}>{consulente?.nome ?? "Consulente tecnico"}</Text>
+                  <Text style={styles.consRole}>{consulente?.ruolo ?? "Consulente tecnico"}</Text>
+                  {consulenteDescrizione && (
+                    <Text style={{ fontSize: 9.5, color: C.gray700, lineHeight: 1.5, marginTop: 5 }}>
+                      {consulenteDescrizione}
+                    </Text>
+                  )}
+                  <Text style={styles.consContact}>
+                    {p.consulenza_at ? `Appuntamento: ${fmtDateTime(p.consulenza_at)}\n` : ""}
+                    {[consulente?.telefono, consulente?.email].filter(Boolean).join(" · ")}
                   </Text>
                 </View>
               </View>
-              <View style={{ flexDirection: "row" }}>
-                <View style={{
-                  flex: 1, height: 360,
-                  borderRadius: 10, overflow: "hidden",
-                  backgroundColor: C.gray100,
-                  borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
-                }}>
-                  <Image src={primaUrls[0]} style={styles.renderImg} cache={false} />
+
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+            </Page>
+            </>
+          ),
+          macro_dedicate: (
+            <>
+            {/* ─── PAGINE DEDICATE MACROCATEGORIA (opzionali) ─────────────────── */}
+            {macroPagineDedicate.map((mp, mi) => (
+              <Page key={mp.macro_id} size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <Text style={styles.pageEyebrow}>
+                  Linea prodotto · {mi + 1} di {macroPagineDedicate.length}
+                </Text>
+                <Text style={styles.pageTitle}>{mp.nome}</Text>
+                <View style={styles.macroPageHero}>
+                  {mp.immagine_url ? (
+                    <View style={styles.macroPageImgWrap}>
+                      <Image src={mp.immagine_url} style={styles.macroPageImg} />
+                    </View>
+                  ) : (
+                    <View style={styles.macroPageImgPh}>
+                      <Text style={{ fontSize: 12, color: C.gray500 }}>{mp.nome}</Text>
+                    </View>
+                  )}
+                  <View style={styles.macroPageContent}>
+                    {mp.descrizione_estesa.split(/\n\n+/).map((para, i) => {
+                      const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
+                      const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
+                      if (allBullets) {
+                        return (
+                          <View key={i} style={{ marginBottom: 8 }}>
+                            {lines.map((l, li) => (
+                              <View key={li} style={styles.bulletItem}>
+                                <View style={styles.bulletDot} />
+                                <Text style={{ flex: 1, fontSize: 10.5, color: C.gray700, lineHeight: 1.55 }}>
+                                  {l.replace(/^[-•]\s*/, "")}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        );
+                      }
+                      return (
+                        <Text key={i} style={{ marginBottom: 8, fontSize: 11, color: C.gray700, lineHeight: 1.65 }}>
+                          {para}
+                        </Text>
+                      );
+                    })}
+                  </View>
                 </View>
-                <View style={{ width: 14 }} />
-                <View style={{
-                  flex: 1, height: 360,
-                  borderRadius: 10, overflow: "hidden",
-                  backgroundColor: C.gray100,
-                  borderWidth: 0.5, borderColor: primaryColor, borderStyle: "solid",
-                }}>
-                  <Image src={renderUrls[0]} style={styles.renderImg} cache={false} />
-                </View>
-              </View>
-            </View>
-          ) : renderUrls.length >= 2 ? (
-            // Fallback: nessuna foto situazione ma almeno 2 render → mostra due render
-            <View wrap={false}>
-              <View style={{ flexDirection: "row", marginBottom: 6 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Render AI · vista 1</Text>
-                </View>
-                <View style={{ width: 14 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Render AI · vista 2</Text>
-                </View>
-              </View>
-              <View style={{ flexDirection: "row" }}>
-                <View style={{
-                  flex: 1, height: 360,
-                  borderRadius: 10, overflow: "hidden",
-                  backgroundColor: C.gray100,
-                }}>
-                  <Image src={renderUrls[0]} style={styles.renderImg} cache={false} />
-                </View>
-                <View style={{ width: 14 }} />
-                <View style={{
-                  flex: 1, height: 360,
-                  borderRadius: 10, overflow: "hidden",
-                  backgroundColor: C.gray100,
-                }}>
-                  <Image src={renderUrls[1]} style={styles.renderImg} cache={false} />
-                </View>
-              </View>
-            </View>
-          ) : (
-            // Una sola immagine disponibile (render o situazione) — full width hero
-            <View wrap={false}>
-              <Text style={[styles.renderPairLabel, {
-                fontSize: 11,
-                marginBottom: 6,
-                color: renderUrls.length > 0 ? primaryColor : C.gray700,
-              }]}>
-                {renderUrls.length > 0 ? "Dopo · render AI" : "Foto attuale"}
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+              </Page>
+            ))}
+            </>
+          ),
+          investimento: (
+            <>
+            {/* ─── PAGINA — INVESTIMENTO (spostata DOPO i prodotti) ──────────────
+                La pagina economica viene mostrata dopo l'allegato tecnico e le
+                pagine dedicate macrocategoria: il cliente vede prima COSA gli
+                stiamo proponendo (composizione + foto + descrizione macro), e
+                solo dopo QUANTO costa. Flusso narrativo: prodotto → valore. */}
+            <Page size="A4" style={styles.page}>
+              <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+
+              <Text style={styles.pageEyebrow}>Pagina 4 · L'investimento</Text>
+              <Text style={styles.pageTitle}>Trasparenza{"\n"}totale.</Text>
+              <Text style={styles.pageSubtitle}>
+                Forbice indicativa basata sul primo contatto. Il prezzo definitivo si fissa con sopralluogo e scelta materiali.
               </Text>
-              <View style={{
-                width: "100%", height: 380,
-                borderRadius: 10, overflow: "hidden", backgroundColor: C.gray100,
-                borderWidth: 0.5,
-                borderColor: renderUrls.length > 0 ? primaryColor : C.gray200,
-                borderStyle: "solid",
-              }}>
-                <Image
-                  src={renderUrls[0] ?? primaUrls[0]}
-                  style={styles.renderImg}
-                  cache={false}
-                />
+
+              <View style={styles.priceBox}>
+                <Text style={styles.priceLabel}>Il tuo investimento stimato</Text>
+                <Text style={styles.priceValue}>
+                  € {fmtEuro(totaleMin)} – € {fmtEuro(totaleMax)}
+                  <Text style={styles.priceSuffix}>IVA inclusa</Text>
+                </Text>
+                <Text style={{ fontSize: 9, color: C.primary, marginTop: 4 }}>
+                  Media: € {fmtEuro(totaleMedia)}
+                </Text>
               </View>
-            </View>
-          )}
 
-          {/* Disclaimer legale OBBLIGATORIO sotto i render AI */}
-          <View style={[styles.renderDisclaimerBox, { marginTop: 14 }]} wrap={false}>
-            <Text style={styles.renderDisclaimerLabel}>Disclaimer render AI</Text>
-            <Text style={styles.renderDisclaimerText}>{renderDisclaimer}</Text>
-          </View>
+              {milestones.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Modalità di pagamento</Text>
+                  <Text style={styles.paySchemaTag}>{schemaCfg?.label ?? "Personalizzato"}</Text>
+                  {milestones.map((m, i) => {
+                    const amount = (totaleMedia * (Number(m.percentuale) || 0)) / 100;
+                    return (
+                      <View key={i} style={styles.payStep} wrap={false}>
+                        <View style={styles.payStepIdxBox}>
+                          <Text style={styles.payStepIdxText}>{i + 1}</Text>
+                        </View>
+                        <View style={styles.payStepBody}>
+                          <Text style={styles.payStepLabel}>{m.label}</Text>
+                          {m.when ? <Text style={styles.payStepWhen}>{m.when}</Text> : null}
+                        </View>
+                        <View style={styles.payStepRight}>
+                          <Text style={styles.payStepPct}>{m.percentuale}%</Text>
+                          <Text style={styles.payStepAmount}>≈ € {fmtEuro(amount)}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </>
+              )}
 
-          <View style={[styles.footer, { left: 50, right: 50 }]} fixed>
-            <View style={styles.footerRow}>
-              <Text style={styles.footerCompanyName}>{companyName}</Text>
-              <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
-            </View>
-          </View>
-        </Page>
-      )}
+              {piani.length > 0 && schemaCfg?.hasFinanziamento && (
+                <>
+                  <Text style={styles.sectionTitle}>Simulazione finanziamento</Text>
+                  <View style={styles.finBox}>
+                    {piani.slice(0, 2).map((piano, i) => (
+                      <View key={i} style={styles.finCard}>
+                        <Text style={styles.finCardTitle}>{piano.nome} · {piano.mesi} mesi · TAN {piano.tasso}%</Text>
+                        <Text style={styles.finCardValue}>€ {fmtEuro(piano.rata_mese)}</Text>
+                        <Text style={styles.finCardSub}>/mese · finanziato € {fmtEuro(piano.finanziato)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={{ fontSize: 7.5, color: C.gray500, marginTop: 6 }}>
+                    Esempi a scopo informativo. Condizioni contrattuali definitive disponibili in sede.
+                  </Text>
+                </>
+              )}
 
-      {/* ─── PAGINA FINALE — CTA + RENDER + TESTIMONIANZE ───────────────── */}
-      <Page size="A4" style={styles.page}>
-        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+              {p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Detrazione fiscale</Text>
+                  {/* NOTE: niente flex:1 — usiamo View standalone con padding fisso
+                      (lo style finCard ha flex:1 perché pensato per layout 2 colonne) */}
+                  <View style={{
+                    backgroundColor: C.successBg,
+                    borderColor: "#86EFAC", borderWidth: 0.5, borderStyle: "solid",
+                    borderRadius: 8, padding: 14, marginTop: 6,
+                  }}>
+                    <Text style={[styles.finCardTitle, { color: C.successText }]}>
+                      Detrazione {p.detrazione_aliquota}% recuperabile in 10 quote annuali
+                    </Text>
+                    <Text style={[styles.finCardValue, { color: C.successText }]}>
+                      € {fmtEuro(p.detrazione_eur_totale)}
+                    </Text>
+                    <Text style={[styles.finCardSub, { color: C.successText }]}>
+                      ≈ € {fmtEuro(p.detrazione_eur_anno)} / anno per 10 anni
+                    </Text>
+                  </View>
+                </>
+              )}
 
-        <Text style={styles.pageEyebrow}>Il prossimo passo</Text>
-        <Text style={styles.pageTitle}>Pronti{"\n"}per partire.</Text>
-        <Text style={styles.pageSubtitle}>
-          Tutto quello che serve per trasformare il preventivo in cantiere.
-        </Text>
+              {cashflowYears.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Cashflow 10 anni — rientro dell'investimento</Text>
+                  <CashflowSvg years={cashflowYears} primary={primaryColor} />
+                  <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 4 }}>
+                    Risparmio bolletta + detrazione fiscale cumulati anno dopo anno.
+                    La linea tratteggiata indica l'anno in cui l'investimento è
+                    completamente ripagato (break-even).
+                  </Text>
 
-        {/* CTA box */}
-        <View style={styles.ctaBox}>
-          <Text style={styles.ctaTitle}>✓ {ctaTitle}</Text>
-          {ctaSteps.slice(0, 5).map((step, i) => (
-            <View key={i} style={styles.ctaStep} wrap={false}>
-              <Text style={styles.ctaCheck}>{i + 1}</Text>
-              <Text style={styles.ctaText}>{step}</Text>
-            </View>
-          ))}
-        </View>
+                  {/* TABELLA RISPARMIO 10 ANNI — dettaglio anno-per-anno */}
+                  <View style={{ marginTop: 12 }}>
+                    <View style={styles.tableHeader}>
+                      <View style={{ width: 38 }}><Text style={styles.tableHeaderText}>Anno</Text></View>
+                      <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Risparmio</Text></View>
+                      <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Detrazione</Text></View>
+                      <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Cumulato</Text></View>
+                      <View style={{ width: 80, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Recupero</Text></View>
+                    </View>
+                    {cashflowYears.map((y, i) => {
+                      const risp = Number(p.risparmio_eur_anno ?? 0);
+                      const det = Number(p.detrazione_eur_anno ?? 0);
+                      const cumulato = y.cumulato;
+                      const recupero = totaleMedia > 0
+                        ? Math.min(100, Math.max(0, ((cumulato + totaleMedia) / totaleMedia) * 100))
+                        : 0;
+                      const isBreakEven = cumulato >= 0 && (i === 0 || cashflowYears[i - 1].cumulato < 0);
+                      return (
+                        <View
+                          key={i}
+                          style={{
+                            flexDirection: "row",
+                            paddingVertical: 5,
+                            borderBottom: `0.5pt solid ${C.gray100}`,
+                            backgroundColor: isBreakEven ? C.successBg : "transparent",
+                          }}
+                          wrap={false}
+                        >
+                          <View style={{ width: 38 }}>
+                            <Text style={{ fontSize: 9, fontWeight: 700, color: C.gray900 }}>
+                              A{y.year}{isBreakEven ? " ★" : ""}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1, alignItems: "flex-end" }}>
+                            <Text style={{ fontSize: 9, color: C.gray700 }}>€ {fmtEuro(risp)}</Text>
+                          </View>
+                          <View style={{ flex: 1, alignItems: "flex-end" }}>
+                            <Text style={{ fontSize: 9, color: C.gray700 }}>€ {fmtEuro(det)}</Text>
+                          </View>
+                          <View style={{ flex: 1, alignItems: "flex-end" }}>
+                            <Text style={{ fontSize: 9, fontWeight: cumulato >= 0 ? 700 : 400, color: cumulato >= 0 ? C.successText : C.gray500 }}>
+                              {cumulato >= 0 ? "+" : ""}€ {fmtEuro(Math.abs(cumulato))}
+                            </Text>
+                          </View>
+                          <View style={{ width: 80, alignItems: "flex-end" }}>
+                            <Text style={{ fontSize: 8, color: C.gray500 }}>{recupero.toFixed(0)}%</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                  <Text style={{ fontSize: 8, color: C.gray500, marginTop: 5, fontStyle: "italic" }}>
+                    ★ Anno di break-even — l'investimento iniziale è completamente ripagato dal risparmio + detrazione.
+                  </Text>
+                </>
+              )}
 
-        {/* Testimonianze rapide nella stessa CTA page se attive.
-            Field map: SrTestimonianza = { quote, autore, citta?, intervento? }.
-            Prima il codice usava `testo/cliente_nome/dettaglio` che non esistono
-            sul type → nessuna recensione veniva mai mostrata. */}
-        {recensioniAttivo && testimonianze.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Cosa dicono i nostri clienti</Text>
-            {testimonianze.slice(0, 3).map((t, i) => {
-              const sub = [t.citta, t.intervento].filter(Boolean).join(" · ");
-              return (
-                <View key={i} style={styles.testimonialBox} wrap={false}>
-                  <Text style={styles.testimonialQuote}>&ldquo;{t.quote}&rdquo;</Text>
-                  <Text style={styles.testimonialAuthor}>
-                    — {t.autore}{sub ? ` · ${sub}` : ""}
+              {/* SE PAGHI A RATE — confronto rata vs risparmio mensile */}
+              {schemaCfg?.hasFinanziamento && piani.length > 0 && Number(p.risparmio_eur_anno ?? 0) > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Se paghi a rate — bilancio mensile</Text>
+                  {(() => {
+                    const piano = piani[0];
+                    const rataMese = Number(piano.rata_mese ?? 0);
+                    const risparmioMese = Number(p.risparmio_eur_anno ?? 0) / 12;
+                    const detrazioneMese = Number(p.detrazione_eur_anno ?? 0) / 12;
+                    const beneficioMese = risparmioMese + detrazioneMese;
+                    const costoNetto = rataMese - beneficioMese;
+                    const positivo = costoNetto <= 0;
+                    return (
+                      <View style={{
+                        flexDirection: "row",
+                        gap: 10,
+                        marginTop: 4,
+                      }}>
+                        <View style={styles.finCard}>
+                          <Text style={styles.finCardTitle}>Rata mensile</Text>
+                          <Text style={[styles.finCardValue, { color: C.gray900 }]}>€ {fmtEuro(rataMese)}</Text>
+                          <Text style={styles.finCardSub}>{piano.mesi} mesi · TAN {piano.tasso}%</Text>
+                        </View>
+                        <View style={styles.finCard}>
+                          <Text style={styles.finCardTitle}>Risparmio + detrazione</Text>
+                          <Text style={[styles.finCardValue, { color: C.successText }]}>− € {fmtEuro(beneficioMese)}</Text>
+                          <Text style={styles.finCardSub}>al mese (media 10 anni)</Text>
+                        </View>
+                        <View style={[styles.finCard, {
+                          backgroundColor: positivo ? C.successBg : C.gray50,
+                          borderColor: positivo ? "#86EFAC" : C.gray200,
+                        }]}>
+                          <Text style={[styles.finCardTitle, { color: positivo ? C.successText : C.gray500 }]}>
+                            Costo netto / mese
+                          </Text>
+                          <Text style={[styles.finCardValue, { color: positivo ? C.successText : C.primary }]}>
+                            {positivo ? "Gratis o positivo" : `€ ${fmtEuro(costoNetto)}`}
+                          </Text>
+                          <Text style={[styles.finCardSub, { color: positivo ? C.successText : C.gray500 }]}>
+                            {positivo
+                              ? "Il risparmio copre la rata"
+                              : `Solo € ${fmtEuro(costoNetto)} reali di esborso`}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
+                  <Text style={{ fontSize: 8, color: C.gray500, marginTop: 6, fontStyle: "italic" }}>
+                    Bilancio indicativo: la rata viene pagata oggi, il risparmio si concretizza nei prossimi
+                    10 anni. Le condizioni finanziarie definitive sono nel contratto.
+                  </Text>
+                </>
+              )}
+
+              {incluso.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Cosa è incluso</Text>
+                  {incluso.slice(0, 6).map((it, i) => {
+                    const titolo = typeof it === "string" ? it : it.titolo;
+                    const descrizione = typeof it === "string" ? null : it.descrizione;
+                    return (
+                      <View key={i} style={styles.bulletItem} wrap={false}>
+                        <View style={styles.bulletDot} />
+                        <View style={styles.bulletContent}>
+                          <Text style={styles.bulletTitle}>{titolo}</Text>
+                          {descrizione && <Text style={styles.bulletText}>{descrizione}</Text>}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </>
+              )}
+
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+            </Page>
+            </>
+          ),
+          percorso: (
+            <>
+            {/* ─── PAGINA "IL TUO PERCORSO" — fasi + step in cards verticali ─────
+                Posizionata RIGHT BEFORE la CTA "Pronti per partire" come anteprima
+                del workflow. Layout: hero con numero step totali + grid di card
+                scure (1 per fase) con elenco passaggi numerati. Editabile dal
+                template editor. */}
+            {percorsoAttivo && percorso.fasi.length > 0 && (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+
+                {/* Hero centrato */}
+                <View style={{ alignItems: "center", marginBottom: 16, marginTop: 6 }}>
+                  <View style={styles.percorsoBadge}>
+                    <Text style={styles.percorsoBadgeText}>Il tuo percorso</Text>
+                  </View>
+                  <Text style={styles.percorsoBigNumber}>{percorsoTotaleStep}</Text>
+                  <Text style={{
+                    fontSize: 18, fontWeight: 700, color: C.gray900,
+                    textAlign: "center" as const, marginTop: 4, letterSpacing: -0.3,
+                  }}>
+                    {percorso.titolo === SR_PERCORSO_DEFAULT.titolo
+                      ? `passaggi curati nei minimi dettagli`
+                      : percorso.titolo}
+                  </Text>
+                  <Text style={{
+                    fontSize: 10, color: C.gray500, textAlign: "center" as const,
+                    marginTop: 6, maxWidth: 380,
+                  }}>
+                    {percorso.sottotitolo}
                   </Text>
                 </View>
-              );
-            })}
-          </>
-        )}
 
-        <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
-      </Page>
+                {/* Grid responsive: 1 fase → 100%, 2 → 49%, 3 → 32%, 4+ → 23.5%
+                    Layout intelligente che evita overflow del nome fase. */}
+                {(() => {
+                  const cardWidth =
+                    percorso.fasi.length === 1 ? "100%"
+                    : percorso.fasi.length === 2 ? "49%"
+                    : percorso.fasi.length === 3 ? "32%"
+                    : percorso.fasi.length === 4 ? "23.5%"
+                    : "48%"; // 5+ fasi → 2 per riga
+                  return (
+                <View style={{
+                  flexDirection: "row", flexWrap: "wrap",
+                  gap: 8,
+                  marginTop: 8,
+                }}>
+                  {percorso.fasi.map((fase, fi) => {
+                    const roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][fi] ?? `${fi + 1}`;
+                    return (
+                      <View
+                        key={fi}
+                        style={[styles.percorsoFaseCard, { width: cardWidth }]}
+                        wrap={false}
+                      >
+                        <View style={styles.percorsoFaseHeader}>
+                          <View style={styles.percorsoFaseRomanBox}>
+                            <Text style={styles.percorsoFaseRomanText}>{roman}</Text>
+                          </View>
+                          <View>
+                            <Text style={styles.percorsoFaseLabel}>Fase {fi + 1}</Text>
+                            <Text style={styles.percorsoFaseName}>{fase.nome.toUpperCase()}</Text>
+                          </View>
+                        </View>
+                        {/* Numerazione globale step dentro la fase */}
+                        {(() => {
+                          const stepBefore = percorso.fasi.slice(0, fi).reduce((acc, f) => acc + f.step.length, 0);
+                          return fase.step.map((step, si) => {
+                            const globalIdx = stepBefore + si + 1;
+                            return (
+                              <View key={si} style={styles.percorsoStepRow}>
+                                <View style={styles.percorsoStepIdx}>
+                                  <Text style={styles.percorsoStepIdxText}>
+                                    {String(globalIdx).padStart(2, "0")}
+                                  </Text>
+                                </View>
+                                <Text style={styles.percorsoStepText}>{step}</Text>
+                              </View>
+                            );
+                          });
+                        })()}
+                      </View>
+                    );
+                  })}
+                </View>
+                  );
+                })()}
+
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+              </Page>
+            )}
+            </>
+          ),
+          render: (
+            <>
+            {/* ─── PAGINA RENDER AI in LANDSCAPE (orizzontale) per dare massimo
+                  risalto al PRIMA/DOPO.
+                  Logica:
+                  - "Prima" = foto reale dello stato attuale (media.kind = situazione)
+                  - "Dopo"  = render AI generato (media.kind = render)
+                  Si mostra solo se almeno uno dei due è presente. */}
+            {(primaUrls.length > 0 || renderUrls.length > 0) && (
+              <Page size="A4" orientation="landscape" style={{
+                ...styles.page,
+                paddingTop: 30, paddingBottom: 48,
+                paddingHorizontal: 50,
+              }}>
+                <View style={styles.header} fixed>
+                  <View style={styles.headerLeft}>
+                    {logoUrl ? (
+                      <Image src={logoUrl} style={styles.headerLogo} />
+                    ) : (
+                      <View style={[styles.headerLogo, { backgroundColor: primaryColor, alignItems: "center", justifyContent: "center" }]}>
+                        <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: 700 }}>
+                          {(companyName || "S").charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View>
+                      <Text style={styles.headerName}>{companyName}</Text>
+                      <Text style={{ fontSize: 7.5, color: C.gray500 }}>{clienteNome}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.headerRight}>
+                    <Text>STIMA N.</Text>
+                    <Text style={styles.headerStimaCode}>{p.code}</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.pageEyebrow}>Anteprima visiva · Render AI</Text>
+                <Text style={[styles.pageTitle, { fontSize: 22, marginBottom: 2 }]}>
+                  Prima &amp; Dopo
+                </Text>
+                <Text style={[styles.pageSubtitle, { marginBottom: 10, fontSize: 10 }]}>
+                  Visualizza il confronto tra come appare oggi e come sarà dopo l'intervento.
+                </Text>
+
+                {/* Layout landscape: usable height ~470pt dopo header+title+disclaimer.
+                    CRITICO: label + immagini in singolo View con wrap={false} così
+                    react-pdf NON le separa su pagine diverse (bug visto nei PDF prima). */}
+                {hasPrimaDopo ? (
+                  <View wrap={false}>
+                    <View style={{ flexDirection: "row", marginBottom: 6 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.renderPairLabel, { fontSize: 11, color: C.gray700 }]}>
+                          Prima · foto attuale
+                        </Text>
+                      </View>
+                      <View style={{ width: 14 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.renderPairLabel, { fontSize: 11, color: primaryColor }]}>
+                          Dopo · render AI
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: "row" }}>
+                      <View style={{
+                        flex: 1, height: 360,
+                        borderRadius: 10, overflow: "hidden",
+                        backgroundColor: C.gray100,
+                        borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
+                      }}>
+                        <Image src={primaUrls[0]} style={styles.renderImg} cache={false} />
+                      </View>
+                      <View style={{ width: 14 }} />
+                      <View style={{
+                        flex: 1, height: 360,
+                        borderRadius: 10, overflow: "hidden",
+                        backgroundColor: C.gray100,
+                        borderWidth: 0.5, borderColor: primaryColor, borderStyle: "solid",
+                      }}>
+                        <Image src={renderUrls[0]} style={styles.renderImg} cache={false} />
+                      </View>
+                    </View>
+                  </View>
+                ) : renderUrls.length >= 2 ? (
+                  // Fallback: nessuna foto situazione ma almeno 2 render → mostra due render
+                  <View wrap={false}>
+                    <View style={{ flexDirection: "row", marginBottom: 6 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Render AI · vista 1</Text>
+                      </View>
+                      <View style={{ width: 14 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Render AI · vista 2</Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: "row" }}>
+                      <View style={{
+                        flex: 1, height: 360,
+                        borderRadius: 10, overflow: "hidden",
+                        backgroundColor: C.gray100,
+                      }}>
+                        <Image src={renderUrls[0]} style={styles.renderImg} cache={false} />
+                      </View>
+                      <View style={{ width: 14 }} />
+                      <View style={{
+                        flex: 1, height: 360,
+                        borderRadius: 10, overflow: "hidden",
+                        backgroundColor: C.gray100,
+                      }}>
+                        <Image src={renderUrls[1]} style={styles.renderImg} cache={false} />
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  // Una sola immagine disponibile (render o situazione) — full width hero
+                  <View wrap={false}>
+                    <Text style={[styles.renderPairLabel, {
+                      fontSize: 11,
+                      marginBottom: 6,
+                      color: renderUrls.length > 0 ? primaryColor : C.gray700,
+                    }]}>
+                      {renderUrls.length > 0 ? "Dopo · render AI" : "Foto attuale"}
+                    </Text>
+                    <View style={{
+                      width: "100%", height: 380,
+                      borderRadius: 10, overflow: "hidden", backgroundColor: C.gray100,
+                      borderWidth: 0.5,
+                      borderColor: renderUrls.length > 0 ? primaryColor : C.gray200,
+                      borderStyle: "solid",
+                    }}>
+                      <Image
+                        src={renderUrls[0] ?? primaUrls[0]}
+                        style={styles.renderImg}
+                        cache={false}
+                      />
+                    </View>
+                  </View>
+                )}
+
+                {/* Disclaimer legale OBBLIGATORIO sotto i render AI */}
+                <View style={[styles.renderDisclaimerBox, { marginTop: 14 }]} wrap={false}>
+                  <Text style={styles.renderDisclaimerLabel}>Disclaimer render AI</Text>
+                  <Text style={styles.renderDisclaimerText}>{renderDisclaimer}</Text>
+                </View>
+
+                <View style={[styles.footer, { left: 50, right: 50 }]} fixed>
+                  <View style={styles.footerRow}>
+                    <Text style={styles.footerCompanyName}>{companyName}</Text>
+                    <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+                  </View>
+                </View>
+              </Page>
+            )}
+            </>
+          ),
+          cta: (
+            <>
+            {/* ─── PAGINA FINALE — CTA + RENDER + TESTIMONIANZE ───────────────── */}
+            <Page size="A4" style={styles.page}>
+              <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+
+              <Text style={styles.pageEyebrow}>Il prossimo passo</Text>
+              <Text style={styles.pageTitle}>Pronti{"\n"}per partire.</Text>
+              <Text style={styles.pageSubtitle}>
+                Tutto quello che serve per trasformare il preventivo in cantiere.
+              </Text>
+
+              {/* CTA box */}
+              <View style={styles.ctaBox}>
+                <Text style={styles.ctaTitle}>✓ {ctaTitle}</Text>
+                {ctaSteps.slice(0, 5).map((step, i) => (
+                  <View key={i} style={styles.ctaStep} wrap={false}>
+                    <Text style={styles.ctaCheck}>{i + 1}</Text>
+                    <Text style={styles.ctaText}>{step}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Testimonianze rapide nella stessa CTA page se attive.
+                  Field map: SrTestimonianza = { quote, autore, citta?, intervento? }.
+                  Prima il codice usava `testo/cliente_nome/dettaglio` che non esistono
+                  sul type → nessuna recensione veniva mai mostrata. */}
+              {recensioniAttivo && testimonianze.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Cosa dicono i nostri clienti</Text>
+                  {testimonianze.slice(0, 3).map((t, i) => {
+                    const sub = [t.citta, t.intervento].filter(Boolean).join(" · ");
+                    return (
+                      <View key={i} style={styles.testimonialBox} wrap={false}>
+                        <Text style={styles.testimonialQuote}>&ldquo;{t.quote}&rdquo;</Text>
+                        <Text style={styles.testimonialAuthor}>
+                          — {t.autore}{sub ? ` · ${sub}` : ""}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </>
+              )}
+
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+            </Page>
+            </>
+          ),
+        };
+        return pdfPagesOrder
+          .filter((pg) => pg.visible)
+          .map((pg) => <React.Fragment key={pg.id}>{pageEls[pg.id]}</React.Fragment>);
+      })()}
 
       {/* Render aggiuntivi (3°, 4°...) in pagine landscape successive se presenti */}
       {renderUrls.length >= 3 && renderUrls.slice(2, 6).reduce((acc: string[][], url, i) => {

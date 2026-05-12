@@ -28,6 +28,7 @@ import {
   Building2, Wand2,
 } from "lucide-react";
 import { SerramentiTemplatePreviewDialog } from "@/components/serramenti/SerramentiTemplatePreviewDialog";
+import { SerramentiPagesOrderEditor } from "@/components/serramenti/SerramentiPagesOrderEditor";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
@@ -825,6 +826,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             <TabsTrigger value="recensioni" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Recensioni</TabsTrigger>
             <TabsTrigger value="render" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Render AI</TabsTrigger>
             <TabsTrigger value="cta" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">CTA finale</TabsTrigger>
+            <TabsTrigger value="ordine-pagine" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Ordine pagine</TabsTrigger>
           </TabsList>
 
           {/* ═══ COVER ═══════════════════════════════════════════════════════ */}
@@ -1650,6 +1652,25 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
               </TabsContent>
             );
           })()}
+
+          {/* ═══ ORDINE PAGINE ═══════════════════════════════════════════════ */}
+          <TabsContent value="ordine-pagine" className="mt-4">
+            <div className="space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+                Ordine e visibilità delle pagine
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Definisci la sequenza delle pagine del PDF preventivo cliente
+                e quali mostrare/nascondere. Modifiche visibili in Anteprima PDF.
+              </p>
+            </div>
+            <div className="mt-3">
+              <SerramentiPagesOrderEditor
+                value={form.pdf_pages_order ?? null}
+                onChange={(next) => update("pdf_pages_order", next)}
+              />
+            </div>
+          </TabsContent>
         </Tabs>
       </SrCard>
 
