@@ -395,52 +395,54 @@ export function StepEconomia({ detail, form, onChange }: Props) {
             )}
           </div>
         )}
+        {/* Grid 4 input + box riepilogo full-width. Tutte le label hanno
+            stessa altezza (h-4 fisso) cosi' la riga input e' perfettamente
+            allineata. Warning "supera regola" spostato SOTTO l'input per
+            non alterare l'altezza della label. */}
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs flex items-center justify-between">
-              <span>Sconto %</span>
-              {selectedDiscountRule && (form.sconto_percentuale ?? 0) > selectedDiscountRule.sconto_max_pct && (
-                <span className="text-[10px] text-amber-600">⚠ supera regola</span>
-              )}
-            </Label>
+            <Label className="text-xs block h-4">Sconto %</Label>
             <Input
               type="number"
               min={0} max={100} step={0.5}
               key={`sconto-${form.sconto_percentuale}`}
               defaultValue={form.sconto_percentuale ?? 0}
               onBlur={(e) => onChange("sconto_percentuale", Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-              className="h-9 text-xs"
+              className="h-9 text-xs mt-1"
             />
+            {selectedDiscountRule && (form.sconto_percentuale ?? 0) > selectedDiscountRule.sconto_max_pct && (
+              <p className="text-[10px] text-amber-600 mt-1">⚠ supera regola</p>
+            )}
           </div>
           <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Sconto fisso (€)</Label>
+            <Label className="text-xs block h-4">Sconto fisso (€)</Label>
             <Input
               type="number"
               min={0} step={10}
               defaultValue={form.sconto_importo ?? 0}
               onBlur={(e) => onChange("sconto_importo", Math.max(0, Number(e.target.value) || 0))}
-              className="h-9 text-xs"
+              className="h-9 text-xs mt-1"
             />
           </div>
           <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">IVA %</Label>
+            <Label className="text-xs block h-4">IVA %</Label>
             <Input
               type="number"
               defaultValue={form.iva_percentuale ?? 22}
               onBlur={(e) => onChange("iva_percentuale", Number(e.target.value) || 22)}
-              className="h-9 text-xs"
+              className="h-9 text-xs mt-1"
             />
           </div>
           <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Validità (giorni)</Label>
+            <Label className="text-xs block h-4">Validità (giorni)</Label>
             <Input
               type="number"
               defaultValue={form.valido_fino_giorni ?? 15}
               onBlur={(e) => onChange("valido_fino_giorni", Number(e.target.value) || 15)}
-              className="h-9 text-xs"
+              className="h-9 text-xs mt-1"
             />
           </div>
-          <div className="col-span-12 mt-1">
+          <div className="col-span-12">
             <div className="rounded-md bg-orange-50 border border-orange-200 p-4">
               <p className="text-[10px] uppercase font-semibold text-orange-900 mb-1">Il tuo investimento stimato</p>
               <p className="text-2xl font-bold text-orange-900 tabular-nums">
