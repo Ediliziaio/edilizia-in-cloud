@@ -69,7 +69,7 @@ const SettingsFinanziamentiCalcolatore = lazy(() => import("@/pages/azienda/sett
 const FotovoltaicoIndex = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoIndex"));
 const FotovoltaicoWizard = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoWizard"));
 const FotovoltaicoDettaglio = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoDettaglio"));
-// Modulo Stima Serramenti
+// Modulo Preventivatore Serramenti
 const SerramentiIndex = lazy(() => import("@/pages/azienda/serramenti/SerramentiIndex"));
 const SerramentiWizard = lazy(() => import("@/pages/azienda/serramenti/SerramentiWizard"));
 const ListiniFornitoriPage = lazy(() =>
@@ -594,7 +594,7 @@ export function companyRoutes() {
             <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
           </FeatureRoute>
         } />
-        {/* Modulo Stima Serramenti */}
+        {/* Modulo Preventivatore Serramenti */}
         <Route path="serramenti" element={
           <ErrorBoundary title="Errore modulo Serramenti"><SerramentiIndex /></ErrorBoundary>
         } />

@@ -314,7 +314,7 @@ export function StepPdf({ progettoId, detail }: Props) {
       {/* Conversione in commessa */}
       <SrCard
         title="Cliente accettato? Crea la commessa"
-        description="Quando il cliente firma o conferma, converti la stima in commessa per gestire produzione, posa e fatturazione."
+        description="Quando il cliente firma o conferma, converti il preventivo in commessa per gestire produzione, posa e fatturazione."
         icon={<ClipboardList className="h-4 w-4" />}
         variant={p.ordine_id ? "muted" : "highlight"}
       >
@@ -335,7 +335,7 @@ export function StepPdf({ progettoId, detail }: Props) {
         ) : (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              La nuova commessa erediterà cliente, importo e anticipo. La stima resterà collegata per riferimento.
+              La nuova commessa erediterà cliente, importo e anticipo. Il preventivo resterà collegato per riferimento.
             </p>
             <Button
               onClick={() => convertiMut.mutate()}
@@ -343,7 +343,7 @@ export function StepPdf({ progettoId, detail }: Props) {
               className="w-full bg-orange-500 hover:bg-orange-600 gap-2"
             >
               {convertiMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
-              Crea commessa da questa stima
+              Crea commessa da questo preventivo
             </Button>
             {!ready && (
               <p className="text-[11px] text-amber-700">

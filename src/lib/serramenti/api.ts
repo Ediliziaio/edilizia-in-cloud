@@ -1,5 +1,5 @@
 /**
- * src/lib/serramenti/api.ts — API client modulo Stima Serramenti
+ * src/lib/serramenti/api.ts — API client modulo Preventivatore Serramenti
  *
  * Tutte le query rispettano il pattern Supabase con error handling esplicito.
  * Tabelle sr_* (mirror in src/types/serramenti.ts).

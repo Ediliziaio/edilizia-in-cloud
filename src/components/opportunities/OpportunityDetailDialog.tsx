@@ -912,6 +912,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 <OpportunityQuotesTab
                   contactId={opportunity.contact_id}
                   companyId={companyId}
+                  opportunityId={opportunity.id}
                 />
               )}
             </div>

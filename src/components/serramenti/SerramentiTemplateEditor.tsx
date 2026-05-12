@@ -1,5 +1,5 @@
 /**
- * SerramentiTemplateEditor — editor del template PDF Stima Serramenti.
+ * SerramentiTemplateEditor — editor del template PDF Preventivatore Serramenti.
  *
  * Usato dentro la tab "Template Moduli Vendita" della pagina
  * Impostazioni → Libreria Template Preventivi.
@@ -1896,7 +1896,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           <AlertDialogHeader>
             <AlertDialogTitle>Rimuovere la recensione?</AlertDialogTitle>
             <AlertDialogDescription>
-              Non comparirà più nei nuovi preventivi. Le stime già generate non saranno modificate.
+              Non comparirà più nei nuovi preventivi. I preventivi già generati non saranno modificati.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

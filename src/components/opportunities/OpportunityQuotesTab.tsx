@@ -32,14 +32,18 @@ import {
   ChevronUp,
   Zap,
   ExternalLink,
+  RectangleVertical,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 interface Props {
   contactId: string | null;
   companyId: string | undefined;
+  /** Opportunità corrente — usato per linkare il preventivo Serramenti (sr_progetti.opportunita_id). */
+  opportunityId?: string | null;
 }
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
@@ -48,6 +52,17 @@ const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   accepted: { label: "Accettato", className: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" },
   rejected: { label: "Rifiutato", className: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300" },
   expired: { label: "Scaduto", className: "bg-muted text-muted-foreground" },
+};
+
+const SR_STATO_LABELS: Record<string, string> = {
+  bozza: "Bozza",
+  da_consegnare: "Da consegnare",
+  consegnato: "Consegnato",
+  in_valutazione: "In valutazione",
+  accettato: "Accettato",
+  rifiutato: "Rifiutato",
+  scaduto: "Scaduto",
+  archiviato: "Archiviato",
 };
 
 interface QuoteItemRow {
@@ -72,10 +87,14 @@ const emptyItem = (): QuoteItemRow => ({
   article_template_id: null,
 });
 
-export function OpportunityQuotesTab({ contactId, companyId }: Props) {
+export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Modulo Preventivatore Serramenti: se attivo, mostriamo CTA dedicata +
+  // lista preventivi sr_progetti collegati a questa opportunità.
+  const { isEnabled: serramentiEnabled } = useFeatureAccess("modulo_serramenti_attivo");
 
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -102,6 +121,34 @@ export function OpportunityQuotesTab({ contactId, companyId }: Props) {
       return data;
     },
     enabled: !!contactId && !!companyId,
+  });
+
+  // Preventivi Serramenti: filtra prima per opportunità (se presente),
+  // altrimenti per contatto. Mostriamo solo quelli del modulo attivo.
+  const { data: srProgetti = [], isLoading: srLoading } = useQuery({
+    queryKey: ["sr-progetti-by-opportunity", opportunityId, contactId, companyId],
+    enabled: !!companyId && serramentiEnabled && (!!opportunityId || !!contactId),
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q = (supabase as any)
+        .from("sr_progetti")
+        .select("id, code, stato, cliente_nome, cliente_cognome, totale_min, totale_max, created_at, opportunita_id, cliente_id")
+        .eq("company_id", companyId!)
+        .order("created_at", { ascending: false });
+      if (opportunityId) {
+        q = q.eq("opportunita_id", opportunityId);
+      } else if (contactId) {
+        q = q.eq("cliente_id", contactId);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; code: string; stato: string;
+        cliente_nome: string | null; cliente_cognome: string | null;
+        totale_min: number | null; totale_max: number | null;
+        created_at: string; opportunita_id: string | null; cliente_id: string | null;
+      }>;
+    },
   });
 
   const { data: contact } = useQuery({
@@ -202,6 +249,7 @@ export function OpportunityQuotesTab({ contactId, companyId }: Props) {
         status: "draft" as const,
         quote_number: numData || `OFF-${new Date().getFullYear()}-001`,
         contact_id: contactId,
+        opportunity_id: opportunityId ?? null,
         client_name: [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || null,
         client_email: contact?.email || null,
         client_phone: contact?.phone || null,
@@ -297,22 +345,99 @@ export function OpportunityQuotesTab({ contactId, companyId }: Props) {
 
   const fmt = (n: number) => formatCurrency(n);
 
+  // Link a builder con opportunity_id (per linking automatico)
+  const builderQs = new URLSearchParams();
+  if (contactId) builderQs.set("contact_id", contactId);
+  if (opportunityId) builderQs.set("opportunity_id", opportunityId);
+
+  const serramentiQs = new URLSearchParams();
+  if (contactId) serramentiQs.set("contact_id", contactId);
+  if (opportunityId) serramentiQs.set("opportunity_id", opportunityId);
+
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h3 className="text-sm font-semibold">Preventivi</h3>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {serramentiEnabled && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-orange-300 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
+              onClick={() => navigate(`/azienda/serramenti/nuovo?${serramentiQs.toString()}`)}
+            >
+              <RectangleVertical className="h-3.5 w-3.5 mr-1 text-orange-600" />
+              Preventivo Serramenti
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
-            onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?contact_id=${contactId}`)}
+            onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?${builderQs.toString()}`)}
           >
             <ExternalLink className="h-3.5 w-3.5 mr-1" />
             Builder completo
           </Button>
         </div>
       </div>
+
+      {/* Lista Preventivi Serramenti collegati (se modulo attivo) */}
+      {serramentiEnabled && (srProgetti.length > 0 || srLoading) && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <RectangleVertical className="h-3.5 w-3.5 text-orange-600" />
+            <h4 className="text-xs font-semibold text-orange-700 uppercase tracking-wide">
+              Preventivi Serramenti
+            </h4>
+            <span className="text-[10px] text-muted-foreground">
+              ({srLoading ? "…" : srProgetti.length})
+            </span>
+          </div>
+          {srLoading ? (
+            <div className="flex justify-center py-3">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {srProgetti.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => navigate(`/azienda/serramenti/${p.id}/modifica`)}
+                  className="w-full flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-orange-50/30 p-3 text-left hover:bg-orange-50 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-semibold text-orange-700">{p.code}</span>
+                      <Badge className="text-[10px] px-1.5 py-0 bg-orange-100 text-orange-700 border-0">
+                        {SR_STATO_LABELS[p.stato] ?? p.stato}
+                      </Badge>
+                      {!p.opportunita_id && opportunityId && (
+                        <span className="text-[9px] text-muted-foreground" title="Collegato solo per contatto, non a questa opportunità">
+                          via contatto
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      {[p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "—"}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-medium tabular-nums">
+                      {p.totale_min && p.totale_max
+                        ? `${formatCurrency(Number(p.totale_min))} – ${formatCurrency(Number(p.totale_max))}`
+                        : "—"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {format(new Date(p.created_at), "dd MMM yyyy", { locale: it })}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Inline Quick Creator */}
       <Collapsible open={showForm} onOpenChange={setShowForm}>

@@ -1,5 +1,5 @@
 /**
- * SerramentiIndex — landing del modulo Stima Serramenti.
+ * SerramentiIndex — landing del modulo Preventivatore Serramenti.
  *
  * Layout V3 ispirato a FotovoltaicoIndex:
  *  - Hero header gradient navy + accent arancione brand
@@ -203,7 +203,7 @@ export default function SerramentiIndex() {
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
               <RectangleVertical className="h-7 w-7 text-orange-400" />
-              Stima Serramenti
+              Preventivatore Serramenti
             </h1>
             <p className="text-sm text-blue-100 mt-1">
               I tuoi preventivi di finestre, porte e persiane sotto controllo.
@@ -225,7 +225,7 @@ export default function SerramentiIndex() {
               className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial"
             >
               <Plus className="h-4 w-4 mr-1.5" />
-              Nuova stima
+              Nuovo preventivo
             </Button>
           </div>
         </div>
@@ -235,7 +235,7 @@ export default function SerramentiIndex() {
         {/* KPI Dashboard — 6 KPI, brand-coerent */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <KpiCard
-            label="Totale stime"
+            label="Totale preventivi"
             value={stats.totale}
             icon={<FileText className="h-4 w-4" />}
             tone="slate"
@@ -352,7 +352,7 @@ export default function SerramentiIndex() {
               </div>
             ) : isError ? (
               <div className="p-8 text-center space-y-3">
-                <p className="text-sm text-rose-700 font-medium">Impossibile caricare le stime.</p>
+                <p className="text-sm text-rose-700 font-medium">Impossibile caricare i preventivi.</p>
                 <p className="text-xs text-muted-foreground">
                   Controlla la connessione e riprova.
                 </p>
@@ -534,7 +534,7 @@ export default function SerramentiIndex() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare la stima {toDelete?.code}?</AlertDialogTitle>
+            <AlertDialogTitle>Eliminare il preventivo {toDelete?.code}?</AlertDialogTitle>
             <AlertDialogDescription>
               Verranno eliminati anche serramenti, accessori e foto associati. L'azione non è reversibile.
             </AlertDialogDescription>
@@ -635,7 +635,7 @@ function EmptyStateFirstTime({
         </div>
       </div>
       <h3 className="text-lg font-bold text-slate-900 mb-1">
-        Inizia la tua prima stima Serramenti
+        Crea il tuo primo preventivo Serramenti
       </h3>
       <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
         Preventivo professionale con BOM, Ecobonus, ROI 10 anni e firma digitale. Il cliente firma dal cellulare.
@@ -656,7 +656,7 @@ function EmptyStateFirstTime({
       </div>
       <div className="flex gap-2 justify-center flex-wrap">
         <Button onClick={onCreate} className="bg-orange-500 hover:bg-orange-600 gap-2">
-          <Plus className="h-4 w-4" /> Crea la prima stima
+          <Plus className="h-4 w-4" /> Crea il primo preventivo
         </Button>
         <Button variant="outline" onClick={onConfig} className="gap-2">
           <Settings className="h-4 w-4" /> Configura template

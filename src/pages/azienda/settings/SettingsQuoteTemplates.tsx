@@ -2282,7 +2282,7 @@ const MODULI_VENDITA: ModuloVendita[] = [
     slug: "serramenti",
     nome: "Serramenti",
     icon: RectangleVertical,
-    description: "Template del PDF Stima Serramenti: branding, recensioni, esigenze tipiche, USP, cronoprogramma.",
+    description: "Template del PDF Preventivatore Serramenti: branding, recensioni, esigenze tipiche, USP, cronoprogramma.",
     available: true,
     render: () => (
       <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
@@ -2423,7 +2423,7 @@ function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
         </div>
         <Card className="bg-slate-50 border-slate-200">
           <CardContent className="p-3 text-xs text-slate-600">
-            💡 Ogni modulo ha un editor dedicato. Tutto quello che configuri qui (logo, recensioni, USP, cronoprogramma, ecc.) verrà applicato come <strong>default</strong> a ogni nuovo preventivo. Puoi sempre modificare i singoli valori dentro ogni stima.
+            💡 Ogni modulo ha un editor dedicato. Tutto quello che configuri qui (logo, recensioni, USP, cronoprogramma, ecc.) verrà applicato come <strong>default</strong> a ogni nuovo preventivo. Puoi sempre modificare i singoli valori dentro ogni preventivo.
           </CardContent>
         </Card>
       </div>

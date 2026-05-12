@@ -84,10 +84,10 @@ export const MODULI_VENDITA: readonly ModuloVendutaConfig[] = [
   },
   {
     slug: "serramenti",
-    nome: "Serramenti",
-    tagline: "Vendita finestre, porte e oscuranti",
+    nome: "Preventivatore Serramenti",
+    tagline: "Preventivi finestre, porte e oscuranti",
     descrizione:
-      "Configuratore vendita serramenti su misura: BOM completo, calcolo Ecobonus 50/65%, ROI 10 anni, cronoprogramma lavori, import da sopralluogo Infissi e preventivo PDF a 3 pagine pronto per il cliente.",
+      "Preventivatore vendita serramenti su misura: BOM completo, calcolo Ecobonus 50/65%, ROI 10 anni, cronoprogramma lavori, import da sopralluogo Infissi e preventivo PDF a 3 pagine pronto per il cliente.",
     icon: PanelTop,
     flag: "modulo_serramenti_attivo",
     href: "/azienda/serramenti",

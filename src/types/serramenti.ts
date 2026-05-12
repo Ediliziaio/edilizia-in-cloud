@@ -1,5 +1,5 @@
 /**
- * src/types/serramenti.ts — Domain types per modulo Stima Serramenti
+ * src/types/serramenti.ts — Domain types per modulo Preventivatore Serramenti
  *
  * Mirror dello schema DB (sr_* tables). Mantenere allineato con la
  * migration 20260511180000_sr_modulo_wave1.sql.

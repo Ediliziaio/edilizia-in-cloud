@@ -1,5 +1,5 @@
 /**
- * SerramentiWizard — wizard a 8 step per la creazione/modifica di una stima.
+ * SerramentiWizard — wizard a 8 step per la creazione/modifica di un preventivo.
  *
  * STEP:
  *  1. Cliente            — anagrafica
@@ -17,7 +17,7 @@
  *  - beforeunload guard
  */
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useIsMutating } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -69,7 +69,12 @@ const STEP_ICONS: Record<SrWizardStep, React.FC<React.SVGProps<SVGSVGElement>>> 
 export default function SerramentiWizard() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isNew = !id;
+  // Pre-link da CRM/Opportunità: ?contact_id=… &opportunity_id=…
+  // Permette il flow "Crea preventivo Serramenti" dal dialog opportunità.
+  const urlContactId = searchParams.get("contact_id");
+  const urlOpportunityId = searchParams.get("opportunity_id");
 
   const [currentStep, setCurrentStep] = useState<SrWizardStep>("cliente");
   const [creating, setCreating] = useState(false);
@@ -94,6 +99,60 @@ export default function SerramentiWizard() {
       setDirty(false);
     }
   }, [detail?.progetto?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-popola da CRM quando si arriva con ?contact_id=… (eventualmente
+  // accompagnato da ?opportunity_id=…). Fa la fetch del contatto e, se
+  // disponibile, dell'opportunità per riempire anche il titolo intervento.
+  // Si esegue UNA SOLA VOLTA per nuovo preventivo, e solo se form è vuoto.
+  const didPrefillFromUrlRef = useRef(false);
+  useEffect(() => {
+    if (!isNew) return;
+    if (didPrefillFromUrlRef.current) return;
+    if (!urlContactId && !urlOpportunityId) return;
+    didPrefillFromUrlRef.current = true;
+    (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sb = (await import("@/integrations/supabase/client")).supabase as any;
+        const patch: Partial<SrProgettoRow> = {};
+        if (urlContactId) {
+          const { data: c } = await sb
+            .from("marketing_contacts")
+            .select("id, first_name, last_name, email, phone, address, city, province, postal_code, fiscal_code")
+            .eq("id", urlContactId)
+            .maybeSingle();
+          if (c) {
+            patch.cliente_id = c.id;
+            patch.cliente_nome = c.first_name ?? null;
+            patch.cliente_cognome = c.last_name ?? null;
+            patch.cliente_email = c.email ?? null;
+            patch.cliente_telefono = c.phone ?? null;
+            patch.cliente_indirizzo = c.address ?? null;
+            patch.cliente_citta = c.city ?? null;
+            patch.cliente_provincia = c.province ?? null;
+            patch.cliente_cap = c.postal_code ?? null;
+            patch.cliente_codice_fiscale = c.fiscal_code ?? null;
+          }
+        }
+        if (urlOpportunityId) {
+          patch.opportunita_id = urlOpportunityId;
+          const { data: opp } = await sb
+            .from("marketing_opportunities")
+            .select("id, title, description")
+            .eq("id", urlOpportunityId)
+            .maybeSingle();
+          if (opp) {
+            patch.intervento_titolo = opp.title ?? null;
+            patch.intervento_sintesi = opp.description ?? null;
+          }
+        }
+        setForm((prev) => ({ ...prev, ...patch }));
+        setDirty(Object.keys(patch).length > 0);
+      } catch (e) {
+        console.warn("[serramenti] prefill from URL failed", e);
+      }
+    })();
+  }, [isNew, urlContactId, urlOpportunityId]);
 
   // Auto-advance Step 1 → Step 2 dopo creazione iniziale.
   // Si attiva UNA SOLA VOLTA per sessione di editing: subito dopo il primo
@@ -170,7 +229,7 @@ export default function SerramentiWizard() {
     if (idx >= 0 && idx < SR_WIZARD_STEPS.length - 1) {
       setCurrentStep(SR_WIZARD_STEPS[idx + 1].key);
     } else {
-      toast.success("Stima salvata");
+      toast.success("Preventivo salvato");
     }
   };
 
@@ -236,17 +295,17 @@ export default function SerramentiWizard() {
       <div className="container mx-auto p-4 max-w-4xl">
         <div className="rounded-lg border border-rose-200 bg-rose-50/40 p-6 text-center space-y-3">
           <p className="text-sm font-semibold text-rose-800">
-            Impossibile caricare questa stima.
+            Impossibile caricare questo preventivo.
           </p>
           <p className="text-xs text-muted-foreground">
-            La stima potrebbe essere stata eliminata o c'e' un problema di connessione.
+            Il preventivo potrebbe essere stato eliminato o c'è un problema di connessione.
           </p>
           <div className="flex items-center gap-2 justify-center flex-wrap">
             <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-1">
               <Loader2 className="h-3.5 w-3.5" /> Riprova
             </Button>
             <Button size="sm" variant="ghost" onClick={() => navigate("/azienda/serramenti")} className="gap-1">
-              <ArrowLeft className="h-3.5 w-3.5" /> Torna alle stime
+              <ArrowLeft className="h-3.5 w-3.5" /> Torna ai preventivi
             </Button>
           </div>
         </div>
@@ -266,7 +325,7 @@ export default function SerramentiWizard() {
             <div className="flex items-center gap-2 flex-wrap">
               <RectangleVertical className="h-4 w-4 text-orange-600" />
               <span className="font-semibold text-sm">
-                {isNew ? "Nuova stima" : detail?.progetto.code}
+                {isNew ? "Nuovo preventivo" : detail?.progetto.code}
               </span>
               {detail?.progetto.cliente_nome && (
                 <Badge variant="outline" className="text-[10px]">
