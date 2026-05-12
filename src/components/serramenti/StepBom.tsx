@@ -1097,13 +1097,19 @@ function ManualAddDialog({
   const [quantita, setQuantita] = useState("1");
   const [prezzo, setPrezzo] = useState("");
   const [isOmaggio, setIsOmaggio] = useState(false);
+  // Condizioni regalo: testo libero che appare SOLO se isOmaggio=true.
+  // Use case: "Solo con ordine > 5000 €", "Valido fino al 31/12",
+  // "Sostituzione gratuita primo guasto in 24 mesi", ecc.
+  // Viene concatenato nelle note della riga BOM dopo "🎁 OMAGGIO" cosi'
+  // l'utente puo' rileggerle e il PDF puo' stamparle.
+  const [condizioniRegalo, setCondizioniRegalo] = useState("");
 
   // Reset form alla chiusura del dialog (evita pre-fill con valori vecchi
   // al prossimo apri).
   useEffect(() => {
     if (!open) {
       setNome(""); setDescrizione(""); setQuantita("1");
-      setPrezzo(""); setIsOmaggio(false);
+      setPrezzo(""); setIsOmaggio(false); setCondizioniRegalo("");
     }
   }, [open]);
 
@@ -1111,9 +1117,15 @@ function ManualAddDialog({
 
   const handleSubmit = () => {
     if (!isValid) return;
+    // Se omaggio + condizioni: prepend "Condizioni: <testo>" alla
+    // descrizione cosi' arriva fino alle note (vedi handleManualSubmit
+    // che concatena descrizione dopo "🎁 OMAGGIO").
+    const descrizioneFinale = isOmaggio && condizioniRegalo.trim()
+      ? `Condizioni: ${condizioniRegalo.trim()}${descrizione.trim() ? " · " + descrizione.trim() : ""}`
+      : descrizione.trim();
     onSubmit({
       nome: nome.trim(),
-      descrizione: descrizione.trim(),
+      descrizione: descrizioneFinale,
       quantita: Math.max(1, Number(quantita) || 1),
       prezzo_unitario: isOmaggio ? 0 : (Number(prezzo) || 0),
       isOmaggio,
@@ -1186,16 +1198,38 @@ function ManualAddDialog({
             </div>
           </div>
 
-          {/* Toggle Regalo/Omaggio: forza prezzo a 0, badge dedicato sul BOM */}
-          <div className="rounded-md border border-emerald-200 bg-emerald-50/50 px-3 py-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Gift className="h-4 w-4 text-emerald-700" />
-              <div>
-                <p className="text-xs font-semibold text-emerald-900">Regalo / Omaggio</p>
-                <p className="text-[10px] text-emerald-700/80">Prezzo forzato a 0. Comparira' con badge "Omaggio".</p>
+          {/* Toggle Regalo/Omaggio: forza prezzo a 0, badge dedicato sul BOM.
+              Quando attivo si espande con campo "Condizioni regalo" per
+              dettagliare l'offerta commerciale (es. "solo con ordine
+              > 5000 €", "valido fino al 31/12"). */}
+          <div className="rounded-md border border-emerald-200 bg-emerald-50/50 px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Gift className="h-4 w-4 text-emerald-700" />
+                <div>
+                  <p className="text-xs font-semibold text-emerald-900">Regalo / Omaggio</p>
+                  <p className="text-[10px] text-emerald-700/80">Prezzo forzato a 0. Comparira' con badge "Omaggio".</p>
+                </div>
               </div>
+              <Switch checked={isOmaggio} onCheckedChange={setIsOmaggio} />
             </div>
-            <Switch checked={isOmaggio} onCheckedChange={setIsOmaggio} />
+            {isOmaggio && (
+              <div className="pl-6 pt-1 border-t border-emerald-200/50">
+                <Label className="text-[11px] text-emerald-900 font-semibold">
+                  Condizioni regalo (opzionale)
+                </Label>
+                <Textarea
+                  value={condizioniRegalo}
+                  onChange={(e) => setCondizioniRegalo(e.target.value)}
+                  placeholder="Es. Valido solo con ordine completo · Spedizione gratuita inclusa · Sostituzione 24 mesi"
+                  rows={2}
+                  className="text-xs bg-white"
+                />
+                <p className="text-[10px] text-emerald-700/80 mt-1">
+                  Comparira' nelle note della riga e nel PDF cliente.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
