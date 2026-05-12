@@ -475,10 +475,12 @@ function SerramentoRow({
     L: number | null,
     H: number | null,
     Q: number,
+    selections?: Record<string, string>,
   ): number | null => {
     if (!family) return null;
     if (family.modalita_prezzo_base === "griglia" && griglia.length === 0) return null;
     const Qsafe = Q || 1;
+    const sels = selections ?? (s.valori_assi ?? {}) as Record<string, string>;
 
     // Se la family completa con axes non e' ancora caricata, calcolo base
     // (prodotto + posa) senza maggiorazioni — meglio del nulla. Le
@@ -494,7 +496,7 @@ function SerramentoRow({
     const pricing = calcolaPrezzoFamiglia(
       {
         family: familyWithAxes,
-        selections: (s.valori_assi ?? {}) as Record<string, string>,
+        selections: sels,
         larghezza_mm: L ?? undefined,
         altezza_mm: H ?? undefined,
         lunghezza_ml: undefined,
@@ -532,6 +534,24 @@ function SerramentoRow({
       onPatch({ ...patch, prezzo_unitario: Number(nuovoPrezzo.toFixed(2)) });
     } else {
       onPatch(patch);
+    }
+  };
+
+  /**
+   * Cambio di una variabile prodotto (asse) sulla riga BOM esistente.
+   * Aggiorna la mappa valori_assi e ricalcola il prezzo unitario con
+   * le maggiorazioni della nuova combinazione, lasciando L/A/Q invariati.
+   */
+  const handleAxisPatch = (axisCodice: string, valueId: string) => {
+    const nextSelections = { ...(s.valori_assi ?? {}), [axisCodice]: valueId };
+    const L = s.larghezza_mm ?? null;
+    const H = s.altezza_mm ?? null;
+    const Q = s.quantita ?? 1;
+    const nuovoPrezzo = ricalcolaPrezzoUnitario(L, H, Q, nextSelections);
+    if (nuovoPrezzo != null && Number.isFinite(nuovoPrezzo)) {
+      onPatch({ valori_assi: nextSelections, prezzo_unitario: Number(nuovoPrezzo.toFixed(2)) });
+    } else {
+      onPatch({ valori_assi: nextSelections });
     }
   };
 
@@ -671,40 +691,58 @@ function SerramentoRow({
             </div>
           )}
 
-          {/* Variabili Prodotto scelte: snapshot delle opzioni configurate
-              al momento della selezione dal listino (es. "Profilo: Etrum",
-              "Colore: Antracite"). Read-only nella riga BOM: per cambiarle
-              elimina la riga e ricreala dal picker. */}
-          {isFromListino && familyWithAxes && Object.keys(s.valori_assi ?? {}).length > 0 && (
+          {/* Variabili Prodotto editabili: dropdown per ogni asse con i
+              valori configurati a listino. Cambiando una scelta, il prezzo
+              unitario si aggiorna in automatico applicando le maggiorazioni
+              (es. cambio Profilo da Etrum 70 a Etrum 82 +€30/m²). */}
+          {isFromListino && familyWithAxes && familyWithAxes.axes.length > 0 && (
             <div className="col-span-12">
               <div className="rounded-md border border-blue-100 bg-blue-50/40 p-2.5">
-                <div className="text-[10px] uppercase tracking-wide text-blue-800 font-semibold mb-1.5">
+                <div className="text-[10px] uppercase tracking-wide text-blue-800 font-semibold mb-2">
                   Variabili Prodotto
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {familyWithAxes.axes
                     .slice()
                     .sort((a, b) => a.sort_order - b.sort_order)
                     .map((axis) => {
-                      const valId = (s.valori_assi ?? {})[axis.codice];
-                      if (!valId) return null;
-                      const val = axis.values.find((v) => v.id === valId);
-                      if (!val) return null;
-                      const magg = val.maggiorazione_tipo === "none" || !val.maggiorazione_valore
-                        ? null
-                        : val.maggiorazione_tipo === "percentuale"
-                          ? `+${val.maggiorazione_valore}%`
-                          : `+€${Number(val.maggiorazione_valore).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+                      const currentId = (s.valori_assi ?? {})[axis.codice] ?? "";
+                      const isMissing = axis.obbligatorio && !currentId;
                       return (
-                        <Badge
-                          key={axis.id}
-                          variant="outline"
-                          className="bg-white border-blue-200 text-blue-900 text-[10.5px] font-normal py-0.5"
-                        >
-                          <span className="font-semibold mr-1">{axis.nome}:</span>
-                          <span>{val.label}</span>
-                          {magg && <span className="ml-1 text-orange-600">{magg}</span>}
-                        </Badge>
+                        <div key={axis.id} className="space-y-1">
+                          <Label className={
+                            "text-[10px] flex items-center gap-1 " +
+                            (isMissing ? "text-rose-700 font-semibold" : "text-slate-700")
+                          }>
+                            {axis.nome}
+                            {axis.obbligatorio && <span className="text-rose-500">*</span>}
+                          </Label>
+                          <Select
+                            value={currentId}
+                            onValueChange={(v) => handleAxisPatch(axis.codice, v)}
+                          >
+                            <SelectTrigger className={
+                              "h-8 text-xs bg-white " + (isMissing ? "border-rose-300" : "")
+                            }>
+                              <SelectValue placeholder="Seleziona…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {axis.values.filter((v) => v.attivo).map((v) => {
+                                const magg = v.maggiorazione_tipo === "none" || !v.maggiorazione_valore
+                                  ? ""
+                                  : v.maggiorazione_tipo === "percentuale"
+                                    ? ` (+${v.maggiorazione_valore}%)`
+                                    : ` (+€${Number(v.maggiorazione_valore).toLocaleString("it-IT", { minimumFractionDigits: 2 })}${v.maggiorazione_tipo === "fisso_mq" ? "/m²" : v.maggiorazione_tipo === "fisso_ml" ? "/ml" : ""})`;
+                                const std = v.is_default ? " · standard" : "";
+                                return (
+                                  <SelectItem key={v.id} value={v.id} className="text-xs">
+                                    {v.label}{magg}{std}
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       );
                     })}
                 </div>

@@ -594,6 +594,19 @@ export function FamilyAxesEditor({ family }: Props) {
         </Card>
       ) : (
         <div className="space-y-2">
+          {/* Hint educativo: chiarisce all'admin il rapporto tra "valore
+              standard" (is_default) e prezzo base dell'articolo. Senza
+              questa nota e' facile confondersi pensando che ogni valore
+              debba avere una maggiorazione esplicita. */}
+          <div className="rounded-md border border-emerald-200 bg-emerald-50/40 px-3 py-2 text-[11px] text-emerald-900 leading-relaxed">
+            <span className="font-semibold">Come funziona:</span> per ogni variabile, marca
+            come <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100 text-[10px] mx-0.5">standard</Badge> il
+            valore <strong>incluso nel prezzo base</strong> dell'articolo
+            (es. <em>Bianco RAL 9010</em>, <em>Doppio vetro</em>, <em>Standard</em>).
+            Gli altri valori avranno una <strong>maggiorazione</strong> opzionale
+            applicata se selezionati nel preventivo (es. <em>Antracite</em> +5%,
+            <em> Vetro triplo</em> +€80).
+          </div>
           {family.axes.map((axis, idx) => {
             const isExpanded = expandedAxisIds.has(axis.id);
             const defaults = axis.values.filter((v) => v.is_default).length;
@@ -718,11 +731,13 @@ export function FamilyAxesEditor({ family }: Props) {
                                     {v.valore}
                                   </span>
                                   {v.is_default ? (
+                                    // Badge "standard" piu' esplicito di "default":
+                                    // comunica all'admin che il PREZZO BASE dell'articolo
+                                    // si riferisce a questa configurazione.
                                     <Badge
-                                      variant="secondary"
-                                      className="text-[10px] sm:text-xs"
+                                      className="text-[10px] sm:text-xs bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
                                     >
-                                      default
+                                      standard · incluso nel prezzo base
                                     </Badge>
                                   ) : null}
                                   {!v.attivo ? (
