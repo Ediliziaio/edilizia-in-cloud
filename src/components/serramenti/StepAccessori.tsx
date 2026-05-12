@@ -4,7 +4,7 @@
  * Tabella semplificata: tipo, descrizione, quantità, prezzo.
  * Foto cantiere/render gestite in Wave 4.
  */
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Image as ImageIcon, Loader2, Upload, X, Sparkles, ExternalLink } from "lucide-react";
 import {
@@ -31,8 +31,37 @@ export function StepAccessori({ progettoId, detail }: Props) {
   const deleteMediaMut = useDeleteMedia(progettoId);
   const importRenderMut = useImportRender(progettoId);
   const [renderDialogOpen, setRenderDialogOpen] = useState(false);
+  // Builder render in modalita' embed: apre il modulo Render Infissi
+  // dentro un Dialog/iframe senza navigare via dal wizard preventivo.
+  // Postmessage listener gestisce il completamento e auto-importa.
+  const [builderDialogOpen, setBuilderDialogOpen] = useState(false);
   const [mediaToDelete, setMediaToDelete] = useState<SrMediaRow | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Listener postMessage dal RenderNewV2 in embed:
+  //   - type='sr-render-completed' + sessionId -> chiude dialog + importa.
+  // Sicurezza: filtro su `event.origin === window.location.origin`
+  // (stessa origin per evitare injection cross-domain).
+  useEffect(() => {
+    if (!builderDialogOpen) return;
+    const handler = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      const data = e.data as { type?: string; sessionId?: string } | null;
+      if (data?.type === "sr-render-completed" && data.sessionId) {
+        importRenderMut.mutate(
+          { render_session_id: data.sessionId, result_index: 0 },
+          {
+            onSuccess: () => {
+              setBuilderDialogOpen(false);
+              toast.success("Render generato e importato nel preventivo");
+            },
+          },
+        );
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [builderDialogOpen, importRenderMut]);
 
   /**
    * handleFiles — accetta solo immagini ragionevoli (< 10 MB).
@@ -119,11 +148,15 @@ export function StepAccessori({ progettoId, detail }: Props) {
             <Sparkles className="h-4 w-4 text-orange-600" />
             Importa render esistente
           </Button>
-          <Button asChild variant="outline" className="flex-1 gap-2">
-            <a href="/azienda/render/infissi/new" target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-4 w-4" />
-              Genera nuovo render (apre modulo Render)
-            </a>
+          {/* Genera nuovo render: apre il builder Render Infissi DENTRO un
+              Dialog (iframe verso /azienda/render/infissi/embed). Al
+              completamento postMessage handshake auto-importa nel BOM. */}
+          <Button
+            onClick={() => setBuilderDialogOpen(true)}
+            className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600"
+          >
+            <Sparkles className="h-4 w-4" />
+            Genera nuovo render
           </Button>
         </div>
 
@@ -270,6 +303,44 @@ export function StepAccessori({ progettoId, detail }: Props) {
         }}
         importing={importRenderMut.isPending}
       />
+
+      {/* Dialog Render Builder inline (iframe verso route embed).
+          Larghezza/altezza ottimizzate per il flow wizard (90vw x 90vh).
+          Listener postMessage in alto chiude e auto-importa al completamento. */}
+      <Dialog open={builderDialogOpen} onOpenChange={setBuilderDialogOpen}>
+        <DialogContent className="max-w-7xl w-[95vw] h-[92vh] p-0 gap-0 flex flex-col">
+          <DialogHeader className="px-4 py-3 border-b flex flex-row items-center justify-between space-y-0">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-orange-600" />
+              <DialogTitle className="text-base">Genera nuovo render</DialogTitle>
+            </div>
+            <DialogDescription className="sr-only">
+              Render builder Infissi caricato in modalita' embed.
+              Al completamento si chiude automaticamente e importa nel BOM.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 bg-slate-50">
+            {builderDialogOpen && (
+              <iframe
+                src="/azienda/render/infissi/embed?embed=1"
+                title="Render Infissi builder"
+                className="w-full h-full border-0"
+                // sandbox impostato per consentire script + same-origin
+                // (necessario per postMessage e auth via cookies).
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+              />
+            )}
+          </div>
+          <div className="px-4 py-2 border-t bg-white flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+            <span>Al termine del render il dialog si chiude e l'immagine viene importata automaticamente.</span>
+            {importRenderMut.isPending && (
+              <span className="flex items-center gap-1 text-orange-700">
+                <Loader2 className="h-3 w-3 animate-spin" /> Importazione in corso…
+              </span>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
       {/* AlertDialog conferma eliminazione media — protegge dai click
           accidentali su render AI (costosi da rigenerare) e foto cantiere. */}
       <AlertDialog open={!!mediaToDelete} onOpenChange={(open) => !open && setMediaToDelete(null)}>

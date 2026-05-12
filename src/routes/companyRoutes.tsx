@@ -299,6 +299,21 @@ export function companyRoutes() {
         }
       />
 
+      {/* Render builder in modalita' EMBED (iframe) per il wizard Serramenti.
+          Renderizzato FUORI da CompanyLayout (no navbar/sidebar/topbar) cosi
+          sta tutto dentro il Dialog del preventivo. La pagina detecta
+          `?embed=1` e postMessage al parent quando il render e' completed. */}
+      <Route
+        path="/azienda/render/infissi/embed"
+        element={
+          <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>
+            <ErrorBoundary title="Errore nel render builder">
+              {withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderNew /></FeatureRoute>)}
+            </ErrorBoundary>
+          </ProtectedRoute>
+        }
+      />
+
       {/* Company Admin and Staff Routes */}
       <Route
         path="/azienda"

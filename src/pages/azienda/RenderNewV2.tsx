@@ -111,6 +111,15 @@ export default function RenderNewV2() {
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
+  // Embed mode: usato dal Dialog del wizard preventivo Serramenti per
+  // mostrare il builder in iframe senza CompanyLayout (navbar/sidebar).
+  // Attivato via `?embed=1` nella URL. Side-effect:
+  //   - Postmessage al parent quando il render e' completed -> il parent
+  //     puo' chiudere il dialog e auto-importare nel BOM.
+  //   - Nascosti i bottoni di navigazione cross-pagina.
+  const isEmbed = typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).get("embed") === "1";
+
   const [step, setStep] = useState<Step>(1);
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -348,6 +357,18 @@ export default function RenderNewV2() {
         setGenerating(false);
         queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
         queryClient.invalidateQueries({ queryKey: ["render-gallery", companyId] });
+        // EMBED MODE: notifica il parent (Dialog StepAccessori) che il
+        // render e' pronto. Il parent chiude il dialog e auto-importa.
+        if (isEmbed && typeof window !== "undefined" && window.parent !== window) {
+          try {
+            window.parent.postMessage(
+              { type: "sr-render-completed", sessionId: sid },
+              window.location.origin,
+            );
+          } catch (e) {
+            console.warn("[render-embed] postMessage failed", e);
+          }
+        }
         return;
       }
 
@@ -365,7 +386,7 @@ export default function RenderNewV2() {
     };
 
     poll();
-  }, [companyId, queryClient, stopPolling]);
+  }, [companyId, queryClient, stopPolling, isEmbed]);
 
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId || generating) return;
