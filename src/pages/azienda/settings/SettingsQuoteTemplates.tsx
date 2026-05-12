@@ -2420,12 +2420,12 @@ function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
   return (
     <div className="space-y-4">
       {header}
-      <Card className="bg-emerald-50/30 border-emerald-200">
+      <Card className="bg-orange-50/30 border-orange-200">
         <CardContent className="p-3 flex items-start gap-3">
-          <active.icon className="h-5 w-5 text-emerald-700 mt-0.5 shrink-0" />
+          <active.icon className="h-5 w-5 text-orange-700 mt-0.5 shrink-0" />
           <div>
-            <p className="font-semibold text-sm text-emerald-900">{active.nome}</p>
-            <p className="text-xs text-emerald-800 mt-0.5">{active.description}</p>
+            <p className="font-semibold text-sm text-orange-900">{active.nome}</p>
+            <p className="text-xs text-orange-800 mt-0.5">{active.description}</p>
           </div>
         </CardContent>
       </Card>

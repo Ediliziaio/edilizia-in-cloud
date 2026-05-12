@@ -427,22 +427,55 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
 
   return (
     <div className="space-y-4">
-      {/* Top save bar */}
-      <div className="flex items-center justify-between gap-3 sticky top-0 z-10 bg-background/95 backdrop-blur py-2 -my-2">
-        <div>
-          {dirty && (
-            <span className="text-xs text-amber-700">● Modifiche non salvate</span>
+      {/* TOOLBAR STICKY in alto: sempre visibile durante lo scroll.
+          Include: stato modifiche · ANTEPRIMA PDF (prominent) · Salva.
+          Prima il bottone Anteprima esisteva solo nel footer sticky in basso
+          → fuori dalla viewport quando l'utente è in cima. Ora è in cima E
+          in basso. */}
+      <div className="sticky top-0 z-20 -mx-1 px-1 py-2.5 bg-background/95 backdrop-blur border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="text-xs text-muted-foreground hidden sm:block">
+            Template PDF Serramenti
+          </div>
+          {dirty ? (
+            <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 font-medium">
+              ● Modifiche non salvate
+            </span>
+          ) : (
+            <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 font-medium hidden sm:inline-block">
+              ✓ Salvato
+            </span>
           )}
         </div>
-        <Button
-          onClick={handleSave}
-          disabled={!dirty || upsertMut.isPending}
-          className="bg-orange-600 hover:bg-orange-700 gap-1"
-        >
-          {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Salva
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            onClick={() => setPreviewOpen(true)}
+            variant="outline"
+            size="sm"
+            className="gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
+          >
+            <Eye className="h-4 w-4" />
+            <span className="hidden sm:inline">Anteprima PDF</span>
+            <span className="sm:hidden">Anteprima</span>
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={!dirty || upsertMut.isPending}
+            className="bg-orange-600 hover:bg-orange-700 gap-1"
+            size="sm"
+          >
+            {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Salva
+          </Button>
+        </div>
       </div>
+
+      {/* SEZIONE: Brand & Azienda */}
+      <SectionHeader
+        title="1. Brand & azienda"
+        description="Logo, dati anagrafici, colori e linee prodotto che compaiono in ogni PDF."
+        number={1}
+      />
 
       {/* Anagrafica + branding */}
       <SrCard
@@ -568,6 +601,13 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
           </div>
         </div>
       </SrCard>
+
+      {/* SEZIONE: Contenuti commerciali */}
+      <SectionHeader
+        title="2. Contenuti commerciali"
+        description="Le librerie da cui pesca il consulente: esigenze, soluzioni, USP, incluso, recensioni, prossimi passi."
+        number={2}
+      />
 
       {/* Esigenze */}
       <SrCard
@@ -802,6 +842,13 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         {renderListEditor("step", "prossimi_passi_default", "Es. Ci vediamo a casa tua per la consulenza tecnica")}
       </SrCard>
 
+      {/* SEZIONE: Linee prodotto */}
+      <SectionHeader
+        title="3. Linee prodotto (macrocategorie)"
+        description="Le pagine dedicate macrocategoria che vengono inserite nel PDF dopo la composizione tecnica."
+        number={3}
+      />
+
       {/* Pagine dedicate macrocategoria — sincronizzate con il listino */}
       <SrCard
         title="Pagine dedicate macrocategoria"
@@ -810,6 +857,13 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       >
         <MacroPagineDedicateManager vertical="serramentista" />
       </SrCard>
+
+      {/* SEZIONE: PDF preventivo */}
+      <SectionHeader
+        title="4. Pagine PDF preventivo"
+        description="Personalizza ogni pagina del PDF cliente: cover, chi siamo, percorso, render, CTA, ordine pagine."
+        number={4}
+      />
 
       {/* Personalizzazione PDF: cover, chi siamo, consulente, render, CTA, percorso — tabbed */}
       <SrCard
@@ -1674,6 +1728,13 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         </Tabs>
       </SrCard>
 
+      {/* SEZIONE: Default tecnici */}
+      <SectionHeader
+        title="5. Default tecnici"
+        description="Valori di partenza usati su ogni nuovo preventivo: giorni produzione/posa, IVA, anticipo, validità."
+        number={5}
+      />
+
       <SrCard title="Default cronoprogramma + economia" icon={<Clock className="h-4 w-4" />}>
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-6 md:col-span-3">
@@ -1735,28 +1796,30 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
 
       {/* Sticky bottom: Anteprima PDF + Salva. Due bottoni a sinistra/destra
           così l'utente può sempre vedere come verrà il PDF prima di salvare. */}
-      {!embedded && (
-        <div className="sticky bottom-4 flex justify-between gap-3">
-          <Button
-            onClick={() => setPreviewOpen(true)}
-            variant="outline"
-            className="bg-white shadow-lg gap-1.5 border-orange-300 hover:bg-orange-50"
-            size="lg"
-          >
-            <Eye className="h-4 w-4" />
-            Anteprima PDF
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!dirty || upsertMut.isPending}
-            className="bg-orange-600 hover:bg-orange-700 gap-1 shadow-lg"
-            size="lg"
-          >
-            {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salva impostazioni
-          </Button>
-        </div>
-      )}
+      {/* Sticky footer: SEMPRE visibile (anche in modalità embedded usata
+          dal SettingsQuoteTemplates). Prima era nascosto da `!embedded` →
+          l'utente che arrivava da /azienda/impostazioni non vedeva mai
+          il bottone "Anteprima PDF". */}
+      <div className="sticky bottom-4 flex justify-between gap-3 z-10">
+        <Button
+          onClick={() => setPreviewOpen(true)}
+          variant="outline"
+          className="bg-white shadow-lg gap-1.5 border-orange-300 hover:bg-orange-50"
+          size="lg"
+        >
+          <Eye className="h-4 w-4" />
+          Anteprima PDF
+        </Button>
+        <Button
+          onClick={handleSave}
+          disabled={!dirty || upsertMut.isPending}
+          className="bg-orange-600 hover:bg-orange-700 gap-1 shadow-lg"
+          size="lg"
+        >
+          {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          Salva impostazioni
+        </Button>
+      </div>
 
       {/* Dialog anteprima PDF — generato on-the-fly con dati demo + template corrente */}
       <SerramentiTemplatePreviewDialog
@@ -1787,6 +1850,30 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+// ─── SectionHeader ───────────────────────────────────────────────────────────
+// Helper visivo che divide l'editor in macro-sezioni numerate. Aiuta l'utente
+// a orientarsi su una pagina che altrimenti sembrerebbe un muro di SrCard.
+
+function SectionHeader({
+  title, description, number,
+}: {
+  title: string;
+  description: string;
+  number: number;
+}) {
+  return (
+    <div className="flex items-start gap-3 pt-3 pb-1 border-t-2 border-orange-100 first:border-t-0 first:pt-0">
+      <div className="h-9 w-9 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+        {number}
+      </div>
+      <div className="min-w-0 flex-1">
+        <h2 className="text-base font-bold text-slate-900 leading-tight">{title}</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+      </div>
     </div>
   );
 }
