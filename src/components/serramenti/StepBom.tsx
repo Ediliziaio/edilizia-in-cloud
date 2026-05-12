@@ -4,7 +4,7 @@
  * Tabella editabile: tipologia, materiale, vetro, misure, quantità, prezzo.
  * Aggiungi/duplica/elimina riga. Import da sopralluogo Infissi v6 (Wave 4).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,12 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle, Package, Sparkles } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle, Package, Sparkles, Gift } from "lucide-react";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
@@ -55,6 +60,9 @@ export function StepBom({ progettoId, detail }: Props) {
   const [toDelete, setToDelete] = useState<SrSerramentoRow | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [listinoOpen, setListinoOpen] = useState(false);
+  // Dialog "Aggiungi a mano": form libero per voci off-listino con
+  // possibilita' di marcare come Regalo/Omaggio (prezzo=0).
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
   // Conferma import sopralluogo: invece di `confirm()` nativo (UX scadente,
   // bloccante, brutto su mobile) usiamo un AlertDialog gestito.
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -139,17 +147,42 @@ export function StepBom({ progettoId, detail }: Props) {
     );
   };
 
-  const handleAdd = () => {
+  /**
+   * Submit del dialog "Aggiungi a mano": crea una riga BOM off-listino
+   * con i campi liberi inseriti dal commerciale. Se `isOmaggio` e' true
+   * forza prezzo a 0 e aggiunge marcatore nelle note (riconosciuto dal
+   * badge "Omaggio" nell'header riga).
+   */
+  const handleManualSubmit = (form: {
+    nome: string;
+    descrizione: string;
+    quantita: number;
+    prezzo_unitario: number;
+    isOmaggio: boolean;
+  }) => {
+    const q = Math.max(1, form.quantita || 1);
+    const prezzo = form.isOmaggio ? 0 : form.prezzo_unitario;
+    const noteParts: string[] = [];
+    if (form.isOmaggio) noteParts.push("🎁 OMAGGIO");
+    if (form.descrizione.trim()) noteParts.push(form.descrizione.trim());
     addMut.mutate(
       {
-        tipologia: "finestra_2ante",
-        tipologia_label: "Finestra a 2 ante",
-        materiale: detail.progetto.materiale_principale ?? "alluminio",
-        quantita: 1,
+        // tipologia "fisso" come catch-all per voci custom (non e' finestra,
+        // potrebbe essere un servizio aggiuntivo, accessorio extra, regalo).
+        tipologia: "fisso",
+        tipologia_label: form.nome.trim() || "Voce custom",
+        materiale: null,
+        quantita: q,
+        prezzo_unitario: prezzo,
+        prezzo_totale: prezzo * q,
         position: serramenti.length,
+        note: noteParts.join(" · ") || null,
       },
       {
-        onSuccess: (created) => setExpanded(created.id),
+        onSuccess: (created) => {
+          setExpanded(created.id);
+          setManualDialogOpen(false);
+        },
       },
     );
   };
@@ -254,7 +287,7 @@ export function StepBom({ progettoId, detail }: Props) {
             <Package className="h-4 w-4" /> Aggiungi dal listino
           </Button>
           <Button
-            onClick={handleAdd}
+            onClick={() => setManualDialogOpen(true)}
             variant="outline"
             className="flex-1 gap-1"
             disabled={addMut.isPending}
@@ -271,6 +304,9 @@ export function StepBom({ progettoId, detail }: Props) {
             </p>
           </div>
         ) : (
+          /* Bottoni di aggiunta sono in alto (Aggiungi dal listino +
+             Aggiungi a mano). Rimossi i duplicati dashed in fondo alla
+             lista per non confondere con doppia CTA. */
           <div className="space-y-2">
             {serramenti.map((s, idx) => {
               const family = s.family_id ? familiesById.get(s.family_id) : undefined;
@@ -293,25 +329,6 @@ export function StepBom({ progettoId, detail }: Props) {
                 />
               );
             })}
-            <div className="flex gap-2 pt-1">
-              <Button
-                onClick={() => setListinoOpen(true)}
-                variant="outline"
-                className="flex-1 gap-1 border-dashed border-2 border-orange-300 hover:bg-orange-50"
-                disabled={addMut.isPending}
-              >
-                <Package className="h-4 w-4" /> Aggiungi dal listino
-              </Button>
-              <Button
-                onClick={handleAdd}
-                variant="outline"
-                className="flex-1 gap-1 border-dashed border-2 border-slate-300"
-                disabled={addMut.isPending}
-              >
-                {addMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                A mano
-              </Button>
-            </div>
           </div>
         )}
 
@@ -319,6 +336,13 @@ export function StepBom({ progettoId, detail }: Props) {
           open={listinoOpen}
           onOpenChange={setListinoOpen}
           onSelect={handlePickFromListino}
+        />
+
+        <ManualAddDialog
+          open={manualDialogOpen}
+          onOpenChange={setManualDialogOpen}
+          onSubmit={handleManualSubmit}
+          submitting={addMut.isPending}
         />
       </SrCard>
 
@@ -599,11 +623,18 @@ function SerramentoRow({
                 {mq.toFixed(2)} m²
               </span>
             )}
-            {s.prezzo_totale ? (
+            {/* Distingue 3 stati di prezzo nell'header riga:
+                  1. Omaggio: prezzo=0 + nota OMAGGIO -> badge verde
+                  2. Prezzo OK (>0): mostra cifra arancione
+                  3. Prezzo mancante (off-listino non valorizzato):
+                     warning ambra "Prezzo da impostare" */}
+            {(s.note?.includes("OMAGGIO") || s.note?.includes("🎁")) && (s.prezzo_totale ?? 0) === 0 ? (
+              <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 border border-emerald-200 rounded px-1.5 py-0.5 inline-flex items-center gap-1">
+                🎁 Omaggio
+              </span>
+            ) : s.prezzo_totale ? (
               <span className="font-semibold text-orange-600">{formatEuro(s.prezzo_totale)}</span>
             ) : (
-              // Warning visibile se la riga non ha prezzo: previene che entri
-              // nel totale come "0,00 €" senza che il commerciale se ne accorga.
               <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">
                 Prezzo da impostare
               </span>
@@ -1023,5 +1054,157 @@ function MacroOverrideSelect({
         </p>
       </div>
     </div>
+  );
+}
+
+
+// ─── Dialog "Aggiungi a mano" ────────────────────────────────────────────────
+//
+// Form libero per voci off-listino: il commerciale inserisce manualmente
+// nome, descrizione, quantita' e prezzo. Toggle "Omaggio/Regalo" forza il
+// prezzo a 0 e aggiunge marcatore visivo nella riga BOM (badge verde).
+//
+// Use case tipici:
+//   - "Sostituzione vetro singolo" (servizio one-off)
+//   - "Davanzale incluso gratis" (omaggio commerciale)
+//   - "Sopralluogo extra" (voce custom)
+//   - "Stipite supplementare" (componente fuori catalogo)
+
+function ManualAddDialog({
+  open, onOpenChange, onSubmit, submitting,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (form: {
+    nome: string;
+    descrizione: string;
+    quantita: number;
+    prezzo_unitario: number;
+    isOmaggio: boolean;
+  }) => void;
+  submitting: boolean;
+}) {
+  const [nome, setNome] = useState("");
+  const [descrizione, setDescrizione] = useState("");
+  const [quantita, setQuantita] = useState("1");
+  const [prezzo, setPrezzo] = useState("");
+  const [isOmaggio, setIsOmaggio] = useState(false);
+
+  // Reset form alla chiusura del dialog (evita pre-fill con valori vecchi
+  // al prossimo apri).
+  useEffect(() => {
+    if (!open) {
+      setNome(""); setDescrizione(""); setQuantita("1");
+      setPrezzo(""); setIsOmaggio(false);
+    }
+  }, [open]);
+
+  const isValid = nome.trim().length > 0 && Number(quantita) > 0;
+
+  const handleSubmit = () => {
+    if (!isValid) return;
+    onSubmit({
+      nome: nome.trim(),
+      descrizione: descrizione.trim(),
+      quantita: Math.max(1, Number(quantita) || 1),
+      prezzo_unitario: isOmaggio ? 0 : (Number(prezzo) || 0),
+      isOmaggio,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Plus className="h-4 w-4 text-orange-600" />
+            Aggiungi voce a mano
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Inserisci una voce libera non presente nel listino (es. accessorio
+            extra, servizio aggiuntivo, omaggio commerciale).
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs">Nome prodotto / voce *</Label>
+            <Input
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Es. Davanzale in marmo, Sopralluogo extra…"
+              className="h-9"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <Label className="text-xs">Descrizione (opzionale)</Label>
+            <Textarea
+              value={descrizione}
+              onChange={(e) => setDescrizione(e.target.value)}
+              placeholder="Dettagli aggiuntivi che compariranno nelle note"
+              rows={2}
+              className="text-xs"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Quantità *</Label>
+              <Input
+                type="number"
+                min={1}
+                value={quantita}
+                onChange={(e) => setQuantita(e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <div>
+              <Label className="text-xs flex items-center justify-between">
+                <span>Prezzo unitario (€)</span>
+                {isOmaggio && <span className="text-[10px] text-emerald-700 font-semibold">In omaggio</span>}
+              </Label>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                value={isOmaggio ? "0" : prezzo}
+                onChange={(e) => setPrezzo(e.target.value)}
+                disabled={isOmaggio}
+                placeholder="0,00"
+                className={"h-9 " + (isOmaggio ? "bg-emerald-50 text-emerald-800" : "")}
+              />
+            </div>
+          </div>
+
+          {/* Toggle Regalo/Omaggio: forza prezzo a 0, badge dedicato sul BOM */}
+          <div className="rounded-md border border-emerald-200 bg-emerald-50/50 px-3 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Gift className="h-4 w-4 text-emerald-700" />
+              <div>
+                <p className="text-xs font-semibold text-emerald-900">Regalo / Omaggio</p>
+                <p className="text-[10px] text-emerald-700/80">Prezzo forzato a 0. Comparira' con badge "Omaggio".</p>
+              </div>
+            </div>
+            <Switch checked={isOmaggio} onCheckedChange={setIsOmaggio} />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
+            Annulla
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={!isValid || submitting}
+            className="bg-orange-500 hover:bg-orange-600 gap-1"
+          >
+            {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Aggiungi
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
