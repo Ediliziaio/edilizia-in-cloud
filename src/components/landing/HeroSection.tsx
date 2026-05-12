@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   Hammer, HardHat, Ruler, Warehouse, Wrench, Building2, Blocks, ConeIcon,
   LayoutDashboard, ShoppingBag, Package, Calendar, Users, Settings,
@@ -59,12 +61,12 @@ const microBadges = [
   { Icon: Lock, label: "Dati in Europa" },
 ];
 
-function DashboardMockup({ isVisible }: { isVisible: boolean }) {
+gsap.registerPlugin(useGSAP, ScrollTrigger);
+
+function DashboardMockup() {
   return (
     <div
-      className={`relative mt-10 mb-8 max-w-4xl mx-auto transition-all duration-700 delay-200 ${
-        isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-      }`}
+      className="gsap-dashboard relative mt-10 mb-8 max-w-4xl mx-auto"
     >
       {/* Glow effect behind mockup */}
       <div className="absolute -inset-8 bg-[#F97415]/15 rounded-full blur-[80px] animate-pulse-glow pointer-events-none" />
@@ -108,7 +110,7 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
             {/* Stat cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
               {statsData.map((stat, i) => (
-                <div key={i} className="bg-white/[0.04] rounded-lg p-2 md:p-2.5 border border-white/5">
+                <div key={i} className="gsap-card bg-white/[0.04] rounded-lg p-2 md:p-2.5 border border-white/5">
                   <div className="flex items-center gap-1.5 mb-1">
                     <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: stat.bg }}>
                       <stat.icon size={10} style={{ color: stat.color }} />
@@ -127,7 +129,7 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
                 <p className="text-white/70 text-[9px] mb-2 font-medium">Fatturato Mensile</p>
                 <div className="flex items-end gap-1.5 h-16">
                   {chartBars.map((bar, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <div key={i} className="gsap-card flex-1 flex flex-col items-center gap-1">
                       <div
                         className="w-full rounded-sm"
                         style={{
@@ -146,7 +148,7 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
                 <p className="text-white/70 text-[9px] mb-2 font-medium">Ultimi Ordini</p>
                 <div className="space-y-1.5">
                   {ordersData.map((order, i) => (
-                    <div key={i} className="flex items-center justify-between text-[8px] md:text-[9px]">
+                    <div key={i} className="gsap-card flex items-center justify-between text-[8px] md:text-[9px]">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-[#F97415] font-mono font-medium shrink-0">{order.code}</span>
                         <span className="text-white/70 truncate">{order.client}</span>
@@ -173,16 +175,13 @@ function DashboardMockup({ isVisible }: { isVisible: boolean }) {
 }
 
 export default function HeroSection() {
-  const { ref, isVisible } = useScrollAnimation({ threshold: 0.1 });
   const sectionRef = useRef<HTMLElement>(null);
+  const backgroundRef = useRef<HTMLImageElement>(null);
 
   // Typing animation state
   const [, setWordIndex] = useState(0);
   const [displayWord, setDisplayWord] = useState(typingWords[0]);
   const [fadeState, setFadeState] = useState<"in" | "out">("in");
-
-  // Parallax state
-  const [parallaxY, setParallaxY] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -199,24 +198,64 @@ export default function HeroSection() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setParallaxY(window.scrollY * 0.3);
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  useGSAP(() => {
+    const motion = gsap.matchMedia();
+
+    motion.add("(prefers-reduced-motion: reduce)", () => {
+      gsap.set(".gsap-hero-item, .gsap-dashboard, .gsap-card", { opacity: 1, y: 0, scale: 1, clearProps: "transform" });
+    });
+
+    motion.add("(prefers-reduced-motion: no-preference)", () => {
+      const timeline = gsap.timeline({ defaults: { ease: "power3.out" } });
+
+      timeline
+        .from(".gsap-hero-item", {
+          opacity: 0,
+          y: 28,
+          duration: 0.72,
+          stagger: 0.09,
+          clearProps: "opacity,transform",
+        })
+        .from(".gsap-dashboard", {
+          opacity: 0,
+          y: 42,
+          scale: 0.97,
+          duration: 0.9,
+          clearProps: "opacity,transform",
+        }, 0.18)
+        .from(".gsap-card", {
+          opacity: 0,
+          y: 14,
+          duration: 0.42,
+          stagger: 0.035,
+          clearProps: "opacity,transform",
+        }, 0.55);
+
+      if (backgroundRef.current && sectionRef.current) {
+        gsap.to(backgroundRef.current, {
+          yPercent: 9,
+          ease: "none",
+          scrollTrigger: {
+            trigger: sectionRef.current,
+            start: "top top",
+            end: "bottom top",
+            scrub: 0.7,
+          },
+        });
+      }
+    });
+
+    return () => motion.revert();
+  }, { scope: sectionRef });
 
   return (
     <section
-      ref={(el) => {
-        (ref as React.MutableRefObject<HTMLDivElement | null>).current = el as HTMLDivElement | null;
-        (sectionRef as React.MutableRefObject<HTMLElement | null>).current = el;
-      }}
+      ref={sectionRef}
       className="relative overflow-hidden pt-20 md:pt-36 pb-14 md:pb-20"
     >
       {/* Real photo background with parallax — <img> tag for LCP eligibility */}
       <img
+        ref={backgroundRef}
         src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1920&q=80"
         alt="Cantiere edile italiano gestito con Edilizia in Cloud"
         fetchpriority="high"
@@ -225,10 +264,7 @@ export default function HeroSection() {
         width={1920}
         height={1080}
         className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none"
-        style={{
-          transform: `translateY(${parallaxY}px)`,
-          willChange: "transform",
-        }}
+        style={{ willChange: "transform" }}
       />
 
       {/* Gradient overlay */}
@@ -268,9 +304,7 @@ export default function HeroSection() {
 
       <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
         {/* 1. Badge animato */}
-        <div
-          className={`transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
-        >
+        <div className="gsap-hero-item">
           <span className="inline-flex items-center gap-2 mb-6 px-3 md:px-5 py-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#F97415] text-[10px] md:text-xs font-semibold uppercase tracking-wider md:tracking-widest relative overflow-hidden">
             <span className="absolute inset-0 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.15) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
             {/* Pulsing dot */}
@@ -283,9 +317,7 @@ export default function HeroSection() {
         </div>
 
         {/* 2. Titolo con typing animation */}
-        <div
-          className={`transition-all duration-700 delay-150 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
-        >
+        <div className="gsap-hero-item">
           <h1 className="text-2xl sm:text-3xl md:text-6xl lg:text-7xl font-extrabold leading-tight mb-3 md:mb-4">
             <span className="text-white block">Finisci di lavorare a sensazione.</span>
             <span className="text-[#F97415] block">Inizia a guadagnare davvero.</span>
@@ -295,7 +327,7 @@ export default function HeroSection() {
           <div className="text-xl sm:text-2xl md:text-4xl lg:text-5xl font-bold text-white/90 mb-3">
             Controlla{" "}
             <span
-              className="text-[#F97415] inline-block min-w-[160px] md:min-w-[300px] transition-all duration-350"
+              className="text-[#F97415] inline-block min-w-[126px] sm:min-w-[160px] md:min-w-[300px] transition-all duration-350"
               style={{
                 opacity: fadeState === "in" ? 1 : 0,
                 transform: fadeState === "in" ? "translateY(0)" : "translateY(-8px)",
@@ -312,24 +344,8 @@ export default function HeroSection() {
           </p>
         </div>
 
-        {/* 3. Dashboard Mockup */}
-        <DashboardMockup isVisible={isVisible} />
-
-        {/* 4. Subtitle */}
-        <p
-          className={`text-sm md:text-xl text-white/60 max-w-xs sm:max-w-sm md:max-w-2xl mx-auto mb-8 md:mb-10 transition-all duration-700 delay-300 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}
-        >
-          Cantieri, margini, cassa, HR, marketing e fatturazione elettronica — tutto in un'unica piattaforma. Nessun foglio Excel. Nessun commercialista che ti dà i dati a fine anno. Decidi in tempo reale, affiancato da un <span className="text-white font-semibold">Consulente dedicato</span> che ti aiuta a proteggere i margini e far crescere l'impresa.
-        </p>
-
-        {/* 5. CTA Buttons */}
-        <div
-          className={`flex flex-col sm:flex-row items-center justify-center gap-4 transition-all duration-700 delay-500 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}
-        >
+        {/* 3. CTA Buttons */}
+        <div className="gsap-hero-item flex flex-col sm:flex-row items-center justify-center gap-4 mt-7 md:mt-8">
           <button
             type="button"
             onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
@@ -347,11 +363,7 @@ export default function HeroSection() {
         </div>
 
         {/* Micro-badges */}
-        <div
-          className={`flex flex-wrap items-center justify-center gap-3 mt-5 transition-all duration-700 delay-600 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}
-        >
+        <div className="gsap-hero-item flex flex-wrap items-center justify-center gap-3 mt-5">
           {microBadges.map(({ Icon, label }, i) => (
             <span
               key={i}
@@ -363,12 +375,18 @@ export default function HeroSection() {
           ))}
         </div>
 
-        {/* Social Proof */}
-        <div
-          className={`flex flex-col sm:flex-row items-center justify-center gap-3 md:gap-6 mt-6 md:mt-8 transition-all duration-700 delay-700 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}
+        {/* 3. Dashboard Mockup */}
+        <DashboardMockup />
+
+        {/* 4. Subtitle */}
+        <p
+          className="gsap-hero-item text-sm md:text-xl text-white/60 max-w-xs sm:max-w-sm md:max-w-2xl mx-auto mb-8 md:mb-10"
         >
+          Cantieri, margini, cassa, HR, marketing e fatturazione elettronica — tutto in un'unica piattaforma. Nessun foglio Excel. Nessun commercialista che ti dà i dati a fine anno. Decidi in tempo reale, affiancato da un <span className="text-white font-semibold">Consulente dedicato</span> che ti aiuta a proteggere i margini e far crescere l'impresa.
+        </p>
+
+        {/* Social Proof */}
+        <div className="gsap-hero-item flex flex-col sm:flex-row items-center justify-center gap-3 md:gap-6 mt-6 md:mt-8">
           <div className="flex items-center gap-2 text-white/70 text-xs md:text-sm">
             <Users size={16} className="text-[#F97415]" />
             <span>150+ Imprese Attive</span>
@@ -388,11 +406,7 @@ export default function HeroSection() {
         </div>
 
         {/* Partner Logos Marquee */}
-        <div
-          className={`mt-6 md:mt-10 transition-all duration-700 delay-[900ms] ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}
-        >
+        <div className="gsap-hero-item mt-6 md:mt-10">
           <p className="text-white/70 text-xs mb-4">Usato da imprenditori che lavorano con</p>
           <div
             className="overflow-hidden"

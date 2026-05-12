@@ -32,10 +32,16 @@ async function botResponse(path, hostname = "www.ediliziaincloud.com") {
 
 assert(urls.length === 181, `Sitemap deve avere 181 URL, trovati ${urls.length}`);
 assert(unique(urls).length === urls.length, "Sitemap contiene URL duplicati");
-assert(urls.includes("/pianifica-migrazione"), "Sitemap non contiene /pianifica-migrazione");
+assert(urls.includes("/pianifica-migrazione/"), "Sitemap non contiene /pianifica-migrazione/");
+assert(urls.every((url) => !["/home/", "/register/", "/privacy/", "/termini/", "/cookie/"].includes(url)), "Sitemap contiene URL legacy o redirect");
+assert(!sitemap.includes("https://ediliziaincloud.com"), "Sitemap contiene ancora URL non-www");
 assert(
   urls.filter((url) => url.startsWith("/software-gestionale-edilizia-")).length === 36,
   "Sitemap deve contenere 36 city landing page",
+);
+assert(
+  urls.every((url) => url === "/" || url.endsWith("/") || /\.[a-z0-9]{2,8}$/i.test(url)),
+  "Le URL HTML in sitemap devono usare trailing slash, coerente con Cloudflare Pages prerender",
 );
 assert(!llms.includes("35 città") && !llmsFull.includes("35 città"), "llms contiene ancora il vecchio conteggio 35 città");
 assert(llms.includes("/pianifica-migrazione") && llmsFull.includes("/pianifica-migrazione"), "llms non contiene la pagina migrazione");
@@ -65,6 +71,9 @@ for (const path of requiredDisallows) {
 
 for (const path of ["/llms.txt", "/llms-full.txt", "/62ac6a799ade356135bf527565c13e17.txt", "/ref/*"]) {
   assert(headers.includes(path), `_headers non contiene regola per ${path}`);
+}
+for (const path of ["/widget", "/qr/*", "/stima/*"]) {
+  assert(headers.includes(path), `_headers non contiene noindex per ${path}`);
 }
 
 let sitemapFailures = 0;

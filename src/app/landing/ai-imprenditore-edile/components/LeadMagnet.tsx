@@ -1,6 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BookOpen, Check } from "lucide-react";
-import { useState } from "react";
+import { BookOpen, Bot, Check, FileSearch, Sparkles } from "lucide-react";
+import { useRef, useState } from "react";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -17,12 +20,64 @@ const leadSchema = z.object({
 
 type LeadForm = z.infer<typeof leadSchema>;
 
+gsap.registerPlugin(useGSAP, ScrollTrigger);
+
 export function LeadMagnet() {
+  const visualRef = useRef<HTMLDivElement>(null);
   const [submitted, setSubmitted] = useState(false);
   const form = useForm<LeadForm>({
     resolver: zodResolver(leadSchema),
     defaultValues: { email: "", privacy: false },
   });
+
+  useGSAP(() => {
+    const motion = gsap.matchMedia();
+
+    motion.add("(prefers-reduced-motion: reduce)", () => {
+      gsap.set(".manual-cover, .manual-signal, .manual-scan-line, .manual-pill", {
+        opacity: 1,
+        scale: 1,
+        y: 0,
+        clearProps: "transform",
+      });
+    });
+
+    motion.add("(prefers-reduced-motion: no-preference)", () => {
+      const timeline = gsap.timeline({
+        scrollTrigger: {
+          trigger: visualRef.current,
+          start: "top 82%",
+          once: true,
+        },
+        defaults: { ease: "power3.out" },
+      });
+
+      timeline
+        .from(".manual-cover", { opacity: 0, y: 38, rotateY: -18, duration: 0.72 })
+        .from(".manual-pill", { opacity: 0, y: 16, scale: 0.9, stagger: 0.08, duration: 0.42 }, 0.22)
+        .from(".manual-signal", { opacity: 0, scale: 0.4, stagger: 0.06, duration: 0.4 }, 0.34);
+
+      gsap.to(".manual-scan-line", {
+        y: 330,
+        opacity: 0.78,
+        duration: 2.8,
+        repeat: -1,
+        ease: "power1.inOut",
+      });
+
+      gsap.to(".manual-signal", {
+        scale: 1.28,
+        opacity: 0.22,
+        duration: 1.6,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        stagger: 0.15,
+      });
+    });
+
+    return () => motion.revert();
+  }, { scope: visualRef });
 
   async function onSubmit(values: LeadForm) {
     trackEvent("landing_ai_lead_magnet_submit", { email_domain: values.email.split("@")[1] ?? "" });
@@ -47,17 +102,34 @@ export function LeadMagnet() {
       />
       <div className="relative mx-auto grid max-w-6xl gap-12 lg:grid-cols-[.9fr_1.1fr] lg:items-center">
         <FadeUp>
-          <div className="mx-auto max-w-sm [perspective:1000px]">
-            <div className="relative h-[440px] overflow-hidden rounded-md bg-[#6B1A1A] p-8 text-[#e9c46a] shadow-2xl shadow-eic-navy/20 [transform:rotateY(-12deg)_rotateX(4deg)]">
+          <div ref={visualRef} className="mx-auto max-w-sm [perspective:1000px]">
+            <div className="manual-cover relative h-[400px] overflow-hidden rounded-md bg-[#6B1A1A] p-6 text-[#e9c46a] shadow-2xl shadow-eic-navy/20 [transform:rotateY(-8deg)_rotateX(3deg)] sm:h-[440px] sm:p-8 sm:[transform:rotateY(-12deg)_rotateX(4deg)]">
               <div className="absolute inset-y-0 left-0 w-8 rounded-l-md bg-black/20" />
               <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/12 to-transparent" />
-              <BookOpen className="h-12 w-12" strokeWidth={1.5} />
-              <p className="mt-14 text-sm font-black uppercase tracking-[0.28em]">Manuale riservato</p>
-              <h3 className="mt-5 font-display text-4xl font-black leading-tight text-[#f6d88d]">
+              <div className="manual-scan-line pointer-events-none absolute left-8 right-5 top-12 h-px bg-gradient-to-r from-transparent via-white to-transparent shadow-[0_0_26px_rgba(255,255,255,0.9)]" />
+              <span className="manual-signal pointer-events-none absolute right-10 top-14 h-20 w-20 rounded-full border border-eic-orange/35" />
+              <span className="manual-signal pointer-events-none absolute bottom-24 left-12 h-14 w-14 rounded-full border border-[#f6d88d]/35" />
+              <BookOpen className="h-10 w-10 sm:h-12 sm:w-12" strokeWidth={1.5} />
+              <p className="mt-12 text-xs font-black uppercase tracking-[0.28em] sm:mt-14 sm:text-sm">Manuale riservato</p>
+              <h3 className="mt-5 font-display text-[2.1rem] font-black leading-tight text-[#f6d88d] sm:text-4xl">
                 Imprese Edili & AI
               </h3>
-              <p className="mt-6 text-xl font-semibold text-white/86">31 sprechi che spesso restano invisibili.</p>
-              <p className="absolute bottom-8 left-8 text-sm font-black uppercase tracking-[0.22em] text-white/70">EdiliziaInCloud</p>
+              <p className="mt-5 max-w-[15rem] text-lg font-semibold leading-snug text-white/86 sm:mt-6 sm:text-xl">
+                31 sprechi che spesso restano invisibili.
+              </p>
+              <div className="manual-pill absolute right-6 top-28 rounded-md border border-white/14 bg-white/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-white/82 backdrop-blur">
+                <Sparkles className="mr-1 inline h-3.5 w-3.5 text-eic-orange" strokeWidth={1.5} />
+                Audit AI
+              </div>
+              <div className="manual-pill absolute bottom-20 right-6 hidden max-w-[180px] rounded-md border border-white/14 bg-black/24 p-3 text-sm leading-5 text-white/82 backdrop-blur sm:block">
+                <FileSearch className="mb-2 h-4 w-4 text-eic-orange" strokeWidth={1.5} />
+                Margini, ritardi e cassa letti da Silvio.
+              </div>
+              <div className="manual-pill absolute bottom-28 left-10 hidden max-w-[165px] rounded-md border border-eic-orange/24 bg-eic-orange/18 p-3 text-sm leading-5 text-white/86 backdrop-blur sm:block">
+                <Bot className="mb-2 h-4 w-4 text-[#f6d88d]" strokeWidth={1.5} />
+                Priorità operative pronte per il titolare.
+              </div>
+              <p className="absolute bottom-7 left-6 text-xs font-black uppercase tracking-[0.22em] text-white/70 sm:bottom-8 sm:left-8 sm:text-sm">EdiliziaInCloud</p>
             </div>
           </div>
         </FadeUp>

@@ -60,9 +60,16 @@ function isBot(userAgent) {
 
 const BASE = "https://www.ediliziaincloud.com";
 
+function canonicalUrl(pathname = "/") {
+  const path = pathname || "/";
+  if (path === "/") return `${BASE}/`;
+  if (/\.[a-z0-9]{2,8}$/i.test(path)) return `${BASE}${path}`;
+  return `${BASE}${path.replace(/\/$/, "")}/`;
+}
+
 const ROUTES = {
   "/": {
-    title: "Edilizia in Cloud — Software Gestionale per Imprese Edili Italiane",
+    title: "Gestionale Edilizia Cloud per Imprese Edili",
     description:
       "Edilizia in Cloud è il gestionale cloud per imprese edili: cantieri, preventivi, fatturazione elettronica SDI e HR. Usato da 500+ imprese. Prova gratis 14 giorni.",
     h1: "Edilizia in Cloud: il software gestionale per imprese edili italiane",
@@ -124,7 +131,7 @@ const ROUTES = {
   },
 
   "/funzionalita": {
-    title: "Funzionalità Edilizia in Cloud — Gestionale Completo per Imprese Edili",
+    title: "Funzionalità Gestionale Edilizia | Edilizia in Cloud",
     description:
       "Tutte le funzionalità di Edilizia in Cloud: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti, HR, margini e app mobile cantiere.",
     h1: "Funzionalità di Edilizia in Cloud: tutto quello che serve alla tua impresa edile",
@@ -180,7 +187,7 @@ const ROUTES = {
   },
 
   "/funzionalita/gestione-cantieri": {
-    title: "Gestione Cantieri Digitale con Edilizia in Cloud — App Mobile e Cloud",
+    title: "Gestione Cantieri Digitale | App e Cloud Edilizia",
     description:
       "Edilizia in Cloud gestisce i tuoi cantieri in tempo reale: avanzamento lavori, squadre, materiali, SAL e costi. App mobile con funzionamento offline.",
     h1: "Gestione cantieri digitale con Edilizia in Cloud",
@@ -194,7 +201,7 @@ const ROUTES = {
   },
 
   "/funzionalita/fatturazione-elettronica": {
-    title: "Fatturazione Elettronica Edilizia con Edilizia in Cloud — SDI Integrato",
+    title: "Fatturazione Elettronica Edilizia SDI",
     description:
       "Edilizia in Cloud integra la fatturazione elettronica SDI: fatture B2B e PA, split payment, reverse charge edilizia, note di credito e archiviazione a norma.",
     h1: "Fatturazione elettronica per imprese edili con Edilizia in Cloud",
@@ -208,7 +215,7 @@ const ROUTES = {
   },
 
   "/funzionalita/preventivi-edilizia": {
-    title: "Preventivi Edilizia Professionali con Edilizia in Cloud — Prezziari e Firma Digitale",
+    title: "Preventivi Edilizia con Prezziari e Firma Digitale",
     description:
       "Edilizia in Cloud crea preventivi edili professionali in minuti: computi metrici, prezziari regionali, calcolo ricarichi, firma digitale e accettazione online.",
     h1: "Preventivi edilizia professionali con Edilizia in Cloud",
@@ -222,7 +229,7 @@ const ROUTES = {
   },
 
   "/funzionalita/margini-cantiere": {
-    title: "Controllo Margini Cantiere con Edilizia in Cloud — Preventivo vs Consuntivo",
+    title: "Controllo Margini Cantiere | Preventivo vs Consuntivo",
     description:
       "Edilizia in Cloud analizza la redditività di ogni cantiere in tempo reale. Confronta preventivo vs consuntivo: manodopera, materiali e subappalti.",
     h1: "Controllo margini per cantiere con Edilizia in Cloud",
@@ -265,7 +272,7 @@ const ROUTES = {
   },
 
   "/funzionalita/render-infissi": {
-    title: "Render Infissi AI per Serramentisti | Prima/Dopo sulla foto reale",
+    title: "Render Infissi AI per Serramentisti",
     description:
       "Render Infissi AI: mostra al cliente come cambieranno i suoi serramenti sulla foto reale della sua casa. Differenziati dal prezzo e chiudi più preventivi.",
     h1: "Render Infissi AI per Serramentisti",
@@ -279,7 +286,7 @@ const ROUTES = {
   },
 
   "/funzionalita/render-bagni": {
-    title: "Render Bagni AI per Idraulici e Showroom | Prima/Dopo sulla foto reale",
+    title: "Render Bagni AI per Idraulici e Showroom",
     description:
       "Render Bagni AI: trasforma la foto del bagno del cliente in un prima/dopo realistico con nuovi sanitari, doccia, mobile e rivestimenti. Chiudi più preventivi.",
     h1: "Render Bagni AI per Idraulici e Showroom",
@@ -293,7 +300,7 @@ const ROUTES = {
   },
 
   "/funzionalita/render-tetti": {
-    title: "Render Tetti AI per Imprese di Copertura | Prima/Dopo sulla foto reale",
+    title: "Render Tetti AI per Imprese di Copertura",
     description:
       "Render Tetti AI: mostra al cliente come cambierà il suo tetto sulla foto reale della casa. Coperture, lattoneria, fotovoltaico e lucernari pronti per la trattativa.",
     h1: "Render Tetti AI per Imprese di Copertura e Lattonieri",
@@ -307,7 +314,7 @@ const ROUTES = {
   },
 
   "/funzionalita/render-pavimenti": {
-    title: "Render Pavimenti AI per Posatori e Showroom | Prima/Dopo sulla foto reale",
+    title: "Render Pavimenti AI per Posatori",
     description:
       "Render Pavimenti AI: trasforma la foto della stanza del cliente in un prima/dopo realistico con nuovo gres, parquet, resine e finiture. Chiudi più preventivi.",
     h1: "Render Pavimenti AI per Posatori e Showroom",
@@ -321,7 +328,7 @@ const ROUTES = {
   },
 
   "/funzionalita/render-ristrutturazioni": {
-    title: "Render Ristrutturazioni AI per Imprese Edili | Prima/Dopo sulla foto reale",
+    title: "Render Ristrutturazioni AI per Imprese Edili",
     description:
       "Render Ristrutturazioni AI: mostra al cliente come cambierà la sua casa dopo la ristrutturazione, sulla foto reale. Cucina, bagno, living e finiture in trattativa.",
     h1: "Render Ristrutturazioni AI per Imprese Edili e General Contractor",
@@ -335,7 +342,7 @@ const ROUTES = {
   },
 
   "/funzionalita/render-stanza": {
-    title: "Render Stanza AI per Arredatori e Showroom | Prima/Dopo sulla foto reale",
+    title: "Render Stanza AI per Arredatori",
     description:
       "Render Stanza AI: trasforma la foto della stanza del cliente in un prima/dopo realistico con nuovi mobili, divani, illuminazione e tessuti. Chiudi più ordini arredo.",
     h1: "Render Stanza AI per Arredatori, Mobilieri e Interior Designer",
@@ -349,7 +356,7 @@ const ROUTES = {
   },
 
   "/funzionalita/render-piscine": {
-    title: "Render Piscine AI per Piscinisti e Costruttori | Prima/Dopo sulla foto reale",
+    title: "Render Piscine AI per Piscinisti",
     description:
       "Render Piscine AI: trasforma la foto del giardino del cliente in un prima/dopo realistico con nuova piscina, bordo, pavimentazione, pergola e verde. Chiudi più contratti.",
     h1: "Render Piscine AI per Piscinisti e Installatori Outdoor",
@@ -364,7 +371,7 @@ const ROUTES = {
 
   // ── Funzionalità — TIER 1 (high-impact SEO landing pages) ─────────
   "/funzionalita/cassa-cantiere": {
-    title: "Cassa Cantiere e Cash Flow PSD2 per Edilizia | Edilizia in Cloud",
+    title: "Cassa Cantiere e Cash Flow PSD2 Edilizia",
     description:
       "Gestione cassa multi-banca PSD2 con previsionale 30/60/90 giorni per imprese edili. Niente più sorprese di liquidità: alert sconfinamento e proiezione dei pagamenti automatica.",
     h1: "Cassa Cantiere e Previsionale Cash Flow PSD2",
@@ -392,7 +399,7 @@ const ROUTES = {
   },
 
   "/funzionalita/portale-clienti": {
-    title: "Portale Clienti Edilizia — Avanzamento Lavori e SAL Online | Edilizia in Cloud",
+    title: "Portale Clienti Edilizia con SAL Online",
     description:
       "Area cliente brandizzata con avanzamento cantiere live, foto, documenti, SAL firmabili online. Riduce del 60% le telefonate di update e migliora la percezione della tua impresa.",
     h1: "Portale Clienti per Imprese Edili e Ristrutturatori",
@@ -406,7 +413,7 @@ const ROUTES = {
   },
 
   "/funzionalita/firma-elettronica": {
-    title: "Firma Elettronica Edilizia eIDAS — SAL e Contratti in 30s | Edilizia in Cloud",
+    title: "Firma Elettronica Edilizia per SAL e Contratti",
     description:
       "Firma elettronica avanzata eIDAS per imprese edili: preventivi, SAL, varianti, contratti firmati in 30 secondi dal telefono del cliente. Marca temporale e archivio cloud immutabile.",
     h1: "Firma Elettronica eIDAS per Imprese Edili",
@@ -420,7 +427,7 @@ const ROUTES = {
   },
 
   "/funzionalita/whatsapp-marketing": {
-    title: "WhatsApp Marketing Edilizia — Notifiche Cantiere Automatiche | Edilizia in Cloud",
+    title: "WhatsApp Marketing per Imprese Edili",
     description:
       "WhatsApp Business API integrato per imprese edili: notifiche cantiere automatiche, broadcast, template approvati Meta, consensi GDPR. Conversione 8x rispetto all'email.",
     h1: "WhatsApp Marketing per Imprese Edili",
@@ -434,7 +441,7 @@ const ROUTES = {
   },
 
   "/funzionalita/email-marketing": {
-    title: "Email Marketing Edilizia — Campagne Settoriali Pre-Configurate | Edilizia in Cloud",
+    title: "Email Marketing per Imprese Edili",
     description:
       "Email marketing verticale per imprese edili: segmentazione clienti attivi/dormienti/lead, template settoriali, automazioni post-cantiere, GDPR. Riattiva i clienti dormienti.",
     h1: "Email Marketing per Imprese Edili",
@@ -462,7 +469,7 @@ const ROUTES = {
   },
 
   "/funzionalita/crm-edilizia": {
-    title: "CRM Edilizia — Pipeline Preventivi e Lead per Imprese | Edilizia in Cloud",
+    title: "CRM Edilizia per Lead, Preventivi e Follow-up",
     description:
       "CRM verticale per imprese edili: pipeline preventivi, lead da Google/Facebook/passaparola, tagging cantieri (residenziale/commerciale), follow-up automatici, conversion rate per fonte.",
     h1: "CRM Verticale per Imprese Edili",
@@ -476,7 +483,7 @@ const ROUTES = {
   },
 
   "/funzionalita/cruscotto-aziendale": {
-    title: "Cruscotto Aziendale Edilizia — KPI Real-Time | Edilizia in Cloud",
+    title: "Cruscotto Aziendale Edilizia con KPI Real-Time",
     description:
       "Dashboard executive per titolari edili: margine cantieri live, cassa 90 giorni, fatturato, pipeline. Drill-down per cantiere/cliente, mobile-first. Decisioni informate.",
     h1: "Cruscotto Aziendale per Imprese Edili",
@@ -490,7 +497,7 @@ const ROUTES = {
   },
 
   "/funzionalita/giornale-lavori": {
-    title: "Giornale Lavori Digitale — Conforme D.M. 49/2018 | Edilizia in Cloud",
+    title: "Giornale Lavori Digitale per Cantieri",
     description:
       "Giornale lavori digitale conforme art. 15 D.M. 49/2018 e D.Lgs 50/2016. Registrazione giornaliera maestranze, mezzi, forniture, eventi. Firma DL e RUP, esportazione PDF/A.",
     h1: "Giornale Lavori Digitale per Imprese Edili",
@@ -504,7 +511,7 @@ const ROUTES = {
   },
 
   "/funzionalita/sicurezza-cantiere": {
-    title: "Sicurezza Cantiere D.Lgs 81/2008 — POS Digitali | Edilizia in Cloud",
+    title: "Sicurezza Cantiere e POS Digitali",
     description:
       "Gestione sicurezza cantiere conforme D.Lgs 81/2008: POS digitali, DUVRI, formazione tracciata, DPI, sopralluoghi, near-miss. Integrazione coordinatore sicurezza, scadenze visite mediche.",
     h1: "Sicurezza Cantiere per Imprese Edili",
@@ -533,7 +540,7 @@ const ROUTES = {
 
   // ── Funzionalità — TIER 2 (financial / fiscal / operational) ──────
   "/funzionalita/cassetto-sdi": {
-    title: "Cassetto Fiscale SDI Edilizia — Sincronizzazione Automatica | Edilizia in Cloud",
+    title: "Cassetto Fiscale SDI per Edilizia",
     description:
       "Cassetto fiscale Agenzia Entrate integrato: sincronizzazione automatica fatture B2B/B2C ricevute via SDI, riconciliazione contabile, ricerca semantica, export commercialista.",
     h1: "Cassetto Fiscale SDI per Imprese Edili",
@@ -547,7 +554,7 @@ const ROUTES = {
   },
 
   "/funzionalita/conserva-digitale": {
-    title: "Conservazione Digitale CAD — Decennale per Edilizia | Edilizia in Cloud",
+    title: "Conservazione Digitale CAD per Edilizia",
     description:
       "Conservazione decennale conforme CAD (D.Lgs 82/2005) per fatture, contratti, DDT, libri contabili. Marca temporale qualificata AgID, esibizione su richiesta GdF in 30 secondi.",
     h1: "Conservazione Digitale per Imprese Edili",
@@ -603,7 +610,7 @@ const ROUTES = {
   },
 
   "/funzionalita/timbrature-gps": {
-    title: "Timbrature GPS Cantiere — App Mobile Operai | Edilizia in Cloud",
+    title: "Timbrature GPS Cantiere per Operai",
     description:
       "App mobile timbrature operai con GPS geofence cantiere, antifrode foto-timbratura, integrazione cedolini paga CCNL Edilizia, ore extra/notturne calcolate automaticamente.",
     h1: "Timbrature GPS per Imprese Edili",
@@ -631,7 +638,7 @@ const ROUTES = {
   },
 
   "/funzionalita/magazzino-cantiere": {
-    title: "Magazzino Cantiere Multi-Sede — Stock per Cantiere | Edilizia in Cloud",
+    title: "Magazzino Cantiere Multi-Sede",
     description:
       "Magazzino multi-cantiere con stock per cantiere, prelievi tracciati via app, scorte minime, ordini automatici, codici a barre, valorizzazione FIFO. Recupero 8% su scorte sprecate.",
     h1: "Magazzino Cantiere per Imprese Edili",
@@ -645,7 +652,7 @@ const ROUTES = {
   },
 
   "/funzionalita/sms-marketing": {
-    title: "SMS Marketing Edilizia — Notifiche Cantiere | Edilizia in Cloud",
+    title: "SMS Marketing Edilizia per Clienti e Cantieri",
     description:
       "SMS transazionali e marketing per imprese edili: notifiche cantiere automatiche, promemoria sopralluogo, alert SAL/fattura. Deliverability 99% Italia, integrazione CRM.",
     h1: "SMS Marketing per Imprese Edili",
@@ -659,7 +666,7 @@ const ROUTES = {
   },
 
   "/funzionalita/pipeline-vendite": {
-    title: "Pipeline Vendite Edilizia — Drag & Drop Preventivi | Edilizia in Cloud",
+    title: "Pipeline Vendite Edilizia e Preventivi",
     description:
       "Pipeline preventivi visuale per imprese edili: drag&drop fasi (lead/sopralluogo/preventivo/trattativa/firmato), forecast cassa, conversion rate per fonte, target vs actual.",
     h1: "Pipeline Vendite per Imprese Edili",
@@ -674,7 +681,7 @@ const ROUTES = {
 
   // ── Funzionalità — TIER 3 (vertical / niche / advanced) ───────────
   "/funzionalita/fotovoltaico": {
-    title: "Software Gestione Cantieri Fotovoltaico — Superbonus e GSE | Edilizia in Cloud",
+    title: "Software Gestione Cantieri Fotovoltaico",
     description:
       "Gestione progetti fotovoltaico residenziale e industriale: pratiche GSE, Superbonus 110%/Conto Termico, pratiche Enel, schede tecniche pannelli, monitoraggio post-installazione.",
     h1: "Software Fotovoltaico per Installatori e Costruttori",
@@ -688,7 +695,7 @@ const ROUTES = {
   },
 
   "/funzionalita/manutenzione-impianti": {
-    title: "Manutenzione Impianti — DPR 74/2013 e Libretti Digitali | Edilizia in Cloud",
+    title: "Manutenzione Impianti e Libretti Digitali",
     description:
       "Manutenzione programmata e correttiva impianti idraulici, elettrici, climatizzazione, fotovoltaici. Libretti d'impianto, scadenze normative DPR 74/2013, FGAS, app tecnico mobile.",
     h1: "Manutenzione Impianti per Manutentori Edili",
@@ -702,7 +709,7 @@ const ROUTES = {
   },
 
   "/funzionalita/ddt-digitali": {
-    title: "DDT Digitali Edilizia — Firma Autista in Mobilità | Edilizia in Cloud",
+    title: "DDT Digitali Edilizia con Firma Mobile",
     description:
       "Documenti di trasporto digitali con integrazione fatturazione SDI, firma autista in mobilità, archivio CAD decennale, riconciliazione automatica con ordini e fatture.",
     h1: "DDT Digitali per Imprese Edili",
@@ -716,7 +723,7 @@ const ROUTES = {
   },
 
   "/funzionalita/ritenute-garanzia": {
-    title: "Ritenute di Garanzia 0,5% e 4% INPS — Subappalto | Edilizia in Cloud",
+    title: "Ritenute di Garanzia e Subappalto Edilizia",
     description:
       "Gestione ritenute 0,5% L. 296/2006 e 4% INPS subappalto art. 17 ter D.P.R. 633/72. Scadenze svincolo controllate, DURC verificati, archivio documentale a norma.",
     h1: "Ritenute di Garanzia per Imprese Edili",
@@ -730,7 +737,7 @@ const ROUTES = {
   },
 
   "/funzionalita/finanziamenti-cantieri": {
-    title: "Finanziamenti Cantieri — Cessione Credito Superbonus | Edilizia in Cloud",
+    title: "Finanziamenti Cantieri e Cessione Credito",
     description:
       "Gestione cessione credito Superbonus/Sismabonus/Ecobonus, factoring fatture cantiere, anticipo SAL banche, dossier finanziabilità. Banche concorrenti per ridurre lo sconto.",
     h1: "Finanziamenti Cantieri per Imprese Edili",
@@ -744,7 +751,7 @@ const ROUTES = {
   },
 
   "/funzionalita/lead-form-facebook": {
-    title: "Lead Form Facebook & Instagram per Imprese Edili | Edilizia in Cloud",
+    title: "Lead Form Facebook per Imprese Edili",
     description:
       "Integrazione Lead Ads Facebook/Instagram: sync automatico CRM, qualificazione AI, distribuzione commerciali. Conversione lead-cliente edilizia 8-12% medio.",
     h1: "Lead Form Facebook per Imprese Edili",
@@ -758,7 +765,7 @@ const ROUTES = {
   },
 
   "/funzionalita/quote-builder-ai": {
-    title: "Quote Builder AI Edilizia — Preventivi in 5 Minuti | Edilizia in Cloud",
+    title: "Quote Builder AI per Preventivi Edilizia",
     description:
       "Generatore preventivi AI per imprese edili: riconoscimento foto cantiere, suggerimento computo metrico, prezzari regionali integrati, draft in 5 minuti invece di 4 ore.",
     h1: "Quote Builder AI per Imprese Edili",
@@ -772,7 +779,7 @@ const ROUTES = {
   },
 
   "/funzionalita/app-cantiere-mobile": {
-    title: "App Cantiere Mobile iOS/Android — Offline-First | Edilizia in Cloud",
+    title: "App Cantiere Mobile iOS e Android",
     description:
       "App mobile dedicata capocantiere/operai (iOS/Android): timbrature, foto, ordini, SAL, giornale lavori, comunicazione team. Offline-first per cantieri senza copertura.",
     h1: "App Cantiere Mobile per Imprese Edili",
@@ -787,7 +794,7 @@ const ROUTES = {
 
   // ── Funzionalità — TIER 4 (HR / accounting / supporting) ──────────
   "/funzionalita/cedolini-paga": {
-    title: "Cedolini Paga Edilizia — CCNL Industria e Artigianato | Edilizia in Cloud",
+    title: "Cedolini Paga Edilizia e CCNL",
     description:
       "Cedolini paga edilizia con CCNL Edilizia industria/artigianato, calcolo automatico cassa edile, ferie/permessi/banca ore, F24 telematico, UNILAV/UNIEMENS integrati.",
     h1: "Cedolini Paga per Imprese Edili",
@@ -801,7 +808,7 @@ const ROUTES = {
   },
 
   "/funzionalita/ferie-permessi": {
-    title: "Ferie e Permessi Edilizia — Self-Service Operaio | Edilizia in Cloud",
+    title: "Ferie e Permessi Edilizia per Operai",
     description:
       "Gestione ferie, ROL, permessi, malattie integrata con CCNL Edilizia. App self-service operaio, approvazione capocantiere, conteggio automatico residui, calendario condiviso.",
     h1: "Ferie e Permessi per Imprese Edili",
@@ -815,7 +822,7 @@ const ROUTES = {
   },
 
   "/funzionalita/ticket-assistenza": {
-    title: "Ticket Assistenza Edilizia — Garanzia 10 Anni Art. 1669 | Edilizia in Cloud",
+    title: "Ticket Assistenza Edilizia e Garanzie",
     description:
       "Ticketing post-cantiere e garanzia 10 anni edilizia (art. 1669 c.c.): SLA, escalation, integrazione portale cliente, knowledge base, app tecnico mobile per interventi.",
     h1: "Ticket Assistenza per Imprese Edili",
@@ -829,7 +836,7 @@ const ROUTES = {
   },
 
   "/funzionalita/chat-interna": {
-    title: "Chat Aziendale Edilizia — Canali per Cantiere GDPR | Edilizia in Cloud",
+    title: "Chat Aziendale Edilizia per Cantieri",
     description:
       "Chat aziendale per impresa edile: capocantiere, operai, ufficio. Canali per cantiere, condivisione foto/file/audio, conformità GDPR (no WhatsApp privato), notifiche urgenti.",
     h1: "Chat Aziendale per Imprese Edili",
@@ -843,7 +850,7 @@ const ROUTES = {
   },
 
   "/funzionalita/registro-iva": {
-    title: "Registri IVA Edilizia — LIPE Automatica | Edilizia in Cloud",
+    title: "Registri IVA Edilizia e LIPE Automatica",
     description:
       "Registri IVA acquisti/vendite/corrispettivi automatici da SDI, liquidazione periodica IVA (LIPE), conservazione decennale CAD, esibizione GdF in 30 secondi.",
     h1: "Registri IVA per Imprese Edili",
@@ -857,7 +864,7 @@ const ROUTES = {
   },
 
   "/funzionalita/contabilita-fiscale": {
-    title: "Contabilità Fiscale Edilizia — Bilancio CEE e XBRL | Edilizia in Cloud",
+    title: "Contabilità Fiscale Edilizia e XBRL",
     description:
       "Contabilità ordinaria/semplificata edilizia: piano dei conti settoriale, ammortamenti automatici, bilancio CEE, esportazione XBRL Banca d'Italia, integrazione fatture SDI.",
     h1: "Contabilità Fiscale per Imprese Edili",
@@ -871,7 +878,7 @@ const ROUTES = {
   },
 
   "/funzionalita/calendario-lavori": {
-    title: "Calendario Lavori Edilizia — Gantt Multi-Cantiere | Edilizia in Cloud",
+    title: "Calendario Lavori Edilizia e Gantt Cantieri",
     description:
       "Calendario condiviso per pianificazione cantieri: gantt visuale multi-cantiere, allocazione squadre, conflict detection, integrazione meteo, sync Google/Outlook.",
     h1: "Calendario Lavori per Imprese Edili",
@@ -885,7 +892,7 @@ const ROUTES = {
   },
 
   "/funzionalita/report-fatturazione": {
-    title: "Report Fatturazione Edilizia — Dashboard Mensile | Edilizia in Cloud",
+    title: "Report Fatturazione Edilizia Mensile",
     description:
       "Reportistica fatturazione (per cliente, cantiere, periodo, agente), dashboard mensile fatturato/incassato/scaduto, export PDF/Excel, KPI commerciali, target vs actual.",
     h1: "Report Fatturazione per Imprese Edili",
@@ -899,7 +906,7 @@ const ROUTES = {
   },
 
   "/prezzi": {
-    title: "Prezzi Edilizia in Cloud — Piani da 49€/mese | Prova Gratis 14 Giorni",
+    title: "Prezzi Edilizia in Cloud | Piani e Prova Gratis",
     description:
       "Prezzi di Edilizia in Cloud: piano Starter 49€/mese, Professional 99€/mese, Enterprise 199€/mese. Zero costi di attivazione, zero vincoli. Prova gratis 14 giorni.",
     h1: "Prezzi di Edilizia in Cloud: quanto costa il gestionale per imprese edili",
@@ -915,7 +922,7 @@ const ROUTES = {
   },
 
   "/confronto": {
-    title: "Confronto Software Gestionali Edilizia 2026 — Edilizia in Cloud vs Alternative",
+    title: "Confronto Software Gestionale Edilizia 2026",
     description:
       "Confronta Edilizia in Cloud con TeamSystem, Primus, EdilNet, Buildertrend e Excel. Tabella comparativa: funzionalità, prezzi, assistenza e facilità d'uso.",
     h1: "Confronto Edilizia in Cloud vs altri software gestionali per edilizia 2026",
@@ -966,7 +973,7 @@ const ROUTES = {
     title: "Edilizia in Cloud vs TeamSystem: Confronto 2026",
     description:
       "Confronto completo Edilizia in Cloud vs TeamSystem per imprese edili. ERP generalista vs gestionale nativo: prezzo, funzionalità e semplicità a confronto.",
-    canonical: BASE + "/confronto/vs-teamsystem",
+    canonical: canonicalUrl("/confronto/vs-teamsystem"),
     h1: "Edilizia in Cloud vs TeamSystem: quale gestionale scegliere per la tua impresa edile?",
     intro:
       "Edilizia in Cloud e TeamSystem sono entrambi gestionali usati dalle imprese edili, ma con approcci opposti. TeamSystem è un ERP generalista con oltre 300 moduli, pensato per commercialisti e grandi aziende — costo medio 200-500€/mese. Edilizia in Cloud è un gestionale verticale per il cantiere, con interfaccia semplice e app mobile — da 49€/mese. Le imprese edili PMI (1-50 dipendenti) che passano da TeamSystem a Edilizia in Cloud risparmiano in media il 60% sul costo del software e dimezzano i tempi di formazione.",
@@ -979,10 +986,10 @@ const ROUTES = {
   },
 
   "/confronto/vs-excel": {
-    title: "Gestionale Edilizia vs Excel: Perché Smettere nel 2026 | Edilizia in Cloud",
+    title: "Gestionale Edilizia vs Excel | Confronto 2026",
     description:
       "Excel per gestire i cantieri? Scopri quanto ti costa davvero e perché le imprese edili stanno passando a Edilizia in Cloud. Confronto completo 2026.",
-    canonical: BASE + "/confronto/vs-excel",
+    canonical: canonicalUrl("/confronto/vs-excel"),
     h1: "Edilizia in Cloud vs Excel: il vero costo nascosto dei fogli di calcolo per le imprese edili",
     intro:
       "Excel sembra gratuito ma costa alle imprese edili in media 15 ore/settimana di lavoro amministrativo, errori di calcolo nei preventivi (in media 3-5% di margine perso per cantiere) e dati non condivisi tra ufficio e cantiere. Edilizia in Cloud sostituisce Excel con una piattaforma cloud che centralizza cantieri, preventivi, fatture e HR — accessibile da smartphone in cantiere. Oltre 500 imprese edili hanno già abbandonato Excel per Edilizia in Cloud.",
@@ -997,10 +1004,10 @@ const ROUTES = {
   },
 
   "/confronto/vs-buildertrend": {
-    title: "Edilizia in Cloud vs Buildertrend: Confronto 2026 | Alternativa Italiana",
+    title: "Edilizia in Cloud vs Buildertrend | Confronto 2026",
     description:
       "Confronto Edilizia in Cloud vs Buildertrend per imprese edili italiane. Buildertrend è americano, senza SDI, senza Cassa Edile e solo in inglese. Ecco la differenza.",
-    canonical: BASE + "/confronto/vs-buildertrend",
+    canonical: canonicalUrl("/confronto/vs-buildertrend"),
     h1: "Edilizia in Cloud vs Buildertrend: il gestionale italiano per le imprese edili",
     intro:
       "Buildertrend è nato per il mercato americano. Non ha la fatturazione SDI, non conosce la Cassa Edile e non parla italiano. Ecco perché le imprese edili italiane scelgono Edilizia in Cloud.",
@@ -1040,7 +1047,7 @@ const ROUTES = {
   },
 
   "/blog": {
-    title: "Blog Edilizia in Cloud — Guide Pratiche per Imprese Edili Italiane",
+    title: "Blog Edilizia | Guide per Imprese Edili",
     description:
       "Guide pratiche su gestione cantieri, preventivi, fatturazione elettronica, subappalti e digitalizzazione per imprese edili italiane. Scritte da imprenditori edili.",
     h1: "Blog Edilizia in Cloud: guide pratiche per imprese edili italiane",
@@ -1214,7 +1221,7 @@ const ROUTES = {
   },
 
   "/per/imprese-costruzione": {
-    title: "Software Gestionale per Imprese di Costruzione | Edilizia in Cloud",
+    title: "Software Gestionale per Imprese di Costruzione",
     description:
       "Il gestionale cloud pensato per le imprese di costruzione: gestisci cantieri, contratti, SAL, fatturazione e squadre da un'unica piattaforma.",
     h1: "Gestionale per imprese di costruzione",
@@ -1228,7 +1235,7 @@ const ROUTES = {
   },
 
   "/per/impiantisti": {
-    title: "Software Gestionale per Impiantisti | Edilizia in Cloud",
+    title: "Software Gestionale per Impiantisti",
     description:
       "Gestionale cloud per impiantisti: preventivi tecnici, SAL, fatturazione, magazzino e gestione squadre. Pensato per impianti elettrici, idraulici e termici.",
     h1: "Gestionale per impiantisti",
@@ -1242,7 +1249,7 @@ const ROUTES = {
   },
 
   "/per/ristrutturatori": {
-    title: "Software per Ristrutturatori Edili | Edilizia in Cloud",
+    title: "Software Gestionale per Ristrutturatori Edili",
     description:
       "Gestionale cloud per imprese di ristrutturazione: preventivi dettagliati, gestione SAL, pratiche bonus edilizi e fatturazione elettronica.",
     h1: "Gestionale per ristrutturatori edili",
@@ -1256,7 +1263,7 @@ const ROUTES = {
   },
 
   "/per/fotovoltaico": {
-    title: "Software per Installatori Fotovoltaico | Edilizia in Cloud",
+    title: "Software Gestionale per Installatori Fotovoltaico",
     description:
       "Gestionale per installatori di impianti fotovoltaici: preventivi tecnici, pratiche GSE, fatturazione e gestione cantieri. Cresce con te.",
     h1: "Gestionale per installatori fotovoltaico",
@@ -1270,7 +1277,7 @@ const ROUTES = {
   },
 
   "/per/serramentisti": {
-    title: "Software Gestionale per Serramentisti | Edilizia in Cloud",
+    title: "Software Gestionale per Serramentisti",
     description:
       "Gestionale cloud per serramentisti: preventivi con configuratore, ordini fornitori, pianificazione posa e fatturazione elettronica.",
     h1: "Gestionale per serramentisti",
@@ -1298,7 +1305,7 @@ const ROUTES = {
   },
 
   "/per/medie-imprese": {
-    title: "Software Gestionale Medie Imprese Edili (10-50 Dipendenti) | Edilizia in Cloud",
+    title: "Software Gestionale per Medie Imprese Edili",
     description:
       "Gestionale multi-cantiere per medie imprese edili 10-50 dipendenti: margini real-time, cassa centralizzata, cruscotto CFO.",
     h1: "Software per medie imprese edili",
@@ -1313,7 +1320,7 @@ const ROUTES = {
   },
 
   "/per/grandi-imprese": {
-    title: "Software Grandi Imprese Edili (50+) — General Contractor | Edilizia in Cloud",
+    title: "Software per Grandi Imprese Edili e General Contractor",
     description:
       "Gestionale enterprise per grandi imprese edili e general contractor: multi-società, API ERP, dashboard direzionale, governance Codice Appalti.",
     h1: "Software per grandi imprese edili e general contractor",
@@ -1328,7 +1335,7 @@ const ROUTES = {
   },
 
   "/per/commercialista-edilizia": {
-    title: "Software per Commercialisti Edilizia — Multi-Cliente Cassa Edile | Edilizia in Cloud",
+    title: "Software per Commercialisti Edilizia e Cassa Edile",
     description:
       "Gestionale white-label per commercialisti che seguono imprese edili: cassetto SDI multi-cliente, F24 cassa edile, DURC tracking, bilancio CEE+XBRL.",
     h1: "Software gestionale per commercialisti dell'edilizia",
@@ -1675,7 +1682,7 @@ function buildBreadcrumbItems(canonical) {
   return parts
     .map((part, i) => {
       const pos = i + 2;
-      const href = "https://www.ediliziaincloud.com/" + parts.slice(0, i + 1).join("/");
+      const href = canonicalUrl("/" + parts.slice(0, i + 1).join("/"));
       const name = part.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       return `{"@type":"ListItem","position":${pos},"name":"${name}","item":"${href}"}`;
     })
@@ -1693,6 +1700,15 @@ function escAttr(str) {
   return String(str)
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;");
+}
+
+function seoDescription(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= 165) return text;
+  const clipped = text.slice(0, 162);
+  const boundary = Math.max(clipped.lastIndexOf("."), clipped.lastIndexOf(";"), clipped.lastIndexOf(","));
+  if (boundary >= 120) return clipped.slice(0, boundary).trim();
+  return `${clipped.replace(/\s+\S*$/, "").trim()}…`;
 }
 
 function buildNoindexHtml(pathname) {
@@ -1745,8 +1761,8 @@ function resolveRoute(pathname) {
     const r = ROUTES[pathname];
     return {
       title: r.title,
-      description: r.description,
-      canonical: BASE + pathname,
+      description: seoDescription(r.description),
+      canonical: canonicalUrl(pathname),
       h1: r.h1,
       intro: r.intro,
       links: r.links || [],
@@ -1758,8 +1774,8 @@ function resolveRoute(pathname) {
   if (pathname === "/software-gestionale-edilizia") {
     return {
       title: "Software Gestionale Edilizia — Cantieri, Preventivi e Margini | Edilizia in Cloud",
-      description: "Software gestionale per imprese edili italiane: cantieri, preventivi, fatturazione, magazzino, personale, CRM e margini in un'unica piattaforma cloud.",
-      canonical: BASE + "/software-gestionale-edilizia",
+      description: seoDescription("Software gestionale per imprese edili italiane: cantieri, preventivi, fatturazione, magazzino, personale, CRM e margini in un'unica piattaforma cloud."),
+      canonical: canonicalUrl("/software-gestionale-edilizia"),
       h1: "Software gestionale edilizia per imprese edili italiane",
       intro: "Edilizia in Cloud unisce cantieri, preventivi, fatturazione, magazzino, personale, CRM e controllo margini in una piattaforma cloud mobile-first. La pagina include anche la copertura nelle principali città italiane per supporto e onboarding locale.",
       links: [
@@ -1792,10 +1808,10 @@ function resolveRoute(pathname) {
     const region = cfg.region;
     return {
       title: `Software Gestionale Edilizia ${cityName} | Edilizia in Cloud`,
-      description: cfg
+      description: seoDescription(cfg
         ? cfg.description
-        : `Software gestionale per imprese edili a ${cityName}. Gestisci cantieri, preventivi e fatturazione con Edilizia in Cloud.`,
-      canonical: BASE + pathname,
+        : `Software gestionale per imprese edili a ${cityName}. Gestisci cantieri, preventivi e fatturazione con Edilizia in Cloud.`),
+      canonical: canonicalUrl(pathname),
       h1: `Software gestionale per imprese edili a ${cityName}`,
       intro: `Edilizia in Cloud è il software gestionale scelto dalle imprese edili di ${cityName} e ${region}. Gestisci cantieri, preventivi e fatturazione in un'unica piattaforma cloud.`,
       links: [
@@ -1809,7 +1825,7 @@ function resolveRoute(pathname) {
         "@type": "LocalBusiness",
         name: "Edilizia in Cloud",
         description: `Software gestionale per imprese edili a ${cityName}`,
-        url: BASE + pathname,
+        url: canonicalUrl(pathname),
         areaServed: [cityName, region],
       },
     };
@@ -1825,8 +1841,8 @@ function resolveRoute(pathname) {
     const label = cat.label;
     return {
       title: `${label}: Articoli e Guide | Edilizia in Cloud Blog`,
-      description: cat.description,
-      canonical: BASE + pathname,
+      description: seoDescription(cat.description),
+      canonical: canonicalUrl(pathname),
       h1: `Blog: ${label}`,
       intro: cat.description,
       links: [
@@ -1839,8 +1855,8 @@ function resolveRoute(pathname) {
         "@context": "https://schema.org",
         "@type": "CollectionPage",
         name: `Blog Edilizia: ${label}`,
-        description: cat.description,
-        url: BASE + pathname,
+        description: seoDescription(cat.description),
+        url: canonicalUrl(pathname),
         inLanguage: "it",
       },
     };
@@ -1917,7 +1933,7 @@ function resolveRoute(pathname) {
       "@type": "Article",
       headline: articleH1,
       description: meta.description || "",
-      url: BASE + pathname,
+      url: canonicalUrl(pathname),
       datePublished: meta.publishedAt || "",
       author: { "@type": "Person", name: "Florin Andriciuc" },
       publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://www.ediliziaincloud.com" },
@@ -1927,8 +1943,8 @@ function resolveRoute(pathname) {
     } : null;
     return {
       title: meta.title || "Blog Edilizia | Edilizia in Cloud",
-      description: meta.description || "Articoli e guide pratiche per imprese edili italiane.",
-      canonical: BASE + pathname,
+      description: seoDescription(meta.description || "Articoli e guide pratiche per imprese edili italiane."),
+      canonical: canonicalUrl(pathname),
       h1: articleH1,
       intro: articleIntro,
       extra: articleContent,
@@ -1954,7 +1970,7 @@ const ASSET_EXT_RE = /\.(js|css|png|jpg|jpeg|webp|avif|gif|svg|ico|woff2?|ttf|eo
 const PUBLIC_NOINDEX_PATTERNS = [
   /^\/(admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|app)(\/|$)/,
   /^\/(login|admin-login|clienti-login|lavori-login|cambia-password|reset-password)(\/|$)/,
-  /^\/(prenota|offerta|firma|firma-odv|firma-fea|preventivo|ref|feedback\/nps)(\/|$)/,
+  /^\/(prenota|offerta|firma|firma-odv|firma-fea|preventivo|ref|feedback\/nps|widget|qr|stima)(\/|$)/,
 ];
 
 function isPrivateSubdomain(hostname) {

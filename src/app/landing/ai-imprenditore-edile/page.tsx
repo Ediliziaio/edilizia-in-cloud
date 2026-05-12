@@ -2,9 +2,11 @@ import { useEffect, useRef } from "react";
 import { useSEO, SITE_URL } from "@/hooks/useSEO";
 import { trackEvent } from "@/lib/track";
 import { AIExamples } from "./components/AIExamples";
+import { AgentiAziendali } from "./components/AgentiAziendali";
+import { AziendaBrain } from "./components/AziendaBrain";
 import { CruscottoKPI } from "./components/CruscottoKPI";
 import { CTAFinale } from "./components/CTAFinale";
-import { DemoLuciaCTA } from "./components/DemoLuciaCTA";
+import { DemoSilvioCTA } from "./components/DemoSilvioCTA";
 import { FAQAccordion } from "./components/FAQAccordion";
 import { GaranzieTable } from "./components/GaranzieTable";
 import { Hero } from "./components/Hero";
@@ -117,13 +119,15 @@ export default function LandingAIImprenditoreEdilePage() {
       <JsonLd />
       <Hero />
       <AIExamples />
+      <AziendaBrain />
+      <AgentiAziendali />
       <NumberWall />
       <LetteraImprenditore />
       <CruscottoKPI />
       <ManifestoMission />
       <InfrastruttureGrid />
       <TestimonialCarousel />
-      <DemoLuciaCTA />
+      <DemoSilvioCTA />
       <GaranzieTable />
       <FAQAccordion />
       <LeadMagnet />

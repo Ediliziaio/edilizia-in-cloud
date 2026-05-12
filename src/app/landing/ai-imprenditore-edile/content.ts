@@ -15,15 +15,15 @@ export const nav = {
     { label: "Casi Studio", href: "/casi-studio" },
     { label: "Chi Siamo", href: "/chi-siamo" },
   ],
-  cta: "Parla con Lucia →",
+  cta: "Parla con Silvio →",
 };
 
 export const hero = {
-  headlineLine1: "Smetti di perdere soldi nei cantieri. Aumenta vendite, margini e cassa con l'AI.",
-  headlineLine2: "Senza assumere un'altra persona in ufficio e senza inseguire Excel, WhatsApp e documenti sparsi.",
+  headlineLine1: "Smetti di perdere soldi nei cantieri. Riprendi controllo con l'AI.",
+  headlineLine2: "Vendite, margini e cassa sotto controllo senza assumere un'altra persona in ufficio.",
   subheadline: [
     "EdiliziaInCloud unisce CRM, preventivi, ordini, cantieri, incassi, documenti e report in un unico sistema. L'AI non inventa numeri: legge i tuoi dati e ti segnala quali offerte chiudere, dove stai perdendo margine, cosa incassare e quali cantieri controllare prima.",
-    "In 31 giorni capisci se recupera più di quanto costa, usando dati reali della tua impresa e senza stravolgere il lavoro in cantiere.",
+    "Diventa una delle prime imprese edili a usare l'AI dentro la gestione reale dell'azienda: dati collegati, decisioni più veloci e un vantaggio competitivo concreto prima che il mercato diventi troppo affollato.",
   ],
   cta: "Prenota la tua Consulenza Gratuita",
   ctaNote: "30 min con un consulente, non un commerciale.",
@@ -85,6 +85,86 @@ export const aiExamples = {
       outcome: "La pipeline diventa lavoro operativo, non una lista dimenticata.",
       metric: "Priorità alta",
     },
+  ],
+};
+
+export const companyAgents = {
+  eyebrow: "Architettura AI reale",
+  title: "Silvio coordina 19 specialisti AI dentro la tua impresa edile.",
+  subtitle:
+    "Non è una chat generica. È una regia operativa: Silvio ascolta la domanda del titolare, legge commesse, incassi, cantieri e documenti, poi attiva lo specialista AI giusto per dare una risposta utile e verificabile.",
+  proof: "Schema reale del prodotto: 1 regia centrale + 18 personas specialistiche collegate ai dati aziendali.",
+  center: {
+    label: "Silvio",
+    role: "regia del titolare",
+    body: "Coordina i reparti AI, sintetizza le priorità e porta al titolare solo ciò che richiede una decisione.",
+  },
+  flow: [
+    {
+      label: "Chiedi",
+      text: "\"Perché la commessa di via Roma perde margine?\"",
+    },
+    {
+      label: "Silvio collega",
+      text: "Controller, PM cantiere, Acquisti e Amministrazione leggono solo i dati utili.",
+    },
+    {
+      label: "Decidi",
+      text: "Ricevi causa, impatto economico e prossima azione senza aprire 19 schermate.",
+    },
+  ],
+  bullets: [
+    "Ogni persona AI ha un ruolo preciso e lavora su dati reali.",
+    "Le risposte nascono da commesse, documenti, incassi, cantieri e permessi.",
+    "Il titolare riceve una sintesi unica, non altre chat da inseguire.",
+  ],
+  groups: [
+    {
+      label: "Direzione",
+      summary: "priorità, strategia e memoria aziendale",
+      agents: ["Silvio", "Assistente imprenditore", "Brain sistema"],
+    },
+    {
+      label: "Finanza",
+      summary: "cassa, margini, scadenze e numeri",
+      agents: ["CFO", "Controller", "Amministrazione", "Commercialista"],
+    },
+    {
+      label: "Cantieri",
+      summary: "lavori, squadre, tecnica e acquisti",
+      agents: ["PM cantiere", "Capocantiere", "Tecnico/RSPP", "Acquisti"],
+    },
+    {
+      label: "Vendite e clienti",
+      summary: "pipeline, preventivi, follow-up e assistenza",
+      agents: ["Direttore vendite", "Sales", "Cliente tutor", "Assistente cliente"],
+    },
+    {
+      label: "Crescita e regole",
+      summary: "marketing, HR, compliance e legale",
+      agents: ["Direttore marketing", "HR", "Compliance", "Legale"],
+    },
+  ],
+  agents: [
+    { key: "silvio", name: "Silvio", role: "Regia imprenditore", group: "Direzione", detail: "Ascolta il titolare, capisce la domanda e decide quali specialisti AI coinvolgere." },
+    { key: "cfo", name: "CFO", role: "Cassa e finanza", group: "Finanza", detail: "Controlla liquidita', incassi, DSO, scadenze e sostenibilita' delle decisioni." },
+    { key: "commercialista", name: "Commercialista", role: "Fisco e F24", group: "Finanza", detail: "Legge IVA, F24, adempimenti fiscali e documenti contabili collegati." },
+    { key: "controller", name: "Controller", role: "Margini e costi", group: "Finanza", detail: "Confronta preventivo, consuntivo, ore, materiali e marginalita' per commessa." },
+    { key: "legale", name: "Legale", role: "Contratti e rischi", group: "Regole", detail: "Aiuta a leggere contratti, riserve, clausole, controversie e rischi documentali." },
+    { key: "tecnico", name: "Tecnico/RSPP", role: "Pratiche e sicurezza", group: "Cantieri", detail: "Supporta pratiche tecniche, sicurezza, POS, documenti e conformita' di cantiere." },
+    { key: "assistente_imprenditore", name: "Assistente titolare", role: "Brief e priorita'", group: "Direzione", detail: "Prepara briefing, riunioni, decisioni pendenti e sintesi operative per il titolare." },
+    { key: "pm_cantiere", name: "PM cantiere", role: "Piani e ritardi", group: "Cantieri", detail: "Tiene insieme pianificazione, avanzamento lavori, ritardi, squadre e recovery plan." },
+    { key: "hr", name: "HR", role: "Squadre e presenze", group: "Persone", detail: "Controlla presenze, competenze, formazione, DPI, scadenze e disponibilita' del personale." },
+    { key: "sales", name: "Sales", role: "Follow-up offerte", group: "Vendite", detail: "Segue preventivi aperti, lead caldi, follow-up, messaggi e opportunita' da chiudere." },
+    { key: "direttore_vendite", name: "Direttore vendite", role: "Pipeline e forecast", group: "Vendite", detail: "Guarda pipeline, probabilita' di chiusura, venditori, forecast e deal a rischio." },
+    { key: "direttore_marketing", name: "Marketing", role: "Lead e campagne", group: "Crescita", detail: "Analizza campagne, contenuti, lead, segmenti e opportunita' commerciali ricorrenti." },
+    { key: "amministrazione", name: "Amministrazione", role: "Fatture e DDT", group: "Finanza", detail: "Riconcilia fatture, DDT, scadenze, incassi, solleciti e documenti amministrativi." },
+    { key: "acquisti", name: "Acquisti", role: "Fornitori e ODA", group: "Cantieri", detail: "Controlla fornitori, ordini d'acquisto, prezzi, DDT in arrivo e materiali mancanti." },
+    { key: "compliance", name: "Compliance", role: "DURC e controlli", group: "Regole", detail: "Verifica DURC, subappaltatori, documenti obbligatori, rischi e scadenze normative." },
+    { key: "cliente_tutor", name: "Cliente tutor", role: "Stato committenti", group: "Clienti", detail: "Sintetizza cosa vede il cliente: stato lavori, ticket, richieste, comunicazioni e SAL." },
+    { key: "capocantiere", name: "Capocantiere", role: "Rapportini e foto", group: "Cantieri", detail: "Legge rapportini, foto, materiali consegnati, attivita' giornaliere e note dal campo." },
+    { key: "assistente_cliente", name: "Assistente cliente", role: "Messaggi e richieste", group: "Clienti", detail: "Prepara risposte chiare per clienti, richieste di modifica, spiegazioni e riepiloghi." },
+    { key: "brain", name: "Brain sistema", role: "Ricerca documenti", group: "Direzione", detail: "Cerca nei documenti aziendali, contratti, fatture, storico messaggi e conoscenza interna." },
   ],
 };
 
@@ -182,15 +262,15 @@ export const infrastrutture = {
   blocks: [
     {
       letter: "L",
-      title: "LUCIA",
+      title: "SILVIO",
       subtitle: "L'assistente AI dell'imprenditore",
       tagline: "La regia che trasforma i dati in priorità operative.",
       paragraphs: [
-        "Lucia è l'AI dentro EdiliziaInCloud. Le chiedi: \"Quanto sto guadagnando sul cantiere di via Manzoni?\" e lei legge commessa, incassi, costi, scadenze e avanzamento lavori.",
+        "Silvio è l'AI dentro EdiliziaInCloud. Gli chiedi: \"Quanto sto guadagnando sul cantiere di via Manzoni?\" e legge commessa, incassi, costi, scadenze e avanzamento lavori.",
         "Non sostituisce chi decide. Ti prepara il quadro: margine stimato, anomalie, incassi in ritardo, attività da seguire, documenti mancanti.",
         "Così la riunione del lunedì non parte da sensazioni, ma da una lista chiara di priorità.",
       ],
-      cta: "Vedi come funziona Lucia →",
+      cta: "Vedi come funziona Silvio →",
     },
     {
       letter: "V",
@@ -278,17 +358,17 @@ export const testimonials = {
   stats: "150+ imprese edili attive · 4,9/5 da oltre 100 recensioni · processi collegati tra ufficio e cantiere · primi dati visibili in 48 h",
 };
 
-export const demoLucia = {
+export const demoSilvio = {
   eyebrow: "Capitolo 4 — Vivere il software prima di provarlo.",
-  title: "Lucia non è un chatbot. È un assistente operativo che legge i dati della tua impresa.",
+  title: "Silvio non è un chatbot. È un assistente operativo che legge i dati della tua impresa.",
   body: [
     "Non limitarti a leggere la pagina.",
-    "Scrivile. Chiedile dove una commessa rischia di perdere margine.",
-    "Chiedile come funziona la fatturazione SDI in EdiliziaInCloud.",
-    "Chiedile come collegare preventivi, ordini, cantieri, incassi e documenti.",
+    "Scrivigli. Chiedigli dove una commessa rischia di perdere margine.",
+    "Chiedigli come funziona la fatturazione SDI in EdiliziaInCloud.",
+    "Chiedigli come collegare preventivi, ordini, cantieri, incassi e documenti.",
     "Risponde in modo pratico, in italiano, senza frasi da brochure.",
   ],
-  cta: "Scrivi a Lucia su WhatsApp →",
+  cta: "Scrivi a Silvio su WhatsApp →",
   secondary: "Preferisci una chiamata vera con un consulente umano?",
   secondaryCta: "Prenota la consulenza gratuita di 30 minuti →",
 };
@@ -312,7 +392,7 @@ export const faq = {
   items: [
     {
       q: "Sono troppo vecchio per imparare un software nuovo.",
-      a: "L'obiettivo non è farti diventare tecnico. Il primo lavoro lo imposti con un flusso guidato, il team operativo usa il telefono e Lucia ti restituisce risposte in italiano. Se sai usare WhatsApp e leggere una scheda commessa, puoi partire.",
+      a: "L'obiettivo non è farti diventare tecnico. Il primo lavoro lo imposti con un flusso guidato, il team operativo usa il telefono e Silvio ti restituisce risposte in italiano. Se sai usare WhatsApp e leggere una scheda commessa, puoi partire.",
     },
     {
       q: "Ho già Excel e a me funziona.",
@@ -384,7 +464,7 @@ export const footer = {
     "4,9/5 da oltre 100 recensioni.",
   ],
   product: ["Funzionalità", "Prezzi", "Confronti competitor", "Casi studio", "Migrazione assistita", "Integrazioni"],
-  resources: ["Blog", "Glossario edilizia", "Manuale AI riservato", "Newsletter settimanale", "Lucia (chat AI)"],
+  resources: ["Blog", "Glossario edilizia", "Manuale AI riservato", "Newsletter settimanale", "Silvio (chat AI)"],
   contacts: ["+39 02 87198520", "info@ediliziaincloud.com", "Via Aurelio Saffi 29, Milano", "WhatsApp diretto"],
   bottom: "© 2026 EdiliziaInCloud · ediliziaincloud.com · Privacy · Termini",
   social: "Instagram · Facebook · LinkedIn · YouTube",

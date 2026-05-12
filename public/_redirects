@@ -2,47 +2,61 @@
 
 # ── Canonical 301 redirects ──────────────────────────────────────────────────
 
-# /home → / (duplicate landing)
-/home    /    301
+# Force one canonical indexable host: HTTPS + www.
+# Google Search Console vedeva http/non-www come "Pagina con reindirizzamento":
+# questi redirect rendono esplicita la versione canonica da indicizzare.
+# /home era segnalata come 404: prima la normalizziamo direttamente alla home.
+http://ediliziaincloud.com/home      https://www.ediliziaincloud.com/          301
+https://ediliziaincloud.com/home     https://www.ediliziaincloud.com/          301
+http://www.ediliziaincloud.com/home  https://www.ediliziaincloud.com/          301
+https://www.ediliziaincloud.com/home https://www.ediliziaincloud.com/          301
+
+http://ediliziaincloud.com/*       https://www.ediliziaincloud.com/:splat   301
+https://ediliziaincloud.com/*      https://www.ediliziaincloud.com/:splat   301
+http://www.ediliziaincloud.com/*   https://www.ediliziaincloud.com/:splat   301
+
+# /home → / anche quando la regola host non viene applicata in locale/preview
+/home                                  /                                      301
+/register                              /demo/                                 301
 
 # Legacy legal URLs → canonical legal URLs used in footer and sitemap
-/privacy    /privacy-policy    301
-/termini    /termini-e-condizioni    301
-/cookie    /cookie-policy    301
+/privacy    /privacy-policy/    301
+/termini    /termini-e-condizioni/    301
+/cookie    /cookie-policy/    301
 
 # ── High-intent SEO aliases → canonical feature/vertical pages ───────────────
-/gestionale-edilizia    /software-gestionale-edilizia    301
-/software-edilizia    /software-gestionale-edilizia    301
-/software-imprese-edili    /software-gestionale-edilizia    301
-/software-gestione-cantieri    /funzionalita/gestione-cantieri    301
-/gestionale-cantieri    /funzionalita/gestione-cantieri    301
-/gestione-cantieri-software    /funzionalita/gestione-cantieri    301
-/app-gestione-cantiere    /funzionalita/app-cantiere-mobile    301
-/app-cantiere    /funzionalita/app-cantiere-mobile    301
-/software-preventivi-edilizia    /funzionalita/preventivi-edilizia    301
-/gestione-magazzino-edilizia    /funzionalita/magazzino-cantiere    301
-/software-magazzino-edilizia    /funzionalita/magazzino-cantiere    301
-/ddt-cantiere    /funzionalita/ddt-digitali    301
-/giornale-lavori-cantiere    /funzionalita/giornale-lavori    301
-/cronoprogramma-lavori    /funzionalita/calendario-lavori    301
-/contabilita-cantiere    /funzionalita/contabilita-fiscale    301
-/sal-cantiere    /blog/sal-cantiere-come-funziona    301
-/computo-metrico    /blog/computo-metrico-estimativo-guida    301
-/computo-metrico-estimativo    /blog/computo-metrico-estimativo-guida    301
-/crm-edilizia    /funzionalita/crm-edilizia    301
-/software-serramentisti    /per/serramentisti    301
-/gestionale-serramentisti    /per/serramentisti    301
-/software-impiantisti    /per/impiantisti    301
-/gestionale-impiantisti    /per/impiantisti    301
-/software-ristrutturazioni    /per/ristrutturatori    301
-/software-ristrutturazioni-edilizie    /per/ristrutturatori    301
-/rapportini-cantiere    /funzionalita/app-cantiere-mobile    301
-/migrazione-gestionale-edilizia    /pianifica-migrazione    301
-/migrare-da-primus    /pianifica-migrazione    301
-/passare-da-primus    /pianifica-migrazione    301
-/migrare-da-teamsystem    /pianifica-migrazione    301
-/import-dati-gestionale-edilizia    /pianifica-migrazione    301
-/onboarding-gestionale-edilizia    /pianifica-migrazione    301
+/gestionale-edilizia    /software-gestionale-edilizia/    301
+/software-edilizia    /software-gestionale-edilizia/    301
+/software-imprese-edili    /software-gestionale-edilizia/    301
+/software-gestione-cantieri    /funzionalita/gestione-cantieri/    301
+/gestionale-cantieri    /funzionalita/gestione-cantieri/    301
+/gestione-cantieri-software    /funzionalita/gestione-cantieri/    301
+/app-gestione-cantiere    /funzionalita/app-cantiere-mobile/    301
+/app-cantiere    /funzionalita/app-cantiere-mobile/    301
+/software-preventivi-edilizia    /funzionalita/preventivi-edilizia/    301
+/gestione-magazzino-edilizia    /funzionalita/magazzino-cantiere/    301
+/software-magazzino-edilizia    /funzionalita/magazzino-cantiere/    301
+/ddt-cantiere    /funzionalita/ddt-digitali/    301
+/giornale-lavori-cantiere    /funzionalita/giornale-lavori/    301
+/cronoprogramma-lavori    /funzionalita/calendario-lavori/    301
+/contabilita-cantiere    /funzionalita/contabilita-fiscale/    301
+/sal-cantiere    /blog/sal-cantiere-come-funziona/    301
+/computo-metrico    /blog/computo-metrico-estimativo-guida/    301
+/computo-metrico-estimativo    /blog/computo-metrico-estimativo-guida/    301
+/crm-edilizia    /funzionalita/crm-edilizia/    301
+/software-serramentisti    /per/serramentisti/    301
+/gestionale-serramentisti    /per/serramentisti/    301
+/software-impiantisti    /per/impiantisti/    301
+/gestionale-impiantisti    /per/impiantisti/    301
+/software-ristrutturazioni    /per/ristrutturatori/    301
+/software-ristrutturazioni-edilizie    /per/ristrutturatori/    301
+/rapportini-cantiere    /funzionalita/app-cantiere-mobile/    301
+/migrazione-gestionale-edilizia    /pianifica-migrazione/    301
+/migrare-da-primus    /pianifica-migrazione/    301
+/passare-da-primus    /pianifica-migrazione/    301
+/migrare-da-teamsystem    /pianifica-migrazione/    301
+/import-dati-gestionale-edilizia    /pianifica-migrazione/    301
+/onboarding-gestionale-edilizia    /pianifica-migrazione/    301
 
 # ── SPA fallback routing ──────────────────────────────────────────────────────
 # All routes fall through to index.html so React Router handles them client-side

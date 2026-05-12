@@ -21,6 +21,30 @@ export const SITE_URL = "https://www.ediliziaincloud.com";
 
 type MetaEntry = { attr: "name" | "property"; key: string; prev: string | null; created: boolean };
 
+function normalizeCanonicalUrl(value?: string) {
+  const rawUrl = value
+    ? (value.startsWith("http") ? value : `${SITE_URL}${value}`)
+    : SITE_URL;
+
+  try {
+    const url = new URL(rawUrl);
+    url.protocol = "https:";
+    url.hostname = "www.ediliziaincloud.com";
+    url.hash = "";
+    url.search = "";
+
+    const isRoot = url.pathname === "/";
+    const isFile = /\.[a-z0-9]{2,8}$/i.test(url.pathname);
+    if (!isRoot && !isFile && !url.pathname.endsWith("/")) {
+      url.pathname = `${url.pathname}/`;
+    }
+    return url.toString();
+  } catch {
+    const path = rawUrl.replace(SITE_URL, "").replace(/\/$/, "");
+    return `${SITE_URL}${path ? `${path}/` : "/"}`;
+  }
+}
+
 function upsertMeta(attr: "name" | "property", key: string, value: string): MetaEntry {
   let el = document.querySelector(`meta[${attr}="${key}"]`) as HTMLMetaElement | null;
   const created = !el;
@@ -77,9 +101,7 @@ export function useSEO(options: SEOOptions) {
         : `${title}${SUFFIX}`;
     document.title = fullTitle;
 
-    const canonicalUrl = canonical
-      ? (canonical.startsWith("http") ? canonical : `${SITE_URL}${canonical}`)
-      : SITE_URL;
+    const canonicalUrl = normalizeCanonicalUrl(canonical);
 
     const set = (attr: "name" | "property", key: string, value: string) => {
       entriesRef.current.push(upsertMeta(attr, key, value));

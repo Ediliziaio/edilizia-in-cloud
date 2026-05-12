@@ -109,7 +109,9 @@
     <script>
       (function() {
         var base = 'https://www.ediliziaincloud.com';
-        var path = window.location.pathname.replace(/\/$/, '') || '/';
+        var path = window.location.pathname || '/';
+        var isFile = /\.[a-z0-9]{2,8}$/i.test(path);
+        if (path !== '/' && !isFile && !path.endsWith('/')) path += '/';
         var canonical = document.querySelector('link[rel="canonical"]');
         if (canonical) canonical.href = base + (path === '/' ? '/' : path);
         var ogUrl = document.querySelector('meta[property="og:url"]');

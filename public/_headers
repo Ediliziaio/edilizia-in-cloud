@@ -10,10 +10,12 @@
 /llms.txt
   Content-Type: text/plain; charset=utf-8
   Cache-Control: public, max-age=3600
+  X-Robots-Tag: noindex, follow
 
 /llms-full.txt
   Content-Type: text/plain; charset=utf-8
   Cache-Control: public, max-age=3600
+  X-Robots-Tag: noindex, follow
 
 /62ac6a799ade356135bf527565c13e17.txt
   Content-Type: text/plain; charset=utf-8
@@ -71,6 +73,15 @@
   X-Robots-Tag: noindex, nofollow
 
 /lavori-login
+  X-Robots-Tag: noindex, nofollow
+
+/widget
+  X-Robots-Tag: noindex, nofollow
+
+/qr/*
+  X-Robots-Tag: noindex, nofollow
+
+/stima/*
   X-Robots-Tag: noindex, nofollow
 
 /reset-password

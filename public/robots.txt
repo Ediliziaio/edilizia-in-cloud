@@ -1,5 +1,5 @@
 # robots.txt — ediliziaincloud.com
-# Aggiornato: 2026-04-30
+# Aggiornato: 2026-05-12
 #
 # NOTA: Cloudflare "AI Scrapers and Crawlers" prepend regole Disallow
 # per i bot AI. Assicurarsi che sia DISABILITATO nel pannello Cloudflare
@@ -32,6 +32,9 @@ Disallow: /cambia-password
 Disallow: /reset-password
 Disallow: /accetta-invito/
 Disallow: /ref/
+Disallow: /widget
+Disallow: /qr/
+Disallow: /stima/
 Disallow: /portale/
 Disallow: /portale-cliente/
 Disallow: /portale-tecnico/
