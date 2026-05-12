@@ -11,7 +11,8 @@ import { FileText, Loader2, Check, AlertCircle, ExternalLink, Link2, Copy, Downl
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { SrProgettoDetail } from "@/types/serramenti";
-import { SrCard, SrCallout, SrKpi, formatEuro, formatNumero } from "@/lib/serramenti/wizardUI";
+import { SrCard, SrCallout, SrKpi } from "@/lib/serramenti/wizardUI";
+import { formatEuro, formatNumero } from "@/lib/serramenti/format";
 import { useGeneraPdf, useConvertiInOrdine, useTemplatePdf } from "@/lib/serramenti/queries";
 import { ClipboardList } from "lucide-react";
 import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";

@@ -33,7 +33,8 @@ import {
 } from "@/lib/serramenti/queries";
 import type { SrServizioRow, SrProgettoDetail } from "@/types/serramenti";
 import type { TariffaMinimal } from "@/lib/serramenti/api";
-import { SrCard, formatEuro } from "@/lib/serramenti/wizardUI";
+import { SrCard } from "@/lib/serramenti/wizardUI";
+import { formatEuro } from "@/lib/serramenti/format";
 
 interface Props {
   progettoId: string;

@@ -47,9 +47,8 @@ import type {
   SrSchemaPagamento, SrPagamentoMilestone,
 } from "@/types/serramenti";
 import { SR_SCHEMI_PAGAMENTO } from "@/types/serramenti";
-import {
-  SrCard, SrKpi, SrCallout, formatEuro, formatPct, formatNumero,
-} from "@/lib/serramenti/wizardUI";
+import { SrCard, SrKpi, SrCallout } from "@/lib/serramenti/wizardUI";
+import { formatEuro, formatPct, formatNumero } from "@/lib/serramenti/format";
 
 interface Props {
   progettoId: string;

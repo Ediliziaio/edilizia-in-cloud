@@ -36,7 +36,8 @@ import {
 } from "@/types/serramenti";
 import type { SrProgettoDetail, SrSerramentoRow, SrMaterialePrincipale } from "@/types/serramenti";
 import { calcolaM2 } from "@/lib/serramenti/calcoli";
-import { SrCard, SrCallout, formatEuro } from "@/lib/serramenti/wizardUI";
+import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
+import { formatEuro } from "@/lib/serramenti/format";
 import type { ListinoFamily } from "@/lib/serramenti/api";
 import { DynamicFieldsRenderer } from "@/components/listino/DynamicFieldsRenderer";
 import { useListinoCategorie } from "@/hooks/useListinoCategorie";

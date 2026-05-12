@@ -39,7 +39,8 @@ import {
 } from "@/lib/serramenti/queries";
 import { SR_ACCESSORI_TIPI } from "@/types/serramenti";
 import type { SrProgettoDetail, SrAccessorioRow, SrSerramentoRow } from "@/types/serramenti";
-import { SrCard, formatEuro } from "@/lib/serramenti/wizardUI";
+import { SrCard } from "@/lib/serramenti/wizardUI";
+import { formatEuro } from "@/lib/serramenti/format";
 import { toast } from "sonner";
 
 interface Props {
