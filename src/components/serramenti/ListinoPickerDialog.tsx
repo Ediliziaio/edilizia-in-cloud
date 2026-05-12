@@ -287,26 +287,44 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      {/* max-w-4xl: prima era 3xl ma con breadcrumb a 3 livelli (Macro › Cat ›
+          Famiglia) + caratteristiche prodotto (4-5 chip) il dialog si
+          impaginava male. 4xl dà respiro senza overflow. */}
+      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader className="space-y-1.5">
+          {/* Riga 1: solo step icon + titolo step (corto), no breadcrumb.
+              Breadcrumb pieno va in una riga dedicata sotto. */}
+          <DialogTitle className="flex items-center gap-2 text-base">
             {(effectiveStep !== "macro" || isSearching) && !isSearching && (
-              <Button size="icon" variant="ghost" onClick={handleBack} className="h-7 w-7">
+              <Button size="icon" variant="ghost" onClick={handleBack} className="h-7 w-7 shrink-0">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             )}
-            {effectiveStep === "macro" && <Layers className="h-4 w-4 text-orange-700" />}
-            {effectiveStep === "categoria" && <FolderOpen className="h-4 w-4 text-orange-700" />}
-            {effectiveStep === "famiglia" && <Package className="h-4 w-4 text-orange-700" />}
-            {effectiveStep === "misure" && <Ruler className="h-4 w-4 text-orange-700" />}
-            <span className="flex-1 truncate">{breadcrumb}</span>
+            {effectiveStep === "macro" && <Layers className="h-4 w-4 text-orange-700 shrink-0" />}
+            {effectiveStep === "categoria" && <FolderOpen className="h-4 w-4 text-orange-700 shrink-0" />}
+            {effectiveStep === "famiglia" && <Package className="h-4 w-4 text-orange-700 shrink-0" />}
+            {effectiveStep === "misure" && <Ruler className="h-4 w-4 text-orange-700 shrink-0" />}
+            <span className="flex-1">
+              {effectiveStep === "macro" && "Scegli macrocategoria"}
+              {effectiveStep === "categoria" && (selectedMacro?.nome ?? "Scegli categoria")}
+              {effectiveStep === "famiglia" && (isSearching ? `Ricerca: "${debounced}"` : (selectedCategoria?.nome ?? "Scegli prodotto"))}
+              {effectiveStep === "misure" && (selectedFamily?.nome ?? "Misure")}
+            </span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs">
             {effectiveStep === "macro" && "Scegli la macrocategoria di prodotto"}
             {effectiveStep === "categoria" && "Scegli la categoria"}
             {effectiveStep === "famiglia" && (isSearching ? "Famiglie corrispondenti alla ricerca" : "Scegli il prodotto specifico")}
             {effectiveStep === "misure" && "Inserisci le misure: il prezzo è calcolato automaticamente"}
           </DialogDescription>
+          {/* Breadcrumb compatto su riga dedicata: meno ingombrante del
+              titolo, formattato come pill. Si mostra solo nei livelli ≥ cat. */}
+          {(effectiveStep !== "macro" || isSearching) && (
+            <div className="text-[10px] text-muted-foreground flex items-center gap-1 flex-wrap pt-0.5">
+              <span className="font-semibold uppercase tracking-wide">Percorso:</span>
+              <span className="truncate max-w-full">{breadcrumb}</span>
+            </div>
+          )}
         </DialogHeader>
 
         {/* Search bar — visibile in tutti gli step tranne misure */}
@@ -574,20 +592,30 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-2 border-t">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
-          {effectiveStep === "misure" && (
-            <Button
-              onClick={handleConferma}
-              className="bg-orange-700 hover:bg-orange-800"
-              disabled={
-                (richiedeMisure && (!larghezza || !altezza))
-                || !calcolo || calcolo.totale <= 0
-              }
-            >
-              Aggiungi al preventivo
-            </Button>
-          )}
+        <div className="flex items-center justify-between gap-2 pt-3 mt-1 border-t">
+          {/* Hint contestuale a sinistra solo nello step misure quando il
+              bottone è disabled: prima il bottone disabled appariva sospeso
+              senza spiegazione, ora l'utente sa subito cosa manca. */}
+          <div className="text-[11px] text-muted-foreground">
+            {effectiveStep === "misure" && richiedeMisure && (!larghezza || !altezza) && (
+              <span>Inserisci larghezza e altezza per calcolare il prezzo.</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
+            {effectiveStep === "misure" && (
+              <Button
+                onClick={handleConferma}
+                className="bg-orange-700 hover:bg-orange-800"
+                disabled={
+                  (richiedeMisure && (!larghezza || !altezza))
+                  || !calcolo || calcolo.totale <= 0
+                }
+              >
+                Aggiungi al preventivo
+              </Button>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

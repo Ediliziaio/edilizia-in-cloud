@@ -102,15 +102,22 @@ export function DynamicFieldsRenderer({
   }
 
   if (mode === "display") {
-    // Read-only badges/lista compatta per picker preview o PDF preview
+    // Read-only badges/lista compatta per picker preview o PDF preview.
+    // Variant="outline" con classi custom: prima si usava "secondary" (scuro),
+    // che su card slate-50 creava pillole nere stilisticamente scollegate dal
+    // resto del dialog (chips quasi "isola scura" nel dialog chiaro).
     return (
       <div className="flex flex-wrap gap-1.5">
         {visibleFields.map((f) => {
           const v = values[f.field_key];
           if (v === undefined || v === null || v === "") return null;
           return (
-            <Badge key={f.id} variant="secondary" className="font-normal">
-              <span className="font-medium mr-1">{f.field_label}:</span>
+            <Badge
+              key={f.id}
+              variant="outline"
+              className="font-normal bg-white border-slate-300 text-slate-800 text-[10.5px] py-0.5"
+            >
+              <span className="font-semibold mr-1 text-slate-600">{f.field_label}:</span>
               <span>{formatDisplayValue(f, v)}</span>
               {f.field_unit && <span className="ml-0.5 text-muted-foreground">{f.field_unit}</span>}
             </Badge>

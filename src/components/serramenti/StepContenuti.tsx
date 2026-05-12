@@ -130,7 +130,7 @@ function ObjectItemsPicker({
                 className={
                   "flex items-start gap-3 rounded-md border p-3 cursor-pointer transition " +
                   (isSelected
-                    ? "border-orange-500 bg-orange-50/50"
+                    ? "border-orange-400 bg-white shadow-[inset_3px_0_0_0] shadow-orange-500"
                     : "border-slate-200 hover:border-orange-200 hover:bg-muted/30")
                 }
               >
@@ -291,7 +291,7 @@ function StringItemsPicker({
                 className={
                   "flex items-start gap-3 rounded-md border p-2.5 cursor-pointer transition " +
                   (isSelected
-                    ? "border-orange-500 bg-orange-50/50"
+                    ? "border-orange-400 bg-white shadow-[inset_3px_0_0_0] shadow-orange-500"
                     : "border-slate-200 hover:border-orange-200 hover:bg-muted/30")
                 }
               >
@@ -492,29 +492,37 @@ export function StepContenuti({ form, onChange }: Props) {
 
   return (
     <div className="space-y-3">
-      <SrCard
-        title="Contenuti del preventivo"
-        description="Scegli quali voci della tua libreria template includere per questo cliente. Puoi anche aggiungerne di personalizzate solo per questo preventivo."
-        icon={<MessageCircle className="h-4 w-4" />}
-        variant="highlight"
-      >
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="text-xs text-orange-900">
-            <strong>Suggerimento:</strong> applica tutti i contenuti del template e poi rifinisci.
-            Il commerciale risparmia tempo, il cliente riceve un preventivo completo.
+      {/* Box intro: design neutro con accent solo sul border-left per non
+          generare "arancione su arancione" col bottone CTA + le card selezionate
+          sottostanti (che sono già bg-orange-50/50). */}
+      <Card className="border-l-4 border-l-orange-600 border-slate-200">
+        <CardContent className="p-4 flex items-start gap-3 flex-wrap">
+          <div className="flex-1 min-w-[220px]">
+            <div className="flex items-center gap-2 mb-1">
+              <MessageCircle className="h-4 w-4 text-slate-700" />
+              <span className="text-sm font-semibold text-slate-900">Contenuti del preventivo</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mb-1.5 leading-snug">
+              Scegli quali voci della tua libreria template includere per questo cliente.
+              Puoi anche aggiungerne di personalizzate solo per questo preventivo.
+            </p>
+            <p className="text-[11px] text-slate-700 leading-snug">
+              <strong>Suggerimento:</strong> applica tutti i contenuti e poi rifinisci.
+              Più veloce per il commerciale, più completo per il cliente.
+            </p>
           </div>
           {hasAnyTemplate && (
             <Button
               size="sm"
               onClick={preselezionaTutto}
-              className="bg-orange-700 hover:bg-orange-800 gap-1"
+              className="bg-orange-700 hover:bg-orange-800 gap-1 shrink-0"
             >
               <ChevronRight className="h-3.5 w-3.5" />
-              {hasAnySelection ? "Riapplica tutti i contenuti template" : "Applica tutti i contenuti template"}
+              {hasAnySelection ? "Riapplica tutto" : "Applica tutto"}
             </Button>
           )}
-        </div>
-      </SrCard>
+        </CardContent>
+      </Card>
 
       {!hasAnyTemplate && (
         <SrCallout variant="warning">
