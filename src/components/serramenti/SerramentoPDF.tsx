@@ -425,26 +425,49 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     consContact: { fontSize: 9, color: C.gray700, marginTop: 6, lineHeight: 1.4 },
 
     // Macro pagina dedicata
-    macroPageHero: { flexDirection: "row", gap: 22, marginTop: 12 },
-    macroPageImg: {
-      width: 260, height: 320,
-      borderRadius: 10, objectFit: "cover" as const,
+    // Layout VERTICALE: immagine in alto (panoramica, contain → no crop),
+    // descrizione sotto a piena larghezza. Così la descrizione può occupare
+    // tutta la pagina senza essere troncata dall'altezza fissa della riga.
+    macroPageHero: { flexDirection: "column", gap: 16, marginTop: 12 },
+    macroPageImgWrap: {
+      width: "100%",
+      maxHeight: 280,
+      borderRadius: 10,
+      backgroundColor: C.gray100,
+      overflow: "hidden",
+      alignItems: "center", justifyContent: "center",
       borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
     },
+    macroPageImg: {
+      width: "100%",
+      maxHeight: 280,
+      objectFit: "contain" as const,
+    },
     macroPageImgPh: {
-      width: 260, height: 320,
+      width: "100%", height: 200,
       borderRadius: 10,
       backgroundColor: C.gray100,
       alignItems: "center", justifyContent: "center",
     },
-    macroPageContent: { flex: 1, fontSize: 11, color: C.gray700, lineHeight: 1.65 },
+    macroPageContent: { fontSize: 11, color: C.gray700, lineHeight: 1.65 },
 
     // Chi siamo
-    chiSiamoHero: {
-      width: "100%", height: 220,
+    // L'immagine usa objectFit "contain" e altezza max generosa: così
+    // l'azienda può caricare foto orizzontali, verticali o panoramiche
+    // senza che vengano croppate. Container ha aspetto centrato.
+    chiSiamoHeroWrap: {
+      width: "100%",
+      maxHeight: 360,
       borderRadius: 10,
-      objectFit: "cover" as const,
+      backgroundColor: C.gray100,
+      alignItems: "center", justifyContent: "center",
+      overflow: "hidden",
       marginBottom: 18,
+    },
+    chiSiamoHero: {
+      width: "100%",
+      maxHeight: 360,
+      objectFit: "contain" as const,
     },
     chiSiamoHeroPh: {
       width: "100%", height: 220,
@@ -475,34 +498,37 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     percorsoFaseCard: {
       backgroundColor: "#0F172A",
       borderRadius: 10,
-      padding: 12,
-      flex: 1,
+      padding: 10,
       minHeight: 130,
     },
+    // Header card: layout VERTICALE (roman box sopra, label+nome sotto)
+    // così il nome fase può usare tutta la larghezza della card senza overflow.
     percorsoFaseHeader: {
-      flexDirection: "row", alignItems: "center", gap: 8,
-      marginBottom: 12, paddingBottom: 8,
+      flexDirection: "column", alignItems: "flex-start", gap: 6,
+      marginBottom: 10, paddingBottom: 8,
       borderBottomWidth: 0.5, borderBottomColor: "rgba(255,255,255,0.12)", borderBottomStyle: "solid",
     },
     percorsoFaseRomanBox: {
-      width: 28, height: 28, borderRadius: 4,
+      width: 24, height: 24, borderRadius: 4,
       backgroundColor: C.primary,
       alignItems: "center", justifyContent: "center",
     },
-    percorsoFaseRomanText: { color: "#FFFFFF", fontSize: 11, fontWeight: 700 },
+    percorsoFaseRomanText: { color: "#FFFFFF", fontSize: 10, fontWeight: 700 },
     percorsoFaseLabel: {
-      fontSize: 8, color: C.primary, fontWeight: 700,
-      letterSpacing: 1.2, textTransform: "uppercase" as const,
+      fontSize: 7.5, color: C.primary, fontWeight: 700,
+      letterSpacing: 0.8, textTransform: "uppercase" as const,
     },
-    percorsoFaseName: { fontSize: 13, fontWeight: 700, color: "#FFFFFF", marginTop: 1 },
-    percorsoStepRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+    // Nome fase: smaller, può andare a capo
+    percorsoFaseName: { fontSize: 11, fontWeight: 700, color: "#FFFFFF", marginTop: 1, lineHeight: 1.15 },
+    percorsoStepRow: { flexDirection: "row", alignItems: "flex-start", gap: 6, marginBottom: 5 },
     percorsoStepIdx: {
-      width: 22, height: 22, borderRadius: 11,
+      width: 18, height: 18, borderRadius: 9,
       backgroundColor: C.primary,
       alignItems: "center", justifyContent: "center",
+      marginTop: 1,
     },
-    percorsoStepIdxText: { color: "#FFFFFF", fontSize: 8.5, fontWeight: 700 },
-    percorsoStepText: { fontSize: 10, color: "#CBD5E1", flex: 1, lineHeight: 1.4 },
+    percorsoStepIdxText: { color: "#FFFFFF", fontSize: 7.5, fontWeight: 700 },
+    percorsoStepText: { fontSize: 8.5, color: "#CBD5E1", flex: 1, lineHeight: 1.35 },
 
     // Render disclaimer
     renderDisclaimerBox: {
@@ -901,6 +927,9 @@ export interface SerramentoPDFProps {
   familiesById: Record<string, SerramentoPdfFamilyData>;
   fieldsByMacro: Record<string, SerramentoPdfMacroField[]>;
   macroPagineDedicate: SerramentoPdfMacroPagina[];
+  /** Mappa macrocategoria_id → immagine_url. Fallback per la composizione
+   *  serramenti quando la famiglia non ha immagine propria. */
+  macroImageById?: Record<string, string | null>;
 }
 
 // ─── Componente principale ─────────────────────────────────────────────────
@@ -908,6 +937,7 @@ export interface SerramentoPDFProps {
 export function SerramentoPDF({
   detail, template, company,
   consulente, familiesById, fieldsByMacro, macroPagineDedicate,
+  macroImageById = {},
 }: SerramentoPDFProps) {
   const p = detail.progetto;
   const companyName = template?.ragione_sociale || company?.ragione_sociale || company?.name || "Azienda";
@@ -1116,7 +1146,9 @@ export function SerramentoPDF({
           <Text style={styles.pageEyebrow}>Chi siamo</Text>
           <Text style={styles.pageTitle}>{chiSiamoTitolo}</Text>
           {chiSiamoFotoUrl ? (
-            <Image src={chiSiamoFotoUrl} style={styles.chiSiamoHero} />
+            <View style={styles.chiSiamoHeroWrap}>
+              <Image src={chiSiamoFotoUrl} style={styles.chiSiamoHero} />
+            </View>
           ) : (
             <View style={styles.chiSiamoHeroPh}>
               <Text style={{ fontSize: 14, color: C.gray500, fontWeight: 700 }}>{companyName}</Text>
@@ -1510,6 +1542,13 @@ export function SerramentoPDF({
               : null;
             // Descrizione tecnica del listino
             const techDesc = family?.descrizione?.trim() || null;
+            // Immagine prodotto con fallback gerarchico:
+            //   1. family.immagine_url (foto specifica del modello)
+            //   2. macroImageById[macroId] (foto macrocategoria — fallback)
+            //   3. placeholder SVG
+            const prodottoImageUrl = family?.immagine_url
+              || (macroId ? macroImageById[macroId] : null)
+              || null;
             return (
               <View key={g.key} style={styles.tableRow} wrap={false}>
                 {/* Numero progressivo */}
@@ -1518,8 +1557,8 @@ export function SerramentoPDF({
                 </View>
                 {/* Foto reale */}
                 <View style={{ width: 70 }}>
-                  {family?.immagine_url ? (
-                    <Image src={family.immagine_url} style={styles.tableThumb} />
+                  {prodottoImageUrl ? (
+                    <Image src={prodottoImageUrl} style={styles.tableThumb} />
                   ) : (
                     <View style={styles.tableThumbPh}>
                       <Svg viewBox="0 0 24 24" style={{ width: 24, height: 24 } as never}>
@@ -1661,7 +1700,9 @@ export function SerramentoPDF({
           <Text style={styles.pageTitle}>{mp.nome}</Text>
           <View style={styles.macroPageHero}>
             {mp.immagine_url ? (
-              <Image src={mp.immagine_url} style={styles.macroPageImg} />
+              <View style={styles.macroPageImgWrap}>
+                <Image src={mp.immagine_url} style={styles.macroPageImg} />
+              </View>
             ) : (
               <View style={styles.macroPageImgPh}>
                 <Text style={{ fontSize: 12, color: C.gray500 }}>{mp.nome}</Text>
@@ -1686,7 +1727,9 @@ export function SerramentoPDF({
                   );
                 }
                 return (
-                  <Text key={i} style={{ marginBottom: 8 }}>{para}</Text>
+                  <Text key={i} style={{ marginBottom: 8, fontSize: 11, color: C.gray700, lineHeight: 1.65 }}>
+                    {para}
+                  </Text>
                 );
               })}
             </View>
@@ -1726,10 +1769,19 @@ export function SerramentoPDF({
             </Text>
           </View>
 
-          {/* Grid 2×2 di cards scure con fasi */}
+          {/* Grid responsive: 1 fase → 100%, 2 → 49%, 3 → 32%, 4+ → 23.5%
+              Layout intelligente che evita overflow del nome fase. */}
+          {(() => {
+            const cardWidth =
+              percorso.fasi.length === 1 ? "100%"
+              : percorso.fasi.length === 2 ? "49%"
+              : percorso.fasi.length === 3 ? "32%"
+              : percorso.fasi.length === 4 ? "23.5%"
+              : "48%"; // 5+ fasi → 2 per riga
+            return (
           <View style={{
             flexDirection: "row", flexWrap: "wrap",
-            gap: 10,
+            gap: 8,
             marginTop: 8,
           }}>
             {percorso.fasi.map((fase, fi) => {
@@ -1737,9 +1789,7 @@ export function SerramentoPDF({
               return (
                 <View
                   key={fi}
-                  style={[styles.percorsoFaseCard, {
-                    width: percorso.fasi.length <= 4 ? "48%" : "100%",
-                  }]}
+                  style={[styles.percorsoFaseCard, { width: cardWidth }]}
                   wrap={false}
                 >
                   <View style={styles.percorsoFaseHeader}>
@@ -1772,6 +1822,8 @@ export function SerramentoPDF({
               );
             })}
           </View>
+            );
+          })()}
 
           <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
         </Page>

@@ -158,8 +158,8 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
       toast.error("Carica un file immagine (PNG, JPG, WebP)");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File troppo grande (max 5 MB)");
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("File troppo grande (max 8 MB)");
       return;
     }
     setUploadingChiSiamo(true);
@@ -1287,15 +1287,20 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                     onChange={(e) => e.target.files?.[0] && handleChiSiamoUpload(e.target.files[0])}
                   />
                   <div
-                    className="aspect-[4/3] rounded-md border-2 border-dashed border-slate-200 bg-muted/20 hover:border-orange-300 hover:bg-orange-50/30 cursor-pointer flex items-center justify-center overflow-hidden relative"
+                    className="min-h-[160px] max-h-[280px] rounded-md border-2 border-dashed border-slate-200 bg-muted/20 hover:border-orange-300 hover:bg-orange-50/30 cursor-pointer flex items-center justify-center overflow-hidden relative"
                     onClick={() => !uploadingChiSiamo && chiSiamoInputRef.current?.click()}
                   >
                     {form.chi_siamo_foto_url ? (
-                      <img src={form.chi_siamo_foto_url} alt="Foto azienda" className="w-full h-full object-cover" />
+                      <img
+                        src={form.chi_siamo_foto_url}
+                        alt="Foto azienda"
+                        className="w-full h-auto max-h-[280px] object-contain"
+                      />
                     ) : (
                       <div className="text-center p-3">
                         <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
                         <p className="text-[10px] text-muted-foreground">Clicca per caricare</p>
+                        <p className="text-[9px] text-muted-foreground/70 mt-0.5">orizzontale, verticale o panoramica</p>
                       </div>
                     )}
                     {uploadingChiSiamo && (
@@ -1326,7 +1331,10 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
                       </Button>
                     )}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-1">PNG/JPG max 5 MB</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    PNG/JPG/WebP fino a 8 MB · qualsiasi proporzione (l'immagine viene
+                    mostrata intera nel PDF, senza ritagli).
+                  </p>
                 </div>
 
                 {/* Titolo + testo a destra */}

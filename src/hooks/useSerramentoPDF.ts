@@ -76,6 +76,9 @@ export interface SerramentoPdfEnriched {
   fieldsByMacro: Record<string, SerramentoPdfMacroField[]>;
   /** Pagine dedicate da generare in coda al PDF, ordinate per occorrenza nel BOM. */
   macroPagineDedicate: SerramentoPdfMacroPagina[];
+  /** Mappa macrocategoria_id → immagine_url. Usata come fallback nelle righe
+   *  della composizione serramenti quando la famiglia non ha immagine propria. */
+  macroImageById: Record<string, string | null>;
 }
 
 export interface SerramentoPdfPayload {
@@ -188,7 +191,9 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     });
   }
 
-  // 5. Pagine dedicate macrocategoria
+  // 5. Macrocategorie coinvolte: fetch unico per
+  //    (a) fallback immagine prodotto nella tabella composizione (BOM)
+  //    (b) pagine dedicate (solo quelle con mostra_pagina_dedicata_pdf=true)
   const macroIdsBomOrdine: string[] = [];
   const seen = new Set<string>();
   for (const s of detail.serramenti) {
@@ -199,19 +204,24 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
       macroIdsBomOrdine.push(macroId);
     }
   }
+  const macroImageById: Record<string, string | null> = {};
   let macroPagineDedicate: SerramentoPdfMacroPagina[] = [];
   if (macroIdsBomOrdine.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: macroRows } = await (supabase as any)
       .from("listino_macrocategorie")
       .select("id, nome, descrizione, descrizione_estesa, immagine_url, mostra_pagina_dedicata_pdf")
-      .in("id", macroIdsBomOrdine)
-      .eq("mostra_pagina_dedicata_pdf", true);
+      .in("id", macroIdsBomOrdine);
     const macroMap = new Map<string, SerramentoPdfMacroPagina>();
     ((macroRows ?? []) as Array<{
       id: string; nome: string; descrizione: string | null;
       descrizione_estesa: string | null; immagine_url: string | null;
+      mostra_pagina_dedicata_pdf: boolean | null;
     }>).forEach((m) => {
+      // Sempre popolato per fallback immagine BOM
+      macroImageById[m.id] = m.immagine_url;
+      // Pagina dedicata solo se flag + descrizione presente
+      if (!m.mostra_pagina_dedicata_pdf) return;
       const desc = (m.descrizione_estesa ?? m.descrizione ?? "").trim();
       if (!desc) return;
       macroMap.set(m.id, {
@@ -234,6 +244,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     familiesById,
     fieldsByMacro,
     macroPagineDedicate,
+    macroImageById,
   };
 }
 
