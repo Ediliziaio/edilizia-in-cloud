@@ -69,9 +69,19 @@ function ObjectItemsPicker({
     () => new Set(templateItems.map(keyOf)),
     [templateItems],
   );
-  const customItems = useMemo(
-    () => selectedItems.filter((it) => !templateKeys.has(keyOf(it))),
+  // customItemsWithIdx: voci custom + posizione assoluta in selectedItems.
+  // Stesso pattern di StringItemsPicker. Risolve il bug di key duplicate
+  // su voci vuote (due `{titolo:"",descrizione:""}` -> stesso keyOf ->
+  // React warning + perdita focus durante editing).
+  const customItemsWithIdx = useMemo(
+    () => selectedItems
+      .map((value, realIdx) => ({ value, realIdx }))
+      .filter(({ value }) => !templateKeys.has(keyOf(value))),
     [selectedItems, templateKeys],
+  );
+  const customItems = useMemo(
+    () => customItemsWithIdx.map((c) => c.value),
+    [customItemsWithIdx],
   );
 
   const toggleTemplate = (it: SrEsigenza | SrSoluzioneItem) => {
@@ -92,14 +102,17 @@ function ObjectItemsPicker({
   const addCustom = () => {
     onChange([...selectedItems, { titolo: "", descrizione: "" }]);
   };
-  const updateCustom = (origIt: SrEsigenza | SrSoluzioneItem, field: "titolo" | "descrizione", value: string) => {
-    const next = selectedItems.map((s) =>
-      s === origIt ? { ...s, [field]: value } : s,
-    );
+  // Update by realIdx: piu' robusto del confronto by reference perche'
+  // ogni `setState` ricrea gli oggetti e la reference cambia.
+  const updateCustomByIdx = (realIdx: number, field: "titolo" | "descrizione", value: string) => {
+    if (realIdx < 0 || realIdx >= selectedItems.length) return;
+    const next = [...selectedItems];
+    next[realIdx] = { ...next[realIdx], [field]: value };
     onChange(next);
   };
-  const removeCustom = (origIt: SrEsigenza | SrSoluzioneItem) => {
-    onChange(selectedItems.filter((s) => s !== origIt));
+  const removeCustomByIdx = (realIdx: number) => {
+    if (realIdx < 0 || realIdx >= selectedItems.length) return;
+    onChange(selectedItems.filter((_, i) => i !== realIdx));
   };
 
   return (
@@ -162,20 +175,20 @@ function ObjectItemsPicker({
       )}
 
       {/* Voci custom per questo preventivo */}
-      {customItems.length > 0 && (
+      {customItemsWithIdx.length > 0 && (
         <div className="space-y-2 pt-2 border-t">
           <p className="text-[11px] text-muted-foreground">
-            Voci personalizzate <strong>solo per questo cliente</strong> ({customItems.length})
+            Voci personalizzate <strong>solo per questo cliente</strong> ({customItemsWithIdx.length})
           </p>
-          {customItems.map((it, idx) => (
-            <div key={idx} className="border-l-4 border-amber-300 pl-3 py-1 bg-amber-50/30 rounded-r-md">
+          {customItemsWithIdx.map(({ value: it, realIdx }, displayIdx) => (
+            <div key={realIdx} className="border-l-4 border-amber-300 pl-3 py-1 bg-amber-50/30 rounded-r-md">
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-[10px] uppercase tracking-wide text-amber-700 font-semibold">
-                  Custom #{idx + 1}
+                  Custom #{displayIdx + 1}
                 </Label>
                 <Button
                   size="sm" variant="ghost"
-                  onClick={() => removeCustom(it)}
+                  onClick={() => removeCustomByIdx(realIdx)}
                   className="h-7 px-2 text-xs text-rose-600"
                 >
                   <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
@@ -183,13 +196,13 @@ function ObjectItemsPicker({
               </div>
               <Input
                 value={it.titolo ?? ""}
-                onChange={(e) => updateCustom(it, "titolo", e.target.value)}
+                onChange={(e) => updateCustomByIdx(realIdx, "titolo", e.target.value)}
                 placeholder={placeholderTitolo}
                 className="h-9 mb-2 mt-1"
               />
               <Textarea
                 value={it.descrizione ?? ""}
-                onChange={(e) => updateCustom(it, "descrizione", e.target.value)}
+                onChange={(e) => updateCustomByIdx(realIdx, "descrizione", e.target.value)}
                 placeholder={placeholderDesc}
                 rows={2}
               />
