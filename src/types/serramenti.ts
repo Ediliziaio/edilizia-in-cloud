@@ -361,6 +361,18 @@ export interface SrTemplatePdfRow {
   iva_percentuale_default: number;
   anticipo_pct_default: number;
   valido_giorni_default: number;
+  // Personalizzazione PDF avanzata (migration 20270315000000 + 20270317000000 + 20270318000000)
+  pdf_cover_hero: string | null;
+  pdf_cover_subhero: string | null;
+  pdf_cta_finale_titolo: string | null;
+  pdf_cta_finale_passi: string[] | null;
+  chi_siamo_attivo: boolean;
+  chi_siamo_foto_url: string | null;
+  chi_siamo_titolo: string | null;
+  chi_siamo_testo: string | null;
+  recensioni_attivo: boolean;
+  render_disclaimer: string | null;
+  consulente_descrizione_default: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -88,18 +88,26 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   const { detail, template, company } = opts;
   const prog = detail.progetto;
 
-  // 1. Consulente (profiles)
+  // 1. Consulente (profiles). Strategia in cascata:
+  //    a) Se prog.consulente_id è settato → usa quello
+  //    b) Altrimenti (progetti vecchi/import) → usa l'utente loggato attuale
+  //    Così il PDF mostra SEMPRE un consulente reale, mai il nome azienda.
   let consulente: SerramentoPdfConsulente | null = null;
-  if (prog.consulente_id) {
+  let consulenteId = prog.consulente_id ?? null;
+  if (!consulenteId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    consulenteId = user?.id ?? null;
+  }
+  if (consulenteId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
       .from("profiles")
       .select("first_name, last_name, email, phone, avatar_url")
-      .eq("id", prog.consulente_id)
+      .eq("id", consulenteId)
       .maybeSingle();
     if (data) {
       consulente = {
-        nome: [data.first_name, data.last_name].filter(Boolean).join(" ") || "Consulente",
+        nome: [data.first_name, data.last_name].filter(Boolean).join(" ") || "Consulente tecnico",
         ruolo: "Consulente tecnico",
         telefono: data.phone ?? null,
         email: data.email ?? null,

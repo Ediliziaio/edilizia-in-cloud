@@ -544,9 +544,10 @@ function materialeLabel(m: string | null | undefined): string {
 }
 
 // Raggruppa serramenti per (family_id, tipologia, materiale, serie, vetro,
-// L, H). Serramenti con stesse misure si sommano. Misure diverse → righe
-// distinte: importante per il documento tecnico (l'installatore deve
-// vedere ogni "lotto misure" separato).
+// L, H, ambiente, colore_int, colore_est). Serramenti completamente identici
+// si sommano; qualunque differenza (anche solo il colore) → riga separata.
+// Importante per il documento tecnico: l'installatore deve vedere ogni "lotto"
+// in modo distinto.
 function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
   key: string;
   tipologia: string;
@@ -554,6 +555,8 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
   serie: string;
   vetro: string;
   ambiente: string;
+  colore_interno: string;
+  colore_esterno: string;
   larghezza: number | null;
   altezza: number | null;
   quantita: number;
@@ -561,16 +564,19 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
 }> {
   const map = new Map<string, {
     key: string; tipologia: string; materiale: string; serie: string;
-    vetro: string; ambiente: string; larghezza: number | null;
-    altezza: number | null; quantita: number; family_id: string | null;
+    vetro: string; ambiente: string; colore_interno: string; colore_esterno: string;
+    larghezza: number | null; altezza: number | null;
+    quantita: number; family_id: string | null;
   }>();
   for (const s of serr) {
     const L = s.larghezza_mm ?? null;
     const H = s.altezza_mm ?? null;
+    const ci = s.colore_interno ?? "";
+    const ce = s.colore_esterno ?? "";
     const baseKey = s.family_id
       ? `fam-${s.family_id}__${s.tipologia}`
       : `oth-${s.tipologia}__${s.materiale ?? ""}__${s.serie ?? ""}__${s.vetro ?? ""}`;
-    const key = `${baseKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}`;
+    const key = `${baseKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}__${ci}__${ce}`;
     const existing = map.get(key);
     if (existing) existing.quantita += s.quantita ?? 1;
     else map.set(key, {
@@ -580,6 +586,8 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
       serie: s.serie ?? "",
       vetro: s.vetro ?? "",
       ambiente: s.ambiente ?? "",
+      colore_interno: ci,
+      colore_esterno: ce,
       larghezza: L,
       altezza: H,
       quantita: s.quantita ?? 1,
@@ -678,7 +686,7 @@ function GanttSvg({ fases, totalDays, primary, accent }: {
         return (
           <G key={i}>
             <Text x={4} y={y + 13} fill="#0F172A" style={{ fontSize: 9, fontWeight: 600 } as never}>
-              {f.emoji} {f.label}
+              {f.label}
             </Text>
             <Rect x={x1} y={y + 4} width={w} height={14} fill={color} rx={3} />
             <Text
@@ -935,6 +943,10 @@ export function SerramentoPDF({
   const renderDisclaimer = tpl.render_disclaimer ||
     "Render generato con intelligenza artificiale a scopo esclusivamente dimostrativo e illustrativo. L'immagine non rappresenta il risultato finale dell'intervento, che potrà variare in base a rilievi tecnici, materiali scelti, misure reali, condizioni dell'ambiente e fattibilità esecutiva.";
 
+  // Descrizione consulente — testo generico mostrato sotto nome+contatti
+  const consulenteDescrizione = tpl.consulente_descrizione_default ||
+    "Ti accompagnerò personalmente dal primo sopralluogo fino al collaudo finale. Per qualunque domanda o necessità durante il preventivo, sono il tuo punto di riferimento.";
+
   const totaleMin = Number(p.totale_min ?? 0);
   const totaleMax = Number(p.totale_max ?? 0);
   const totaleMedia = (totaleMin + totaleMax) / 2;
@@ -956,11 +968,11 @@ export function SerramentoPDF({
   const gPosa = p.crono_giorni_posa ?? Math.max(1, Math.ceil(numSerr * 0.8));
   const gColl = p.crono_giorni_collaudo ?? 1;
   const cronoFasi = [
-    { label: "Conferma ordine", emoji: "📝", start: 1, end: 1 },
-    { label: "Produzione", emoji: "🏭", start: 2, end: 1 + gProd },
-    { label: "Sopralluogo posa", emoji: "📐", start: Math.max(2, gProd - 2), end: Math.max(2, gProd - 2) },
-    { label: "Posa cantiere", emoji: "🔧", start: 2 + gProd, end: 1 + gProd + gPosa },
-    { label: "Collaudo finale", emoji: "✅", start: 2 + gProd + gPosa, end: 1 + gProd + gPosa + gColl },
+    { label: "Conferma ordine", emoji: "", start: 1, end: 1 },
+    { label: "Produzione", emoji: "", start: 2, end: 1 + gProd },
+    { label: "Sopralluogo posa", emoji: "", start: Math.max(2, gProd - 2), end: Math.max(2, gProd - 2) },
+    { label: "Posa cantiere", emoji: "", start: 2 + gProd, end: 1 + gProd + gPosa },
+    { label: "Collaudo finale", emoji: "", start: 2 + gProd + gPosa, end: 1 + gProd + gPosa + gColl },
   ];
   const totalDays = 1 + gProd + gPosa + gColl;
 
@@ -1263,8 +1275,118 @@ export function SerramentoPDF({
             <Text style={styles.sectionTitle}>Cashflow 10 anni — rientro dell'investimento</Text>
             <CashflowSvg years={cashflowYears} primary={primaryColor} />
             <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 4 }}>
-              Risparmio bolletta + detrazione fiscale cumulati anno dopo anno. La linea verde indica
-              l'anno in cui l'investimento è completamente ripagato.
+              Risparmio bolletta + detrazione fiscale cumulati anno dopo anno.
+              La linea tratteggiata indica l'anno in cui l'investimento è
+              completamente ripagato (break-even).
+            </Text>
+
+            {/* TABELLA RISPARMIO 10 ANNI — dettaglio anno-per-anno */}
+            <View style={{ marginTop: 12 }}>
+              <View style={styles.tableHeader}>
+                <View style={{ width: 38 }}><Text style={styles.tableHeaderText}>Anno</Text></View>
+                <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Risparmio</Text></View>
+                <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Detrazione</Text></View>
+                <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Cumulato</Text></View>
+                <View style={{ width: 80, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Recupero</Text></View>
+              </View>
+              {cashflowYears.map((y, i) => {
+                const risp = Number(p.risparmio_eur_anno ?? 0);
+                const det = Number(p.detrazione_eur_anno ?? 0);
+                const cumulato = y.cumulato;
+                const recupero = totaleMedia > 0
+                  ? Math.min(100, Math.max(0, ((cumulato + totaleMedia) / totaleMedia) * 100))
+                  : 0;
+                const isBreakEven = cumulato >= 0 && (i === 0 || cashflowYears[i - 1].cumulato < 0);
+                return (
+                  <View
+                    key={i}
+                    style={{
+                      flexDirection: "row",
+                      paddingVertical: 5,
+                      borderBottom: `0.5pt solid ${C.gray100}`,
+                      backgroundColor: isBreakEven ? C.successBg : "transparent",
+                    }}
+                    wrap={false}
+                  >
+                    <View style={{ width: 38 }}>
+                      <Text style={{ fontSize: 9, fontWeight: 700, color: C.gray900 }}>
+                        A{y.year}{isBreakEven ? " ★" : ""}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, alignItems: "flex-end" }}>
+                      <Text style={{ fontSize: 9, color: C.gray700 }}>€ {fmtEuro(risp)}</Text>
+                    </View>
+                    <View style={{ flex: 1, alignItems: "flex-end" }}>
+                      <Text style={{ fontSize: 9, color: C.gray700 }}>€ {fmtEuro(det)}</Text>
+                    </View>
+                    <View style={{ flex: 1, alignItems: "flex-end" }}>
+                      <Text style={{ fontSize: 9, fontWeight: cumulato >= 0 ? 700 : 400, color: cumulato >= 0 ? C.successText : C.gray500 }}>
+                        {cumulato >= 0 ? "+" : ""}€ {fmtEuro(Math.abs(cumulato))}
+                      </Text>
+                    </View>
+                    <View style={{ width: 80, alignItems: "flex-end" }}>
+                      <Text style={{ fontSize: 8, color: C.gray500 }}>{recupero.toFixed(0)}%</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+            <Text style={{ fontSize: 8, color: C.gray500, marginTop: 5, fontStyle: "italic" }}>
+              ★ Anno di break-even — l'investimento iniziale è completamente ripagato dal risparmio + detrazione.
+            </Text>
+          </>
+        )}
+
+        {/* SE PAGHI A RATE — confronto rata vs risparmio mensile */}
+        {schemaCfg?.hasFinanziamento && piani.length > 0 && Number(p.risparmio_eur_anno ?? 0) > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Se paghi a rate — bilancio mensile</Text>
+            {(() => {
+              const piano = piani[0];
+              const rataMese = Number(piano.rata_mese ?? 0);
+              const risparmioMese = Number(p.risparmio_eur_anno ?? 0) / 12;
+              const detrazioneMese = Number(p.detrazione_eur_anno ?? 0) / 12;
+              const beneficioMese = risparmioMese + detrazioneMese;
+              const costoNetto = rataMese - beneficioMese;
+              const positivo = costoNetto <= 0;
+              return (
+                <View style={{
+                  flexDirection: "row",
+                  gap: 10,
+                  marginTop: 4,
+                }}>
+                  <View style={styles.finCard}>
+                    <Text style={styles.finCardTitle}>Rata mensile</Text>
+                    <Text style={[styles.finCardValue, { color: C.gray900 }]}>€ {fmtEuro(rataMese)}</Text>
+                    <Text style={styles.finCardSub}>{piano.mesi} mesi · TAN {piano.tasso}%</Text>
+                  </View>
+                  <View style={styles.finCard}>
+                    <Text style={styles.finCardTitle}>Risparmio + detrazione</Text>
+                    <Text style={[styles.finCardValue, { color: C.successText }]}>− € {fmtEuro(beneficioMese)}</Text>
+                    <Text style={styles.finCardSub}>al mese (media 10 anni)</Text>
+                  </View>
+                  <View style={[styles.finCard, {
+                    backgroundColor: positivo ? C.successBg : C.gray50,
+                    borderColor: positivo ? "#86EFAC" : C.gray200,
+                  }]}>
+                    <Text style={[styles.finCardTitle, { color: positivo ? C.successText : C.gray500 }]}>
+                      Costo netto / mese
+                    </Text>
+                    <Text style={[styles.finCardValue, { color: positivo ? C.successText : C.primary }]}>
+                      {positivo ? "Gratis o positivo" : `€ ${fmtEuro(costoNetto)}`}
+                    </Text>
+                    <Text style={[styles.finCardSub, { color: positivo ? C.successText : C.gray500 }]}>
+                      {positivo
+                        ? "Il risparmio copre la rata"
+                        : `Solo € ${fmtEuro(costoNetto)} reali di esborso`}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })()}
+            <Text style={{ fontSize: 8, color: C.gray500, marginTop: 6, fontStyle: "italic" }}>
+              Bilancio indicativo: la rata viene pagata oggi, il risparmio si concretizza nei prossimi
+              10 anni. Le condizioni finanziarie definitive sono nel contratto.
             </Text>
           </>
         )}
@@ -1327,7 +1449,13 @@ export function SerramentoPDF({
                     <Image src={family.immagine_url} style={styles.tableThumb} />
                   ) : (
                     <View style={styles.tableThumbPh}>
-                      <Text style={{ fontSize: 16 }}>🪟</Text>
+                      {/* Mini SVG finestra al posto dell'emoji (Helvetica
+                          non rende emoji unicode). */}
+                      <Svg viewBox="0 0 24 24" style={{ width: 20, height: 20 } as never}>
+                        <Rect x={3} y={3} width={18} height={18} rx={1.5} stroke={C.gray500} strokeWidth={1.5} fill="none" />
+                        <Path d="M 12 4 L 12 20" stroke={C.gray500} strokeWidth={1} />
+                        <Path d="M 4 12 L 20 12" stroke={C.gray500} strokeWidth={1} />
+                      </Svg>
                     </View>
                   )}
                 </View>
@@ -1341,9 +1469,17 @@ export function SerramentoPDF({
                       {[g.materiale !== "—" ? g.materiale : null, g.serie, g.vetro].filter(Boolean).join(" · ")}
                     </Text>
                   )}
+                  {(g.colore_interno || g.colore_esterno) && (
+                    <Text style={styles.tableCellMuted}>
+                      Colore: {[
+                        g.colore_interno ? `interno ${g.colore_interno}` : null,
+                        g.colore_esterno ? `esterno ${g.colore_esterno}` : null,
+                      ].filter(Boolean).join(" · ")}
+                    </Text>
+                  )}
                   {specs.length > 0 && (
                     <View style={styles.specChips}>
-                      {specs.slice(0, 5).map((sp, si) => (
+                      {specs.slice(0, 6).map((sp, si) => (
                         <View key={si} style={styles.specChip}>
                           <Text style={{ fontSize: 8.5 }}>
                             <Text style={styles.specChipLabel}>{sp.label}: </Text>
@@ -1409,8 +1545,9 @@ export function SerramentoPDF({
         <Text style={styles.sectionTitle}>Cronoprogramma indicativo</Text>
         <GanttSvg fases={cronoFasi} totalDays={totalDays} primary={primaryColor} accent={C.accent} />
 
-        {/* La tua consulenza — sempre mostrata. Se manca un consulente
-            specifico (progetti vecchi), fallback ai dati azienda. */}
+        {/* La tua consulenza — il consulente è SEMPRE l'utente che ha
+            fatto il preventivo (hook fa fallback a auth.user). Mai il
+            nome azienda nel campo nome consulente. */}
         <Text style={styles.sectionTitle}>La tua consulenza</Text>
         <View style={styles.consBox}>
           {consulente?.foto_url ? (
@@ -1419,7 +1556,7 @@ export function SerramentoPDF({
             <View style={styles.consPhotoPh}>
               <Text style={{ color: "#FFFFFF", fontSize: 22, fontWeight: 700 }}>
                 {(() => {
-                  const name = consulente?.nome ?? companyName;
+                  const name = consulente?.nome ?? "Consulente tecnico";
                   const parts = name.trim().split(/\s+/);
                   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
                   return name.slice(0, 2).toUpperCase();
@@ -1428,11 +1565,16 @@ export function SerramentoPDF({
             </View>
           )}
           <View style={{ flex: 1 }}>
-            <Text style={styles.consName}>{consulente?.nome ?? companyName}</Text>
+            <Text style={styles.consName}>{consulente?.nome ?? "Consulente tecnico"}</Text>
             <Text style={styles.consRole}>{consulente?.ruolo ?? "Consulente tecnico"}</Text>
+            {consulenteDescrizione && (
+              <Text style={{ fontSize: 9.5, color: C.gray700, lineHeight: 1.5, marginTop: 5 }}>
+                {consulenteDescrizione}
+              </Text>
+            )}
             <Text style={styles.consContact}>
               {p.consulenza_at ? `Appuntamento: ${fmtDateTime(p.consulenza_at)}\n` : ""}
-              {[consulente?.telefono ?? telefono, consulente?.email ?? email].filter(Boolean).join(" · ")}
+              {[consulente?.telefono, consulente?.email].filter(Boolean).join(" · ")}
             </Text>
           </View>
         </View>
@@ -1523,66 +1665,145 @@ export function SerramentoPDF({
         <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
       </Page>
 
-      {/* ─── PAGINA RENDER AI (opzionale, solo se ci sono render) ───────── */}
+      {/* ─── PAGINA RENDER AI in LANDSCAPE (orizzontale) per dare massimo
+            risalto al PRIMA/DOPO. Solo se ci sono almeno 1 render. ───────── */}
       {renderUrls.length > 0 && (
-        <Page size="A4" style={styles.page}>
-          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+        <Page size="A4" orientation="landscape" style={{
+          ...styles.page,
+          paddingTop: 30, paddingBottom: 48,
+          paddingHorizontal: 50,
+        }}>
+          <View style={styles.header} fixed>
+            <View style={styles.headerLeft}>
+              {logoUrl ? (
+                <Image src={logoUrl} style={styles.headerLogo} />
+              ) : (
+                <View style={[styles.headerLogo, { backgroundColor: primaryColor, alignItems: "center", justifyContent: "center" }]}>
+                  <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: 700 }}>
+                    {(companyName || "S").charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <View>
+                <Text style={styles.headerName}>{companyName}</Text>
+                <Text style={{ fontSize: 7.5, color: C.gray500 }}>{clienteNome}</Text>
+              </View>
+            </View>
+            <View style={styles.headerRight}>
+              <Text>STIMA N.</Text>
+              <Text style={styles.headerStimaCode}>{p.code}</Text>
+            </View>
+          </View>
+
           <Text style={styles.pageEyebrow}>Anteprima visiva · Render AI</Text>
-          <Text style={styles.pageTitle}>La tua casa,{"\n"}rinnovata.</Text>
-          <Text style={styles.pageSubtitle}>
-            Rendering foto-realistici generati con intelligenza artificiale per
-            aiutarti a immaginare il risultato. Vedi sotto per i limiti del render.
+          <Text style={[styles.pageTitle, { fontSize: 28, marginBottom: 4 }]}>
+            Prima &amp; Dopo
+          </Text>
+          <Text style={[styles.pageSubtitle, { marginBottom: 12 }]}>
+            Visualizza il confronto tra come appare oggi e come sarà dopo l'intervento.
           </Text>
 
-          {/* Se ho 2+ render: layout PRIMA/DOPO affiancato. Se 1, full width. */}
+          {/* Layout 2 colonne landscape (~700pt usabili larghezza) */}
           {renderUrls.length >= 2 ? (
             <>
               <View style={{ flexDirection: "row", marginBottom: 6 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.renderPairLabel}>Prima</Text>
+                  <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Prima</Text>
                 </View>
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.renderPairLabel}>Dopo (render AI)</Text>
+                <View style={{ width: 14 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Dopo · render AI</Text>
                 </View>
               </View>
-              <View style={styles.renderPair} wrap={false}>
-                <View style={styles.renderPairItem}>
+              <View style={{ flexDirection: "row" }} wrap={false}>
+                <View style={{
+                  flex: 1, aspectRatio: 1.5,
+                  borderRadius: 10, overflow: "hidden",
+                  backgroundColor: C.gray100,
+                }}>
                   <Image src={renderUrls[0]} style={styles.renderImg} />
                 </View>
-                <View style={styles.renderPairItem}>
+                <View style={{ width: 14 }} />
+                <View style={{
+                  flex: 1, aspectRatio: 1.5,
+                  borderRadius: 10, overflow: "hidden",
+                  backgroundColor: C.gray100,
+                }}>
                   <Image src={renderUrls[1]} style={styles.renderImg} />
                 </View>
               </View>
-              {/* Eventuali altri 2 render in seconda riga */}
-              {renderUrls.length >= 4 && (
-                <View style={[styles.renderPair, { marginTop: 10 }]} wrap={false}>
-                  <View style={styles.renderPairItem}>
-                    <Image src={renderUrls[2]} style={styles.renderImg} />
-                  </View>
-                  <View style={styles.renderPairItem}>
-                    <Image src={renderUrls[3]} style={styles.renderImg} />
-                  </View>
-                </View>
-              )}
             </>
           ) : (
             <View style={{
-              width: "100%", aspectRatio: 1.5,
+              width: "100%", aspectRatio: 2.2,
               borderRadius: 10, overflow: "hidden", backgroundColor: C.gray100,
-            }}>
+            }} wrap={false}>
               <Image src={renderUrls[0]} style={styles.renderImg} />
             </View>
           )}
 
           {/* Disclaimer legale OBBLIGATORIO sotto i render AI */}
-          <View style={styles.renderDisclaimerBox} wrap={false}>
-            <Text style={styles.renderDisclaimerLabel}>⚠ Disclaimer render AI</Text>
+          <View style={[styles.renderDisclaimerBox, { marginTop: 14 }]} wrap={false}>
+            <Text style={styles.renderDisclaimerLabel}>Disclaimer render AI</Text>
             <Text style={styles.renderDisclaimerText}>{renderDisclaimer}</Text>
           </View>
 
-          <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+          <View style={[styles.footer, { left: 50, right: 50 }]} fixed>
+            <View style={styles.footerRow}>
+              <Text style={styles.footerCompanyName}>{companyName}</Text>
+              <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+            </View>
+          </View>
         </Page>
       )}
+
+      {/* Render aggiuntivi (3°, 4°...) in pagine landscape successive se presenti */}
+      {renderUrls.length >= 3 && renderUrls.slice(2, 6).reduce((acc: string[][], url, i) => {
+        const idx = Math.floor(i / 2);
+        if (!acc[idx]) acc[idx] = [];
+        acc[idx].push(url);
+        return acc;
+      }, []).map((coppia, ci) => (
+        <Page key={`render-extra-${ci}`} size="A4" orientation="landscape" style={{
+          ...styles.page,
+          paddingTop: 30, paddingBottom: 48,
+          paddingHorizontal: 50,
+        }}>
+          <View style={styles.header} fixed>
+            <View style={styles.headerLeft}>
+              {logoUrl ? <Image src={logoUrl} style={styles.headerLogo} /> : null}
+              <View>
+                <Text style={styles.headerName}>{companyName}</Text>
+                <Text style={{ fontSize: 7.5, color: C.gray500 }}>{clienteNome}</Text>
+              </View>
+            </View>
+            <View style={styles.headerRight}>
+              <Text>STIMA N.</Text>
+              <Text style={styles.headerStimaCode}>{p.code}</Text>
+            </View>
+          </View>
+          <Text style={styles.pageEyebrow}>Render AI · vista aggiuntiva</Text>
+          <Text style={[styles.pageTitle, { fontSize: 24, marginBottom: 12 }]}>
+            Altre prospettive
+          </Text>
+          <View style={{ flexDirection: "row" }} wrap={false}>
+            {coppia.map((url, i) => (
+              <View key={i} style={{
+                flex: 1, aspectRatio: 1.5,
+                borderRadius: 10, overflow: "hidden",
+                backgroundColor: C.gray100,
+                marginRight: i < coppia.length - 1 ? 14 : 0,
+              }}>
+                <Image src={url} style={styles.renderImg} />
+              </View>
+            ))}
+          </View>
+          <View style={[styles.renderDisclaimerBox, { marginTop: 14 }]} wrap={false}>
+            <Text style={styles.renderDisclaimerLabel}>Disclaimer render AI</Text>
+            <Text style={styles.renderDisclaimerText}>{renderDisclaimer}</Text>
+          </View>
+        </Page>
+      ))}
     </Document>
   );
 }

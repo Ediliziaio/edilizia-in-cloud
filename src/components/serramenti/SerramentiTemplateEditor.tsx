@@ -700,6 +700,197 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
         <MacroPagineDedicateManager vertical="serramentista" />
       </SrCard>
 
+      {/* Personalizzazione PDF: cover, chi siamo, consulente, render, CTA */}
+      <SrCard
+        title="Personalizzazione PDF preventivo"
+        description="Hero della cover, pagina aziendale 'Chi siamo', descrizione consulente, disclaimer render AI e box CTA finale."
+        icon={<FileText className="h-4 w-4" />}
+      >
+        <div className="space-y-5">
+          {/* COVER */}
+          <div className="space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+              Cover (pagina 1)
+            </div>
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-12">
+                <Label className="text-xs">Frase hero della cover</Label>
+                <Textarea
+                  value={form.pdf_cover_hero ?? ""}
+                  onChange={(e) => update("pdf_cover_hero", e.target.value || null)}
+                  placeholder="Es. La tua casa, finalmente al caldo."
+                  rows={2}
+                  className="text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Titolo grande mostrato in cover. A capo per andare su due righe.
+                  Lascia vuoto per usare il default IT.
+                </p>
+              </div>
+              <div className="col-span-12">
+                <Label className="text-xs">Sottotitolo cover (opzionale)</Label>
+                <Textarea
+                  value={form.pdf_cover_subhero ?? ""}
+                  onChange={(e) => update("pdf_cover_subhero", e.target.value || null)}
+                  placeholder="Lascia vuoto per usare la sintesi auto-generata del preventivo"
+                  rows={2}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* CHI SIAMO */}
+          <div className="space-y-2 pt-3 border-t">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                Pagina "Chi siamo" (opzionale, dopo cover)
+              </div>
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+                <input
+                  type="checkbox"
+                  checked={!!form.chi_siamo_attivo}
+                  onChange={(e) => update("chi_siamo_attivo", e.target.checked)}
+                  className="h-3.5 w-3.5"
+                />
+                Attiva
+              </label>
+            </div>
+            {form.chi_siamo_attivo && (
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-12 md:col-span-6">
+                  <Label className="text-xs">URL foto azienda</Label>
+                  <Input
+                    value={form.chi_siamo_foto_url ?? ""}
+                    onChange={(e) => update("chi_siamo_foto_url", e.target.value || null)}
+                    placeholder="https://... (foto sede/showroom/team)"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-12 md:col-span-6">
+                  <Label className="text-xs">Titolo pagina</Label>
+                  <Input
+                    value={form.chi_siamo_titolo ?? ""}
+                    onChange={(e) => update("chi_siamo_titolo", e.target.value || null)}
+                    placeholder="Es. 15 anni di artigianato a Milano"
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="col-span-12">
+                  <Label className="text-xs">Testo descrizione azienda</Label>
+                  <Textarea
+                    value={form.chi_siamo_testo ?? ""}
+                    onChange={(e) => update("chi_siamo_testo", e.target.value || null)}
+                    rows={6}
+                    placeholder={
+                      "Es.\n\nDal 2010 produciamo serramenti su misura per il residenziale.\n\nLavoriamo solo con materiali italiani:\n- Profili PVC a 7 camere\n- Vetri triplo basso-emissivi\n- Pose certificate UNI 11673"
+                    }
+                    className="text-xs font-normal"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    A capo doppio per paragrafi. Righe che iniziano con
+                    "<code className="font-mono">- </code>" diventano bullet nel PDF.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* CONSULENTE */}
+          <div className="space-y-2 pt-3 border-t">
+            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+              Sezione "La tua consulenza"
+            </div>
+            <Label className="text-xs">Descrizione del consulente (mostrata sotto nome + ruolo)</Label>
+            <Textarea
+              value={form.consulente_descrizione_default ?? ""}
+              onChange={(e) => update("consulente_descrizione_default", e.target.value || null)}
+              rows={3}
+              placeholder="Es. Ti accompagnerò personalmente dal primo sopralluogo fino al collaudo finale. Per qualunque domanda o necessità, sono il tuo punto di riferimento."
+              className="text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Frase generica per dare un tono personale. Nome e foto del consulente
+              vengono presi automaticamente dal profilo dell'utente che fa il preventivo
+              (Impostazioni → Mio profilo → Foto).
+            </p>
+          </div>
+
+          {/* RECENSIONI */}
+          <div className="space-y-1 pt-3 border-t">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                Recensioni nel PDF
+              </div>
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+                <input
+                  type="checkbox"
+                  checked={form.recensioni_attivo !== false}
+                  onChange={(e) => update("recensioni_attivo", e.target.checked)}
+                  className="h-3.5 w-3.5"
+                />
+                Mostra recensioni
+              </label>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Le testimonianze definite sopra ("Recensioni clienti") vengono incluse
+              nella pagina finale del PDF solo se questa opzione è attiva.
+            </p>
+          </div>
+
+          {/* DISCLAIMER RENDER */}
+          <div className="space-y-2 pt-3 border-t">
+            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+              Disclaimer Render AI
+            </div>
+            <Label className="text-xs">Testo legale sotto i render AI (lascia vuoto per il default)</Label>
+            <Textarea
+              value={form.render_disclaimer ?? ""}
+              onChange={(e) => update("render_disclaimer", e.target.value || null)}
+              rows={4}
+              placeholder="Render generato con intelligenza artificiale a scopo esclusivamente dimostrativo e illustrativo..."
+              className="text-xs font-normal"
+            />
+          </div>
+
+          {/* CTA FINALE */}
+          <div className="space-y-2 pt-3 border-t">
+            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+              Box CTA finale "Cosa fare adesso"
+            </div>
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-12">
+                <Label className="text-xs">Titolo del box</Label>
+                <Input
+                  value={form.pdf_cta_finale_titolo ?? ""}
+                  onChange={(e) => update("pdf_cta_finale_titolo", e.target.value || null)}
+                  placeholder="Cosa fare adesso (default)"
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="col-span-12">
+                <Label className="text-xs">Passi (uno per riga)</Label>
+                <Textarea
+                  value={(form.pdf_cta_finale_passi ?? []).join("\n")}
+                  onChange={(e) => {
+                    const lines = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean);
+                    update("pdf_cta_finale_passi", lines.length > 0 ? lines : null);
+                  }}
+                  rows={5}
+                  placeholder={
+                    "Conferma l'appuntamento di consulenza tecnica\nFirma digitale del preventivo via link sicuro\nVersa l'acconto secondo lo schema concordato\nDiamo il via alla produzione e cantiere"
+                  }
+                  className="text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Ogni riga è uno step numerato. Lascia vuoto per usare i 4 step default.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </SrCard>
+
       {/* Crono + Economia */}
       <SrCard title="Default cronoprogramma + economia" icon={<Clock className="h-4 w-4" />}>
         <div className="grid grid-cols-12 gap-3">
