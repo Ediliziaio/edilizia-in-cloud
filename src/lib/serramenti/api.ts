@@ -209,11 +209,22 @@ export async function addSerramento(
       serie: serramento.serie ?? null,
       vetro: serramento.vetro ?? null,
       apertura: serramento.apertura ?? null,
+      colore_interno: serramento.colore_interno ?? null,
+      colore_esterno: serramento.colore_esterno ?? null,
       larghezza_mm: serramento.larghezza_mm ?? null,
       altezza_mm: serramento.altezza_mm ?? null,
       quantita: serramento.quantita ?? 1,
+      metri_quadri: serramento.metri_quadri ?? null,
       prezzo_unitario: serramento.prezzo_unitario ?? null,
       prezzo_totale: serramento.prezzo_totale ?? null,
+      // BUG FIX (segnalato dall'utente): aggiungendo dal listino il
+      // family_id veniva passato ma NON salvato qui -> la riga era
+      // persistita con family_id=null -> StepBom non riconosceva
+      // "isFromListino" -> mostrava i campi Materiale/Serie/Vetro/Colore
+      // e nascondeva la scheda tecnica della macrocategoria.
+      family_id: serramento.family_id ?? null,
+      listino_voce_id: serramento.listino_voce_id ?? null,
+      macrocategoria_override_id: serramento.macrocategoria_override_id ?? null,
       note: serramento.note ?? null,
     })
     .select("*")
@@ -261,8 +272,15 @@ export async function addAccessorio(
       tipo: accessorio.tipo ?? "avvolgibile",
       descrizione: accessorio.descrizione ?? null,
       quantita: accessorio.quantita ?? 1,
+      // Misure: stessa logica del fix su sr_serramenti_progetto.
+      // Le colonne larghezza_mm/altezza_mm esistono (mig 20270312000000)
+      // ma erano omesse dall'INSERT -> dialog "Copia misure dai serramenti"
+      // creava accessori senza misure.
+      larghezza_mm: accessorio.larghezza_mm ?? null,
+      altezza_mm: accessorio.altezza_mm ?? null,
       prezzo_unitario: accessorio.prezzo_unitario ?? null,
       prezzo_totale: accessorio.prezzo_totale ?? null,
+      listino_voce_id: accessorio.listino_voce_id ?? null,
       serramento_id: accessorio.serramento_id ?? null,
       note: accessorio.note ?? null,
     })
