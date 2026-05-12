@@ -277,37 +277,17 @@ export function StepBom({ progettoId, detail }: Props) {
           </SrCallout>
         )}
 
-        {/* Bottoni di aggiunta — sempre visibili */}
-        <div className="flex flex-col sm:flex-row gap-2 mb-3">
-          <Button
-            onClick={() => setListinoOpen(true)}
-            className="flex-1 bg-orange-500 hover:bg-orange-600 gap-1"
-            disabled={addMut.isPending}
-          >
-            <Package className="h-4 w-4" /> Aggiungi dal listino
-          </Button>
-          <Button
-            onClick={() => setManualDialogOpen(true)}
-            variant="outline"
-            className="flex-1 gap-1"
-            disabled={addMut.isPending}
-          >
-            <Plus className="h-4 w-4" /> Aggiungi a mano (off-listino)
-          </Button>
-        </div>
-
+        {/* Lista serramenti (se presenti). Box hint se vuota. */}
         {serramenti.length === 0 ? (
-          <div className="border-2 border-dashed border-orange-200 rounded-md p-6 text-center">
-            <RectangleVertical className="h-8 w-8 mx-auto text-orange-300 mb-2" />
+          <div className="border-2 border-dashed border-slate-200 rounded-md p-6 text-center mb-3">
+            <RectangleVertical className="h-8 w-8 mx-auto text-slate-300 mb-2" />
             <p className="text-sm text-muted-foreground">
-              Nessun serramento ancora. Usa <strong>"Aggiungi dal listino"</strong> per scegliere da catalogo (consigliato) o aggiungi a mano per casi speciali.
+              Nessun serramento ancora. Usa i bottoni sotto per aggiungere
+              dal listino (consigliato) o a mano per casi speciali.
             </p>
           </div>
         ) : (
-          /* Bottoni di aggiunta sono in alto (Aggiungi dal listino +
-             Aggiungi a mano). Rimossi i duplicati dashed in fondo alla
-             lista per non confondere con doppia CTA. */
-          <div className="space-y-2">
+          <div className="space-y-2 mb-3">
             {serramenti.map((s, idx) => {
               const family = s.family_id ? familiesById.get(s.family_id) : undefined;
               const macroId = family?.categoria_id ? catToMacro.get(family.categoria_id) : undefined;
@@ -331,6 +311,30 @@ export function StepBom({ progettoId, detail }: Props) {
             })}
           </div>
         )}
+
+        {/* Bottoni di aggiunta — sempre visibili SOTTO la lista (o sotto
+            il box vuoto). Stile dashed/outline meno invasivo dei CTA pieni:
+            l'utente vede chiaramente la lista come elemento primario e i
+            bottoni come "aggiungi un altro". */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            onClick={() => setListinoOpen(true)}
+            variant="outline"
+            className="flex-1 gap-1 border-dashed border-2 border-orange-300 hover:bg-orange-50"
+            disabled={addMut.isPending}
+          >
+            <Package className="h-4 w-4" /> Aggiungi dal listino
+          </Button>
+          <Button
+            onClick={() => setManualDialogOpen(true)}
+            variant="outline"
+            className="flex-1 gap-1 border-dashed border-2 border-slate-300"
+            disabled={addMut.isPending}
+          >
+            {addMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Aggiungi a mano
+          </Button>
+        </div>
 
         <ListinoPickerDialog
           open={listinoOpen}
