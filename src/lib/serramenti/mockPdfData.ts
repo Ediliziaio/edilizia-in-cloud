@@ -21,6 +21,7 @@ import type {
   SerramentoPdfEnriched, SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
 } from "@/hooks/useSerramentoPDF";
+import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 
 const MOCK_FAMILY_ID = "demo-family-aluminio-2ante";
 const MOCK_MACRO_ID = "demo-macro-infissi";
@@ -29,15 +30,19 @@ const MOCK_MACRO_ID = "demo-macro-infissi";
  * Costruisce un SerramentoPdfEnriched mockato. Accetta il `template` corrente
  * dal template editor (con tutte le personalizzazioni live) così l'anteprima
  * riflette esattamente le modifiche in corso.
+ *
+ * Async perché chiama toDataUrl() per pre-convertire le immagini del template
+ * (logo, cover image, chi siamo) da webp → JPEG/PNG: react-pdf non supporta
+ * webp e l'utente vede l'anteprima nera/vuota altrimenti.
  */
-export function buildMockPdfData(opts: {
+export async function buildMockPdfData(opts: {
   template: Partial<SrTemplatePdfRow> | null;
   companyName?: string | null;
   companyLogoUrl?: string | null;
   companyIndirizzo?: string | null;
   consulenteNome?: string | null;
   consulenteFoto?: string | null;
-}): SerramentoPdfEnriched {
+}): Promise<SerramentoPdfEnriched> {
   const now = new Date().toISOString();
 
   const progetto: SrProgettoRow = {
@@ -315,9 +320,31 @@ export function buildMockPdfData(opts: {
     [MOCK_MACRO_ID]: null,
   };
 
+  // Pre-converti le immagini del template (webp → JPEG/PNG) in parallelo.
+  // Senza questo step, l'anteprima mostra box vuoti perché react-pdf non
+  // supporta webp e gli URL Supabase fornisco webp per default.
+  const tpl = opts.template ?? null;
+  const [
+    inlinedLogo,
+    inlinedChiSiamoFoto,
+    inlinedCoverImage,
+  ] = await Promise.all([
+    toDataUrl(tpl?.logo_url ?? opts.companyLogoUrl ?? null),
+    toDataUrl(tpl?.chi_siamo_foto_url ?? null),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    toDataUrl((tpl as any)?.pdf_cover_image_url ?? null),
+  ]);
+  const inlinedTemplate = tpl ? {
+    ...tpl,
+    logo_url: inlinedLogo ?? tpl.logo_url,
+    chi_siamo_foto_url: inlinedChiSiamoFoto ?? tpl.chi_siamo_foto_url,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pdf_cover_image_url: inlinedCoverImage ?? (tpl as any).pdf_cover_image_url,
+  } : null;
+
   return {
     detail,
-    template: (opts.template as SrTemplatePdfRow | null) ?? null,
+    template: inlinedTemplate as SrTemplatePdfRow | null,
     company: {
       name: opts.companyName ?? "La tua Azienda",
       ragione_sociale: opts.companyName ?? "La tua Azienda",
@@ -325,7 +352,7 @@ export function buildMockPdfData(opts: {
       telefono: "+39 02 87654321",
       email: "info@example.com",
       partita_iva: "01234567890",
-      logo_url: opts.companyLogoUrl ?? null,
+      logo_url: inlinedLogo ?? opts.companyLogoUrl ?? null,
       website: "www.example.com",
     },
     consulente,

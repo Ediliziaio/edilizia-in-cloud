@@ -58,7 +58,7 @@ export function SerramentiTemplatePreviewDialog({
         import("@/components/serramenti/SerramentoPDF"),
         import("react"),
       ]);
-      const enriched = buildMockPdfData({
+      const enriched = await buildMockPdfData({
         template,
         companyName,
         companyLogoUrl,
