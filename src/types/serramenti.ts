@@ -240,6 +240,10 @@ export interface SrSerramentoRow {
   quantita: number;
   metri_quadri: number | null;
   family_id: string | null;
+  /** Macrocategoria selezionata manualmente quando il serramento non è
+   *  collegato a una family del listino. Usata per fallback foto + pagina
+   *  dedicata nel PDF. NULL = nessun override. */
+  macrocategoria_override_id: string | null;
   listino_voce_id: string | null;
   prezzo_unitario: number | null;
   prezzo_totale: number | null;

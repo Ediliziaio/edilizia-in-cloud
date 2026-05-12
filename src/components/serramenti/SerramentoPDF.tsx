@@ -667,12 +667,15 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
   altezza: number | null;
   quantita: number;
   family_id: string | null;
+  /** Override macrocategoria per BOM manuali senza family_id */
+  macrocategoria_override_id: string | null;
 }> {
   const map = new Map<string, {
     key: string; tipologia: string; materiale: string; serie: string;
     vetro: string; ambiente: string; colore_interno: string; colore_esterno: string;
     larghezza: number | null; altezza: number | null;
     quantita: number; family_id: string | null;
+    macrocategoria_override_id: string | null;
   }>();
   for (const s of serr) {
     const L = s.larghezza_mm ?? null;
@@ -698,6 +701,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
       altezza: H,
       quantita: s.quantita ?? 1,
       family_id: s.family_id ?? null,
+      macrocategoria_override_id: s.macrocategoria_override_id ?? null,
     });
   }
   return Array.from(map.values());
@@ -1021,7 +1025,15 @@ export function SerramentoPDF({
   const soluzione = (Array.isArray(p.soluzione) ? p.soluzione : []) as SrSoluzioneItem[];
   const percheNoi = (Array.isArray(p.perche_noi) ? p.perche_noi : []) as Array<string | { titolo: string; descrizione?: string }>;
   const incluso = (Array.isArray(p.incluso_investimento) ? p.incluso_investimento : []) as Array<string | { titolo: string; descrizione?: string }>;
-  const testimonianze = (Array.isArray(p.testimonianze) ? p.testimonianze : []) as SrTestimonianza[];
+  // Testimonianze: prima quelle del preventivo (override custom per cliente),
+  // altrimenti fallback ai default del template (testimonianze_default). Così
+  // l'azienda definisce una libreria di recensioni una volta in template e
+  // queste appaiono in tutti i preventivi.
+  const testimonianzeProgetto = (Array.isArray(p.testimonianze) ? p.testimonianze : []) as SrTestimonianza[];
+  const testimonianzeTemplate = (Array.isArray(tpl.testimonianze_default) ? tpl.testimonianze_default : []) as SrTestimonianza[];
+  const testimonianze: SrTestimonianza[] = testimonianzeProgetto.length > 0
+    ? testimonianzeProgetto
+    : testimonianzeTemplate;
   const milestones = (Array.isArray(p.pagamento_milestones) ? p.pagamento_milestones : []) as SrPagamentoMilestone[];
   const piani = (Array.isArray(p.fin_piani) ? p.fin_piani : []) as SrPianoFinanziamento[];
   const schemaPagamento = p.schema_pagamento ?? "tre_step";
@@ -1298,11 +1310,252 @@ export function SerramentoPDF({
         <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
       </Page>
 
-      {/* ─── PAGINA 3 — INVESTIMENTO ────────────────────────────────────── */}
+      {/* ─── PAGINA 3 — ALLEGATO TECNICO ────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
         <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
-        <Text style={styles.pageEyebrow}>Pagina 3 · L'investimento</Text>
+        <Text style={styles.pageEyebrow}>Pagina 3 · Allegato tecnico</Text>
+        <Text style={styles.pageTitle}>Cosa entra{"\n"}in cantiere.</Text>
+        <Text style={styles.pageSubtitle}>Composizione dettagliata dei serramenti e degli accessori previsti.</Text>
+
+        <Text style={styles.sectionTitle}>Composizione serramenti · {numSerr} pezzi</Text>
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <View style={{ width: 28 }}><Text style={styles.tableHeaderText}>#</Text></View>
+            <View style={{ width: 70 }}><Text style={styles.tableHeaderText}>Foto</Text></View>
+            <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Descrizione &amp; Specifiche tecniche</Text></View>
+            <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
+          </View>
+          {serramentiGrouped.map((g, idx) => {
+            const family = g.family_id ? familiesById[g.family_id] : null;
+            // macroId con fallback: prima la macro della family (se BOM da listino),
+            // poi l'override manuale (se il consulente ha selezionato la macro).
+            const macroId = family?.macrocategoria_id ?? g.macrocategoria_override_id ?? null;
+            const fields = macroId ? (fieldsByMacro[macroId] ?? []) : [];
+            const specs: Array<{ label: string; value: string; unit: string | null }> = [];
+            if (family && fields.length > 0) {
+              for (const f of fields) {
+                const raw = family.custom_field_values[f.field_key];
+                const display = formatFieldDisplay(f, raw);
+                if (display) specs.push({ label: f.field_label, value: display, unit: f.field_unit });
+              }
+            }
+            // Titolo: nome reale della famiglia se disponibile, altrimenti tipologia generica
+            const titolo = family?.nome?.trim() || g.tipologia;
+            // Dimensioni nella prima riga muted
+            const dimensioni = g.larghezza && g.altezza
+              ? `${g.larghezza} × ${g.altezza} mm`
+              : g.larghezza ? `L ${g.larghezza} mm`
+              : g.altezza ? `H ${g.altezza} mm`
+              : null;
+            // Descrizione tecnica del listino
+            const techDesc = family?.descrizione?.trim() || null;
+            // Immagine prodotto con fallback gerarchico:
+            //   1. family.immagine_url (foto specifica del modello)
+            //   2. macroImageById[macroId] — funziona anche per BOM manuali
+            //      con macrocategoria_override_id (vedi macroId sopra)
+            //   3. placeholder SVG
+            const prodottoImageUrl = family?.immagine_url
+              || (macroId ? macroImageById[macroId] : null)
+              || null;
+            return (
+              <View key={g.key} style={styles.tableRow} wrap={false}>
+                {/* Numero progressivo */}
+                <View style={styles.tableRowNumber}>
+                  <Text style={styles.tableRowNumberText}>{idx + 1}</Text>
+                </View>
+                {/* Foto reale */}
+                <View style={{ width: 70 }}>
+                  {prodottoImageUrl ? (
+                    <Image src={prodottoImageUrl} style={styles.tableThumb} />
+                  ) : (
+                    <View style={styles.tableThumbPh}>
+                      <Svg viewBox="0 0 24 24" style={{ width: 24, height: 24 } as never}>
+                        <Rect x={3} y={3} width={18} height={18} rx={1.5} stroke={C.gray500} strokeWidth={1.5} fill="none" />
+                        <Path d="M 12 4 L 12 20" stroke={C.gray500} strokeWidth={1} />
+                        <Path d="M 4 12 L 20 12" stroke={C.gray500} strokeWidth={1} />
+                      </Svg>
+                    </View>
+                  )}
+                </View>
+                {/* Descrizione + dimensioni + descrizione tecnica + specs */}
+                <View style={{ flex: 1, paddingRight: 6 }}>
+                  <Text style={styles.tableCellStrong}>
+                    {titolo}
+                    {g.ambiente ? <Text style={{ color: C.gray500, fontWeight: 400 }}> · {g.ambiente}</Text> : null}
+                  </Text>
+                  <Text style={[styles.tableCellMuted, { fontWeight: 700, color: C.gray700 }]}>
+                    {[
+                      dimensioni,
+                      g.materiale !== "—" ? g.materiale : null,
+                      g.serie,
+                      g.vetro,
+                    ].filter(Boolean).join(" · ")}
+                  </Text>
+                  {(g.colore_interno || g.colore_esterno) && (
+                    <Text style={styles.tableCellMuted}>
+                      Colore: {[
+                        g.colore_interno ? `interno ${g.colore_interno}` : null,
+                        g.colore_esterno ? `esterno ${g.colore_esterno}` : null,
+                      ].filter(Boolean).join(" · ")}
+                    </Text>
+                  )}
+                  {/* Descrizione tecnica dal listino prodotti */}
+                  {techDesc && (
+                    <Text style={styles.tableTechDesc}>{techDesc}</Text>
+                  )}
+                  {specs.length > 0 && (
+                    <View style={styles.specChips}>
+                      {specs.slice(0, 8).map((sp, si) => (
+                        <View key={si} style={styles.specChip}>
+                          <Text style={{ fontSize: 8.5 }}>
+                            <Text style={styles.specChipLabel}>{sp.label}: </Text>
+                            <Text style={styles.specChipValue}>{sp.value}</Text>
+                            {sp.unit ? <Text style={styles.specChipUnit}> {sp.unit}</Text> : null}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+                {/* Quantità */}
+                <View style={{ width: 50, alignItems: "flex-end", paddingTop: 6 }}>
+                  <Text style={styles.tableCellNum}>{g.quantita}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        {detail.accessori.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Accessori e complementi</Text>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Voce</Text></View>
+                <View style={{ width: 90 }}><Text style={styles.tableHeaderText}>Misure</Text></View>
+                <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
+              </View>
+              {detail.accessori.map((a, i) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const ax = a as any;
+                const misure = ax.larghezza_mm && ax.altezza_mm
+                  ? `${ax.larghezza_mm}×${ax.altezza_mm} mm`
+                  : "—";
+                return (
+                  <View key={i} style={styles.tableRow} wrap={false}>
+                    <View style={{ flex: 1, paddingRight: 6 }}>
+                      <Text style={styles.tableCellStrong}>{a.descrizione || a.tipo}</Text>
+                    </View>
+                    <View style={{ width: 90 }}>
+                      <Text style={styles.tableCellMuted}>{misure}</Text>
+                    </View>
+                    <View style={{ width: 50, alignItems: "flex-end" }}>
+                      <Text style={styles.tableCellNum}>{a.quantita ?? 1}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        )}
+
+        {/* Cronoprogramma rimosso — sostituito dalla pagina dedicata "Il tuo percorso" */}
+
+        {/* La tua consulenza — il consulente è SEMPRE l'utente che ha
+            fatto il preventivo (hook fa fallback a auth.user). Mai il
+            nome azienda nel campo nome consulente. */}
+        <Text style={styles.sectionTitle}>La tua consulenza</Text>
+        <View style={styles.consBox}>
+          {consulente?.foto_url ? (
+            <Image src={consulente.foto_url} style={styles.consPhoto} />
+          ) : (
+            <View style={styles.consPhotoPh}>
+              <Text style={{ color: "#FFFFFF", fontSize: 22, fontWeight: 700 }}>
+                {(() => {
+                  const name = consulente?.nome ?? "Consulente tecnico";
+                  const parts = name.trim().split(/\s+/);
+                  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+                  return name.slice(0, 2).toUpperCase();
+                })()}
+              </Text>
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.consName}>{consulente?.nome ?? "Consulente tecnico"}</Text>
+            <Text style={styles.consRole}>{consulente?.ruolo ?? "Consulente tecnico"}</Text>
+            {consulenteDescrizione && (
+              <Text style={{ fontSize: 9.5, color: C.gray700, lineHeight: 1.5, marginTop: 5 }}>
+                {consulenteDescrizione}
+              </Text>
+            )}
+            <Text style={styles.consContact}>
+              {p.consulenza_at ? `Appuntamento: ${fmtDateTime(p.consulenza_at)}\n` : ""}
+              {[consulente?.telefono, consulente?.email].filter(Boolean).join(" · ")}
+            </Text>
+          </View>
+        </View>
+
+        <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+      </Page>
+
+      {/* ─── PAGINE DEDICATE MACROCATEGORIA (opzionali) ─────────────────── */}
+      {macroPagineDedicate.map((mp, mi) => (
+        <Page key={mp.macro_id} size="A4" style={styles.page}>
+          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+          <Text style={styles.pageEyebrow}>
+            Linea prodotto · {mi + 1} di {macroPagineDedicate.length}
+          </Text>
+          <Text style={styles.pageTitle}>{mp.nome}</Text>
+          <View style={styles.macroPageHero}>
+            {mp.immagine_url ? (
+              <View style={styles.macroPageImgWrap}>
+                <Image src={mp.immagine_url} style={styles.macroPageImg} />
+              </View>
+            ) : (
+              <View style={styles.macroPageImgPh}>
+                <Text style={{ fontSize: 12, color: C.gray500 }}>{mp.nome}</Text>
+              </View>
+            )}
+            <View style={styles.macroPageContent}>
+              {mp.descrizione_estesa.split(/\n\n+/).map((para, i) => {
+                const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
+                const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
+                if (allBullets) {
+                  return (
+                    <View key={i} style={{ marginBottom: 8 }}>
+                      {lines.map((l, li) => (
+                        <View key={li} style={styles.bulletItem}>
+                          <View style={styles.bulletDot} />
+                          <Text style={{ flex: 1, fontSize: 10.5, color: C.gray700, lineHeight: 1.55 }}>
+                            {l.replace(/^[-•]\s*/, "")}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                }
+                return (
+                  <Text key={i} style={{ marginBottom: 8, fontSize: 11, color: C.gray700, lineHeight: 1.65 }}>
+                    {para}
+                  </Text>
+                );
+              })}
+            </View>
+          </View>
+          <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+        </Page>
+      ))}
+
+      {/* ─── PAGINA — INVESTIMENTO (spostata DOPO i prodotti) ──────────────
+          La pagina economica viene mostrata dopo l'allegato tecnico e le
+          pagine dedicate macrocategoria: il cliente vede prima COSA gli
+          stiamo proponendo (composizione + foto + descrizione macro), e
+          solo dopo QUANTO costa. Flusso narrativo: prodotto → valore. */}
+      <Page size="A4" style={styles.page}>
+        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+
+        <Text style={styles.pageEyebrow}>Pagina 4 · L'investimento</Text>
         <Text style={styles.pageTitle}>Trasparenza{"\n"}totale.</Text>
         <Text style={styles.pageSubtitle}>
           Forbice indicativa basata sul primo contatto. Il prezzo definitivo si fissa con sopralluogo e scelta materiali.
@@ -1528,240 +1781,6 @@ export function SerramentoPDF({
         <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
       </Page>
 
-      {/* ─── PAGINA 4 — ALLEGATO TECNICO ────────────────────────────────── */}
-      <Page size="A4" style={styles.page}>
-        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-
-        <Text style={styles.pageEyebrow}>Pagina 4 · Allegato tecnico</Text>
-        <Text style={styles.pageTitle}>Cosa entra{"\n"}in cantiere.</Text>
-        <Text style={styles.pageSubtitle}>Composizione dettagliata dei serramenti e degli accessori previsti.</Text>
-
-        <Text style={styles.sectionTitle}>Composizione serramenti · {numSerr} pezzi</Text>
-        <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <View style={{ width: 28 }}><Text style={styles.tableHeaderText}>#</Text></View>
-            <View style={{ width: 70 }}><Text style={styles.tableHeaderText}>Foto</Text></View>
-            <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Descrizione &amp; Specifiche tecniche</Text></View>
-            <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
-          </View>
-          {serramentiGrouped.map((g, idx) => {
-            const family = g.family_id ? familiesById[g.family_id] : null;
-            const macroId = family?.macrocategoria_id;
-            const fields = macroId ? (fieldsByMacro[macroId] ?? []) : [];
-            const specs: Array<{ label: string; value: string; unit: string | null }> = [];
-            if (family && fields.length > 0) {
-              for (const f of fields) {
-                const raw = family.custom_field_values[f.field_key];
-                const display = formatFieldDisplay(f, raw);
-                if (display) specs.push({ label: f.field_label, value: display, unit: f.field_unit });
-              }
-            }
-            // Titolo: nome reale della famiglia se disponibile, altrimenti tipologia generica
-            const titolo = family?.nome?.trim() || g.tipologia;
-            // Dimensioni nella prima riga muted
-            const dimensioni = g.larghezza && g.altezza
-              ? `${g.larghezza} × ${g.altezza} mm`
-              : g.larghezza ? `L ${g.larghezza} mm`
-              : g.altezza ? `H ${g.altezza} mm`
-              : null;
-            // Descrizione tecnica del listino
-            const techDesc = family?.descrizione?.trim() || null;
-            // Immagine prodotto con fallback gerarchico:
-            //   1. family.immagine_url (foto specifica del modello)
-            //   2. macroImageById[macroId] (foto macrocategoria — fallback)
-            //   3. placeholder SVG
-            const prodottoImageUrl = family?.immagine_url
-              || (macroId ? macroImageById[macroId] : null)
-              || null;
-            return (
-              <View key={g.key} style={styles.tableRow} wrap={false}>
-                {/* Numero progressivo */}
-                <View style={styles.tableRowNumber}>
-                  <Text style={styles.tableRowNumberText}>{idx + 1}</Text>
-                </View>
-                {/* Foto reale */}
-                <View style={{ width: 70 }}>
-                  {prodottoImageUrl ? (
-                    <Image src={prodottoImageUrl} style={styles.tableThumb} />
-                  ) : (
-                    <View style={styles.tableThumbPh}>
-                      <Svg viewBox="0 0 24 24" style={{ width: 24, height: 24 } as never}>
-                        <Rect x={3} y={3} width={18} height={18} rx={1.5} stroke={C.gray500} strokeWidth={1.5} fill="none" />
-                        <Path d="M 12 4 L 12 20" stroke={C.gray500} strokeWidth={1} />
-                        <Path d="M 4 12 L 20 12" stroke={C.gray500} strokeWidth={1} />
-                      </Svg>
-                    </View>
-                  )}
-                </View>
-                {/* Descrizione + dimensioni + descrizione tecnica + specs */}
-                <View style={{ flex: 1, paddingRight: 6 }}>
-                  <Text style={styles.tableCellStrong}>
-                    {titolo}
-                    {g.ambiente ? <Text style={{ color: C.gray500, fontWeight: 400 }}> · {g.ambiente}</Text> : null}
-                  </Text>
-                  <Text style={[styles.tableCellMuted, { fontWeight: 700, color: C.gray700 }]}>
-                    {[
-                      dimensioni,
-                      g.materiale !== "—" ? g.materiale : null,
-                      g.serie,
-                      g.vetro,
-                    ].filter(Boolean).join(" · ")}
-                  </Text>
-                  {(g.colore_interno || g.colore_esterno) && (
-                    <Text style={styles.tableCellMuted}>
-                      Colore: {[
-                        g.colore_interno ? `interno ${g.colore_interno}` : null,
-                        g.colore_esterno ? `esterno ${g.colore_esterno}` : null,
-                      ].filter(Boolean).join(" · ")}
-                    </Text>
-                  )}
-                  {/* Descrizione tecnica dal listino prodotti */}
-                  {techDesc && (
-                    <Text style={styles.tableTechDesc}>{techDesc}</Text>
-                  )}
-                  {specs.length > 0 && (
-                    <View style={styles.specChips}>
-                      {specs.slice(0, 8).map((sp, si) => (
-                        <View key={si} style={styles.specChip}>
-                          <Text style={{ fontSize: 8.5 }}>
-                            <Text style={styles.specChipLabel}>{sp.label}: </Text>
-                            <Text style={styles.specChipValue}>{sp.value}</Text>
-                            {sp.unit ? <Text style={styles.specChipUnit}> {sp.unit}</Text> : null}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-                {/* Quantità */}
-                <View style={{ width: 50, alignItems: "flex-end", paddingTop: 6 }}>
-                  <Text style={styles.tableCellNum}>{g.quantita}</Text>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-
-        {detail.accessori.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Accessori e complementi</Text>
-            <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Voce</Text></View>
-                <View style={{ width: 90 }}><Text style={styles.tableHeaderText}>Misure</Text></View>
-                <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
-              </View>
-              {detail.accessori.map((a, i) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const ax = a as any;
-                const misure = ax.larghezza_mm && ax.altezza_mm
-                  ? `${ax.larghezza_mm}×${ax.altezza_mm} mm`
-                  : "—";
-                return (
-                  <View key={i} style={styles.tableRow} wrap={false}>
-                    <View style={{ flex: 1, paddingRight: 6 }}>
-                      <Text style={styles.tableCellStrong}>{a.descrizione || a.tipo}</Text>
-                    </View>
-                    <View style={{ width: 90 }}>
-                      <Text style={styles.tableCellMuted}>{misure}</Text>
-                    </View>
-                    <View style={{ width: 50, alignItems: "flex-end" }}>
-                      <Text style={styles.tableCellNum}>{a.quantita ?? 1}</Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        {/* Cronoprogramma rimosso — sostituito dalla pagina dedicata "Il tuo percorso" */}
-
-        {/* La tua consulenza — il consulente è SEMPRE l'utente che ha
-            fatto il preventivo (hook fa fallback a auth.user). Mai il
-            nome azienda nel campo nome consulente. */}
-        <Text style={styles.sectionTitle}>La tua consulenza</Text>
-        <View style={styles.consBox}>
-          {consulente?.foto_url ? (
-            <Image src={consulente.foto_url} style={styles.consPhoto} />
-          ) : (
-            <View style={styles.consPhotoPh}>
-              <Text style={{ color: "#FFFFFF", fontSize: 22, fontWeight: 700 }}>
-                {(() => {
-                  const name = consulente?.nome ?? "Consulente tecnico";
-                  const parts = name.trim().split(/\s+/);
-                  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-                  return name.slice(0, 2).toUpperCase();
-                })()}
-              </Text>
-            </View>
-          )}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.consName}>{consulente?.nome ?? "Consulente tecnico"}</Text>
-            <Text style={styles.consRole}>{consulente?.ruolo ?? "Consulente tecnico"}</Text>
-            {consulenteDescrizione && (
-              <Text style={{ fontSize: 9.5, color: C.gray700, lineHeight: 1.5, marginTop: 5 }}>
-                {consulenteDescrizione}
-              </Text>
-            )}
-            <Text style={styles.consContact}>
-              {p.consulenza_at ? `Appuntamento: ${fmtDateTime(p.consulenza_at)}\n` : ""}
-              {[consulente?.telefono, consulente?.email].filter(Boolean).join(" · ")}
-            </Text>
-          </View>
-        </View>
-
-        <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
-      </Page>
-
-      {/* ─── PAGINE DEDICATE MACROCATEGORIA (opzionali) ─────────────────── */}
-      {macroPagineDedicate.map((mp, mi) => (
-        <Page key={mp.macro_id} size="A4" style={styles.page}>
-          <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-          <Text style={styles.pageEyebrow}>
-            Linea prodotto · {mi + 1} di {macroPagineDedicate.length}
-          </Text>
-          <Text style={styles.pageTitle}>{mp.nome}</Text>
-          <View style={styles.macroPageHero}>
-            {mp.immagine_url ? (
-              <View style={styles.macroPageImgWrap}>
-                <Image src={mp.immagine_url} style={styles.macroPageImg} />
-              </View>
-            ) : (
-              <View style={styles.macroPageImgPh}>
-                <Text style={{ fontSize: 12, color: C.gray500 }}>{mp.nome}</Text>
-              </View>
-            )}
-            <View style={styles.macroPageContent}>
-              {mp.descrizione_estesa.split(/\n\n+/).map((para, i) => {
-                const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
-                const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
-                if (allBullets) {
-                  return (
-                    <View key={i} style={{ marginBottom: 8 }}>
-                      {lines.map((l, li) => (
-                        <View key={li} style={styles.bulletItem}>
-                          <View style={styles.bulletDot} />
-                          <Text style={{ flex: 1, fontSize: 10.5, color: C.gray700, lineHeight: 1.55 }}>
-                            {l.replace(/^[-•]\s*/, "")}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  );
-                }
-                return (
-                  <Text key={i} style={{ marginBottom: 8, fontSize: 11, color: C.gray700, lineHeight: 1.65 }}>
-                    {para}
-                  </Text>
-                );
-              })}
-            </View>
-          </View>
-          <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
-        </Page>
-      ))}
-
       {/* ─── PAGINA "IL TUO PERCORSO" — fasi + step in cards verticali ─────
           Posizionata RIGHT BEFORE la CTA "Pronti per partire" come anteprima
           del workflow. Layout: hero con numero step totali + grid di card
@@ -1852,45 +1871,6 @@ export function SerramentoPDF({
           <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
         </Page>
       )}
-
-      {/* ─── PAGINA FINALE — CTA + RENDER + TESTIMONIANZE ───────────────── */}
-      <Page size="A4" style={styles.page}>
-        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
-
-        <Text style={styles.pageEyebrow}>Il prossimo passo</Text>
-        <Text style={styles.pageTitle}>Pronti{"\n"}per partire.</Text>
-        <Text style={styles.pageSubtitle}>
-          Tutto quello che serve per trasformare il preventivo in cantiere.
-        </Text>
-
-        {/* CTA box */}
-        <View style={styles.ctaBox}>
-          <Text style={styles.ctaTitle}>✓ {ctaTitle}</Text>
-          {ctaSteps.slice(0, 5).map((step, i) => (
-            <View key={i} style={styles.ctaStep} wrap={false}>
-              <Text style={styles.ctaCheck}>{i + 1}</Text>
-              <Text style={styles.ctaText}>{step}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Testimonianze rapide nella stessa CTA page se attive */}
-        {recensioniAttivo && testimonianze.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Cosa dicono i nostri clienti</Text>
-            {testimonianze.slice(0, 3).map((t, i) => (
-              <View key={i} style={styles.testimonialBox} wrap={false}>
-                <Text style={styles.testimonialQuote}>"{t.testo}"</Text>
-                <Text style={styles.testimonialAuthor}>
-                  — {t.cliente_nome}{t.dettaglio ? ` · ${t.dettaglio}` : ""}
-                </Text>
-              </View>
-            ))}
-          </>
-        )}
-
-        <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
-      </Page>
 
       {/* ─── PAGINA RENDER AI in LANDSCAPE (orizzontale) per dare massimo
             risalto al PRIMA/DOPO.
@@ -2033,6 +2013,51 @@ export function SerramentoPDF({
           </View>
         </Page>
       )}
+
+      {/* ─── PAGINA FINALE — CTA + RENDER + TESTIMONIANZE ───────────────── */}
+      <Page size="A4" style={styles.page}>
+        <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+
+        <Text style={styles.pageEyebrow}>Il prossimo passo</Text>
+        <Text style={styles.pageTitle}>Pronti{"\n"}per partire.</Text>
+        <Text style={styles.pageSubtitle}>
+          Tutto quello che serve per trasformare il preventivo in cantiere.
+        </Text>
+
+        {/* CTA box */}
+        <View style={styles.ctaBox}>
+          <Text style={styles.ctaTitle}>✓ {ctaTitle}</Text>
+          {ctaSteps.slice(0, 5).map((step, i) => (
+            <View key={i} style={styles.ctaStep} wrap={false}>
+              <Text style={styles.ctaCheck}>{i + 1}</Text>
+              <Text style={styles.ctaText}>{step}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Testimonianze rapide nella stessa CTA page se attive.
+            Field map: SrTestimonianza = { quote, autore, citta?, intervento? }.
+            Prima il codice usava `testo/cliente_nome/dettaglio` che non esistono
+            sul type → nessuna recensione veniva mai mostrata. */}
+        {recensioniAttivo && testimonianze.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Cosa dicono i nostri clienti</Text>
+            {testimonianze.slice(0, 3).map((t, i) => {
+              const sub = [t.citta, t.intervento].filter(Boolean).join(" · ");
+              return (
+                <View key={i} style={styles.testimonialBox} wrap={false}>
+                  <Text style={styles.testimonialQuote}>&ldquo;{t.quote}&rdquo;</Text>
+                  <Text style={styles.testimonialAuthor}>
+                    — {t.autore}{sub ? ` · ${sub}` : ""}
+                  </Text>
+                </View>
+              );
+            })}
+          </>
+        )}
+
+        <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+      </Page>
 
       {/* Render aggiuntivi (3°, 4°...) in pagine landscape successive se presenti */}
       {renderUrls.length >= 3 && renderUrls.slice(2, 6).reduce((acc: string[][], url, i) => {

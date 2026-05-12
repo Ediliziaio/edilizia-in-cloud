@@ -28,6 +28,7 @@ import {
   useAddSerramento, useUpdateSerramento, useDeleteSerramento, useImportDaSopralluogo,
   useListinoFamilies, useListinoGriglia,
 } from "@/lib/serramenti/queries";
+import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
 import {
   SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI,
 } from "@/types/serramenti";
@@ -544,6 +545,13 @@ function SerramentoRow({
               dalla scheda tecnica e ridondanti. */}
           {!isFromListino && (
             <>
+              {/* Macrocategoria override — permette di collegare un BOM manuale
+                  ad una macrocategoria del listino. Nel PDF carica così la foto
+                  prodotto + la pagina dedicata (se la macro ha mostra_pagina=true). */}
+              <MacroOverrideSelect
+                value={s.macrocategoria_override_id}
+                onChange={(v) => onPatch({ macrocategoria_override_id: v })}
+              />
               <div className="col-span-6 md:col-span-4">
                 <Label className="text-xs">Materiale</Label>
                 <Select
@@ -679,5 +687,70 @@ function SerramentoRow({
         </CardContent>
       )}
     </Card>
+  );
+}
+
+// ─── MacroOverrideSelect ─────────────────────────────────────────────────────
+//
+// Select per assegnare manualmente una macrocategoria del listino a un BOM
+// creato manualmente. Nel PDF questo abilita:
+//   - foto prodotto dalla macro (fallback automatico)
+//   - pagina dedicata macrocategoria (se la macro ha mostra_pagina_dedicata_pdf)
+//
+// Solo macro attive vengono mostrate. Lo "Nessuna" rimuove l'override.
+
+function MacroOverrideSelect({
+  value, onChange,
+}: {
+  value: string | null;
+  onChange: (next: string | null) => void;
+}) {
+  const { data: macros = [] } = useListinoMacrocategorie();
+  const macrosAttive = macros.filter((m) => m.attivo);
+  return (
+    <div className="col-span-12">
+      <div className="rounded-md border border-dashed border-slate-200 bg-muted/20 p-2.5">
+        <Label className="text-[11px] flex items-center justify-between mb-1.5">
+          <span className="font-semibold">
+            Collega a una macrocategoria del listino{" "}
+            <span className="text-muted-foreground font-normal">(opzionale)</span>
+          </span>
+          {value && (
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className="text-[10px] text-rose-600 hover:underline"
+            >
+              Rimuovi
+            </button>
+          )}
+        </Label>
+        <Select
+          value={value ?? "__none__"}
+          onValueChange={(v) => onChange(v === "__none__" ? null : v)}
+        >
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue placeholder="Nessuna" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__" className="text-xs italic text-muted-foreground">
+              Nessuna macrocategoria
+            </SelectItem>
+            {macrosAttive.map((m) => (
+              <SelectItem key={m.id} value={m.id} className="text-xs">
+                {m.nome}
+                {m.mostra_pagina_dedicata_pdf && (
+                  <span className="ml-1.5 text-[9px] text-orange-600">+ pagina PDF</span>
+                )}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[10px] text-muted-foreground mt-1">
+          Nel PDF caricherà <strong>foto prodotto</strong> e, se la macro ha la
+          pagina dedicata attiva, anche la sua <strong>scheda descrittiva</strong>.
+        </p>
+      </div>
+    </div>
   );
 }

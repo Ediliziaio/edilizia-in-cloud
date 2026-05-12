@@ -194,11 +194,20 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   // 5. Macrocategorie coinvolte: fetch unico per
   //    (a) fallback immagine prodotto nella tabella composizione (BOM)
   //    (b) pagine dedicate (solo quelle con mostra_pagina_dedicata_pdf=true)
+  //
+  // Sorgenti macro_id per serramento (in ordine di priorità):
+  //   1. family.categoria.macrocategoria_id (BOM da listino)
+  //   2. macrocategoria_override_id (BOM manuale con scelta esplicita)
   const macroIdsBomOrdine: string[] = [];
   const seen = new Set<string>();
   for (const s of detail.serramenti) {
-    if (!s.family_id) continue;
-    const macroId = familiesById[s.family_id]?.macrocategoria_id;
+    let macroId: string | null = null;
+    if (s.family_id) {
+      macroId = familiesById[s.family_id]?.macrocategoria_id ?? null;
+    }
+    if (!macroId && s.macrocategoria_override_id) {
+      macroId = s.macrocategoria_override_id;
+    }
     if (macroId && !seen.has(macroId)) {
       seen.add(macroId);
       macroIdsBomOrdine.push(macroId);
