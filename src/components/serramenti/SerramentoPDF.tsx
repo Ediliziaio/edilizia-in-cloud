@@ -26,7 +26,10 @@ import type {
   SrTemplatePdfRow,
 } from "@/types/serramenti";
 import { SR_TIPOLOGIE_SERRAMENTO, SR_MATERIALI, SR_SCHEMI_PAGAMENTO, SR_PERCORSO_DEFAULT, normalizePdfPagesOrder } from "@/types/serramenti";
-import type { SrPercorsoCliente, SrPdfPageId, SrPdfPageOrderItem } from "@/types/serramenti";
+import type {
+  SrPercorsoCliente, SrPdfPageId, SrPdfPageOrderItem,
+  SrGaranzia, SrConfrontoRiga, SrCertificazione, SrBonus, SrFaq,
+} from "@/types/serramenti";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
@@ -621,6 +624,96 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     },
     testimonialQuote: { fontSize: 10, fontStyle: "italic" as const, color: C.gray700, lineHeight: 1.55 },
     testimonialAuthor: { fontSize: 8.5, color: C.gray500, marginTop: 4 },
+
+    // ─── Blocchi conversione (CRO) ──────────────────────────────────────
+    // Garanzie: griglia 2 colonne con badge
+    garanziaCard: {
+      width: "48%",
+      backgroundColor: C.primaryLight,
+      borderLeft: `3pt solid ${C.primary}`,
+      borderRadius: 6,
+      padding: 12,
+      marginBottom: 10,
+    },
+    garanziaIcon: {
+      width: 32, height: 32, borderRadius: 16,
+      backgroundColor: C.primary,
+      alignItems: "center" as const, justifyContent: "center" as const,
+      marginBottom: 8,
+    },
+    garanziaTitolo: { fontSize: 11, fontWeight: 700, color: C.gray900, marginBottom: 4 },
+    garanziaDesc: { fontSize: 9, color: C.gray700, lineHeight: 1.45 },
+
+    // Urgenza box
+    urgenzaBox: {
+      backgroundColor: C.accentLight,
+      borderWidth: 1, borderColor: C.accent, borderStyle: "solid" as const,
+      borderRadius: 8, padding: 12, marginVertical: 10,
+    },
+    urgenzaLabel: {
+      fontSize: 9, color: C.accentText, fontWeight: 700,
+      letterSpacing: 1, textTransform: "uppercase" as const, marginBottom: 4,
+    },
+    urgenzaTitle: { fontSize: 14, fontWeight: 700, color: C.gray900, marginBottom: 3 },
+    urgenzaScadenza: { fontSize: 12, fontWeight: 700, color: C.primary },
+    urgenzaDesc: { fontSize: 9, color: C.gray700, marginTop: 4, lineHeight: 1.4 },
+
+    // Confronto Prima/Dopo
+    confrontoRow: {
+      flexDirection: "row" as const,
+      paddingVertical: 8,
+      borderBottom: `0.5pt solid ${C.gray100}`,
+    },
+    confrontoCell: { fontSize: 10, color: C.gray700 },
+    confrontoCellStrong: { fontSize: 10, fontWeight: 700, color: C.gray900 },
+    confrontoCellDelta: { fontSize: 10, fontWeight: 700, color: C.successText },
+
+    // Certificazioni strip
+    certStrip: {
+      flexDirection: "row" as const, flexWrap: "wrap" as const,
+      gap: 8, marginTop: 12, paddingTop: 12,
+      borderTop: `0.5pt solid ${C.gray100}`,
+    },
+    certBadge: {
+      paddingHorizontal: 8, paddingVertical: 4,
+      borderRadius: 4,
+      backgroundColor: C.gray100,
+      borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid" as const,
+    },
+    certBadgeText: { fontSize: 8.5, fontWeight: 600, color: C.gray700 },
+
+    // Bonus box (value stacking)
+    bonusBox: {
+      backgroundColor: C.successBg,
+      borderLeft: `3pt solid ${C.successText}`,
+      borderRadius: 6,
+      padding: 10, marginBottom: 6,
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+    },
+    bonusTitolo: { fontSize: 11, fontWeight: 700, color: C.successText, flex: 1 },
+    bonusValore: { fontSize: 11, fontWeight: 700, color: C.successText },
+
+    // FAQ
+    faqItem: {
+      marginBottom: 12,
+      paddingBottom: 10,
+      borderBottom: `0.5pt solid ${C.gray100}`,
+    },
+    faqDomanda: { fontSize: 11, fontWeight: 700, color: C.gray900, marginBottom: 4 },
+    faqRisposta: { fontSize: 10, color: C.gray700, lineHeight: 1.5 },
+
+    // Brand footer / Condizioni legali
+    brandFooter: {
+      fontSize: 8, color: C.gray500, lineHeight: 1.5,
+      paddingTop: 8, marginTop: 12,
+      borderTop: `0.5pt solid ${C.gray200}`,
+      textAlign: "center" as const,
+    },
+    condizioniText: {
+      fontSize: 9, color: C.gray700, lineHeight: 1.55,
+      fontFamily: FF,
+    },
   });
 }
 
@@ -753,6 +846,70 @@ function CoverDecorationSvg({ color }: { color: string }) {
 
 // GanttSvg (cronoprogramma) rimosso: la timeline è stata sostituita dalla
 // pagina "Il tuo percorso" configurabile dal template editor.
+
+// ─── SVG: Icone garanzie ───────────────────────────────────────────────────
+// Helvetica non rende emoji unicode, quindi disegniamo a mano gli SVG per
+// le 8 icone supportate. 18×18 viewbox, stroke-style minimal.
+
+function GaranziaIconSvg({ kind, color }: { kind: string; color: string }) {
+  const svgProps = { viewBox: "0 0 24 24", style: { width: 16, height: 16 } as never };
+  switch (kind) {
+    case "shield":
+      return (
+        <Svg {...svgProps}>
+          <Path d="M 12 2 L 4 6 L 4 12 C 4 16 7 20 12 22 C 17 20 20 16 20 12 L 20 6 Z" stroke={color} strokeWidth={2} fill="none" />
+          <Path d="M 9 12 L 11 14 L 15 10" stroke={color} strokeWidth={2} fill="none" />
+        </Svg>
+      );
+    case "tools":
+      return (
+        <Svg {...svgProps}>
+          <Path d="M 14 6 L 18 2 L 22 6 L 18 10 Z" stroke={color} strokeWidth={2} fill="none" />
+          <Path d="M 17 7 L 7 17 L 4 20 L 2 18 L 5 15 L 15 5" stroke={color} strokeWidth={2} fill="none" />
+        </Svg>
+      );
+    case "money":
+      return (
+        <Svg {...svgProps}>
+          <Circle cx={12} cy={12} r={9} stroke={color} strokeWidth={2} fill="none" />
+          <Path d="M 12 7 L 12 17 M 9 10 L 12 8 L 15 10 M 9 14 L 12 16 L 15 14" stroke={color} strokeWidth={2} fill="none" />
+        </Svg>
+      );
+    case "drop":
+      return (
+        <Svg {...svgProps}>
+          <Path d="M 12 2 C 8 8 5 12 5 16 C 5 19 8 22 12 22 C 16 22 19 19 19 16 C 19 12 16 8 12 2 Z" stroke={color} strokeWidth={2} fill="none" />
+        </Svg>
+      );
+    case "refresh":
+      return (
+        <Svg {...svgProps}>
+          <Path d="M 4 12 A 8 8 0 0 1 20 12 M 20 7 L 20 12 L 15 12 M 20 12 A 8 8 0 0 1 4 12 M 4 17 L 4 12 L 9 12" stroke={color} strokeWidth={2} fill="none" />
+        </Svg>
+      );
+    case "clock":
+      return (
+        <Svg {...svgProps}>
+          <Circle cx={12} cy={12} r={9} stroke={color} strokeWidth={2} fill="none" />
+          <Path d="M 12 7 L 12 12 L 16 14" stroke={color} strokeWidth={2} fill="none" />
+        </Svg>
+      );
+    case "award":
+      return (
+        <Svg {...svgProps}>
+          <Circle cx={12} cy={9} r={6} stroke={color} strokeWidth={2} fill="none" />
+          <Path d="M 8 14 L 6 22 L 12 19 L 18 22 L 16 14" stroke={color} strokeWidth={2} fill="none" />
+        </Svg>
+      );
+    default:
+      return (
+        <Svg {...svgProps}>
+          <Circle cx={12} cy={12} r={8} stroke={color} strokeWidth={2} fill="none" />
+          <Path d="M 12 2 L 12 6 M 12 18 L 12 22 M 2 12 L 6 12 M 18 12 L 22 12" stroke={color} strokeWidth={2} fill="none" />
+        </Svg>
+      );
+  }
+}
 
 // ─── SVG: Cashflow 10 anni ─────────────────────────────────────────────────
 
@@ -1020,6 +1177,40 @@ export function SerramentoPDF({
   // Percorso cliente — pagina dedicata con fasi/step (default sensato se nullo)
   const percorso: SrPercorsoCliente = (tpl.percorso_cliente as SrPercorsoCliente | null) ?? SR_PERCORSO_DEFAULT;
   const percorsoAttivo = percorso.attivo;
+
+  // ─── Blocchi conversione (CRO playbook) ──────────────────────────────────
+  const garanzie = (Array.isArray(tpl.garanzie) ? tpl.garanzie : []) as SrGaranzia[];
+  const garanzieAttiva = garanzie.length > 0;
+  const urgenzaAttiva = !!tpl.urgenza_attiva;
+  const urgenzaTitolo = (tpl.urgenza_titolo as string | null) || "Offerta valida fino a";
+  const urgenzaDescrizione = (tpl.urgenza_descrizione as string | null) || null;
+  const earlyBirdAttivo = !!tpl.early_bird_attivo;
+  const earlyBirdPct = Number(tpl.early_bird_pct ?? 0);
+  const earlyBirdGiorni = Number(tpl.early_bird_giorni ?? 0);
+  const confrontoAttivo = !!tpl.confronto_attivo;
+  const confrontoTitolo = (tpl.confronto_titolo as string | null) || "Il salto di qualità che otterrai";
+  const confrontoRighe = (Array.isArray(tpl.confronto_righe) ? tpl.confronto_righe : []) as SrConfrontoRiga[];
+  const certificazioni = (Array.isArray(tpl.certificazioni) ? tpl.certificazioni : []) as SrCertificazione[];
+  const bonus = (Array.isArray(tpl.bonus_aggiuntivi) ? tpl.bonus_aggiuntivi : []) as SrBonus[];
+  const faqItems = (Array.isArray(tpl.faq_items) ? tpl.faq_items : []) as SrFaq[];
+  const faqAttiva = faqItems.length > 0;
+  const brandFooterAttivo = !!tpl.brand_footer_attivo;
+  const brandFooterTesto = (tpl.brand_footer_testo as string | null) || null;
+  const condizioniLegaliAttivo = !!tpl.condizioni_legali_attivo;
+  const condizioniLegaliTesto = (tpl.condizioni_legali_testo as string | null) || null;
+
+  // Validità con countdown calcolato (per box urgenza)
+  const validoGiorni = p.valido_fino_giorni ?? 15;
+  const scadenzaPreventivo = (() => {
+    const start = p.created_at ? new Date(p.created_at) : new Date();
+    const end = new Date(start.getTime() + validoGiorni * 86400000);
+    return end.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+  })();
+  const scadenzaEarlyBird = earlyBirdAttivo && earlyBirdGiorni > 0 ? (() => {
+    const start = p.created_at ? new Date(p.created_at) : new Date();
+    const end = new Date(start.getTime() + earlyBirdGiorni * 86400000);
+    return end.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+  })() : null;
   const percorsoTotaleStep = percorso.fasi.reduce((acc, f) => acc + f.step.length, 0);
 
   const totaleMin = Number(p.totale_min ?? 0);
@@ -1168,6 +1359,27 @@ export function SerramentoPDF({
               </Text>
             </View>
           )}
+          {/* Urgenza/scadenza in cover (se attiva nel template) — innesca
+              scarsità subito sulla prima impressione del cliente. */}
+          {urgenzaAttiva && (
+            <View style={[styles.urgenzaBox, {
+              backgroundColor: "rgba(255,255,255,0.1)",
+              borderColor: C.accent,
+              marginTop: 18,
+            }]}>
+              <Text style={[styles.urgenzaLabel, { color: C.accent }]}>
+                ⏰ Offerta valida fino al
+              </Text>
+              <Text style={[styles.urgenzaScadenza, { color: coverTextColor, fontSize: 16 }]}>
+                {scadenzaPreventivo}
+              </Text>
+              {earlyBirdAttivo && scadenzaEarlyBird && (
+                <Text style={[styles.urgenzaDesc, { color: coverTextColor, opacity: 0.85 }]}>
+                  💡 Sconto −{earlyBirdPct}% extra se firmi entro il {scadenzaEarlyBird}
+                </Text>
+              )}
+            </View>
+          )}
         </View>
 
         <View style={styles.coverFooter}>
@@ -1236,6 +1448,17 @@ export function SerramentoPDF({
                       }
                       return <Text key={i} style={[styles.chiSiamoText, { marginBottom: 8 }]}>{para}</Text>;
                     })}
+                  </View>
+                )}
+                {/* Strip certificazioni: 5-6 badge qualità in fondo a chi siamo
+                    per autorità + trust senza occupare pagina dedicata. */}
+                {certificazioni.length > 0 && (
+                  <View style={styles.certStrip} wrap={false}>
+                    {certificazioni.slice(0, 6).map((c, i) => (
+                      <View key={i} style={styles.certBadge}>
+                        <Text style={styles.certBadgeText}>{c.nome}</Text>
+                      </View>
+                    ))}
                   </View>
                 )}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
@@ -1620,6 +1843,24 @@ export function SerramentoPDF({
                 </Text>
               </View>
 
+              {/* Box urgenza/scadenza prezzo + early bird (CRO) */}
+              {urgenzaAttiva && (
+                <View style={styles.urgenzaBox} wrap={false}>
+                  <Text style={styles.urgenzaLabel}>⏰ {urgenzaTitolo}</Text>
+                  <Text style={styles.urgenzaScadenza}>
+                    {scadenzaPreventivo}
+                  </Text>
+                  {urgenzaDescrizione && (
+                    <Text style={styles.urgenzaDesc}>{urgenzaDescrizione}</Text>
+                  )}
+                  {earlyBirdAttivo && scadenzaEarlyBird && (
+                    <Text style={[styles.urgenzaDesc, { color: C.primary, fontWeight: 700, marginTop: 6 }]}>
+                      💡 Sconto extra −{earlyBirdPct}% se firmi entro il {scadenzaEarlyBird}
+                    </Text>
+                  )}
+                </View>
+              )}
+
               {milestones.length > 0 && (
                 <>
                   <Text style={styles.sectionTitle}>Modalità di pagamento</Text>
@@ -1823,6 +2064,36 @@ export function SerramentoPDF({
                       </View>
                     );
                   })}
+                </>
+              )}
+
+              {/* Bonus aggiuntivi (value stacking CRO): box verdi con valore €.
+                  Il cliente percepisce un omaggio extra che non riceverebbe
+                  altrove. */}
+              {bonus.length > 0 && (
+                <>
+                  <Text style={[styles.sectionTitle, { color: C.successText }]}>
+                    🎁 In più, in regalo
+                  </Text>
+                  {bonus.map((b, i) => (
+                    <View key={i} style={styles.bonusBox} wrap={false}>
+                      <Text style={styles.bonusTitolo}>{b.titolo}</Text>
+                      {b.valore_eur && b.valore_eur > 0 && (
+                        <Text style={styles.bonusValore}>
+                          valore € {b.valore_eur}
+                        </Text>
+                      )}
+                    </View>
+                  ))}
+                  {(() => {
+                    const valoreTotale = bonus.reduce((acc, b) => acc + (Number(b.valore_eur) || 0), 0);
+                    if (valoreTotale <= 0) return null;
+                    return (
+                      <Text style={{ fontSize: 9, color: C.successText, fontWeight: 700, marginTop: 4, textAlign: "right" as const }}>
+                        Valore omaggi totale: € {valoreTotale}
+                      </Text>
+                    );
+                  })()}
                 </>
               )}
 
@@ -2122,8 +2393,142 @@ export function SerramentoPDF({
                 </>
               )}
 
+              {/* Brand legitimacy footer in CTA: dati legali in piccolo,
+                  segnala professionalità + protezione legale. */}
+              {brandFooterAttivo && brandFooterTesto && !condizioniLegaliAttivo && (
+                <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
+              )}
+
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
             </Page>
+            </>
+          ),
+          // ─── PAGINA GARANZIE (CRO) ─────────────────────────────────────
+          garanzie: (
+            <>
+            {garanzieAttiva && (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <Text style={styles.pageEyebrow}>Le nostre garanzie</Text>
+                <Text style={styles.pageTitle}>Zero rischi.{"\n"}Solo certezze.</Text>
+                <Text style={styles.pageSubtitle}>
+                  Ti diamo per iscritto le 5 garanzie più importanti del nostro lavoro.
+                </Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
+                  {garanzie.slice(0, 6).map((g, i) => (
+                    <View key={i} style={styles.garanziaCard} wrap={false}>
+                      <View style={styles.garanziaIcon}>
+                        <GaranziaIconSvg kind={g.icona} color="#FFFFFF" />
+                      </View>
+                      <Text style={styles.garanziaTitolo}>{g.titolo}</Text>
+                      <Text style={styles.garanziaDesc}>{g.descrizione}</Text>
+                    </View>
+                  ))}
+                </View>
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+              </Page>
+            )}
+            </>
+          ),
+          // ─── PAGINA CONFRONTO PRIMA/DOPO NUMERICO ──────────────────────
+          confronto: (
+            <>
+            {confrontoAttivo && confrontoRighe.length > 0 && (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <Text style={styles.pageEyebrow}>Confronto tecnico · Prima &amp; Dopo</Text>
+                <Text style={styles.pageTitle}>{confrontoTitolo}</Text>
+                <Text style={styles.pageSubtitle}>
+                  Numeri reali a confronto: i tuoi serramenti attuali vs quelli che installeremo.
+                </Text>
+                {/* Header tabella */}
+                <View style={{ flexDirection: "row", paddingVertical: 8, borderBottom: `1pt solid ${C.gray300}`, marginTop: 16 }}>
+                  <View style={{ flex: 2 }}>
+                    <Text style={styles.tableHeaderText}>Parametro</Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: "center" }}>
+                    <Text style={[styles.tableHeaderText, { color: C.gray500 }]}>Attuale</Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: "center" }}>
+                    <Text style={[styles.tableHeaderText, { color: C.primary }]}>Nuovo</Text>
+                  </View>
+                  <View style={{ flex: 0.7, alignItems: "flex-end" }}>
+                    <Text style={[styles.tableHeaderText, { color: C.successText }]}>Δ</Text>
+                  </View>
+                </View>
+                {confrontoRighe.map((r, i) => (
+                  <View key={i} style={styles.confrontoRow} wrap={false}>
+                    <View style={{ flex: 2 }}>
+                      <Text style={styles.confrontoCell}>{r.parametro}</Text>
+                    </View>
+                    <View style={{ flex: 1, alignItems: "center" }}>
+                      <Text style={[styles.confrontoCell, { color: C.gray500 }]}>{r.prima}</Text>
+                    </View>
+                    <View style={{ flex: 1, alignItems: "center" }}>
+                      <Text style={styles.confrontoCellStrong}>{r.dopo}</Text>
+                    </View>
+                    <View style={{ flex: 0.7, alignItems: "flex-end" }}>
+                      {r.delta && <Text style={styles.confrontoCellDelta}>{r.delta}</Text>}
+                    </View>
+                  </View>
+                ))}
+                <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 14, fontStyle: "italic" }}>
+                  Valori stimati confronto serramenti vecchi (anni 80-90 in PVC singolo vetro) vs nuovi standard moderni.
+                  Bolletta gas: stima media nazionale Italia per appartamento 90 m² zona climatica E.
+                </Text>
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+              </Page>
+            )}
+            </>
+          ),
+          // ─── PAGINA FAQ ────────────────────────────────────────────────
+          faq: (
+            <>
+            {faqAttiva && (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <Text style={styles.pageEyebrow}>Domande frequenti</Text>
+                <Text style={styles.pageTitle}>Sai già{"\n"}cosa chiederci.</Text>
+                <Text style={styles.pageSubtitle}>
+                  Le risposte ai dubbi più comuni che ci fanno i nostri clienti.
+                </Text>
+                <View style={{ marginTop: 14 }}>
+                  {faqItems.slice(0, 8).map((f, i) => (
+                    <View key={i} style={styles.faqItem} wrap={false}>
+                      <Text style={styles.faqDomanda}>{i + 1}. {f.domanda}</Text>
+                      <Text style={styles.faqRisposta}>{f.risposta}</Text>
+                    </View>
+                  ))}
+                </View>
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+              </Page>
+            )}
+            </>
+          ),
+          // ─── PAGINA CONDIZIONI LEGALI ──────────────────────────────────
+          condizioni: (
+            <>
+            {condizioniLegaliAttivo && condizioniLegaliTesto && (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <Text style={styles.pageEyebrow}>Appendice legale</Text>
+                <Text style={[styles.pageTitle, { fontSize: 22 }]}>Condizioni e disclaimer</Text>
+                <Text style={styles.pageSubtitle}>
+                  Termini contrattuali e disclaimer applicabili a questo preventivo.
+                </Text>
+                <View style={{ marginTop: 14 }}>
+                  {condizioniLegaliTesto.split(/\n\n+/).map((para, i) => (
+                    <Text key={i} style={[styles.condizioniText, { marginBottom: 8 }]}>
+                      {para}
+                    </Text>
+                  ))}
+                </View>
+                {brandFooterAttivo && brandFooterTesto && (
+                  <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
+                )}
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+              </Page>
+            )}
             </>
           ),
         };

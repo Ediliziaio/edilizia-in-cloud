@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { SerramentiTemplatePreviewDialog } from "@/components/serramenti/SerramentiTemplatePreviewDialog";
 import { SerramentiPagesOrderEditor } from "@/components/serramenti/SerramentiPagesOrderEditor";
+import { SerramentiConversionEditor } from "@/components/serramenti/SerramentiConversionEditor";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
@@ -880,6 +881,7 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
             <TabsTrigger value="recensioni" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Recensioni</TabsTrigger>
             <TabsTrigger value="render" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Render AI</TabsTrigger>
             <TabsTrigger value="cta" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">CTA finale</TabsTrigger>
+            <TabsTrigger value="conversione" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">⚡ Conversione</TabsTrigger>
             <TabsTrigger value="ordine-pagine" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Ordine pagine</TabsTrigger>
           </TabsList>
 
@@ -1706,6 +1708,11 @@ export function SerramentiTemplateEditor({ embedded = false }: SerramentiTemplat
               </TabsContent>
             );
           })()}
+
+          {/* ═══ CONVERSIONE (CRO playbook) ═════════════════════════════════ */}
+          <TabsContent value="conversione" className="mt-4">
+            <SerramentiConversionEditor form={form} update={update} />
+          </TabsContent>
 
           {/* ═══ ORDINE PAGINE ═══════════════════════════════════════════════ */}
           <TabsContent value="ordine-pagine" className="mt-4">

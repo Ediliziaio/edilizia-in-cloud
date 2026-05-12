@@ -391,6 +391,33 @@ export interface SrTemplatePdfRow {
   percorso_cliente: SrPercorsoCliente | null;
   /** Ordine e visibilità delle pagine PDF. NULL = ordine default. */
   pdf_pages_order: SrPdfPageOrderItem[] | null;
+  // ─── Blocchi conversione PDF (CRO playbook) ───────────────────────────
+  /** Lista garanzie mostrate sulla pagina "Le nostre garanzie". */
+  garanzie: SrGaranzia[] | null;
+  /** Mostra box urgenza/validità prezzo nel PDF (cover + investimento). */
+  urgenza_attiva: boolean;
+  urgenza_titolo: string | null;
+  urgenza_descrizione: string | null;
+  /** Sconto early bird (es. -5% se firmi entro N giorni). */
+  early_bird_attivo: boolean;
+  early_bird_pct: number | null;
+  early_bird_giorni: number | null;
+  /** Tabella confronto numerico Prima/Dopo. */
+  confronto_attivo: boolean;
+  confronto_titolo: string | null;
+  confronto_righe: SrConfrontoRiga[] | null;
+  /** Loghi certificazioni mostrati in chi siamo. */
+  certificazioni: SrCertificazione[] | null;
+  /** Bonus aggiuntivi (value stacking) mostrati nella sezione incluso. */
+  bonus_aggiuntivi: SrBonus[] | null;
+  /** FAQ pagina dedicata. */
+  faq_items: SrFaq[] | null;
+  /** Brand legitimacy footer (dati legali). */
+  brand_footer_attivo: boolean;
+  brand_footer_testo: string | null;
+  /** Condizioni e disclaimer legali (pagina appendice). */
+  condizioni_legali_attivo: boolean;
+  condizioni_legali_testo: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -436,6 +463,123 @@ export const SR_PERCORSO_DEFAULT: SrPercorsoCliente = {
   ],
 };
 
+// ─── Blocchi conversione PDF (CRO playbook) ───────────────────────────────
+
+/** Una garanzia mostrata sulla pagina "Le nostre garanzie". */
+export interface SrGaranzia {
+  icona: "shield" | "tools" | "money" | "drop" | "refresh" | "clock" | "award" | "custom";
+  titolo: string;
+  descrizione: string;
+}
+
+/** Riga della tabella Confronto Prima/Dopo numerico (parametro tecnico). */
+export interface SrConfrontoRiga {
+  parametro: string;       // "Trasmittanza Uw"
+  prima: string;           // "~3,5 W/m²K"
+  dopo: string;            // "1,1 W/m²K"
+  delta: string | null;    // "-68%" oppure null
+}
+
+/** Certificazione/marchio di qualità (logo + nome). */
+export interface SrCertificazione {
+  nome: string;
+  logo_url: string | null;
+}
+
+/** Bonus aggiuntivo per value stacking (regalo tangibile con valore €). */
+export interface SrBonus {
+  icona: "gift" | "tools" | "shield" | "wrench" | "phone" | "calendar" | "custom";
+  titolo: string;
+  valore_eur: number | null;
+}
+
+/** Domanda frequente / obiezione anticipata. */
+export interface SrFaq {
+  domanda: string;
+  risposta: string;
+}
+
+/** Default per garanzie: 5 garanzie standard per serramentisti. */
+export const SR_GARANZIE_DEFAULT: SrGaranzia[] = [
+  {
+    icona: "shield",
+    titolo: "Garanzia 10 anni sul prodotto",
+    descrizione: "Profili, ferramenta e vetri coperti da garanzia decennale del produttore. Sostituzione gratuita in caso di difetto di fabbrica.",
+  },
+  {
+    icona: "tools",
+    titolo: "Posa certificata UNI 11673",
+    descrizione: "Garanzia decennale sulla posa eseguita secondo norma UNI 11673 con tripla sigillatura. Nera su bianco in offerta.",
+  },
+  {
+    icona: "clock",
+    titolo: "Tempi garantiti contrattualmente",
+    descrizione: "Se sforiamo la data di consegna concordata, paghiamo noi la penale. Te la mettiamo per iscritto.",
+  },
+  {
+    icona: "drop",
+    titolo: "Zero infiltrazioni in 10 anni",
+    descrizione: "Tripla sigillatura perimetrale: nastri autoespandenti + membrana traspirante + finitura. Garantito.",
+  },
+  {
+    icona: "refresh",
+    titolo: "Soddisfatto o intervieni gratis",
+    descrizione: "Nei primi 12 mesi, qualsiasi anomalia di funzionamento o estetica viene risolta senza alcun costo aggiuntivo.",
+  },
+];
+
+/** Default per confronto Prima/Dopo numerico (parametri standard infissi). */
+export const SR_CONFRONTO_DEFAULT: SrConfrontoRiga[] = [
+  { parametro: "Trasmittanza termica Uw", prima: "~3,5 W/m²K", dopo: "1,1 W/m²K", delta: "−68%" },
+  { parametro: "Abbattimento acustico", prima: "~26 dB", dopo: "38 dB", delta: "+46%" },
+  { parametro: "Tenuta aria", prima: "Classe 1", dopo: "Classe 4", delta: "4×" },
+  { parametro: "Bolletta gas stimata/anno", prima: "€1.450", dopo: "€1.310", delta: "−€140" },
+];
+
+/** Default certificazioni serramentista standard. */
+export const SR_CERTIFICAZIONI_DEFAULT: SrCertificazione[] = [
+  { nome: "Marcatura CE", logo_url: null },
+  { nome: "UNI EN ISO 9001", logo_url: null },
+  { nome: "UNI 11673 (posa)", logo_url: null },
+  { nome: "ENEA", logo_url: null },
+  { nome: "Confartigianato", logo_url: null },
+];
+
+/** Default bonus per value stacking. */
+export const SR_BONUS_DEFAULT: SrBonus[] = [
+  { icona: "gift", titolo: "Zanzariere magnetiche in regalo", valore_eur: 280 },
+  { icona: "tools", titolo: "Pulizia post-cantiere certificata", valore_eur: 150 },
+  { icona: "calendar", titolo: "1 anno di assistenza taratura gratuita", valore_eur: 120 },
+];
+
+/** Default FAQ con 6 obiezioni comuni del settore serramenti. */
+export const SR_FAQ_DEFAULT: SrFaq[] = [
+  {
+    domanda: "E se piove durante la posa?",
+    risposta: "Posiamo in qualsiasi condizione: i nostri teli e protezioni proteggono interni e mobili. Solo in caso di temporale violento o vento forte (sicurezza operatori) rinviamo di 1-2 giorni.",
+  },
+  {
+    domanda: "Devo lasciarvi le chiavi?",
+    risposta: "Solo se preferisci. Possiamo lavorare in tua presenza, lasciamo sempre la casa pulita a fine giornata. Per multi-giorno alcuni clienti preferiscono lasciare le chiavi: in quel caso firmiamo verbale.",
+  },
+  {
+    domanda: "Quando arrivano i serramenti?",
+    risposta: "Tempistica standard: 60-90 giorni dalla conferma ordine (produzione + logistica). Per ordini urgenti abbiamo accordi con il fornitore per consegne in 30-45 giorni.",
+  },
+  {
+    domanda: "Posso cambiare colore in corso d'opera?",
+    risposta: "Fino a 5 giorni dall'ordine senza costi. Dopo, dipende dallo stato di lavorazione: se i profili non sono ancora tagliati, possiamo cambiare. Altrimenti il colore va confermato.",
+  },
+  {
+    domanda: "Funziona anche con condominio storico/vincolato?",
+    risposta: "Sì. Per immobili vincolati (centro storico, Belle Arti) prepariamo SCIA e materiale fotografico per autorizzazione. Tempistica aggiuntiva 30-45 giorni per pratica.",
+  },
+  {
+    domanda: "Come avviene il pagamento?",
+    risposta: "Acconto alla firma contratto (tipicamente 30-40%), saldo alla consegna serramenti in cantiere. Possibili finanziamenti a tasso agevolato fino a 60 mesi.",
+  },
+];
+
 /**
  * Identificatori delle pagine del PDF preventivo configurabili dall'admin
  * via Template editor → Ordine pagine.
@@ -450,8 +594,12 @@ export type SrPdfPageId =
   | "macro_dedicate"
   | "investimento"
   | "percorso"
+  | "garanzie"
+  | "confronto"
+  | "faq"
   | "render"
-  | "cta";
+  | "cta"
+  | "condizioni";
 
 export interface SrPdfPageOrderItem {
   id: SrPdfPageId;
@@ -505,9 +653,27 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     obbligatoria: false,
   },
   {
+    id: "garanzie",
+    label: "Le nostre garanzie",
+    descrizione: "5 garanzie con badge visivi (decennale, posa, tempi, infiltrazioni, soddisfazione).",
+    obbligatoria: false,
+  },
+  {
+    id: "confronto",
+    label: "Confronto Prima & Dopo numerico",
+    descrizione: "Tabella tecnica: serramento attuale vs nuovo (Uw, acustica, bolletta, ecc).",
+    obbligatoria: false,
+  },
+  {
     id: "render",
     label: "Prima & Dopo (render AI)",
     descrizione: "Foto attuale vs render AI. Mostrata solo se ci sono media.",
+    obbligatoria: false,
+  },
+  {
+    id: "faq",
+    label: "FAQ — obiezioni anticipate",
+    descrizione: "6 domande frequenti con risposte chiare per anticipare i dubbi del cliente.",
     obbligatoria: false,
   },
   {
@@ -515,6 +681,12 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     label: "Pronti per partire + recensioni",
     descrizione: "Box CTA finale + testimonianze cliente (se attive).",
     obbligatoria: true,
+  },
+  {
+    id: "condizioni",
+    label: "Condizioni e disclaimer legali",
+    descrizione: "Appendice T&C contrattuali + dati legali azienda (P.IVA, REA, assicurazione).",
+    obbligatoria: false,
   },
 ];
 
