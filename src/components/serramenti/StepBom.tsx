@@ -632,7 +632,11 @@ function SerramentoRow({
                   2. Prezzo OK (>0): mostra cifra arancione
                   3. Prezzo mancante (off-listino non valorizzato):
                      warning ambra "Prezzo da impostare" */}
-            {(s.note?.includes("OMAGGIO") || s.note?.includes("🎁")) && (s.prezzo_totale ?? 0) === 0 ? (
+            {/* Detection omaggio STRETTA: confronto su prefisso esatto
+                "🎁 OMAGGIO" salvato da ManualAddDialog. Prima usavamo
+                `includes` -> falsi positivi su note libere con emoji 🎁
+                o parola "OMAGGIO" inserita dall'utente per altro motivo. */}
+            {s.note?.startsWith("🎁 OMAGGIO") && (s.prezzo_totale ?? 0) === 0 ? (
               <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 border border-emerald-200 rounded px-1.5 py-0.5 inline-flex items-center gap-1">
                 🎁 Omaggio
               </span>
@@ -1195,7 +1199,16 @@ function ManualAddDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 items-center sm:items-center">
+          {/* Hint contestuale: spiega all'utente perche' il bottone "Aggiungi"
+              e' disabled. Senza, l'utente cliccca senza capire. */}
+          {!isValid && (
+            <p className="text-[11px] text-amber-700 flex-1 text-left">
+              {nome.trim().length === 0
+                ? "Inserisci almeno il nome della voce."
+                : "Quantita' deve essere almeno 1."}
+            </p>
+          )}
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
             Annulla
           </Button>
