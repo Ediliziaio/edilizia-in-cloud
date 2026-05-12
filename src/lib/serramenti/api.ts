@@ -209,9 +209,77 @@ export async function getProgetto(id: string): Promise<SrProgettoDetail> {
   };
 }
 
+// Allowlist colonne `sr_progetti` aggiornabili da `updateProgetto`.
+// Esclude id/company_id/created_by/created_at/code (read-only o gestiti
+// dal sistema). Protegge contro write accidentali su campi virtuali o
+// non-DB passati dal client.
+const SR_PROGETTO_UPDATABLE_KEYS: ReadonlySet<keyof SrProgettoRow> = new Set([
+  // Stato
+  "stato", "updated_at",
+  // Cliente
+  "cliente_id", "cliente_nome", "cliente_cognome", "cliente_indirizzo",
+  "cliente_citta", "cliente_cap", "cliente_provincia", "cliente_telefono",
+  "cliente_email", "cliente_codice_fiscale",
+  // Cantiere
+  "cantiere_indirizzo", "cantiere_citta", "cantiere_cap", "cantiere_provincia",
+  "cantiere_lat", "cantiere_lng", "cantiere_zona_climatica", "cantiere_piano",
+  "cantiere_condominio", "cantiere_vincoli",
+  // Intervento
+  "tipo_intervento", "intervento_titolo", "intervento_sintesi",
+  "materiale_principale", "totale_serramenti", "totale_accessori",
+  "metri_quadri_totali",
+  // Copy preventivo
+  "esigenze", "soluzione", "perche_noi", "incluso_investimento",
+  "testimonianze", "prossimi_passi",
+  // Economia
+  "totale_min", "totale_max", "iva_inclusa", "iva_percentuale",
+  "sconto_percentuale", "sconto_importo", "fin_anticipo_pct", "fin_piani",
+  "fin_tabella_id", "fin_tabella_riga_id", "discount_rule_id",
+  "pagamento_milestones", "schema_pagamento",
+  // Varianti
+  "varianti_attive", "varianti", "variante_selezionata",
+  // ROI
+  "risparmio_calcolato", "risparmio_eur_anno", "detrazione_aliquota",
+  "detrazione_eur_totale", "detrazione_eur_anno", "payback_anni",
+  "co2_risparmiata_t_anno",
+  // Consulenza
+  "consulente_id", "consulenza_at", "consulenza_luogo",
+  // Cronoprogramma
+  "crono_giorni_produzione", "crono_giorni_posa", "crono_giorni_collaudo",
+  // Validità
+  "valido_fino_giorni", "valido_fino_data",
+  // Microsito pubblico
+  "public_token", "public_url", "allow_self_signing", "firmato_il",
+  "firma_cliente_url",
+  // Referral
+  "referral_amount_eur",
+  // Link
+  "sopralluogo_id", "sopralluogo_eseguito_il", "opportunita_id", "ordine_id",
+  // Output
+  "pdf_url", "pdf_generated_at", "pdf_html_url",
+  // Note
+  "note_interne",
+]);
+
 export async function updateProgetto(id: string, patch: Partial<SrProgettoRow>): Promise<void> {
+  // Allowlist: scarta silenziosamente le chiavi non in whitelist.
+  // Protegge da:
+  //   - campi virtuali (calcolati lato client, non esistono in DB)
+  //   - typo di developer ("intervento_descr" vs "intervento_descrizione")
+  //   - regressioni future (nuova prop UI propagata erroneamente al DB)
+  //
+  // Prima: `update(patch)` su tutto -> errore Supabase 42703 (column does
+  // not exist) ad ogni save con un campo invalido, oppure scrittura di
+  // colonne sensibili da bug client (es. id, company_id).
+  const safePatch: Record<string, unknown> = {};
+  for (const k of Object.keys(patch) as Array<keyof SrProgettoRow>) {
+    if (SR_PROGETTO_UPDATABLE_KEYS.has(k)) {
+      safePatch[k] = patch[k];
+    }
+  }
+  if (Object.keys(safePatch).length === 0) return;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("sr_progetti").update(patch).eq("id", id);
+  const { error } = await (supabase as any).from("sr_progetti").update(safePatch).eq("id", id);
   if (error) {
     console.error("[serramenti] updateProgetto failed", error);
     throw new Error("Salvataggio progetto fallito");
