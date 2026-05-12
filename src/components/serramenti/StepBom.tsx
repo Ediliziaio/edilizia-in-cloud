@@ -106,7 +106,11 @@ export function StepBom({ progettoId, detail }: Props) {
       {
         tipologia: "finestra_2ante",
         tipologia_label: item.family_nome,
-        materiale: detail.progetto.materiale_principale ?? "alluminio",
+        // Materiale: NON forzato qui. La riga da listino legge il materiale
+        // dalla scheda tecnica della family (custom_field_values.materiale_profilo)
+        // -> evitiamo l'inconsistenza "header dice Alluminio ma scheda dice PVC".
+        // L'header SerramentoRow gestisce il fallback su isFromListino.
+        materiale: null,
         larghezza_mm: item.larghezza_mm,
         altezza_mm: item.altezza_mm,
         quantita: qty,
@@ -419,8 +423,26 @@ function SerramentoRow({
   tariffePrezzi: Map<string, number>;
 }) {
   const tipoLabel = SR_TIPOLOGIE_SERRAMENTO.find((t) => t.value === s.tipologia)?.label ?? s.tipologia;
-  const matLabel = s.materiale ? SR_MATERIALI.find((m) => m.value === s.materiale)?.label : null;
+  // Materiale label: per righe da listino legge dalla scheda tecnica della
+  // family (`custom_field_values.materiale_profilo`) -> sempre coerente con
+  // quello che il commerciale vede nel blocco "Caratteristiche da listino".
+  // Per righe off-listino, fallback al campo `materiale` editato a mano.
+  const materialeListinoMap: Record<string, string> = {
+    pvc: "PVC",
+    pvc_alluminio: "PVC-alluminio",
+    alluminio: "Alluminio",
+    alluminio_tt: "Alluminio TT",
+    legno: "Legno",
+    legno_alluminio: "Legno-alluminio",
+  };
+  const materialeProfiloListino = family?.custom_field_values?.materiale_profilo as string | undefined;
+  const matLabel = family
+    ? (materialeProfiloListino ? (materialeListinoMap[materialeProfiloListino] ?? materialeProfiloListino) : null)
+    : (s.materiale ? SR_MATERIALI.find((m) => m.value === s.materiale)?.label : null);
   const mq = s.metri_quadri ?? calcolaM2(s.larghezza_mm ?? 0, s.altezza_mm ?? 0, s.quantita ?? 1);
+  // Modalita' prezzo: serve per spiegare all'utente perche' modificando
+  // L/A in alcuni casi il prezzo non cambia (es. listino "a pezzo").
+  const modalitaPrezzo = family?.modalita_prezzo_base ?? null;
 
   // Carico griglia listino della family per ricalcolo prezzo on-the-fly su
   // modifica L/A/Q. enabled solo se family esiste con modalità griglia.
@@ -432,10 +454,11 @@ function SerramentoRow({
    *
    * IMPORTANTE: somma il prezzo prodotto (da griglia) + la POSA inclusa
    * (da tariffe). Prima la posa veniva sottratta silenziosamente al
-   * ricalcolo -> il commerciale modificava una misura e il prezzo
-   * scendeva senza spiegazione (margine eroso).
+   * ricalcolo -> margine eroso.
    *
-   * Ritorna `null` se la family non è disponibile.
+   * PROTEZIONE: se modalita="griglia" e la griglia non e' ancora caricata
+   * (loading), ritorna null per non scrivere un prezzo_base errato.
+   * Il prezzo precedente resta finche' la griglia non e' disponibile.
    */
   const ricalcolaPrezzoUnitario = (
     L: number | null,
@@ -443,6 +466,7 @@ function SerramentoRow({
     Q: number,
   ): number | null => {
     if (!family) return null;
+    if (family.modalita_prezzo_base === "griglia" && griglia.length === 0) return null;
     const Qsafe = Q || 1;
     const result = calcolaPrezzoProdotto(family, L, H, Qsafe, griglia);
     const posa = calcolaPosaInclusa(family, Qsafe, tariffePrezzi);
@@ -510,6 +534,30 @@ function SerramentoRow({
               // nel totale come "0,00 €" senza che il commerciale se ne accorga.
               <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">
                 Prezzo da impostare
+              </span>
+            )}
+            {/* Badge modalita' prezzo: spiega all'utente quando il prezzo
+                cambia (a m² / da griglia) e quando NO (a pezzo / a corpo).
+                Senza, modificare L/H su un articolo "a pezzo" sembrava
+                un bug ("ho cambiato la larghezza ma il prezzo non cambia"). */}
+            {modalitaPrezzo === "pz" && (
+              <span className="text-[9px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5">
+                a pezzo (prezzo fisso)
+              </span>
+            )}
+            {modalitaPrezzo === "mq" && (
+              <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">
+                a m²
+              </span>
+            )}
+            {modalitaPrezzo === "griglia" && (
+              <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">
+                da griglia
+              </span>
+            )}
+            {modalitaPrezzo === "misura_libera" && (
+              <span className="text-[9px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5">
+                a corpo
               </span>
             )}
           </button>
@@ -658,6 +706,18 @@ function SerramentoRow({
               re-montava, perdendo focus e caret. Ora usiamo `key={s.id}-*` solo
               dove serve un reset cross-record (cambio serramento), così il
               caret resta dove l'utente sta scrivendo. */}
+          {/* Hint contestuale per articoli a prezzo fisso (pz / corpo):
+              spiega all'utente che L/H sono solo descrittive e non
+              influenzano il prezzo. Senza, l'utente cambiava larghezza
+              e si chiedeva "come mai il prezzo non si aggiorna?". */}
+          {isFromListino && (modalitaPrezzo === "pz" || modalitaPrezzo === "misura_libera") && (
+            <div className="col-span-12 -mb-1">
+              <p className="text-[10px] text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1">
+                <span className="font-semibold">Prezzo fisso:</span> questo articolo del listino e' venduto {modalitaPrezzo === "pz" ? "a pezzo" : "a corpo"}.
+                Larghezza e altezza sono indicative e non modificano il prezzo unitario.
+              </p>
+            </div>
+          )}
           <div className="col-span-4 md:col-span-3">
             <Label className="text-xs">Largh. (mm)</Label>
             <Input
