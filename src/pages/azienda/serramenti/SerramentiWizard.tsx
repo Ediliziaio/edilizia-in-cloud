@@ -127,6 +127,20 @@ export default function SerramentiWizard() {
   // Local form state — solo per i campi del progetto stesso
   const [form, setForm] = useState<Partial<SrProgettoRow>>({});
   const [dirty, setDirty] = useState(false);
+  /** Timestamp ultimo salvataggio riuscito (usato per indicator "Salvato Xs fa"). */
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  /** Tick di refresh ogni 10s per aggiornare il "Salvato Xs fa" in header. */
+  const [, setSavedTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSavedTick((x) => x + 1), 10_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // ─── localStorage backup per crash recovery ─────────────────────────────
+  // Ogni onChange scrive l'intero form in LS prima ancora del save al server.
+  // Se l'utente chiude la tab o il browser crasha durante il debounce, al
+  // prossimo mount possiamo proporre il restore.
+  const LS_KEY = id ? `sr-autosave-progetto-${id}` : null;
 
   // Sync form con dati server al primo load / cambio progetto.
   // Null-safe contro flicker tra refetch (detail può diventare temporaneamente
@@ -135,8 +149,53 @@ export default function SerramentiWizard() {
     if (detail?.progetto) {
       setForm(detail.progetto);
       setDirty(false);
+      setLastSavedAt(new Date(detail.progetto.updated_at ?? Date.now()));
     }
   }, [detail?.progetto?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Recovery prompt al mount ──────────────────────────────────────────
+  // Se LS ha dati per questo progetto più recenti di server (es. user ha
+  // chiuso la tab durante un edit), proponiamo il restore.
+  const didCheckRecoveryRef = useRef(false);
+  useEffect(() => {
+    if (didCheckRecoveryRef.current) return;
+    if (!LS_KEY || !detail?.progetto) return;
+    didCheckRecoveryRef.current = true;
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const cached = JSON.parse(raw) as { form: Partial<SrProgettoRow>; timestamp: number };
+      const serverUpdated = new Date(detail.progetto.updated_at ?? 0).getTime();
+      // LS più recente del server di almeno 5 secondi → significa cambio non
+      // ancora persistito. Sotto la soglia: probabile residuo già salvato.
+      if (cached.timestamp > serverUpdated + 5000) {
+        const ageMin = Math.round((Date.now() - cached.timestamp) / 60_000);
+        toast.info("Trovate modifiche non salvate", {
+          description: `Modifiche di ${ageMin === 0 ? "pochi secondi" : `${ageMin} minuto/i`} fa. Recuperarle?`,
+          duration: 15_000,
+          action: {
+            label: "Recupera",
+            onClick: () => {
+              setForm(cached.form);
+              setDirty(true);
+              toast.success("Modifiche ripristinate. Salvataggio in corso…");
+            },
+          },
+          cancel: {
+            label: "Scarta",
+            onClick: () => {
+              if (LS_KEY) localStorage.removeItem(LS_KEY);
+            },
+          },
+        });
+      } else {
+        // LS obsoleto rispetto a server → pulizia silenziosa.
+        localStorage.removeItem(LS_KEY);
+      }
+    } catch (e) {
+      console.warn("[serramenti] LS recovery check failed", e);
+    }
+  }, [LS_KEY, detail?.progetto?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-popola da CRM quando si arriva con ?contact_id=… (eventualmente
   // accompagnato da ?opportunity_id=…). Fa la fetch del contatto e, se
@@ -210,9 +269,57 @@ export default function SerramentiWizard() {
   }, [detail?.progetto?.id, id, currentStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onChange = <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      // LS backup sincrono: ogni cambio è subito persisto in LocalStorage,
+      // anche se l'utente chiude la tab prima del debounced autosave.
+      // Recovery al prossimo mount confronta con server.updated_at.
+      if (LS_KEY) {
+        try {
+          localStorage.setItem(LS_KEY, JSON.stringify({ form: next, timestamp: Date.now() }));
+        } catch (e) {
+          // QuotaExceededError raro ma possibile su form enormi: best-effort
+          console.warn("[serramenti] LS backup failed", e);
+        }
+      }
+      return next;
+    });
     setDirty(true);
   };
+
+  // ─── Autosave debounced ────────────────────────────────────────────────
+  // Salvataggio automatico ogni 2 secondi dopo l'ultima modifica, se il
+  // progetto è esistente (no autosave per isNew: prima Save manuale crea
+  // l'id, poi autosave subentra). Su preventivi esistenti l'utente NON deve
+  // più cliccare "Salva e continua" per non perdere dati.
+  const autosaveTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (isNew || !id) return;
+    if (!dirty) return;
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+    autosaveTimerRef.current = window.setTimeout(() => {
+      void (async () => {
+        try {
+          await updateMut.mutateAsync(form);
+          setDirty(false);
+          setLastSavedAt(new Date());
+          // Cleanup LS dopo save riuscito: la recovery non avrebbe più senso
+          // perché server è ora la source-of-truth.
+          if (LS_KEY) localStorage.removeItem(LS_KEY);
+        } catch {
+          // Errore loggato dal mutation (toast.error sotto). Lasciamo dirty=true
+          // così il prossimo debounce ritenta.
+        }
+      })();
+    }, 2000);
+    return () => {
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, [form, dirty, id, isNew, LS_KEY]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Beforeunload guard
   useEffect(() => {
@@ -231,6 +338,8 @@ export default function SerramentiWizard() {
     try {
       await updateMut.mutateAsync(form);
       setDirty(false);
+      setLastSavedAt(new Date());
+      if (LS_KEY) localStorage.removeItem(LS_KEY);
       return true;
     } catch (e) {
       // Prima: silent catch -> utente cliccava "Salva e continua" e non
@@ -239,6 +348,19 @@ export default function SerramentiWizard() {
       toast.error("Salvataggio fallito", { description: msg });
       return false;
     }
+  };
+
+  /** Formatta "Salvato Xs fa" per l'header. Funzione (non useMemo) perché
+   *  Date.now() non è una dependency stabile; il re-render è triggered dal
+   *  savedTick interval ogni 10s, e la funzione viene rieseguita inline in JSX. */
+  const formatLastSaved = (): string | null => {
+    if (!lastSavedAt) return null;
+    const seconds = Math.floor((Date.now() - lastSavedAt.getTime()) / 1000);
+    if (seconds < 5) return "Salvato adesso";
+    if (seconds < 60) return `Salvato ${seconds}s fa`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `Salvato ${minutes}min fa`;
+    return `Salvato alle ${lastSavedAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`;
   };
 
   const handleSaveAndContinue = async () => {
@@ -370,14 +492,19 @@ export default function SerramentiWizard() {
                   {[detail.progetto.cliente_nome, detail.progetto.cliente_cognome].filter(Boolean).join(" ")}
                 </Badge>
               )}
-              {(updateMut.isPending || pendingWrites > 0) && (
+              {(updateMut.isPending || pendingWrites > 0) ? (
                 <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                   <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
                 </span>
-              )}
-              {dirty && pendingWrites === 0 && !updateMut.isPending && (
-                <span className="text-[10px] text-amber-600">● Modifiche non salvate</span>
-              )}
+              ) : dirty ? (
+                <span className="text-[10px] text-amber-600" title="Le modifiche verranno salvate automaticamente entro 2 secondi">
+                  ● Modifiche non salvate
+                </span>
+              ) : lastSavedAt ? (
+                <span className="text-[10px] text-emerald-600 flex items-center gap-0.5" title={`Ultimo salvataggio: ${lastSavedAt.toLocaleString("it-IT")}`}>
+                  ✓ {formatLastSaved()}
+                </span>
+              ) : null}
             </div>
             <p className="text-[11px] text-muted-foreground">
               Step {currentStepIndex + 1} di {SR_WIZARD_STEPS.length} · {SR_WIZARD_STEPS[currentStepIndex]?.label}
