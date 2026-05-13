@@ -355,6 +355,35 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     payStepPct: { fontSize: 13, fontWeight: 700, color: C.primary },
     payStepAmount: { fontSize: 8.5, color: C.gray500, marginTop: 2 },
 
+    // Milestone 6: timeline orizzontale schema pagamento.
+    // Layout: row con N box equispaziate + connettore visual (border-bottom).
+    payTimelineRow: {
+      flexDirection: "row",
+      marginTop: 8,
+      gap: 6,
+    },
+    payTimelineStep: {
+      flex: 1,
+      alignItems: "center",
+      paddingTop: 4,
+      paddingBottom: 8,
+      paddingHorizontal: 4,
+      borderRadius: 6,
+      backgroundColor: C.gray50,
+      borderBottom: `2pt solid ${C.primary}`,
+    },
+    payTimelineIdx: {
+      width: 22, height: 22, borderRadius: 11,
+      backgroundColor: C.primary,
+      alignItems: "center", justifyContent: "center",
+      marginBottom: 4,
+    },
+    payTimelineIdxText: { color: C.white, fontSize: 9, fontWeight: 700 },
+    payTimelineLabel: { fontSize: 8.5, fontWeight: 700, color: C.gray900, textAlign: "center" as const, marginBottom: 2 },
+    payTimelineWhen: { fontSize: 7, color: C.gray500, textAlign: "center" as const, marginBottom: 4 },
+    payTimelinePct: { fontSize: 16, fontWeight: 700, color: C.primary, marginTop: 2 },
+    payTimelineAmount: { fontSize: 7.5, color: C.gray500, marginTop: 1 },
+
     // Finanziamento
     finBox: { flexDirection: "row", gap: 12, marginTop: 6 },
     finCard: {
@@ -2191,24 +2220,46 @@ export function SerramentoPDF({
                 <>
                   <Text style={styles.sectionTitle}>Modalità di pagamento</Text>
                   <Text style={styles.paySchemaTag}>{schemaCfg?.label ?? "Personalizzato"}</Text>
-                  {milestones.map((m, i) => {
-                    const amount = (totaleMedia * (Number(m.percentuale) || 0)) / 100;
-                    return (
-                      <View key={i} style={styles.payStep} wrap={false}>
-                        <View style={styles.payStepIdxBox}>
-                          <Text style={styles.payStepIdxText}>{i + 1}</Text>
+                  {milestones.length <= 4 ? (
+                    /* Milestone 6: timeline orizzontale (≤4 step entrano in
+                       larghezza A4 senza schiacciare i numeri). */
+                    <View style={styles.payTimelineRow}>
+                      {milestones.map((m, i) => {
+                        const amount = (totaleMedia * (Number(m.percentuale) || 0)) / 100;
+                        return (
+                          <View key={i} style={styles.payTimelineStep} wrap={false}>
+                            <View style={styles.payTimelineIdx}>
+                              <Text style={styles.payTimelineIdxText}>{i + 1}</Text>
+                            </View>
+                            <Text style={styles.payTimelineLabel}>{m.label}</Text>
+                            {m.when ? <Text style={styles.payTimelineWhen}>{m.when}</Text> : null}
+                            <Text style={styles.payTimelinePct}>{m.percentuale}%</Text>
+                            <Text style={styles.payTimelineAmount}>€ {fmtEuro(amount)}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    /* Fallback verticale per 5+ milestones (raro, schema custom). */
+                    milestones.map((m, i) => {
+                      const amount = (totaleMedia * (Number(m.percentuale) || 0)) / 100;
+                      return (
+                        <View key={i} style={styles.payStep} wrap={false}>
+                          <View style={styles.payStepIdxBox}>
+                            <Text style={styles.payStepIdxText}>{i + 1}</Text>
+                          </View>
+                          <View style={styles.payStepBody}>
+                            <Text style={styles.payStepLabel}>{m.label}</Text>
+                            {m.when ? <Text style={styles.payStepWhen}>{m.when}</Text> : null}
+                          </View>
+                          <View style={styles.payStepRight}>
+                            <Text style={styles.payStepPct}>{m.percentuale}%</Text>
+                            <Text style={styles.payStepAmount}>circa € {fmtEuro(amount)}</Text>
+                          </View>
                         </View>
-                        <View style={styles.payStepBody}>
-                          <Text style={styles.payStepLabel}>{m.label}</Text>
-                          {m.when ? <Text style={styles.payStepWhen}>{m.when}</Text> : null}
-                        </View>
-                        <View style={styles.payStepRight}>
-                          <Text style={styles.payStepPct}>{m.percentuale}%</Text>
-                          <Text style={styles.payStepAmount}>circa € {fmtEuro(amount)}</Text>
-                        </View>
-                      </View>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </>
               )}
 
