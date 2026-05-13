@@ -32,7 +32,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Image as ImageIcon, Plus, Trash2, Loader2, Copy, Layers,
+  Image as ImageIcon, Plus, Trash2, Loader2, Copy, Layers, Package, Sparkles,
 } from "lucide-react";
 import {
   useAddAccessorio, useUpdateAccessorio, useDeleteAccessorio,
@@ -42,6 +42,7 @@ import type { SrProgettoDetail, SrAccessorioRow, SrSerramentoRow } from "@/types
 import { SrCard } from "@/lib/serramenti/wizardUI";
 import { formatEuro } from "@/lib/serramenti/format";
 import { toast } from "sonner";
+import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
 
 interface Props {
   progettoId: string;
@@ -58,6 +59,8 @@ export function AccessoriSection({ progettoId, detail }: Props) {
 
   const [toDelete, setToDelete] = useState<SrAccessorioRow | null>(null);
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
+  /** Picker listino aperto per scegliere un articolo accessorio. */
+  const [listinoPickerOpen, setListinoPickerOpen] = useState(false);
 
   const handleAdd = () => {
     addMut.mutate({
@@ -65,6 +68,34 @@ export function AccessoriSection({ progettoId, detail }: Props) {
       quantita: 1,
       position: accessori.length,
     });
+  };
+
+  /**
+   * Aggiunge un accessorio scegliendolo dal listino prodotti.
+   * Il picker ritorna family_id + misure + prezzo già calcolato dalla griglia
+   * + variabili. Lo snapshot della modalita_prezzo serve al dialog "Copia da
+   * serramenti" per decidere se copiare dims o quantita.
+   */
+  const handleAddFromListino = (pick: ListinoPickResult) => {
+    addMut.mutate({
+      tipo: "avvolgibile", // fallback semantic; real type derivato dalla macro
+      descrizione: pick.family_nome,
+      quantita: pick.quantita,
+      larghezza_mm: pick.larghezza_mm,
+      altezza_mm: pick.altezza_mm,
+      prezzo_unitario: pick.prezzo_unitario,
+      prezzo_totale:
+        pick.prezzo_unitario != null
+          ? Number((pick.prezzo_unitario * pick.quantita).toFixed(2))
+          : null,
+      family_id: pick.family_id,
+      valori_assi: pick.valori_assi ?? null,
+      // NB: modalita_prezzo NON è in ListinoPickResult attualmente — verrà
+      // popolata da una versione futura del picker (oggi il calcolo è già fatto
+      // server-side, quindi il preventivo è stabile anche senza snapshot).
+      position: accessori.length,
+    });
+    toast.success(`"${pick.family_nome}" aggiunto agli accessori`);
   };
 
   const onPatch = (id: string, patch: Partial<SrAccessorioRow>) => {
@@ -104,11 +135,20 @@ export function AccessoriSection({ progettoId, detail }: Props) {
               </p>
             </div>
             <div className="flex flex-wrap gap-2 justify-center pt-1">
+              <Button
+                size="sm"
+                onClick={() => setListinoPickerOpen(true)}
+                className="bg-orange-500 hover:bg-orange-600 gap-1.5"
+              >
+                <Package className="h-4 w-4" />
+                Aggiungi da listino
+              </Button>
               {serramenti.length > 0 && (
                 <Button
                   size="sm"
+                  variant="outline"
                   onClick={() => setCopyDialogOpen(true)}
-                  className="bg-orange-500 hover:bg-orange-600 gap-1.5"
+                  className="gap-1.5 border-orange-300 hover:bg-orange-50"
                 >
                   <Copy className="h-4 w-4" />
                   Copia misure dai serramenti ({serramenti.length})
@@ -116,7 +156,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
               )}
               <Button
                 size="sm"
-                variant="outline"
+                variant="ghost"
                 onClick={handleAdd}
                 disabled={addMut.isPending}
               >
@@ -125,7 +165,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
                 ) : (
                   <Plus className="h-4 w-4 mr-1" />
                 )}
-                Aggiungi accessorio vuoto
+                Riga manuale
               </Button>
             </div>
           </div>
@@ -136,17 +176,27 @@ export function AccessoriSection({ progettoId, detail }: Props) {
               <div className="text-xs text-muted-foreground">
                 {accessori.length} {accessori.length === 1 ? "accessorio" : "accessori"}
               </div>
-              {serramenti.length > 0 && (
+              <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
-                  onClick={() => setCopyDialogOpen(true)}
-                  className="gap-1.5 border-orange-300 hover:bg-orange-50"
+                  onClick={() => setListinoPickerOpen(true)}
+                  className="bg-orange-500 hover:bg-orange-600 gap-1.5 h-8"
                 >
-                  <Copy className="h-3.5 w-3.5" />
-                  Copia da serramenti
+                  <Package className="h-3.5 w-3.5" />
+                  Da listino
                 </Button>
-              )}
+                {serramenti.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCopyDialogOpen(true)}
+                    className="gap-1.5 border-orange-300 hover:bg-orange-50 h-8"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Copia da serramenti
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -182,12 +232,24 @@ export function AccessoriSection({ progettoId, detail }: Props) {
                         </Select>
                       </TableCell>
                       <TableCell>
-                        <Input
-                          defaultValue={a.descrizione ?? ""}
-                          onBlur={(e) => onPatch(a.id, { descrizione: e.target.value || null })}
-                          placeholder="es. Alluminio coibentato"
-                          className="h-8 text-xs"
-                        />
+                        <div className="flex items-center gap-1">
+                          <Input
+                            defaultValue={a.descrizione ?? ""}
+                            onBlur={(e) => onPatch(a.id, { descrizione: e.target.value || null })}
+                            placeholder="es. Alluminio coibentato"
+                            className="h-8 text-xs"
+                          />
+                          {a.family_id && (
+                            <Badge
+                              variant="outline"
+                              className="h-5 text-[9px] px-1 border-orange-300 text-orange-700 shrink-0"
+                              title="Articolo collegato al listino prodotti"
+                            >
+                              <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                              listino
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Input
@@ -252,19 +314,30 @@ export function AccessoriSection({ progettoId, detail }: Props) {
                   ))}
                 </TableBody>
               </Table>
-              <Button
-                onClick={handleAdd}
-                variant="outline"
-                className="w-full gap-1 mt-3 border-dashed border-2 border-orange-300 hover:bg-orange-50"
-                disabled={addMut.isPending}
-              >
-                {addMut.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
-                Aggiungi accessorio
-              </Button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                <Button
+                  onClick={() => setListinoPickerOpen(true)}
+                  variant="outline"
+                  className="gap-1 border-dashed border-2 border-orange-300 hover:bg-orange-50 text-orange-700"
+                  disabled={addMut.isPending}
+                >
+                  <Package className="h-4 w-4" />
+                  Aggiungi da listino
+                </Button>
+                <Button
+                  onClick={handleAdd}
+                  variant="ghost"
+                  className="gap-1 border-dashed border-2 border-slate-200 hover:bg-slate-50"
+                  disabled={addMut.isPending}
+                >
+                  {addMut.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  Riga manuale
+                </Button>
+              </div>
             </div>
           </>
         )}
@@ -277,6 +350,16 @@ export function AccessoriSection({ progettoId, detail }: Props) {
         serramenti={serramenti}
         progettoId={progettoId}
         position={accessori.length}
+      />
+
+      {/* Picker listino prodotti per accessori — usa lo stesso dialog dei
+          serramenti (macro → famiglia → misure). L'utente sceglie un articolo
+          da una macrocategoria diversa da Infissi (Tapparelle, Zanzariere,
+          Cassonetti, Persiane, Monoblocchi). */}
+      <ListinoPickerDialog
+        open={listinoPickerOpen}
+        onOpenChange={setListinoPickerOpen}
+        onSelect={(pick) => handleAddFromListino(pick)}
       />
 
       <AlertDialog

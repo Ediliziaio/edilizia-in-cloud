@@ -316,6 +316,14 @@ export interface SrAccessorioRow {
   /** Esclude la manodopera dal prezzo unitario di questo accessorio.
    *  Default FALSE = posa inclusa come configurata sul listino. */
   posa_esclusa: boolean;
+  // ── Collegamento listino prodotti (migration 20270513220000) ─────────────
+  /** FK opzionale a article_families. NULL = riga free-form legacy. */
+  family_id: string | null;
+  /** Snapshot {axisCode: valueId} delle variabili scelte. */
+  valori_assi: Record<string, string> | null;
+  /** Snapshot della modalita_prezzo del listino al momento del pick.
+   *  Determina cosa copiare da serramenti: dims (griglia/mq) o quantita (pz). */
+  modalita_prezzo: "pz" | "mq" | "griglia" | "misura_libera" | null;
   created_at: string;
   updated_at: string;
 }

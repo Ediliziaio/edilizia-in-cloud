@@ -453,6 +453,13 @@ export async function addAccessorio(
       note: accessorio.note ?? null,
       // Default FALSE = posa inclusa (vedi sr_serramenti_progetto).
       posa_esclusa: accessorio.posa_esclusa ?? false,
+      // Collegamento listino (migration 20270513220000).
+      // Quando family_id valorizzato, l'accessorio è clonato da un articolo
+      // del listino → prezzo/modalita/variabili snapshottati per stabilità
+      // del preventivo anche se il listino cambia in seguito.
+      family_id: accessorio.family_id ?? null,
+      valori_assi: accessorio.valori_assi ?? null,
+      modalita_prezzo: accessorio.modalita_prezzo ?? null,
     })
     .select("*")
     .single();
