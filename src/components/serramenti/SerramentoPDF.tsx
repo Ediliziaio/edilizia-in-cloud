@@ -1627,6 +1627,30 @@ export function SerramentoPDF({
   const primaUrls = detail.media.filter((m) => m.kind === "situazione" && m.url).map((m) => m.url!);
   const renderUrls = detail.media.filter((m) => m.kind === "render" && m.url).map((m) => m.url!);
   const hasPrimaDopo = primaUrls.length > 0 && renderUrls.length > 0;
+
+  // ─── Milestone 11 · Before/After con pairing esplicito ────────────────
+  // Per ogni render con pair_situazione_id, troviamo la situazione "prima"
+  // accoppiata. Se mancante (legacy), fallback al parsing session-id da
+  // storage_path. Max 4 coppie sulla pagina A4 landscape (grid 2×2).
+  const renderRows = detail.media.filter((m) => m.kind === "render" && m.url);
+  const situazioneRows = detail.media.filter((m) => m.kind === "situazione" && m.url);
+  const beforeAfterPairs = renderRows
+    .map((r) => {
+      // 1. Pairing esplicito via pair_situazione_id (M11)
+      if (r.pair_situazione_id) {
+        const sit = situazioneRows.find((s) => s.id === r.pair_situazione_id);
+        if (sit) return { situazione: sit, render: r };
+      }
+      // 2. Fallback legacy: session-id parsing da storage_path
+      const sessionId = r.storage_path?.split(":")[1];
+      if (sessionId) {
+        const sit = situazioneRows.find((s) => s.storage_path?.startsWith(`render-session:${sessionId}:`));
+        if (sit) return { situazione: sit, render: r };
+      }
+      return null;
+    })
+    .filter((p): p is { situazione: typeof situazioneRows[number]; render: typeof renderRows[number] } => p !== null)
+    .slice(0, 4); // max 4 coppie per layout 2×2
   const serramentiGrouped = groupSerramentiAdvanced(detail.serramenti);
 
   // ─── Milestone 9 · Pagine foto-tecniche per articolo ──────────────────
@@ -2985,8 +3009,65 @@ export function SerramentoPDF({
 
                 {/* Layout landscape: usable height ~470pt dopo header+title+disclaimer.
                     CRITICO: label + immagini in singolo View con wrap={false} così
-                    react-pdf NON le separa su pagine diverse (bug visto nei PDF prima). */}
-                {hasPrimaDopo ? (
+                    react-pdf NON le separa su pagine diverse.
+                    M11: priorità a beforeAfterPairs (pairing esplicito o
+                    session-id), così 2-4 coppie diventano una griglia 2×2. */}
+                {beforeAfterPairs.length >= 2 ? (
+                  <View wrap={false}>
+                    {/* Grid 2 colonne × N righe (max 2 righe = 4 coppie totali) */}
+                    {(() => {
+                      const rows: typeof beforeAfterPairs[] = [];
+                      for (let i = 0; i < beforeAfterPairs.length; i += 2) {
+                        rows.push(beforeAfterPairs.slice(i, i + 2));
+                      }
+                      // Altezza dinamica: 360pt per 1 riga, 175pt per 2 righe (per stare in landscape).
+                      const pairHeight = rows.length === 1 ? 360 : 175;
+                      return rows.map((rowPairs, ri) => (
+                        <View key={ri} style={{ flexDirection: "row", marginBottom: ri < rows.length - 1 ? 10 : 0 }}>
+                          {rowPairs.map((pair, ci) => (
+                            <View key={ci} style={{ flex: 1, marginRight: ci === 0 && rowPairs.length === 2 ? 10 : 0 }}>
+                              <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={[styles.renderPairLabel, { fontSize: 9, color: C.gray700 }]}>
+                                    Prima {pair.situazione.caption ? `· ${pair.situazione.caption}` : ""}
+                                  </Text>
+                                </View>
+                                <View style={{ width: 6 }} />
+                                <View style={{ flex: 1 }}>
+                                  <Text style={[styles.renderPairLabel, { fontSize: 9, color: primaryColor }]}>
+                                    Dopo · render AI
+                                  </Text>
+                                </View>
+                              </View>
+                              <View style={{ flexDirection: "row" }}>
+                                <View style={{
+                                  flex: 1, height: pairHeight,
+                                  borderRadius: 8, overflow: "hidden",
+                                  backgroundColor: C.gray100,
+                                  borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
+                                }}>
+                                  <Image src={pair.situazione.url!} style={styles.renderImg} />
+                                </View>
+                                <View style={{ width: 6 }} />
+                                <View style={{
+                                  flex: 1, height: pairHeight,
+                                  borderRadius: 8, overflow: "hidden",
+                                  backgroundColor: C.gray100,
+                                  borderWidth: 0.5, borderColor: primaryColor, borderStyle: "solid",
+                                }}>
+                                  <Image src={pair.render.url!} style={styles.renderImg} />
+                                </View>
+                              </View>
+                            </View>
+                          ))}
+                          {/* Se la riga ha 1 sola coppia (es. 3 coppie → 2+1), aggiungiamo
+                              uno spacer per non far stirare la coppia singola. */}
+                          {rowPairs.length === 1 && <View style={{ flex: 1, marginLeft: 10 }} />}
+                        </View>
+                      ));
+                    })()}
+                  </View>
+                ) : hasPrimaDopo ? (
                   <View wrap={false}>
                     <View style={{ flexDirection: "row", marginBottom: 6 }}>
                       <View style={{ flex: 1 }}>
@@ -3008,7 +3089,7 @@ export function SerramentoPDF({
                         backgroundColor: C.gray100,
                         borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
                       }}>
-                        <Image src={primaUrls[0]} style={styles.renderImg} />
+                        <Image src={(beforeAfterPairs[0]?.situazione.url) ?? primaUrls[0]} style={styles.renderImg} />
                       </View>
                       <View style={{ width: 14 }} />
                       <View style={{
@@ -3017,7 +3098,7 @@ export function SerramentoPDF({
                         backgroundColor: C.gray100,
                         borderWidth: 0.5, borderColor: primaryColor, borderStyle: "solid",
                       }}>
-                        <Image src={renderUrls[0]} style={styles.renderImg} />
+                        <Image src={(beforeAfterPairs[0]?.render.url) ?? renderUrls[0]} style={styles.renderImg} />
                       </View>
                     </View>
                   </View>

@@ -346,6 +346,10 @@ export interface SrMediaRow {
   posizione_pdf: string | null;
   position: number;
   serramento_id: string | null;
+  /** M11 · Pairing esplicito Before/After. Solo su row di kind='render':
+   *  punta alla row di kind='situazione' che è la "prima" accoppiata.
+   *  NULL = nessun pair esplicito (fallback session-id legacy). */
+  pair_situazione_id: string | null;
   created_at: string;
 }
 
