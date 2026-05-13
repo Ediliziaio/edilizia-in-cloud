@@ -57,17 +57,30 @@ interface Props {
  *   posa, trasporto, smaltimento, nolo, tiro_piano, pratica, manodopera,
  *   sopralluogo, progettazione, ponteggio, lattoneria, sigillatura,
  *   contorno, falso_telaio, altro
+ *
+ * NB: per i servizi non mappabili univocamente all'enum DB (es. Davanzale
+ * extra, Allargamento foro → entrambi 'altro' = catch-all troppo generico),
+ * usiamo `tariffaTipo: null` → smart lookup disabilitato, sempre voce
+ * manuale. Evita di linkare auto-magicamente a una tariffa "altro" generica
+ * che potrebbe non corrispondere al servizio richiesto.
  */
-const SERVIZI_RAPIDI = [
+const SERVIZI_RAPIDI: Array<{
+  tipo: string;
+  tariffaTipo: string | null;
+  label: string;
+  unita: string;
+  emoji: string;
+}> = [
   { tipo: "trasporto",        tariffaTipo: "trasporto",   label: "Trasporto",              unita: "a_corpo", emoji: "🚚" },
   { tipo: "tiro_al_piano",    tariffaTipo: "tiro_piano",  label: "Tiro al piano",          unita: "pz",      emoji: "🏗️" },
   { tipo: "pratica_enea",     tariffaTipo: "pratica",     label: "Pratica ENEA",           unita: "a_corpo", emoji: "📋" },
   { tipo: "smaltimento",      tariffaTipo: "smaltimento", label: "Smaltimento materiali",  unita: "a_corpo", emoji: "♻️" },
   { tipo: "sopralluogo_extra",tariffaTipo: "sopralluogo", label: "Sopralluogo extra",      unita: "pz",      emoji: "📏" },
   { tipo: "ponteggio",        tariffaTipo: "ponteggio",   label: "Ponteggio / piattaforma",unita: "giorno",  emoji: "🚧" },
-  { tipo: "davanzale_extra",  tariffaTipo: "altro",       label: "Davanzale extra",        unita: "ml",      emoji: "🪟" },
-  { tipo: "allargamento_foro",tariffaTipo: "altro",       label: "Allargamento foro",      unita: "pz",      emoji: "🔨" },
-] as const;
+  // Servizi specifici senza enum dedicato → tariffaTipo null = sempre manuale.
+  { tipo: "davanzale_extra",  tariffaTipo: null,          label: "Davanzale extra",        unita: "ml",      emoji: "🪟" },
+  { tipo: "allargamento_foro",tariffaTipo: null,          label: "Allargamento foro",      unita: "pz",      emoji: "🔨" },
+];
 
 export function ServiziSection({ progettoId, detail }: Props) {
   const addMut = useAddManodopera(progettoId);
@@ -98,7 +111,12 @@ export function ServiziSection({ progettoId, detail }: Props) {
    *    (utente sceglie quale variante usare)
    */
   const handleAddQuick = (servizio: typeof SERVIZI_RAPIDI[number]) => {
-    const matches = allTariffe.filter((t) => t.tipo === servizio.tariffaTipo);
+    // Servizi senza tariffaTipo (es. Davanzale, Allargamento foro): skippiamo
+    // il lookup ed andiamo diretti al fallback manuale. L'enum 'altro' è
+    // catch-all e l'auto-link sarebbe ambiguo / fuorviante.
+    const matches = servizio.tariffaTipo
+      ? allTariffe.filter((t) => t.tipo === servizio.tariffaTipo)
+      : [];
 
     if (matches.length === 1) {
       const t = matches[0];
@@ -157,6 +175,13 @@ export function ServiziSection({ progettoId, detail }: Props) {
       position: righe.length,
     });
     setTariffaPickerOpen(false);
+    // Feedback coerente con handleAddQuick: l'utente vede subito che il
+    // prezzo è stato impostato e da dove proviene.
+    toast.success(`${t.nome} aggiunto`, {
+      description: t.prezzo_vendita != null
+        ? `Prezzo €${Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2 })} dal listino tariffe.`
+        : "Voce creata. Inserisci il prezzo nella riga.",
+    });
   };
 
   const onPatch = (id: string, patch: Partial<SrServizioRow>) => {
@@ -190,7 +215,10 @@ export function ServiziSection({ progettoId, detail }: Props) {
         </p>
         <div className="flex flex-wrap gap-1.5">
           {SERVIZI_RAPIDI.map((s) => {
-            const count = tariffeByTipo.get(s.tariffaTipo) ?? 0;
+            // Lookup attivo solo se tariffaTipo dichiarato; servizi
+            // "catch-all" (tariffaTipo=null) sono SEMPRE manuali → niente
+            // pallino verde fuorviante.
+            const count = s.tariffaTipo ? tariffeByTipo.get(s.tariffaTipo) ?? 0 : 0;
             const hasTariffa = count > 0;
             return (
               <button
@@ -207,7 +235,9 @@ export function ServiziSection({ progettoId, detail }: Props) {
                     ? count === 1
                       ? `Tariffa configurata — prezzo pescato automaticamente dal listino`
                       : `${count} varianti in listino — al click ti chiederò quale usare`
-                    : `Nessuna tariffa "${s.label}" in Impostazioni → Tariffe aziendali: verrà creata voce manuale`
+                    : s.tariffaTipo === null
+                      ? `Servizio personalizzato — voce manuale. Aggiungi prezzo dopo aver creato la riga.`
+                      : `Nessuna tariffa "${s.label}" in Impostazioni → Tariffe aziendali: verrà creata voce manuale`
                 }
               >
                 <span

@@ -326,13 +326,17 @@ export function ListinoPickerDialog({
             {effectiveStep === "famiglia" && <Package className="h-4 w-4 text-orange-600 shrink-0" />}
             {effectiveStep === "misure" && <Ruler className="h-4 w-4 text-orange-600 shrink-0" />}
             <span className="flex-1">
-              {effectiveStep === "macro" && "Scegli macrocategoria"}
+              {effectiveStep === "macro" && (tipo === "accessorio" ? "Scegli accessorio" : "Scegli macrocategoria")}
               {effectiveStep === "famiglia" && (isSearching ? `Ricerca: "${debounced}"` : (selectedMacro?.nome ?? "Scegli prodotto"))}
               {effectiveStep === "misure" && (selectedFamily?.nome ?? "Misure")}
             </span>
           </DialogTitle>
           <DialogDescription className="text-xs">
-            {effectiveStep === "macro" && "Scegli la macrocategoria di prodotto"}
+            {effectiveStep === "macro" && (
+              tipo === "accessorio"
+                ? "Macrocategorie marcate come 🔗 Accessorio (Tapparelle, Cassonetti, …)"
+                : "Scegli la macrocategoria di prodotto"
+            )}
             {effectiveStep === "famiglia" && (isSearching ? "Famiglie corrispondenti alla ricerca" : "Scegli il prodotto specifico")}
             {effectiveStep === "misure" && "Inserisci le misure: il prezzo è calcolato automaticamente"}
           </DialogDescription>
@@ -376,7 +380,14 @@ export function ListinoPickerDialog({
             ) : macros.length === 0 ? (
               <EmptyState
                 icon={<Layers className="h-10 w-10" />}
-                text="Nessuna macrocategoria configurata. Vai in Impostazioni → Listino prodotti per crearle."
+                /* Empty state context-aware: il messaggio cambia in base al
+                   filtro tipo per dare istruzioni precise sul setup
+                   richiesto (marca una macro come Accessorio vs crea da zero). */
+                text={
+                  tipo === "accessorio"
+                    ? "Nessuna macrocategoria \"Accessorio\" configurata. Vai in Listino → Macrocategorie e marca una macro come 🔗 Accessorio (es. Tapparelle, Cassonetti, Zanzariere)."
+                    : "Nessuna macrocategoria configurata. Vai in Impostazioni → Listino prodotti per crearle."
+                }
               />
             ) : (
               /* Card macrocategoria: layout verticale "catalog card".
