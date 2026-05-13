@@ -38,6 +38,22 @@ export async function createProgetto(input: SrCreateProgettoInput): Promise<SrPr
   const companyId = (profile as any)?.company_id;
   if (!companyId) throw new Error("Profilo senza azienda associata");
 
+  // FIX integrazione · Leggi i default dal template aziendale (se esiste)
+  // e pre-popola i campi `iva_percentuale`, `valido_fino_giorni`,
+  // `fin_anticipo_pct` del nuovo progetto. Prima erano hardcoded a 10/15/40
+  // ignorando le configurazioni dell'admin nel template editor.
+  // L'utente può sempre sovrascrivere in StepEconomia. Se template assente
+  // o errore di lettura, fallback ai valori storici (10/15/40).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: templateRow } = await (supabase as any)
+    .from("sr_template_pdf")
+    .select("iva_percentuale_default, valido_giorni_default, anticipo_pct_default")
+    .eq("company_id", companyId)
+    .maybeSingle();
+  const ivaDefault = Number(templateRow?.iva_percentuale_default ?? 10);
+  const validoGiorniDefault = Number(templateRow?.valido_giorni_default ?? 15);
+  const anticipoPctDefault = Number(templateRow?.anticipo_pct_default ?? 40);
+
   // Whitelist dei campi insertabili (no id, created_at, code: gestiti da trigger)
   const insertable: Partial<SrProgettoRow> = {
     company_id: companyId,
@@ -74,10 +90,11 @@ export async function createProgetto(input: SrCreateProgettoInput): Promise<SrPr
     // pre-popolare il PDF con nome + foto profilo + ruolo senza richiedere
     // un secondo step "scegli consulente". Override possibile dopo via update.
     consulente_id: input.consulente_id ?? userId ?? null,
-    // Default IVA = 10% (aliquota ristrutturazione edilizia, caso piu' comune
-    // per i serramenti). Sovrascrive il DEFAULT 22 a livello DB. L'utente puo'
-    // sempre modificarla in StepEconomia (0/4/10/22/mista).
-    iva_percentuale: 10,
+    // IVA dal template (default editor) o fallback 10% (aliquota ristrutturazione
+    // edilizia, caso più comune per serramenti).
+    iva_percentuale: ivaDefault,
+    valido_fino_giorni: validoGiorniDefault,
+    fin_anticipo_pct: anticipoPctDefault,
     stato: "bozza",
   };
 

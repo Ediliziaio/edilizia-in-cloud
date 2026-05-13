@@ -1677,6 +1677,17 @@ export function SerramentoPDF({
   const faqItems: SrFaq[] = faqItemsRaw.length > 0 ? faqItemsRaw : SR_FAQ_DEFAULT;
   const brandFooterTesto = (tpl.brand_footer_testo as string | null) || null;
   const condizioniLegaliTesto = (tpl.condizioni_legali_testo as string | null) || null;
+  // Fix integrazione · Toggle "attivo" devono essere rispettati anche dal PDF.
+  // Prima il PDF ignorava i toggle e mostrava il footer/pagina se il testo
+  // era valorizzato, anche se l'utente aveva disattivato il toggle nell'editor.
+  // Adesso: il toggle è SOURCE OF TRUTH. Se attivo=false, NON renderizziamo
+  // la pagina/footer anche se il testo è popolato (così l'utente può
+  // disattivare temporaneamente senza perdere il contenuto).
+  // I campi sono booleani con default `true` lato DB → undefined si tratta
+  // come true (retrocompat).
+  const brandFooterAttivo = tpl.brand_footer_attivo !== false;
+  const condizioniLegaliAttivo = tpl.condizioni_legali_attivo !== false;
+  const confrontoAttivo = tpl.confronto_attivo !== false;
 
   // Validità con countdown calcolato (per box urgenza)
   const validoGiorni = p.valido_fino_giorni ?? 15;
@@ -3397,7 +3408,7 @@ export function SerramentoPDF({
 
               {/* Brand legitimacy footer in CTA: dati legali in piccolo,
                   segnala professionalità + protezione legale. */}
-              {brandFooterTesto && !condizioniLegaliTesto && (
+              {brandFooterAttivo && brandFooterTesto && !condizioniLegaliTesto && (
                 <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
               )}
 
@@ -3433,9 +3444,12 @@ export function SerramentoPDF({
             </>
           ),
           // ─── PAGINA CONFRONTO PRIMA/DOPO NUMERICO ──────────────────────
+          // Gate sul toggle confronto_attivo (default true): rispettato anche
+          // se ci sono righe valorizzate. Se l'utente lo disattiva nell'editor,
+          // la pagina non viene generata.
           confronto: (
             <>
-            {confrontoRighe.length > 0 && (
+            {confrontoAttivo && confrontoRighe.length > 0 && (
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Confronto tecnico · Prima &amp; Dopo</Text>
@@ -3508,9 +3522,12 @@ export function SerramentoPDF({
             </>
           ),
           // ─── PAGINA CONDIZIONI LEGALI ──────────────────────────────────
+          // Gate sul toggle condizioni_legali_attivo (default true): la pagina
+          // viene generata SOLO se attivo. Permette di nascondere temporanea-
+          // mente senza dover svuotare il testo dal DB.
           condizioni: (
             <>
-            {condizioniLegaliTesto && (
+            {condizioniLegaliAttivo && condizioniLegaliTesto && (
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Appendice legale</Text>
@@ -3525,7 +3542,7 @@ export function SerramentoPDF({
                     </Text>
                   ))}
                 </View>
-                {brandFooterTesto && (
+                {brandFooterAttivo && brandFooterTesto && (
                   <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
                 )}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
