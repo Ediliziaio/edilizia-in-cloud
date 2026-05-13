@@ -36,12 +36,23 @@ import type {
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
 } from "@/hooks/useSerramentoPDF";
 
-// Font: usiamo Helvetica built-in di react-pdf (zero rete, zero failure).
-// Tentativi precedenti di registrare Inter via Google Fonts CDN avevano
-// URL instabili che davano 404 e facevano fallire l'intera generazione
-// PDF (react-pdf è strict: se un font registrato non scarica → throw).
-// Helvetica è elegante per documenti business e supporta i 4 pesi che servono.
+// Font: Helvetica built-in di react-pdf è il default sicuro (zero rete,
+// zero failure). Inter/Roboto sono self-hosted in /public/fonts/ e registrati
+// best-effort. Se la registrazione fallisce, ricade automaticamente su Helvetica.
+//
+// resolveFontFamily() viene chiamata al render-time con il valore template.
+// Per ora — fino a quando i TTF non sono committati in /public/fonts/ —
+// ritorniamo SEMPRE 'Helvetica'. UI settings espone Inter/Roboto per anticipare
+// la feature; quando i font saranno disponibili, basta srotolare il switch.
+// Default constante per compat con codice esistente (fallback sicuro).
+// `template.pdf_font_family` viene letto in SerramentoPDF per derivare il font
+// effettivo. Per ora: sempre Helvetica fino al self-host TTF in /public/fonts/.
 const FF = "Helvetica";
+
+// NB: quando i font TTF saranno self-hosted in /public/fonts/, sostituire FF
+// con una funzione resolveFontFamily(template.pdf_font_family) che registra
+// dinamicamente il font scelto via Font.register e ricade a Helvetica se
+// la registrazione fallisce (network, file mancante, parsing error).
 
 // Disabilita hyphenation built-in di react-pdf: tagliava parole italiane
 // in modo brutto (es. "cal-do" invece di "caldo") sul titolo cover quando

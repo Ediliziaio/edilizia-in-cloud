@@ -451,6 +451,9 @@ export interface SrTemplatePdfRow {
   /** Condizioni e disclaimer legali (pagina appendice). */
   condizioni_legali_attivo: boolean;
   condizioni_legali_testo: string | null;
+  /** Font family PDF (migration 20270514000000). 'helvetica' (default safe)
+   *  | 'inter' | 'roboto'. Helvetica fallback automatico se font fallisce. */
+  pdf_font_family: "helvetica" | "inter" | "roboto";
   created_at: string;
   updated_at: string;
 }

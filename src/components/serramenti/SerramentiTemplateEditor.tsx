@@ -655,6 +655,25 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 />
               </div>
             </div>
+            {/* Milestone 1 · Typography refresh: selettore font PDF.
+                Helvetica = built-in react-pdf, zero rete, sempre disponibile.
+                Inter/Roboto = self-host /public/fonts/ (TTF). Se il font scelto
+                non è disponibile a runtime, fallback automatico a Helvetica. */}
+            <div className="col-span-12 md:col-span-6">
+              <Label className="text-xs">Tipografia PDF</Label>
+              <select
+                value={form.pdf_font_family ?? "helvetica"}
+                onChange={(e) => update("pdf_font_family", e.target.value as "helvetica" | "inter" | "roboto")}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="helvetica">Helvetica · classico business (default)</option>
+                <option value="inter">Inter · moderno digital-first</option>
+                <option value="roboto">Roboto · pulito leggibile</option>
+              </select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Inter/Roboto richiedono font self-hosted: se non disponibili il PDF userà Helvetica come fallback automatico.
+              </p>
+            </div>
           </div>
         </div>
       </SrCard>
