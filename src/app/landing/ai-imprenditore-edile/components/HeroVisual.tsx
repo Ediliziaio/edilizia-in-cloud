@@ -6,7 +6,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Euro,
-  FileText,
   Hammer,
   MessageSquare,
   PackageCheck,

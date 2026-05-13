@@ -11,11 +11,10 @@
  * Mostra empty states diversi per cartella (Inbox vuoto vs Sent vuoto).
  */
 import { useQuery } from "@tanstack/react-query";
-import { formatDistanceToNow, format, isToday, isYesterday } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Star, Paperclip, Inbox, Send, FileEdit, ShieldAlert, Trash2 } from "lucide-react";

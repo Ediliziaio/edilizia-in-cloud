@@ -146,7 +146,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   // fare il reset SOLO quando cambia il task selezionato, non ad ogni save
   // del titolo (che bumpa task.title nel parent → causerebbe overwrite del
   // valore digitato dall'utente).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   useEffect(() => {
     setTitle(task?.title ?? "");
     setEditingTitle(false);

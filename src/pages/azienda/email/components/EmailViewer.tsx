@@ -21,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
-  ArrowLeft, Star, Archive, Trash2, Reply, ReplyAll, Forward, MoreVertical,
+  ArrowLeft, Star, Archive, Trash2, Reply, ReplyAll, Forward,
   Paperclip, Sparkles, AlertTriangle, X, Wand2, Loader2, ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";

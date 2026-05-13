@@ -3,7 +3,6 @@ import {
   ArrowRight,
   Banknote,
   Bot,
-  BrainCircuit,
   Building2,
   Check,
   Clock3,

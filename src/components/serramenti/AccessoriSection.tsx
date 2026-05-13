@@ -12,7 +12,7 @@
  * × quantità). Risolve il workflow "ho 10 finestre, voglio 10 tapparelle
  * con le stesse misure senza re-inserirle tutte".
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import {
   useAddAccessorio, useUpdateAccessorio, useDeleteAccessorio,
+  useListinoFamilies, useMacrocategorie,
 } from "@/lib/serramenti/queries";
 import { SR_ACCESSORI_TIPI } from "@/types/serramenti";
 import type { SrProgettoDetail, SrAccessorioRow, SrSerramentoRow } from "@/types/serramenti";
@@ -403,9 +404,43 @@ function CopyMisureDialog({
   position: number;
 }) {
   const addMut = useAddAccessorio(progettoId);
+  // Mode toggle: "manuale" (legacy, tipo enum) vs "listino" (collega a family
+  // del listino prodotti → prezzo calcolato automaticamente + variabili).
+  const [mode, setMode] = useState<"manuale" | "listino">("listino");
   const [tipoAccessorio, setTipoAccessorio] = useState<string>("tapparella");
   const [selected, setSelected] = useState<Set<string>>(() => new Set(serramenti.map((s) => s.id)));
   const [descrizionePresetByTipo, setDescrizionePresetByTipo] = useState<string>("");
+  // Modalità "listino": macro filter + family selection.
+  // Mostriamo TUTTE le macrocategorie (l'utente sceglie es. Tapparelle).
+  const [pickedMacroId, setPickedMacroId] = useState<string | null>(null);
+  const [pickedFamilyId, setPickedFamilyId] = useState<string | null>(null);
+
+  // Macrocategorie accessori (escluse "infissi" dal preventivo serramenti).
+  // Filtro client-side: in pratica le macro abilitate per Serramenti
+  // potrebbero contenere sia Infissi che Tapparelle/Zanzariere ecc.
+  const { data: allMacros = [] } = useMacrocategorie({ vertical: "serramentista" });
+  const accessoryMacros = useMemo(
+    () => allMacros.filter((m) => {
+      const nameLower = (m.nome ?? "").toLowerCase();
+      // Escludi macro chiaramente "Infissi" (i serramenti veri e propri).
+      return !nameLower.includes("infiss");
+    }),
+    [allMacros],
+  );
+
+  // Families della macro selezionata (limite 100 per default del backend).
+  const { data: pickedFamilies = [] } = useListinoFamilies({
+    macroId: pickedMacroId,
+  });
+
+  // Reset selezione e picker quando il dialog si apre o cambia la lista.
+  useEffect(() => {
+    if (open) {
+      setSelected(new Set(serramenti.map((s) => s.id)));
+      setPickedMacroId(null);
+      setPickedFamilyId(null);
+    }
+  }, [open, serramenti]);
 
   // Reset selezione quando il dialog si apre o cambia la lista serramenti:
   // prima il `useState(() => new Set(...))` era lazy-initialized SOLO al
@@ -434,28 +469,73 @@ function CopyMisureDialog({
     );
   };
 
+  const pickedFamily = pickedFamilyId
+    ? pickedFamilies.find((f) => f.id === pickedFamilyId)
+    : null;
+
   const handleCopy = async () => {
     const targets = serramenti.filter((s) => selected.has(s.id));
     if (targets.length === 0) {
       toast.error("Seleziona almeno un serramento");
       return;
     }
+
+    // Validazione modalità listino: serve almeno la family
+    if (mode === "listino" && !pickedFamily) {
+      toast.error("Scegli un articolo dal listino oppure passa a Manuale");
+      return;
+    }
+
     try {
       let count = 0;
       for (const s of targets) {
-        await addMut.mutateAsync({
-          tipo: tipoAccessorio,
-          descrizione: descrizionePresetByTipo.trim() ||
-            (s.ambiente ? `${tipoLabel(tipoAccessorio)} ${s.ambiente}` : null),
-          quantita: s.quantita ?? 1,
-          larghezza_mm: s.larghezza_mm,
-          altezza_mm: s.altezza_mm,
-          serramento_id: s.id,
-          position: position + count,
-        });
+        if (mode === "listino" && pickedFamily) {
+          // Smart copy: collega all'articolo del listino.
+          // Logica dims/quantita basata su modalita_prezzo_base del listino:
+          //   - griglia/mq: copia larghezza+altezza dal serramento (il prezzo
+          //     dovrebbe poi essere ricalcolato dalla griglia — per ora usa
+          //     prezzo_base_vendita come approssimazione + l'utente può ritoccare)
+          //   - pz/misura_libera: copia solo quantità, niente dims
+          const modalita = pickedFamily.modalita_prezzo_base;
+          const wantsDims = modalita === "griglia" || modalita === "mq";
+          const unit = pickedFamily.prezzo_base_vendita ?? 0;
+          const qty = s.quantita ?? 1;
+          await addMut.mutateAsync({
+            tipo: tipoAccessorio,
+            descrizione: pickedFamily.nome,
+            quantita: qty,
+            larghezza_mm: wantsDims ? s.larghezza_mm : null,
+            altezza_mm: wantsDims ? s.altezza_mm : null,
+            prezzo_unitario: unit,
+            prezzo_totale: Number((unit * qty).toFixed(2)),
+            family_id: pickedFamily.id,
+            modalita_prezzo:
+              (modalita === "pz" || modalita === "mq" || modalita === "griglia" || modalita === "misura_libera")
+                ? modalita
+                : null,
+            serramento_id: s.id,
+            position: position + count,
+          });
+        } else {
+          // Modalità manuale (legacy): tipo enum + descrizione opzionale.
+          await addMut.mutateAsync({
+            tipo: tipoAccessorio,
+            descrizione: descrizionePresetByTipo.trim() ||
+              (s.ambiente ? `${tipoLabel(tipoAccessorio)} ${s.ambiente}` : null),
+            quantita: s.quantita ?? 1,
+            larghezza_mm: s.larghezza_mm,
+            altezza_mm: s.altezza_mm,
+            serramento_id: s.id,
+            position: position + count,
+          });
+        }
         count++;
       }
-      toast.success(`${count} ${count === 1 ? "accessorio creato" : "accessori creati"} dalle misure dei serramenti`);
+      const label = count === 1 ? "accessorio creato" : "accessori creati";
+      toast.success(
+        `${count} ${label} dalle misure dei serramenti`,
+        pickedFamily ? { description: `Collegati a "${pickedFamily.nome}"` } : undefined,
+      );
       onClose();
     } catch (err) {
       toast.error("Errore copia misure", {
@@ -484,31 +564,153 @@ function CopyMisureDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Tipo accessorio + descrizione */}
-          <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-12 md:col-span-5">
-              <Label className="text-xs">Tipo di accessorio</Label>
-              <Select value={tipoAccessorio} onValueChange={setTipoAccessorio}>
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SR_ACCESSORI_TIPI.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-12 md:col-span-7">
-              <Label className="text-xs">Descrizione (opzionale)</Label>
-              <Input
-                value={descrizionePresetByTipo}
-                onChange={(e) => setDescrizionePresetByTipo(e.target.value)}
-                placeholder="Lascia vuoto per generare automaticamente"
-                className="h-9 text-sm"
-              />
-            </div>
+          {/* Toggle mode: Listino (smart, prezzo automatico) vs Manuale (legacy). */}
+          <div className="flex items-center gap-1 p-1 rounded-md bg-muted/50 w-fit">
+            <button
+              type="button"
+              onClick={() => setMode("listino")}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                mode === "listino"
+                  ? "bg-white dark:bg-slate-900 text-orange-700 shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Package className="h-3.5 w-3.5 inline mr-1.5" />
+              Da listino prodotti
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("manuale")}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                mode === "manuale"
+                  ? "bg-white dark:bg-slate-900 text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Manuale
+            </button>
           </div>
+
+          {mode === "listino" ? (
+            /* Mode LISTINO: macro picker + family picker. Prezzo + variabili
+               ereditati dal listino. UX: chips macro orizzontali, poi list
+               articoli verticale con prezzo base.  */
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">Macrocategoria accessorio</Label>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {accessoryMacros.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">
+                      Nessuna macrocategoria accessori configurata. Vai in Listino → Macrocategorie per crearne.
+                    </p>
+                  ) : (
+                    accessoryMacros.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => { setPickedMacroId(m.id); setPickedFamilyId(null); }}
+                        className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                          pickedMacroId === m.id
+                            ? "bg-orange-100 border-orange-400 text-orange-700"
+                            : "bg-background border-slate-200 hover:border-orange-300"
+                        }`}
+                      >
+                        {m.nome}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {pickedMacroId && (
+                <div>
+                  <Label className="text-xs">
+                    Articolo {pickedFamilies.length > 0 && `(${pickedFamilies.length})`}
+                  </Label>
+                  {pickedFamilies.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic mt-1">
+                      Nessun articolo in questa macrocategoria.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 mt-1 max-h-48 overflow-y-auto pr-1">
+                      {pickedFamilies.map((f) => {
+                        const isSelected = pickedFamilyId === f.id;
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => setPickedFamilyId(f.id)}
+                            className={`text-left flex items-center gap-2 px-2.5 py-2 rounded border transition-colors ${
+                              isSelected
+                                ? "border-orange-400 bg-orange-50/60"
+                                : "border-slate-200 hover:bg-accent/30"
+                            }`}
+                          >
+                            {f.immagine_url ? (
+                              <img src={f.immagine_url} alt="" className="h-8 w-8 object-cover rounded shrink-0" />
+                            ) : (
+                              <div className="h-8 w-8 rounded bg-slate-100 flex items-center justify-center shrink-0">
+                                <Package className="h-3.5 w-3.5 text-muted-foreground/50" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">{f.nome}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {modalitaLabel(f.modalita_prezzo_base)}
+                                {f.prezzo_base_vendita != null && f.prezzo_base_vendita > 0 && (
+                                  <> · <span className="font-semibold text-emerald-700">{formatEuro(f.prezzo_base_vendita)}</span></>
+                                )}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {pickedFamily && (
+                <div className="rounded-md border border-orange-200 bg-orange-50/40 p-2.5 text-[11px] text-orange-900">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Sparkles className="h-3 w-3 text-orange-600" />
+                    <strong>Cosa copiamo dai serramenti:</strong>
+                  </div>
+                  {pickedFamily.modalita_prezzo_base === "griglia" || pickedFamily.modalita_prezzo_base === "mq" ? (
+                    <span>Larghezza × Altezza × Quantità (l'articolo è venduto {pickedFamily.modalita_prezzo_base === "mq" ? "al mq" : "a griglia L×H"}).</span>
+                  ) : (
+                    <span>Solo la quantità (l'articolo è venduto a pezzo — niente dimensioni).</span>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Mode MANUALE (legacy): tipo enum + descrizione free-form. */
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-12 md:col-span-5">
+                <Label className="text-xs">Tipo di accessorio</Label>
+                <Select value={tipoAccessorio} onValueChange={setTipoAccessorio}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SR_ACCESSORI_TIPI.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-12 md:col-span-7">
+                <Label className="text-xs">Descrizione (opzionale)</Label>
+                <Input
+                  value={descrizionePresetByTipo}
+                  onChange={(e) => setDescrizionePresetByTipo(e.target.value)}
+                  placeholder="Lascia vuoto per generare automaticamente"
+                  className="h-9 text-sm"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Lista serramenti con checkbox */}
           <div className="space-y-2">
@@ -565,7 +767,11 @@ function CopyMisureDialog({
           <Button variant="ghost" onClick={onClose}>Annulla</Button>
           <Button
             onClick={handleCopy}
-            disabled={selected.size === 0 || addMut.isPending}
+            disabled={
+              selected.size === 0 ||
+              addMut.isPending ||
+              (mode === "listino" && !pickedFamily)
+            }
             className="bg-orange-500 hover:bg-orange-600 gap-1.5"
           >
             {addMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -580,4 +786,14 @@ function CopyMisureDialog({
 
 function tipoLabel(value: string): string {
   return SR_ACCESSORI_TIPI.find((t) => t.value === value)?.label ?? value;
+}
+
+function modalitaLabel(value: string | null | undefined): string {
+  switch (value) {
+    case "pz": return "A pezzo";
+    case "mq": return "Al mq";
+    case "griglia": return "Griglia L×H";
+    case "misura_libera": return "Misura libera";
+    default: return "Modalità non impostata";
+  }
 }

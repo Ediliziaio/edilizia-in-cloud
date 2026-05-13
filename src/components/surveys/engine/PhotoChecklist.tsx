@@ -10,7 +10,6 @@
  */
 import { useState, useRef } from "react";
 import type { PhotoChecklistItem, SurveyMediaRow } from "@/types/surveys";
-import { Button } from "@/components/ui/button";
 import { Camera, Trash2, AlertCircle, Loader2, Plus, ImageIcon } from "lucide-react";
 import { uploadMedia, deleteMedia } from "@/lib/api/surveys";
 import { toast } from "sonner";

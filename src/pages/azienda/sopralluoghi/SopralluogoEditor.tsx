@@ -19,7 +19,7 @@ import {
   addElement, updateElement, deleteElement, logActivity,
 } from "@/lib/api/surveys";
 import type {
-  SurveyAreaRow, SurveyElementRow, SurveyMediaRow,
+  SurveyAreaRow, SurveyElementRow,
 } from "@/types/surveys";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

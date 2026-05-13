@@ -57,7 +57,7 @@ interface EmailComposeDialogProps {
   context: ComposeContext;
 }
 
-const SUBJECT_PREFIX_RE = /^\s*(re|fwd?|i|aw|wg|sv|tr)\s*[:\-\[]\s*/i;
+const SUBJECT_PREFIX_RE = /^\s*(re|fwd?|i|aw|wg|sv|tr)\s*[:\-[]\s*/i;
 
 function stripPrefix(subject: string | null): string {
   if (!subject) return "";

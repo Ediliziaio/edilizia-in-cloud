@@ -14,7 +14,7 @@
  */
 import { useMemo, useState } from "react";
 import type {
-  TemplateSchema, FieldSection, ElementTypeDefinition, PhotoChecklistItem,
+  TemplateSchema, ElementTypeDefinition, PhotoChecklistItem,
   SurveyTemplateRow,
 } from "@/types/surveys";
 import {
@@ -28,8 +28,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Eye, Code, RotateCcw, ChevronDown, ChevronRight,
-  Camera, Mic, X, Plus, Sparkles, MapPin, Trash2, FileSignature,
+  Eye, Code, RotateCcw, ChevronDown,
+  Camera, Mic, Plus, Sparkles, MapPin, Trash2, FileSignature,
 } from "lucide-react";
 import { SectionRenderer } from "@/components/surveys/engine/SectionRenderer";
 import { cn } from "@/lib/utils";
