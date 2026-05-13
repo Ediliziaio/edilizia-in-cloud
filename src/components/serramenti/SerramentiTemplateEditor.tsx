@@ -1281,8 +1281,18 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       </div>
                     )}
 
-                    {/* Eyebrow + Title + Subtitle */}
-                    <div className="mb-4 w-full">
+                    {/* Eyebrow + Title + Subtitle — M18 vertical-align */}
+                    <div
+                      className="mb-4 w-full"
+                      style={{
+                        marginTop:
+                          (form.pdf_cover_text_vertical ?? "bottom") === "top"
+                            ? 0
+                            : "auto",
+                        marginBottom:
+                          form.pdf_cover_text_vertical === "center" ? "auto" : "1rem",
+                      }}
+                    >
                       <div
                         className="font-semibold uppercase tracking-wider mb-2"
                         style={{
@@ -1684,6 +1694,36 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                           }
                         >
                           {opt.icon}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* M18 · Allineamento verticale blocco testo */}
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-[11px] mb-1 block">Posizione testo (verticale)</Label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {([
+                      { v: "top",    label: "↑ Alto",   title: "Testo subito sotto al logo" },
+                      { v: "center", label: "↕ Centro", title: "Testo centrato verticalmente" },
+                      { v: "bottom", label: "↓ Basso",  title: "Testo in fondo, pre-footer (default)" },
+                    ] as const).map((opt) => {
+                      const isActive = (form.pdf_cover_text_vertical ?? "bottom") === opt.v;
+                      return (
+                        <button
+                          key={opt.v}
+                          type="button"
+                          title={opt.title}
+                          onClick={() => update("pdf_cover_text_vertical", opt.v)}
+                          className={
+                            "h-7 rounded border text-[10px] font-semibold transition-all " +
+                            (isActive
+                              ? "bg-orange-500 text-white border-orange-500"
+                              : "bg-white border-slate-200 hover:border-orange-300 text-slate-700")
+                          }
+                        >
+                          {opt.label}
                         </button>
                       );
                     })}

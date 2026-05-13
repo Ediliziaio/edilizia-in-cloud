@@ -1505,6 +1505,13 @@ export function SerramentoPDF({
     )
       ? (tpl.pdf_cover_logo_position as "top_left" | "top_right" | "top_center" | "hidden")
       : "top_left";
+  // M18 · allineamento verticale blocco testo cover (top | center | bottom)
+  const coverTextVertical: "top" | "center" | "bottom" =
+    (["top", "center", "bottom"] as const).includes(
+      tpl.pdf_cover_text_vertical as "top" | "center" | "bottom"
+    )
+      ? (tpl.pdf_cover_text_vertical as "top" | "center" | "bottom")
+      : "bottom";
   const coverBgColor = tpl.pdf_cover_bg_color || null; // null = usa C.coverBg default
   const coverEyebrowSize = typeof tpl.pdf_cover_eyebrow_size === "number" ? tpl.pdf_cover_eyebrow_size : 10;
   const coverTitleSize = typeof tpl.pdf_cover_title_size === "number" ? tpl.pdf_cover_title_size : 40;
@@ -1877,6 +1884,14 @@ export function SerramentoPDF({
             </View>
           )}
 
+          {/* M18 · Wrapper blocco testo con allineamento verticale.
+              - bottom: marginTop auto → blocco va in fondo (pre-footer)
+              - center: marginTop+marginBottom auto entrambi → centro
+              - top: nessun marginTop → blocco appena sotto il logo */}
+          <View style={{
+            marginTop: coverTextVertical === "top" ? 0 : "auto",
+            marginBottom: coverTextVertical === "center" ? "auto" : 0,
+          }}>
           <Text style={[styles.coverEyebrow, { fontSize: coverEyebrowSize, textAlign: coverTextAlign }]}>{coverEyebrow}</Text>
           <Text style={[styles.coverTitle, { fontSize: coverTitleSize, color: coverTextColor, textAlign: coverTextAlign }]}>{coverHero}</Text>
           <Text style={[styles.coverSubtitle, { fontSize: coverSubtitleSize, textAlign: coverTextAlign }]}>{coverSubhero}</Text>
@@ -1911,7 +1926,8 @@ export function SerramentoPDF({
               )}
             </View>
           )}
-        </View>
+          </View>{/* end M18 vertical-align wrapper */}
+        </View>{/* end M17 logo-position wrapper */}
 
         <View style={styles.coverFooter}>
           <View>
