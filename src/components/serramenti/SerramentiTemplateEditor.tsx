@@ -50,8 +50,8 @@ import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
 import { FileText } from "lucide-react";
-import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza, SrPercorsoCliente, SrPercorsoFase } from "@/types/serramenti";
-import { SR_PERCORSO_DEFAULT } from "@/types/serramenti";
+import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza, SrPercorsoCliente, SrPercorsoFase, SrGaranzia } from "@/types/serramenti";
+import { SR_PERCORSO_DEFAULT, SR_GARANZIE_DEFAULT } from "@/types/serramenti";
 import {
   PRESET_ESIGENZE, PRESET_ESIGENZE_ALT, PRESET_ESIGENZE_FAMIGLIA,
   PRESET_SOLUZIONE, PRESET_SOLUZIONE_PREMIUM,
@@ -1878,6 +1878,83 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             </div>
           </TabsContent>
         </Tabs>
+      </SrCard>
+
+      {/* Milestone 5: Garanzie editor — card visibili nella pagina "Le nostre
+          garanzie" del PDF. Default 5 garanzie standard; l'azienda può
+          override singoli campi o aggiungerne fino a 6. */}
+      <SrCard
+        title="Garanzie (pagina dedicata PDF)"
+        description="Le 5-6 garanzie mostrate come card con icone nel PDF. Modifica titolo e descrizione per personalizzare. Lascia vuoto per usare i default standard del settore."
+        icon={<FileText className="h-4 w-4" />}
+      >
+        <div className="space-y-2">
+          {(form.garanzie ?? SR_GARANZIE_DEFAULT).slice(0, 6).map((g, idx) => (
+            <div key={idx} className="rounded-md border p-3 grid grid-cols-12 gap-2 bg-slate-50/50">
+              <div className="col-span-12 md:col-span-2">
+                <Label className="text-[10px]">Icona</Label>
+                <select
+                  value={g.icona}
+                  onChange={(e) => {
+                    const next = [...(form.garanzie ?? SR_GARANZIE_DEFAULT)];
+                    next[idx] = { ...next[idx], icona: e.target.value as SrGaranzia["icona"] };
+                    update("garanzie", next);
+                  }}
+                  className="h-9 w-full text-xs rounded-md border bg-background px-2"
+                >
+                  <option value="shield">🛡️ Scudo</option>
+                  <option value="tools">🔧 Strumenti</option>
+                  <option value="money">💰 Penale</option>
+                  <option value="drop">💧 Sigillatura</option>
+                  <option value="refresh">🔄 Sostituzione</option>
+                  <option value="clock">⏰ Tempi</option>
+                  <option value="award">🏆 Qualità</option>
+                  <option value="custom">⭐ Altro</option>
+                </select>
+              </div>
+              <div className="col-span-12 md:col-span-4">
+                <Label className="text-[10px]">Titolo</Label>
+                <Input
+                  value={g.titolo}
+                  onChange={(e) => {
+                    const next = [...(form.garanzie ?? SR_GARANZIE_DEFAULT)];
+                    next[idx] = { ...next[idx], titolo: e.target.value };
+                    update("garanzie", next);
+                  }}
+                  className="h-9 text-xs"
+                  placeholder="Es. Garanzia 10 anni"
+                />
+              </div>
+              <div className="col-span-12 md:col-span-6">
+                <Label className="text-[10px]">Descrizione</Label>
+                <Input
+                  value={g.descrizione}
+                  onChange={(e) => {
+                    const next = [...(form.garanzie ?? SR_GARANZIE_DEFAULT)];
+                    next[idx] = { ...next[idx], descrizione: e.target.value };
+                    update("garanzie", next);
+                  }}
+                  className="h-9 text-xs"
+                  placeholder="Una riga di dettaglio chiaro che il cliente capisce subito"
+                />
+              </div>
+            </div>
+          ))}
+          <div className="flex justify-between items-center pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => update("garanzie", SR_GARANZIE_DEFAULT)}
+              className="text-xs"
+            >
+              Ripristina default
+            </Button>
+            <p className="text-[10px] text-muted-foreground">
+              Massimo 6 garanzie. Le icone vengono renderizzate come SVG nel PDF.
+            </p>
+          </div>
+        </div>
       </SrCard>
 
       {/* SEZIONE: Default tecnici */}
