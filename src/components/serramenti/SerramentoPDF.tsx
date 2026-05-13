@@ -1199,6 +1199,48 @@ function PageFooter({
   );
 }
 
+// ─── Milestone 4 · Subhero template renderer ──────────────────────────────
+// Espande placeholders del tipo {variabile} usando i dati del progetto.
+// Placeholder unknown vengono lasciati testuali (es. "{foo}" → "{foo}") per
+// debug visibility; in produzione l'azienda non vedrà mai stringhe rotte
+// perché il template editor mostra la preview live.
+function renderSubheroTemplate(template: string, detail: SrProgettoDetail): string {
+  const p = detail.progetto;
+  const nomeCompleto = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ").trim();
+  const numSerramenti = detail.serramenti.reduce(
+    (acc, s) => acc + (s.quantita ?? 1),
+    0,
+  );
+  const dataConsegna = (() => {
+    if (p.valido_fino_data) {
+      // Se c'è una validità, la usiamo come "consegna stimata" indicativa.
+      return new Date(p.valido_fino_data).toLocaleDateString("it-IT", {
+        day: "numeric", month: "long",
+      });
+    }
+    if (p.valido_fino_giorni) {
+      const d = new Date(Date.now() + p.valido_fino_giorni * 24 * 60 * 60 * 1000);
+      return d.toLocaleDateString("it-IT", { day: "numeric", month: "long" });
+    }
+    return "data da definire";
+  })();
+  const replacements: Record<string, string> = {
+    cliente_nome: p.cliente_nome ?? "",
+    cliente_cognome: p.cliente_cognome ?? "",
+    cliente_nome_completo: nomeCompleto || "cliente",
+    cantiere_citta: p.cantiere_citta ?? p.cliente_citta ?? "—",
+    cantiere_provincia: p.cantiere_provincia ?? p.cliente_provincia ?? "",
+    num_serramenti: String(numSerramenti || 0),
+    data_consegna_stimata: dataConsegna,
+    tipo_intervento: p.tipo_intervento ?? "intervento",
+    anno: String(new Date().getFullYear()),
+  };
+  return template.replace(/\{([a-z_]+)\}/gi, (full, key) => {
+    const k = String(key).toLowerCase();
+    return replacements[k] !== undefined ? replacements[k] : full;
+  });
+}
+
 // ─── Tipo input ────────────────────────────────────────────────────────────
 
 export interface SerramentoPDFProps {
@@ -1257,7 +1299,15 @@ export function SerramentoPDF({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tpl = (template ?? {}) as any;
   const coverHero = tpl.pdf_cover_hero || "La tua casa,\nfinalmente al caldo.";
-  const coverSubhero = tpl.pdf_cover_subhero || sintesi;
+
+  // ─── Milestone 4 · Cover subhero dinamico con placeholders ────────────
+  // Priorità: pdf_cover_subhero_template (con placeholders) → pdf_cover_subhero
+  // (statico) → sintesi auto-generata da BOM.
+  const coverSubhero = (() => {
+    const tmpl = tpl.pdf_cover_subhero_template as string | null | undefined;
+    if (!tmpl?.trim()) return tpl.pdf_cover_subhero || sintesi;
+    return renderSubheroTemplate(tmpl, detail);
+  })();
   const coverEyebrow = tpl.pdf_cover_eyebrow || "LA TUA PROPOSTA PERSONALIZZATA";
   const coverImageUrl = tpl.pdf_cover_image_url || null;
   const coverOverlayOpacity = typeof tpl.pdf_cover_overlay_opacity === "number"

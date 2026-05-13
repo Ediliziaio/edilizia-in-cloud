@@ -460,6 +460,10 @@ export interface SrTemplatePdfRow {
   /** Mostra footer legale esteso (REA, capitale sociale, PEC). Migration
    *  20270514020000. Default false — opt-in per setup B2B. */
   pdf_show_legal_footer: boolean;
+  /** Template subhero copertina con placeholders (migration 20270514030000).
+   *  NULL = fallback a pdf_cover_subhero. Placeholders: {cliente_nome},
+   *  {cliente_nome_completo}, {cantiere_citta}, {num_serramenti}, ecc. */
+  pdf_cover_subhero_template: string | null;
   created_at: string;
   updated_at: string;
 }

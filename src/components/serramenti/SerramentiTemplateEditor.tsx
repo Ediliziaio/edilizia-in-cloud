@@ -1279,6 +1279,43 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     className="text-sm"
                   />
                 </div>
+
+                {/* Milestone 4: subhero template con placeholder dinamici. */}
+                <div>
+                  <Label className="text-xs mb-1 block flex items-center justify-between">
+                    <span>Sottotitolo dinamico (con placeholder) — opzionale</span>
+                    <span className="text-[10px] font-normal text-muted-foreground">override del sottotitolo sopra</span>
+                  </Label>
+                  <Textarea
+                    value={form.pdf_cover_subhero_template ?? ""}
+                    onChange={(e) =>
+                      update("pdf_cover_subhero_template", e.target.value || null)
+                    }
+                    placeholder="Per la casa di {cliente_nome_completo} a {cantiere_citta} · {num_serramenti} serramenti · Consegna entro {data_consegna_stimata}"
+                    rows={2}
+                    className="text-sm font-mono"
+                  />
+                  <details className="mt-1.5">
+                    <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground select-none">
+                      Placeholder disponibili ({9} variabili)
+                    </summary>
+                    <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground font-mono pl-3">
+                      <div>{"{cliente_nome}"}</div>
+                      <div>{"{cliente_cognome}"}</div>
+                      <div>{"{cliente_nome_completo}"}</div>
+                      <div>{"{cantiere_citta}"}</div>
+                      <div>{"{cantiere_provincia}"}</div>
+                      <div>{"{num_serramenti}"}</div>
+                      <div>{"{data_consegna_stimata}"}</div>
+                      <div>{"{tipo_intervento}"}</div>
+                      <div>{"{anno}"}</div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1 italic">
+                      Esempio: il template di esempio nel placeholder genera<br/>
+                      <span className="text-foreground not-italic">"Per la casa di Mario Rossi a Bolzano · 8 serramenti · Consegna entro 30 marzo"</span>
+                    </p>
+                  </details>
+                </div>
               </div>
             </div>
 
