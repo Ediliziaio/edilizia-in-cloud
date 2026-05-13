@@ -275,12 +275,15 @@ export function useListinoFamiliesByIds(ids: string[]) {
 export function useMacrocategorie(opts?: {
   onlyWithFamilies?: boolean;
   vertical?: string | null;
+  /** Filtro tipo (principale/accessorio). Migration 20270513230000. */
+  tipo?: "principale" | "accessorio" | null;
 }) {
   const onlyWithFamilies = opts?.onlyWithFamilies ?? true;
   const vertical = opts?.vertical ?? null;
+  const tipo = opts?.tipo ?? null;
   return useQuery({
-    queryKey: ["sr-listino-macrocategorie", onlyWithFamilies, vertical],
-    queryFn: () => listMacrocategorie({ onlyWithFamilies, vertical }),
+    queryKey: ["sr-listino-macrocategorie", onlyWithFamilies, vertical, tipo],
+    queryFn: () => listMacrocategorie({ onlyWithFamilies, vertical, tipo }),
     staleTime: 5 * 60 * 1000,
   });
 }

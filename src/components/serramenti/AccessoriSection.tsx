@@ -359,6 +359,11 @@ export function AccessoriSection({ progettoId, detail }: Props) {
         open={listinoPickerOpen}
         onOpenChange={setListinoPickerOpen}
         onSelect={(pick) => handleAddFromListino(pick)}
+        // Filtro tipo='accessorio': il picker degli accessori mostra solo
+        // macrocategorie marcate come "Accessorio" in Listino → Macrocategorie
+        // (Tapparelle, Cassonetti, Zanzariere, …). Esclude i prodotti
+        // principali (es. Infissi).
+        tipo="accessorio"
       />
 
       <AlertDialog
@@ -413,13 +418,13 @@ function CopyMisureDialog({
   const [pickedMacroId, setPickedMacroId] = useState<string | null>(null);
   const [pickedFamilyId, setPickedFamilyId] = useState<string | null>(null);
 
-  // Tutte le macrocategorie disponibili per Serramenti (Tapparelle, Zanzariere,
-  // Cassonetti, Persiane, Monoblocchi, ecc.). Niente filtro heuristic per nome:
-  // l'utente sceglie esplicitamente cosa è accessorio e cosa no.
-  const { data: allMacros = [], isLoading: loadingMacros } = useMacrocategorie({
+  // Macrocategorie ACCESSORIO (migration 20270513230000): mostrate solo se
+  // l'azienda le ha esplicitamente marcate "Accessorio" in Listino →
+  // Macrocategorie → Tipo macrocategoria. Niente più heuristic per nome.
+  const { data: accessoryMacros = [], isLoading: loadingMacros } = useMacrocategorie({
     vertical: "serramentista",
+    tipo: "accessorio",
   });
-  const accessoryMacros = allMacros;
 
   // Families della macro selezionata (limite 100 per default del backend).
   // Loading state esposto per evitare "lista vuota" durante il fetch.

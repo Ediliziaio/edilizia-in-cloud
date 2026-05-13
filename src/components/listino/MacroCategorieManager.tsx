@@ -123,6 +123,10 @@ export function MacroCategorieManager() {
   // usa solo descrizione_estesa, mantenuto setter per setForm... cleanup).
   const [, setFormDescrizione] = useState("");
   const [formVerticali, setFormVerticali] = useState<string[]>([]);
+  // Tipo macrocategoria (migration 20270513230000): 'principale' (default)
+  // o 'accessorio'. Determina dove la macro appare nel preventivatore.
+  const [formCategoriaTipo, setFormCategoriaTipo] =
+    useState<"principale" | "accessorio">("principale");
   const [formImmagineUrl, setFormImmagineUrl] = useState<string | null>(null);
   const [formDescrizioneEstesa, setFormDescrizioneEstesa] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -160,13 +164,15 @@ export function MacroCategorieManager() {
       setFormVerticali(mode.row.verticali_abilitati ?? []);
       setFormImmagineUrl(mode.row.immagine_url ?? null);
       setFormDescrizioneEstesa(mode.row.descrizione_estesa ?? mode.row.descrizione ?? "");
+      setFormCategoriaTipo(mode.row.categoria_tipo ?? "principale");
     } else {
-      // macro-new o none: campi vuoti
+      // macro-new o none: campi vuoti, default 'principale'
       setFormNome("");
       setFormDescrizione("");
       setFormVerticali([]);
       setFormImmagineUrl(null);
       setFormDescrizioneEstesa("");
+      setFormCategoriaTipo("principale");
     }
   };
 
@@ -177,6 +183,7 @@ export function MacroCategorieManager() {
     setFormVerticali([]);
     setFormImmagineUrl(null);
     setFormDescrizioneEstesa("");
+    setFormCategoriaTipo("principale");
   };
 
   // Upload immagine macro: gestito solo in macro-edit (serve l'id).
@@ -275,6 +282,7 @@ export function MacroCategorieManager() {
           descrizione: formDescrizioneEstesa.trim().slice(0, 250) || null,
           descrizione_estesa: formDescrizioneEstesa.trim() || null,
           verticali_abilitati: formVerticali,
+          categoria_tipo: formCategoriaTipo,
         });
         toast.success("Macrocategoria creata");
         // Post-refactor 20270513200000: bypassiamo il livello categoria
@@ -296,6 +304,7 @@ export function MacroCategorieManager() {
             descrizione: formDescrizioneEstesa.trim().slice(0, 250) || null,
             descrizione_estesa: formDescrizioneEstesa.trim() || null,
             verticali_abilitati: formVerticali,
+            categoria_tipo: formCategoriaTipo,
           },
         });
         toast.success("Macrocategoria aggiornata");
@@ -474,6 +483,44 @@ export function MacroCategorieManager() {
                 </p>
               </div>
             )}
+            {/* Tipo macrocategoria — distingue prodotto principale vs accessorio.
+                Decide DOVE appare nel preventivatore:
+                  • principale  → ListinoPickerDialog principale (serramenti veri)
+                  • accessorio  → sezione "Accessori e complementi" del progetto */}
+            <div className="space-y-2 pt-1 border-t">
+              <Label className="text-sm font-medium">Tipo macrocategoria</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormCategoriaTipo("principale")}
+                  className={`text-left rounded-md border-2 p-2.5 transition-colors ${
+                    formCategoriaTipo === "principale"
+                      ? "border-orange-400 bg-orange-50/60"
+                      : "border-slate-200 hover:border-orange-300"
+                  }`}
+                >
+                  <div className="text-sm font-medium">📦 Prodotto principale</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    Es. Infissi, Persiane, Sanitari. Appare come scelta principale del preventivo.
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormCategoriaTipo("accessorio")}
+                  className={`text-left rounded-md border-2 p-2.5 transition-colors ${
+                    formCategoriaTipo === "accessorio"
+                      ? "border-orange-400 bg-orange-50/60"
+                      : "border-slate-200 hover:border-orange-300"
+                  }`}
+                >
+                  <div className="text-sm font-medium">🔗 Accessorio</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    Es. Tapparelle, Cassonetti, Zanzariere. Appare nella sezione "Accessori e complementi".
+                  </div>
+                </button>
+              </div>
+            </div>
+
             {(
 
               <div className="space-y-2 pt-1 border-t">
@@ -834,6 +881,15 @@ function MacroRow({
         >
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             <span className="font-semibold truncate text-[15px] leading-tight">{macro.nome}</span>
+            {macro.categoria_tipo === "accessorio" && (
+              <Badge
+                variant="outline"
+                className="text-[10px] h-4 px-1.5 py-0 border-orange-300 bg-orange-50/70 text-orange-700 dark:bg-orange-950/30 dark:border-orange-700 dark:text-orange-300 font-medium"
+                title="Accessorio collegato (Tapparelle, Cassonetti, ecc.) — appare nella sezione Accessori del preventivo"
+              >
+                🔗 Accessorio
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {verticali.length > 0 ? (

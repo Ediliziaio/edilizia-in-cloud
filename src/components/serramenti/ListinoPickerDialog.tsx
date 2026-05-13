@@ -64,6 +64,10 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (item: ListinoPickResult) => void;
+  /** Filtro tipo macrocategoria (migration 20270513230000).
+   *  Default: 'principale' — il picker mostra solo prodotti principali
+   *  (es. Infissi). Per il flow accessori passare 'accessorio'. */
+  tipo?: "principale" | "accessorio";
 }
 
 // ─── Helpers calcolo prezzo (esportati per riuso in StepBom row) ───────────
@@ -105,7 +109,9 @@ function IconBox({ colore, iconText }: { colore?: string | null; iconText: strin
 
 // ─── Component principale ──────────────────────────────────────────────────
 
-export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
+export function ListinoPickerDialog({
+  open, onOpenChange, onSelect, tipo = "principale",
+}: Props) {
   const [step, setStep] = useState<Step>("macro");
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -145,6 +151,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
   // macro etichettate per questo verticale (più le generiche con verticali_abilitati=[]).
   const { data: macros = [], isLoading: loadingMacros } = useMacrocategorie({
     vertical: "serramentista",
+    tipo,
   });
   // Refactor 20270513200000: filtro famiglie direttamente per macrocategoria.
   // Niente più step categoria intermedio.

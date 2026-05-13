@@ -637,11 +637,16 @@ export interface ListinoCategoria {
 export async function listMacrocategorie(opts?: {
   onlyWithFamilies?: boolean;
   vertical?: string | null;
+  /** Filtro tipo macrocategoria (migration 20270513230000).
+   *  Default: nessun filtro = restituisce tutte (principale + accessorio).
+   *  Pass 'principale' per il picker preventivo principale,
+   *  'accessorio' per la sezione "Accessori e complementi". */
+  tipo?: "principale" | "accessorio" | null;
 }): Promise<ListinoMacrocategoria[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
     .from("listino_macrocategorie")
-    .select("id, nome, descrizione, icona, colore, immagine_url, verticali_abilitati")
+    .select("id, nome, descrizione, icona, colore, immagine_url, verticali_abilitati, categoria_tipo")
     .eq("attivo", true)
     .order("sort_order", { ascending: true, nullsFirst: false })
     .order("nome", { ascending: true });
@@ -649,6 +654,9 @@ export async function listMacrocategorie(opts?: {
   // verticali_abilitati = '{}' (vuoto → generica) OR ? = ANY(verticali_abilitati)
   if (opts?.vertical) {
     q = q.or(`verticali_abilitati.eq.{},verticali_abilitati.cs.{${opts.vertical}}`);
+  }
+  if (opts?.tipo) {
+    q = q.eq("categoria_tipo", opts.tipo);
   }
   const { data, error } = await q;
   if (error) {

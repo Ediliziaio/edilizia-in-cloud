@@ -40,6 +40,10 @@ export interface ListinoMacrocategoria {
   // Se true, sr-genera-pdf inserisce una pagina dedicata nel PDF quando
   // questa macro è presente nel BOM del preventivo.
   mostra_pagina_dedicata_pdf: boolean;
+  /** Ruolo della macrocategoria. Migration 20270513230000.
+   *  'principale' (DEFAULT) = prodotto principale del verticale (Infissi).
+   *  'accessorio' = accessorio collegato (Tapparelle, Cassonetti, ...). */
+  categoria_tipo: "principale" | "accessorio";
   created_at: string;
   updated_at: string;
 }
@@ -55,6 +59,7 @@ export interface MacrocategoriaPayload {
   verticali_abilitati?: string[];
   descrizione_estesa?: string | null;
   mostra_pagina_dedicata_pdf?: boolean;
+  categoria_tipo?: "principale" | "accessorio";
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -142,6 +147,7 @@ export function useMacrocategorieMutations() {
           verticali_abilitati: payload.verticali_abilitati ?? [],
           descrizione_estesa: payload.descrizione_estesa ?? null,
           mostra_pagina_dedicata_pdf: payload.mostra_pagina_dedicata_pdf ?? false,
+          categoria_tipo: payload.categoria_tipo ?? "principale",
         } as never)
         .select()
         .single();
@@ -180,6 +186,9 @@ export function useMacrocategorieMutations() {
           ...(patch.attivo !== undefined ? { attivo: patch.attivo } : {}),
           ...(patch.verticali_abilitati !== undefined
             ? { verticali_abilitati: patch.verticali_abilitati }
+            : {}),
+          ...(patch.categoria_tipo !== undefined
+            ? { categoria_tipo: patch.categoria_tipo }
             : {}),
         } as never)
         .eq("id", id)
