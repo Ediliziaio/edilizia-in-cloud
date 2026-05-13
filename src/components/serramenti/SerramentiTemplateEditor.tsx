@@ -51,7 +51,7 @@ import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
 import { FileText } from "lucide-react";
 import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza, SrPercorsoCliente, SrPercorsoFase, SrGaranzia } from "@/types/serramenti";
-import { SR_PERCORSO_DEFAULT, SR_GARANZIE_DEFAULT } from "@/types/serramenti";
+import { SR_PERCORSO_DEFAULT, SR_GARANZIE_DEFAULT, SR_PERCHE_NOI_METRICHE_DEFAULT, type SrPercheNoiMetrica } from "@/types/serramenti";
 import {
   PRESET_ESIGENZE, PRESET_ESIGENZE_ALT, PRESET_ESIGENZE_FAMIGLIA,
   PRESET_SOLUZIONE, PRESET_SOLUZIONE_PREMIUM,
@@ -2023,6 +2023,129 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             </Button>
             <p className="text-[10px] text-muted-foreground">
               Massimo 6 garanzie. Le icone vengono renderizzate come SVG nel PDF.
+            </p>
+          </div>
+        </div>
+      </SrCard>
+
+      {/* Milestone 10: Perché noi data-driven — riga di big-number metriche
+          mostrate sopra la lista USP nella pagina "Proposta". Max 4 per
+          motivi di layout A4. La metrica "anni di esperienza" può essere
+          auto-derivata dall'anno_fondazione dell'azienda. */}
+      <SrCard
+        title='Metriche "Perché noi" (PDF)'
+        description="Big-number card mostrate sopra la lista USP nella pagina 'Proposta'. Max 4. Vuoto = non mostrate. La metrica con auto_anni_fondazione viene calcolata dall'anno di fondazione (sul profilo azienda)."
+        icon={<FileText className="h-4 w-4" />}
+      >
+        <div className="space-y-2">
+          {((form.pdf_perche_noi_metriche ?? []) as SrPercheNoiMetrica[]).slice(0, 4).map((m, idx) => {
+            const list = (form.pdf_perche_noi_metriche ?? []) as SrPercheNoiMetrica[];
+            const setField = <K extends keyof SrPercheNoiMetrica>(field: K, val: SrPercheNoiMetrica[K]) => {
+              const next = [...list];
+              next[idx] = { ...next[idx], [field]: val };
+              update("pdf_perche_noi_metriche", next);
+            };
+            const removeMetrica = () => {
+              update("pdf_perche_noi_metriche", list.filter((_, i) => i !== idx));
+            };
+            return (
+              <div key={idx} className="rounded-md border p-3 grid grid-cols-12 gap-2 bg-slate-50/50 relative">
+                <div className="col-span-12 md:col-span-1">
+                  <Label className="text-[10px]">Icona</Label>
+                  <Input
+                    value={m.icon ?? ""}
+                    onChange={(e) => setField("icon", e.target.value || null)}
+                    className="h-9 text-xs text-center"
+                    placeholder="🏗️"
+                    maxLength={2}
+                  />
+                </div>
+                <div className="col-span-6 md:col-span-2">
+                  <Label className="text-[10px]">Valore</Label>
+                  <Input
+                    value={m.value}
+                    onChange={(e) => setField("value", e.target.value)}
+                    className="h-9 text-xs"
+                    placeholder="127"
+                    disabled={m.auto_kind === "auto_anni_fondazione"}
+                  />
+                </div>
+                <div className="col-span-6 md:col-span-2">
+                  <Label className="text-[10px]">Suffisso</Label>
+                  <Input
+                    value={m.suffix ?? ""}
+                    onChange={(e) => setField("suffix", e.target.value || null)}
+                    className="h-9 text-xs"
+                    placeholder="+ oppure /10"
+                  />
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-[10px]">Etichetta</Label>
+                  <Input
+                    value={m.label}
+                    onChange={(e) => setField("label", e.target.value)}
+                    className="h-9 text-xs"
+                    placeholder="cantieri completati"
+                  />
+                </div>
+                <div className="col-span-9 md:col-span-2">
+                  <Label className="text-[10px]">Tipo</Label>
+                  <select
+                    value={m.auto_kind ?? ""}
+                    onChange={(e) => setField("auto_kind", (e.target.value || null) as SrPercheNoiMetrica["auto_kind"])}
+                    className="h-9 w-full text-xs rounded-md border bg-background px-2"
+                  >
+                    <option value="">Manuale</option>
+                    <option value="auto_anni_fondazione">Auto · anni fondazione</option>
+                  </select>
+                </div>
+                <div className="col-span-3 md:col-span-1 flex items-end">
+                  <Button type="button" variant="ghost" size="sm" onClick={removeMetrica} className="h-9 w-full text-xs text-red-600 hover:text-red-700">
+                    Elimina
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+          <div className="flex flex-wrap justify-between items-center gap-2 pt-2">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const list = (form.pdf_perche_noi_metriche ?? []) as SrPercheNoiMetrica[];
+                  if (list.length >= 4) return;
+                  update("pdf_perche_noi_metriche", [...list, { value: "", label: "", icon: null, suffix: null, auto_kind: null }]);
+                }}
+                disabled={((form.pdf_perche_noi_metriche ?? []) as SrPercheNoiMetrica[]).length >= 4}
+                className="text-xs"
+              >
+                + Aggiungi metrica
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => update("pdf_perche_noi_metriche", SR_PERCHE_NOI_METRICHE_DEFAULT)}
+                className="text-xs"
+              >
+                Usa preset suggerito
+              </Button>
+              {((form.pdf_perche_noi_metriche ?? []) as SrPercheNoiMetrica[]).length > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => update("pdf_perche_noi_metriche", [])}
+                  className="text-xs text-red-600 hover:text-red-700"
+                >
+                  Svuota
+                </Button>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Compila <strong>anno di fondazione</strong> nel profilo azienda per usare la metrica auto.
             </p>
           </div>
         </div>

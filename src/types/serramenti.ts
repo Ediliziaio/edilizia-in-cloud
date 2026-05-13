@@ -477,6 +477,9 @@ export interface SrTemplatePdfRow {
   /** Genera una pagina A4 dedicata per ogni gruppo serramento con foto
    *  di sopralluogo o render AI (M9, migration 20270514060000). Off default. */
   pdf_pagine_articolo_dedicate: boolean;
+  /** Metriche "Perché noi" data-driven (M10, migration 20270514070000).
+   *  Array di big-numbers renderizzate sopra la lista USP nel PDF. */
+  pdf_perche_noi_metriche: SrPercheNoiMetrica[];
   created_at: string;
   updated_at: string;
 }
@@ -530,6 +533,30 @@ export interface SrGaranzia {
   titolo: string;
   descrizione: string;
 }
+
+/** M10 · Metrica "Perché noi" data-driven (big number + label).
+ *  Renderizzata come card numerica grande sopra la lista USP bullet. */
+export interface SrPercheNoiMetrica {
+  /** Numero o stringa breve da mostrare in evidenza (es. "127", "9.4"). */
+  value: string;
+  /** Etichetta sotto il numero (es. "cantieri completati"). */
+  label: string;
+  /** Suffisso unità inline al numero, opzionale (es. "/10", "+", "%"). */
+  suffix?: string | null;
+  /** Emoji singolo o pittogramma (es. "🏗️", "⭐"). */
+  icon?: string | null;
+  /** Se "auto_anni_fondazione", il PDF deriva value da company.anno_fondazione. */
+  auto_kind?: "auto_anni_fondazione" | null;
+}
+
+/** M10 · Metriche default suggerite quando l'azienda inizia ad usare la
+ *  sezione. Servono come template editabile, non vengono auto-inserite. */
+export const SR_PERCHE_NOI_METRICHE_DEFAULT: SrPercheNoiMetrica[] = [
+  { value: "—", label: "anni di esperienza", icon: "📅", auto_kind: "auto_anni_fondazione" },
+  { value: "100+", label: "cantieri completati", icon: "🏗️", auto_kind: null },
+  { value: "98%", label: "clienti soddisfatti", icon: "⭐", auto_kind: null },
+  { value: "10", label: "anni di garanzia", suffix: " anni", icon: "🛡️", auto_kind: null },
+];
 
 /** Riga della tabella Confronto Prima/Dopo numerico (parametro tecnico). */
 export interface SrConfrontoRiga {

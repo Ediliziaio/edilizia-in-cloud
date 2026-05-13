@@ -624,6 +624,36 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     articoloNoteLabel: { fontSize: 8, color: C.primary, fontWeight: 700, textTransform: "uppercase" as const, marginBottom: 3 },
     articoloNoteText: { fontSize: 9.5, color: C.gray700, lineHeight: 1.5 },
 
+    // Milestone 10: "Perché noi" data-driven — riga di big-number cards.
+    // Layout: row con 3-4 colonne equispaziate, ogni card ha icon + value + label.
+    percheNoiMetricheRow: {
+      flexDirection: "row" as const,
+      gap: 8,
+      marginTop: 4,
+      marginBottom: 14,
+    },
+    percheNoiMetricaCard: {
+      flex: 1,
+      backgroundColor: C.primaryLight,
+      borderRadius: 8,
+      paddingVertical: 12,
+      paddingHorizontal: 8,
+      alignItems: "center" as const,
+      borderTop: `2pt solid ${C.primary}`,
+    },
+    percheNoiMetricaIcon: { fontSize: 16, marginBottom: 4 },
+    percheNoiMetricaValue: { fontSize: 20, fontWeight: 800, color: C.primary, textAlign: "center" as const },
+    percheNoiMetricaSuffix: { fontSize: 11, fontWeight: 600, color: C.primary },
+    percheNoiMetricaLabel: {
+      fontSize: 8,
+      color: C.primary,
+      textAlign: "center" as const,
+      marginTop: 3,
+      textTransform: "uppercase" as const,
+      letterSpacing: 0.4,
+      fontWeight: 600,
+    },
+
     // Chi siamo
     // L'immagine usa objectFit "contain" + height ESPLICITA. In react-pdf
     // `maxHeight` non funziona come in CSS (viene ignorata sull'<Image>),
@@ -1477,6 +1507,32 @@ export function SerramentoPDF({
   const mostraTabellaEcobonus = tpl.pdf_mostra_tabella_ecobonus === true; // default false
   const paginaArticoloDedicata = tpl.pdf_pagine_articolo_dedicate === true; // default false
 
+  // ─── Milestone 10 · "Perché noi" data-driven ─────────────────────────
+  // Le metriche sono memorizzate sul template come array di {label, value,
+  // suffix?, icon?, auto_kind?}. Se auto_kind = "auto_anni_fondazione",
+  // sostituiamo il value con (annoCorrente - company.anno_fondazione).
+  // Se anno_fondazione mancante, scartiamo la metrica auto invece di
+  // mostrare "—" o numeri spuri.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const companyM10 = (company ?? {}) as any;
+  const annoFondazione = Number(companyM10?.anno_fondazione ?? 0) || null;
+  const annoCorrente = new Date().getFullYear();
+  const percheNoiMetricheRaw = (Array.isArray(tpl.pdf_perche_noi_metriche)
+    ? tpl.pdf_perche_noi_metriche
+    : []) as Array<{ value: string; label: string; suffix?: string | null; icon?: string | null; auto_kind?: string | null }>;
+  const percheNoiMetriche = percheNoiMetricheRaw
+    .map((m) => {
+      if (m.auto_kind === "auto_anni_fondazione") {
+        if (!annoFondazione || annoFondazione > annoCorrente) return null;
+        const anni = annoCorrente - annoFondazione;
+        return { ...m, value: String(anni) };
+      }
+      return m;
+    })
+    .filter((m): m is NonNullable<typeof m> => m !== null)
+    .slice(0, 4); // max 4 per riga A4
+
+
   const ctaTitle = tpl.pdf_cta_finale_titolo || "Cosa fare adesso";
   const ctaSteps = (Array.isArray(tpl.pdf_cta_finale_passi) && tpl.pdf_cta_finale_passi.length > 0)
     ? tpl.pdf_cta_finale_passi as string[]
@@ -1919,9 +1975,27 @@ export function SerramentoPDF({
                 </>
               )}
 
-              {percheNoi.length > 0 && (
+              {(percheNoi.length > 0 || percheNoiMetriche.length > 0) && (
                 <>
                   <Text style={styles.sectionTitle}>Perché {companyName}</Text>
+
+                  {/* Milestone 10: row di big-number metriche sopra la lista USP.
+                      Mostrate solo se almeno una è configurata. */}
+                  {percheNoiMetriche.length > 0 && (
+                    <View style={styles.percheNoiMetricheRow}>
+                      {percheNoiMetriche.map((m, i) => (
+                        <View key={i} style={styles.percheNoiMetricaCard} wrap={false}>
+                          {m.icon && <Text style={styles.percheNoiMetricaIcon}>{m.icon}</Text>}
+                          <Text style={styles.percheNoiMetricaValue}>
+                            {m.value}
+                            {m.suffix && <Text style={styles.percheNoiMetricaSuffix}>{m.suffix}</Text>}
+                          </Text>
+                          <Text style={styles.percheNoiMetricaLabel}>{m.label}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
                   {percheNoi.slice(0, 5).map((it, i) => {
                     const titolo = typeof it === "string" ? it : it.titolo;
                     const descrizione = typeof it === "string" ? null : it.descrizione;
