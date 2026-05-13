@@ -47,21 +47,10 @@ import { cn } from "@/lib/utils";
 import { format, subDays } from "date-fns";
 import { it } from "date-fns/locale";
 import type { SrStatoProgetto } from "@/types/serramenti";
-
-const STATI_LABEL: Record<SrStatoProgetto, { label: string; className: string }> = {
-  bozza:           { label: "Bozza",          className: "bg-slate-100 text-slate-700 border-slate-200" },
-  da_consegnare:   { label: "Da consegnare",  className: "bg-amber-100 text-amber-800 border-amber-200" },
-  consegnato:      { label: "Consegnato",     className: "bg-sky-100 text-sky-800 border-sky-200" },
-  in_valutazione:  { label: "In valutazione", className: "bg-blue-50 text-[#173b67] border-blue-200" },
-  accettato:       { label: "Accettato",      className: "bg-orange-100 text-orange-700 border-orange-200" },
-  rifiutato:       { label: "Rifiutato",      className: "bg-rose-100 text-rose-700 border-rose-200" },
-  scaduto:         { label: "Scaduto",        className: "bg-slate-100 text-slate-500 border-slate-200" },
-  archiviato:      { label: "Archiviato",     className: "bg-slate-100 text-slate-400 border-slate-200" },
-};
-
-const STATI_APERTI: SrStatoProgetto[] = ["bozza", "da_consegnare", "consegnato", "in_valutazione"];
-const STATI_VINTI: SrStatoProgetto[] = ["accettato"];
-const STATI_PERSI: SrStatoProgetto[] = ["rifiutato", "scaduto"];
+// Costanti UI condivise con SerramentiWizard (status badge azionabile).
+import {
+  STATI_LABEL, STATI_APERTI, STATI_VINTI, STATI_PERSI,
+} from "@/lib/serramenti/statoLabels";
 
 type PeriodKey = "all" | "7d" | "30d" | "90d" | "ytd";
 const PERIOD_LABELS: Record<PeriodKey, string> = {

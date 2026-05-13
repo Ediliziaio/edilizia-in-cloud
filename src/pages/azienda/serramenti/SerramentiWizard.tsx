@@ -23,7 +23,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";
 import { useTemplatePdf } from "@/lib/serramenti/queries";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { Eye } from "lucide-react";
+import { Eye, ChevronDown } from "lucide-react";
+import { STATI_LABEL, TRANSIZIONI_STATO } from "@/lib/serramenti/statoLabels";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -120,6 +124,52 @@ export default function SerramentiWizard() {
     if (!detail) return;
     void previewPDF({ detail, template: pdfTemplate ?? null, company: pdfCompany ?? null });
   };
+
+  // ─── Status workflow ──────────────────────────────────────────────────
+  const currentStato: SrStatoProgetto = (detail?.progetto.stato as SrStatoProgetto) ?? "bozza";
+  const statoMeta = STATI_LABEL[currentStato];
+  const transizioniDisponibili = TRANSIZIONI_STATO[currentStato] ?? [];
+
+  /** Cambia lo stato del preventivo via mutation immediata (no debounce:
+   *  azione utente esplicita, feedback subito visibile). */
+  const handleChangeStato = async (next: SrStatoProgetto) => {
+    if (!id) return;
+    try {
+      // Patch immediata via update (bypass autosave debounce per UX snappy).
+      await updateMut.mutateAsync({ stato: next });
+      setLastSavedAt(new Date());
+      const label = STATI_LABEL[next].label;
+      toast.success(`Stato → ${label}`);
+    } catch (e) {
+      toast.error("Impossibile cambiare stato", {
+        description: e instanceof Error ? e.message : "Errore sconosciuto",
+      });
+    }
+  };
+
+  // Auto-expiry: se il preventivo è in stato "consegnato" o "in_valutazione"
+  // e la validità è scaduta, proponiamo il flag "scaduto" all'utente.
+  // (Non auto-cambiamo silenziosamente per evitare side-effect inattesi.)
+  useEffect(() => {
+    if (!detail?.progetto) return;
+    const { stato, valido_fino_data } = detail.progetto;
+    if (stato !== "consegnato" && stato !== "in_valutazione") return;
+    if (!valido_fino_data) return;
+    const scaduta = new Date(valido_fino_data).getTime() < Date.now();
+    if (!scaduta) return;
+    // One-shot suggestion via toast, no auto-mutation.
+    const dismissKey = `sr-scaduto-toast-${id}`;
+    if (sessionStorage.getItem(dismissKey)) return;
+    sessionStorage.setItem(dismissKey, "1");
+    toast.warning("Preventivo scaduto", {
+      description: `La validità è scaduta il ${new Date(valido_fino_data).toLocaleDateString("it-IT")}. Vuoi marcarlo come "scaduto"?`,
+      duration: 12_000,
+      action: {
+        label: "Marca scaduto",
+        onClick: () => void handleChangeStato("scaduto"),
+      },
+    });
+  }, [detail?.progetto?.stato, detail?.progetto?.valido_fino_data, id]); // eslint-disable-line react-hooks/exhaustive-deps
   const createMut = useCreateProgetto();
 
   const pendingWrites = useIsMutating({ mutationKey: ["sr-progetto-autosave", id] });
@@ -492,6 +542,55 @@ export default function SerramentiWizard() {
                   {[detail.progetto.cliente_nome, detail.progetto.cliente_cognome].filter(Boolean).join(" ")}
                 </Badge>
               )}
+              {/* Status badge azionabile: click → dropdown con transizioni
+                  consentite. Le azioni cambiano in base allo stato corrente
+                  (es. da "consegnato" → Accettato/Rifiutato/In valutazione). */}
+              {!isNew && detail && transizioniDisponibili.length > 0 ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className={`text-[10px] h-5 px-1.5 rounded border inline-flex items-center gap-0.5 hover:opacity-80 transition-opacity ${statoMeta.className}`}
+                      title="Cambia stato preventivo"
+                    >
+                      {statoMeta.label}
+                      <ChevronDown className="h-2.5 w-2.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground font-medium border-b">
+                      Cambia stato
+                    </div>
+                    {transizioniDisponibili.map((t, idx) => (
+                      <DropdownMenuItem
+                        key={t.next}
+                        onClick={() => void handleChangeStato(t.next)}
+                        className="text-xs"
+                      >
+                        {t.label}
+                        {idx === 0 && transizioniDisponibili.length > 2 && (
+                          <span className="ml-auto text-[9px] text-muted-foreground">consigliato</span>
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                    {currentStato !== "archiviato" && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => void handleChangeStato("archiviato")}
+                          className="text-xs text-muted-foreground"
+                        >
+                          Archivia
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : !isNew && detail ? (
+                <Badge variant="outline" className={`text-[10px] ${statoMeta.className}`}>
+                  {statoMeta.label}
+                </Badge>
+              ) : null}
               {(updateMut.isPending || pendingWrites > 0) ? (
                 <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                   <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
