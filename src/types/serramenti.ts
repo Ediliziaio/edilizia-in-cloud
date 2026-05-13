@@ -417,6 +417,9 @@ export interface SrTemplatePdfRow {
   /** M18 · Allineamento verticale blocco testo cover. 'bottom' (default) |
    *  'center' | 'top'. Indipendente da pdf_cover_text_align (orizzontale). */
   pdf_cover_text_vertical: "top" | "center" | "bottom";
+  /** M19 · Variante decorazione cover. 'square' (default) | 'circle' |
+   *  'line' | 'pattern' | 'none'. Ignorato se pdf_cover_show_decoration=false. */
+  pdf_cover_decoration_style: "square" | "circle" | "line" | "pattern" | "none";
   pdf_cover_bg_color: string | null;
   pdf_cover_eyebrow_size: number | null;
   pdf_cover_title_size: number | null;

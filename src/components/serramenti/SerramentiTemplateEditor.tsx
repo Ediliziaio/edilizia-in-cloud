@@ -1823,6 +1823,40 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </label>
                 </div>
 
+                {/* M19 · Variante decorazione (visibile solo se decoration ON) */}
+                {form.pdf_cover_show_decoration !== false && (
+                  <div className="col-span-12 md:col-span-8">
+                    <Label className="text-[11px] mb-1 block">Stile decorazione</Label>
+                    <div className="grid grid-cols-5 gap-1">
+                      {([
+                        { v: "square",  label: "⊞ Finestra", title: "Finestra stilizzata 4 ante (default)" },
+                        { v: "circle",  label: "◯ Cerchio",  title: "Cerchi concentrici outline" },
+                        { v: "line",    label: "│ Linea",    title: "Linea verticale + tick" },
+                        { v: "pattern", label: "⋮⋮ Dots",    title: "Pattern 5×5 dots geometrico" },
+                        { v: "none",    label: "✕ None",     title: "Nessuna decorazione" },
+                      ] as const).map((opt) => {
+                        const isActive = (form.pdf_cover_decoration_style ?? "square") === opt.v;
+                        return (
+                          <button
+                            key={opt.v}
+                            type="button"
+                            title={opt.title}
+                            onClick={() => update("pdf_cover_decoration_style", opt.v)}
+                            className={
+                              "h-7 rounded border text-[10px] font-semibold transition-all " +
+                              (isActive
+                                ? "bg-orange-500 text-white border-orange-500"
+                                : "bg-white border-slate-200 hover:border-orange-300 text-slate-700")
+                            }
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Reset tipografia */}
                 <div className="col-span-12 flex justify-end">
                   <Button

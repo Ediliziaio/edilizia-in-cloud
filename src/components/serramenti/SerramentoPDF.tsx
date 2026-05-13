@@ -1070,11 +1070,67 @@ function formatFieldDisplay(field: SerramentoPdfMacroField, raw: unknown): strin
   return String(raw);
 }
 
-// ─── SVG: Decoro cover (finestra stilizzata) ───────────────────────────────
+// ─── SVG: Decoro cover (5 varianti M19) ────────────────────────────────────
+// Renderizza una decorazione 180×180pt in alto a destra della cover.
+// La variant 'square' è il default storico = finestra stilizzata (4 ante).
+// Le altre varianti sono accenti più minimal per cover modern.
 
-function CoverDecorationSvg({ color }: { color: string }) {
+function CoverDecorationSvg({
+  color,
+  variant = "square",
+}: {
+  color: string;
+  variant?: "square" | "circle" | "line" | "pattern" | "none";
+}) {
+  if (variant === "none") return null;
+
+  const svgProps = { viewBox: "0 0 180 180", style: { width: 180, height: 180 } as never };
+
+  if (variant === "circle") {
+    // Cerchio outline + accent ring concentrico. Tono pulito.
+    return (
+      <Svg {...svgProps}>
+        <Circle cx={90} cy={90} r={80} stroke={color} strokeWidth={3} fill="none" opacity={0.7} />
+        <Circle cx={90} cy={90} r={56} stroke={color} strokeWidth={1.5} fill="none" opacity={0.4} />
+        <Circle cx={90} cy={90} r={32} stroke={color} strokeWidth={1} fill="none" opacity={0.25} />
+      </Svg>
+    );
+  }
+
+  if (variant === "line") {
+    // Linea verticale + 2 tick orizzontali. Tono editorial sobrio.
+    return (
+      <Svg {...svgProps}>
+        <Path d="M 90 10 L 90 170" stroke={color} strokeWidth={2.5} opacity={0.7} />
+        <Path d="M 70 40 L 110 40" stroke={color} strokeWidth={1.5} opacity={0.5} />
+        <Path d="M 70 140 L 110 140" stroke={color} strokeWidth={1.5} opacity={0.5} />
+      </Svg>
+    );
+  }
+
+  if (variant === "pattern") {
+    // Pattern 5×5 di dots. Tono tech/architectural.
+    const dots = [];
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        dots.push(
+          <Circle
+            key={`${r}-${c}`}
+            cx={30 + c * 30}
+            cy={30 + r * 30}
+            r={3}
+            fill={color}
+            opacity={0.45}
+          />,
+        );
+      }
+    }
+    return <Svg {...svgProps}><G>{dots}</G></Svg>;
+  }
+
+  // variant === "square" (default storico — finestra stilizzata)
   return (
-    <Svg viewBox="0 0 180 180" style={{ width: 180, height: 180 } as never}>
+    <Svg {...svgProps}>
       {/* Finestra a 4 ante stilizzata */}
       <G opacity={0.7}>
         <Rect x={20} y={20} width={140} height={140} rx={6} stroke={color} strokeWidth={3} fill="none" />
@@ -1512,6 +1568,13 @@ export function SerramentoPDF({
     )
       ? (tpl.pdf_cover_text_vertical as "top" | "center" | "bottom")
       : "bottom";
+  // M19 · variante decorazione cover (square | circle | line | pattern | none)
+  const coverDecorationStyle: "square" | "circle" | "line" | "pattern" | "none" =
+    (["square", "circle", "line", "pattern", "none"] as const).includes(
+      tpl.pdf_cover_decoration_style as "square" | "circle" | "line" | "pattern" | "none"
+    )
+      ? (tpl.pdf_cover_decoration_style as "square" | "circle" | "line" | "pattern" | "none")
+      : "square";
   const coverBgColor = tpl.pdf_cover_bg_color || null; // null = usa C.coverBg default
   const coverEyebrowSize = typeof tpl.pdf_cover_eyebrow_size === "number" ? tpl.pdf_cover_eyebrow_size : 10;
   const coverTitleSize = typeof tpl.pdf_cover_title_size === "number" ? tpl.pdf_cover_title_size : 40;
@@ -1850,7 +1913,7 @@ export function SerramentoPDF({
             del colore primario in quella posizione. */}
         {coverShowDecoration && (
           <View style={styles.coverDecoSvg}>
-            <CoverDecorationSvg color={primaryColor} />
+            <CoverDecorationSvg color={primaryColor} variant={coverDecorationStyle} />
           </View>
         )}
 
