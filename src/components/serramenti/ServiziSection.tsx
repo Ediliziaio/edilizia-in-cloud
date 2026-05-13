@@ -11,7 +11,7 @@
  *
  * DB: riusa sr_servizi_progetto (rinominata da sr_manodopera_progetto).
  */
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -46,27 +46,42 @@ interface Props {
   detail: SrProgettoDetail;
 }
 
-// Servizi tipici suggeriti come quick-add (catalogo predefinito).
-// Tutti i prezzi sono inseriti dopo dall'utente o pescati dal listino tariffe
-// aziendali via "Da listino tariffe". Quick-add crea solo lo scheletro voce.
+/**
+ * Servizi tipici suggeriti come quick-add. Ogni chip mappa a un `tariffaTipo`
+ * che è l'enum DB di `tariffe_aziendali.tipo` — al click cerchiamo la tariffa
+ * configurata dall'azienda con quel tipo e creiamo la riga con prezzo + unità
+ * ereditati. Se nessuna tariffa trovata, fallback a voce free-form + toast
+ * guida che indirizza in Impostazioni → Tariffe aziendali.
+ *
+ * tariffaTipo deve coincidere con l'enum CHECK di tariffe_aziendali:
+ *   posa, trasporto, smaltimento, nolo, tiro_piano, pratica, manodopera,
+ *   sopralluogo, progettazione, ponteggio, lattoneria, sigillatura,
+ *   contorno, falso_telaio, altro
+ */
 const SERVIZI_RAPIDI = [
-  { tipo: "trasporto", label: "Trasporto", unita: "a_corpo", emoji: "🚚" },
-  { tipo: "tiro_al_piano", label: "Tiro al piano", unita: "pz", emoji: "🏗️" },
-  { tipo: "pratica_enea", label: "Pratica ENEA", unita: "a_corpo", emoji: "📋" },
-  { tipo: "smaltimento", label: "Smaltimento materiali", unita: "a_corpo", emoji: "♻️" },
-  { tipo: "sopralluogo_extra", label: "Sopralluogo extra", unita: "pz", emoji: "📏" },
-  { tipo: "ponteggio", label: "Ponteggio / piattaforma", unita: "giorno", emoji: "🚧" },
-  // Aggiunti 2026-05-13 per coprire opere accessorie tipiche serramenti:
-  { tipo: "davanzale_extra", label: "Davanzale extra", unita: "ml", emoji: "🪟" },
-  { tipo: "allargamento_foro", label: "Allargamento foro", unita: "pz", emoji: "🔨" },
-];
+  { tipo: "trasporto",        tariffaTipo: "trasporto",   label: "Trasporto",              unita: "a_corpo", emoji: "🚚" },
+  { tipo: "tiro_al_piano",    tariffaTipo: "tiro_piano",  label: "Tiro al piano",          unita: "pz",      emoji: "🏗️" },
+  { tipo: "pratica_enea",     tariffaTipo: "pratica",     label: "Pratica ENEA",           unita: "a_corpo", emoji: "📋" },
+  { tipo: "smaltimento",      tariffaTipo: "smaltimento", label: "Smaltimento materiali",  unita: "a_corpo", emoji: "♻️" },
+  { tipo: "sopralluogo_extra",tariffaTipo: "sopralluogo", label: "Sopralluogo extra",      unita: "pz",      emoji: "📏" },
+  { tipo: "ponteggio",        tariffaTipo: "ponteggio",   label: "Ponteggio / piattaforma",unita: "giorno",  emoji: "🚧" },
+  { tipo: "davanzale_extra",  tariffaTipo: "altro",       label: "Davanzale extra",        unita: "ml",      emoji: "🪟" },
+  { tipo: "allargamento_foro",tariffaTipo: "altro",       label: "Allargamento foro",      unita: "pz",      emoji: "🔨" },
+] as const;
 
 export function ServiziSection({ progettoId, detail }: Props) {
   const addMut = useAddManodopera(progettoId);
   const updateMut = useUpdateManodopera(progettoId);
   const deleteMut = useDeleteManodopera(progettoId);
   const [tariffaPickerOpen, setTariffaPickerOpen] = useState(false);
+  // Pre-filtro per il picker quando aperto da chip con 2+ tariffe disponibili.
+  const [pickerInitialFilter, setPickerInitialFilter] = useState<string>("");
   const [toDelete, setToDelete] = useState<SrServizioRow | null>(null);
+
+  // Pre-fetch tariffe aziendali (cache 5min via React Query) → ci servono
+  // per il lookup chip-tipo → tariffa configurata e per la mappa
+  // "tipo: ho tariffa configurata o no" usata sui chip.
+  const { data: allTariffe = [] } = useTariffeManodopera();
 
   const righe = detail.servizi ?? detail.manodopera ?? [];
 
@@ -74,14 +89,62 @@ export function ServiziSection({ progettoId, detail }: Props) {
     (acc, r) => acc + Number(r.prezzo_totale_vendita ?? 0), 0,
   );
 
-  const handleAddQuick = (servizio: typeof SERVIZI_RAPIDI[0]) => {
+  /**
+   * Smart-add per i chip "Servizi tipici":
+   *  - Lookup tariffa via servizio.tariffaTipo (enum DB)
+   *  - 1 tariffa trovata → crea riga LINKED con prezzo + unità dal listino
+   *  - 0 tariffe → crea voce free-form (legacy) + toast guida a Impostazioni
+   *  - 2+ tariffe → apre TariffaPickerDialog pre-filtrato sul nome del servizio
+   *    (utente sceglie quale variante usare)
+   */
+  const handleAddQuick = (servizio: typeof SERVIZI_RAPIDI[number]) => {
+    const matches = allTariffe.filter((t) => t.tipo === servizio.tariffaTipo);
+
+    if (matches.length === 1) {
+      const t = matches[0];
+      addMut.mutate({
+        tariffa_id: t.id,
+        descrizione: t.nome,
+        unita: t.unita ?? servizio.unita,
+        quantita: 1,
+        prezzo_unitario_costo: t.prezzo_costo != null ? Number(t.prezzo_costo) : null,
+        prezzo_unitario_vendita: t.prezzo_vendita != null ? Number(t.prezzo_vendita) : null,
+        position: righe.length,
+      });
+      toast.success(`${servizio.label} aggiunto`, {
+        description: `Prezzo €${Number(t.prezzo_vendita ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })} dal listino tariffe.`,
+      });
+      return;
+    }
+
+    if (matches.length >= 2) {
+      // 2+ varianti (es. Trasporto base / Trasporto urgente) → utente sceglie.
+      setPickerInitialFilter(servizio.label);
+      setTariffaPickerOpen(true);
+      return;
+    }
+
+    // 0 tariffe per questo tipo → fallback free-form + guidance.
     addMut.mutate({
       descrizione: servizio.label,
       unita: servizio.unita,
       quantita: 1,
       position: righe.length,
     });
+    toast.info(`${servizio.label} aggiunto (manuale)`, {
+      description: "Configura una tariffa in Impostazioni → Tariffe aziendali per pre-popolare il prezzo al prossimo click.",
+    });
   };
+
+  /** Indicizza tariffe per tipo: usato dalla UI dei chip per mostrare il
+   *  pallino "configurato" (verde) o "manca tariffa" (grigio). */
+  const tariffeByTipo = useMemo(() => {
+    const map = new Map<string, number>();
+    allTariffe.forEach((t) => {
+      if (t.tipo) map.set(t.tipo, (map.get(t.tipo) ?? 0) + 1);
+    });
+    return map;
+  }, [allTariffe]);
 
   const handlePickTariffa = (t: TariffaMinimal) => {
     addMut.mutate({
@@ -106,20 +169,57 @@ export function ServiziSection({ progettoId, detail }: Props) {
       description="Trasporto, tiro al piano, pratica ENEA, smaltimento, ponteggio… La posa è già inclusa nel prezzo dei serramenti."
       icon={<Truck className="h-4 w-4" />}
     >
-      {/* Quick-add chip per i servizi tipici */}
+      {/* Quick-add chip per i servizi tipici: ogni chip cerca la tariffa
+          configurata in azienda con quel tipo. Pallino verde = tariffa pronta
+          (1 sola o più → si apre picker). Pallino grigio = nessuna tariffa
+          (verrà creata voce manuale + toast guida). */}
       <div className="mb-3">
-        <p className="text-[11px] text-muted-foreground mb-1.5">Servizi tipici (click per aggiungere):</p>
+        <p className="text-[11px] text-muted-foreground mb-1.5">
+          Servizi tipici (click per aggiungere):{" "}
+          <span className="text-[10px]">
+            <span className="inline-flex items-center gap-0.5 ml-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span>tariffa pronta</span>
+            </span>
+            <span className="mx-1.5">·</span>
+            <span className="inline-flex items-center gap-0.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+              <span>manuale</span>
+            </span>
+          </span>
+        </p>
         <div className="flex flex-wrap gap-1.5">
-          {SERVIZI_RAPIDI.map((s) => (
-            <button
-              key={s.tipo}
-              onClick={() => handleAddQuick(s)}
-              disabled={addMut.isPending}
-              className="text-xs px-2.5 py-1.5 rounded-full border border-orange-200 bg-white hover:bg-orange-50 hover:border-orange-300 transition disabled:opacity-50"
-            >
-              {s.emoji} {s.label}
-            </button>
-          ))}
+          {SERVIZI_RAPIDI.map((s) => {
+            const count = tariffeByTipo.get(s.tariffaTipo) ?? 0;
+            const hasTariffa = count > 0;
+            return (
+              <button
+                key={s.tipo}
+                onClick={() => handleAddQuick(s)}
+                disabled={addMut.isPending}
+                className={`text-xs px-2.5 py-1.5 rounded-full border bg-white transition disabled:opacity-50 inline-flex items-center gap-1.5 ${
+                  hasTariffa
+                    ? "border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300"
+                    : "border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+                }`}
+                title={
+                  hasTariffa
+                    ? count === 1
+                      ? `Tariffa configurata — prezzo pescato automaticamente dal listino`
+                      : `${count} varianti in listino — al click ti chiederò quale usare`
+                    : `Nessuna tariffa "${s.label}" in Impostazioni → Tariffe aziendali: verrà creata voce manuale`
+                }
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                    hasTariffa ? "bg-emerald-500" : "bg-slate-300"
+                  }`}
+                  aria-hidden="true"
+                />
+                {s.emoji} {s.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -291,8 +391,12 @@ export function ServiziSection({ progettoId, detail }: Props) {
 
       <TariffaPickerDialog
         open={tariffaPickerOpen}
-        onOpenChange={setTariffaPickerOpen}
+        onOpenChange={(o) => {
+          setTariffaPickerOpen(o);
+          if (!o) setPickerInitialFilter("");
+        }}
         onSelect={handlePickTariffa}
+        initialFilter={pickerInitialFilter}
       />
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
@@ -324,20 +428,34 @@ export function ServiziSection({ progettoId, detail }: Props) {
 // ─── TariffaPickerDialog inline ─────────────────────────────────────────────
 
 function TariffaPickerDialog({
-  open, onOpenChange, onSelect,
+  open, onOpenChange, onSelect, initialFilter,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (t: TariffaMinimal) => void;
+  /** Pre-filtro testuale all'apertura. Usato dal quick-add chip quando ci sono
+   *  2+ tariffe dello stesso tipo (es. "Trasporto base" + "Trasporto urgente"):
+   *  il picker si apre già con "Trasporto" nel search box → utente vede solo
+   *  le varianti rilevanti. */
+  initialFilter?: string;
 }) {
-  const [search, setSearch] = useState("");
-  const [debounced, setDebounced] = useState("");
+  const [search, setSearch] = useState(initialFilter ?? "");
+  const [debounced, setDebounced] = useState(initialFilter ?? "");
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
     return () => clearTimeout(t);
   }, [search]);
-  useEffect(() => { if (!open) { setSearch(""); setDebounced(""); } }, [open]);
+  useEffect(() => {
+    if (open) {
+      // Sincronizza il filtro al cambio di initialFilter (può cambiare tra
+      // aperture consecutive del picker da chip diversi).
+      setSearch(initialFilter ?? "");
+      setDebounced(initialFilter ?? "");
+    } else {
+      setSearch(""); setDebounced("");
+    }
+  }, [open, initialFilter]);
 
   const { data: tariffe = [], isLoading } = useTariffeManodopera(debounced);
 

@@ -505,6 +505,9 @@ export interface TariffaMinimal {
   prezzo_vendita: number | null;
   categoria_prodotto: string | null;
   vertical_associato: string | null;
+  /** Enum CHECK su tariffe_aziendali.tipo. Usato dal quick-add ServiziSection
+   *  per mappare chip → tariffa configurata dall'azienda. */
+  tipo: string | null;
 }
 
 export async function listTariffeManodopera(searchQuery?: string): Promise<TariffaMinimal[]> {
