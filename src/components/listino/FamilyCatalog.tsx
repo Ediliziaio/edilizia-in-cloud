@@ -47,9 +47,11 @@ import {
   ArrowDownRight,
   MoreVertical,
   AlertTriangle,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { FamilyTemplatePicker } from "./FamilyTemplatePicker";
 import { useFamilies, useFamiliesCestino } from "@/hooks/useFamilies";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
 import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
@@ -243,8 +245,9 @@ interface FamilyCatalogProps {
 
 export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { role, effectiveCompany } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const { families, isLoading: loadingFamilies } = useFamilies();
   const {
     deleteFamily,
@@ -597,6 +600,17 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                   </span>
                 )}
               </Button>
+              {effectiveCompany?.id && (
+                <Button
+                  variant="outline"
+                  onClick={() => setTemplatePickerOpen(true)}
+                  className="h-10 border-orange-300 text-orange-700 hover:bg-orange-50"
+                  title="Importa un articolo pre-configurato (foto, assi, prezzo base, IVA)"
+                >
+                  <Sparkles className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                  Importa da template
+                </Button>
+              )}
               <Button
                 onClick={() =>
                   navigate("/azienda/impostazioni/listino/famiglie/nuova")
@@ -1746,6 +1760,21 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Galleria template articoli — clona dal catalogo globale super_admin
+          dentro il listino azienda. Visibile solo se siamo in scope azienda. */}
+      {effectiveCompany?.id && (
+        <FamilyTemplatePicker
+          open={templatePickerOpen}
+          onOpenChange={setTemplatePickerOpen}
+          companyId={effectiveCompany.id}
+          onImported={(familyId) => {
+            // Naviga al wizard per personalizzare ulteriormente la famiglia
+            // appena creata (Step 1 dati base già pre-popolato).
+            navigate(`/azienda/impostazioni/listino/famiglie/${familyId}`);
+          }}
+        />
+      )}
     </div>
   );
 }
