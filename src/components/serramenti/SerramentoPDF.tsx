@@ -278,6 +278,20 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       letterSpacing: -0.6,
     },
     pageSubtitle: { fontSize: 11, color: C.gray500, marginBottom: 22, lineHeight: 1.45 },
+    investmentTitle: {
+      fontSize: 28,
+      fontWeight: 800,
+      color: C.gray900,
+      lineHeight: 1.03,
+      marginBottom: 6,
+      letterSpacing: -0.25,
+    },
+    investmentSubtitle: {
+      fontSize: 10,
+      color: C.gray500,
+      marginBottom: 12,
+      lineHeight: 1.38,
+    },
 
     sectionTitle: {
       fontSize: 10,
@@ -289,6 +303,20 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       marginBottom: 8,
       paddingBottom: 5,
       borderBottom: `1pt solid ${C.gray200}`,
+    },
+    investmentSectionTitle: {
+      fontSize: 8.8,
+      fontWeight: 800,
+      color: C.primary,
+      textTransform: "uppercase" as const,
+      letterSpacing: 0.6,
+      marginTop: 10,
+      marginBottom: 6,
+      paddingBottom: 4,
+      borderBottom: `0.75pt solid ${C.gray200}`,
+    },
+    investmentBlock: {
+      marginTop: 8,
     },
 
     // K-V
@@ -326,6 +354,14 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       marginTop: 6,
       marginBottom: 18,
     },
+    priceBoxCompact: {
+      backgroundColor: C.primaryLight,
+      borderRadius: 9,
+      padding: 16,
+      marginTop: 4,
+      marginBottom: 10,
+      borderLeft: `3pt solid ${C.primary}`,
+    },
     priceLabel: {
       fontSize: 9,
       color: C.primary,
@@ -335,7 +371,9 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       marginBottom: 6,
     },
     priceValue: { fontSize: 28, fontWeight: 800, color: C.primary },
+    priceValueCompact: { fontSize: 24, fontWeight: 800, color: C.primary, lineHeight: 1.08 },
     priceSuffix: { fontSize: 11, color: C.primary, marginLeft: 8, fontWeight: 500 },
+    priceFinePrint: { fontSize: 7.5, color: C.gray500, marginTop: 5, lineHeight: 1.35, fontStyle: "italic" as const },
 
     // Milestone 7: highlight rata mensile + netto post-fiscale dentro priceBox.
     // Riga divider sopra: serve a separare visivamente dal blocco numerico.
@@ -1472,9 +1510,9 @@ function PageFooter({
         <Text style={styles.footerCompanyName}>{companyName}</Text>
         <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
       </View>
-      {line1 && <View style={styles.footerRow}><Text>{line1}</Text><Text></Text></View>}
-      {line2 && <View style={styles.footerRow}><Text>{line2}</Text><Text></Text></View>}
-      {legalLine && <View style={styles.footerRow}><Text>{legalLine}</Text><Text></Text></View>}
+      {Boolean(line1) && <View style={styles.footerRow}><Text>{line1}</Text><Text></Text></View>}
+      {Boolean(line2) && <View style={styles.footerRow}><Text>{line2}</Text><Text></Text></View>}
+      {Boolean(legalLine) && <View style={styles.footerRow}><Text>{legalLine}</Text><Text></Text></View>}
       {showRevFooter && (
         <View style={styles.footerRow}>
           <Text
@@ -1854,6 +1892,13 @@ export function SerramentoPDF({
       cashflowYears.push({ year: y, cumulato: cum });
     }
   }
+  const hasMonthlyRateBalance = Boolean(
+    schemaCfg?.hasFinanziamento && piani.length > 0 && Number(p.risparmio_eur_anno ?? 0) > 0
+  );
+  const hasTaxDeduction = Boolean(p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0);
+  const hasInvestmentDetails = Boolean(
+    hasTaxDeduction || cashflowYears.length > 0 || hasMonthlyRateBalance || incluso.length > 0 || bonus.length > 0
+  );
 
   const indirizzo = template?.indirizzo_completo || company?.indirizzo;
   const telefono = template?.telefono || company?.telefono;
@@ -2736,14 +2781,14 @@ export function SerramentoPDF({
               <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
               <Text style={styles.pageEyebrow}>L'investimento</Text>
-              <Text style={styles.pageTitle}>Trasparenza{"\n"}totale.</Text>
-              <Text style={styles.pageSubtitle}>
+              <Text style={styles.investmentTitle}>Trasparenza{"\n"}totale.</Text>
+              <Text style={styles.investmentSubtitle}>
                 Forbice indicativa basata sul primo contatto. Il prezzo definitivo si fissa con sopralluogo e scelta materiali.
               </Text>
 
-              <View style={styles.priceBox}>
+              <View style={styles.priceBoxCompact} wrap={false}>
                 <Text style={styles.priceLabel}>Il tuo investimento stimato</Text>
-                <Text style={styles.priceValue}>
+                <Text style={styles.priceValueCompact}>
                   € {fmtEuro(totaleMin)} – € {fmtEuro(totaleMax)}
                   <Text style={styles.priceSuffix}>{p.iva_inclusa ? "IVA inclusa" : "IVA esclusa"}</Text>
                 </Text>
@@ -2754,7 +2799,7 @@ export function SerramentoPDF({
                     richiama esplicitamente la normativa (art. 7 c.1 L.488/99
                     + DM 29.12.99 Beni Significativi). Trasparenza fiscale
                     al cliente — riduce contestazioni in fase di firma. */}
-                <Text style={{ fontSize: 8, color: C.gray500, marginTop: 6, fontStyle: "italic" }}>
+                <Text style={styles.priceFinePrint}>
                   {p.iva_percentuale === -1
                     ? "IVA mista applicata secondo regola Beni Significativi (DM 29.12.99): serramenti al 10% fino al valore di posa + opere accessorie; eccedenza al 22%."
                     : p.iva_percentuale === 4
@@ -2771,7 +2816,7 @@ export function SerramentoPDF({
                     preventivo (piani finanziamento / detrazione aliquota). */}
                 {((mostraRataMensile && piani.length > 0) ||
                   (mostraRecuperoFiscale && p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0)) && (
-                  <View style={styles.priceExtraRow}>
+                  <View style={[styles.priceExtraRow, { marginTop: 8, paddingTop: 8, gap: 12 }]}>
                     {mostraRataMensile && piani.length > 0 && (() => {
                       // Prendiamo il piano con rata più bassa per l'anchor "da € X/mese".
                       const piano = piani.reduce((min, cur) =>
@@ -2818,8 +2863,8 @@ export function SerramentoPDF({
               )}
 
               {milestones.length > 0 && (
-                <>
-                  <Text style={styles.sectionTitle}>Modalità di pagamento</Text>
+                <View style={styles.investmentBlock} wrap={false}>
+                  <Text style={styles.investmentSectionTitle}>Modalità di pagamento</Text>
                   <Text style={styles.paySchemaTag}>{schemaCfg?.label ?? "Personalizzato"}</Text>
                   {milestones.length <= 4 ? (
                     /* Milestone 6: timeline orizzontale (≤4 step entrano in
@@ -2861,17 +2906,17 @@ export function SerramentoPDF({
                       );
                     })
                   )}
-                </>
+                </View>
               )}
 
               {piani.length > 0 && schemaCfg?.hasFinanziamento && (
-                <>
-                  <Text style={styles.sectionTitle}>Simulazione finanziamento</Text>
+                <View style={styles.investmentBlock} wrap={false}>
+                  <Text style={styles.investmentSectionTitle}>Simulazione finanziamento</Text>
                   <View style={styles.finBox}>
                     {piani.slice(0, 2).map((piano, i) => (
-                      <View key={i} style={styles.finCard}>
+                      <View key={i} style={[styles.finCard, { padding: 11 }]}>
                         <Text style={styles.finCardTitle}>{piano.nome} · {piano.mesi} mesi · TAN {piano.tasso}%</Text>
-                        <Text style={styles.finCardValue}>€ {fmtEuro(piano.rata_mese)}</Text>
+                        <Text style={[styles.finCardValue, { fontSize: 17 }]}>€ {fmtEuro(piano.rata_mese)}</Text>
                         <Text style={styles.finCardSub}>/mese · finanziato € {fmtEuro(piano.finanziato)}</Text>
                       </View>
                     ))}
@@ -2879,236 +2924,236 @@ export function SerramentoPDF({
                   <Text style={{ fontSize: 7.5, color: C.gray500, marginTop: 6 }}>
                     Esempi a scopo informativo. Condizioni contrattuali definitive disponibili in sede.
                   </Text>
-                </>
+                </View>
               )}
 
-              {p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0 && (
-                <>
-                  <Text style={styles.sectionTitle}>Detrazione fiscale</Text>
-                  {/* NOTE: niente flex:1 — usiamo View standalone con padding fisso
-                      (lo style finCard ha flex:1 perché pensato per layout 2 colonne) */}
-                  <View style={{
-                    backgroundColor: C.successBg,
-                    borderColor: "#86EFAC", borderWidth: 0.5, borderStyle: "solid",
-                    borderRadius: 8, padding: 14, marginTop: 6,
-                  }}>
-                    <Text style={[styles.finCardTitle, { color: C.successText }]}>
-                      Detrazione {p.detrazione_aliquota}% recuperabile in 10 quote annuali
-                    </Text>
-                    <Text style={[styles.finCardValue, { color: C.successText }]}>
-                      € {fmtEuro(p.detrazione_eur_totale)}
-                    </Text>
-                    <Text style={[styles.finCardSub, { color: C.successText }]}>
-                      circa € {fmtEuro(p.detrazione_eur_anno)} / anno per 10 anni
-                    </Text>
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+            </Page>
 
-                    {/* Milestone 8: tabella 10 anni quota + cumulato.
-                        Layout 5×2 a colonne ridotte: la quota annuale è
-                        identica ogni anno (detrazione_eur_anno), il cumulato
-                        cresce linearmente fino al totale.
-                        Mostrata solo se pdf_mostra_tabella_ecobonus = true. */}
-                    {mostraTabellaEcobonus && Number(p.detrazione_eur_anno ?? 0) > 0 && (
-                      <>
-                        <View style={styles.ecobonusTable}>
-                          {Array.from({ length: 10 }, (_, i) => {
-                            const annoIdx = i + 1;
-                            const quota = Number(p.detrazione_eur_anno ?? 0);
-                            // Ultimo anno: usa il residuo per evitare drift da arrotondamento.
-                            const cumulato = annoIdx === 10
-                              ? Number(p.detrazione_eur_totale ?? quota * 10)
-                              : quota * annoIdx;
-                            return (
-                              <View key={annoIdx} style={styles.ecobonusCell}>
-                                <Text style={styles.ecobonusCellYear}>Anno {annoIdx}</Text>
-                                <Text style={styles.ecobonusCellAmount}>€ {fmtEuro(quota)}</Text>
-                                <Text style={styles.ecobonusCellCum}>cum. € {fmtEuro(cumulato)}</Text>
-                              </View>
-                            );
-                          })}
-                        </View>
-                        <Text style={styles.ecobonusFootnote}>
-                          La detrazione viene recuperata in 10 quote annuali di pari importo,
-                          a partire dall'anno di pagamento. Importi indicativi salvo verifica
-                          del commercialista.
-                        </Text>
-                      </>
-                    )}
-                  </View>
-                </>
-              )}
+            {hasInvestmentDetails && (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
-              {cashflowYears.length > 0 && (
-                <>
-                  <Text style={styles.sectionTitle}>Ritorno sull'investimento · 10 anni</Text>
-                  <CashflowSvg years={cashflowYears} primary={primaryColor} />
-                  <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 4 }}>
-                    Risparmio bolletta + detrazione fiscale cumulati anno dopo anno.
-                    La linea tratteggiata indica l'anno in cui l'investimento è
-                    completamente ripagato (break-even).
-                  </Text>
+                <Text style={styles.pageEyebrow}>Dettagli investimento</Text>
+                <Text style={[styles.pageTitle, { fontSize: 24, marginBottom: 6 }]}>
+                  Valore, recupero e inclusioni.
+                </Text>
+                <Text style={[styles.pageSubtitle, { fontSize: 10, marginBottom: 12 }]}>
+                  Un riepilogo ordinato per leggere con chiarezza recupero fiscale, ritorno economico e valore incluso.
+                </Text>
 
-                  {/* TABELLA RISPARMIO 10 ANNI — dettaglio anno-per-anno */}
-                  <View style={{ marginTop: 12 }}>
-                    <View style={styles.tableHeader}>
-                      <View style={{ width: 38 }}><Text style={styles.tableHeaderText}>Anno</Text></View>
-                      <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Risparmio</Text></View>
-                      <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Detrazione</Text></View>
-                      <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Cumulato</Text></View>
-                      <View style={{ width: 80, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Recupero</Text></View>
+                {hasTaxDeduction && (
+                  <View style={styles.investmentBlock} wrap={false}>
+                    <Text style={styles.investmentSectionTitle}>Detrazione fiscale</Text>
+                    <View style={{
+                      backgroundColor: C.successBg,
+                      borderColor: "#86EFAC", borderWidth: 0.5, borderStyle: "solid",
+                      borderRadius: 8, padding: 10, marginTop: 4,
+                    }}>
+                      <Text style={[styles.finCardTitle, { color: C.successText }]}>
+                        Detrazione {p.detrazione_aliquota}% recuperabile in 10 quote annuali
+                      </Text>
+                      <Text style={[styles.finCardValue, { color: C.successText, fontSize: 18 }]}>
+                        € {fmtEuro(p.detrazione_eur_totale)}
+                      </Text>
+                      <Text style={[styles.finCardSub, { color: C.successText }]}>
+                        circa € {fmtEuro(p.detrazione_eur_anno)} / anno per 10 anni
+                      </Text>
+
+                      {mostraTabellaEcobonus && Number(p.detrazione_eur_anno ?? 0) > 0 && (
+                        <>
+                          <View style={styles.ecobonusTable}>
+                            {Array.from({ length: 10 }, (_, i) => {
+                              const annoIdx = i + 1;
+                              const quota = Number(p.detrazione_eur_anno ?? 0);
+                              const cumulato = annoIdx === 10
+                                ? Number(p.detrazione_eur_totale ?? quota * 10)
+                                : quota * annoIdx;
+                              return (
+                                <View key={annoIdx} style={styles.ecobonusCell}>
+                                  <Text style={styles.ecobonusCellYear}>Anno {annoIdx}</Text>
+                                  <Text style={styles.ecobonusCellAmount}>€ {fmtEuro(quota)}</Text>
+                                  <Text style={styles.ecobonusCellCum}>cum. € {fmtEuro(cumulato)}</Text>
+                                </View>
+                              );
+                            })}
+                          </View>
+                          <Text style={styles.ecobonusFootnote}>
+                            La detrazione viene recuperata in 10 quote annuali di pari importo,
+                            a partire dall'anno di pagamento. Importi indicativi salvo verifica
+                            del commercialista.
+                          </Text>
+                        </>
+                      )}
                     </View>
-                    {cashflowYears.map((y, i) => {
-                      const risp = Number(p.risparmio_eur_anno ?? 0);
-                      const det = Number(p.detrazione_eur_anno ?? 0);
-                      const cumulato = y.cumulato;
-                      const recupero = totaleMedia > 0
-                        ? Math.min(100, Math.max(0, ((cumulato + totaleMedia) / totaleMedia) * 100))
-                        : 0;
-                      const isBreakEven = cumulato >= 0 && (i === 0 || cashflowYears[i - 1].cumulato < 0);
+                  </View>
+                )}
+
+                {cashflowYears.length > 0 && (
+                  <View wrap={false}>
+                    <Text style={styles.investmentSectionTitle}>Ritorno sull'investimento · 10 anni</Text>
+                    <CashflowSvg years={cashflowYears} primary={primaryColor} />
+                    <Text style={{ fontSize: 8.2, color: C.gray500, marginTop: 4, lineHeight: 1.35 }}>
+                      Risparmio bolletta + detrazione fiscale cumulati anno dopo anno.
+                      La linea tratteggiata indica l'anno in cui l'investimento è
+                      completamente ripagato (break-even).
+                    </Text>
+
+                    <View style={{ marginTop: 9 }}>
+                      <View style={styles.tableHeader}>
+                        <View style={{ width: 38 }}><Text style={styles.tableHeaderText}>Anno</Text></View>
+                        <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Risparmio</Text></View>
+                        <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Detrazione</Text></View>
+                        <View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Cumulato</Text></View>
+                        <View style={{ width: 80, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Recupero</Text></View>
+                      </View>
+                      {cashflowYears.map((y, i) => {
+                        const risp = Number(p.risparmio_eur_anno ?? 0);
+                        const det = Number(p.detrazione_eur_anno ?? 0);
+                        const cumulato = y.cumulato;
+                        const recupero = totaleMedia > 0
+                          ? Math.min(100, Math.max(0, ((cumulato + totaleMedia) / totaleMedia) * 100))
+                          : 0;
+                        const isBreakEven = cumulato >= 0 && (i === 0 || cashflowYears[i - 1].cumulato < 0);
+                        return (
+                          <View
+                            key={i}
+                            style={{
+                              flexDirection: "row",
+                              paddingVertical: 4,
+                              borderBottom: `0.5pt solid ${C.gray100}`,
+                              backgroundColor: isBreakEven ? C.successBg : "transparent",
+                            }}
+                            wrap={false}
+                          >
+                            <View style={{ width: 38 }}>
+                              <Text style={{ fontSize: 8.6, fontWeight: 700, color: C.gray900 }}>
+                                A{y.year}{isBreakEven ? " *" : ""}
+                              </Text>
+                            </View>
+                            <View style={{ flex: 1, alignItems: "flex-end" }}>
+                              <Text style={{ fontSize: 8.6, color: C.gray700 }}>€ {fmtEuro(risp)}</Text>
+                            </View>
+                            <View style={{ flex: 1, alignItems: "flex-end" }}>
+                              <Text style={{ fontSize: 8.6, color: C.gray700 }}>€ {fmtEuro(det)}</Text>
+                            </View>
+                            <View style={{ flex: 1, alignItems: "flex-end" }}>
+                              <Text style={{ fontSize: 8.6, fontWeight: cumulato >= 0 ? 700 : 400, color: cumulato >= 0 ? C.successText : C.gray500 }}>
+                                {cumulato >= 0 ? "+" : ""}€ {fmtEuro(Math.abs(cumulato))}
+                              </Text>
+                            </View>
+                            <View style={{ width: 80, alignItems: "flex-end" }}>
+                              <Text style={{ fontSize: 7.8, color: C.gray500 }}>{recupero.toFixed(0)}%</Text>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                    <Text style={{ fontSize: 7.7, color: C.gray500, marginTop: 5, fontStyle: "italic" }}>
+                      * Anno di break-even — l'investimento iniziale è completamente ripagato dal risparmio + detrazione.
+                    </Text>
+                  </View>
+                )}
+
+                {hasMonthlyRateBalance && (
+                  <View style={styles.investmentBlock} wrap={false}>
+                    <Text style={styles.investmentSectionTitle}>Se paghi a rate — bilancio mensile</Text>
+                    {(() => {
+                      const piano = piani[0];
+                      const rataMese = Number(piano.rata_mese ?? 0);
+                      const risparmioMese = Number(p.risparmio_eur_anno ?? 0) / 12;
+                      const detrazioneMese = Number(p.detrazione_eur_anno ?? 0) / 12;
+                      const beneficioMese = risparmioMese + detrazioneMese;
+                      const costoNetto = rataMese - beneficioMese;
+                      const positivo = costoNetto <= 0;
                       return (
-                        <View
-                          key={i}
-                          style={{
-                            flexDirection: "row",
-                            paddingVertical: 5,
-                            borderBottom: `0.5pt solid ${C.gray100}`,
-                            backgroundColor: isBreakEven ? C.successBg : "transparent",
-                          }}
-                          wrap={false}
-                        >
-                          <View style={{ width: 38 }}>
-                            <Text style={{ fontSize: 9, fontWeight: 700, color: C.gray900 }}>
-                              A{y.year}{isBreakEven ? " *" : ""}
+                        <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+                          <View style={[styles.finCard, { padding: 10 }]}>
+                            <Text style={styles.finCardTitle}>Rata mensile</Text>
+                            <Text style={[styles.finCardValue, { color: C.gray900, fontSize: 17 }]}>€ {fmtEuro(rataMese)}</Text>
+                            <Text style={styles.finCardSub}>{piano.mesi} mesi · TAN {piano.tasso}%</Text>
+                          </View>
+                          <View style={[styles.finCard, { padding: 10 }]}>
+                            <Text style={styles.finCardTitle}>Risparmio + detrazione</Text>
+                            <Text style={[styles.finCardValue, { color: C.successText, fontSize: 17 }]}>- € {fmtEuro(beneficioMese)}</Text>
+                            <Text style={styles.finCardSub}>al mese (media 10 anni)</Text>
+                          </View>
+                          <View style={[styles.finCard, {
+                            padding: 10,
+                            backgroundColor: positivo ? C.successBg : C.gray50,
+                            borderColor: positivo ? "#86EFAC" : C.gray200,
+                          }]}>
+                            <Text style={[styles.finCardTitle, { color: positivo ? C.successText : C.gray500 }]}>
+                              Costo netto / mese
+                            </Text>
+                            <Text style={[styles.finCardValue, { color: positivo ? C.successText : C.primary, fontSize: 17 }]}>
+                              {positivo ? "Gratis o positivo" : `€ ${fmtEuro(costoNetto)}`}
+                            </Text>
+                            <Text style={[styles.finCardSub, { color: positivo ? C.successText : C.gray500 }]}>
+                              {positivo
+                                ? "Il risparmio copre la rata"
+                                : `Solo € ${fmtEuro(costoNetto)} reali di esborso`}
                             </Text>
                           </View>
-                          <View style={{ flex: 1, alignItems: "flex-end" }}>
-                            <Text style={{ fontSize: 9, color: C.gray700 }}>€ {fmtEuro(risp)}</Text>
-                          </View>
-                          <View style={{ flex: 1, alignItems: "flex-end" }}>
-                            <Text style={{ fontSize: 9, color: C.gray700 }}>€ {fmtEuro(det)}</Text>
-                          </View>
-                          <View style={{ flex: 1, alignItems: "flex-end" }}>
-                            <Text style={{ fontSize: 9, fontWeight: cumulato >= 0 ? 700 : 400, color: cumulato >= 0 ? C.successText : C.gray500 }}>
-                              {cumulato >= 0 ? "+" : ""}€ {fmtEuro(Math.abs(cumulato))}
-                            </Text>
-                          </View>
-                          <View style={{ width: 80, alignItems: "flex-end" }}>
-                            <Text style={{ fontSize: 8, color: C.gray500 }}>{recupero.toFixed(0)}%</Text>
+                        </View>
+                      );
+                    })()}
+                    <Text style={{ fontSize: 7.7, color: C.gray500, marginTop: 5, fontStyle: "italic" }}>
+                      Bilancio indicativo: la rata viene pagata oggi, il risparmio si concretizza nei prossimi
+                      10 anni. Le condizioni finanziarie definitive sono nel contratto.
+                    </Text>
+                  </View>
+                )}
+
+                {incluso.length > 0 && (
+                  <View style={styles.investmentBlock}>
+                    <Text style={styles.investmentSectionTitle}>Cosa è incluso</Text>
+                    {incluso.slice(0, 6).map((it, i) => {
+                      const titolo = typeof it === "string" ? it : it.titolo;
+                      const descrizione = typeof it === "string" ? null : it.descrizione;
+                      return (
+                        <View key={i} style={[styles.bulletItem, { marginBottom: 6 }]} wrap={false}>
+                          <View style={styles.bulletDot} />
+                          <View style={styles.bulletContent}>
+                            <Text style={[styles.bulletTitle, { fontSize: 10.2 }]}>{titolo}</Text>
+                            {descrizione && <Text style={[styles.bulletText, { fontSize: 9.2, lineHeight: 1.4 }]}>{descrizione}</Text>}
                           </View>
                         </View>
                       );
                     })}
                   </View>
-                  <Text style={{ fontSize: 8, color: C.gray500, marginTop: 5, fontStyle: "italic" }}>
-                    * Anno di break-even — l'investimento iniziale è completamente ripagato dal risparmio + detrazione.
-                  </Text>
-                </>
-              )}
+                )}
 
-              {/* SE PAGHI A RATE — confronto rata vs risparmio mensile */}
-              {schemaCfg?.hasFinanziamento && piani.length > 0 && Number(p.risparmio_eur_anno ?? 0) > 0 && (
-                <>
-                  <Text style={styles.sectionTitle}>Se paghi a rate — bilancio mensile</Text>
-                  {(() => {
-                    const piano = piani[0];
-                    const rataMese = Number(piano.rata_mese ?? 0);
-                    const risparmioMese = Number(p.risparmio_eur_anno ?? 0) / 12;
-                    const detrazioneMese = Number(p.detrazione_eur_anno ?? 0) / 12;
-                    const beneficioMese = risparmioMese + detrazioneMese;
-                    const costoNetto = rataMese - beneficioMese;
-                    const positivo = costoNetto <= 0;
-                    return (
-                      <View style={{
-                        flexDirection: "row",
-                        gap: 10,
-                        marginTop: 4,
-                      }}>
-                        <View style={styles.finCard}>
-                          <Text style={styles.finCardTitle}>Rata mensile</Text>
-                          <Text style={[styles.finCardValue, { color: C.gray900 }]}>€ {fmtEuro(rataMese)}</Text>
-                          <Text style={styles.finCardSub}>{piano.mesi} mesi · TAN {piano.tasso}%</Text>
-                        </View>
-                        <View style={styles.finCard}>
-                          <Text style={styles.finCardTitle}>Risparmio + detrazione</Text>
-                          <Text style={[styles.finCardValue, { color: C.successText }]}>- € {fmtEuro(beneficioMese)}</Text>
-                          <Text style={styles.finCardSub}>al mese (media 10 anni)</Text>
-                        </View>
-                        <View style={[styles.finCard, {
-                          backgroundColor: positivo ? C.successBg : C.gray50,
-                          borderColor: positivo ? "#86EFAC" : C.gray200,
-                        }]}>
-                          <Text style={[styles.finCardTitle, { color: positivo ? C.successText : C.gray500 }]}>
-                            Costo netto / mese
+                {bonus.length > 0 && (
+                  <View style={styles.investmentBlock}>
+                    <Text style={[styles.investmentSectionTitle, { color: C.successText }]}>
+                      In più, in regalo
+                    </Text>
+                    {bonus.map((b, i) => (
+                      <View key={i} style={[styles.bonusBox, { padding: 8, marginBottom: 5 }]} wrap={false}>
+                        <Text style={[styles.bonusTitolo, { fontSize: 10 }]}>{b.titolo}</Text>
+                        {b.valore_eur && b.valore_eur > 0 && (
+                          <Text style={[styles.bonusValore, { fontSize: 10 }]}>
+                            valore € {b.valore_eur}
                           </Text>
-                          <Text style={[styles.finCardValue, { color: positivo ? C.successText : C.primary }]}>
-                            {positivo ? "Gratis o positivo" : `€ ${fmtEuro(costoNetto)}`}
-                          </Text>
-                          <Text style={[styles.finCardSub, { color: positivo ? C.successText : C.gray500 }]}>
-                            {positivo
-                              ? "Il risparmio copre la rata"
-                              : `Solo € ${fmtEuro(costoNetto)} reali di esborso`}
-                          </Text>
-                        </View>
+                        )}
                       </View>
-                    );
-                  })()}
-                  <Text style={{ fontSize: 8, color: C.gray500, marginTop: 6, fontStyle: "italic" }}>
-                    Bilancio indicativo: la rata viene pagata oggi, il risparmio si concretizza nei prossimi
-                    10 anni. Le condizioni finanziarie definitive sono nel contratto.
-                  </Text>
-                </>
-              )}
-
-              {incluso.length > 0 && (
-                <>
-                  <Text style={styles.sectionTitle}>Cosa è incluso</Text>
-                  {incluso.slice(0, 6).map((it, i) => {
-                    const titolo = typeof it === "string" ? it : it.titolo;
-                    const descrizione = typeof it === "string" ? null : it.descrizione;
-                    return (
-                      <View key={i} style={styles.bulletItem} wrap={false}>
-                        <View style={styles.bulletDot} />
-                        <View style={styles.bulletContent}>
-                          <Text style={styles.bulletTitle}>{titolo}</Text>
-                          {descrizione && <Text style={styles.bulletText}>{descrizione}</Text>}
-                        </View>
-                      </View>
-                    );
-                  })}
-                </>
-              )}
-
-              {/* Bonus aggiuntivi (value stacking CRO): box verdi con valore €.
-                  Il cliente percepisce un omaggio extra che non riceverebbe
-                  altrove. */}
-              {bonus.length > 0 && (
-                <>
-                  <Text style={[styles.sectionTitle, { color: C.successText }]}>
-                    In più, in regalo
-                  </Text>
-                  {bonus.map((b, i) => (
-                    <View key={i} style={styles.bonusBox} wrap={false}>
-                      <Text style={styles.bonusTitolo}>{b.titolo}</Text>
-                      {b.valore_eur && b.valore_eur > 0 && (
-                        <Text style={styles.bonusValore}>
-                          valore € {b.valore_eur}
+                    ))}
+                    {(() => {
+                      const valoreTotale = bonus.reduce((acc, b) => acc + (Number(b.valore_eur) || 0), 0);
+                      if (valoreTotale <= 0) return null;
+                      return (
+                        <Text style={{ fontSize: 8.5, color: C.successText, fontWeight: 700, marginTop: 3, textAlign: "right" as const }}>
+                          Valore omaggi totale: € {valoreTotale}
                         </Text>
-                      )}
-                    </View>
-                  ))}
-                  {(() => {
-                    const valoreTotale = bonus.reduce((acc, b) => acc + (Number(b.valore_eur) || 0), 0);
-                    if (valoreTotale <= 0) return null;
-                    return (
-                      <Text style={{ fontSize: 9, color: C.successText, fontWeight: 700, marginTop: 4, textAlign: "right" as const }}>
-                        Valore omaggi totale: € {valoreTotale}
-                      </Text>
-                    );
-                  })()}
-                </>
-              )}
+                      );
+                    })()}
+                  </View>
+                )}
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
-            </Page>
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              </Page>
+            )}
             </>
           ),
           percorso: (
