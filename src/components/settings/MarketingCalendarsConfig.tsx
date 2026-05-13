@@ -181,14 +181,19 @@ export default function MarketingCalendarsConfig() {
       if (!effectiveCompanyId) return [];
       const { data, error } = await supabase
         .from("appointments")
-        .select("id, calendar_id, status")
+        .select("calendar_id, status")  // rimosso `id` non usato (saved bytes)
         .eq("company_id", effectiveCompanyId)
         .not("calendar_id", "is", null)
         .limit(5000);
       if (error) throw error;
       return data as CalendarAppointmentRef[];
     },
+    // Aggregate counter usato solo per badge "X appuntamenti" sui calendar
+    // cards: refresh ogni 2 min e' largamente sufficiente (i count cambiano
+    // lentamente). Prima staleTime=0 → re-fetch a ogni mount delle settings.
     enabled: !!effectiveCompanyId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   const { data: preferences, isLoading: loadingPrefs } = useQuery({
