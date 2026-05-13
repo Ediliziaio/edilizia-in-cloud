@@ -210,13 +210,18 @@ Deno.serve(async (req: Request) => {
         supabaseAdmin.from("companies").select("name, ragione_sociale, indirizzo, telefono, email, partita_iva, logo_url").eq("id", prog.company_id).maybeSingle(),
       ]);
 
-    // 2b. Scheda tecnica dinamica: per ogni serramento → family_id → article_families
-    // (custom_field_values + categoria_id) → listino_categorie (macrocategoria_id)
-    // → listino_macrocategoria_fields (con show_in_pdf=true) → array di {label,value,unit}.
+    // 2b. Scheda tecnica dinamica: per ogni serramento → family_id →
+    // article_families. Usiamo macrocategoria_id diretto quando presente;
+    // categoria_id rimane fallback legacy.
     // Tutto best-effort: se un lookup fallisce, il serramento appare senza specs.
     //
     // deno-lint-ignore no-explicit-any
-    type FamilyRow = { id: string; categoria_id: string | null; custom_field_values: Record<string, any> | null };
+    type FamilyRow = {
+      id: string;
+      categoria_id: string | null;
+      macrocategoria_id: string | null;
+      custom_field_values: Record<string, any> | null;
+    };
     // deno-lint-ignore no-explicit-any
     type FieldRow = {
       macrocategoria_id: string; field_key: string; field_label: string;
@@ -234,12 +239,15 @@ Deno.serve(async (req: Request) => {
     if (familyIds.length > 0) {
       const { data: famRows } = await supabaseAdmin
         .from("article_families")
-        .select("id, categoria_id, custom_field_values")
+        .select("id, categoria_id, macrocategoria_id, custom_field_values")
         .in("id", familyIds);
       ((famRows ?? []) as FamilyRow[]).forEach((f) => familyById.set(f.id, f));
 
       const categoriaIds = Array.from(new Set(
-        ((famRows ?? []) as FamilyRow[]).map((f) => f.categoria_id).filter((v): v is string => !!v),
+        ((famRows ?? []) as FamilyRow[])
+          .filter((f) => !f.macrocategoria_id)
+          .map((f) => f.categoria_id)
+          .filter((v): v is string => !!v),
       ));
       if (categoriaIds.length > 0) {
         const { data: catRows } = await supabaseAdmin
@@ -250,20 +258,25 @@ Deno.serve(async (req: Request) => {
           if (c.macrocategoria_id) categoriaToMacro.set(c.id, c.macrocategoria_id);
         });
 
-        const macroIds = Array.from(new Set(Array.from(categoriaToMacro.values())));
-        if (macroIds.length > 0) {
-          const { data: fieldRows } = await supabaseAdmin
-            .from("listino_macrocategoria_fields")
-            .select("macrocategoria_id, field_key, field_label, field_type, field_unit, field_options, show_in_pdf, sort_order")
-            .in("macrocategoria_id", macroIds)
-            .eq("show_in_pdf", true)
-            .order("sort_order", { ascending: true });
-          ((fieldRows ?? []) as FieldRow[]).forEach((f) => {
-            const arr = fieldsByMacro.get(f.macrocategoria_id) ?? [];
-            arr.push(f);
-            fieldsByMacro.set(f.macrocategoria_id, arr);
-          });
-        }
+      }
+
+      const macroIds = Array.from(new Set(
+        ((famRows ?? []) as FamilyRow[])
+          .map((f) => f.macrocategoria_id ?? (f.categoria_id ? categoriaToMacro.get(f.categoria_id) : null))
+          .filter((v): v is string => !!v),
+      ));
+      if (macroIds.length > 0) {
+        const { data: fieldRows } = await supabaseAdmin
+          .from("listino_macrocategoria_fields")
+          .select("macrocategoria_id, field_key, field_label, field_type, field_unit, field_options, show_in_pdf, sort_order")
+          .in("macrocategoria_id", macroIds)
+          .eq("show_in_pdf", true)
+          .order("sort_order", { ascending: true });
+        ((fieldRows ?? []) as FieldRow[]).forEach((f) => {
+          const arr = fieldsByMacro.get(f.macrocategoria_id) ?? [];
+          arr.push(f);
+          fieldsByMacro.set(f.macrocategoria_id, arr);
+        });
       }
     }
 
@@ -277,7 +290,7 @@ Deno.serve(async (req: Request) => {
       if (!fam) return [];
       const values = (fam.custom_field_values ?? {}) as Record<string, unknown>;
       if (Object.keys(values).length === 0) return [];
-      const macroId = fam.categoria_id ? categoriaToMacro.get(fam.categoria_id) : undefined;
+      const macroId = fam.macrocategoria_id ?? (fam.categoria_id ? categoriaToMacro.get(fam.categoria_id) : undefined);
       if (!macroId) return [];
       const fields = fieldsByMacro.get(macroId) ?? [];
       const out: Array<{ label: string; value: string; unit: string | null }> = [];
@@ -317,7 +330,7 @@ Deno.serve(async (req: Request) => {
     const seenMacroIds = new Set<string>();
     for (const fId of familyIds) {
       const fam = familyById.get(fId);
-      const macroId = fam?.categoria_id ? categoriaToMacro.get(fam.categoria_id) : undefined;
+      const macroId = fam?.macrocategoria_id ?? (fam?.categoria_id ? categoriaToMacro.get(fam.categoria_id) : undefined);
       if (macroId && !seenMacroIds.has(macroId)) {
         seenMacroIds.add(macroId);
         macroIdsInBom.push(macroId);
@@ -354,7 +367,7 @@ Deno.serve(async (req: Request) => {
     if (prog.consulente_id) {
       const { data: cons } = await supabaseAdmin
         .from("profiles")
-        .select("first_name, last_name, email, phone, role_interno, photo_url")
+        .select("first_name, last_name, email, phone, role_interno, avatar_url")
         .eq("id", prog.consulente_id)
         .maybeSingle();
       if (cons) {
@@ -363,7 +376,7 @@ Deno.serve(async (req: Request) => {
           ruolo: cons.role_interno || "Consulente tecnico",
           telefono: cons.phone,
           email: cons.email,
-          foto: cons.photo_url,
+          foto: cons.avatar_url,
         };
       }
     }
@@ -417,8 +430,15 @@ Deno.serve(async (req: Request) => {
     })));
 
     // 4c. Public URL + QR code
-    const appOrigin = Deno.env.get("APP_PUBLIC_URL") ?? "https://app.ediliziaincloud.it";
-    const publicUrl = prog.public_token ? `${appOrigin}/stima/${prog.public_token}` : null;
+    const appOrigin = (Deno.env.get("APP_PUBLIC_URL") ?? Deno.env.get("SITE_URL") ?? "https://app.ediliziaincloud.com").replace(/\/+$/, "");
+    const storedPublicUrl = typeof prog.public_url === "string" ? prog.public_url.trim() : "";
+    const publicUrl = prog.public_token
+      ? `${appOrigin}/stima/${prog.public_token}`
+      : storedPublicUrl
+        ? (/^https?:\/\//i.test(storedPublicUrl)
+            ? storedPublicUrl
+            : `${appOrigin}${storedPublicUrl.startsWith("/") ? "" : "/"}${storedPublicUrl}`)
+        : null;
     const qrSvg = publicUrl ? generateQrSvg(publicUrl, { size: 200, margin: 1, color: "#2D7D5C" }) : null;
 
     // 5. Costruisci payload template
@@ -584,6 +604,7 @@ Deno.serve(async (req: Request) => {
 
     // 10. Log
     const duration_ms = Date.now() - t0;
+    const pagesCount = 3 + macroPagineDedicate.length;
     await supabaseAdmin.from("sr_pdf_generation_log").insert({
       progetto_id: prog.id,
       company_id: prog.company_id,
@@ -592,11 +613,11 @@ Deno.serve(async (req: Request) => {
       status: "success",
       html_url: htmlUrl,
       duration_ms,
-      pages_count: 3,
+      pages_count: pagesCount,
     });
 
     return jsonResponse(
-      { ok: true, html_url: htmlUrl, public_url: publicUrl, duration_ms, pages_count: 3 },
+      { ok: true, html_url: htmlUrl, public_url: publicUrl, duration_ms, pages_count: pagesCount },
       200, corsHeaders,
     );
   } catch (err) {

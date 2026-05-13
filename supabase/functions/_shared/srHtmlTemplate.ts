@@ -200,7 +200,11 @@ function renderFooter(d: SrPdfData, page: number, total: number): string {
   `;
 }
 
-function renderPage1(d: SrPdfData): string {
+function totalPages(d: SrPdfData): number {
+  return 3 + (d.macro_pagine_dedicate?.length ?? 0);
+}
+
+function renderPage1(d: SrPdfData, total = totalPages(d)): string {
   const titolo = d.intervento_titolo
     || `Per ${[d.cliente_nome].filter(Boolean).join(" ")}`;
   const sottotitolo = [
@@ -211,7 +215,7 @@ function renderPage1(d: SrPdfData): string {
 
   return `
   <section class="page">
-    ${renderHeader(d, 1, 3)}
+    ${renderHeader(d, 1, total)}
     <main class="page-body">
       <p class="overline">PROPOSTA DI INTERVENTO</p>
       <h1 class="page-title">${esc(titolo)}</h1>
@@ -261,15 +265,15 @@ function renderPage1(d: SrPdfData): string {
         </ul>
       ` : ""}
     </main>
-    ${renderFooter(d, 1, 3)}
+    ${renderFooter(d, 1, total)}
   </section>
   `;
 }
 
-function renderPage2(d: SrPdfData): string {
+function renderPage2(d: SrPdfData, total = totalPages(d)): string {
   return `
   <section class="page">
-    ${renderHeader(d, 2, 3)}
+    ${renderHeader(d, 2, total)}
     <main class="page-body">
       <h2 class="section-title">IL TUO INVESTIMENTO STIMATO</h2>
       <div class="big-price-box">
@@ -350,19 +354,19 @@ function renderPage2(d: SrPdfData): string {
       ` : ""}
 
     </main>
-    ${renderFooter(d, 2, 3)}
+    ${renderFooter(d, 2, total)}
   </section>
   `;
 }
 
-function renderPage3(d: SrPdfData): string {
+function renderPage3(d: SrPdfData, total = totalPages(d)): string {
   // Raggruppa serramenti per (tipologia + materiale + serie + vetro + scheda tecnica).
   // La scheda tecnica concorre alla chiave di raggruppamento perché 2 finestre
   // con Uw diverso sono prodotti diversi anche se la tipologia è la stessa.
   type Group = {
     label: string;
     materiale: string;
-    vetro: string;
+    dimensioni: string;
     q: number;
     specs: Array<{ label: string; value: string; unit: string | null }>;
   };
@@ -370,13 +374,21 @@ function renderPage3(d: SrPdfData): string {
   for (const s of d.serramenti) {
     const specs = s.specs_tecniche ?? [];
     const specsKey = specs.map((sp) => `${sp.label}=${sp.value}`).join("|");
-    const key = `${s.tipologia_label}__${s.materiale ?? ""}__${s.serie ?? ""}__${s.vetro ?? ""}__${specsKey}`;
-    const matStr = [s.materiale, s.serie].filter(Boolean).join(" · ") + (s.vetro ? " · " + s.vetro : "");
+    let dimensioni = "—";
+    if (s.larghezza_mm && s.altezza_mm) {
+      dimensioni = `${s.larghezza_mm} × ${s.altezza_mm} mm`;
+    } else if (s.larghezza_mm) {
+      dimensioni = `L ${s.larghezza_mm} mm`;
+    } else if (s.altezza_mm) {
+      dimensioni = `H ${s.altezza_mm} mm`;
+    }
+    const key = `${s.tipologia_label}__${dimensioni}__${s.materiale ?? ""}__${s.serie ?? ""}__${s.vetro ?? ""}__${specsKey}`;
+    const matStr = [s.materiale, s.serie, s.vetro].filter(Boolean).join(" · ");
     if (!groups[key]) {
       groups[key] = {
         label: s.tipologia_label,
         materiale: matStr,
-        vetro: s.vetro ?? "",
+        dimensioni,
         q: 0,
         specs,
       };
@@ -390,7 +402,7 @@ function renderPage3(d: SrPdfData): string {
 
   return `
   <section class="page">
-    ${renderHeader(d, 3, 3)}
+    ${renderHeader(d, 3, total)}
     <main class="page-body">
       <h1 class="page-title">Allegato tecnico</h1>
       <p class="page-subtitle">Cosa entra in cantiere e il prezzo finale della stima.</p>
@@ -398,7 +410,7 @@ function renderPage3(d: SrPdfData): string {
       <h2 class="section-title">COMPOSIZIONE SERRAMENTI · ${d.totale_serramenti} PEZZI</h2>
       <table class="data-table">
         <thead>
-          <tr><th>Tipologia</th><th>Materiale · Vetro</th><th class="num">Q.tà</th></tr>
+          <tr><th>Tipologia</th><th>Misure</th><th>Materiale · Vetro</th><th class="num">Q.tà</th></tr>
         </thead>
         <tbody>
           ${Object.values(groups).map((g) => {
@@ -413,6 +425,7 @@ function renderPage3(d: SrPdfData): string {
                 ${esc(g.label)}
                 ${specsHtml}
               </td>
+              <td><span class="strong">${esc(g.dimensioni)}</span></td>
               <td><span class="strong">${esc(g.materiale || "—")}</span></td>
               <td class="num">${g.q}</td>
             </tr>
@@ -498,7 +511,7 @@ function renderPage3(d: SrPdfData): string {
         </div>
       ` : ""}
     </main>
-    ${renderFooter(d, 3, 3)}
+    ${renderFooter(d, 3, total)}
   </section>
   `;
 }
@@ -512,6 +525,7 @@ function renderPage3(d: SrPdfData): string {
 function renderPagineMacroDedicate(d: SrPdfData): string {
   const pagine = d.macro_pagine_dedicate ?? [];
   if (pagine.length === 0) return "";
+  const baseTotal = totalPages(d);
   return pagine.map((p, idx) => {
     const total = pagine.length;
     // Trasforma il testo libero in paragrafi (a-capo doppi) + supporto bullet
@@ -531,7 +545,7 @@ function renderPagineMacroDedicate(d: SrPdfData): string {
       .join("");
     return `
     <section class="page macro-page">
-      ${renderHeader(d, 0, 0)}
+      ${renderHeader(d, 4 + idx, baseTotal)}
       <main class="page-body">
         <div class="macro-page-meta">
           <span class="macro-page-eyebrow">Linea prodotto · ${idx + 1} di ${total}</span>
@@ -548,6 +562,7 @@ function renderPagineMacroDedicate(d: SrPdfData): string {
           </div>
         </div>
       </main>
+      ${renderFooter(d, 4 + idx, baseTotal)}
     </section>
     `;
   }).join("");

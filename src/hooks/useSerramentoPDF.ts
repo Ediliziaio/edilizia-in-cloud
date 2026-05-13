@@ -58,6 +58,13 @@ export interface SerramentoPdfMacroPagina {
   immagine_url: string | null;
 }
 
+export interface SerramentoPdfSupplierLine {
+  id: string;
+  nome: string;
+  supplier_catalog_id: string | null;
+  supplier_nome: string | null;
+}
+
 export interface SerramentoPdfEnriched {
   detail: SrProgettoDetail;
   template?: SrTemplatePdfRow | null;
@@ -88,6 +95,12 @@ export interface SerramentoPdfEnriched {
    *  stampare le SCELTE effettive del commerciale (snapshot valori_assi)
    *  invece dei default scheda tecnica della family. */
   axisLabelByKey: Record<string, { axisLabel: string; valueLabel: string }>;
+  /** Lookup linea fornitore: due righe stessa family/misura ma linea diversa
+   *  restano distinguibili anche nel PDF cliente. */
+  supplierLineById: Record<string, SerramentoPdfSupplierLine>;
+  /** Link pubblico stabile per firma/accettazione e QR relativo. */
+  publicUrl: string | null;
+  qrDataUrl: string | null;
   /** macro_id da usare come default per i BOM senza family_id e senza
    *  macrocategoria_override_id. Solo se l'azienda ha una macro attiva con
    *  pagina dedicata (o, in subordine, una sola macro attiva). NULL = nessun
@@ -107,6 +120,71 @@ export interface SerramentoPdfPayload {
 // con dati reali). Alias del helper interno: stesso comportamento, no fork.
 export async function enrichForPdfPublic(opts: SerramentoPdfPayload): Promise<SerramentoPdfEnriched> {
   return enrichForPdf(opts);
+}
+
+function getPublicAppOrigin(): string {
+  // In locale non vogliamo stampare QR verso localhost in un PDF consegnato al
+  // cliente. Preferiamo env esplicita, poi l'origine reale non-local, poi prod.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const env = (import.meta as any).env ?? {};
+  const configured = env.VITE_APP_PUBLIC_URL || env.VITE_PUBLIC_APP_URL || env.VITE_SITE_URL;
+  if (typeof configured === "string" && configured.trim()) {
+    return configured.trim().replace(/\/+$/, "");
+  }
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host && host !== "localhost" && host !== "127.0.0.1") {
+      return window.location.origin.replace(/\/+$/, "");
+    }
+  }
+  return "https://app.ediliziaincloud.com";
+}
+
+function buildPublicStimaUrl(prog: SrProgettoDetail["progetto"]): string | null {
+  if (prog.public_token) return `${getPublicAppOrigin()}/stima/${prog.public_token}`;
+  const storedUrl = prog.public_url?.trim();
+  if (!storedUrl) return null;
+  if (/^https?:\/\//i.test(storedUrl)) return storedUrl;
+  return `${getPublicAppOrigin()}${storedUrl.startsWith("/") ? "" : "/"}${storedUrl}`;
+}
+
+async function buildQrDataUrl(publicUrl: string | null): Promise<string | null> {
+  if (!publicUrl) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mod: any = await import("qrcode");
+    const toDataURL = mod.toDataURL ?? mod.default?.toDataURL;
+    if (typeof toDataURL !== "function") return null;
+    return await toDataURL(publicUrl, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 180,
+      color: { dark: "#2D7D5C", light: "#FFFFFF" },
+    });
+  } catch (err) {
+    console.warn("[useSerramentoPDF] QR generation failed", err);
+    return null;
+  }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let cursor = 0;
+  const workers = Array.from(
+    { length: Math.min(Math.max(concurrency, 1), items.length) },
+    async () => {
+      while (cursor < items.length) {
+        const idx = cursor++;
+        out[idx] = await mapper(items[idx], idx);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return out;
 }
 
 async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEnriched> {
@@ -152,9 +230,17 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: famRows } = await (supabase as any)
       .from("article_families")
-      .select("id, nome, descrizione, immagine_url, custom_field_values, categoria_id")
+      .select("id, nome, descrizione, immagine_url, custom_field_values, categoria_id, macrocategoria_id")
       .in("id", familyIds);
-    ((famRows ?? []) as Array<{ id: string; nome: string | null; descrizione: string | null; immagine_url: string | null; custom_field_values: Record<string, unknown> | null; categoria_id: string | null }>)
+    ((famRows ?? []) as Array<{
+      id: string;
+      nome: string | null;
+      descrizione: string | null;
+      immagine_url: string | null;
+      custom_field_values: Record<string, unknown> | null;
+      categoria_id: string | null;
+      macrocategoria_id: string | null;
+    }>)
       .forEach((f) => {
         familiesById[f.id] = {
           id: f.id,
@@ -162,7 +248,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
           descrizione: f.descrizione,
           immagine_url: f.immagine_url,
           custom_field_values: f.custom_field_values ?? {},
-          macrocategoria_id: null, // popolato sotto
+          macrocategoria_id: f.macrocategoria_id ?? null,
         };
       });
 
@@ -182,7 +268,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
       });
       // Backfill macrocategoria_id nei familiesById
       ((famRows ?? []) as Array<{ id: string; categoria_id: string | null }>).forEach((f) => {
-        if (f.categoria_id && familiesById[f.id]) {
+        if (f.categoria_id && familiesById[f.id] && !familiesById[f.id].macrocategoria_id) {
           familiesById[f.id].macrocategoria_id = categoriaToMacro[f.categoria_id] ?? null;
         }
       });
@@ -245,6 +331,44 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
           };
         });
       });
+    });
+  }
+
+  // 4.ter Lookup linee fornitore usate nel BOM (serramenti + accessori).
+  const supplierLineIds = Array.from(new Set([
+    ...detail.serramenti.map((s) => s.supplier_product_line_id),
+    ...detail.accessori.map((a) => a.supplier_product_line_id),
+  ].filter((v): v is string => !!v)));
+  const supplierLineById: Record<string, SerramentoPdfSupplierLine> = {};
+  if (supplierLineIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: lineRows } = await (supabase as any)
+      .from("supplier_product_lines")
+      .select("id, nome, supplier_catalog_id")
+      .in("id", supplierLineIds);
+    const catalogIds = Array.from(new Set(
+      ((lineRows ?? []) as Array<{ supplier_catalog_id: string | null }>)
+        .map((l) => l.supplier_catalog_id)
+        .filter((v): v is string => !!v),
+    ));
+    const catalogNomeById: Record<string, string> = {};
+    if (catalogIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: catalogRows } = await (supabase as any)
+        .from("supplier_catalogs")
+        .select("id, nome")
+        .in("id", catalogIds);
+      ((catalogRows ?? []) as Array<{ id: string; nome: string }>).forEach((c) => {
+        catalogNomeById[c.id] = c.nome;
+      });
+    }
+    ((lineRows ?? []) as Array<{ id: string; nome: string; supplier_catalog_id: string | null }>).forEach((l) => {
+      supplierLineById[l.id] = {
+        id: l.id,
+        nome: l.nome,
+        supplier_catalog_id: l.supplier_catalog_id,
+        supplier_nome: l.supplier_catalog_id ? (catalogNomeById[l.supplier_catalog_id] ?? null) : null,
+      };
     });
   }
 
@@ -343,19 +467,20 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   //    durante la generazione; pre-caricandole ora come base64 le iniettiamo
   //    inline nel PDF e non dipendiamo da una fetch nel renderer.
   //    Best-effort: in caso di errore l'URL originale resta inalterato.
+  const publicUrl = buildPublicStimaUrl(prog);
   const [
     inlinedLogo,
     inlinedChiSiamoFoto,
     inlinedConsulenteFoto,
     inlinedCoverImage,
-    ...inlinedFamilyImages
+    qrDataUrl,
   ] = await Promise.all([
     toDataUrl(template?.logo_url ?? company?.logo_url ?? null),
     toDataUrl(template?.chi_siamo_foto_url ?? null),
     toDataUrl(consulente?.foto_url ?? null),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     toDataUrl((template as any)?.pdf_cover_image_url ?? null),
-    ...Object.values(familiesById).map((f) => toDataUrl(f.immagine_url)),
+    buildQrDataUrl(publicUrl),
   ]);
 
   // Applica i data URL pre-caricati ai rispettivi oggetti
@@ -375,6 +500,11 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     foto_url: inlinedConsulenteFoto ?? consulente.foto_url,
   } : null;
   const familyIdsArr = Object.keys(familiesById);
+  const inlinedFamilyImages = await mapWithConcurrency(
+    familyIdsArr,
+    4,
+    async (fid) => toDataUrl(familiesById[fid].immagine_url),
+  );
   const inlinedFamilies: Record<string, SerramentoPdfFamilyData> = {};
   familyIdsArr.forEach((fid, idx) => {
     inlinedFamilies[fid] = {
@@ -384,21 +514,23 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   });
 
   // Pre-fetch macro images in parallelo (sempre best-effort)
-  const macroImageEntries = await Promise.all(
-    Object.entries(macroImageById).map(async ([id, url]) =>
+  const macroImageEntries = await mapWithConcurrency(
+    Object.entries(macroImageById),
+    4,
+    async ([id, url]) =>
       [id, await toDataUrl(url)] as [string, string | null],
-    ),
   );
   const inlinedMacroImageById: Record<string, string | null> = Object.fromEntries(macroImageEntries);
 
   // Pre-fetch macro pagine dedicate hero images
-  const inlinedMacroPagine = await Promise.all(
-    macroPagineDedicate.map(async (mp) => ({
+  const inlinedMacroPagine = await mapWithConcurrency(
+    macroPagineDedicate,
+    3,
+    async (mp) => ({
       ...mp,
       immagine_url: (await toDataUrl(mp.immagine_url)) ?? mp.immagine_url,
-    })),
+    }),
   );
-
   return {
     detail,
     template: inlinedTemplate,
@@ -410,6 +542,9 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     macroImageById: inlinedMacroImageById,
     macroNomeById,
     axisLabelByKey,
+    supplierLineById,
+    publicUrl,
+    qrDataUrl,
     autoFallbackMacroId,
   };
 }

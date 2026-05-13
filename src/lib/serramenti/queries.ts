@@ -471,18 +471,21 @@ export function useGeneraPdf(progettoId: string | undefined) {
       // Auto-open in nuova tab. Se il popup blocker del browser blocca l'apertura,
       // window.open ritorna null → mostriamo un toast con link cliccabile come
       // fallback per non lasciare l'utente senza CTA.
-      const win = data.html_url ? window.open(data.html_url, "_blank") : null;
-      if (data.html_url && !win) {
+      const targetUrl = data.public_url ?? data.html_url;
+      const win = targetUrl ? window.open(targetUrl, "_blank") : null;
+      if (targetUrl && !win) {
         toast.success("Preventivo generato", {
           description: "Apertura automatica bloccata dal browser.",
           action: {
-            label: "Apri documento",
-            onClick: () => window.open(data.html_url!, "_blank"),
+            label: "Apri pagina firma",
+            onClick: () => window.open(targetUrl, "_blank"),
           },
           duration: 10000,
         });
+      } else if (data.public_url) {
+        toast.success("Pagina firma generata", { description: "Il link pubblico cliente è pronto." });
       } else {
-        toast.success("Preventivo generato", { description: "Apri il documento per visualizzarlo o stamparlo." });
+        toast.success("Preventivo generato", { description: "Link HTML firmato pronto per la revisione." });
       }
     },
     onError: (e) => toast.error("Generazione PDF fallita", { description: String(e) }),
@@ -535,4 +538,3 @@ export function useUpsertTemplatePdf() {
     onError: (e) => toast.error("Salvataggio template fallito", { description: String(e) }),
   });
 }
-

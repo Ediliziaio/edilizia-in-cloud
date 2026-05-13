@@ -34,6 +34,7 @@ import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
+  SerramentoPdfSupplierLine,
 } from "@/hooks/useSerramentoPDF";
 
 // Font: Helvetica built-in di react-pdf è il default sicuro (zero rete,
@@ -502,6 +503,13 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     specChipLabel: { color: C.gray500, fontWeight: 500 },
     specChipValue: { color: C.gray900, fontWeight: 700 },
     specChipUnit: { color: C.gray500, fontWeight: 400 },
+    supplierLineText: {
+      fontSize: 8.2,
+      color: C.primary,
+      fontWeight: 700,
+      marginTop: 2,
+      letterSpacing: 0.15,
+    },
 
     // Consulenza
     consBox: {
@@ -791,6 +799,32 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       paddingTop: 2, marginRight: 10,
     },
     ctaText: { flex: 1, fontSize: 10.5, color: C.white, lineHeight: 1.5 },
+    signatureBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+      marginTop: 14,
+      padding: 14,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: C.primaryBorder,
+      backgroundColor: C.primaryLight,
+    },
+    signatureQr: {
+      width: 96,
+      height: 96,
+      backgroundColor: C.white,
+      borderRadius: 6,
+      padding: 5,
+    },
+    signatureTitle: { fontSize: 13, fontWeight: 800, color: C.primary, marginBottom: 4 },
+    signatureText: { fontSize: 9.5, lineHeight: 1.45, color: C.gray700 },
+    signatureUrl: {
+      fontSize: 7.5,
+      color: C.gray500,
+      marginTop: 6,
+      lineHeight: 1.35,
+    },
 
     // Render grid
     rendersGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
@@ -972,6 +1006,8 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
   altezza: number | null;
   quantita: number;
   family_id: string | null;
+  supplier_catalog_id: string | null;
+  supplier_product_line_id: string | null;
   /** Override macrocategoria per BOM manuali senza family_id */
   macrocategoria_override_id: string | null;
   /** Note libere salvate sulla riga BOM (es. "🎁 OMAGGIO · Condizioni: ...",
@@ -995,6 +1031,8 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     vetro: string; ambiente: string; colore_interno: string; colore_esterno: string;
     larghezza: number | null; altezza: number | null;
     quantita: number; family_id: string | null;
+    supplier_catalog_id: string | null;
+    supplier_product_line_id: string | null;
     macrocategoria_override_id: string | null;
     note: string | null;
     valori_assi: Record<string, string>;
@@ -1009,7 +1047,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     const ci = s.colore_interno ?? "";
     const ce = s.colore_esterno ?? "";
     const noteVal = s.note ?? null;
-    const isOmaggio = (s.prezzo_totale ?? 0) === 0 && !!noteVal?.startsWith("🎁 OMAGGIO");
+    const isOmaggio = (s.prezzo_totale ?? 0) === 0 && /\bOMAGGIO\b/i.test(noteVal ?? "");
     const assi = (s.valori_assi ?? {}) as Record<string, string>;
     // KEY include anche valori_assi (snapshot scelte commerciale) e note
     // (per non aggregare 2 righe identiche con condizioni diverse).
@@ -1022,7 +1060,8 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     // posa_esclusa fa parte della key: 2 righe identiche ma una "con posa" e
     // una "senza posa" devono restare separate (prezzo unitario diverso).
     const posaKey = s.posa_esclusa ? "noposa" : "posa";
-    const key = `${baseKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}__${ci}__${ce}__${assiKey}__${noteVal ?? ""}__${posaKey}`;
+    const supplierKey = `sup-${s.supplier_catalog_id ?? "-"}__line-${s.supplier_product_line_id ?? "-"}`;
+    const key = `${baseKey}__${supplierKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}__${ci}__${ce}__${assiKey}__${noteVal ?? ""}__${posaKey}`;
     const existing = map.get(key);
     if (existing) {
       existing.quantita += s.quantita ?? 1;
@@ -1042,6 +1081,8 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
       altezza: H,
       quantita: s.quantita ?? 1,
       family_id: s.family_id ?? null,
+      supplier_catalog_id: s.supplier_catalog_id ?? null,
+      supplier_product_line_id: s.supplier_product_line_id ?? null,
       macrocategoria_override_id: s.macrocategoria_override_id ?? null,
       note: noteVal,
       valori_assi: assi,
@@ -1504,6 +1545,11 @@ export interface SerramentoPDFProps {
    *  Permette di stampare le SCELTE del commerciale (es. "Profilo: Square")
    *  al posto del default scheda tecnica. */
   axisLabelByKey?: Record<string, { axisLabel: string; valueLabel: string }>;
+  /** Lookup linea fornitore, usato nel BOM PDF per distinguere cataloghi e linee. */
+  supplierLineById?: Record<string, SerramentoPdfSupplierLine>;
+  /** Link pubblico/QR della pagina firma da inserire nel PDF cliente. */
+  publicUrl?: string | null;
+  qrDataUrl?: string | null;
   /** Macro_id default per BOM senza family e senza override esplicito. */
   autoFallbackMacroId?: string | null;
 }
@@ -1516,6 +1562,9 @@ export function SerramentoPDF({
   macroImageById: _macroImageById = {},
   macroNomeById = {},
   axisLabelByKey = {},
+  supplierLineById = {},
+  publicUrl = null,
+  qrDataUrl = null,
   autoFallbackMacroId = null,
 }: SerramentoPDFProps) {
   const p = detail.progetto;
@@ -2269,7 +2318,7 @@ export function SerramentoPDF({
                   if (g.note) {
                     if (g.is_omaggio) {
                       // Rimuove prefisso "🎁 OMAGGIO · " per non duplicare il badge.
-                      noteCleaned = g.note.replace(/^🎁\s*OMAGGIO\s*·?\s*/, "").trim() || null;
+                      noteCleaned = g.note.replace(/^(?:🎁\s*)?OMAGGIO\s*·?\s*/i, "").trim() || null;
                     } else {
                       noteCleaned = g.note;
                     }
@@ -2279,6 +2328,12 @@ export function SerramentoPDF({
                   // Breadcrumb macrocategoria. Stampato in piccolo sopra il
                   // titolo della riga (es. "INFISSI WND > Articolo PVC 70").
                   const macroNomeRow = macroId ? (macroNomeById[macroId] || null) : null;
+                  const supplierLine = g.supplier_product_line_id
+                    ? supplierLineById[g.supplier_product_line_id]
+                    : null;
+                  const supplierLabel = supplierLine
+                    ? [supplierLine.supplier_nome, supplierLine.nome].filter(Boolean).join(" · ")
+                    : null;
                   // Dimensioni nella prima riga muted
                   const dimensioni = g.larghezza && g.altezza
                     ? `${g.larghezza} × ${g.altezza} mm`
@@ -2337,7 +2392,7 @@ export function SerramentoPDF({
                               backgroundColor: "#D1FAE5", paddingHorizontal: 4,
                               paddingVertical: 1, marginLeft: 6, borderRadius: 3,
                             }}>
-                              {" "}🎁 IN OMAGGIO{" "}
+                              {" "}IN OMAGGIO{" "}
                             </Text>
                           )}
                           {/* Badge SOLO FORNITURA: ambra accanto al titolo se la
@@ -2349,7 +2404,7 @@ export function SerramentoPDF({
                               backgroundColor: "#FEF3C7", paddingHorizontal: 4,
                               paddingVertical: 1, marginLeft: 6, borderRadius: 3,
                             }}>
-                              {" "}⊘ SOLO FORNITURA{" "}
+                              {" "}SOLO FORNITURA{" "}
                             </Text>
                           )}
                         </Text>
@@ -2369,6 +2424,11 @@ export function SerramentoPDF({
                             g.vetro,
                           ].filter(Boolean).join(" · ")}
                         </Text>
+                        {supplierLabel && (
+                          <Text style={styles.supplierLineText}>
+                            Linea fornitore: {supplierLabel}
+                          </Text>
+                        )}
                         {(g.colore_interno || g.colore_esterno) && (
                           <Text style={styles.tableCellMuted}>
                             Colore: {[
@@ -2389,7 +2449,7 @@ export function SerramentoPDF({
                             fontSize: 8.5, color: "#92400E", marginTop: 3,
                             fontStyle: "italic",
                           }}>
-                            ⓘ Vendita solo fornitura — manodopera e posa NON incluse per questo articolo.
+                            Info: vendita solo fornitura — manodopera e posa NON incluse per questo articolo.
                           </Text>
                         )}
                         {specs.length > 0 && (
@@ -3359,6 +3419,20 @@ export function SerramentoPDF({
                   </View>
                 ))}
               </View>
+
+              {publicUrl && (
+                <View style={styles.signatureBox} wrap={false}>
+                  {qrDataUrl && <Image src={qrDataUrl} style={styles.signatureQr} />}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.signatureTitle}>Firma e conferma dal telefono</Text>
+                    <Text style={styles.signatureText}>
+                      Inquadra il QR o apri il link per leggere la pagina pubblica del preventivo
+                      e firmare digitalmente senza stampare il documento.
+                    </Text>
+                    <Text style={styles.signatureUrl}>{publicUrl}</Text>
+                  </View>
+                </View>
+              )}
 
               {/* Note del consulente al cliente (migration 20270513240000):
                   condizioni speciali, tempi consegna concordati, scelte di

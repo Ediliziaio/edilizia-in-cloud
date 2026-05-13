@@ -1384,7 +1384,9 @@ export async function deleteMedia(id: string): Promise<void> {
 
 // ─── EDGE FUNCTIONS ─────────────────────────────────────────────────────────
 
-export async function generaPdf(progetto_id: string): Promise<{ html_url: string; duration_ms: number }> {
+export async function generaPdf(
+  progetto_id: string,
+): Promise<{ html_url: string; public_url: string | null; duration_ms: number; pages_count: number | null }> {
   const { data, error } = await supabase.functions.invoke("sr-genera-pdf", {
     body: { progetto_id },
   });
@@ -1395,7 +1397,12 @@ export async function generaPdf(progetto_id: string): Promise<{ html_url: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const r = data as any;
   if (!r?.ok) throw new Error(r?.error ?? "Generazione PDF fallita");
-  return { html_url: r.html_url, duration_ms: r.duration_ms };
+  return {
+    html_url: r.html_url,
+    public_url: r.public_url ?? null,
+    duration_ms: r.duration_ms,
+    pages_count: r.pages_count ?? null,
+  };
 }
 
 export async function convertiInOrdine(progetto_id: string): Promise<string> {

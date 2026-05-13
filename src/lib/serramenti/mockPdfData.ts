@@ -161,7 +161,7 @@ export async function buildMockPdfData(opts: {
     crono_giorni_collaudo: 1,
     valido_fino_giorni: 15,
     valido_fino_data: null,
-    public_token: null,
+    public_token: "demo-firma-token",
     public_url: null,
     allow_self_signing: false,
     firmato_il: null,
@@ -174,6 +174,10 @@ export async function buildMockPdfData(opts: {
     pdf_url: null,
     pdf_generated_at: null,
     pdf_html_url: null,
+    note_interne: null,
+    note_cliente: "Preventivo demo generato per verificare impaginazione, QR e dati tecnici prima dell'invio al cliente.",
+    parent_id: null,
+    revision_number: 1,
   };
 
   const serramenti: SrSerramentoRow[] = [
@@ -199,11 +203,15 @@ export async function buildMockPdfData(opts: {
       family_id: MOCK_FAMILY_ID,
       macrocategoria_override_id: null,
       listino_voce_id: null,
+      supplier_catalog_id: null,
+      supplier_product_line_id: null,
       prezzo_unitario: 1200,
       prezzo_totale: 2400,
+      valori_assi: {},
       foto_storage_path: null,
       foto_render_path: null,
       note: null,
+      posa_esclusa: false,
       created_at: now,
       updated_at: now,
     },
@@ -229,11 +237,15 @@ export async function buildMockPdfData(opts: {
       family_id: null,
       macrocategoria_override_id: null,
       listino_voce_id: null,
+      supplier_catalog_id: null,
+      supplier_product_line_id: null,
       prezzo_unitario: 1600,
       prezzo_totale: 1600,
+      valori_assi: {},
       foto_storage_path: null,
       foto_render_path: null,
       note: null,
+      posa_esclusa: false,
       created_at: now,
       updated_at: now,
     },
@@ -319,6 +331,7 @@ export async function buildMockPdfData(opts: {
   const macroImageById: Record<string, string | null> = {
     [MOCK_MACRO_ID]: null,
   };
+  const publicUrl = "https://app.ediliziaincloud.com/stima/demo-firma-token";
 
   // Pre-converti le immagini del template (webp → JPEG/PNG) in parallelo.
   // Senza questo step, l'anteprima mostra box vuoti perché react-pdf non
@@ -360,6 +373,13 @@ export async function buildMockPdfData(opts: {
     fieldsByMacro,
     macroPagineDedicate,
     macroImageById,
+    macroNomeById: {
+      [MOCK_MACRO_ID]: "Infissi in alluminio premium",
+    },
+    axisLabelByKey: {},
+    supplierLineById: {},
+    publicUrl,
+    qrDataUrl: null,
     autoFallbackMacroId: null,
   };
 }

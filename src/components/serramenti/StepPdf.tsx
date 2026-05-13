@@ -113,6 +113,7 @@ export function StepPdf({ progettoId, detail }: Props) {
 
   const ready = checks.every((c) => c.ok);
   const erroriCount = checks.filter((c) => !c.ok).length;
+  const paginaFirmaUrl = p.public_url ?? p.pdf_html_url;
 
   return (
     <div className="space-y-3">
@@ -255,12 +256,12 @@ export function StepPdf({ progettoId, detail }: Props) {
             {generaPdfMut.isPending
               ? <Loader2 className="h-4 w-4 animate-spin" />
               : <Link2 className="h-4 w-4" />}
-            {p.pdf_html_url ? "Aggiorna link firma" : "Genera link firma"}
+            {paginaFirmaUrl ? "Aggiorna link firma" : "Genera link firma"}
           </Button>
-          {p.pdf_html_url && (
+          {paginaFirmaUrl && (
             <Button asChild variant="outline" className="gap-2">
-              <a href={p.pdf_html_url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4" /> Apri pagina pubblica
+              <a href={paginaFirmaUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4" /> Apri pagina firma
               </a>
             </Button>
           )}
@@ -299,7 +300,7 @@ export function StepPdf({ progettoId, detail }: Props) {
               </Button>
             </div>
             <p className="text-[10px] text-orange-600 mt-1.5">
-              Il cliente può aprire il preventivo senza login e firmare digitalmente. Il QR code è già nel PDF.
+              Il cliente può aprire il preventivo senza login e firmare digitalmente. Il QR code viene inserito nel PDF A4 quando scarichi/rigeneri il documento.
             </p>
           </div>
         )}
