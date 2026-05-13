@@ -232,7 +232,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         { id: "page_recensioni",  label: "Recensioni",      emoji: "⭐", descr: "Testimonianze cliente" },
         { id: "page_render",      label: "Render AI",       emoji: "🪄", descr: "Prima/dopo + disclaimer" },
         { id: "page_cta",         label: "CTA finale",      emoji: "✅", descr: "Prossimi passi" },
-        { id: "page_conversione", label: "⚡ Conversione",   emoji: "⚡", descr: "Urgenza, garanzie, bonus" },
+        { id: "page_conversione", label: "Conversione",     emoji: "⚡", descr: "Urgenza, garanzie, bonus" },
         { id: "page_ordine",      label: "Ordine pagine",   emoji: "📋", descr: "Drag-drop riordino" },
       ],
     },
@@ -1318,11 +1318,13 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               </div>
             </div>
 
-            {/* ─── M12 · Preset stili 1-click (v2 con mini-anteprime A4) ──
-                 Gallery di 8 preset pre-confezionati. Click → applica in
-                 batch tutti i campi pdf_cover_*. L'immagine di sfondo non
-                 viene mai modificata. Le card mostrano una mini-cover A4
-                 con bg-color + titolo simulato + accent reali del preset. */}
+            {/* ─── Preset stili cover ────────────────────────────────────
+                 Gallery con 8 preset di LAYOUT (no solo colore):
+                 ogni preset combina bg/immagine + posizione testo (top/center/
+                 bottom) + decorazione + overlay. Divisi in 2 gruppi visuali:
+                 🎨 Solid (4) e 📷 Photo (4). Click → applica in batch.
+                 Le card mostrano una mini-anteprima A4 con bg, accent,
+                 posizione testo e indicatore di tipo (solid vs photo). */}
             <div className="rounded-lg border bg-gradient-to-br from-orange-50 to-amber-50/30 p-3 space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
@@ -1341,99 +1343,152 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </Badge>
                 )}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                {COVER_PRESETS.map((p) => {
-                  const isActive = activeCoverPresetId === p.id;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => applyCoverPreset(p.id)}
-                      title={p.descrizione}
-                      className={
-                        "group relative rounded-lg overflow-hidden transition-all text-left focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white border-2 " +
-                        (isActive
-                          ? "border-orange-500 shadow-md ring-2 ring-orange-300"
-                          : "border-slate-200 hover:border-orange-300 hover:shadow-sm")
-                      }
-                    >
-                      {/* Mini-anteprima A4 — aspect 210/297, scala miniatura */}
-                      <div
-                        className="relative w-full overflow-hidden flex flex-col p-2"
-                        style={{
-                          aspectRatio: "210/297",
-                          backgroundColor: p.swatchBg,
-                          color: p.swatchText,
-                        }}
-                      >
-                        {/* Decoration top-right (se preset la mostra) */}
-                        {p.patch.pdf_cover_show_decoration !== false && (
-                          <div
-                            className="absolute top-1.5 right-1.5 w-3 h-3 rounded-sm opacity-80"
-                            style={{ backgroundColor: p.swatchAccent }}
-                          />
-                        )}
-                        {/* Logo placeholder */}
-                        <div className="flex items-center gap-1 mb-auto">
-                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.swatchAccent, opacity: 0.7 }} />
-                          <div className="h-1 w-6 rounded-full opacity-30" style={{ backgroundColor: p.swatchText }} />
-                        </div>
-                        {/* Eyebrow + Titolo simulati con i font-size del preset */}
-                        <div className="mb-1" style={{
-                          textAlign: p.patch.pdf_cover_text_align === "center" ? "center" : "left",
-                        }}>
-                          <div
-                            className="font-bold uppercase tracking-wider mb-1"
-                            style={{
-                              fontSize: 5,
-                              color: p.swatchAccent,
-                              opacity: 0.9,
-                            }}
+              {/* Helper per render di una singola card preset (riusato da entrambi i gruppi). */}
+              {(["solid", "photo"] as const).map((cat) => {
+                const presetsInCat = COVER_PRESETS.filter((p) => p.category === cat);
+                if (presetsInCat.length === 0) return null;
+                const catLabel = cat === "solid"
+                  ? { emoji: "🎨", title: "Solo colore (no immagine)", subtitle: "Background solido con titolo e accent" }
+                  : { emoji: "📷", title: "Con immagine sfondo", subtitle: "Foto come sfondo + overlay scuro per leggibilità" };
+                return (
+                  <div key={cat} className="space-y-2">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-sm">{catLabel.emoji}</span>
+                      <span className="text-xs font-bold uppercase tracking-wide text-slate-700">{catLabel.title}</span>
+                      <span className="text-[10px] text-muted-foreground">{catLabel.subtitle}</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                      {presetsInCat.map((p) => {
+                        const isActive = activeCoverPresetId === p.id;
+                        const tv = p.patch.pdf_cover_text_vertical ?? "bottom";
+                        const ta = p.patch.pdf_cover_text_align ?? "left";
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => applyCoverPreset(p.id)}
+                            title={p.descrizione}
+                            className={
+                              "group relative rounded-lg overflow-hidden transition-all text-left focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white border-2 " +
+                              (isActive
+                                ? "border-orange-500 shadow-md ring-2 ring-orange-300"
+                                : "border-slate-200 hover:border-orange-300 hover:shadow-sm")
+                            }
                           >
-                            ★ Proposta
-                          </div>
-                          <div
-                            className="font-bold leading-tight whitespace-pre-line"
-                            style={{
-                              fontSize: Math.max(7, (p.patch.pdf_cover_title_size ?? 40) * 0.18),
-                            }}
-                          >
-                            {p.sampleTitle}
-                          </div>
-                          {p.patch.pdf_cover_show_client_card !== false && (
-                            <div className="mt-1 rounded-sm px-1 py-0.5"
-                              style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+                            {/* Mini-anteprima A4 — aspect 210/297, scala miniatura */}
+                            <div
+                              className="relative w-full overflow-hidden flex flex-col p-2"
+                              style={{
+                                aspectRatio: "210/297",
+                                backgroundColor: p.swatchBg,
+                                color: p.swatchText,
+                              }}
                             >
-                              <div className="h-0.5 w-3 rounded-full opacity-50" style={{ backgroundColor: p.swatchText }} />
-                              <div className="h-1 w-4 rounded-full mt-0.5" style={{ backgroundColor: p.swatchText }} />
+                              {/* Per preset photo: simulazione immagine sfondo con gradient subtile */}
+                              {p.category === "photo" && (
+                                <div
+                                  className="absolute inset-0 pointer-events-none opacity-40"
+                                  style={{
+                                    backgroundImage:
+                                      "linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.25) 100%)",
+                                  }}
+                                />
+                              )}
+                              {/* Badge tipo preset (solo colore vs con foto) */}
+                              <div
+                                className="absolute top-1.5 left-1.5 text-[7px] font-bold uppercase tracking-wider px-1 py-px rounded-sm z-10"
+                                style={{
+                                  backgroundColor: "rgba(255,255,255,0.92)",
+                                  color: "#475569",
+                                }}
+                              >
+                                {p.category === "solid" ? "● colore" : "📷 foto"}
+                              </div>
+                              {/* Decoration top-right (se preset la mostra) */}
+                              {p.patch.pdf_cover_show_decoration !== false && (
+                                <div
+                                  className="absolute top-1.5 right-1.5 w-3 h-3 rounded-sm opacity-80"
+                                  style={{ backgroundColor: p.swatchAccent }}
+                                />
+                              )}
+
+                              {/* Contenitore del blocco testo con justify-content
+                                  dinamico per simulare top/center/bottom. */}
+                              <div className="relative flex-1 flex flex-col z-[1]" style={{
+                                justifyContent:
+                                  tv === "top" ? "flex-start"
+                                  : tv === "center" ? "center"
+                                  : "flex-end",
+                              }}>
+                                {/* Logo placeholder posizione: per top_center,
+                                    sopra il contenuto */}
+                                {tv === "top" && (
+                                  <div className="flex items-center gap-1 mb-2"
+                                    style={{
+                                      justifyContent: p.patch.pdf_cover_logo_position === "top_right" ? "flex-end"
+                                        : p.patch.pdf_cover_logo_position === "top_center" ? "center"
+                                        : "flex-start",
+                                    }}
+                                  >
+                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.swatchAccent, opacity: 0.7 }} />
+                                    <div className="h-1 w-5 rounded-full opacity-30" style={{ backgroundColor: p.swatchText }} />
+                                  </div>
+                                )}
+                                {/* Eyebrow + Titolo + Card cliente simulati */}
+                                <div style={{ textAlign: ta === "center" ? "center" : "left" }}>
+                                  <div
+                                    className="font-bold uppercase tracking-wider mb-1"
+                                    style={{ fontSize: 5, color: p.swatchAccent, opacity: 0.9 }}
+                                  >
+                                    ★ Proposta
+                                  </div>
+                                  <div
+                                    className="font-bold leading-tight whitespace-pre-line"
+                                    style={{
+                                      fontSize: Math.max(7, (p.patch.pdf_cover_title_size ?? 40) * 0.16),
+                                    }}
+                                  >
+                                    {p.sampleTitle}
+                                  </div>
+                                  {p.patch.pdf_cover_show_client_card !== false && (
+                                    <div
+                                      className="mt-1 rounded-sm px-1 py-0.5 inline-block"
+                                      style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+                                    >
+                                      <div className="h-0.5 w-3 rounded-full opacity-50" style={{ backgroundColor: p.swatchText }} />
+                                      <div className="h-1 w-4 rounded-full mt-0.5" style={{ backgroundColor: p.swatchText }} />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                      {/* Footer card con nome + tag */}
-                      <div className="px-2 py-1.5 bg-white border-t border-slate-100">
-                        <div className="flex items-center gap-1">
-                          <span className="text-sm leading-none">{p.emoji}</span>
-                          <span className="text-[11px] font-semibold text-slate-900 truncate">{p.nome}</span>
-                        </div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <span className="text-[8px] uppercase tracking-wide bg-slate-100 text-slate-600 px-1 py-px rounded font-semibold">
-                            {p.tag}
-                          </span>
-                        </div>
-                      </div>
-                      {/* Check icon su attivo */}
-                      {isActive && (
-                        <div className="absolute top-1.5 right-1.5 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-md z-10">
-                          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                            <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                            {/* Footer card con nome + tag */}
+                            <div className="px-2 py-1.5 bg-white border-t border-slate-100">
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm leading-none">{p.emoji}</span>
+                                <span className="text-[11px] font-semibold text-slate-900 truncate">{p.nome}</span>
+                              </div>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="text-[8px] uppercase tracking-wide bg-slate-100 text-slate-600 px-1 py-px rounded font-semibold">
+                                  {p.tag}
+                                </span>
+                              </div>
+                            </div>
+                            {/* Check icon su attivo */}
+                            {isActive && (
+                              <div className="absolute top-1.5 right-1.5 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-md z-10">
+                                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                                  <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
               {!activeCoverPresetId && (
                 <p className="text-[10px] text-amber-700 bg-amber-100/60 rounded px-2 py-1 inline-block">
                   💡 Configurazione personalizzata — non corrisponde a nessun preset. I tuoi valori vengono mantenuti.

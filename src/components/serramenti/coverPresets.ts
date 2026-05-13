@@ -1,257 +1,305 @@
 /**
- * coverPresets.ts — M12 · preset stili cover 1-click
+ * coverPresets.ts — Preset layout cover PDF.
  *
- * Ogni preset rappresenta una composizione coerente dei campi `pdf_cover_*`
- * della tabella `sr_template_pdf`. Applicare un preset = settare tutti i
- * campi in batch (no migration: i campi DB esistono già da M1-M4).
+ * I preset NON sono solo "stili di colore" ma combinazioni complete di
+ * LAYOUT che includono:
+ *  - Tipo: 'solid' (solo bg color) o 'photo' (con background image)
+ *  - Posizione testo verticale: top | center | bottom
+ *  - Allineamento testo: left | center
+ *  - Stile overlay (per photo): flat | gradient | gradient_diag | vignette
+ *  - Decorazione: square | circle | line | pattern | none
  *
- * I valori sono progettati per essere "buoni out-of-the-box": tipografia,
- * contrasto e gerarchia visiva sono già calibrati. L'utente può poi
- * sovrascrivere singoli campi.
+ * Ogni preset applica in batch tutti questi campi su pdf_cover_*.
  *
- * NB: `pdf_cover_image_url` NON viene mai sovrascritto dai preset — è
- * un asset uploadato dall'utente. Il preset definisce solo overlay + colori +
- * tipografia + decorazioni; l'immagine resta quella scelta dall'utente.
+ * Per i preset 'photo': se l'utente non ha già caricato un'immagine, viene
+ * suggerito di caricarla via galleria stock o file upload. Il preset
+ * imposta `pdf_cover_image_url` SOLO se è esplicitamente fornita
+ * (es. preset specifico che usa una stock image).
  */
 
 import type { SrTemplatePdfRow } from "@/types/serramenti";
 
-// I campi che un preset può sovrascrivere. Sottoinsieme di SrTemplatePdfRow.
+export type CoverPresetCategory = "solid" | "photo";
+
 export type CoverPresetPatch = Partial<Pick<SrTemplatePdfRow,
   | "pdf_cover_bg_color"
+  | "pdf_cover_image_url"
   | "pdf_cover_overlay_opacity"
+  | "pdf_cover_overlay_style"
   | "pdf_cover_text_color"
   | "pdf_cover_text_align"
+  | "pdf_cover_text_vertical"
   | "pdf_cover_eyebrow_size"
   | "pdf_cover_title_size"
   | "pdf_cover_subtitle_size"
   | "pdf_cover_show_decoration"
+  | "pdf_cover_decoration_style"
   | "pdf_cover_show_client_card"
+  | "pdf_cover_logo_position"
 >>;
 
 export interface CoverPreset {
-  /** ID stabile salvato come hint (no schema DB, sta solo in memoria). */
   id: string;
-  /** Nome visualizzato sulla card (italiano). */
   nome: string;
-  /** Una riga descrittiva del feeling (tono di voce, brief design). */
   descrizione: string;
-  /** Emoji rappresentativa (no asset image necessario). */
   emoji: string;
-  /** Colore badge accent della card preset (palette tailwind-friendly). */
-  accent: string;
-  /** Sample swatch da mostrare in mini-preview della card (bg → testo). */
+  /** Categoria: solo colore vs richiede immagine sfondo. */
+  category: CoverPresetCategory;
+  /** Tag breve sotto al nome (es. "Testo in alto", "Editorial"). */
+  tag: string;
+  /** Esempio titolo cover mostrato nella mini-anteprima della card. */
+  sampleTitle: string;
+  /** Colori per la mini-preview della card (non sono i valori applicati,
+   *  sono solo per render della thumbnail). */
   swatchBg: string;
   swatchText: string;
-  /** Colore accent secondario (per dettagli decorativi nella mini-preview). */
   swatchAccent: string;
-  /** Tag breve per uso ideale (mostrato sotto al nome). */
-  tag: string;
-  /** Esempio titolo cover che verrà mostrato nella mini-anteprima. */
-  sampleTitle: string;
-  /** Campi da applicare. */
+  /** Campi del template DA applicare in batch al click. */
   patch: CoverPresetPatch;
 }
 
+// URL di una stock image usata come "suggested image" per i preset photo
+// che non hanno una propria foto specifica (l'utente la cambierà poi).
+const STOCK_FALLBACK_HOUSE =
+  "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1600&q=80&auto=format&fit=crop";
+
 export const COVER_PRESETS: CoverPreset[] = [
-  // ─── 1. Minimal ──────────────────────────────────────────────────────────
+  // ═══ SOLID — Solo colore di sfondo, no immagine ════════════════════════
   {
-    id: "minimal",
-    nome: "Minimal",
-    descrizione: "Sfondo bianco, tipografia pulita, zero distrazioni",
+    id: "solid_minimal_top",
+    nome: "Minimal · testo in alto",
+    descrizione: "Sfondo bianco pulito, titolo grosso in alto, niente distrazioni",
     emoji: "⚪",
-    accent: "slate",
+    category: "solid",
+    tag: "Top · B2B",
+    sampleTitle: "Proposta\npersonalizzata.",
     swatchBg: "#FFFFFF",
     swatchText: "#0F172A",
     swatchAccent: "#64748B",
-    tag: "B2B / Studi",
-    sampleTitle: "Proposta\npersonalizzata.",
     patch: {
       pdf_cover_bg_color: "#FFFFFF",
+      pdf_cover_image_url: null,
       pdf_cover_text_color: "#0F172A",
       pdf_cover_text_align: "left",
+      pdf_cover_text_vertical: "top",
       pdf_cover_eyebrow_size: 10,
-      pdf_cover_title_size: 44,
+      pdf_cover_title_size: 48,
       pdf_cover_subtitle_size: 13,
       pdf_cover_show_decoration: false,
+      pdf_cover_decoration_style: "line",
       pdf_cover_show_client_card: true,
       pdf_cover_overlay_opacity: 0,
+      pdf_cover_overlay_style: "flat",
+      pdf_cover_logo_position: "top_left",
     },
   },
-  // ─── 2. Bold Nero ─────────────────────────────────────────────────────────
   {
-    id: "bold",
-    nome: "Bold Nero",
-    descrizione: "Nero puro, titolone 56pt, massimo impatto visivo",
+    id: "solid_premium_center",
+    nome: "Premium · testo al centro",
+    descrizione: "Dark teal con ornamenti, titolo centrato perfetto",
+    emoji: "💎",
+    category: "solid",
+    tag: "Center · Premium",
+    sampleTitle: "Eleganza\nche dura.",
+    swatchBg: "#0F2A2E",
+    swatchText: "#F5F5F4",
+    swatchAccent: "#D4A574",
+    patch: {
+      pdf_cover_bg_color: "#0F2A2E",
+      pdf_cover_image_url: null,
+      pdf_cover_text_color: "#F5F5F4",
+      pdf_cover_text_align: "center",
+      pdf_cover_text_vertical: "center",
+      pdf_cover_eyebrow_size: 11,
+      pdf_cover_title_size: 46,
+      pdf_cover_subtitle_size: 13,
+      pdf_cover_show_decoration: true,
+      pdf_cover_decoration_style: "circle",
+      pdf_cover_show_client_card: true,
+      pdf_cover_overlay_opacity: 0,
+      pdf_cover_overlay_style: "flat",
+      pdf_cover_logo_position: "top_center",
+    },
+  },
+  {
+    id: "solid_bold_bottom",
+    nome: "Bold Nero · testo in basso",
+    descrizione: "Nero pieno, titolo enorme in basso, drama puro",
     emoji: "⚫",
-    accent: "neutral",
+    category: "solid",
+    tag: "Bottom · Lusso",
+    sampleTitle: "La tua casa,\nnuova generazione.",
     swatchBg: "#0A0A0A",
     swatchText: "#FFFFFF",
     swatchAccent: "#F59E0B",
-    tag: "Drama / Lusso",
-    sampleTitle: "La tua casa,\nnuova generazione.",
     patch: {
       pdf_cover_bg_color: "#0A0A0A",
+      pdf_cover_image_url: null,
       pdf_cover_text_color: "#FFFFFF",
       pdf_cover_text_align: "left",
+      pdf_cover_text_vertical: "bottom",
       pdf_cover_eyebrow_size: 11,
       pdf_cover_title_size: 56,
       pdf_cover_subtitle_size: 14,
       pdf_cover_show_decoration: true,
+      pdf_cover_decoration_style: "square",
       pdf_cover_show_client_card: true,
       pdf_cover_overlay_opacity: 0,
+      pdf_cover_overlay_style: "flat",
+      pdf_cover_logo_position: "top_left",
     },
   },
-  // ─── 3. Premium Notte ─────────────────────────────────────────────────────
   {
-    id: "premium",
-    nome: "Premium Notte",
-    descrizione: "Dark teal + ornamenti, fascia alta e case di pregio",
-    emoji: "💎",
-    accent: "teal",
-    swatchBg: "#0F2A2E",
-    swatchText: "#F5F5F4",
-    swatchAccent: "#D4A574",
-    tag: "Premium",
-    sampleTitle: "Eleganza\nche dura.",
+    id: "solid_warm_bottom",
+    nome: "Casa Calda · testo in basso",
+    descrizione: "Marrone caldo + accent crema, tono familiare residenziale",
+    emoji: "🏡",
+    category: "solid",
+    tag: "Bottom · Residenziale",
+    sampleTitle: "Casa,\ndolce casa.",
+    swatchBg: "#7C2D12",
+    swatchText: "#FEF3C7",
+    swatchAccent: "#FBBF24",
     patch: {
-      pdf_cover_bg_color: "#0F2A2E",
-      pdf_cover_text_color: "#F5F5F4",
-      pdf_cover_text_align: "center",
-      pdf_cover_eyebrow_size: 10,
-      pdf_cover_title_size: 44,
-      pdf_cover_subtitle_size: 13,
+      pdf_cover_bg_color: "#7C2D12",
+      pdf_cover_image_url: null,
+      pdf_cover_text_color: "#FEF3C7",
+      pdf_cover_text_align: "left",
+      pdf_cover_text_vertical: "bottom",
+      pdf_cover_eyebrow_size: 11,
+      pdf_cover_title_size: 46,
+      pdf_cover_subtitle_size: 14,
       pdf_cover_show_decoration: true,
+      pdf_cover_decoration_style: "pattern",
       pdf_cover_show_client_card: true,
-      pdf_cover_overlay_opacity: 55,
+      pdf_cover_overlay_opacity: 0,
+      pdf_cover_overlay_style: "flat",
+      pdf_cover_logo_position: "top_left",
     },
   },
-  // ─── 4. Editorial ────────────────────────────────────────────────────────
+  // ═══ PHOTO — Background immagine + overlay + testo ═════════════════════
   {
-    id: "editorial",
-    nome: "Editorial",
-    descrizione: "Foto full-bleed con overlay 60%, look magazine",
-    emoji: "📰",
-    accent: "amber",
+    id: "photo_editorial_top",
+    nome: "Editoriale · testo in alto",
+    descrizione: "Foto con overlay dal basso, titolo in alto",
+    emoji: "📸",
+    category: "photo",
+    tag: "Top · Con foto",
+    sampleTitle: "Il tuo\nprogetto.",
     swatchBg: "#1C1917",
     swatchText: "#FAFAF9",
     swatchAccent: "#F59E0B",
-    tag: "Con foto",
-    sampleTitle: "Il tuo\nprogetto.",
     patch: {
       pdf_cover_bg_color: "#1C1917",
+      pdf_cover_image_url: STOCK_FALLBACK_HOUSE,
       pdf_cover_text_color: "#FAFAF9",
       pdf_cover_text_align: "left",
+      pdf_cover_text_vertical: "top",
       pdf_cover_eyebrow_size: 11,
       pdf_cover_title_size: 48,
       pdf_cover_subtitle_size: 14,
       pdf_cover_show_decoration: false,
+      pdf_cover_decoration_style: "none",
       pdf_cover_show_client_card: true,
-      pdf_cover_overlay_opacity: 60,
+      pdf_cover_overlay_opacity: 50,
+      pdf_cover_overlay_style: "gradient",
+      pdf_cover_logo_position: "top_right",
     },
   },
-  // ─── 5. Casa Calda ────────────────────────────────────────────────────────
   {
-    id: "warm",
-    nome: "Casa Calda",
-    descrizione: "Marrone caldo + accent panna, tono familiare",
-    emoji: "🏡",
-    accent: "orange",
-    swatchBg: "#7C2D12",
-    swatchText: "#FEF3C7",
+    id: "photo_hero_center",
+    nome: "Hero Photo · testo al centro",
+    descrizione: "Foto fullscreen, titolone gigante centrato",
+    emoji: "🎯",
+    category: "photo",
+    tag: "Center · Hero",
+    sampleTitle: "La tua\nnuova casa.",
+    swatchBg: "#0F172A",
+    swatchText: "#FFFFFF",
     swatchAccent: "#FBBF24",
-    tag: "Residenziale",
-    sampleTitle: "Casa,\ndolce casa.",
     patch: {
-      pdf_cover_bg_color: "#7C2D12",
-      pdf_cover_text_color: "#FEF3C7",
-      pdf_cover_text_align: "left",
-      pdf_cover_eyebrow_size: 11,
-      pdf_cover_title_size: 44,
-      pdf_cover_subtitle_size: 13,
-      pdf_cover_show_decoration: true,
-      pdf_cover_show_client_card: true,
-      pdf_cover_overlay_opacity: 45,
+      pdf_cover_bg_color: "#0F172A",
+      pdf_cover_image_url: STOCK_FALLBACK_HOUSE,
+      pdf_cover_text_color: "#FFFFFF",
+      pdf_cover_text_align: "center",
+      pdf_cover_text_vertical: "center",
+      pdf_cover_eyebrow_size: 12,
+      pdf_cover_title_size: 60,
+      pdf_cover_subtitle_size: 15,
+      pdf_cover_show_decoration: false,
+      pdf_cover_decoration_style: "none",
+      pdf_cover_show_client_card: false,
+      pdf_cover_overlay_opacity: 55,
+      pdf_cover_overlay_style: "vignette",
+      pdf_cover_logo_position: "top_center",
     },
   },
-  // ─── 6. Eco Forest ────────────────────────────────────────────────────────
   {
-    id: "eco",
-    nome: "Eco Forest",
-    descrizione: "Verde foresta + panna, per serramenti eco-sostenibili",
-    emoji: "🌿",
-    accent: "emerald",
-    swatchBg: "#14532D",
-    swatchText: "#ECFDF5",
-    swatchAccent: "#86EFAC",
-    tag: "Sostenibile",
-    sampleTitle: "Comfort\nche rispetta.",
+    id: "photo_magazine_bottom",
+    nome: "Magazine · testo in basso",
+    descrizione: "Foto sfondo + overlay gradient + titolo editoriale in basso",
+    emoji: "📰",
+    category: "photo",
+    tag: "Bottom · Editorial",
+    sampleTitle: "Comfort\nche si vede.",
+    swatchBg: "#27272A",
+    swatchText: "#FAFAFA",
+    swatchAccent: "#FFFFFF",
     patch: {
-      pdf_cover_bg_color: "#14532D",
-      pdf_cover_text_color: "#ECFDF5",
+      pdf_cover_bg_color: "#27272A",
+      pdf_cover_image_url: STOCK_FALLBACK_HOUSE,
+      pdf_cover_text_color: "#FAFAFA",
       pdf_cover_text_align: "left",
+      pdf_cover_text_vertical: "bottom",
       pdf_cover_eyebrow_size: 11,
-      pdf_cover_title_size: 44,
-      pdf_cover_subtitle_size: 13,
+      pdf_cover_title_size: 48,
+      pdf_cover_subtitle_size: 14,
       pdf_cover_show_decoration: true,
+      pdf_cover_decoration_style: "line",
       pdf_cover_show_client_card: true,
-      pdf_cover_overlay_opacity: 40,
+      pdf_cover_overlay_opacity: 65,
+      pdf_cover_overlay_style: "gradient",
+      pdf_cover_logo_position: "top_left",
     },
   },
-  // ─── 7. Marine Tech ──────────────────────────────────────────────────────
   {
-    id: "marine",
-    nome: "Marine Tech",
-    descrizione: "Blu navy + accent argento, tono tecnologico moderno",
+    id: "photo_marine_bottom",
+    nome: "Marine Photo · diagonale",
+    descrizione: "Foto sfondo + gradient diagonale blu, look tech moderno",
     emoji: "🌊",
-    accent: "blue",
+    category: "photo",
+    tag: "Bottom · Tech",
+    sampleTitle: "Innovazione\nin ogni dettaglio.",
     swatchBg: "#0C2340",
     swatchText: "#F0F9FF",
     swatchAccent: "#60A5FA",
-    tag: "Tech / Smart",
-    sampleTitle: "Innovazione\nin ogni dettaglio.",
     patch: {
       pdf_cover_bg_color: "#0C2340",
+      pdf_cover_image_url: STOCK_FALLBACK_HOUSE,
       pdf_cover_text_color: "#F0F9FF",
       pdf_cover_text_align: "left",
+      pdf_cover_text_vertical: "bottom",
       pdf_cover_eyebrow_size: 11,
       pdf_cover_title_size: 46,
       pdf_cover_subtitle_size: 13,
       pdf_cover_show_decoration: true,
+      pdf_cover_decoration_style: "pattern",
       pdf_cover_show_client_card: true,
-      pdf_cover_overlay_opacity: 50,
-    },
-  },
-  // ─── 8. Sunset ───────────────────────────────────────────────────────────
-  {
-    id: "sunset",
-    nome: "Sunset",
-    descrizione: "Arancio bruciato + giallo crema, energia calda",
-    emoji: "🌅",
-    accent: "amber",
-    swatchBg: "#9A3412",
-    swatchText: "#FFF7ED",
-    swatchAccent: "#FBBF24",
-    tag: "Energia",
-    sampleTitle: "Più luce,\npiù vita.",
-    patch: {
-      pdf_cover_bg_color: "#9A3412",
-      pdf_cover_text_color: "#FFF7ED",
-      pdf_cover_text_align: "left",
-      pdf_cover_eyebrow_size: 11,
-      pdf_cover_title_size: 46,
-      pdf_cover_subtitle_size: 14,
-      pdf_cover_show_decoration: true,
-      pdf_cover_show_client_card: true,
-      pdf_cover_overlay_opacity: 40,
+      pdf_cover_overlay_opacity: 55,
+      pdf_cover_overlay_style: "gradient_diag",
+      pdf_cover_logo_position: "top_right",
     },
   },
 ];
 
 /**
- * Detection del preset attualmente attivo basato sui campi del form.
- * Confronta i valori chiave del preset con quelli correnti per evidenziare
- * la card nell'UI. Tolleranza zero — basta un campo diverso → no match.
+ * Detection del preset attivo basato sui campi del form.
+ * Confronta TUTTI i campi della patch — se uno solo differisce, no match.
+ * Restituisce null se l'utente ha customizzato fuori dai preset.
+ *
+ * NOTA: per i preset 'photo', non confrontiamo `pdf_cover_image_url` perché
+ * l'utente potrebbe aver caricato una sua immagine (e va benissimo, il
+ * preset comunque "funziona" come layout).
  */
 export function detectActiveCoverPreset(
   form: Partial<SrTemplatePdfRow>,
@@ -259,9 +307,10 @@ export function detectActiveCoverPreset(
   for (const preset of COVER_PRESETS) {
     const patch = preset.patch;
     const allMatch = (Object.keys(patch) as (keyof CoverPresetPatch)[]).every((k) => {
+      // Per preset photo, skippiamo image_url (vedi commento sopra).
+      if (preset.category === "photo" && k === "pdf_cover_image_url") return true;
       const expected = patch[k];
       const actual = form[k];
-      // Confronto stretto: null/undefined equivalenti.
       if (expected == null && actual == null) return true;
       return expected === actual;
     });

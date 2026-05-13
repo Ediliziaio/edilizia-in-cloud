@@ -12,8 +12,9 @@
  *
  * State è esterno: il chiamante (SerramentiTemplateEditor) gestisce salvataggio.
  */
-import { memo } from "react";
+import { memo, useState } from "react";
 import { GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Image as ImageIcon } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
@@ -40,6 +41,14 @@ function SerramentiPagesOrderEditorImpl({ value, onChange }: Props) {
   const items = normalizePdfPagesOrder(value);
   const metaById = new Map<string, SrPdfPageMeta>(SR_PDF_PAGES_META.map((m) => [m.id, m]));
 
+  // Highlight ephemero dell'item appena mosso: serve come conferma visiva
+  // (oltre al toast). Si auto-resetta dopo 800ms.
+  const [recentlyMovedId, setRecentlyMovedId] = useState<string | null>(null);
+  const flash = (id: string) => {
+    setRecentlyMovedId(id);
+    setTimeout(() => setRecentlyMovedId((curr) => (curr === id ? null : curr)), 800);
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -51,27 +60,54 @@ function SerramentiPagesOrderEditorImpl({ value, onChange }: Props) {
     const oldIndex = items.findIndex((i) => i.id === active.id);
     const newIndex = items.findIndex((i) => i.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
+    const meta = metaById.get(items[oldIndex].id);
     onChange(arrayMove(items, oldIndex, newIndex));
+    flash(String(active.id));
+    toast.success(`Pagina "${meta?.label ?? items[oldIndex].id}" spostata`, {
+      description: `Ricorda di salvare per applicare ai prossimi PDF.`,
+      duration: 2000,
+    });
   };
 
   const moveUp = (idx: number) => {
     if (idx <= 0) return;
+    const meta = metaById.get(items[idx].id);
     onChange(arrayMove(items, idx, idx - 1));
+    flash(items[idx].id);
+    toast.success(`"${meta?.label ?? items[idx].id}" spostata su`, { duration: 1500 });
   };
 
   const moveDown = (idx: number) => {
     if (idx >= items.length - 1) return;
+    const meta = metaById.get(items[idx].id);
     onChange(arrayMove(items, idx, idx + 1));
+    flash(items[idx].id);
+    toast.success(`"${meta?.label ?? items[idx].id}" spostata giù`, { duration: 1500 });
   };
 
   const toggleVisible = (idx: number) => {
     const meta = metaById.get(items[idx].id);
-    if (meta?.obbligatoria) return; // non disattivabile
+    if (meta?.obbligatoria) {
+      toast.warning(`"${meta.label}" è obbligatoria, non può essere nascosta`, {
+        duration: 2500,
+      });
+      return;
+    }
     const next = items.map((it, i) => i === idx ? { ...it, visible: !it.visible } : it);
     onChange(next);
+    flash(items[idx].id);
+    toast.success(
+      items[idx].visible
+        ? `"${meta?.label ?? items[idx].id}" nascosta dal PDF`
+        : `"${meta?.label ?? items[idx].id}" ora visibile nel PDF`,
+      { duration: 1800 },
+    );
   };
 
-  const resetDefault = () => onChange(SR_PDF_PAGES_DEFAULT);
+  const resetDefault = () => {
+    onChange(SR_PDF_PAGES_DEFAULT);
+    toast.success("Ordine pagine ripristinato al default", { duration: 2000 });
+  };
 
   const visibiliCount = items.filter((i) => i.visible).length;
 
@@ -148,6 +184,7 @@ function SerramentiPagesOrderEditorImpl({ value, onChange }: Props) {
                   position={idx + 2}
                   isFirst={idx === 0}
                   isLast={idx === items.length - 1}
+                  flashing={recentlyMovedId === it.id}
                   onMoveUp={() => moveUp(idx)}
                   onMoveDown={() => moveDown(idx)}
                   onToggleVisible={() => toggleVisible(idx)}
@@ -175,7 +212,7 @@ function SerramentiPagesOrderEditorImpl({ value, onChange }: Props) {
 // ─── Singola riga riordinabile ───────────────────────────────────────────────
 
 function SortablePageItem({
-  item, meta, position, isFirst, isLast,
+  item, meta, position, isFirst, isLast, flashing,
   onMoveUp, onMoveDown, onToggleVisible,
 }: {
   item: SrPdfPageOrderItem;
@@ -183,6 +220,7 @@ function SortablePageItem({
   position: number;
   isFirst: boolean;
   isLast: boolean;
+  flashing: boolean;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onToggleVisible: () => void;
@@ -202,7 +240,9 @@ function SortablePageItem({
       ref={setNodeRef}
       style={style}
       className={
-        "rounded-lg border bg-card p-2.5 flex items-center gap-2 " +
+        "rounded-lg border p-2.5 flex items-center gap-2 transition-all duration-300 " +
+        (flashing ? "ring-2 ring-emerald-400 bg-emerald-50 border-emerald-300" : "bg-card") +
+        " " +
         (item.visible ? "" : "opacity-60 bg-muted/30")
       }
     >
