@@ -742,6 +742,24 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 </div>
               </div>
             </div>
+            {/* Milestone 8: toggle tabella ecobonus 10 anni */}
+            <div className="col-span-12">
+              <div className="flex items-start gap-3 p-3 rounded-md border bg-slate-50/50">
+                <Switch
+                  checked={form.pdf_mostra_tabella_ecobonus === true}
+                  onCheckedChange={(checked) => update("pdf_mostra_tabella_ecobonus", checked)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <Label className="text-sm font-medium block">Mostra tabella ecobonus 10 anni</Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Sotto la card "Detrazione fiscale" del PDF compare una mini-tabella 5×2 con
+                    quota annuale e cumulato per ogni anno. <strong>Off di default</strong> — utile per
+                    clienti residenziali che chiedono esplicitamente il calendario fiscale.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </SrCard>

@@ -471,6 +471,9 @@ export interface SrTemplatePdfRow {
   /** Mostra prezzo netto dopo recupero fiscale (es. ecobonus 50%) nel box
    *  "Il tuo investimento" (M7, migration 20270514040000). Default true. */
   pdf_mostra_recupero_fiscale: boolean;
+  /** Mostra mini-tabella 10 anni con breakdown detrazione fiscale (M8,
+   *  migration 20270514050000). Off di default. */
+  pdf_mostra_tabella_ecobonus: boolean;
   created_at: string;
   updated_at: string;
 }

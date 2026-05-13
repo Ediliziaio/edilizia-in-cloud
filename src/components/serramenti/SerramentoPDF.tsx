@@ -342,6 +342,28 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     priceExtraValue: { fontSize: 14, color: C.primary, fontWeight: 800 },
     priceExtraSub: { fontSize: 7.5, color: C.primary, marginTop: 1 },
 
+    // Milestone 8: mini-tabella ecobonus 10 anni
+    // Layout: 5 colonne × 2 righe. Ogni cella ha "Anno N" + quota + cumulato.
+    ecobonusTable: {
+      flexDirection: "row",
+      flexWrap: "wrap" as const,
+      marginTop: 8,
+      gap: 4,
+    },
+    ecobonusCell: {
+      width: "19%" as const,    // 5 colonne → 100/5 - gap visual ≈ 19%
+      backgroundColor: C.white,
+      borderRadius: 4,
+      paddingVertical: 6,
+      paddingHorizontal: 4,
+      alignItems: "center",
+      borderLeft: `2pt solid ${C.successText}`,
+    },
+    ecobonusCellYear: { fontSize: 7, color: C.gray500, fontWeight: 700, textTransform: "uppercase" as const },
+    ecobonusCellAmount: { fontSize: 9, color: C.successText, fontWeight: 700, marginTop: 1 },
+    ecobonusCellCum: { fontSize: 6.5, color: C.gray500, marginTop: 1 },
+    ecobonusFootnote: { fontSize: 7.5, color: C.gray500, marginTop: 8, fontStyle: "italic" as const },
+
     // Pay schema tag
     paySchemaTag: {
       backgroundColor: C.accentLight,
@@ -1376,6 +1398,7 @@ export function SerramentoPDF({
   // Toggle attivi solo se i dati sottostanti sono presenti sul preventivo.
   const mostraRataMensile = tpl.pdf_mostra_rata_mensile === true;
   const mostraRecuperoFiscale = tpl.pdf_mostra_recupero_fiscale !== false; // default true
+  const mostraTabellaEcobonus = tpl.pdf_mostra_tabella_ecobonus === true; // default false
 
   const ctaTitle = tpl.pdf_cta_finale_titolo || "Cosa fare adesso";
   const ctaSteps = (Array.isArray(tpl.pdf_cta_finale_passi) && tpl.pdf_cta_finale_passi.length > 0)
@@ -2359,6 +2382,38 @@ export function SerramentoPDF({
                     <Text style={[styles.finCardSub, { color: C.successText }]}>
                       circa € {fmtEuro(p.detrazione_eur_anno)} / anno per 10 anni
                     </Text>
+
+                    {/* Milestone 8: tabella 10 anni quota + cumulato.
+                        Layout 5×2 a colonne ridotte: la quota annuale è
+                        identica ogni anno (detrazione_eur_anno), il cumulato
+                        cresce linearmente fino al totale.
+                        Mostrata solo se pdf_mostra_tabella_ecobonus = true. */}
+                    {mostraTabellaEcobonus && Number(p.detrazione_eur_anno ?? 0) > 0 && (
+                      <>
+                        <View style={styles.ecobonusTable}>
+                          {Array.from({ length: 10 }, (_, i) => {
+                            const annoIdx = i + 1;
+                            const quota = Number(p.detrazione_eur_anno ?? 0);
+                            // Ultimo anno: usa il residuo per evitare drift da arrotondamento.
+                            const cumulato = annoIdx === 10
+                              ? Number(p.detrazione_eur_totale ?? quota * 10)
+                              : quota * annoIdx;
+                            return (
+                              <View key={annoIdx} style={styles.ecobonusCell}>
+                                <Text style={styles.ecobonusCellYear}>Anno {annoIdx}</Text>
+                                <Text style={styles.ecobonusCellAmount}>€ {fmtEuro(quota)}</Text>
+                                <Text style={styles.ecobonusCellCum}>cum. € {fmtEuro(cumulato)}</Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                        <Text style={styles.ecobonusFootnote}>
+                          La detrazione viene recuperata in 10 quote annuali di pari importo,
+                          a partire dall'anno di pagamento. Importi indicativi salvo verifica
+                          del commercialista.
+                        </Text>
+                      </>
+                    )}
                   </View>
                 </>
               )}
