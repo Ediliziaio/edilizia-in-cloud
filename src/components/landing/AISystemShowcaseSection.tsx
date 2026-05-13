@@ -259,14 +259,89 @@ function AiBrainMap() {
         <p className="text-[10px] font-bold uppercase tracking-wider text-orange-100">Regia AI</p>
       </div>
 
-      <div className="relative z-10 mb-4 hidden rounded-2xl border border-orange-300/20 bg-orange-500/15 p-4 text-white shadow-[0_0_40px_rgba(249,116,21,.18)] max-[520px]:block">
-        <div className="flex items-center gap-3">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#F97415] text-white shadow-[0_0_32px_rgba(249,116,21,.45)]">
-            <Brain className="h-6 w-6" />
-          </span>
-          <div>
-            <p className="text-lg font-black">Silvio coordina tutto</p>
-            <p className="text-xs font-semibold leading-5 text-white/65">19 persone AI che leggono, decidono e fanno partire azioni.</p>
+      <div className="relative z-10 mb-4 hidden max-[520px]:block">
+        <div className="relative h-[330px] overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.04] p-3">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(249,116,21,.26),transparent_34%),radial-gradient(circle_at_18%_18%,rgba(59,130,246,.18),transparent_28%),radial-gradient(circle_at_82%_80%,rgba(34,197,94,.16),transparent_30%)]" />
+          <div className="pointer-events-none absolute inset-0 opacity-[0.16]" style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.18) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }} />
+          <div data-ai-orbit className="pointer-events-none absolute left-1/2 top-[46%] h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-white/15" />
+          <div data-ai-orbit className="pointer-events-none absolute left-1/2 top-[46%] h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-orange-300/20" />
+
+          <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-55" aria-hidden="true">
+            {[
+              [22, 23],
+              [76, 24],
+              [80, 62],
+              [50, 80],
+              [20, 63],
+            ].map(([x, y], index) => (
+              <line
+                key={`${x}-${y}`}
+                x1="50%"
+                y1="46%"
+                x2={`${x}%`}
+                y2={`${y}%`}
+                stroke={agentGroups[index].color}
+                strokeWidth="1.3"
+                data-ai-line
+                strokeDasharray="7 7"
+              />
+            ))}
+          </svg>
+
+          <div className="absolute left-1/2 top-[46%] z-20 flex h-24 w-24 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-orange-200/45 bg-[#F97415] text-white shadow-[0_0_48px_rgba(249,116,21,.55)]">
+            <Brain className="h-7 w-7" />
+            <p className="mt-1 text-lg font-black">Silvio</p>
+            <p className="text-[9px] font-black uppercase tracking-wider text-orange-100">regia</p>
+          </div>
+
+          {agentGroups.map((group, index) => {
+            const positions = [
+              "left-[5%] top-[12%]",
+              "right-[4%] top-[14%]",
+              "right-[3%] bottom-[24%]",
+              "left-1/2 bottom-[8%] -translate-x-1/2",
+              "left-[4%] bottom-[25%]",
+            ][index];
+            return (
+              <button
+                key={group.area}
+                type="button"
+                onClick={() => setActiveArea(group)}
+                className={`absolute ${positions} z-10 flex max-w-[116px] items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.09] px-2.5 py-2 text-left text-white shadow-lg backdrop-blur transition active:scale-95`}
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: `${group.color}24`, color: group.color }}>
+                  <group.icon className="h-4 w-4" />
+                </span>
+                <span>
+                  <span className="block text-[11px] font-black leading-none">{group.area}</span>
+                  <span className="mt-0.5 block text-[8px] font-bold uppercase tracking-wide text-white/45">{group.agents.length} AI</span>
+                </span>
+              </button>
+            );
+          })}
+
+          <div className="absolute inset-x-3 bottom-3 z-20 rounded-2xl border border-white/10 bg-[#08111f]/80 p-3 text-white shadow-xl backdrop-blur">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,.95)]" />
+              <p className="text-xs font-black">{activeArea.area}: {activeArea.agents.join(", ")}</p>
+            </div>
+            <p className="mt-1 text-[11px] leading-4 text-white/58">Tocca i reparti: Silvio collega dati, documenti e prossime azioni.</p>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-2xl border border-orange-300/20 bg-orange-500/15 p-4 text-white shadow-[0_0_40px_rgba(249,116,21,.18)]">
+          <div className="flex items-center gap-3">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#F97415] text-white shadow-[0_0_32px_rgba(249,116,21,.45)]">
+              <Brain className="h-6 w-6" />
+            </span>
+            <div>
+              <p className="text-lg font-black">Silvio coordina tutto</p>
+              <p className="text-xs font-semibold leading-5 text-white/65">19 persone AI che leggono, decidono e fanno partire azioni.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -484,17 +559,28 @@ export default function AISystemShowcaseSection() {
             <Sparkles className="h-3.5 w-3.5" />
             Il sistema operativo AI dell'impresa edile
           </div>
-          <h2 className="mt-4 text-[2rem] font-black leading-[1.05] tracking-tight text-[#111111] sm:text-4xl md:text-5xl">
+          <h2 className="mt-4 text-[1.9rem] font-black leading-[1.08] tracking-tight text-[#111111] sm:text-4xl md:text-5xl">
             Non solo moduli. Una regia centrale che legge l'azienda e fa partire il lavoro.
           </h2>
-          <p className="mt-5 text-sm leading-7 text-gray-600 sm:text-base md:text-lg md:leading-8">
+          <p className="mt-5 hidden text-lg leading-8 text-gray-600 lg:block">
             Silvio coordina 18 persone AI specialistiche: crea bozze di fatture, manda solleciti,
             genera rapportini, ricorda ai collaboratori cosa fare e segnala dove intervenire.
           </p>
         </div>
 
-        <div className="mt-8 grid gap-5 md:mt-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <div className="mt-6 lg:hidden">
           <AiBrainMap />
+        </div>
+
+        <p className="mx-auto mt-5 max-w-3xl text-center text-sm leading-7 text-gray-600 sm:text-base lg:hidden">
+          Silvio coordina 18 persone AI specialistiche: crea bozze di fatture, manda solleciti,
+          genera rapportini, ricorda ai collaboratori cosa fare e segnala dove intervenire.
+        </p>
+
+        <div className="mt-8 grid gap-5 md:mt-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+          <div className="hidden lg:block">
+            <AiBrainMap />
+          </div>
 
           <div className="space-y-3 md:space-y-4" data-ai-reveal>
             {[
