@@ -257,8 +257,11 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
     updateFamily,
   } = useFamilyMutations();
   const { macrocategorie } = useListinoMacrocategorie();
-  const { categorie, isError: categorieError, refetch: refetchCategorie } =
-    useListinoCategorie();
+  // useListinoCategorie mantenuto SOLO per il fallback lettura su articoli
+  // pre-refactor 20270513200000 (resolveMacroId via categoria.macrocategoria_id).
+  // Se il fetch fallisce, l'errore è silenzioso: gli articoli con
+  // macrocategoria_id diretto vengono comunque mostrati correttamente.
+  const { categorie } = useListinoCategorie();
 
   const [search, setSearch] = useState("");
   const [macroFilter, setMacroFilter] = useState(ALL_FILTER);
@@ -692,35 +695,6 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
         </CardContent>
       </Card>
 
-      {categorieError && (
-        <div
-          className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3 text-sm"
-          role="alert"
-        >
-          <div className="flex items-start gap-2 flex-1 min-w-0">
-            <Info
-              className="h-4 w-4 shrink-0 mt-0.5 text-amber-700 dark:text-amber-300"
-              aria-hidden="true"
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-amber-900 dark:text-amber-100 font-medium">
-                Impossibile caricare le categorie
-              </p>
-              <p className="text-amber-800/90 dark:text-amber-200/90 text-xs mt-0.5">
-                Gli articoli sono mostrati senza raggruppamento. Riprova tra qualche secondo.
-              </p>
-            </div>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void refetchCategorie()}
-            className="h-9 shrink-0 w-full sm:w-auto"
-          >
-            Riprova
-          </Button>
-        </div>
-      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">

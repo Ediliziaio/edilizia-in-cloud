@@ -2804,7 +2804,6 @@ function InlineCreateTariffaDialog({
     try {
       const { data, error } = await supabase
         .from("tariffe_aziendali")
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .insert({
           company_id: companyId,
           nome: nome.trim(),

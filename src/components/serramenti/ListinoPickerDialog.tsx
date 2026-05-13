@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import {
   Loader2, Search, Package, ArrowLeft, Ruler, Calculator, ChevronRight,
-  Layers, FolderOpen, AlertCircle,
+  Layers, AlertCircle,
 } from "lucide-react";
 import {
   useListinoFamilies, useListinoGriglia, useTariffeManodopera,
@@ -304,19 +304,16 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
               </Button>
             )}
             {effectiveStep === "macro" && <Layers className="h-4 w-4 text-orange-600 shrink-0" />}
-            {effectiveStep === "categoria" && <FolderOpen className="h-4 w-4 text-orange-600 shrink-0" />}
             {effectiveStep === "famiglia" && <Package className="h-4 w-4 text-orange-600 shrink-0" />}
             {effectiveStep === "misure" && <Ruler className="h-4 w-4 text-orange-600 shrink-0" />}
             <span className="flex-1">
               {effectiveStep === "macro" && "Scegli macrocategoria"}
-              {effectiveStep === "categoria" && (selectedMacro?.nome ?? "Scegli categoria")}
               {effectiveStep === "famiglia" && (isSearching ? `Ricerca: "${debounced}"` : (selectedMacro?.nome ?? "Scegli prodotto"))}
               {effectiveStep === "misure" && (selectedFamily?.nome ?? "Misure")}
             </span>
           </DialogTitle>
           <DialogDescription className="text-xs">
             {effectiveStep === "macro" && "Scegli la macrocategoria di prodotto"}
-            {effectiveStep === "categoria" && "Scegli la categoria"}
             {effectiveStep === "famiglia" && (isSearching ? "Famiglie corrispondenti alla ricerca" : "Scegli il prodotto specifico")}
             {effectiveStep === "misure" && "Inserisci le misure: il prezzo è calcolato automaticamente"}
           </DialogDescription>
@@ -416,7 +413,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                 icon={<Package className="h-10 w-10" />}
                 text={isSearching
                   ? `Nessun prodotto trovato per "${debounced}".`
-                  : `Nessun prodotto in questa categoria.`
+                  : `Nessun prodotto in "${selectedMacro?.nome ?? "questa macrocategoria"}".`
                 }
               />
             ) : (
