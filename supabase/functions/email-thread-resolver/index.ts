@@ -62,7 +62,7 @@ interface ThreadRow {
 function normalizeSubject(raw: string | null | undefined): string {
   if (!raw) return "(no subject)";
   return raw
-    .replace(/^\s*(re|fwd?|i|aw|wg|sv|tr)\s*[:\-\[]\s*/gi, "")
+    .replace(/^\s*(re|fwd?|i|aw|wg|sv|tr)\s*[:\-[]\s*/gi, "")
     .replace(/^\s*\[.*?\]\s*/g, "")
     .trim()
     .toLowerCase()

@@ -477,7 +477,6 @@ function MessageBubble({ message, isLast }: { message: MessageRow; isLast: boole
             className="prose prose-sm max-w-none text-sm
                        prose-a:text-violet-600 prose-a:underline-offset-2
                        prose-img:rounded prose-img:my-2"
-            // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
           />
         ) : message.raw_text ? (

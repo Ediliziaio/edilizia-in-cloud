@@ -581,7 +581,6 @@ export default function SopralluogoEditor() {
                   {survey.client_signature_at && ` · ${format(new Date(survey.client_signature_at), "d MMM yyyy HH:mm", { locale: it })}`}
                 </p>
               </div>
-              {/* eslint-disable-next-line jsx-a11y/img-redundant-alt */}
               <img
                 src={survey.client_signature_url}
                 alt="Firma cliente"

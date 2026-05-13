@@ -134,6 +134,10 @@ export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ mes
 }
 
 function escapeHeader(s: string): string {
+  // RFC 2047 encoded-word per header con caratteri non-ASCII.
+  // Il control char \x00 nella range è intenzionale (definisce
+  // l'inizio del range ASCII completo 0x00-0x7F).
+  // eslint-disable-next-line no-control-regex
   if (!/[^\x00-\x7F]/.test(s)) return s;
   const utf8 = new TextEncoder().encode(s);
   let bin = "";

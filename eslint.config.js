@@ -6,7 +6,24 @@ import tseslint from "typescript-eslint";
 import unusedImports from "eslint-plugin-unused-imports";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  // Esclusi dal linting:
+  // - dist/ → output di build (no sorgenti)
+  // - ios/App/build/ + android/app/build/ → artefatti Capacitor (es. native-bridge.js
+  //   copiato in 4 path), generano falsi positivi su rule non disponibili
+  // - node_modules → dependencies di terze parti
+  // - supabase/functions/ → Deno runtime con regole proprie (linting separato)
+  {
+    ignores: [
+      "dist",
+      "ios/App/build",
+      "ios/App/Pods",
+      "ios/App/build/**",
+      "android/app/build",
+      "android/app/build/**",
+      "node_modules",
+      "supabase/functions",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

@@ -130,7 +130,6 @@ export function PhotoChecklist({
                   <div className="grid grid-cols-2 gap-1">
                     {photos.map((p) => (
                       <div key={p.id} className="relative group aspect-square">
-                        {/* eslint-disable-next-line jsx-a11y/img-redundant-alt */}
                         <img
                           src={p.url}
                           alt={p.checklist_label ?? "Foto"}

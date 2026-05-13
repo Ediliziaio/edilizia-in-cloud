@@ -274,7 +274,6 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               onClick={() => !uploadingLogo && logoInputRef.current?.click()}
             >
               {form.logo_url ? (
-                // eslint-disable-next-line jsx-a11y/img-redundant-alt
                 <img src={form.logo_url} alt="Logo azienda" className="w-full h-full object-contain p-2" />
               ) : (
                 <div className="text-center p-3">

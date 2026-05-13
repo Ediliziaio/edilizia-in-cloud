@@ -107,7 +107,7 @@ Deno.serve(async (req: Request) => {
       .eq("progetto_id", p.progetto_id)
       .order("position", { ascending: false })
       .limit(1);
-    let startPos = (existing && existing[0]?.position != null) ? Number(existing[0].position) + 1 : 0;
+    const startPos = (existing && existing[0]?.position != null) ? Number(existing[0].position) + 1 : 0;
 
     let startPosAcc = 0;
     {
