@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Check,
@@ -73,6 +73,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -218,6 +219,7 @@ export function FamilyEditor() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = useEffectiveCompanyId();
+  const queryClient = useQueryClient();
   const { createFamily, updateFamily, duplicateFamily } = useFamilyMutations();
 
   const isNew = !id || id === "nuova";
@@ -1769,6 +1771,10 @@ export function FamilyEditor() {
                 onUnitaChange={setManodoperaUnita}
                 onSave={saveBase}
                 saving={saving}
+                companyId={companyId}
+                onTariffeRefresh={() =>
+                  queryClient.invalidateQueries({ queryKey: ["tariffe-for-editor", companyId] })
+                }
               />
             </TabsContent>
 
@@ -1865,6 +1871,10 @@ interface ManodoperaSectionProps {
   onUnitaChange: (v: ManodoperaUnita) => void;
   onSave: () => Promise<string | null>;
   saving: boolean;
+  /** companyId per inline-create tariffa via supabase + invalidate query. */
+  companyId: string | null | undefined;
+  /** Callback per ricaricare la lista tariffe dopo inline-create. */
+  onTariffeRefresh: () => void;
 }
 
 function ManodoperaSection(props: ManodoperaSectionProps) {
@@ -1886,7 +1896,10 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
     onUnitaChange,
     onSave,
     saving,
+    companyId,
+    onTariffeRefresh,
   } = props;
+  const [inlineCreateOpen, setInlineCreateOpen] = useState(false);
 
   // ── Preview margine (modalità manuale) ──────────────────────────────────
   const costoNum = parseFloat(costoAcquisto) || 0;
@@ -1970,7 +1983,24 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
         {modalita === "tariffa" && (
           <div className="space-y-3">
             <div>
-              <Label htmlFor="f-posa-tariffa">Tariffa manodopera</Label>
+              <div className="flex items-center justify-between mb-1">
+                <Label htmlFor="f-posa-tariffa">Tariffa manodopera</Label>
+                {/* Bottone inline per creare al volo una nuova tariffa
+                    aziendale senza uscire dal flusso editor. Apre Dialog,
+                    salva su tariffe_aziendali, auto-selezione del nuovo id.
+                    Evita doppia navigazione Impostazioni → torna qui. */}
+                {companyId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-[11px] gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                    onClick={() => setInlineCreateOpen(true)}
+                  >
+                    <Plus className="h-3 w-3" /> Nuova tariffa
+                  </Button>
+                )}
+              </div>
               <Select value={tariffaId} onValueChange={onTariffaChange}>
                 <SelectTrigger id="f-posa-tariffa">
                   <SelectValue placeholder="Seleziona tariffa" />
@@ -1990,11 +2020,7 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
               {tariffe.length === 0 ? (
                 <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                  Nessuna tariffa configurata. Vai in{" "}
-                  <span className="font-medium">
-                    Impostazioni → Tariffe aziendali
-                  </span>{" "}
-                  per crearne una, oppure usa "Importo manuale".
+                  Nessuna tariffa configurata. Click su <strong>"Nuova tariffa"</strong> sopra per crearne una, o usa "Importo manuale".
                 </p>
               ) : tariffaId === "none" ? (
                 <p className="text-xs text-muted-foreground mt-1">
@@ -2007,6 +2033,19 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                   definiti nella tariffa stessa.
                 </p>
               ) : null}
+              {/* Dialog inline-create — salva direttamente in tariffe_aziendali
+                  e callback con il nuovo id per auto-selezione. */}
+              {companyId && (
+                <InlineCreateTariffaDialog
+                  open={inlineCreateOpen}
+                  onOpenChange={setInlineCreateOpen}
+                  companyId={companyId}
+                  onCreated={(newId) => {
+                    onTariffeRefresh();
+                    onTariffaChange(newId);
+                  }}
+                />
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -2684,5 +2723,193 @@ function LinkedToggle({
         disabled={disabled}
       />
     </div>
+  );
+}
+
+// ─── Dialog inline-create tariffa aziendale ─────────────────────────────────
+//
+// Permette al commerciale di creare una nuova tariffa aziendale (es. "Posa
+// porta blindata 1 anta") direttamente dallo Step 4 Manodopera del FamilyEditor,
+// senza dover navigare a Impostazioni → Tariffe → torna qui.
+//
+// Salva su `tariffe_aziendali` con i campi minimi richiesti. Sufficiente per
+// l'uso "lookup posa": l'utente puo' arricchire la tariffa con descrizione,
+// varianti, presets entrando in Impostazioni in un secondo momento.
+
+interface InlineCreateTariffaDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  companyId: string;
+  /** Chiamata con l'id della nuova tariffa per auto-selezione nel parent. */
+  onCreated: (newId: string) => void;
+}
+
+function InlineCreateTariffaDialog({
+  open, onOpenChange, companyId, onCreated,
+}: InlineCreateTariffaDialogProps) {
+  const [nome, setNome] = useState("");
+  const [tipo, setTipo] = useState<"posa" | "manodopera">("posa");
+  const [unita, setUnita] = useState<"pz" | "mq" | "ml" | "h" | "gg" | "a_corpo">("pz");
+  const [costoInterno, setCostoInterno] = useState("");
+  const [prezzoVendita, setPrezzoVendita] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // Reset campi quando il dialog si apre per evitare leak di stato precedente
+  useEffect(() => {
+    if (open) {
+      setNome("");
+      setTipo("posa");
+      setUnita("pz");
+      setCostoInterno("");
+      setPrezzoVendita("");
+    }
+  }, [open]);
+
+  const handleSubmit = async () => {
+    if (!nome.trim()) {
+      toast.error("Inserisci un nome per la tariffa");
+      return;
+    }
+    const venditaNum = parseFloat(prezzoVendita);
+    if (!Number.isFinite(venditaNum) || venditaNum <= 0) {
+      toast.error("Inserisci un prezzo di vendita valido (> 0)");
+      return;
+    }
+    const costoNum = parseFloat(costoInterno);
+    setSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from("tariffe_aziendali")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .insert({
+          company_id: companyId,
+          nome: nome.trim(),
+          tipo,
+          // unita legacy = unita di fatturazione per retrocompat (vedi SettingsTariffe)
+          unita,
+          unita_fatturazione: unita,
+          prezzo_vendita: venditaNum,
+          costo_interno: Number.isFinite(costoNum) ? costoNum : 0,
+          prezzo_costo: Number.isFinite(costoNum) ? costoNum : 0,
+          attivo: true,
+        } as never)
+        .select("id")
+        .single();
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const newId = (data as any)?.id as string | undefined;
+      if (!newId) throw new Error("ID nuova tariffa mancante");
+      toast.success(`Tariffa "${nome.trim()}" creata`);
+      onCreated(newId);
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore creazione tariffa");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Nuova tariffa aziendale</DialogTitle>
+          <DialogDescription>
+            Crea al volo una tariffa per la manodopera di questo articolo.
+            Sarà disponibile in <strong>Impostazioni → Tariffe aziendali</strong>{" "}
+            per ulteriori personalizzazioni.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div>
+            <Label htmlFor="ict-nome" className="text-xs">Nome tariffa *</Label>
+            <Input
+              id="ict-nome"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder='Es. "Posa porta blindata"'
+              className="mt-1"
+              autoFocus
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="ict-tipo" className="text-xs">Tipo</Label>
+              <Select value={tipo} onValueChange={(v) => setTipo(v as typeof tipo)}>
+                <SelectTrigger id="ict-tipo" className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="posa">Posa</SelectItem>
+                  <SelectItem value="manodopera">Manodopera</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="ict-unita" className="text-xs">Unità</Label>
+              <Select value={unita} onValueChange={(v) => setUnita(v as typeof unita)}>
+                <SelectTrigger id="ict-unita" className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pz">Pezzo</SelectItem>
+                  <SelectItem value="mq">Metro quadro</SelectItem>
+                  <SelectItem value="ml">Metro lineare</SelectItem>
+                  <SelectItem value="h">Ora</SelectItem>
+                  <SelectItem value="gg">Giornata</SelectItem>
+                  <SelectItem value="a_corpo">A corpo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="ict-costo" className="text-xs">Costo interno (€)</Label>
+              <Input
+                id="ict-costo"
+                type="number"
+                step="0.01"
+                min="0"
+                value={costoInterno}
+                onChange={(e) => setCostoInterno(e.target.value)}
+                placeholder="0.00"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="ict-vendita" className="text-xs">Prezzo vendita (€) *</Label>
+              <Input
+                id="ict-vendita"
+                type="number"
+                step="0.01"
+                min="0"
+                value={prezzoVendita}
+                onChange={(e) => setPrezzoVendita(e.target.value)}
+                placeholder="0.00"
+                className="mt-1"
+              />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
+            Annulla
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving}
+            className="bg-orange-500 hover:bg-orange-600"
+          >
+            {saving ? "Creazione…" : "Crea tariffa"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

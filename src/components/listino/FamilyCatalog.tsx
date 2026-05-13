@@ -46,6 +46,7 @@ import {
   ShoppingCart,
   ArrowDownRight,
   MoreVertical,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -989,6 +990,30 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                                   </Badge>
                                 </div>
                               ) : null}
+                              {/* Alert MANODOPERA NON CONFIGURATA:
+                                  Se l'articolo non ha mai avuto la sezione
+                                  Step 4 salvata (manodopera_modalita = null),
+                                  il commerciale rischia di aggiungere l'articolo
+                                  al preventivo senza posa. Lo segnaliamo qui
+                                  per spingerlo a configurare ESPLICITAMENTE
+                                  "nessuna" (= scelta consapevole) oppure una
+                                  tariffa/importo manuale. Banner amber
+                                  (warning, non error). */}
+                              {f.manodopera_modalita == null && (
+                                <div
+                                  className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800"
+                                  title="Apri l'articolo e configura Step 4 → Manodopera"
+                                >
+                                  <AlertTriangle
+                                    className="h-3 w-3 shrink-0 mt-px"
+                                    aria-hidden="true"
+                                  />
+                                  <span className="leading-tight">
+                                    <strong>Manodopera non configurata</strong> — apri Step 4
+                                    e scegli Tariffa / Manuale / Nessuna.
+                                  </span>
+                                </div>
+                              )}
                             </CardContent>
                             {/* Kebab menu (⋮) in top-right della Card: compatta
                                 le 3 azioni (Duplica/Sposta/Elimina) in un
@@ -1127,6 +1152,18 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                                     IVA acq. {f.vat_rate_acquisto}%
                                   </Badge>
                                 ) : null}
+                                {/* Badge alert manodopera non configurata
+                                    (vista lista — versione compatta) */}
+                                {f.manodopera_modalita == null && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] border-amber-300 bg-amber-50 text-amber-800 gap-1"
+                                    title="Manodopera non configurata: apri Step 4 dell'articolo"
+                                  >
+                                    <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
+                                    Manodopera non configurata
+                                  </Badge>
+                                )}
                               </div>
                               {/* Sezione Economia — margini e costi al pezzo.
                                   Visibile sempre che ci sia almeno un dato utile
