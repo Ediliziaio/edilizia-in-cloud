@@ -24,7 +24,12 @@ import {
   Euro, TrendingUp, Leaf, Calculator, Calendar, HelpCircle,
   Wallet, Tag, CreditCard, Plus, Trash2,
   CheckCircle2, AlertTriangle, ShieldAlert, Info,
+  Lock, Send, TrendingDown,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useDiscountRules } from "@/hooks/useDiscountRules";
 import { evaluateDiscountRules, classifyDiscount } from "@/lib/serramenti/discountRules";
 import {
@@ -89,7 +94,18 @@ interface Props {
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
 }
 
-export function StepEconomia({ detail, form, onChange }: Props) {
+export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
+  // ─── Auth + permission gating ────────────────────────────────────────────
+  // Solo admin/titolare possono:
+  //  - modificare lo sconto (i commerciali base vedono i campi read-only)
+  //  - vedere il margine (prezzo di acquisto + margine netto)
+  //  - approvare richieste di sconto fuori regola
+  // I commerciali con permesso edit_marketing possono richiedere approvazione
+  // ma non bypassare le regole.
+  const { role, user } = useAuth();
+  const isAdmin = role === "super_admin" || role === "company_admin";
+  const qc = useQueryClient();
+
   // ─── Calcoli BOM ──────────────────────────────────────────────────────────
   const totaleCalc = useMemo(() =>
     calcolaTotale(
@@ -156,6 +172,105 @@ export function StepEconomia({ detail, form, onChange }: Props) {
       onChange("discount_rule_id", targetId);
     }
   }, [discountEval.primaryRule?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Margine € + Margine % ──────────────────────────────────────────────
+  // Visibile SOLO a isAdmin. Calcolato sommando prezzo_costo dalle righe BOM
+  // (serramenti + accessori + servizi). Confronta con margine_min della regola
+  // scontistica per alert "sotto target".
+  const marginCalc = useMemo(() => {
+    if (!isAdmin) return null;
+    let costoTotale = 0;
+    // Serramenti: ogni riga ha prezzo_costo (calcolato da listino)
+    detail.serramenti.forEach((s) => {
+      const cost = Number((s as { prezzo_costo_totale?: number | null }).prezzo_costo_totale ?? 0);
+      costoTotale += cost;
+    });
+    // Accessori: prezzo_unitario_costo è solo sulle righe linked al listino
+    detail.accessori.forEach((a) => {
+      const cost = Number((a as { prezzo_costo_unitario?: number | null }).prezzo_costo_unitario ?? 0) * (a.quantita ?? 1);
+      costoTotale += cost;
+    });
+    // Servizi: prezzo_unitario_costo presente sulle righe da tariffa
+    (detail.servizi ?? detail.manodopera ?? []).forEach((m) => {
+      const cost = Number(m.prezzo_unitario_costo ?? 0) * (m.quantita ?? 1);
+      costoTotale += cost;
+    });
+    const vendita = totaleCalc.imponibile_netto;
+    const margine = vendita - costoTotale;
+    const marginePct = vendita > 0 ? (margine / vendita) * 100 : 0;
+    const margineMinPct = discountEval.margineMinPct;
+    const sottoTarget = marginePct < margineMinPct;
+    return { costoTotale, vendita, margine, marginePct, margineMinPct, sottoTarget };
+  }, [
+    isAdmin,
+    detail.serramenti, detail.accessori, detail.servizi, detail.manodopera,
+    totaleCalc.imponibile_netto, discountEval.margineMinPct,
+  ]);
+
+  // ─── Approval workflow ──────────────────────────────────────────────────
+  // Query quote_approvals per il preventivo corrente: 1 sola richiesta attiva
+  // alla volta (la più recente). Stato: pending | approved | rejected | null.
+  const { data: approvalRow } = useQuery({
+    queryKey: ["sr-quote-approval", progettoId],
+    enabled: !!progettoId,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quote_approvals")
+        .select("*")
+        .eq("quote_id", progettoId)
+        .order("requested_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) {
+        console.warn("[StepEconomia] quote_approvals fetch failed:", error.message);
+        return null;
+      }
+      return data;
+    },
+  });
+
+  const approvalState: "none" | "pending" | "approved" | "rejected" = useMemo(() => {
+    if (!approvalRow) return "none";
+    if (approvalRow.decision === "approved") return "approved";
+    if (approvalRow.decision === "rejected") return "rejected";
+    return "pending";
+  }, [approvalRow]);
+
+  /** Richiede approvazione per lo sconto corrente. Crea riga su
+   *  quote_approvals con stato 'pending' visibile in /preventivi/approvazioni. */
+  const handleRequestApproval = async () => {
+    if (!user?.id) {
+      toast.error("Sessione non valida. Ricarica la pagina.");
+      return;
+    }
+    try {
+      const { error } = await supabase.from("quote_approvals").insert({
+        quote_id: progettoId,
+        company_id: form.company_id!,
+        requested_by: user.id,
+        sconto_richiesto_pct: scontoPctCorrente,
+        importo_preventivo: totaleCalc.totale_iva_inclusa,
+        margine_stimato_pct: marginCalc?.marginePct ?? null,
+        note_richiesta: null,
+      });
+      if (error) throw error;
+      toast.success("Richiesta inviata all'amministrazione", {
+        description: `Sconto ${scontoPctCorrente}% in attesa di approvazione. Riceverai notifica appena viene decisa.`,
+      });
+      void qc.invalidateQueries({ queryKey: ["sr-quote-approval", progettoId] });
+    } catch (err) {
+      toast.error("Impossibile inviare la richiesta", {
+        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      });
+    }
+  };
+
+  // Stato di approvazione effettiva — usato in futuro per badge "applicabile":
+  // admin sempre OK, commerciale OK se entro regole o approvato. Per ora non
+  // viene letto attivamente (banner + lock fields coprono la UX); lasciamo il
+  // calcolo per quando aggiungeremo un'azione "Conferma applicazione sconto".
+  void (isAdmin || discountVerdict === "ok" || approvalState === "approved");
 
   // ─── Finanziamento ────────────────────────────────────────────────────────
   const [anticipoPct, setAnticipoPct] = useState(form.fin_anticipo_pct ?? 40);
@@ -464,25 +579,85 @@ export function StepEconomia({ detail, form, onChange }: Props) {
           )}
         </div>
 
+        {/* Banner read-only per commerciali base: niente editing diretto sullo
+            sconto, lo applica/conferma il titolare. Eccezione: lo possono
+            richiedere via "Richiedi approvazione" (sotto). */}
+        {!isAdmin && (
+          <div className="mb-3 rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 flex items-start gap-2">
+            <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              Lo sconto è gestito dall'amministrazione. Puoi proporre uno sconto
+              superiore al consentito tramite <strong>Richiedi approvazione</strong> —
+              il titolare riceverà la richiesta in <em>Preventivi → Approvazioni</em>.
+            </span>
+          </div>
+        )}
+
+        {/* Banner stato approvazione (se richiesta esistente) */}
+        {approvalState !== "none" && (
+          <div
+            className={`mb-3 rounded-md px-3 py-2 text-[11px] flex items-start gap-2 ${
+              approvalState === "approved"
+                ? "border border-emerald-200 bg-emerald-50/60 text-emerald-900"
+                : approvalState === "rejected"
+                ? "border border-rose-200 bg-rose-50/60 text-rose-900"
+                : "border border-amber-200 bg-amber-50/60 text-amber-900"
+            }`}
+          >
+            {approvalState === "approved" ? <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              : approvalState === "rejected" ? <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              : <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />}
+            <div className="flex-1">
+              {approvalState === "approved" && (
+                <>
+                  <strong>Sconto approvato.</strong> Sconto richiesto: {approvalRow?.sconto_richiesto_pct?.toFixed(1)}% ·
+                  {" "}autorizzato: {approvalRow?.sconto_autorizzato_pct?.toFixed(1) ?? "—"}%.
+                  {approvalRow?.note_decisione && <span className="block mt-0.5 opacity-80">Nota: {approvalRow.note_decisione}</span>}
+                </>
+              )}
+              {approvalState === "rejected" && (
+                <>
+                  <strong>Sconto respinto dall'amministrazione.</strong> Richiesto: {approvalRow?.sconto_richiesto_pct?.toFixed(1)}%.
+                  {approvalRow?.note_decisione && <span className="block mt-0.5 opacity-80">Motivo: {approvalRow.note_decisione}</span>}
+                </>
+              )}
+              {approvalState === "pending" && (
+                <>
+                  <strong>Richiesta in attesa.</strong> Sconto {approvalRow?.sconto_richiesto_pct?.toFixed(1)}% inviato il{" "}
+                  {approvalRow?.requested_at ? new Date(approvalRow.requested_at).toLocaleDateString("it-IT") : "—"}.
+                  L'amministrazione riceve la richiesta in <em>Preventivi → Approvazioni</em>.
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Grid 4 input + box riepilogo full-width. Tutte le label hanno
             stessa altezza (h-4 fisso) cosi' la riga input e' perfettamente
             allineata. Warning verdetto sotto l'input. */}
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs block h-4">Sconto %</Label>
+            <Label className="text-xs block h-4 flex items-center gap-1">
+              Sconto %
+              {!isAdmin && <Lock className="h-3 w-3 text-blue-500" />}
+            </Label>
             <Input
               type="number"
               min={0} max={100} step={0.5}
               key={`sconto-${form.sconto_percentuale}`}
               defaultValue={form.sconto_percentuale ?? 0}
-              onBlur={(e) => onChange("sconto_percentuale", Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+              onBlur={(e) => isAdmin && onChange("sconto_percentuale", Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+              readOnly={!isAdmin}
               className={`h-9 text-xs mt-1 ${
-                discountVerdict === "blocked"
+                !isAdmin
+                  ? "bg-slate-50 cursor-not-allowed"
+                  : discountVerdict === "blocked"
                   ? "border-red-400 focus-visible:ring-red-400"
                   : discountVerdict === "approve"
                   ? "border-amber-400 focus-visible:ring-amber-400"
                   : ""
               }`}
+              title={!isAdmin ? "Solo l'amministrazione può modificare lo sconto. Usa Richiedi approvazione." : undefined}
             />
             {discountVerdict === "blocked" && (
               <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
@@ -502,15 +677,34 @@ export function StepEconomia({ detail, form, onChange }: Props) {
                 Entro le regole aziendali
               </p>
             )}
+            {/* CTA "Richiedi approvazione": visibile a chiunque (admin incluso
+                per consistenza) quando discountVerdict != 'ok' e non c'è già
+                una richiesta pending/approved/rejected. */}
+            {(discountVerdict === "approve" || discountVerdict === "blocked") && approvalState === "none" && scontoPctCorrente > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void handleRequestApproval()}
+                className="mt-1.5 h-7 text-[11px] gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+              >
+                <Send className="h-3 w-3" />
+                Richiedi approvazione
+              </Button>
+            )}
           </div>
           <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs block h-4">Sconto fisso (€)</Label>
+            <Label className="text-xs block h-4 flex items-center gap-1">
+              Sconto fisso (€)
+              {!isAdmin && <Lock className="h-3 w-3 text-blue-500" />}
+            </Label>
             <Input
               type="number"
               min={0} step={10}
               defaultValue={form.sconto_importo ?? 0}
-              onBlur={(e) => onChange("sconto_importo", Math.max(0, Number(e.target.value) || 0))}
-              className="h-9 text-xs mt-1"
+              onBlur={(e) => isAdmin && onChange("sconto_importo", Math.max(0, Number(e.target.value) || 0))}
+              readOnly={!isAdmin}
+              className={`h-9 text-xs mt-1 ${!isAdmin ? "bg-slate-50 cursor-not-allowed" : ""}`}
+              title={!isAdmin ? "Solo l'amministrazione può modificare lo sconto." : undefined}
             />
           </div>
           <div className="col-span-6 md:col-span-3">
@@ -567,6 +761,62 @@ export function StepEconomia({ detail, form, onChange }: Props) {
               className="h-9 text-xs mt-1"
             />
           </div>
+          {/* ─── Blocco MARGINE (solo admin) ─────────────────────────────
+              Visibile esclusivamente a super_admin / company_admin.
+              Mostra costo acquisto totale, margine € e % con confronto contro
+              margine_min della regola scontistica (alert sotto target). */}
+          {isAdmin && marginCalc && (
+            <div className="col-span-12">
+              <div
+                className={`rounded-md border p-4 ${
+                  marginCalc.sottoTarget
+                    ? "border-rose-300 bg-rose-50/60"
+                    : "border-emerald-200 bg-emerald-50/40"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                  <p className="text-[10px] uppercase font-semibold flex items-center gap-1.5">
+                    <TrendingUp className="h-3.5 w-3.5" />
+                    Margine preventivo (solo titolare/admin)
+                  </p>
+                  {marginCalc.sottoTarget && (
+                    <span className="text-[10px] font-semibold text-rose-700 flex items-center gap-1">
+                      <TrendingDown className="h-3 w-3" />
+                      Sotto target {marginCalc.margineMinPct.toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  <div className="rounded bg-white border border-slate-200 p-2">
+                    <p className="text-[10px] uppercase text-slate-500">Costo acquisto</p>
+                    <p className="font-bold text-slate-800 tabular-nums">{formatEuro(marginCalc.costoTotale)}</p>
+                  </div>
+                  <div className="rounded bg-white border border-slate-200 p-2">
+                    <p className="text-[10px] uppercase text-slate-500">Imponibile vendita</p>
+                    <p className="font-bold text-slate-800 tabular-nums">{formatEuro(marginCalc.vendita)}</p>
+                  </div>
+                  <div className="rounded bg-white border border-slate-200 p-2">
+                    <p className="text-[10px] uppercase text-slate-500">Margine €</p>
+                    <p className={`font-bold tabular-nums ${marginCalc.margine >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                      {formatEuro(marginCalc.margine)}
+                    </p>
+                  </div>
+                  <div className="rounded bg-white border border-slate-200 p-2">
+                    <p className="text-[10px] uppercase text-slate-500">Margine %</p>
+                    <p className={`font-bold tabular-nums ${marginCalc.sottoTarget ? "text-rose-700" : "text-emerald-700"}`}>
+                      {marginCalc.marginePct.toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-600 mt-2 leading-tight">
+                  <Info className="inline h-3 w-3 mr-0.5 -mt-0.5" />
+                  Costi: somma prezzo_acquisto da listino su serramenti/accessori/servizi linkati.
+                  Articoli senza costo configurato (free-form) non contribuiscono al calcolo.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="col-span-12">
             <div className="rounded-md bg-orange-50 border border-orange-200 p-4">
               <p className="text-[10px] uppercase font-semibold text-orange-900 mb-1">Il tuo investimento stimato</p>
