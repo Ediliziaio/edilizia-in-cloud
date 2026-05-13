@@ -129,16 +129,65 @@ export function useImportArticleFamilyTemplate() {
       return data as string; // family id
     },
     onSuccess: () => {
-      // Invalidation chirurgica: SOLO le query che leggono article_families
-      // o le sue derivate. Evitiamo prefix-match larghi tipo "family" che
-      // intercettavano family-editor, family-axes, family-grid... causando
-      // ri-fetch a cascata di stati locali non correlati.
-      void qc.invalidateQueries({ queryKey: ["article-families"] });
-      void qc.invalidateQueries({ queryKey: ["article_families"] });
-      void qc.invalidateQueries({ queryKey: ["families"] });
-      void qc.invalidateQueries({ queryKey: ["listino-families"] });
-      void qc.invalidateQueries({ queryKey: ["article-templates-full"] });
-      void qc.invalidateQueries({ queryKey: ["article-templates"] });
+      invalidateFamilyCaches(qc);
     },
   });
+}
+
+/**
+ * Batch import di N template articolo in sequenza. Ogni template può avere
+ * una `categoriaId` diversa (mapping per categoria_slug → categoria reale del
+ * listino aziendale). Ritorna l'array degli id famiglia creati con eventuali
+ * errori per item.
+ */
+export function useImportArticleFamilyTemplatesBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      companyId: string;
+      items: Array<{ templateId: string; categoriaId?: string | null; nomeOverride?: string | null }>;
+    }) => {
+      const created: string[] = [];
+      const failed: Array<{ templateId: string; error: string }> = [];
+
+      // Sequenziale: la maggior parte delle aziende importa 5-15 articoli
+      // per volta. Parallelismo non vale la complessità ed espone race
+      // condition lato sort_order.
+      for (const item of params.items) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data, error } = await (supabase as any).rpc(
+            "import_article_family_template",
+            {
+              p_template_id: item.templateId,
+              p_company_id: params.companyId,
+              p_categoria_id: item.categoriaId ?? null,
+              p_nome_override: item.nomeOverride ?? null,
+            },
+          );
+          if (error) throw error;
+          created.push(data as string);
+        } catch (err) {
+          failed.push({
+            templateId: item.templateId,
+            error: err instanceof Error ? err.message : "Errore sconosciuto",
+          });
+        }
+      }
+      return { created, failed };
+    },
+    onSuccess: () => {
+      invalidateFamilyCaches(qc);
+    },
+  });
+}
+
+/** Invalida le query React-Query che dipendono da article_families. */
+function invalidateFamilyCaches(qc: ReturnType<typeof useQueryClient>) {
+  void qc.invalidateQueries({ queryKey: ["article-families"] });
+  void qc.invalidateQueries({ queryKey: ["article_families"] });
+  void qc.invalidateQueries({ queryKey: ["families"] });
+  void qc.invalidateQueries({ queryKey: ["listino-families"] });
+  void qc.invalidateQueries({ queryKey: ["article-templates-full"] });
+  void qc.invalidateQueries({ queryKey: ["article-templates"] });
 }

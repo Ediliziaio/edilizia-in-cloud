@@ -90,7 +90,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SchedaTecnicaEditor } from "./SchedaTecnicaEditor";
 import { PhotoTemplatePicker } from "./PhotoTemplatePicker";
 import { SubcategorieTemplateDialog } from "./SubcategorieTemplateDialog";
-import { firstGallerySlugFor, toGallerySlug } from "@/lib/verticalMapping";
+import { FamilyTemplateBulkDialog } from "./FamilyTemplateBulkDialog";
+import { firstGallerySlugFor } from "@/lib/verticalMapping";
+import { useAuthSelector } from "@/contexts/AuthContext";
 
 // Valori coerenti con companies_vertical_check + fotovoltaico (gestito a parte).
 const VERTICALI_OPTIONS: { value: string; label: string }[] = [
@@ -153,6 +155,15 @@ export function MacroCategorieManager() {
     nome: string;
     vertical: string;
   } | null>(null);
+  // Bulk import template articoli: aperto dopo SubcategorieTemplateDialog
+  // applicata, oppure manualmente dal bottone Sparkles su una macro esistente.
+  const [bulkImportFor, setBulkImportFor] = useState<{
+    macroId: string;
+    nome: string;
+    vertical: string;
+  } | null>(null);
+
+  const companyId = useAuthSelector((c) => c.effectiveCompany?.id ?? null);
 
   // Raggruppa categorie per macrocategoria_id (null → orfane)
   const byMacroId = useMemo(() => {
@@ -659,6 +670,19 @@ export function MacroCategorieManager() {
                 </Select>
               </div>
             )}
+            {!isCatForm && formVerticali.length > 0 && editMode.kind === "macro-new" && (
+              <div className="rounded-md border border-orange-200 bg-orange-50/60 p-3 space-y-1">
+                <div className="flex items-center gap-2 text-sm font-medium text-orange-900">
+                  <Sparkles className="h-4 w-4 text-orange-600" />
+                  Template pronti per <span className="font-semibold">
+                    {VERTICALI_OPTIONS.find((v) => v.value === formVerticali[0])?.label ?? formVerticali[0]}
+                  </span>
+                </div>
+                <p className="text-xs text-orange-900/80 leading-relaxed">
+                  Dopo il salvataggio ti proporremo di creare automaticamente le <strong>subcategorie standard</strong> del settore e di importare gli <strong>articoli template</strong> pre-configurati (foto, assi, prezzo base, IVA). Potrai personalizzare tutto dopo.
+                </p>
+              </div>
+            )}
             {!isCatForm && (
               <div className="space-y-2 pt-1 border-t">
                 <div className="flex items-center gap-2">
@@ -914,15 +938,39 @@ export function MacroCategorieManager() {
         />
       )}
 
-      {/* Auto-suggest subcategorie standard subito dopo create macrocategoria. */}
+      {/* Auto-suggest subcategorie standard subito dopo create macrocategoria.
+          Dopo l'applicazione (anche 0 nuove), chain → bulk-import template
+          articoli per quel verticale. Il chain consente all'utente di
+          completare l'onboarding macro → subcategorie → articoli in un solo
+          flusso senza navigation tra pagine. */}
       <SubcategorieTemplateDialog
         open={!!suggestSubcategorieFor}
         onOpenChange={(o) => { if (!o) setSuggestSubcategorieFor(null); }}
         vertical={suggestSubcategorieFor?.vertical ?? null}
         macrocategoriaId={suggestSubcategorieFor?.macroId ?? null}
         macrocategoriaNome={suggestSubcategorieFor?.nome}
-        onApplied={() => setSuggestSubcategorieFor(null)}
+        onApplied={() => {
+          // Chain → bulk import articoli template (stesso macro+vertical).
+          if (suggestSubcategorieFor) {
+            setBulkImportFor({ ...suggestSubcategorieFor });
+          }
+          setSuggestSubcategorieFor(null);
+        }}
       />
+
+      {/* Bulk import template articoli — chain post subcategorie OR manuale. */}
+      {bulkImportFor && companyId && (
+        <FamilyTemplateBulkDialog
+          open={!!bulkImportFor}
+          onOpenChange={(o) => { if (!o) setBulkImportFor(null); }}
+          companyId={companyId}
+          vertical={bulkImportFor.vertical}
+          macroId={bulkImportFor.macroId}
+          macroNome={bulkImportFor.nome}
+          availableCategorie={(byMacroId.get(bulkImportFor.macroId) ?? [])}
+          onImported={() => setBulkImportFor(null)}
+        />
+      )}
 
       {/* Galleria foto template (super_admin gestita) — pre-filtrata sul
           primo verticale abilitato della macrocategoria in editing. */}
