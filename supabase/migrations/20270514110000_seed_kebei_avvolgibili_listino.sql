@@ -38,11 +38,19 @@ BEGIN
     ON CONFLICT (company_id, nome) DO UPDATE SET descrizione = EXCLUDED.descrizione
     RETURNING id INTO v_macrocat_id;
 
-  -- 3) Categoria padre
-  INSERT INTO public.listino_categorie (company_id, macrocategoria_id, nome, sort_order)
-    VALUES (v_company_id, v_macrocat_id, 'AVVOLGIBILI — CTS', 10)
-    ON CONFLICT (company_id, nome) DO UPDATE SET macrocategoria_id = EXCLUDED.macrocategoria_id
-    RETURNING id INTO v_categoria_id;
+  -- 3) Categoria padre (pattern SELECT-then-INSERT per via dei vincoli
+  -- unique parziali su listino_categorie — vedi nota in zanzariere seed).
+  SELECT id INTO v_categoria_id
+    FROM public.listino_categorie
+   WHERE company_id = v_company_id
+     AND macrocategoria_id = v_macrocat_id
+     AND nome = 'AVVOLGIBILI — CTS'
+   LIMIT 1;
+  IF v_categoria_id IS NULL THEN
+    INSERT INTO public.listino_categorie (company_id, macrocategoria_id, nome, sort_order)
+      VALUES (v_company_id, v_macrocat_id, 'AVVOLGIBILI — CTS', 10)
+      RETURNING id INTO v_categoria_id;
+  END IF;
 
   -- ─────────────────────────────────────────────────────────────────────────
   -- 4) Family — Avvolgibile PA55DS Alluminio Coibentato

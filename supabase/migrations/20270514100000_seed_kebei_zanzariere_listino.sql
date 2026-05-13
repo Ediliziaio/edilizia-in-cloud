@@ -40,10 +40,20 @@ BEGIN
   RAISE NOTICE 'Macrocategoria ZANZARIERE id = %', v_macrocat_id;
 
   -- 3) Categoria padre (per backward compat con listino_categorie)
-  INSERT INTO public.listino_categorie (company_id, macrocategoria_id, nome, sort_order)
-    VALUES (v_company_id, v_macrocat_id, 'ZANZARIERE — ZANZAR', 10)
-    ON CONFLICT (company_id, nome) DO UPDATE SET macrocategoria_id = EXCLUDED.macrocategoria_id
-    RETURNING id INTO v_categoria_id;
+  -- listino_categorie ha UNIQUE INDEX su (company_id, macrocategoria_id, nome)
+  -- ma SOLO quando macrocategoria_id IS NOT NULL → ON CONFLICT non funziona
+  -- direttamente. Usiamo pattern SELECT-then-INSERT (idempotente).
+  SELECT id INTO v_categoria_id
+    FROM public.listino_categorie
+   WHERE company_id = v_company_id
+     AND macrocategoria_id = v_macrocat_id
+     AND nome = 'ZANZARIERE — ZANZAR'
+   LIMIT 1;
+  IF v_categoria_id IS NULL THEN
+    INSERT INTO public.listino_categorie (company_id, macrocategoria_id, nome, sort_order)
+      VALUES (v_company_id, v_macrocat_id, 'ZANZARIERE — ZANZAR', 10)
+      RETURNING id INTO v_categoria_id;
+  END IF;
 
   -- ─────────────────────────────────────────────────────────────────────────
   -- 4) Family 1 — Zanzariera Verticale con Frizione · Installazione Libera
