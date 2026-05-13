@@ -679,7 +679,7 @@ export function MacroCategorieManager() {
                   </span>
                 </div>
                 <p className="text-xs text-orange-900/80 leading-relaxed">
-                  Dopo il salvataggio ti proporremo di creare automaticamente le <strong>subcategorie standard</strong> del settore e di importare gli <strong>articoli template</strong> pre-configurati (foto, variabili Tipologia Vetro + Colore, griglia prezzi). Potrai personalizzare tutto dopo.
+                  Dopo il salvataggio ti proporremo di creare automaticamente le <strong>subcategorie standard</strong> del settore e di importare gli <strong>articoli template</strong> pre-configurati (foto, variabili Colore + Tipologia Vetro, griglia prezzi). Potrai personalizzare tutto dopo.
                 </p>
               </div>
             )}

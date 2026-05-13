@@ -189,7 +189,7 @@ export function FamilyTemplateBulkDialog({
           </DialogTitle>
           <DialogDescription>
             Pre-popola <strong>{macroNome}</strong> con gli articoli standard del verticale.
-            Ogni template viene clonato nel tuo listino con foto, variabili (Tipologia Vetro, Colore) e griglia prezzi pronta da compilare.
+            Ogni template viene clonato nel tuo listino con foto, variabili (Colore, Tipologia Vetro) e griglia prezzi pronta da compilare.
           </DialogDescription>
         </DialogHeader>
 
