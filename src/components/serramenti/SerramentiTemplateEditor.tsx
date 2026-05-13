@@ -68,6 +68,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 // M12 · Preset stili cover 1-click (front-end batches, no migration).
 import { COVER_PRESETS, detectActiveCoverPreset } from "./coverPresets";
+// M14 · Contrast WCAG check (testo vs sfondo cover)
+import { contrastRatio, wcagLevel, suggestBestTextColor } from "@/lib/utils/contrast";
 
 interface SerramentiTemplateEditorProps {
   /** Se true, nasconde lo sticky bottom save (usato dentro Tabs con bottone proprio) */
@@ -1613,9 +1615,40 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </div>
                 </div>
 
-                {/* Colore testo override */}
+                {/* Colore testo override + M14 contrast check */}
                 <div className="col-span-12 md:col-span-4">
-                  <Label className="text-[11px] mb-1 block">Colore testo</Label>
+                  <Label className="text-[11px] mb-1 block flex items-center justify-between gap-1">
+                    <span>Colore testo</span>
+                    {/* M14 · Badge contrast WCAG. Calcolato live tra testo e
+                        sfondo (immagine: usa overlay-darkened bg; tinta unita:
+                        usa bg color). Con quick-fix se FAIL. */}
+                    {(() => {
+                      const textColor = form.pdf_cover_text_color || "#FFFFFF";
+                      // Sfondo "effettivo": se c'è immagine assumiamo overlay scuro
+                      // (#000 mediamente, semplificazione conservativa). Se no, bg solido.
+                      const bgColor = form.pdf_cover_image_url
+                        ? "#000000"
+                        : form.pdf_cover_bg_color || "#0F2A2E";
+                      const ratio = contrastRatio(textColor, bgColor);
+                      // Il titolo cover è "large text" (≥ 22pt) → soglia AA = 3.0
+                      const level = wcagLevel(ratio, true);
+                      const badgeCls =
+                        level === "AAA"
+                          ? "bg-emerald-100 text-emerald-700 border-emerald-300"
+                          : level === "AA"
+                            ? "bg-amber-100 text-amber-700 border-amber-300"
+                            : "bg-rose-100 text-rose-700 border-rose-300";
+                      const emoji = level === "AAA" ? "✅" : level === "AA" ? "⚠️" : "❌";
+                      return (
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded border font-mono font-semibold ${badgeCls}`}
+                          title={`Contrast ratio ${ratio.toFixed(1)}:1 · WCAG ${level} (large text). Suggerito ≥ 4.5:1 per leggibilità ottimale.`}
+                        >
+                          {emoji} {ratio.toFixed(1)}:1 · {level}
+                        </span>
+                      );
+                    })()}
+                  </Label>
                   <div className="flex items-center gap-1.5">
                     <input
                       type="color"
@@ -1630,6 +1663,26 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       className="h-7 text-[11px] font-mono flex-1"
                     />
                   </div>
+                  {/* Auto-fix: se FAIL, mostra il pulsante che applica miglior contrasto */}
+                  {(() => {
+                    const textColor = form.pdf_cover_text_color || "#FFFFFF";
+                    const bgColor = form.pdf_cover_image_url
+                      ? "#000000"
+                      : form.pdf_cover_bg_color || "#0F2A2E";
+                    const ratio = contrastRatio(textColor, bgColor);
+                    if (wcagLevel(ratio, true) !== "FAIL") return null;
+                    const suggested = suggestBestTextColor(bgColor);
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => update("pdf_cover_text_color", suggested)}
+                        className="mt-1 w-full text-[10px] py-1 px-2 rounded bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 font-medium"
+                        title="Imposta automaticamente il colore con miglior contrasto su questo sfondo"
+                      >
+                        🔧 Fix automatico → {suggested === "#FFFFFF" ? "Bianco" : "Nero"}
+                      </button>
+                    );
+                  })()}
                 </div>
 
                 {/* Toggle decorazione + card cliente */}
