@@ -308,7 +308,11 @@ export function StepBom({ progettoId, detail }: Props) {
             <div className="space-y-2 mb-3">
               {serramenti.map((s, idx) => {
               const family = s.family_id ? familiesById.get(s.family_id) : undefined;
-              const macroId = family?.categoria_id ? catToMacro.get(family.categoria_id) : undefined;
+              // Post-refactor 20270513200000: usa macrocategoria_id diretto,
+              // fallback via categoria_id per articoli legacy.
+              const familyAny = family as unknown as { macrocategoria_id?: string | null };
+              const macroId = familyAny?.macrocategoria_id
+                ?? (family?.categoria_id ? catToMacro.get(family.categoria_id) : undefined);
               const macroNome = macroId ? macroIdToNome.get(macroId) : undefined;
               return (
                 <SerramentoRow

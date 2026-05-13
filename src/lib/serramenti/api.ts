@@ -652,7 +652,15 @@ export async function listMacrocategorie(opts?: {
   if (!opts?.onlyWithFamilies || macros.length === 0) return macros;
 
   // Filtro lato client: per ogni macro conta le famiglie esistenti.
-  // 1 sola query: prendo tutte le famiglie con la loro categoria→macro.
+  // Post-refactor 20270513200000: article_families.macrocategoria_id è FK
+  // diretto → niente più indirection via listino_categorie.
+  // Fallback al vecchio path per articoli pre-refactor (categoria_id legacy).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: famRows } = await (supabase as any)
+    .from("article_families")
+    .select("macrocategoria_id, categoria_id")
+    .is("deleted_at", null);
+  const macrosWithFam = new Set<string>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: catRows } = await (supabase as any)
     .from("listino_categorie")
@@ -661,12 +669,10 @@ export async function listMacrocategorie(opts?: {
   (catRows ?? []).forEach((c: { id: string; macrocategoria_id: string | null }) => {
     if (c.macrocategoria_id) catToMacro.set(c.id, c.macrocategoria_id);
   });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: famRows } = await (supabase as any)
-    .from("article_families").select("categoria_id");
-  const macrosWithFam = new Set<string>();
-  (famRows ?? []).forEach((f: { categoria_id: string | null }) => {
-    if (f.categoria_id) {
+  (famRows ?? []).forEach((f: { macrocategoria_id: string | null; categoria_id: string | null }) => {
+    if (f.macrocategoria_id) {
+      macrosWithFam.add(f.macrocategoria_id);
+    } else if (f.categoria_id) {
       const macroId = catToMacro.get(f.categoria_id);
       if (macroId) macrosWithFam.add(macroId);
     }
@@ -913,6 +919,9 @@ export async function listListinoFamiliesByIds(ids: string[]): Promise<ListinoFa
 
 export async function listListinoFamilies(opts?: {
   searchQuery?: string;
+  /** Post-refactor 20270513200000: filtro per macrocategoria diretta. */
+  macroId?: string | null;
+  /** @deprecated usa macroId. Mantenuto per backward compat caller pre-refactor. */
   categoriaId?: string | null;
 }): Promise<ListinoFamily[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -920,17 +929,21 @@ export async function listListinoFamilies(opts?: {
     .from("article_families")
     .select(`
       id, nome, descrizione, immagine_url, vertical, prezzo_base_vendita, vat_rate,
-      modalita_prezzo_base, categoria_id, custom_field_values,
+      modalita_prezzo_base, macrocategoria_id, categoria_id, custom_field_values,
       manodopera_modalita, posa_tariffa_default_id, posa_quantita_default, posa_linked,
       manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita
     `)
+    .eq("attivo", true)
+    .is("deleted_at", null)
     .order("nome", { ascending: true })
     .limit(100);
   const search = opts?.searchQuery?.trim();
   if (search && search.length >= 2) {
     q = q.ilike("nome", `%${search}%`);
   }
-  if (opts?.categoriaId) {
+  if (opts?.macroId) {
+    q = q.eq("macrocategoria_id", opts.macroId);
+  } else if (opts?.categoriaId) {
     q = q.eq("categoria_id", opts.categoriaId);
   }
   const { data, error } = await q;

@@ -234,9 +234,14 @@ export function useDeleteManodopera(progettoId: string | undefined) {
 
 // ─── Listino prodotti picker ────────────────────────────────────────────────
 
-export function useListinoFamilies(opts?: { searchQuery?: string; categoriaId?: string | null }) {
+export function useListinoFamilies(opts?: {
+  searchQuery?: string;
+  macroId?: string | null;
+  /** @deprecated post-refactor 20270513200000. Usa macroId. */
+  categoriaId?: string | null;
+}) {
   return useQuery({
-    queryKey: ["sr-listino-families", opts?.searchQuery ?? "", opts?.categoriaId ?? null],
+    queryKey: ["sr-listino-families", opts?.searchQuery ?? "", opts?.macroId ?? null, opts?.categoriaId ?? null],
     queryFn: () => listListinoFamilies(opts),
     staleTime: 5 * 60 * 1000,
   });

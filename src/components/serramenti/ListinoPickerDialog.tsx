@@ -27,10 +27,10 @@ import {
 } from "lucide-react";
 import {
   useListinoFamilies, useListinoGriglia, useTariffeManodopera,
-  useMacrocategorie, useCategorieByMacro,
+  useMacrocategorie,
 } from "@/lib/serramenti/queries";
 import type {
-  ListinoFamily, ListinoMacrocategoria, ListinoCategoria,
+  ListinoFamily, ListinoMacrocategoria,
 } from "@/lib/serramenti/api";
 import { useFamily } from "@/hooks/useFamilies";
 import type { AxisSelection } from "@/types/articleFamily";
@@ -78,7 +78,10 @@ const MODALITA_LABEL: Record<string, string> = {
   pz: "a pezzo", mq: "a m²", misura_libera: "a corpo", griglia: "da griglia misure",
 };
 
-type Step = "macro" | "categoria" | "famiglia" | "misure";
+// Post-refactor 20270513200000: step "categoria" eliminato — il flusso ora è
+// Macro → Famiglia (articolo) → Misure. La gerarchia listino è collassata
+// a 2 livelli.
+type Step = "macro" | "famiglia" | "misure";
 
 // ─── Helper: icon o fallback ────────────────────────────────────────────────
 
@@ -103,7 +106,6 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [selectedMacro, setSelectedMacro] = useState<ListinoMacrocategoria | null>(null);
-  const [selectedCategoria, setSelectedCategoria] = useState<ListinoCategoria | null>(null);
   const [selectedFamily, setSelectedFamily] = useState<ListinoFamily | null>(null);
   const [larghezza, setLarghezza] = useState<string>("");
   const [altezza, setAltezza] = useState<string>("");
@@ -125,7 +127,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
     if (!open) {
       setStep("macro");
       setSearch(""); setDebounced("");
-      setSelectedMacro(null); setSelectedCategoria(null); setSelectedFamily(null);
+      setSelectedMacro(null); setSelectedFamily(null);
       setLarghezza(""); setAltezza(""); setQuantita("1");
       setAxisSelection({});
     }
@@ -140,10 +142,11 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
   const { data: macros = [], isLoading: loadingMacros } = useMacrocategorie({
     vertical: "serramentista",
   });
-  const { data: categorie = [], isLoading: loadingCat } = useCategorieByMacro(selectedMacro?.id ?? null);
+  // Refactor 20270513200000: filtro famiglie direttamente per macrocategoria.
+  // Niente più step categoria intermedio.
   const { data: families = [], isLoading: loadingFam } = useListinoFamilies({
     searchQuery: isSearching ? debounced : undefined,
-    categoriaId: !isSearching && selectedCategoria ? selectedCategoria.id : undefined,
+    macroId: !isSearching && selectedMacro ? selectedMacro.id : undefined,
   });
   const { data: griglia = [], isLoading: loadingGriglia } = useListinoGriglia(selectedFamily?.id);
   // FamilyWithAxes: carica family + assi + valori. Serve per:
@@ -232,11 +235,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
 
   const handleSelectMacro = (m: ListinoMacrocategoria) => {
     setSelectedMacro(m);
-    setStep("categoria");
-  };
-
-  const handleSelectCategoria = (c: ListinoCategoria) => {
-    setSelectedCategoria(c);
+    // Refactor 20270513200000: skip step categoria → direttamente alle famiglie
     setStep("famiglia");
   };
 
@@ -253,9 +252,6 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
       setSelectedFamily(null);
       setStep("famiglia");
     } else if (step === "famiglia") {
-      setSelectedCategoria(null);
-      setStep("categoria");
-    } else if (step === "categoria") {
       setSelectedMacro(null);
       setStep("macro");
     }
@@ -288,10 +284,9 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
     }
     const parts: string[] = [];
     if (selectedMacro) parts.push(selectedMacro.nome);
-    if (selectedCategoria) parts.push(selectedCategoria.nome);
     if (selectedFamily) parts.push(selectedFamily.nome);
     return parts.join(" › ") || "Listino";
-  }, [isSearching, debounced, effectiveStep, selectedMacro, selectedCategoria, selectedFamily]);
+  }, [isSearching, debounced, effectiveStep, selectedMacro, selectedFamily]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -315,7 +310,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
             <span className="flex-1">
               {effectiveStep === "macro" && "Scegli macrocategoria"}
               {effectiveStep === "categoria" && (selectedMacro?.nome ?? "Scegli categoria")}
-              {effectiveStep === "famiglia" && (isSearching ? `Ricerca: "${debounced}"` : (selectedCategoria?.nome ?? "Scegli prodotto"))}
+              {effectiveStep === "famiglia" && (isSearching ? `Ricerca: "${debounced}"` : (selectedMacro?.nome ?? "Scegli prodotto"))}
               {effectiveStep === "misure" && (selectedFamily?.nome ?? "Misure")}
             </span>
           </DialogTitle>
@@ -400,62 +395,6 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
                         <p className="text-sm font-bold text-slate-900 truncate group-hover:text-orange-700 transition-colors">{m.nome}</p>
                         {m.descrizione && (
                           <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-snug">{m.descrizione}</p>
-                        )}
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-600 mt-0.5 shrink-0 transition-colors" />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ─── STEP CATEGORIA ──────────────────────────────────────────── */}
-        {effectiveStep === "categoria" && (
-          <div className="max-h-[55vh] overflow-y-auto">
-            {loadingCat ? (
-              <LoadingState />
-            ) : categorie.length === 0 ? (
-              <EmptyState
-                icon={<FolderOpen className="h-10 w-10" />}
-                text={`Nessuna categoria in "${selectedMacro?.nome ?? ""}". Configura le categorie nelle Impostazioni → Listino prodotti.`}
-              />
-            ) : (
-              /* Stesso pattern catalog card delle macro: foto aspect 4:3
-                 con object-contain (no crop) per non distorcere articoli
-                 verticali. */
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {categorie.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => handleSelectCategoria(c)}
-                    className="text-left rounded-lg border-2 border-slate-200 hover:border-orange-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-400 transition overflow-hidden group bg-white flex flex-col"
-                  >
-                    {c.immagine_url ? (
-                      <div className="relative aspect-[4/3] bg-slate-50 border-b border-slate-100">
-                        <img
-                          src={c.immagine_url}
-                          alt={c.nome}
-                          className="absolute inset-0 w-full h-full object-contain p-2"
-                        />
-                      </div>
-                    ) : (
-                      <div
-                        className="relative aspect-[4/3] flex items-center justify-center text-3xl border-b border-slate-100"
-                        style={{
-                          backgroundColor: c.colore ? `${c.colore}22` : "#10b98122",
-                          color: c.colore ?? "#10b981",
-                        }}
-                      >
-                        📁
-                      </div>
-                    )}
-                    <div className="flex-1 p-2.5 flex items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-900 truncate group-hover:text-orange-700 transition-colors">{c.nome}</p>
-                        {c.descrizione && (
-                          <p className="text-[11px] text-muted-foreground line-clamp-1 leading-snug">{c.descrizione}</p>
                         )}
                       </div>
                       <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-600 mt-0.5 shrink-0 transition-colors" />
