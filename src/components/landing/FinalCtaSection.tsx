@@ -4,7 +4,21 @@ import { Building2, Shield, Clock, Star, ArrowRight } from "lucide-react";
 import { useState, useEffect } from "react";
 
 // Icone edilizia floating
-const ctaIcons = [
+// Schema esplicito per evitare cast `as any` sul positioning (left | right).
+// Un'icona può avere solo `left` o solo `right` — entrambi opzionali.
+type CtaIcon = {
+  path: string;
+  label: string;
+  top: string;
+  left?: string;
+  right?: string;
+  size: number;
+  delay: string;
+  dur: string;
+  op: number;
+  rot: number;
+};
+const ctaIcons: CtaIcon[] = [
   { path: "M6 22h20v2a1 1 0 01-1 1H7a1 1 0 01-1-1v-2zM6 22v-1a10 10 0 0120 0v1M16 8v4M11 10a6 6 0 0110 0M4 22h24", label: "caschetto", top: "12%", left: "5%",  size: 32, delay: "0s",   dur: "7s",  op: 0.22, rot: -8 },
   { path: "M4 4h24v24H4zM16 4v24M4 16h24M8 8v4M24 8v4M8 20v4M24 20v4", label: "infisso", top: "70%", left: "8%",  size: 28, delay: "2s",   dur: "8.5s", op: 0.18, rot: 6 },
   { path: "M2 8h28v16H2zM11 8v16M21 8v16M2 13h28M2 19h28M13 28h6M16 24v4", label: "fotovoltaico", top: "20%", right: "6%", size: 30, delay: "0.8s", dur: "6.5s", op: 0.20, rot: 10 },
@@ -47,7 +61,7 @@ export default function FinalCtaSection() {
           key={i}
           className="absolute pointer-events-none animate-float hidden md:block"
           style={{
-            top: p.top, left: (p as any).left, right: (p as any).right,
+            top: p.top, left: p.left, right: p.right,
             width: p.size, height: p.size,
             color: "#F97415",
             opacity: p.op,

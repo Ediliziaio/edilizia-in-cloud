@@ -12,6 +12,10 @@ import { Link } from "react-router-dom";
 import { X, Send, CheckCircle2, Loader2 } from "lucide-react";
 import { submitPublicLeadToCrm } from "@/lib/publicLeadSubmit";
 
+// Helper exportato in coabitazione col componente: pattern intenzionale per
+// trigger globale del modal via custom event. Il warning HMR di
+// react-refresh è benigno in prod (no hot-reload critico per landing).
+// eslint-disable-next-line react-refresh/only-export-components
 export function openContactModal() {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("open-contact-modal"));
@@ -53,7 +57,20 @@ export default function QuickContactModal() {
     return () => window.removeEventListener("open-contact-modal", handler);
   }, []);
 
-  // ESC per chiudere
+  // Chiusura modale + reset stato form. Dichiarata PRIMA del useEffect ESC
+  // così la dep `close` è risolvibile dal react-hooks/exhaustive-deps senza
+  // doverlo escludere via comment. useCallback con deps vuote → stable ref.
+  const close = useCallback(() => {
+    setOpen(false);
+    // Reset dopo animazione
+    setTimeout(() => {
+      setForm(INITIAL);
+      setErrors({});
+      setSubmitted(false);
+    }, 250);
+  }, []);
+
+  // ESC per chiudere (richiede `close` stable già definito sopra)
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -65,17 +82,7 @@ export default function QuickContactModal() {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
     };
-  }, [open]);
-
-  const close = useCallback(() => {
-    setOpen(false);
-    // Reset dopo animazione
-    setTimeout(() => {
-      setForm(INITIAL);
-      setErrors({});
-      setSubmitted(false);
-    }, 250);
-  }, []);
+  }, [open, close]);
 
   const validate = (): boolean => {
     const e: Partial<Record<keyof FormState, string>> = {};

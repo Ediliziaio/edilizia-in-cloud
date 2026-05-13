@@ -262,6 +262,23 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           ]
         }
       }} />
+      {/* FAQPage schema per snippet "People Also Ask" e citabilità AI Overviews.
+          faqId era già declarato ma mai emesso — il blocco JsonLd è stato
+          ricostruito dall'array config.faq (domanda/risposta). */}
+      {config.faq.length > 0 && (
+        <JsonLd id={faqId} data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": config.faq.map((item) => ({
+            "@type": "Question",
+            "name": item.q,
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": item.a,
+            },
+          })),
+        }} />
+      )}
 
       <LandingNavbar />
 
