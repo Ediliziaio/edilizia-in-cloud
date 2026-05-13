@@ -80,6 +80,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { FamilyAxesEditor } from "./FamilyAxesEditor";
 import { FamilyGridEditor } from "./FamilyGridEditor";
+import { PhotoTemplatePicker } from "./PhotoTemplatePicker";
 import { FamilyPricePreview } from "./FamilyPricePreview";
 import { MacroCategorieManager } from "./MacroCategorieManager";
 import { DynamicFieldsRenderer, type DynamicFieldValues } from "./DynamicFieldsRenderer";
@@ -241,6 +242,7 @@ export function FamilyEditor() {
    * createFamily/updateFamily insieme agli altri campi di Step 1.
    */
   const [immagineUrl, setImmagineUrl] = useState<string | null>(null);
+  const [photoTemplatePickerOpen, setPhotoTemplatePickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { upload: uploadImage, remove: removeImage, isUploading, isRemoving } =
     useArticleImageUpload();
@@ -572,6 +574,51 @@ export function FamilyEditor() {
       toast.success("Immagine rimossa");
     } catch (err) {
       toast.error("Errore aggiornamento", {
+        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      });
+    }
+  };
+
+  /**
+   * Applica una foto scelta dalla galleria template all'articolo.
+   * A differenza dell'upload, NON copia il file ma referenzia l'URL pubblico
+   * del bucket condiviso (article-photo-templates). Vantaggi:
+   *   - Zero storage costo per la company
+   *   - Foto sempre aggiornata se il super_admin la migliora
+   *   - L'utente puo' sempre sovrascrivere con un upload proprio.
+   * Se la family non e' ancora persistita, prima la salva (stesso pattern
+   * del handleImageUpload) e poi applica l'URL.
+   */
+  const handlePhotoTemplateSelect = async (photo: { image_url: string; nome: string }) => {
+    setImmagineUrl(photo.image_url);
+    if (!family?.id) {
+      // Articolo nuovo: salviamo per ottenere un id, poi persistiamo l'URL.
+      const savedId = await saveBase();
+      if (!savedId) {
+        toast.error("Salva prima l'articolo (Step 1) per assegnare la foto");
+        return;
+      }
+      try {
+        await updateFamily.mutateAsync({
+          id: savedId,
+          patch: { immagine_url: photo.image_url },
+        });
+        toast.success(`Foto "${photo.nome}" applicata`);
+      } catch (err) {
+        toast.error("Errore salvataggio foto", {
+          description: err instanceof Error ? err.message : "Errore sconosciuto",
+        });
+      }
+      return;
+    }
+    try {
+      await updateFamily.mutateAsync({
+        id: family.id,
+        patch: { immagine_url: photo.image_url },
+      });
+      toast.success(`Foto "${photo.nome}" applicata`);
+    } catch (err) {
+      toast.error("Errore salvataggio foto", {
         description: err instanceof Error ? err.message : "Errore sconosciuto",
       });
     }
@@ -1041,6 +1088,21 @@ export function FamilyEditor() {
                             )}
                           </Button>
                         )}
+                        {/* Galleria template: alternativa rapida all'upload.
+                            L'azienda sceglie una foto curata dal team EIC
+                            invece di caricare un proprio file. */}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9 border-orange-300 text-orange-700 hover:bg-orange-50"
+                          disabled={isUploading || isRemoving}
+                          onClick={() => setPhotoTemplatePickerOpen(true)}
+                          aria-label="Scegli foto dalla galleria template"
+                        >
+                          <ImageIcon className="h-4 w-4 mr-2" aria-hidden="true" />
+                          Scegli da galleria
+                        </Button>
                       </div>
                     </div>
                     <input
@@ -1843,6 +1905,20 @@ export function FamilyEditor() {
           <MacroCategorieManager />
         </DialogContent>
       </Dialog>
+
+      {/* Galleria foto template — alternativa rapida all'upload manuale. */}
+      <PhotoTemplatePicker
+        open={photoTemplatePickerOpen}
+        onOpenChange={setPhotoTemplatePickerOpen}
+        initialVertical={(() => {
+          // Pre-filtra il picker sul verticale ricavato dalla macrocategoria
+          // attualmente selezionata sull'articolo. Migliora l'UX evitando di
+          // far scorrere foto irrilevanti.
+          const macro = macrocategorie.find((m) => m.id === macrocategoriaId);
+          return macro?.vertical ?? null;
+        })()}
+        onSelect={(photo) => void handlePhotoTemplateSelect(photo)}
+      />
     </div>
   );
 }

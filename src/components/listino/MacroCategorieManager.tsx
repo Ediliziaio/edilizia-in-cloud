@@ -87,6 +87,22 @@ import {
 import { translateListinoError } from "@/lib/listinoErrors";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SchedaTecnicaEditor } from "./SchedaTecnicaEditor";
+import { PhotoTemplatePicker } from "./PhotoTemplatePicker";
+
+/**
+ * Mappa il verticale "company-side" (es. "serramentista") con il vertical_slug
+ * usato nella galleria foto template (es. "serramenti"). Serve a pre-filtrare
+ * il PhotoTemplatePicker in base al primo verticale abilitato della macro.
+ */
+const VERTICAL_TO_GALLERY_SLUG: Record<string, string> = {
+  serramentista: "serramenti",
+  serramenti: "serramenti",
+  fotovoltaico: "fotovoltaico",
+  bagno: "bagno",
+  tetti: "tetti",
+  cappotto: "cappotto",
+  pompe_calore: "pompe_calore",
+};
 
 // Valori coerenti con companies_vertical_check + fotovoltaico (gestito a parte).
 const VERTICALI_OPTIONS: { value: string; label: string }[] = [
@@ -140,6 +156,8 @@ export function MacroCategorieManager() {
   const macroImage = useListinoEntityImage("macro");
   // Macrocategoria di cui si sta editando la scheda tecnica (null = chiuso)
   const [schedaTecnicaFor, setSchedaTecnicaFor] = useState<ListinoMacrocategoria | null>(null);
+  // Apertura dialog galleria foto template (per la foto macrocategoria).
+  const [photoTemplatePickerOpen, setPhotoTemplatePickerOpen] = useState(false);
 
   // Raggruppa categorie per macrocategoria_id (null → orfane)
   const byMacroId = useMemo(() => {
@@ -222,6 +240,29 @@ export function MacroCategorieManager() {
       patch: { immagine_url: res.url },
     });
     toast.success("Foto caricata");
+  };
+
+  /**
+   * Applica una foto scelta dalla galleria template. Non scarica il file:
+   * salva direttamente l'URL CDN remoto su `immagine_url`. Funziona solo
+   * in modalità macro-edit (servono id macro).
+   */
+  const handlePhotoTemplateSelect = async (photo: { image_url: string; nome: string }) => {
+    if (editMode.kind !== "macro-edit") {
+      toast.error("Salva prima la macrocategoria, poi scegli una foto template.");
+      return;
+    }
+    try {
+      await updateMacrocategoria.mutateAsync({
+        id: editMode.row.id,
+        patch: { immagine_url: photo.image_url },
+      });
+      setFormImmagineUrl(photo.image_url);
+      toast.success(`Foto "${photo.nome}" applicata`);
+    } catch (err) {
+      const { message } = translateListinoError(err);
+      toast.error("Errore applicazione foto", { description: message });
+    }
   };
 
   const handleImageRemove = async () => {
@@ -660,6 +701,17 @@ export function MacroCategorieManager() {
                             </>
                           )}
                         </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPhotoTemplatePickerOpen(true)}
+                          disabled={macroImage.isUploading || macroImage.isRemoving}
+                          className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                        >
+                          <ImageIcon className="h-3.5 w-3.5 mr-1.5" />
+                          Scegli da galleria
+                        </Button>
                         {formImmagineUrl && (
                           <Button
                             type="button"
@@ -842,6 +894,19 @@ export function MacroCategorieManager() {
           onClose={() => setSchedaTecnicaFor(null)}
         />
       )}
+
+      {/* Galleria foto template (super_admin gestita) — pre-filtrata sul
+          primo verticale abilitato della macrocategoria in editing. */}
+      <PhotoTemplatePicker
+        open={photoTemplatePickerOpen}
+        onOpenChange={setPhotoTemplatePickerOpen}
+        initialVertical={(() => {
+          const firstV = formVerticali[0];
+          if (!firstV) return null;
+          return VERTICAL_TO_GALLERY_SLUG[firstV] ?? firstV;
+        })()}
+        onSelect={(photo) => void handlePhotoTemplateSelect(photo)}
+      />
     </div>
   );
 }
