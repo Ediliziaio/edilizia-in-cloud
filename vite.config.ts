@@ -216,6 +216,29 @@ export default defineConfig(() => ({
           if (id.includes("@zxing")) {
             return "vendor-qr";
           }
+          // Consolidamento Radix UI (18 sub-pacchetti, prima frantumati in
+          // chunk piccoli ~10-20KB cad). Un unico vendor-radix riduce HTTP
+          // overhead e migliora cache hit-rate.
+          if (id.includes("@radix-ui/")) {
+            return "vendor-radix";
+          }
+          // Shared utility (clsx + tailwind-merge + zod): usate praticamente
+          // OVUNQUE → meritano un loro chunk dedicato per dedup e cache.
+          // Senza, vengono duplicate fra index.js + chunks vendor + alcuni
+          // route chunks → pochi KB ma cache-busting frequente.
+          if (
+            id.includes("/clsx/") ||
+            id.includes("/tailwind-merge/") ||
+            id.includes("/class-variance-authority/") ||
+            id.includes("/zod/")
+          ) {
+            return "vendor-shared";
+          }
+          // TipTap consolidato: 6 sub-pacchetti, sempre caricati insieme
+          // (RichTextEditor è lazy ma dentro carica tutta la suite).
+          if (id.includes("@tiptap/")) {
+            return "vendor-tiptap";
+          }
         },
       },
     },

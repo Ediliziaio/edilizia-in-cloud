@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,21 +47,49 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
   const [supplierId, setSupplierId] = useState("");
   const [orderId, setOrderId] = useState("");
 
-  // Combobox data
-  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
-  const [orders, setOrders] = useState<OrderOption[]>([]);
+  // Combobox state UI only — i dati sono fetched via React Query (no piu'
+  // setState-on-unmount race + auto cleanup quando dialog si chiude).
   const [supplierOpen, setSupplierOpen] = useState(false);
   const [orderOpen, setOrderOpen] = useState(false);
 
-  useEffect(() => {
-    if (!open || !companyId) return;
-    supabase.from("suppliers").select("id, name").eq("company_id", companyId).order("name").then(({ data }) => {
-      if (data) setSuppliers(data);
-    });
-    supabase.from("orders").select("id, order_code, customers(company_name)").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50).then(({ data }) => {
-      if (data) setOrders(data as unknown as OrderOption[]);
-    });
-  }, [open, companyId]);
+  // Suppliers: lookup table semi-statica → cache 10min, fetch solo a dialog
+  // aperto. Prima un'effect mutavo setState anche dopo unmount (no cleanup)
+  // e potevo overflow di righe (no .limit()).
+  const { data: suppliers = [] } = useQuery<SupplierOption[]>({
+    queryKey: ["scadenza-suppliers", companyId],
+    enabled: open && !!companyId,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .order("name")
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as SupplierOption[];
+    },
+  });
+
+  // Orders: gli ultimi 50 sono già un buon default per combobox; user può
+  // sempre cercare via search input del Command. Cache 2min (dati piu' volatili).
+  const { data: orders = [] } = useQuery<OrderOption[]>({
+    queryKey: ["scadenza-orders", companyId],
+    enabled: open && !!companyId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, order_code, customers(company_name)")
+        .eq("company_id", companyId!)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data as unknown as OrderOption[]) ?? [];
+    },
+  });
 
   const reset = () => {
     setTipo("incasso_cliente");

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users, Plus, Shield, ShieldOff, Trash2, Loader2, ShieldCheck, Search,
@@ -296,6 +296,8 @@ export function UsersConfig() {
   const [deleteTarget, setDeleteTarget] = useState<CompanyUser | null>(null);
 
   // ── Teams ───────────────────────────────────────────────────────────
+  // Cache lunga: i team cambiano raramente (configurati una tantum dagli admin).
+  // staleTime 10min evita ri-fetch su tab-switch / drawer open/close.
   const { data: teams = [] } = useQuery({
     queryKey: ["teams-filter", effectiveCompanyId],
     queryFn: async () => {
@@ -306,18 +308,35 @@ export function UsersConfig() {
       return data;
     },
     enabled: !!effectiveCompanyId,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
+  // QueryKey stabile: `teams.map(t => t.id)` come dep ricreava array a ogni
+  // render → cache React Query "bustata" inutilmente (anche se i team non
+  // cambiavano). Stabilizziamo serializzando in stringa via useMemo.
+  const teamIdsKey = useMemo(
+    () => teams.map((t) => t.id).sort().join(","),
+    [teams],
+  );
+  const teamIds = useMemo(() => teams.map((t) => t.id), [teams]);
+
   const { data: teamMemberships = [] } = useQuery({
-    queryKey: ["team-memberships-filter", effectiveCompanyId, teams.map(t => t.id)],
+    queryKey: ["team-memberships-filter", effectiveCompanyId, teamIdsKey],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("team_members").select("user_id, team_id")
-        .in("team_id", teams.map(t => t.id));
+        .from("team_members")
+        .select("user_id, team_id")
+        .in("team_id", teamIds)
+        // Bound paranoico: una company con 1000 utenti × 10 team avrebbe
+        // 10000 righe. Limit 5000 è di sicurezza, oltre meglio paginare.
+        .limit(5000);
       if (error) throw error;
       return data;
     },
     enabled: teams.length > 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
   });
 
   // ── Company Users Query ─────────────────────────────────────────────
@@ -333,10 +352,29 @@ export function UsersConfig() {
       const userIds = profiles.map((p) => p.id);
       if (userIds.length === 0) return [];
 
+      // Bound paranoici su queries multi-utente: anche se userIds è già
+      // limitato dalla query profiles a monte, esplicitare i limit evita
+      // payload runaway su company molto grandi (3000+ utenti).
       const [rolesRes, sessionsRes, permsRes] = await Promise.all([
-        supabase.from("user_roles").select("user_id, role").in("user_id", userIds),
-        supabase.from("user_sessions").select("user_id").eq("company_id", effectiveCompanyId!).eq("is_active", true),
-        supabase.from("staff_permissions").select("*").in("user_id", userIds),
+        supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .in("user_id", userIds)
+          .limit(5000),
+        supabase
+          .from("user_sessions")
+          .select("user_id")
+          .eq("company_id", effectiveCompanyId!)
+          .eq("is_active", true)
+          .limit(2000),
+        // staff_permissions ha schema molto largo (30+ permission booleans);
+        // qui carichiamo "*" perché la UI mostra il pannello permessi completo
+        // su click. Bound numerico evita full-table fetch su DB drift.
+        supabase
+          .from("staff_permissions")
+          .select("*")
+          .in("user_id", userIds)
+          .limit(2000),
       ]);
       if (rolesRes.error) throw rolesRes.error;
       if (sessionsRes.error) throw sessionsRes.error;

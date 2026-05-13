@@ -255,8 +255,17 @@ export default function MarketingAppointmentDialog({
     [sameDayAppointments]
   );
 
+  // QueryKey stabile: `geocodedSameDay.map(...).join` inline ricreava la
+  // stringa a ogni render. Anche se useMemo monta geocodedSameDay solo
+  // quando cambia sameDayAppointments, l'expression nel queryKey va
+  // ESPLICITAMENTE memoizzata oppure inline si ricrea sempre.
+  const geocodedSameDayIdsKey = useMemo(
+    () => geocodedSameDay.map((a) => a.id).sort().join(","),
+    [geocodedSameDay],
+  );
+
   const { data: interDistances = {}, isFetching: isInterDistLoading } = useQuery<Record<string, { duration_text: string; distance_text: string }>>({
-    queryKey: ["mkt-apt-inter-dist", addressData.lat, addressData.lng, geocodedSameDay.map((a) => a.id).join(",")],
+    queryKey: ["mkt-apt-inter-dist", addressData.lat, addressData.lng, geocodedSameDayIdsKey],
     queryFn: async () => {
       if (!addressData.lat || !addressData.lng || geocodedSameDay.length === 0) return {};
       const results: Record<string, { duration_text: string; distance_text: string }> = {};
