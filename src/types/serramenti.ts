@@ -464,6 +464,13 @@ export interface SrTemplatePdfRow {
    *  NULL = fallback a pdf_cover_subhero. Placeholders: {cliente_nome},
    *  {cliente_nome_completo}, {cantiere_citta}, {num_serramenti}, ecc. */
   pdf_cover_subhero_template: string | null;
+  /** Mostra rata mensile minima nel box "Il tuo investimento" (M7,
+   *  migration 20270514040000). Richiede piano di finanziamento configurato.
+   *  Default false. */
+  pdf_mostra_rata_mensile: boolean;
+  /** Mostra prezzo netto dopo recupero fiscale (es. ecobonus 50%) nel box
+   *  "Il tuo investimento" (M7, migration 20270514040000). Default true. */
+  pdf_mostra_recupero_fiscale: boolean;
   created_at: string;
   updated_at: string;
 }

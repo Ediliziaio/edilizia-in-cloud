@@ -709,6 +709,39 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 </div>
               </div>
             </div>
+            {/* Milestone 7: toggle box prezzo arricchito */}
+            <div className="col-span-12 md:col-span-6">
+              <div className="flex items-start gap-3 p-3 rounded-md border bg-slate-50/50 h-full">
+                <Switch
+                  checked={form.pdf_mostra_rata_mensile === true}
+                  onCheckedChange={(checked) => update("pdf_mostra_rata_mensile", checked)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <Label className="text-sm font-medium block">Mostra rata mensile nel box prezzo</Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Sotto al totale, in piccolo: <code className="font-mono text-[10px] bg-white px-1 rounded">≈ da € 89/mese in 60 mesi</code>.
+                    Richiede almeno un piano di finanziamento configurato sul preventivo. Off di default.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="col-span-12 md:col-span-6">
+              <div className="flex items-start gap-3 p-3 rounded-md border bg-slate-50/50 h-full">
+                <Switch
+                  checked={form.pdf_mostra_recupero_fiscale !== false}
+                  onCheckedChange={(checked) => update("pdf_mostra_recupero_fiscale", checked)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <Label className="text-sm font-medium block">Mostra netto dopo recupero fiscale</Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Sotto al totale, in evidenza: <code className="font-mono text-[10px] bg-white px-1 rounded">Netto dopo ecobonus 50%: € 7.450</code>.
+                    Richiede aliquota detrazione configurata sul preventivo. <strong>On di default</strong>.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </SrCard>

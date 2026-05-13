@@ -321,6 +321,27 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     priceValue: { fontSize: 28, fontWeight: 800, color: C.primary },
     priceSuffix: { fontSize: 11, color: C.primary, marginLeft: 8, fontWeight: 500 },
 
+    // Milestone 7: highlight rata mensile + netto post-fiscale dentro priceBox.
+    // Riga divider sopra: serve a separare visivamente dal blocco numerico.
+    priceExtraRow: {
+      flexDirection: "row",
+      marginTop: 12,
+      paddingTop: 10,
+      borderTop: `0.5pt solid ${C.primary}`,
+      gap: 18,
+    },
+    priceExtraItem: { flex: 1 },
+    priceExtraLabel: {
+      fontSize: 8,
+      color: C.primary,
+      textTransform: "uppercase" as const,
+      letterSpacing: 0.6,
+      fontWeight: 700,
+      marginBottom: 2,
+    },
+    priceExtraValue: { fontSize: 14, color: C.primary, fontWeight: 800 },
+    priceExtraSub: { fontSize: 7.5, color: C.primary, marginTop: 1 },
+
     // Pay schema tag
     paySchemaTag: {
       backgroundColor: C.accentLight,
@@ -1350,6 +1371,12 @@ export function SerramentoPDF({
   const coverShowDecoration = tpl.pdf_cover_show_decoration !== false;
   const coverShowClientCard = tpl.pdf_cover_show_client_card !== false;
   const coverTextAlign = (tpl.pdf_cover_text_align === "center" ? "center" : "left") as "left" | "center";
+
+  // ─── Milestone 7 · Box prezzo arricchito (rata + recupero fiscale) ────
+  // Toggle attivi solo se i dati sottostanti sono presenti sul preventivo.
+  const mostraRataMensile = tpl.pdf_mostra_rata_mensile === true;
+  const mostraRecuperoFiscale = tpl.pdf_mostra_recupero_fiscale !== false; // default true
+
   const ctaTitle = tpl.pdf_cta_finale_titolo || "Cosa fare adesso";
   const ctaSteps = (Array.isArray(tpl.pdf_cta_finale_passi) && tpl.pdf_cta_finale_passi.length > 0)
     ? tpl.pdf_cta_finale_passi as string[]
@@ -2196,6 +2223,38 @@ export function SerramentoPDF({
                           ? "Operazione esente / non imponibile IVA."
                           : `Aliquota IVA ${p.iva_percentuale}% — ordinaria.`}
                 </Text>
+
+                {/* Milestone 7: rata mensile + netto dopo recupero fiscale.
+                    Mostrati solo se il toggle è ON E i dati sono presenti sul
+                    preventivo (piani finanziamento / detrazione aliquota). */}
+                {((mostraRataMensile && piani.length > 0) ||
+                  (mostraRecuperoFiscale && p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0)) && (
+                  <View style={styles.priceExtraRow}>
+                    {mostraRataMensile && piani.length > 0 && (() => {
+                      // Prendiamo il piano con rata più bassa per l'anchor "da € X/mese".
+                      const piano = piani.reduce((min, cur) =>
+                        Number(cur.rata_mese ?? Infinity) < Number(min.rata_mese ?? Infinity) ? cur : min
+                      , piani[0]);
+                      return (
+                        <View style={styles.priceExtraItem}>
+                          <Text style={styles.priceExtraLabel}>oppure a rate</Text>
+                          <Text style={styles.priceExtraValue}>≈ da € {fmtEuro(piano.rata_mese)}/mese</Text>
+                          <Text style={styles.priceExtraSub}>in {piano.mesi} mesi · TAN {piano.tasso}%</Text>
+                        </View>
+                      );
+                    })()}
+                    {mostraRecuperoFiscale && p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0 && (() => {
+                      const netto = Math.max(0, totaleMedia - Number(p.detrazione_eur_totale ?? 0));
+                      return (
+                        <View style={styles.priceExtraItem}>
+                          <Text style={styles.priceExtraLabel}>Netto dopo recupero fiscale</Text>
+                          <Text style={styles.priceExtraValue}>€ {fmtEuro(netto)}</Text>
+                          <Text style={styles.priceExtraSub}>Ecobonus {p.detrazione_aliquota}% in 10 quote</Text>
+                        </View>
+                      );
+                    })()}
+                  </View>
+                )}
               </View>
 
               {/* Box urgenza/scadenza prezzo + early bird (CRO) */}
