@@ -88,6 +88,7 @@ import { translateListinoError } from "@/lib/listinoErrors";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SchedaTecnicaEditor } from "./SchedaTecnicaEditor";
 import { PhotoTemplatePicker } from "./PhotoTemplatePicker";
+import { SubcategorieTemplateDialog } from "./SubcategorieTemplateDialog";
 
 /**
  * Mappa il verticale "company-side" (es. "serramentista") con il vertical_slug
@@ -158,6 +159,13 @@ export function MacroCategorieManager() {
   const [schedaTecnicaFor, setSchedaTecnicaFor] = useState<ListinoMacrocategoria | null>(null);
   // Apertura dialog galleria foto template (per la foto macrocategoria).
   const [photoTemplatePickerOpen, setPhotoTemplatePickerOpen] = useState(false);
+  // Suggerimento subcategorie standard: aperto dopo create macro riuscito.
+  // Contiene la macro appena creata + il primo verticale abilitato.
+  const [suggestSubcategorieFor, setSuggestSubcategorieFor] = useState<{
+    macroId: string;
+    nome: string;
+    vertical: string;
+  } | null>(null);
 
   // Raggruppa categorie per macrocategoria_id (null → orfane)
   const byMacroId = useMemo(() => {
@@ -340,7 +348,7 @@ export function MacroCategorieManager() {
 
     try {
       if (editMode.kind === "macro-new") {
-        await createMacrocategoria.mutateAsync({
+        const created = await createMacrocategoria.mutateAsync({
           nome,
           // Una macrocategoria usa solo `descrizione_estesa`. Manteniamo `descrizione`
           // in sync (primi 250 char) per retro-compat con UI che la leggono ancora.
@@ -349,6 +357,17 @@ export function MacroCategorieManager() {
           verticali_abilitati: formVerticali,
         });
         toast.success("Macrocategoria creata");
+        // Auto-suggest subcategorie standard solo se l'utente ha indicato
+        // almeno un verticale (altrimenti non sappiamo che template proporre).
+        const firstV = formVerticali[0];
+        const gallerySlug = firstV ? (VERTICAL_TO_GALLERY_SLUG[firstV] ?? firstV) : null;
+        if (created?.id && gallerySlug) {
+          setSuggestSubcategorieFor({
+            macroId: created.id,
+            nome: created.nome,
+            vertical: gallerySlug,
+          });
+        }
       } else if (editMode.kind === "macro-edit") {
         await updateMacrocategoria.mutateAsync({
           id: editMode.row.id,
@@ -894,6 +913,16 @@ export function MacroCategorieManager() {
           onClose={() => setSchedaTecnicaFor(null)}
         />
       )}
+
+      {/* Auto-suggest subcategorie standard subito dopo create macrocategoria. */}
+      <SubcategorieTemplateDialog
+        open={!!suggestSubcategorieFor}
+        onOpenChange={(o) => { if (!o) setSuggestSubcategorieFor(null); }}
+        vertical={suggestSubcategorieFor?.vertical ?? null}
+        macrocategoriaId={suggestSubcategorieFor?.macroId ?? null}
+        macrocategoriaNome={suggestSubcategorieFor?.nome}
+        onApplied={() => setSuggestSubcategorieFor(null)}
+      />
 
       {/* Galleria foto template (super_admin gestita) — pre-filtrata sul
           primo verticale abilitato della macrocategoria in editing. */}
