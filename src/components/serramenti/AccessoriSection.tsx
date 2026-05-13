@@ -12,7 +12,7 @@
  * × quantità). Risolve il workflow "ho 10 finestre, voglio 10 tapparelle
  * con le stesse misure senza re-inserirle tutte".
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

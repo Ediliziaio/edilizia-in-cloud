@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { OnboardingCard } from "@/components/serramenti/OnboardingCard";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -41,6 +42,7 @@ import {
   ChevronRight, ChevronLeft, Settings, TrendingUp, FileText, Layers, Trophy,
   XCircle, Wallet, SlidersHorizontal, X, User, MapPin, Package2, Sparkles,
   Briefcase, ClipboardList, FileSignature,
+  AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { useProgetti, useDeleteProgetto } from "@/lib/serramenti/queries";
 import { cn } from "@/lib/utils";
@@ -338,6 +340,35 @@ export default function SerramentiIndex() {
       0,
     );
     const ticketMedio = vinti.length > 0 ? valoreVinti / vinti.length : null;
+
+    // ─── Dashboard "Azioni del giorno" ──────────────────────────────────
+    // Preventivi consegnati/in_valutazione la cui validità scade entro 7
+    // giorni (o già scaduta) → il commerciale deve richiamare il cliente.
+    // Calcolato SU TUTTO il dataset (no filtro periodo) perché sono richiami
+    // operativi non analitici.
+    const now = Date.now();
+    const SETTE_GIORNI_MS = 7 * 24 * 60 * 60 * 1000;
+    const scadenzaUrgente = progetti.filter((p) => {
+      if (p.stato !== "consegnato" && p.stato !== "in_valutazione") return false;
+      if (!p.valido_fino_data) return false;
+      const giornoScadenza = new Date(p.valido_fino_data).getTime();
+      return giornoScadenza - now <= SETTE_GIORNI_MS; // include già scadute
+    });
+    const scaduti = scadenzaUrgente.filter((p) => {
+      if (!p.valido_fino_data) return false;
+      return new Date(p.valido_fino_data).getTime() < now;
+    });
+    const inScadenzaProssimi = scadenzaUrgente.filter((p) => {
+      if (!p.valido_fino_data) return false;
+      return new Date(p.valido_fino_data).getTime() >= now;
+    });
+
+    // Preventivi accettati ancora non convertiti in ordine (revenue da
+    // sbloccare). Filtro su ordine_id IS NULL e stato='accettato'.
+    const accettatiDaConvertire = progetti.filter((p) =>
+      p.stato === "accettato" && !p.ordine_id,
+    );
+
     return {
       totale: inPeriod.length,
       aperti: aperti.length,
@@ -347,6 +378,11 @@ export default function SerramentiIndex() {
       valorePipeline,
       valoreVinti,
       ticketMedio,
+      // Azioni del giorno
+      scadenzaUrgente: scadenzaUrgente.length,
+      scaduti,
+      inScadenzaProssimi,
+      accettatiDaConvertire,
     };
   }, [progetti, cutoff]);
 
@@ -428,6 +464,10 @@ export default function SerramentiIndex() {
       </div>
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-5 sm:py-6 space-y-4 sm:space-y-5">
+        {/* Onboarding card — checklist setup (visibile solo se incompleto +
+            non dismissato). Si auto-nasconde quando l'azienda raggiunge 4/4. */}
+        <OnboardingCard />
+
         {/* KPI Dashboard — informativi, non cliccabili */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <KpiCard label="Totale preventivi" value={stats.totale} icon={<FileText className="h-4 w-4" />} tone="slate" />
@@ -463,6 +503,111 @@ export default function SerramentiIndex() {
             hint={stats.vinti > 0 ? `su ${stats.vinti} vint${stats.vinti === 1 ? "a" : "e"}` : undefined}
           />
         </div>
+
+        {/* ─── Dashboard "Azioni del giorno" ─────────────────────────────
+            Sezione actionable: liste compatte di preventivi che richiedono
+            attenzione immediata. Si nasconde automaticamente se 0 item. */}
+        {(stats.scadenzaUrgente > 0 || stats.accettatiDaConvertire.length > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Box "In scadenza / scaduti" */}
+            {stats.scadenzaUrgente > 0 && (
+              <Card className="border-amber-200 bg-amber-50/40">
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <AlertTriangle className="h-4 w-4 text-amber-700" />
+                      <span className="text-sm font-semibold text-amber-900">
+                        {stats.scadenzaUrgente} preventiv{stats.scadenzaUrgente === 1 ? "o" : "i"} in scadenza
+                      </span>
+                    </div>
+                    {stats.scaduti.length > 0 && (
+                      <Badge variant="outline" className="text-[10px] border-rose-300 text-rose-700 bg-white">
+                        {stats.scaduti.length} già scadut{stats.scaduti.length === 1 ? "o" : "i"}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-amber-900/80 leading-tight">
+                    Validità in scadenza entro 7 giorni. Richiama il cliente o estendi la scadenza prima che vadano persi.
+                  </p>
+                  <ul className="space-y-1 max-h-32 overflow-y-auto">
+                    {[...stats.scaduti, ...stats.inScadenzaProssimi].slice(0, 5).map((p) => {
+                      const scaduto = p.valido_fino_data && new Date(p.valido_fino_data).getTime() < Date.now();
+                      const giorni = p.valido_fino_data
+                        ? Math.round((new Date(p.valido_fino_data).getTime() - Date.now()) / (24 * 60 * 60 * 1000))
+                        : null;
+                      return (
+                        <li key={p.id}>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/azienda/serramenti/${p.id}/modifica`)}
+                            className="w-full text-left text-[11px] flex items-center justify-between gap-2 px-2 py-1 rounded hover:bg-white transition-colors"
+                          >
+                            <span className="truncate flex-1">
+                              <strong>{p.code}</strong>{" "}
+                              <span className="text-muted-foreground">
+                                {[p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "—"}
+                              </span>
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={`text-[9px] shrink-0 ${
+                                scaduto ? "border-rose-300 text-rose-700" : "border-amber-300 text-amber-700"
+                              }`}
+                            >
+                              {scaduto
+                                ? `scaduto ${Math.abs(giorni ?? 0)}g fa`
+                                : giorni === 0
+                                ? "oggi"
+                                : `tra ${giorni}g`}
+                            </Badge>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Box "Accettati da convertire in ordine" */}
+            {stats.accettatiDaConvertire.length > 0 && (
+              <Card className="border-emerald-200 bg-emerald-50/40">
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                    <span className="text-sm font-semibold text-emerald-900">
+                      {stats.accettatiDaConvertire.length} accettat{stats.accettatiDaConvertire.length === 1 ? "o" : "i"} da convertire
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-900/80 leading-tight">
+                    Preventivi accettati dal cliente ma non ancora trasformati in ordine. Sblocca la produzione.
+                  </p>
+                  <ul className="space-y-1 max-h-32 overflow-y-auto">
+                    {stats.accettatiDaConvertire.slice(0, 5).map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/azienda/serramenti/${p.id}/modifica`)}
+                          className="w-full text-left text-[11px] flex items-center justify-between gap-2 px-2 py-1 rounded hover:bg-white transition-colors"
+                        >
+                          <span className="truncate flex-1">
+                            <strong>{p.code}</strong>{" "}
+                            <span className="text-muted-foreground">
+                              {[p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "—"}
+                            </span>
+                          </span>
+                          <Badge variant="outline" className="text-[9px] shrink-0 border-emerald-300 text-emerald-700">
+                            converti →
+                          </Badge>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
 
         {/* Toolbar: Search inline + Filtri sheet trigger */}
         <Card>
