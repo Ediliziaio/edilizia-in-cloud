@@ -130,6 +130,36 @@ export default defineConfig(() => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // ────────────────────────────────────────────────────────────────────────
+  // optimizeDeps — pre-bundle delle dipendenze TipTap in modo coerente.
+  //
+  // Senza include esplicito, Vite scopre TipTap "on-demand" quando incontra
+  // un import dinamico (RichTextEditorSafe usa lazy()) e questo può lasciare
+  // bundle cached con default-export mancante dopo un cambio di versione.
+  // Forziamo Vite a includere TUTTI i sub-pacchetti TipTap nel pre-bundle
+  // iniziale, così l'optimizer risolve correttamente i named export.
+  //
+  // exclude: i sub-pacchetti `@tiptap/extension-color` e
+  // `@tiptap/extension-font-family` sono stati rimossi dal package.json
+  // (in TipTap 3.x sono consolidati in `@tiptap/extension-text-style`).
+  // Li listiamo qui per essere espliciti: se in futuro vengono re-installati
+  // come dipendenza transitiva, Vite NON li pre-bundla con default-export.
+  // ────────────────────────────────────────────────────────────────────────
+  optimizeDeps: {
+    include: [
+      "@tiptap/react",
+      "@tiptap/starter-kit",
+      "@tiptap/extension-underline",
+      "@tiptap/extension-text-style",
+      "@tiptap/extension-text-align",
+      "@tiptap/extension-link",
+      "dompurify",
+    ],
+    exclude: [
+      "@tiptap/extension-color",
+      "@tiptap/extension-font-family",
+    ],
+  },
   build: {
     // Move generated bundles away from previously poisoned immutable cache
     // namespaces. Cloudflare Pages SPA fallback has served index.html for JS

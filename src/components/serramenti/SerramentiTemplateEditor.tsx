@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditorSafe as RichTextEditor } from "@/components/ui/rich-text-editor-safe";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -1468,18 +1469,14 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </div>
                   <div>
                     <Label className="text-xs">Testo descrizione azienda</Label>
-                    <Textarea
+                    <RichTextEditor
                       value={form.chi_siamo_testo ?? ""}
-                      onChange={(e) => update("chi_siamo_testo", e.target.value || null)}
-                      rows={6}
-                      placeholder={
-                        "Es.\n\nDal 2010 produciamo serramenti su misura per il residenziale.\n\nLavoriamo solo con materiali italiani:\n- Profili PVC a 7 camere\n- Vetri triplo basso-emissivi\n- Pose certificate UNI 11673"
-                      }
-                      className="text-xs font-normal"
+                      onChange={(html) => update("chi_siamo_testo", html || null)}
+                      placeholder="Dal 2010 produciamo serramenti su misura per il residenziale. Lavoriamo solo con materiali italiani: profili PVC a 7 camere, vetri triplo basso-emissivi, pose certificate UNI 11673."
+                      minHeight={160}
                     />
                     <p className="text-[10px] text-muted-foreground mt-0.5">
-                      A capo doppio per paragrafi. Righe che iniziano con
-                      "<code className="font-mono">- </code>" diventano bullet nel PDF.
+                      Usa la toolbar per cambiare dimensione testo, font, grassetto, allineamento, liste.
                     </p>
                   </div>
                 </div>
@@ -1493,12 +1490,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               Sezione "La tua consulenza"
             </div>
             <Label className="text-xs">Descrizione del consulente (mostrata sotto nome + ruolo)</Label>
-            <Textarea
+            <RichTextEditor
               value={form.consulente_descrizione_default ?? ""}
-              onChange={(e) => update("consulente_descrizione_default", e.target.value || null)}
-              rows={3}
+              onChange={(html) => update("consulente_descrizione_default", html || null)}
               placeholder="Es. Ti accompagnerò personalmente dal primo sopralluogo fino al collaudo finale. Per qualunque domanda o necessità, sono il tuo punto di riferimento."
-              className="text-xs"
+              minHeight={100}
             />
             <p className="text-[10px] text-muted-foreground">
               Frase generica per dare un tono personale. Nome e foto del consulente
@@ -1535,12 +1531,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               Disclaimer Render AI
             </div>
             <Label className="text-xs">Testo legale sotto i render AI (lascia vuoto per il default)</Label>
-            <Textarea
+            <RichTextEditor
               value={form.render_disclaimer ?? ""}
-              onChange={(e) => update("render_disclaimer", e.target.value || null)}
-              rows={4}
+              onChange={(html) => update("render_disclaimer", html || null)}
               placeholder="Render generato con intelligenza artificiale a scopo esclusivamente dimostrativo e illustrativo..."
-              className="text-xs font-normal"
+              minHeight={120}
             />
           </TabsContent>
 

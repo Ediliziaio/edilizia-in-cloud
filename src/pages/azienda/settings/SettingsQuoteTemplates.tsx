@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditorSafe as RichTextEditor } from "@/components/ui/rich-text-editor-safe";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -448,7 +449,12 @@ function ProductTemplateEditor({ form, updateForm, productImageInputRef, product
 
         <div>
           <Label>Descrizione estesa</Label>
-          <Textarea value={form.product_long_description ?? ''} onChange={e => updateForm({ product_long_description: e.target.value })} rows={4} placeholder="Dettagli, materiali, finitura, vantaggi…" />
+          <RichTextEditor
+            value={form.product_long_description ?? ''}
+            onChange={(html) => updateForm({ product_long_description: html })}
+            placeholder="Dettagli, materiali, finitura, vantaggi…"
+            minHeight={120}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -1944,12 +1950,11 @@ export default function SettingsQuoteTemplates() {
                       onInsert={(v) => updateForm({ payment_terms_text: v })}
                     />
                   </div>
-                  <Textarea
-                    ref={paymentRef}
+                  <RichTextEditor
                     value={form.payment_terms_text || ''}
-                    onChange={e => updateForm({ payment_terms_text: e.target.value })}
-                    rows={3}
+                    onChange={(html) => updateForm({ payment_terms_text: html })}
                     placeholder="Es. Acconto 30% alla firma, 40% a inizio lavori, saldo {{cliente.nome}} a consegna chiavi in mano."
+                    minHeight={90}
                   />
                 </div>
                 <div>
@@ -1961,12 +1966,11 @@ export default function SettingsQuoteTemplates() {
                       onInsert={(v) => updateForm({ delivery_terms_text: v })}
                     />
                   </div>
-                  <Textarea
-                    ref={deliveryRef}
+                  <RichTextEditor
                     value={form.delivery_terms_text || ''}
-                    onChange={e => updateForm({ delivery_terms_text: e.target.value })}
-                    rows={2}
+                    onChange={(html) => updateForm({ delivery_terms_text: html })}
                     placeholder="3-4 settimane dalla conferma. Cantiere: {{cantiere.indirizzo}}"
+                    minHeight={70}
                   />
                 </div>
                 <div>
@@ -2007,12 +2011,11 @@ export default function SettingsQuoteTemplates() {
                         onInsert={(v) => updateForm({ contractual_terms_text: v })}
                       />
                     </div>
-                    <Textarea
-                      ref={contractualRef}
+                    <RichTextEditor
                       value={form.contractual_terms_text ?? ''}
-                      onChange={e => updateForm({ contractual_terms_text: e.target.value })}
-                      rows={8}
-                      placeholder={`Es.\n\n1. OGGETTO\nL'azienda {{azienda.ragione_sociale}} si impegna ad eseguire i lavori descritti per il cliente {{cliente.nome_completo}} presso {{cantiere.indirizzo}}.\n\n2. GARANZIA\nLa garanzia è di 24 mesi dalla data di consegna.\n\n3. VARIANTI\nEventuali varianti devono essere concordate per iscritto...`}
+                      onChange={(html) => updateForm({ contractual_terms_text: html })}
+                      placeholder="1. OGGETTO — L'azienda {{azienda.ragione_sociale}} si impegna...&#10;2. GARANZIA — La garanzia è di 24 mesi...&#10;3. VARIANTI — Eventuali varianti devono essere concordate per iscritto..."
+                      minHeight={180}
                     />
                   </div>
                 )}
@@ -2045,12 +2048,11 @@ export default function SettingsQuoteTemplates() {
                         onInsert={(v) => updateForm({ legal_terms_text: v })}
                       />
                     </div>
-                    <Textarea
-                      ref={legalRef}
+                    <RichTextEditor
                       value={form.legal_terms_text ?? ''}
-                      onChange={e => updateForm({ legal_terms_text: e.target.value })}
-                      rows={8}
-                      placeholder={`Es.\n\nPRIVACY (GDPR Reg. UE 2016/679)\nI dati personali di {{cliente.nome_completo}} saranno trattati nel rispetto del GDPR per l'esecuzione del contratto...\n\nDIRITTO DI RECESSO\nIl cliente può recedere dal contratto entro 14 giorni come da art. 52 D.lgs 206/2005...\n\nFORO COMPETENTE\nPer ogni controversia è competente il Foro di [città azienda].`}
+                      onChange={(html) => updateForm({ legal_terms_text: html })}
+                      placeholder="PRIVACY (GDPR Reg. UE 2016/679) — I dati personali di {{cliente.nome_completo}}...&#10;DIRITTO DI RECESSO — entro 14 giorni come da art. 52 D.lgs 206/2005...&#10;FORO COMPETENTE — Foro di [città azienda]."
+                      minHeight={180}
                     />
                   </div>
                 )}
