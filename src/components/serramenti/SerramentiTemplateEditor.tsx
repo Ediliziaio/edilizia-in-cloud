@@ -73,6 +73,8 @@ import { COVER_PRESETS, detectActiveCoverPreset } from "./coverPresets";
 import { contrastRatio, wcagLevel, suggestBestTextColor } from "@/lib/utils/contrast";
 // M16 · Galleria immagini stock (Unsplash free) per cover
 import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "./coverStockImages";
+// M20 · Palette colore intelligente (brand variations + curate)
+import { generateBrandPalette, CURATED_PALETTES } from "@/lib/utils/colorPalette";
 
 interface SerramentiTemplateEditorProps {
   /** Se true, nasconde lo sticky bottom save (usato dentro Tabs con bottone proprio) */
@@ -1495,6 +1497,61 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                           Reset
                         </Button>
                       )}
+                    </div>
+
+                    {/* M20 · Palette intelligente: brand variations + curate.
+                        Solo quando non c'è immagine (palette serve per il bg solido). */}
+                    <div className="mt-2 space-y-1.5">
+                      {/* Brand palette: 4 variazioni dal colore_primario aziendale */}
+                      {form.colore_primario && (
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                            🎨 Brand · variazioni da {form.colore_primario}
+                          </div>
+                          <div className="flex gap-1 flex-wrap">
+                            {generateBrandPalette(form.colore_primario).map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => update("pdf_cover_bg_color", c)}
+                                title={c}
+                                className={
+                                  "w-7 h-7 rounded border-2 transition-all hover:scale-110 " +
+                                  (form.pdf_cover_bg_color === c
+                                    ? "border-orange-500 ring-1 ring-orange-300"
+                                    : "border-slate-200 hover:border-orange-300")
+                                }
+                                style={{ backgroundColor: c }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Palette curate (3 set) */}
+                      {CURATED_PALETTES.map((p) => (
+                        <div key={p.name}>
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                            {p.emoji} {p.name}
+                          </div>
+                          <div className="flex gap-1 flex-wrap">
+                            {p.colors.map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => update("pdf_cover_bg_color", c)}
+                                title={c}
+                                className={
+                                  "w-7 h-7 rounded border-2 transition-all hover:scale-110 " +
+                                  (form.pdf_cover_bg_color === c
+                                    ? "border-orange-500 ring-1 ring-orange-300"
+                                    : "border-slate-200 hover:border-orange-300")
+                                }
+                                style={{ backgroundColor: c }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
