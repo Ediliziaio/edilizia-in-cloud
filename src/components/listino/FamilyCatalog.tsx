@@ -600,7 +600,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                   </span>
                 )}
               </Button>
-              {effectiveCompany?.id && (
+              {isAdmin && effectiveCompany?.id && (
                 <Button
                   variant="outline"
                   onClick={() => setTemplatePickerOpen(true)}
@@ -1763,7 +1763,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
 
       {/* Galleria template articoli — clona dal catalogo globale super_admin
           dentro il listino azienda. Visibile solo se siamo in scope azienda. */}
-      {effectiveCompany?.id && (
+      {isAdmin && effectiveCompany?.id && (
         <FamilyTemplatePicker
           open={templatePickerOpen}
           onOpenChange={setTemplatePickerOpen}

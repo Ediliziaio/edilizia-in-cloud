@@ -13,7 +13,7 @@
  *  - PhotoTemplatePicker → restituisce SOLO URL foto (callback onSelect).
  *  - FamilyTemplatePicker → ESEGUE l'import lato DB e restituisce family_id.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -70,6 +70,20 @@ export function FamilyTemplatePicker({
   const [search, setSearch] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [brokenImages, setBrokenImages] = useState<Set<string>>(() => new Set());
+
+  // Reset stato quando il dialog viene chiuso, e ri-allinea il verticale al
+  // pre-filtro del caller all'apertura.
+  useEffect(() => {
+    if (!open) {
+      setSelectedId(null);
+      setBrokenImages(new Set());
+      setSearch("");
+    } else if (initialVertical) {
+      setVertical(initialVertical);
+      setCategoriaFiltro("all");
+    }
+  }, [open, initialVertical]);
 
   const { data: templates = [], isLoading, isError } = useArticleFamilyTemplates({
     vertical: vertical === "all" ? null : vertical,
@@ -103,8 +117,6 @@ export function FamilyTemplatePicker({
       });
       onImported?.(familyId, selected);
       onOpenChange(false);
-      setSelectedId(null);
-      setSearch("");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Errore import";
       toast.error("Import fallito", { description: msg });
@@ -197,11 +209,14 @@ export function FamilyTemplatePicker({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {filtered.map((t) => {
                   const isSelected = selectedId === t.id;
+                  const isBroken = brokenImages.has(t.id);
                   return (
                     <button
                       type="button"
                       key={t.id}
                       onClick={() => setSelectedId(t.id)}
+                      aria-pressed={isSelected}
+                      aria-label={`Seleziona template ${t.nome}`}
                       className={cn(
                         "group relative aspect-[4/5] border-2 rounded-md overflow-hidden transition-all bg-slate-50 text-left flex flex-col",
                         isSelected
@@ -210,13 +225,19 @@ export function FamilyTemplatePicker({
                       )}
                     >
                       <div className="flex-1 bg-muted overflow-hidden">
-                        {t.image_url ? (
+                        {t.image_url && !isBroken ? (
                           <img
                             src={t.thumbnail_url ?? t.image_url}
                             alt={t.nome}
                             loading="lazy"
                             className="w-full h-full object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                            onError={() => {
+                              setBrokenImages((prev) => {
+                                const next = new Set(prev);
+                                next.add(t.id);
+                                return next;
+                              });
+                            }}
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">

@@ -1906,16 +1906,20 @@ export function FamilyEditor() {
         </DialogContent>
       </Dialog>
 
-      {/* Galleria foto template — alternativa rapida all'upload manuale. */}
+      {/* Galleria foto template — alternativa rapida all'upload manuale.
+          Pre-filtra il picker sul primo verticale abilitato della macro
+          dell'articolo (es. macro Serramenti → galleria solo Serramenti).
+          Mappatura serramentista→serramenti perche' il company-side usa
+          slug differente da quello della galleria globale. */}
       <PhotoTemplatePicker
         open={photoTemplatePickerOpen}
         onOpenChange={setPhotoTemplatePickerOpen}
         initialVertical={(() => {
-          // Pre-filtra il picker sul verticale ricavato dalla macrocategoria
-          // attualmente selezionata sull'articolo. Migliora l'UX evitando di
-          // far scorrere foto irrilevanti.
           const macro = macrocategorie.find((m) => m.id === macrocategoriaId);
-          return macro?.vertical ?? null;
+          const firstV = macro?.verticali_abilitati?.[0];
+          if (!firstV) return null;
+          // Mappa "serramentista" → "serramenti" (gli altri slug coincidono).
+          return firstV === "serramentista" ? "serramenti" : firstV;
         })()}
         onSelect={(photo) => void handlePhotoTemplateSelect(photo)}
       />

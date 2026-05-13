@@ -14,7 +14,7 @@
  *  - ListinoCategorieManager (foto macrocategoria)
  *  - Eventuali altri punti dove serve scegliere una foto standard.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -60,6 +60,22 @@ export function PhotoTemplatePicker({
   const [vertical, setVertical] = useState<string>(initialVertical ?? "all");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string>("all");
+  // Map verticale -> immagine fallita (per evitare flicker se l'img CDN rotta).
+  const [brokenImages, setBrokenImages] = useState<Set<string>>(() => new Set());
+
+  // Reset stato selezione/filtri quando il dialog viene chiuso, e ri-allinea
+  // il verticale al pre-filtro del caller quando viene riaperto (es. dopo
+  // cambio di macrocategoria).
+  useEffect(() => {
+    if (!open) {
+      setSelectedId(null);
+      setBrokenImages(new Set());
+    } else if (initialVertical) {
+      setVertical(initialVertical);
+      setCategoriaFiltro("all");
+    }
+  }, [open, initialVertical]);
 
   const { data: templates = [], isLoading, isError } = useArticlePhotoTemplates({
     vertical: vertical === "all" ? null : vertical,
@@ -75,7 +91,6 @@ export function PhotoTemplatePicker({
     return Array.from(cats).sort();
   }, [templates]);
 
-  const [categoriaFiltro, setCategoriaFiltro] = useState<string>("all");
   const filteredByCategoria = useMemo(
     () => (categoriaFiltro === "all" ? templates : templates.filter((t) => t.categoria_slug === categoriaFiltro)),
     [templates, categoriaFiltro],
@@ -110,7 +125,10 @@ export function PhotoTemplatePicker({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pb-1">
           <div>
             <Label className="text-xs text-muted-foreground">Verticale</Label>
-            <Select value={vertical} onValueChange={setVertical}>
+            <Select
+              value={vertical}
+              onValueChange={(v) => { setVertical(v); setCategoriaFiltro("all"); }}
+            >
               <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {VERTICALI.map((v) => (
@@ -176,11 +194,14 @@ export function PhotoTemplatePicker({
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
               {filteredByCategoria.map((t) => {
                 const isSelected = selectedId === t.id;
+                const isBroken = brokenImages.has(t.id);
                 return (
                   <button
                     type="button"
                     key={t.id}
                     onClick={() => setSelectedId(t.id)}
+                    aria-pressed={isSelected}
+                    aria-label={`Seleziona foto ${t.nome}`}
                     className={cn(
                       "group relative aspect-square border-2 rounded-md overflow-hidden transition-all bg-slate-50",
                       isSelected
@@ -188,16 +209,25 @@ export function PhotoTemplatePicker({
                         : "border-slate-200 hover:border-orange-300 hover:shadow-sm",
                     )}
                   >
-                    <img
-                      src={t.thumbnail_url ?? t.image_url}
-                      alt={t.nome}
-                      loading="lazy"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        // Fallback se URL rotto: mostra icona placeholder
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
+                    {isBroken ? (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
+                        <ImageIcon className="h-8 w-8" />
+                      </div>
+                    ) : (
+                      <img
+                        src={t.thumbnail_url ?? t.image_url}
+                        alt={t.nome}
+                        loading="lazy"
+                        className="w-full h-full object-cover"
+                        onError={() => {
+                          setBrokenImages((prev) => {
+                            const next = new Set(prev);
+                            next.add(t.id);
+                            return next;
+                          });
+                        }}
+                      />
+                    )}
                     {/* Overlay info al hover */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-end">
                       <p className="text-[10px] font-semibold text-white line-clamp-2 leading-tight">

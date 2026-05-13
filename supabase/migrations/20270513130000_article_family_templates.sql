@@ -77,7 +77,9 @@ CREATE TABLE IF NOT EXISTS public.article_family_templates (
   -- Audit
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  created_by UUID REFERENCES auth.users(id)
+  -- Audit FK: SET NULL su delete utente, così la cancellazione di un
+  -- super_admin non rompe la galleria globale.
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_aft_vertical
