@@ -26,7 +26,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Truck, Plus, Trash2, Loader2, Search, Settings,
+  Truck, Plus, Trash2, Loader2, Search, Settings, Lock, Sparkles, MoreVertical, Unlink2,
 } from "lucide-react";
 import {
   useTariffeManodopera, useAddManodopera, useUpdateManodopera, useDeleteManodopera,
@@ -35,6 +35,11 @@ import type { SrServizioRow, SrProgettoDetail } from "@/types/serramenti";
 import type { TariffaMinimal } from "@/lib/serramenti/api";
 import { SrCard } from "@/lib/serramenti/wizardUI";
 import { formatEuro } from "@/lib/serramenti/format";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 
 interface Props {
   progettoId: string;
@@ -159,52 +164,118 @@ export function ServiziSection({ progettoId, detail }: Props) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {righe.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell>
-                      <Input
-                        defaultValue={r.descrizione}
-                        onBlur={(e) => onPatch(r.id, { descrizione: e.target.value || "Voce" })}
-                        className="h-8 text-xs"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        defaultValue={r.unita ?? ""}
-                        onBlur={(e) => onPatch(r.id, { unita: e.target.value || null })}
-                        placeholder="pz"
-                        className="h-8 text-xs w-16"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number" min={0} step={0.5}
-                        defaultValue={r.quantita}
-                        onBlur={(e) => onPatch(r.id, { quantita: Math.max(0, Number(e.target.value) || 0) })}
-                        className="h-8 text-xs w-16"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number" step={0.01}
-                        defaultValue={r.prezzo_unitario_vendita ?? ""}
-                        onBlur={(e) => onPatch(r.id, { prezzo_unitario_vendita: e.target.value ? Number(e.target.value) : null })}
-                        className="h-8 text-xs w-24"
-                      />
-                    </TableCell>
-                    <TableCell className="text-xs font-semibold text-orange-600">
-                      {formatEuro(r.prezzo_totale_vendita)}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="icon" variant="ghost" className="h-7 w-7"
-                        onClick={() => setToDelete(r)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {righe.map((r) => {
+                  // Le righe pescate dal listino tariffe (tariffa_id valorizzato)
+                  // hanno prezzo + unita LOCK: il prezzo è gestito dal listino
+                  // aziendale e modificarlo qui rompe la coerenza tra preventivi
+                  // diversi. Per override esplicito → menu "Sgancia dal listino".
+                  const isLinked = !!r.tariffa_id;
+                  return (
+                    <TableRow key={r.id} className={isLinked ? "bg-orange-50/30" : undefined}>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <Input
+                            defaultValue={r.descrizione}
+                            onBlur={(e) => onPatch(r.id, { descrizione: e.target.value || "Voce" })}
+                            className="h-8 text-xs"
+                          />
+                          {isLinked && (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] h-4 px-1 border-orange-300 text-orange-700 bg-white"
+                              title="Voce collegata al listino tariffe aziendali. Prezzo e unità sono gestiti dal listino — usa il menu per sganciare."
+                            >
+                              <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                              da listino
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="relative">
+                          <Input
+                            defaultValue={r.unita ?? ""}
+                            onBlur={(e) => onPatch(r.id, { unita: e.target.value || null })}
+                            placeholder="pz"
+                            className={`h-8 text-xs w-16 ${isLinked ? "pr-5 bg-slate-50 cursor-not-allowed" : ""}`}
+                            readOnly={isLinked}
+                            title={isLinked ? "Unità gestita dal listino tariffe. Sgancia per modificare." : undefined}
+                          />
+                          {isLinked && (
+                            <Lock className="absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3 text-orange-500 pointer-events-none" />
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number" min={0} step={0.5}
+                          defaultValue={r.quantita}
+                          onBlur={(e) => onPatch(r.id, { quantita: Math.max(0, Number(e.target.value) || 0) })}
+                          className="h-8 text-xs w-16"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="relative">
+                          <Input
+                            type="number" step={0.01}
+                            defaultValue={r.prezzo_unitario_vendita ?? ""}
+                            onBlur={(e) => onPatch(r.id, { prezzo_unitario_vendita: e.target.value ? Number(e.target.value) : null })}
+                            className={`h-8 text-xs w-24 ${isLinked ? "pr-6 bg-slate-50 cursor-not-allowed" : ""}`}
+                            readOnly={isLinked}
+                            title={isLinked ? "Prezzo gestito dal listino tariffe. Sgancia per modificare." : undefined}
+                          />
+                          {isLinked && (
+                            <Lock className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-orange-500 pointer-events-none" />
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs font-semibold text-orange-600">
+                        {formatEuro(r.prezzo_totale_vendita)}
+                      </TableCell>
+                      <TableCell>
+                        {isLinked ? (
+                          /* Menu compatto: sgancia + elimina su righe da-listino. */
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-7 w-7">
+                                <MoreVertical className="h-3.5 w-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  onPatch(r.id, { tariffa_id: null });
+                                  toast.info("Voce sganciata dal listino", {
+                                    description: "Ora puoi modificare prezzo e unità manualmente.",
+                                  });
+                                }}
+                              >
+                                <Unlink2 className="h-3.5 w-3.5 mr-2" />
+                                Sgancia dal listino
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => setToDelete(r)}
+                                className="text-rose-600 focus:text-rose-700"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                Elimina riga
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : (
+                          <Button
+                            size="icon" variant="ghost" className="h-7 w-7"
+                            onClick={() => setToDelete(r)}
+                            title="Elimina"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
