@@ -5,7 +5,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   Hammer, HardHat, Ruler, Warehouse, Wrench, Building2, Blocks, ConeIcon,
   LayoutDashboard, ShoppingBag, Package, Calendar, Users, Settings,
-  TrendingUp, Euro, AlertCircle, CheckCircle2, Star, Headphones,
+  TrendingUp, Euro, AlertCircle, CheckCircle2, Star,
   Shield, Zap, Lock,
 } from "lucide-react";
 
@@ -20,36 +20,27 @@ const floatingIcons = [
   { Icon: ConeIcon, top: "50%", right: "5%", size: 34, delay: "0.8s", anim: "animate-float-slow" },
 ] as const;
 
-const sidebarItems = [
-  { Icon: LayoutDashboard, label: "Dashboard", active: true },
-  { Icon: ShoppingBag, label: "Ordini" },
-  { Icon: Users, label: "Clienti" },
-  { Icon: Package, label: "Magazzino" },
-  { Icon: Calendar, label: "Calendario" },
-  { Icon: Settings, label: "Impostazioni" },
-];
-
 const statsData = [
-  { label: "Fatturato", value: "€ 284.500", icon: Euro, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
-  { label: "Margine", value: "€ 78.200", icon: TrendingUp, color: "#F97415", bg: "rgba(249,116,21,0.15)" },
-  { label: "Incassato", value: "€ 196.000", icon: CheckCircle2, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
-  { label: "Da Incassare", value: "€ 88.500", icon: AlertCircle, color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
+  { label: "Margine protetto", value: "+€ 18.400", icon: TrendingUp, color: "#F97415", bg: "rgba(249,116,21,0.15)" },
+  { label: "Incassi da seguire", value: "€ 88.500", icon: AlertCircle, color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
+  { label: "Fatture pronte", value: "7 bozze", icon: Euro, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
+  { label: "Azioni oggi", value: "12 task", icon: CheckCircle2, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
 ];
 
-const ordersData = [
-  { code: "ORD-0147", client: "Rossi Mario", amount: "€ 42.800", status: "In Lavorazione", statusColor: "#3b82f6" },
-  { code: "ORD-0146", client: "Bianchi & Figli", amount: "€ 28.350", status: "Completato", statusColor: "#22c55e" },
-  { code: "ORD-0145", client: "Condominio Via Roma", amount: "€ 65.000", status: "In Attesa", statusColor: "#f59e0b" },
-  { code: "ORD-0144", client: "Verdi Costruzioni", amount: "€ 18.900", status: "Sopralluogo", statusColor: "#8b5cf6" },
+const aiActionsData = [
+  { action: "Sollecita incasso", target: "Rossi Mario", detail: "€ 18.900 scaduti", status: "Oggi", statusColor: "#f59e0b" },
+  { action: "Genera rapportino", target: "Cantiere Via Roma", detail: "foto + nota vocale", status: "Pronto", statusColor: "#22c55e" },
+  { action: "Prepara fattura", target: "SAL bagno Milano", detail: "bozza da € 12.400", status: "Bozza", statusColor: "#3b82f6" },
+  { action: "Avvisa squadra", target: "Posa serramenti", detail: "materiale mancante", status: "Urgente", statusColor: "#ef4444" },
 ];
 
 const chartBars = [
-  { month: "Set", h: 45 },
-  { month: "Ott", h: 62 },
-  { month: "Nov", h: 38 },
-  { month: "Dic", h: 70 },
-  { month: "Gen", h: 55 },
-  { month: "Feb", h: 80 },
+  { month: "Set", h: 38, value: "52k" },
+  { month: "Ott", h: 58, value: "71k" },
+  { month: "Nov", h: 45, value: "64k" },
+  { month: "Dic", h: 72, value: "91k" },
+  { month: "Gen", h: 64, value: "83k" },
+  { month: "Feb", h: 86, value: "112k" },
 ];
 
 const typingWords = ["i tuoi margini", "la tua cassa", "i tuoi cantieri", "il tuo marketing"];
@@ -61,56 +52,225 @@ const microBadges = [
   { Icon: Lock, label: "Dati in Europa" },
 ];
 
+const dashboardAreas = [
+  {
+    id: "regia",
+    label: "Regia Silvio",
+    Icon: Building2,
+    eyebrow: "Centro di comando",
+    title: "Silvio ha trovato 3 priorità",
+    summaryTitle: "Silvio consiglia: proteggi il margine prima di accettare nuovi lavori.",
+    summaryText: "2 commesse sotto target, 1 incasso scaduto, 4 rapportini da chiudere.",
+    nextMove: "Invia solleciti e prepara fatture",
+    chartTitle: "Margine previsto",
+    chartBadge: "+18%",
+    stats: statsData,
+    actions: aiActionsData,
+  },
+  {
+    id: "margini",
+    label: "Margini",
+    Icon: LayoutDashboard,
+    eyebrow: "Controllo gestione",
+    title: "Silvio controlla utili e costi nascosti",
+    summaryTitle: "Commessa Via Roma: margine sceso al 14%, sotto la soglia minima.",
+    summaryText: "Ore extra, materiale non previsto e sconto commerciale stanno consumando utile.",
+    nextMove: "Apri analisi margine e blocca extra costo",
+    chartTitle: "Margine commesse",
+    chartBadge: "-6%",
+    stats: [
+      { label: "Sotto target", value: "2 lavori", icon: AlertCircle, color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
+      { label: "Costi extra", value: "€ 9.800", icon: Euro, color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
+      { label: "Utile stimato", value: "€ 42.600", icon: TrendingUp, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
+      { label: "Azioni margine", value: "5 task", icon: CheckCircle2, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
+    ],
+    actions: [
+      { action: "Blocca extra costo", target: "Via Roma", detail: "posa oltre budget", status: "Urge", statusColor: "#ef4444" },
+      { action: "Ricalcola margine", target: "Bagno Milano", detail: "SAL aggiornato", status: "Oggi", statusColor: "#f59e0b" },
+      { action: "Avvisa titolare", target: "Scala condominio", detail: "utile sotto soglia", status: "Pronto", statusColor: "#22c55e" },
+      { action: "Controlla listino", target: "Fornitore Nord", detail: "aumento materiali", status: "Check", statusColor: "#3b82f6" },
+    ],
+  },
+  {
+    id: "vendite",
+    label: "Vendite",
+    Icon: ShoppingBag,
+    eyebrow: "Pipeline commerciale",
+    title: "Silvio spinge i preventivi caldi",
+    summaryTitle: "3 offerte possono chiudere questa settimana se richiami nel momento giusto.",
+    summaryText: "Silvio prepara follow-up WhatsApp, promemoria e proposta con valore chiaro.",
+    nextMove: "Richiama clienti caldi e invia follow-up",
+    chartTitle: "Preventivi caldi",
+    chartBadge: "+12%",
+    stats: [
+      { label: "Preventivi caldi", value: "9", icon: ShoppingBag, color: "#F97415", bg: "rgba(249,116,21,0.15)" },
+      { label: "Da richiamare", value: "6 clienti", icon: Users, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
+      { label: "Valore pipeline", value: "€ 184k", icon: Euro, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
+      { label: "Follow-up pronti", value: "11", icon: CheckCircle2, color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
+    ],
+    actions: [
+      { action: "Invia WhatsApp", target: "Laura Gialli", detail: "preventivo fermo da 5g", status: "Oggi", statusColor: "#f59e0b" },
+      { action: "Prepara proposta", target: "Mario Bianchi", detail: "valore e garanzia", status: "Pronta", statusColor: "#22c55e" },
+      { action: "Aggiorna forecast", target: "Pipeline maggio", detail: "probabilità chiusura", status: "Live", statusColor: "#3b82f6" },
+      { action: "Render di supporto", target: "Infissi villa", detail: "prima/dopo", status: "AI", statusColor: "#8b5cf6" },
+    ],
+  },
+  {
+    id: "magazzino",
+    label: "Magazzino",
+    Icon: Package,
+    eyebrow: "Materiali e DDT",
+    title: "Silvio vede cosa manca prima della posa",
+    summaryTitle: "Posa di venerdì: tapparelle non ancora arrivate e DDT da collegare.",
+    summaryText: "Controlla ordini, lotti, DDT, uscite cantiere e avvisa ufficio o squadra.",
+    nextMove: "Registra arrivo merce e prepara uscita",
+    chartTitle: "Materiali pronti",
+    chartBadge: "74%",
+    stats: [
+      { label: "In arrivo", value: "26 art.", icon: Package, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
+      { label: "Mancanti", value: "4 art.", icon: AlertCircle, color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
+      { label: "DDT da collegare", value: "3", icon: CheckCircle2, color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
+      { label: "Uscite pronte", value: "2", icon: Warehouse, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
+    ],
+    actions: [
+      { action: "Collega DDT", target: "Aluplast", detail: "3 bancali ricevuti", status: "Ora", statusColor: "#f59e0b" },
+      { action: "Ordina materiale", target: "Tapparelle", detail: "posa venerdì", status: "Urge", statusColor: "#ef4444" },
+      { action: "Genera DDT uscita", target: "Cantiere Neri", detail: "merce caricata", status: "Pronto", statusColor: "#22c55e" },
+      { action: "Foto merce", target: "Bancale infissi", detail: "prova carico", status: "OK", statusColor: "#3b82f6" },
+    ],
+  },
+  {
+    id: "campo",
+    label: "Campo",
+    Icon: Calendar,
+    eyebrow: "Campo e rapportini",
+    title: "Silvio trasforma foto e note in lavoro chiaro",
+    summaryTitle: "La squadra ha caricato 3 foto e una nota vocale: rapportino pronto.",
+    summaryText: "Aggiorna diario lavori, ricorda attività aperte e manda promemoria ai collaboratori.",
+    nextMove: "Genera rapportino e avvisa ufficio",
+    chartTitle: "Attività completate",
+    chartBadge: "82%",
+    stats: [
+      { label: "Foto lette", value: "18", icon: CheckCircle2, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
+      { label: "Rapportini", value: "5", icon: LayoutDashboard, color: "#F97415", bg: "rgba(249,116,21,0.15)" },
+      { label: "Squadre", value: "3", icon: Users, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
+      { label: "Ritardi", value: "1", icon: AlertCircle, color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
+    ],
+    actions: [
+      { action: "Crea rapportino", target: "Via Manzoni", detail: "foto + vocale", status: "Pronto", statusColor: "#22c55e" },
+      { action: "Ricorda squadra", target: "Marco operaio", detail: "chiudere attività", status: "Oggi", statusColor: "#f59e0b" },
+      { action: "Aggiorna diario", target: "Cantiere piscina", detail: "avanzamento 68%", status: "Live", statusColor: "#3b82f6" },
+      { action: "Avvisa cliente", target: "Ferretti", detail: "riepilogo lavori", status: "Bozza", statusColor: "#8b5cf6" },
+    ],
+  },
+  {
+    id: "ai",
+    label: "AI e automazioni",
+    Icon: Settings,
+    eyebrow: "Silvio per tutti i reparti",
+    title: "Una regia AI per vendite, cassa, campo e ufficio",
+    summaryTitle: "Silvio coordina persone, documenti, clienti, fatture, solleciti e promemoria.",
+    summaryText: "Non una chat isolata: ogni risposta nasce da dati reali della tua azienda.",
+    nextMove: "Attiva automazioni su reparti critici",
+    chartTitle: "Automazioni attive",
+    chartBadge: "19 AI",
+    stats: [
+      { label: "Persone AI", value: "19", icon: Zap, color: "#F97415", bg: "rgba(249,116,21,0.15)" },
+      { label: "Reparti coperti", value: "7", icon: LayoutDashboard, color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
+      { label: "Azioni create", value: "42", icon: CheckCircle2, color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
+      { label: "Alert critici", value: "3", icon: AlertCircle, color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
+    ],
+    actions: [
+      { action: "CFO AI", target: "Cassa", detail: "incassi e pagamenti", status: "Live", statusColor: "#22c55e" },
+      { action: "PM Cantiere AI", target: "Lavori", detail: "ritardi e squadre", status: "Live", statusColor: "#3b82f6" },
+      { action: "Sales AI", target: "Preventivi", detail: "follow-up e offerte", status: "Live", statusColor: "#F97415" },
+      { action: "Admin AI", target: "Fatture/DDT", detail: "bozze e controlli", status: "Live", statusColor: "#8b5cf6" },
+    ],
+  },
+];
+
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 function DashboardMockup() {
+  const [activeArea, setActiveArea] = useState(dashboardAreas[0]);
+
   return (
     <div
-      className="gsap-dashboard relative mt-10 mb-8 max-w-4xl mx-auto"
+      className="gsap-dashboard relative mx-auto mb-8 mt-10 max-w-5xl"
     >
       {/* Glow effect behind mockup */}
       <div className="absolute -inset-8 bg-[#F97415]/15 rounded-full blur-[80px] animate-pulse-glow pointer-events-none" />
       <div
-        className="relative rounded-2xl border border-white/15 shadow-2xl shadow-black/40 overflow-hidden"
+        className="relative overflow-hidden rounded-2xl border border-white/15 shadow-2xl shadow-black/40"
         style={{ transform: "perspective(1200px) rotateX(4deg)" }}
       >
-        <div className="flex bg-[#111111]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(249,116,21,.22),transparent_26%),radial-gradient(circle_at_86%_72%,rgba(34,197,94,.14),transparent_26%)]" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#F97415] to-transparent" />
+        <div className="relative flex bg-[#0b0f17]/95">
           {/* Sidebar */}
           <div className="w-14 md:w-16 bg-[#0a1222] border-r border-white/5 flex flex-col items-center py-3 gap-1 shrink-0">
             <div className="w-7 h-7 rounded-lg bg-[#F97415] flex items-center justify-center mb-3">
               <Building2 size={14} className="text-white" />
             </div>
-            {sidebarItems.map((item, i) => (
-              <div
-                key={i}
-                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
-                  item.active ? "bg-[#F97415]/20 text-[#F97415]" : "text-white/60 hover:text-white/80"
+            {dashboardAreas.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                aria-label={`Apri schermata ${item.label}`}
+                title={item.label}
+                onClick={() => setActiveArea(item)}
+                className={`group relative flex h-9 w-9 items-center justify-center rounded-lg transition ${
+                  activeArea.id === item.id ? "bg-[#F97415]/25 text-[#F97415]" : "text-white/60 hover:bg-white/5 hover:text-white/90"
                 }`}
               >
                 <item.Icon size={16} />
-              </div>
+                {activeArea.id === item.id && <span className="absolute -right-0.5 h-1.5 w-1.5 rounded-full bg-[#F97415] shadow-[0_0_10px_rgba(249,116,21,.9)]" />}
+              </button>
             ))}
           </div>
 
           {/* Main content */}
           <div className="flex-1 p-3 md:p-4 min-w-0">
             {/* Header bar */}
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <p className="text-white/70 text-[9px] md:text-[10px]">Benvenuto</p>
-                <p className="text-white text-xs md:text-sm font-semibold">Dashboard</p>
+                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-[#F97415] md:text-[10px]">{activeArea.eyebrow}</p>
+                <p className="text-sm font-black text-white md:text-base">{activeArea.title}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-[#F97415]/20 flex items-center justify-center">
-                  <span className="text-[#F97415] text-[8px] font-bold">F</span>
+              <div className="hidden items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-200 sm:flex">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.85)]" />
+                Live azienda
+              </div>
+            </div>
+
+            {/* Silvio summary */}
+            <div className="mb-3 grid gap-2 md:grid-cols-[1.15fr_0.85fr]">
+              <div className="gsap-card rounded-xl border border-[#F97415]/25 bg-[#F97415]/10 p-3 text-left">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F97415] text-white shadow-lg shadow-orange-900/30">
+                    <Zap size={17} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-white md:text-sm">{activeArea.summaryTitle}</p>
+                    <p className="mt-1 text-[10px] leading-4 text-white/70 md:text-[11px]">
+                      {activeArea.summaryText}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="hidden rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left md:block">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Prossima mossa</p>
+                <p className="mt-1 text-sm font-black text-white">{activeArea.nextMove}</p>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-[#F97415] to-emerald-400" />
                 </div>
               </div>
             </div>
 
             {/* Stat cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-              {statsData.map((stat, i) => (
-                <div key={i} className="gsap-card bg-white/[0.04] rounded-lg p-2 md:p-2.5 border border-white/5">
+              {activeArea.stats.map((stat, i) => (
+                <div key={i} className="gsap-card rounded-lg border border-white/5 bg-white/[0.04] p-2 transition hover:border-[#F97415]/30 hover:bg-white/[0.07] md:p-2.5">
                   <div className="flex items-center gap-1.5 mb-1">
                     <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: stat.bg }}>
                       <stat.icon size={10} style={{ color: stat.color }} />
@@ -125,11 +285,15 @@ function DashboardMockup() {
             {/* Chart + Table row */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 min-w-0">
               {/* Bar chart */}
-              <div className="bg-white/[0.04] rounded-lg p-2.5 border border-white/5">
-                <p className="text-white/70 text-[9px] mb-2 font-medium">Fatturato Mensile</p>
+              <div className="rounded-lg border border-white/5 bg-white/[0.04] p-2.5">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[9px] font-medium text-white/70">{activeArea.chartTitle}</p>
+                  <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[7px] font-black text-emerald-300">{activeArea.chartBadge}</span>
+                </div>
                 <div className="flex items-end gap-1.5 h-16">
                   {chartBars.map((bar, i) => (
                     <div key={i} className="gsap-card flex-1 flex flex-col items-center gap-1">
+                      <span className="text-[7px] font-bold text-white/45">{bar.value}</span>
                       <div
                         className="w-full rounded-sm"
                         style={{
@@ -143,25 +307,25 @@ function DashboardMockup() {
                 </div>
               </div>
 
-              {/* Orders table */}
-              <div className="hidden md:block bg-white/[0.04] rounded-lg p-2.5 border border-white/5">
-                <p className="text-white/70 text-[9px] mb-2 font-medium">Ultimi Ordini</p>
+              {/* AI actions table */}
+              <div className="rounded-lg border border-white/5 bg-white/[0.04] p-2.5">
+                <p className="mb-2 text-[9px] font-medium text-white/70">Azioni consigliate</p>
                 <div className="space-y-1.5">
-                  {ordersData.map((order, i) => (
-                    <div key={i} className="gsap-card flex items-center justify-between text-[8px] md:text-[9px]">
+                  {activeArea.actions.map((item, i) => (
+                    <div key={i} className="gsap-card flex items-center justify-between gap-2 rounded-md bg-black/10 px-1.5 py-1 text-[8px] md:text-[9px]">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[#F97415] font-mono font-medium shrink-0">{order.code}</span>
-                        <span className="text-white/70 truncate">{order.client}</span>
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#F97415]" />
+                        <div className="min-w-0">
+                          <p className="truncate font-bold text-white/80">{item.action}</p>
+                          <p className="truncate text-white/45">{item.target} · {item.detail}</p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-white/70 font-medium">{order.amount}</span>
-                        <span
-                          className="px-1.5 py-0.5 rounded-full text-[7px] font-medium"
-                          style={{ backgroundColor: `${order.statusColor}20`, color: order.statusColor }}
-                        >
-                          {order.status}
-                        </span>
-                      </div>
+                      <span
+                        className="shrink-0 rounded-full px-1.5 py-0.5 text-[7px] font-black"
+                        style={{ backgroundColor: `${item.statusColor}20`, color: item.statusColor }}
+                      >
+                        {item.status}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -318,16 +482,20 @@ export default function HeroSection() {
 
         {/* 2. Titolo con typing animation */}
         <div className="gsap-hero-item">
-          <h1 className="text-2xl sm:text-3xl md:text-6xl lg:text-7xl font-extrabold leading-tight mb-3 md:mb-4">
-            <span className="text-white block">Finisci di lavorare a sensazione.</span>
-            <span className="text-[#F97415] block">Inizia a guadagnare davvero.</span>
+          <h1 className="mx-auto mb-4 max-w-6xl font-extrabold leading-[1.03] tracking-tight md:mb-5">
+            <span className="block text-white text-[clamp(2.15rem,5.1vw,5.25rem)]">
+              Aumenta margini, utili e guadagni.
+            </span>
+            <span className="mt-2 block text-[#F97415] text-[clamp(1.95rem,4.45vw,4.6rem)] md:mt-3">
+              Controlla la tua azienda con l'AI per l'edilizia.
+            </span>
           </h1>
 
           {/* Titolo con parola che cambia */}
-          <div className="text-xl sm:text-2xl md:text-4xl lg:text-5xl font-bold text-white/90 mb-3">
+          <div className="mb-3 text-lg font-bold text-white/90 sm:text-2xl md:text-3xl lg:text-4xl">
             Controlla{" "}
             <span
-              className="text-[#F97415] inline-block min-w-[126px] sm:min-w-[160px] md:min-w-[300px] transition-all duration-350"
+              className="inline-block min-w-[118px] text-[#F97415] transition-all duration-350 sm:min-w-[160px] md:min-w-[250px]"
               style={{
                 opacity: fadeState === "in" ? 1 : 0,
                 transform: fadeState === "in" ? "translateY(0)" : "translateY(-8px)",
@@ -378,60 +546,10 @@ export default function HeroSection() {
         {/* 3. Dashboard Mockup */}
         <DashboardMockup />
 
-        {/* 4. Subtitle */}
-        <p
-          className="gsap-hero-item text-sm md:text-xl text-white/60 max-w-xs sm:max-w-sm md:max-w-2xl mx-auto mb-8 md:mb-10"
-        >
-          Cantieri, margini, cassa, HR, marketing e fatturazione elettronica — tutto in un'unica piattaforma. Nessun foglio Excel. Nessun commercialista che ti dà i dati a fine anno. Decidi in tempo reale, affiancato da un <span className="text-white font-semibold">Consulente dedicato</span> che ti aiuta a proteggere i margini e far crescere l'impresa.
-        </p>
-
-        {/* Social Proof */}
-        <div className="gsap-hero-item flex flex-col sm:flex-row items-center justify-center gap-3 md:gap-6 mt-6 md:mt-8">
-          <div className="flex items-center gap-2 text-white/70 text-xs md:text-sm">
-            <Users size={16} className="text-[#F97415]" />
-            <span>150+ Imprese Attive</span>
-          </div>
-          <div className="hidden sm:block w-px h-4 bg-white/20" />
-          <div className="flex items-center gap-1.5 text-white/70 text-xs md:text-sm">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} size={14} className="text-[#F97415] fill-[#F97415]" />
-            ))}
-            <span className="ml-1">4.9/5 Soddisfazione</span>
-          </div>
-          <div className="hidden sm:block w-px h-4 bg-white/20" />
-          <div className="flex items-center gap-2 text-white/70 text-xs md:text-sm">
-            <Headphones size={16} className="text-[#F97415]" />
-            <span>Supporto Italiano</span>
-          </div>
-        </div>
-
-        {/* Partner Logos Marquee */}
-        <div className="gsap-hero-item mt-6 md:mt-10">
-          <p className="text-white/70 text-xs mb-4">Usato da imprenditori che lavorano con</p>
-          <div
-            className="overflow-hidden"
-            style={{
-              maskImage: "linear-gradient(90deg, transparent 0%, black 15%, black 85%, transparent 100%)",
-              WebkitMaskImage: "linear-gradient(90deg, transparent 0%, black 15%, black 85%, transparent 100%)",
-            }}
-          >
-            <div className="flex animate-marquee whitespace-nowrap">
-              {[...Array(2)].map((_, copy) => (
-                <div key={copy} className="flex items-center shrink-0">
-                  {["ANCE", "Confindustria Edilizia", "Cassa Edile", "Edilportale", "SAP Certified", "Collegio Geometri", "ANIEM", "FederCAM"].map((name) => (
-                    <span key={`${copy}-${name}`} className="mx-4 md:mx-6 text-white/65 text-xs md:text-sm font-bold uppercase tracking-widest shrink-0">
-                      {name}
-                    </span>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Bottom gradient fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-white to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent md:h-24" />
     </section>
   );
 }

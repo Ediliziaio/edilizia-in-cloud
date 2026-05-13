@@ -44,14 +44,14 @@ const proofPoints = [
 ];
 
 const reassurancePoints = [
-  "Setup in 60 secondi",
+  "Render in 60 secondi",
   "Onboarding 1-a-1 incluso",
   "Cancelli quando vuoi",
 ];
 
 const trustBadges = [
   { icon: ShieldCheck, label: "GDPR Compliant" },
-  { icon: Zap, label: "Setup in 60 sec" },
+  { icon: Zap, label: "Render in 60 sec" },
   { icon: Star, label: "4.9/5 stelle" },
   { icon: BadgeCheck, label: "Made in Italy" },
 ];
@@ -59,36 +59,36 @@ const trustBadges = [
 const painPoints = [
   {
     icon: Clock,
-    title: "Il cliente non compra il profilo: compra certezza",
-    text: "Tu parli di profili, vetrocamera, posa, cassonetti e finiture. Lui sta pensando: \"come staranno davvero sulla mia casa?\". Se non riesce a vederlo, rimanda.",
+    title: "Il cliente non compra il profilo. Compra certezza.",
+    text: "Tu parli di profili, vetro-camera, posa, cassonetti e finiture. Lui sta pensando: \"come staranno davvero sulla mia facciata?\". Se non riesce a vederlo, rimanda. E rimandare, in questo mestiere, vuol dire perdere.",
   },
   {
     icon: XCircle,
     title: "Se il valore non si vede, vince lo sconto",
-    text: "Quando due preventivi sembrano uguali, il cliente sceglie quello che costa meno. Anche se il tuo prodotto, la tua posa e la tua garanzia valgono molto di più.",
+    text: "Quando due preventivi sembrano uguali, il cliente firma quello più basso. Anche se il tuo serramento dura 25 anni e quello del concorrente molto meno. Il problema non è il prodotto: è che il cliente non lo vede.",
   },
   {
     icon: MessageCircle,
-    title: "Il momento caldo dura poco",
-    text: "Durante il sopralluogo il cliente è coinvolto. Dopo qualche giorno ha già visto altri preventivi, altre foto e altre promesse. Devi rimanere nella sua testa subito.",
+    title: "Il momento caldo dura 48 ore",
+    text: "Durante il sopralluogo il cliente è dentro la decisione. Due giorni dopo ha visto altri preventivi, altre promesse e foto generiche di catalogo. Se non rientri nella sua testa con qualcosa di forte, sei fuori dalla scelta.",
   },
 ];
 
 const mechanismSteps = [
   {
     icon: Camera,
-    title: "Scatti o carichi la foto dell'immobile",
-    text: "Facciata, balcone, portafinestra o vano reale: parti dalla casa del cliente, non da un'immagine generica di catalogo.",
+    title: "Passo 1 — Foto",
+    text: "Scatti col telefono. Anche storta. Parti dalla casa vera del committente, non da un'immagine di catalogo che vede anche il tuo concorrente.",
   },
   {
     icon: AppWindow,
-    title: "Scegli serramento, finitura e oscurante",
-    text: "Imposti profilo, colore, vetro, maniglia, cassonetto, tapparella, persiana o scuro. Le scelte tecniche diventano una proposta visibile.",
+    title: "Passo 2 — Scelte",
+    text: "Profilo, colore, vetro, maniglia, cassonetto, tapparella, persiana o scuro. Le voci tecniche del preventivo diventano cose che il cliente vede.",
   },
   {
     icon: FileText,
-    title: "Mostri un prima/dopo che aiuta a decidere",
-    text: "Consegni un render prima/dopo, lo alleghi al preventivo, lo invii su WhatsApp e lo tieni collegato al contatto o all'opportunità.",
+    title: "Passo 3 — Invio",
+    text: "PDF prima/dopo, WhatsApp, allegato al preventivo. Tutto agganciato al contatto e alla trattativa dentro EdiliziaInCloud.",
   },
 ];
 
@@ -96,17 +96,17 @@ const commercialLevers = [
   {
     icon: Target,
     title: "Rendi visibile il valore",
-    text: "Il cliente non valuta solo il costo della finestra. Valuta l'effetto finale sulla sua casa, sulla luce e sulla facciata.",
+    text: "Il cliente non valuta il costo della finestra. Valuta l'effetto sulla sua casa, sulla luce e sulla facciata.",
   },
   {
     icon: ShieldCheck,
-    title: "Riduci il rischio percepito",
-    text: "Colore, proporzioni e stile non restano nella fantasia. Il cliente vede una direzione concreta prima di firmare.",
+    title: "Riduci il dubbio del cliente",
+    text: "Colore, proporzioni e stile non restano nella sua testa. Vede una direzione concreta prima di firmare.",
   },
   {
     icon: Zap,
-    title: "Acceleri il follow-up",
-    text: "Non richiami dicendo solo \"ha visto il preventivo?\". Richiami partendo da un'immagine chiara e memorabile.",
+    title: "Riprendi il contatto con un motivo forte",
+    text: "Non richiami dicendo \"ha visto il preventivo?\". Richiami partendo da un'immagine che lui ricorda.",
   },
   {
     icon: BadgeCheck,
@@ -122,15 +122,15 @@ const featureRows = [
   },
   {
     label: "Scelte tecniche tracciate",
-    value: "Profilo, colore, vetro, maniglia, cassonetto, tapparella, persiana o oscurante restano leggibili e collegati al render.",
+    value: "Profilo, colore, vetro, maniglia, cassonetto, tapparella, persiana o scuro: tutto leggibile e collegato all'anteprima visiva.",
   },
   {
     label: "PDF prima/dopo professionale",
     value: "Un documento ordinato da inviare al cliente, allegare al preventivo e usare in fase di follow-up, con disclaimer dimostrativo.",
   },
   {
-    label: "CRM collegato",
-    value: "Ogni render può restare associato a contatto e opportunità, così non perdi la storia commerciale della trattativa.",
+    label: "Scheda cliente collegata",
+    value: "Ogni render resta agganciato al contatto e alla trattativa. La storia commerciale non si perde mai.",
   },
   {
     label: "Gallery filtrabile",
@@ -157,7 +157,11 @@ const objections = [
   },
   {
     q: "Quanto costa? È vincolante?",
-    a: "Il modulo Render AI è incluso nel piano per serramentisti e puoi cancellare quando vuoi. Nessun vincolo di durata, nessuna penale, onboarding 1-a-1 incluso.",
+    a: "Il Render Infissi fa parte dei piani EdiliziaInCloud. Hai 31 giorni di prova gratuita, setup in 48 ore, affiancamento singolo incluso e disdetta libera quando vuoi.",
+  },
+  {
+    q: "E se il mio cliente non usa WhatsApp o non guarda i video?",
+    a: "Generi il render, lo stampi a colori in salone o lo alleghi al preventivo. Il prima/dopo funziona anche spento: non è un giocattolo, è una prova visiva.",
   },
 ];
 
@@ -177,9 +181,9 @@ const scenarioCards = [
 ];
 
 const speedStats = [
-  { value: 60, suffix: " sec", label: "per ottenere un render AI da usare in trattativa" },
-  { value: 12, prefix: "+", suffix: " pt", label: "di close rate medi stimati con il prima/dopo" },
-  { value: 3, prefix: "x", suffix: "", label: "preventivi ricordati in più rispetto a un PDF testuale" },
+  { value: 47, suffix: " sec", label: "tempo medio per generare un'anteprima visiva dal telefono" },
+  { value: 12, prefix: "+", suffix: " punti", label: "tasso di chiusura preventivi stimato col prima/dopo in trattativa" },
+  { value: 3, prefix: "× ", suffix: "", label: "quanto resta in mente un'immagine rispetto a un foglio di testo" },
 ];
 
 const beforeAfterAreas = [
@@ -220,24 +224,24 @@ const salesImpact = [
   },
   {
     title: "Più autorevolezza commerciale",
-    text: "Il cliente percepisce un metodo: analisi, configurazione, render, PDF, preventivo e follow-up ordinato.",
+    text: "Il cliente percepisce un metodo: analisi, configurazione, anteprima visiva, preventivo e ripresa contatto ordinata.",
   },
 ];
 
 const integrationPillars = [
   {
     icon: Users,
-    title: "CRM serramentisti integrato",
+    title: "Archivio clienti integrato per serramentisti",
     text: "Ogni render è collegato al contatto, all'opportunità e allo stato della trattativa. Vedi a colpo d'occhio chi è caldo, chi è da richiamare e chi ha già firmato.",
   },
   {
     icon: Send,
-    title: "Follow-up automatici WhatsApp & email",
+    title: "Richiami automatici via WhatsApp ed e-mail",
     text: "Sequenze pronte: invio del PDF prima/dopo, promemoria a 48h e 7 giorni, riepilogo del preventivo. Smetti di dimenticarti i clienti tiepidi.",
   },
   {
     icon: LineChart,
-    title: "Dashboard margini e cantieri",
+    title: "Cruscotto margini per commessa",
     text: "Vedi quanti preventivi hai inviato, quanti chiusi, quale margine reale stai facendo per cantiere e quanto rende ogni canale di acquisizione.",
   },
   {
@@ -298,77 +302,49 @@ function CountUp({
   );
 }
 
-/* ================================================================== */
-/* VIDEO DEMO — placeholder, swap il src con il video reale            */
-/* ================================================================== */
-
-// TODO: Sostituire con il video demo reale una volta caricato.
-// Posiziona il file in /public/videos/render-infissi-demo.mp4
-// e il poster (frame anteprima) in /public/videos/render-infissi-poster.jpg
-const DEMO_VIDEO_SRC = "/videos/render-infissi-demo.mp4";
-const DEMO_VIDEO_POSTER = "/videos/render-infissi-poster.jpg";
-
-function VideoDemo() {
-  const [playing, setPlaying] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  const handlePlay = () => {
-    setPlaying(true);
-    setTimeout(() => {
-      videoRef.current?.play().catch(() => {
-        /* ignore autoplay block */
-      });
-    }, 50);
-  };
-
+function VisualDemoStoryboard() {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-2xl">
-      <div className="relative aspect-video w-full">
-        <video
-          ref={videoRef}
-          src={DEMO_VIDEO_SRC}
-          poster={DEMO_VIDEO_POSTER}
-          controls={playing}
-          preload="metadata"
-          playsInline
-          aria-label="Video demo Render Infissi AI: come trasformi una foto in una vendita"
-          title="Demo Render Infissi AI · 60 secondi"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
+    <div className="relative overflow-hidden rounded-[28px] border border-slate-200 bg-slate-950 p-4 text-white shadow-2xl sm:p-6">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(249,116,21,0.28),transparent_38%),radial-gradient(circle_at_80%_55%,rgba(16,185,129,0.16),transparent_34%)]" />
+      <div className="relative grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-3">
+          <div className="mb-3 flex items-center justify-between px-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/55">
+            <span>Foto cliente</span>
+            <span>Render pronto</span>
+          </div>
+          <RenderBeforeAfterSlider
+            beforeUrl={HERO_BEFORE_IMAGE}
+            afterUrl={HERO_AFTER_IMAGE}
+            beforeLabel="Foto"
+            afterLabel="Render"
+            beforeOnLeft
+            compact
+            className="rounded-2xl bg-slate-900"
+          />
+        </div>
 
-        {!playing && (
-          <button
-            type="button"
-            onClick={handlePlay}
-            aria-label="Riproduci video demo Render Infissi AI"
-            className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900/40 via-slate-900/20 to-[#0f172a]/60 transition hover:from-slate-900/30"
-          >
-            {/* Decorative gradient overlay */}
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(249,116,21,0.25),transparent_55%)]" />
-
-            {/* Top-left badge */}
-            <span className="pointer-events-none absolute left-5 top-5 inline-flex items-center gap-2 rounded-md bg-slate-900/80 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white backdrop-blur">
-              <Sparkles className="h-3.5 w-3.5 text-orange-300" />
-              Demo · 60 sec
-            </span>
-
-            {/* Bottom-left text */}
-            <span className="pointer-events-none absolute bottom-5 left-5 right-5 text-left text-white">
-              <span className="block text-base font-extrabold sm:text-lg">
-                Guarda come trasformi una foto in un argomento di vendita
-              </span>
-              <span className="mt-1 block text-xs font-medium text-white/70 sm:text-sm">
-                Carichi la foto · Imposti finiture · Generi prima/dopo · Invii al cliente
-              </span>
-            </span>
-
-            {/* Big play button */}
-            <span className="relative flex h-20 w-20 items-center justify-center rounded-full bg-[#F97415] text-white shadow-2xl ring-4 ring-white/20 transition-transform group-hover:scale-110 sm:h-24 sm:w-24">
-              <span className="absolute inset-0 animate-ping rounded-full bg-[#F97415] opacity-40" />
-              <Play className="relative h-9 w-9 fill-white sm:h-10 sm:w-10" />
-            </span>
-          </button>
-        )}
+        <div className="space-y-3">
+          {[
+            ["00 sec", "Scatti o carichi la foto", "Parti dalla casa vera del cliente, non da un catalogo."],
+            ["20 sec", "Scegli finiture e oscuranti", "Profilo, colore, vetro, maniglia, cassonetto o persiana diventano visibili."],
+            ["47 sec", "Invii prima/dopo", "PDF e WhatsApp pronti per riaprire la trattativa mentre è ancora calda."],
+          ].map(([time, title, text]) => (
+            <div key={title} className="group rounded-2xl border border-white/10 bg-white/[0.06] p-4 transition hover:-translate-y-0.5 hover:bg-white/[0.09]">
+              <div className="flex items-start gap-3">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#F97415] text-sm font-black text-white shadow-lg shadow-orange-950/20">
+                  {time}
+                </span>
+                <div>
+                  <p className="text-base font-black">{title}</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-300">{text}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          <p className="rounded-2xl border border-orange-300/20 bg-orange-500/10 p-4 text-sm font-semibold leading-6 text-orange-50">
+            Quando caricheremo il video reale, questa demo diventa il poster interattivo della clip da 60 secondi.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -382,7 +358,7 @@ const renderFamily = [
   {
     icon: AppWindow,
     title: "Render Infissi",
-    text: "Finestre, portefinestre, profili, vetri e cornici sulla foto reale del cliente.",
+    text: "Finestre, portefinestre, profili, vetri, cornici e davanzali sulla foto reale del cliente.",
     available: true,
   },
   {
@@ -394,19 +370,19 @@ const renderFamily = [
   {
     icon: DoorOpen,
     title: "Render Porte",
-    text: "Porte interne ed esterne: scegli essenza, finitura, vetro e maniglieria sul vano reale.",
+    text: "Porte interne ed esterne: essenza, finitura, vetro e maniglieria sul vano reale.",
     available: true,
   },
   {
     icon: Sun,
     title: "Render Pergole",
-    text: "Pergolati e coperture esterne sul giardino o terrazzo del cliente, con luce naturale.",
+    text: "Pergolati e coperture sul giardino o terrazzo reale del cliente, con luce naturale.",
     available: true,
   },
   {
     icon: Lock,
     title: "Render Porta Blindata",
-    text: "Porte blindate con pannelli, finiture e accessori applicati direttamente all'ingresso reale.",
+    text: "Pannelli, finiture e accessori applicati direttamente all'ingresso vero del cliente.",
     available: true,
   },
 ] as const;
@@ -416,9 +392,9 @@ const renderFamily = [
 /* ================================================================== */
 
 function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
-  const [preventiviMese, setPreventiviMese] = useState(20);
-  const [ticketMedio, setTicketMedio] = useState(8000);
-  const [closeRateAttuale, setCloseRateAttuale] = useState(25);
+  const [preventiviMese, setPreventiviMese] = useState(40);
+  const [ticketMedio, setTicketMedio] = useState(12000);
+  const [closeRateAttuale, setCloseRateAttuale] = useState(30);
 
   const result = useMemo(() => {
     const upliftPct = 12;
@@ -513,27 +489,27 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
             Stima conservativa
           </p>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            +12 punti di close rate ipotizzati grazie al prima/dopo in trattativa.
+            Stima prudente: +12 punti di chiusura preventivi col prima/dopo in trattativa.
           </p>
 
           <div className="mt-5 space-y-4">
             <div className="rounded-lg bg-white p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Nuovo close rate</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Nuovo tasso di chiusura</p>
               <p className="mt-1 text-2xl font-black text-[#0f172a]">{result.newCloseRate.toFixed(0)}%</p>
             </div>
             <div className="rounded-lg bg-white p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Ordini extra al mese</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Ordini in più al mese</p>
               <p className="mt-1 text-2xl font-black text-[#0f172a]">+{result.ordiniAggiuntivi.toFixed(1)}</p>
             </div>
             <div className="rounded-lg bg-[#0f172a] p-4 text-white">
               <p className="text-xs font-bold uppercase tracking-wider text-orange-200">
                 Fatturato aggiuntivo annuo
               </p>
-              <p className="mt-1 text-3xl font-black tracking-tight text-white">
+              <p className="mt-1 text-2xl font-black tracking-tight text-white">
                 {formatEuro(result.fatturatoAggiuntivoAnno)}
               </p>
               <p className="mt-2 text-xs leading-5 text-slate-300">
-                Pari a {formatEuro(result.fatturatoAggiuntivoMese)} al mese in più, a parità di lead.
+                Sono {formatEuro(result.fatturatoAggiuntivoMese)} al mese in più. Stessi clienti. Stesso prezzo. Una foto in più.
               </p>
             </div>
           </div>
@@ -543,7 +519,7 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
             onClick={onRequestInfo}
             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
           >
-            Sblocca il render gratis
+            Sblocca l'anteprima visiva gratis per 31 giorni
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
@@ -642,6 +618,209 @@ function DashboardMock() {
   );
 }
 
+function PhoneFollowUpMock() {
+  return (
+    <div className="relative mx-auto max-w-sm">
+      <div className="absolute -inset-5 rounded-[40px] bg-orange-500/20 blur-3xl" aria-hidden="true" />
+      <div className="relative overflow-hidden rounded-[34px] border-[10px] border-slate-950 bg-slate-950 shadow-2xl">
+        <div className="bg-slate-100 px-4 pb-5 pt-4">
+          <div className="mx-auto mb-3 h-1.5 w-16 rounded-full bg-slate-300" />
+          <div className="rounded-2xl bg-white p-3 shadow-sm">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                <MessageCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-slate-900">Cliente · Via Manzoni</p>
+                <p className="text-[11px] font-semibold text-emerald-600">online adesso</p>
+              </div>
+            </div>
+            <div className="mt-3 space-y-3">
+              <div className="ml-auto max-w-[82%] rounded-2xl rounded-tr-sm bg-[#dcf8c6] p-3 text-sm font-semibold leading-5 text-slate-800">
+                Le mando come cambierebbe casa sua con il profilo antracite.
+              </div>
+              <div className="ml-auto grid max-w-[82%] grid-cols-2 overflow-hidden rounded-2xl rounded-tr-sm border border-emerald-200 bg-white">
+                <img src={HERO_BEFORE_IMAGE} alt="Foto prima render infissi" className="h-28 w-full object-cover" loading="lazy" />
+                <img src={HERO_AFTER_IMAGE} alt="Render dopo infissi" className="h-28 w-full object-cover" loading="lazy" />
+              </div>
+              <div className="ml-auto max-w-[82%] rounded-2xl rounded-tr-sm bg-[#dcf8c6] p-3 text-sm font-semibold leading-5 text-slate-800">
+                PDF prima/dopo allegato al preventivo. Vuole vederlo anche con oscurante?
+              </div>
+              <div className="max-w-[76%] rounded-2xl rounded-tl-sm bg-white p-3 text-sm font-semibold leading-5 text-slate-700 shadow-sm">
+                Ora lo capisco. Mandami questa versione.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConversionInfographic() {
+  return (
+    <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-xl sm:p-6">
+      <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+        <div className="rounded-2xl bg-slate-950 p-5 text-white">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-300">Infografica vendite</p>
+          <h3 className="mt-3 text-2xl font-black leading-tight">Stessi clienti. Stesso prezzo. Una foto in più.</h3>
+          <p className="mt-3 text-sm leading-7 text-slate-300">
+            Quando il cliente vede casa sua trasformata, il preventivo smette di essere una tabella tecnica
+            e diventa una decisione concreta.
+          </p>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-white/8 p-4">
+              <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Prima</p>
+              <p className="mt-1 text-3xl font-black">3/15</p>
+              <p className="mt-1 text-xs text-slate-300">preventivi chiusi</p>
+            </div>
+            <div className="rounded-xl bg-orange-500 p-4 text-white">
+              <p className="text-[11px] font-black uppercase tracking-wider text-orange-100">Con render</p>
+              <p className="mt-1 text-3xl font-black">6/10</p>
+              <p className="mt-1 text-xs text-orange-50">preventivi chiusi</p>
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-3">
+          {[
+            { label: "Preventivo PDF", value: 20, color: "bg-slate-300", note: "il cliente confronta il prezzo" },
+            { label: "Prima/dopo su casa reale", value: 60, color: "bg-orange-500", note: "il cliente vede il risultato" },
+            { label: "Follow-up WhatsApp", value: 74, color: "bg-emerald-500", note: "la trattativa torna calda" },
+          ].map((row) => (
+            <div key={row.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-slate-900">{row.label}</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">{row.note}</p>
+                </div>
+                <p className="text-xl font-black text-slate-900">{row.value}%</p>
+              </div>
+              <div className="mt-3 h-3 overflow-hidden rounded-full bg-white">
+                <div className={`h-full rounded-full ${row.color}`} style={{ width: `${row.value}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VisualProofMosaic() {
+  return (
+    <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
+      <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-slate-950 p-3 shadow-xl">
+        <div className="grid grid-cols-2 overflow-hidden rounded-2xl">
+          <div className="relative">
+            <img src={HERO_BEFORE_IMAGE} alt="Prima: facciata con vecchi infissi" className="h-72 w-full object-cover sm:h-96" loading="lazy" />
+            <span className="absolute left-3 top-3 rounded-full bg-slate-950/80 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white">
+              Prima
+            </span>
+          </div>
+          <div className="relative">
+            <img src={HERO_AFTER_IMAGE} alt="Dopo: render con nuovi infissi" className="h-72 w-full object-cover sm:h-96" loading="lazy" />
+            <span className="absolute right-3 top-3 rounded-full bg-orange-500 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white">
+              Dopo
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+        {[
+          ["Facciata", "Il cliente vede subito l'impatto estetico sul suo prospetto."],
+          ["Colore", "Antracite, bianco, legno o finiture speciali smettono di essere campioni astratti."],
+          ["Dettagli", "Cassonetti, oscuranti e cornici diventano parte visibile della proposta."],
+        ].map(([title, text]) => (
+          <div key={title} className="rounded-2xl border border-orange-200 bg-orange-50 p-5">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">{title}</p>
+            <p className="mt-2 text-base font-extrabold leading-6 text-slate-900">{text}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SuiteVisualGallery({ onRequestInfo }: { onRequestInfo: () => void }) {
+  const categories = [
+    { title: "Infissi", detail: "Profilo antracite, vetro, maniglia", tone: "from-orange-500 to-amber-400" },
+    { title: "Persiane", detail: "Scuro, lamelle, colore facciata", tone: "from-emerald-500 to-teal-400" },
+    { title: "Porte", detail: "Essenza, vetro, ferramenta", tone: "from-sky-500 to-blue-500" },
+    { title: "Pergole", detail: "Copertura, luce, proporzioni", tone: "from-lime-500 to-emerald-400" },
+    { title: "Blindate", detail: "Pannello, accessori, ingresso", tone: "from-slate-700 to-slate-500" },
+  ];
+
+  return (
+    <div className="rounded-[28px] border border-orange-200 bg-white p-4 shadow-xl sm:p-6">
+      <div className="grid gap-4 lg:grid-cols-5">
+        {categories.map((item, index) => (
+          <div
+            key={item.title}
+            className="group relative min-h-[220px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-3 text-white transition hover:-translate-y-1 hover:shadow-xl"
+          >
+            <div className={`absolute inset-x-0 top-0 h-20 bg-gradient-to-r ${item.tone} opacity-80`} />
+            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/5">
+              <div className="grid grid-cols-2">
+                <img src={index % 2 === 0 ? HERO_BEFORE_IMAGE : HERO_AFTER_IMAGE} alt={`${item.title} prima`} className="h-28 w-full object-cover opacity-75 grayscale" loading="lazy" />
+                <img src={HERO_AFTER_IMAGE} alt={`${item.title} dopo`} className="h-28 w-full object-cover" loading="lazy" />
+              </div>
+            </div>
+            <div className="relative mt-4">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white/80">
+                Render {index + 1}
+              </span>
+              <h3 className="mt-3 text-lg font-black">{item.title}</h3>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-300">{item.detail}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-5 flex flex-col gap-3 rounded-2xl bg-orange-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm font-bold leading-6 text-slate-800">
+          Una sola logica commerciale: mostri il risultato nel contesto reale del cliente, poi lo colleghi a preventivo e follow-up.
+        </p>
+        <button
+          type="button"
+          onClick={onRequestInfo}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#F97415] px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
+        >
+          Voglio vedere la suite
+          <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ContextualCta({
+  eyebrow,
+  title,
+  action,
+  onClick,
+}: {
+  eyebrow: string;
+  title: string;
+  action: string;
+  onClick: () => void;
+}) {
+  return (
+    <div className="mt-10 rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-white p-5 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-6">
+      <div>
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#D95E0B]">{eyebrow}</p>
+        <p className="mt-2 text-lg font-black leading-7 text-[#0f172a]">{title}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onClick}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#0f172a] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#1e293b] sm:mt-0 sm:w-auto"
+      >
+        {action}
+        <ArrowRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 /* ================================================================== */
 /* PAGE                                                                */
 /* ================================================================== */
@@ -649,11 +828,88 @@ function DashboardMock() {
 export default function RenderInfissi() {
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const openLeadModal = () => setLeadModalOpen(true);
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    async function mountScrollAnimations() {
+      const root = pageRef.current;
+      if (!root || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+      const [{ default: gsap }, { ScrollTrigger }] = await Promise.all([
+        import("gsap"),
+        import("gsap/ScrollTrigger"),
+      ]);
+
+      gsap.registerPlugin(ScrollTrigger);
+      const ctx = gsap.context(() => {
+        gsap.utils.toArray<HTMLElement>("[data-render-reveal]").forEach((el) => {
+          gsap.fromTo(
+            el,
+            { autoAlpha: 0, y: 34, scale: 0.985 },
+            {
+              autoAlpha: 1,
+              y: 0,
+              scale: 1,
+              duration: 0.82,
+              ease: "power3.out",
+              scrollTrigger: {
+                trigger: el,
+                start: "top 86%",
+                once: true,
+              },
+            }
+          );
+        });
+
+        gsap.utils.toArray<HTMLElement>("[data-render-stagger]").forEach((group) => {
+          const children = group.querySelectorAll<HTMLElement>("[data-render-item]");
+          if (!children.length) return;
+          gsap.fromTo(
+            children,
+            { autoAlpha: 0, y: 24 },
+            {
+              autoAlpha: 1,
+              y: 0,
+              duration: 0.62,
+              ease: "power2.out",
+              stagger: 0.08,
+              scrollTrigger: {
+                trigger: group,
+                start: "top 84%",
+                once: true,
+              },
+            }
+          );
+        });
+
+        gsap.utils.toArray<HTMLElement>("[data-render-orbit]").forEach((el, index) => {
+          gsap.to(el, {
+            rotate: index % 2 === 0 ? 360 : -360,
+            duration: index % 2 === 0 ? 18 : 24,
+            ease: "none",
+            repeat: -1,
+            transformOrigin: "50% 50%",
+          });
+        });
+      }, root);
+
+      cleanup = () => ctx.revert();
+    }
+
+    mountScrollAnimations().catch(() => {
+      /* Animazioni progressive: se GSAP non carica, la pagina resta comunque usabile. */
+    });
+
+    return () => cleanup?.();
+  }, []);
+
   useSEO({
     title:
-      "Render Infissi AI per Serramentisti",
+      "Render Infissi AI per Serramentisti | Aumenta la chiusura preventivi",
     description:
-      "Render Infissi AI per serramentisti: trasforma la foto reale del cliente in un prima/dopo credibile con nuovi serramenti, colori, vetri, cassonetti,…",
+      "Da 3 preventivi chiusi su 15 a 6 chiusi su 10: carichi la foto della casa, scegli profilo, colore, vetro e oscurante, generi il prima/dopo in 60 secondi.",
     canonical: "/funzionalita/render-infissi",
     keywords:
       "render infissi, render serramenti, render finestre AI, software serramentisti, prima dopo infissi, configuratore infissi AI, vendita serramenti, render tapparelle, render persiane, render porte blindate, render pergole, AI infissi, software preventivi serramenti, gestionale serramentisti",
@@ -665,7 +921,7 @@ export default function RenderInfissi() {
   const videoUploadDate = "2026-04-27";
 
   return (
-    <div className="min-h-screen bg-white text-[#0f172a]">
+    <div ref={pageRef} className="min-h-screen bg-white text-[#0f172a]">
       <JsonLd
         id="jsonld-breadcrumb-render-infissi"
         data={{
@@ -730,7 +986,7 @@ export default function RenderInfissi() {
             availability: "https://schema.org/InStock",
             url: `${SITE_URL}/demo`,
             description:
-              "Accesso beta al modulo Render Infissi AI per i primi 100 serramentisti italiani. Cancelli quando vuoi, onboarding 1-a-1 incluso.",
+              "Anteprima riservata alle prime 30 aziende: modulo Render Infissi AI per serramentisti, sale espositive e reti vendita.",
           },
           aggregateRating: {
             "@type": "AggregateRating",
@@ -828,7 +1084,7 @@ export default function RenderInfissi() {
           url: pageUrl,
           name: "Render Infissi AI per Serramentisti",
           description:
-            "Render Infissi AI: trasforma la foto reale del cliente in un prima/dopo credibile e differenziati dal prezzo.",
+            "Render Infissi AI: carichi la foto della casa del cliente, scegli profilo, colore, vetro e oscurante e generi un prima/dopo in 60 secondi.",
           inLanguage: "it-IT",
           isPartOf: {
             "@type": "WebSite",
@@ -856,12 +1112,11 @@ export default function RenderInfissi() {
 
       <noscript>
         <div style={{ padding: "24px", maxWidth: "960px", margin: "0 auto" }}>
-          <h1>Render Infissi AI per Serramentisti</h1>
+          <h1>Da 3 preventivi chiusi su 15 a 6 chiusi su 10.</h1>
           <p>
-            Render Infissi AI trasforma la foto reale del cliente in un prima/dopo
-            credibile: nuovi serramenti, colori, vetri, cassonetti, persiane,
-            tapparelle, porte blindate e pergole applicati alla stessa facciata.
-            Pensato per serramentisti, showroom e reti vendita italiane.
+            Per serramentisti, sale espositive e reti vendita. Carichi la foto
+            della casa del cliente, scegli profilo, colore, vetro e oscurante.
+            In 60 secondi esce il prima/dopo che il cliente non vedrà da nessun altro.
           </p>
           <p>
             Carica una foto, configura finiture, genera il render prima/dopo,
@@ -960,15 +1215,15 @@ export default function RenderInfissi() {
           />
 
           <div className="relative mx-auto max-w-5xl text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-orange-400/35 bg-orange-500/15 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.18em] text-orange-200">
+            <div className="mb-6 inline-flex max-w-full items-center gap-2 rounded-full border border-orange-400/35 bg-orange-500/15 px-3 py-2 text-[10px] font-extrabold uppercase leading-4 tracking-[0.14em] text-orange-200 sm:px-4 sm:text-xs sm:tracking-[0.18em]">
               <Sparkles className="h-4 w-4" />
-              Render AI per serramentisti · Beta
+              Per serramentisti, sale espositive e reti vendita · Anteprima riservata alle prime 30 aziende
             </div>
             <h1
               id="hero-title"
-              className="mx-auto max-w-4xl text-4xl font-black leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl"
+              className="mx-auto max-w-4xl text-[1.9rem] font-black leading-[1.1] tracking-tight text-white min-[390px]:text-[2.05rem] sm:text-5xl lg:text-6xl"
             >
-              Render Infissi AI per Serramentisti: fai scegliere prima del prezzo, mostra al cliente come cambierà la sua casa.
+              Da 3 preventivi chiusi su 15 a 6 chiusi su 10. Sugli stessi clienti che già vedi. Senza scendere di prezzo.
             </h1>
 
             {/* HERO IMAGE — caso reale Demo Azienda */}
@@ -1008,10 +1263,9 @@ export default function RenderInfissi() {
             </div>
 
             <p className="mx-auto mt-6 max-w-3xl text-lg font-medium leading-8 text-slate-200 sm:text-xl">
-              Render Infissi AI trasforma la foto reale del cliente in un prima/dopo credibile:
-              nuovi serramenti, colori, vetri, cassonetti e oscuranti applicati alla stessa facciata.
-              Il preventivo non è più una cifra da confrontare, ma una scelta che il cliente riesce
-              finalmente a vedere.
+              Carichi la foto della casa del cliente. Scegli profilo, colore, vetro e oscurante.
+              In 60 secondi esce il prima/dopo che il cliente non vedrà da nessun altro.
+              Stesso preventivo. Stesso prezzo. Una foto in più. Fino a +12 punti di chiusura preventivi.
             </p>
 
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -1088,91 +1342,180 @@ export default function RenderInfissi() {
         {/* SCARCITY: Beta access */}
         <section
           aria-labelledby="beta-title"
-          className="relative overflow-hidden bg-gradient-to-r from-[#F97415] to-[#D95E0B] px-6 py-12 text-white"
+          data-render-reveal
+          className="relative overflow-hidden bg-gradient-to-br from-[#0b1220] via-[#1a2540] to-[#D95E0B] px-6 py-14 text-white"
         >
           <div
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_50%,rgba(255,255,255,0.18),transparent_55%)]"
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_50%,rgba(255,255,255,0.18),transparent_55%),linear-gradient(90deg,rgba(249,116,21,0.22)_1px,transparent_1px),linear-gradient(rgba(249,116,21,0.16)_1px,transparent_1px)] bg-[length:auto,52px_52px,52px_52px]"
             aria-hidden="true"
           />
-          <div className="relative mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 lg:flex-row lg:items-center">
-            <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-black uppercase tracking-[0.18em]">
+          <div
+            data-render-orbit
+            className="pointer-events-none absolute -right-16 top-6 h-44 w-44 rounded-full border border-orange-200/25"
+            aria-hidden="true"
+          />
+          <div
+            data-render-orbit
+            className="pointer-events-none absolute -left-10 bottom-4 h-28 w-28 rounded-full border border-white/20"
+            aria-hidden="true"
+          />
+          <div className="relative mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] ring-1 ring-white/20">
                 <Sparkles className="h-3.5 w-3.5" />
-                Accesso Beta · Posti limitati
+                30 serramentisti italiani · prezzo bloccato · poi sale
               </div>
-              <h2 id="beta-title" className="mt-3 text-2xl font-black leading-tight sm:text-3xl">
-                Stiamo aprendo l'accesso ai primi 100 serramentisti italiani.
+              <h2 id="beta-title" className="mt-4 text-2xl font-black leading-tight sm:text-4xl">
+                Stiamo aprendo l'anteprima alle prime 30 aziende.
               </h2>
-              <p className="mt-3 text-base leading-7 text-orange-50">
-                Chi entra adesso in beta blocca il prezzo lanciatissimo, riceve onboarding 1-a-1 con un
-                consulente Edilizia in Cloud e contribuisce a costruire le funzionalità con feedback diretto.
-                Quando i 100 posti saranno chiusi, il prezzo sale.
+              <p className="mt-3 text-base font-semibold leading-7 sm:text-lg sm:leading-8 text-orange-50">
+                Tu sei il numero quanto? Chi entra adesso blocca il prezzo lanciatissimo a vita,
+                riceve affiancamento singolo con un Consulente del Controllo e decide insieme a noi
+                quali categorie aggiungere dopo gli infissi.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={openLeadModal}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-6 py-4 text-base font-extrabold text-[#D95E0B] shadow-lg transition hover:bg-orange-50"
-            >
-              Riserva il tuo posto
-              <ArrowRight className="h-5 w-5" />
-            </button>
+            <div className="rounded-2xl border border-white/18 bg-white/10 p-5 shadow-2xl backdrop-blur" data-render-stagger>
+              {[
+                "Prezzo lanciatissimo bloccato a vita. Quando i 30 posti finiscono, il prezzo sale per tutti gli altri.",
+                "Affiancamento singolo con un Consulente del Controllo dedicato di EdiliziaInCloud.",
+                "31 giorni di prova senza rischio. Se non ti porta più di quanto costa, ti rimborsiamo tutto.",
+              ].map((item) => (
+                <div key={item} data-render-item className="flex gap-3 border-b border-white/10 py-3 last:border-b-0">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+                  <p className="text-sm font-semibold leading-6 text-white/88">{item}</p>
+                </div>
+              ))}
+              <p className="mt-4 rounded-xl bg-black/20 p-3 text-sm font-black text-white">
+                Quando i 30 posti sono finiti, sono finiti. Niente coda. Niente eccezioni.
+              </p>
+              <button
+                type="button"
+                onClick={openLeadModal}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-6 py-4 text-base font-extrabold text-[#D95E0B] shadow-lg transition hover:bg-orange-50"
+              >
+                Riserva il tuo posto ora
+                <ArrowRight className="h-5 w-5" />
+              </button>
+            </div>
           </div>
         </section>
 
         {/* Speed stats with animated counters */}
-        <section aria-labelledby="speed-title" className="bg-[#fff7ed] px-6 py-16">
+        <section aria-labelledby="speed-title" data-render-reveal className="bg-[#fff7ed] px-6 py-16">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
                 Risposta immediata
               </p>
-              <h2 id="speed-title" className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
-                In 60 secondi trasformi una foto in un argomento di vendita.
+              <h2 id="speed-title" className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                In 60 secondi hai un argomento di vendita che il concorrente non ha.
               </h2>
-              <p className="mt-4 text-lg leading-8 text-slate-700">
-                Non aspetti giorni per far vedere un'idea. Carichi la foto, scegli le finiture e ottieni
-                un prima/dopo da usare subito: in showroom, dopo il sopralluogo o nel follow-up del preventivo.
+              <p className="mt-4 text-base leading-7 sm:text-lg sm:leading-8 text-slate-700">
+                Il sopralluogo è finito. Sei in macchina. Apri il telefono. Carichi la foto, scegli
+                profilo e colore, premi genera. Quando il cliente apre WhatsApp tu sei già lì, col
+                prima/dopo della sua casa. Il concorrente sta ancora preparando il preventivo in PDF.
               </p>
             </div>
-            <div className="mt-10 grid gap-4 sm:grid-cols-3">
+            <div className="mt-10 grid gap-4 sm:grid-cols-3" data-render-stagger>
               {speedStats.map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-2xl border border-orange-200 bg-white p-6 shadow-sm transition hover:shadow-md"
+                  data-render-item
+                  className="group rounded-2xl border border-orange-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
                 >
-                  <p className="text-5xl font-black tracking-tight text-[#D95E0B]">
+                  <p className="text-4xl font-black tracking-tight sm:text-5xl text-[#D95E0B] transition group-hover:scale-105">
                     <CountUp value={item.value} prefix={item.prefix} suffix={item.suffix} />
                   </p>
                   <p className="mt-3 text-sm font-semibold leading-6 text-slate-700">{item.label}</p>
                 </div>
               ))}
             </div>
+            <p className="mx-auto mt-5 max-w-3xl text-center text-xs leading-6 text-slate-500">
+              Stime indicative. Il risultato reale dipende da prodotto, prezzo, qualità del cliente e processo di vendita.
+            </p>
+          </div>
+        </section>
+
+        {/* VISUAL SALES INFOGRAPHIC */}
+        <section aria-labelledby="visual-sales-title" data-render-reveal className="bg-white px-6 py-16 sm:py-20">
+          <div className="mx-auto max-w-6xl">
+            <div className="mx-auto max-w-3xl text-center">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">Prima immagine, poi prezzo</p>
+              <h2 id="visual-sales-title" className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                Il preventivo non resta più una lista di righe tecniche.
+              </h2>
+              <p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
+                Mostri al cliente una prova visiva, poi colleghi quella prova al preventivo,
+                alla trattativa e al follow-up. È qui che il render diventa vendita.
+              </p>
+            </div>
+            <div className="mt-10">
+              <ConversionInfographic />
+            </div>
+            <p className="mx-auto mt-5 max-w-3xl text-center text-xs leading-6 text-slate-500">
+              Esempio commerciale prudenziale: non è una promessa di risultato automatico, ma un modello per visualizzare
+              cosa succede quando il preventivo viene accompagnato da una prova visiva e da un follow-up ordinato.
+            </p>
           </div>
         </section>
 
         {/* VIDEO DEMO */}
-        <section id="video-demo" aria-labelledby="video-title" className="bg-white px-6 py-20">
+        <section id="video-demo" aria-labelledby="video-title" data-render-reveal className="bg-white px-6 py-20">
           <div className="mx-auto max-w-5xl">
             <div className="mx-auto max-w-3xl text-center">
               <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
                 <Play className="h-3.5 w-3.5 fill-[#D95E0B]" />
-                Guarda il video demo
+                Demo visuale · 60 secondi
               </div>
-              <h2 id="video-title" className="mt-4 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
-                Vedi in 60 secondi come trasformi una foto in una vendita.
+              <h2 id="video-title" className="mt-4 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                Guarda il percorso: foto, scelta, prima/dopo, WhatsApp.
               </h2>
-              <p className="mt-4 text-lg leading-8 text-slate-600">
-                Carichi la foto del cliente, scegli profilo, colore, vetro e oscurante, generi il
-                prima/dopo e lo invii direttamente su WhatsApp. Tutto dentro Edilizia in Cloud.
+              <p className="mt-4 text-base leading-7 sm:text-lg sm:leading-8 text-slate-600">
+                Finché non carichi il video reale, questa sezione mostra il flusso commerciale da replicare in trattativa:
+                una prova visiva veloce, memorabile e pronta da allegare al preventivo.
               </p>
             </div>
             <div className="mt-10">
-              <VideoDemo />
+              <VisualDemoStoryboard />
             </div>
-            <p className="mt-4 text-center text-xs leading-6 text-slate-500">
-              Vuoi provarlo sulla foto di un tuo cliente reale? Riserva il tuo accesso beta.
-            </p>
+            <div className="mt-7 text-center">
+              <p className="text-sm font-bold text-slate-700">Non basta. Vuoi vederlo sulla foto di un tuo cliente?</p>
+              <button
+                type="button"
+                onClick={openLeadModal}
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-6 py-3 text-sm font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-[#D95E0B]"
+              >
+                Voglio provarlo su una foto reale
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* WHATSAPP FOLLOW-UP MOCK */}
+        <section aria-labelledby="followup-visual-title" data-render-reveal className="bg-[#f8fafc] px-6 py-20">
+          <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <div>
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+                Follow-up che si vede
+              </p>
+              <h2 id="followup-visual-title" className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                Non richiami chiedendo “ha visto il preventivo?”.
+              </h2>
+              <p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
+                Riapri la conversazione con una foto: “Le mando come cambierebbe casa sua”.
+                Il cliente non deve ricordarsi una cifra. Deve riconoscere casa sua.
+              </p>
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                {["WhatsApp", "PDF prima/dopo", "Scheda cliente"].map((item) => (
+                  <div key={item} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    <p className="mt-2 text-sm font-black text-slate-900">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <PhoneFollowUpMock />
           </div>
         </section>
 
@@ -1180,6 +1523,7 @@ export default function RenderInfissi() {
         <section
           id="famiglia-render"
           aria-labelledby="famiglia-title"
+          data-render-reveal
           className="bg-gradient-to-b from-white to-[#fff7ed] px-6 py-20"
         >
           <div className="mx-auto max-w-6xl">
@@ -1188,19 +1532,20 @@ export default function RenderInfissi() {
                 <Sparkles className="h-3.5 w-3.5" />
                 Famiglia Render AI
               </div>
-              <h2 id="famiglia-title" className="mt-4 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
-                Non solo infissi. Un render AI per ogni prodotto che vendi.
+              <h2 id="famiglia-title" className="mt-4 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                Un abbonamento. Cinque categorie. Zero costi extra quando ne arrivano altre.
               </h2>
-              <p className="mt-4 text-lg leading-8 text-slate-600">
-                Lo stesso meccanismo del Render Infissi, esteso a tutte le categorie del mondo
-                aperture e outdoor. Una piattaforma, cinque moduli, lo stesso impatto in trattativa.
+              <p className="mt-4 text-base leading-7 sm:text-lg sm:leading-8 text-slate-600">
+                Non solo infissi. Un'anteprima visiva per ogni cosa che vendi. Lo stesso meccanismo
+                del Render Infissi, esteso a tutto il mondo aperture e spazi esterni.
               </p>
             </div>
 
-            <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3" data-render-stagger>
               {renderFamily.map((m, i) => (
                 <div
                   key={m.title}
+                  data-render-item
                   className={`group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-orange-300 hover:shadow-lg ${
                     i === 0 ? "lg:col-span-1 lg:row-span-1" : ""
                   }`}
@@ -1239,8 +1584,8 @@ export default function RenderInfissi() {
                   </div>
                   <h3 className="mt-5 text-xl font-black">Tutta la suite Render AI</h3>
                   <p className="mt-2 text-sm leading-7 text-slate-300">
-                    Accedi a tutti i moduli con un unico abbonamento. Nuove categorie aggiunte
-                    senza costi extra.
+                    Quando aggiungiamo nuove categorie, come cucine in muratura, controsoffitti o scale interne,
+                    entrano nel tuo piano. Senza costi extra. Per sempre.
                   </p>
                   <button
                     type="button"
@@ -1253,29 +1598,54 @@ export default function RenderInfissi() {
                 </div>
               </div>
             </div>
+
+            <div className="mt-12">
+              <SuiteVisualGallery onRequestInfo={openLeadModal} />
+            </div>
+          </div>
+        </section>
+
+        {/* REAL VISUAL PROOF MOSAIC */}
+        <section aria-labelledby="proof-mosaic-title" data-render-reveal className="bg-white px-6 py-20">
+          <div className="mx-auto max-w-6xl">
+            <div className="max-w-3xl">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+                Prova visiva reale
+              </p>
+              <h2 id="proof-mosaic-title" className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                La differenza si capisce prima ancora di leggere il preventivo.
+              </h2>
+              <p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
+                Stessa casa, stesso contesto, stessa apertura. Cambia ciò che il cliente deve decidere:
+                il risultato finale.
+              </p>
+            </div>
+            <div className="mt-10">
+              <VisualProofMosaic />
+            </div>
           </div>
         </section>
 
         <section className="bg-[#f8fafc] px-6 py-20">
-          <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-6xl" data-render-reveal>
             <div className="max-w-3xl">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
                 Il problema vero
               </p>
-              <h2 className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
-                Il cliente non sta scegliendo solo una finestra. Sta decidendo se fidarsi di te.
+              <h2 className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                Il cliente non sta scegliendo una finestra. Sta decidendo se fidarsi di te.
               </h2>
-              <p className="mt-4 text-lg leading-8 text-slate-600">
+              <p className="mt-4 text-base leading-7 sm:text-lg sm:leading-8 text-slate-600">
                 Il serramentista bravo spiega bene. Il serramentista che chiude meglio fa vedere.
-                Quando il cliente riconosce la propria casa migliorata, smette di ragionare solo
-                su marca, scheda tecnica e sconto.
+                Tu fai entrambe le cose. Solo che il cliente, finora, ha sentito solo la prima.
               </p>
             </div>
 
-            <div className="mt-10 grid gap-5 md:grid-cols-3">
+            <div className="mt-10 grid gap-5 md:grid-cols-3" data-render-stagger>
               {painPoints.map((item) => (
                 <div
                   key={item.title}
+                  data-render-item
                   className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-50">
@@ -1286,29 +1656,37 @@ export default function RenderInfissi() {
                 </div>
               ))}
             </div>
+
+            <ContextualCta
+              eyebrow="Prossimo passo"
+              title="Vuoi vedere se il prima/dopo può sbloccare i preventivi fermi della tua azienda?"
+              action="Voglio vedere il prima/dopo"
+              onClick={openLeadModal}
+            />
           </div>
         </section>
 
         <section className="bg-white px-6 py-20">
-          <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-6xl" data-render-reveal>
             <div className="max-w-3xl">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
                 Prima e dopo, dove conta davvero
               </p>
-              <h2 className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
-                Non mostri un'immagine generica. Mostri le aree che fanno decidere il cliente.
+              <h2 className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                Non un'immagine generica. Le aree che fanno decidere il cliente.
               </h2>
-              <p className="mt-4 text-lg leading-8 text-slate-600">
+              <p className="mt-4 text-base leading-7 sm:text-lg sm:leading-8 text-slate-600">
                 Il render deve aiutare il cliente a capire cosa cambia nella sua casa: facciata,
                 vano finestra, oscuranti, cassonetti e dettagli che normalmente restano nascosti dentro
                 una voce di preventivo.
               </p>
             </div>
 
-            <div className="mt-10 grid gap-5 md:grid-cols-2">
+            <div className="mt-10 grid gap-5 md:grid-cols-2" data-render-stagger>
               {beforeAfterAreas.map((area) => (
                 <div
                   key={area.title}
+                  data-render-item
                   className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
                 >
                   <div className="grid min-h-[210px] md:grid-cols-2">
@@ -1330,16 +1708,15 @@ export default function RenderInfissi() {
         </section>
 
         {/* MECHANISM — visual timeline */}
-        <section id="meccanismo" aria-labelledby="meccanismo-title" className="bg-white px-6 py-20">
+        <section id="meccanismo" aria-labelledby="meccanismo-title" data-render-reveal className="bg-white px-6 py-20">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">Il meccanismo</p>
-              <h2 id="meccanismo-title" className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
-                Una dimostrazione visiva che entra nella trattativa al momento giusto.
+              <h2 id="meccanismo-title" className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                Una prova visiva che entra nella trattativa al momento giusto.
               </h2>
-              <p className="mt-4 text-lg leading-8 text-slate-600">
-                Non vendi "intelligenza artificiale". Vendi sicurezza: questa è la sua casa con i serramenti
-                che gli stai proponendo.
+              <p className="mt-4 text-base leading-7 sm:text-lg sm:leading-8 text-slate-600">
+                Non vendi Intelligenza Artificiale. Vendi sicurezza al cliente.
               </p>
             </div>
 
@@ -1349,9 +1726,9 @@ export default function RenderInfissi() {
                 className="absolute left-0 right-0 top-6 hidden h-0.5 bg-gradient-to-r from-orange-200 via-orange-400 to-orange-200 md:block"
                 aria-hidden="true"
               />
-              <div className="grid gap-8 md:grid-cols-3">
+              <div className="grid gap-8 md:grid-cols-3" data-render-stagger>
                 {mechanismSteps.map((step, index) => (
-                  <div key={step.title} id={`step-${index + 1}`} className="relative">
+                  <div key={step.title} id={`step-${index + 1}`} className="relative" data-render-item>
                     <div className="relative z-10 mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#F97415] text-white shadow-lg shadow-orange-200">
                       <step.icon className="h-5 w-5" />
                     </div>
@@ -1381,17 +1758,17 @@ export default function RenderInfissi() {
         </section>
 
         {/* Commercial levers */}
-        <section className="bg-[#0f172a] px-6 py-20 text-white">
+        <section className="bg-[#0f172a] px-6 py-20 text-white" data-render-reveal>
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
               <div>
                 <p className="text-sm font-black uppercase tracking-[0.2em] text-orange-300">
                   Perché funziona commercialmente
                 </p>
-                <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+                <h2 className="mt-3 text-2xl font-black tracking-tight sm:text-4xl">
                   Se il cliente non vede la differenza, ti chiederà lo sconto.
                 </h2>
-                <p className="mt-5 text-lg leading-8 text-slate-300">
+                <p className="mt-5 text-base leading-7 sm:text-lg sm:leading-8 text-slate-300">
                   La maggior parte dei concorrenti consegna preventivi pieni di voci tecniche. Tu puoi
                   consegnare una prova visiva: stessa casa, nuovi infissi, impatto immediato.
                 </p>
@@ -1400,6 +1777,7 @@ export default function RenderInfissi() {
                 {commercialLevers.map((item) => (
                   <div
                     key={item.title}
+                    data-render-item
                     className="rounded-lg border border-white/10 bg-white/5 p-5 transition hover:bg-white/10"
                   >
                     <item.icon className="h-6 w-6 text-orange-300" />
@@ -1415,20 +1793,20 @@ export default function RenderInfissi() {
         {/* ============================================================ */}
         {/* RISULTATI CON EDILIZIA IN CLOUD                              */}
         {/* ============================================================ */}
-        <section className="bg-gradient-to-br from-[#fff7ed] via-white to-[#fff1e0] px-6 py-20">
+        <section className="bg-gradient-to-br from-[#fff7ed] via-white to-[#fff1e0] px-6 py-20" data-render-reveal>
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
               <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
                 <TrendingUp className="h-3.5 w-3.5" />
                 Risultati con Edilizia in Cloud
               </div>
-              <h2 className="mt-4 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
-                Il render è solo l'inizio. Il vero salto è quando entra nel tuo CRM.
+              <h2 className="mt-4 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                L'anteprima visiva è solo l'inizio. Il salto vero è quando entra nel tuo archivio clienti.
               </h2>
-              <p className="mt-4 text-lg leading-8 text-slate-600">
-                Edilizia in Cloud collega il render al contatto, all'opportunità, al preventivo e alla
-                fattura. Smetti di gestire i clienti tra WhatsApp, Excel e cartelle perse: vedi tutto
-                in un'unica timeline e chiudi il cerchio sulla trattativa.
+              <p className="mt-4 text-base leading-7 sm:text-lg sm:leading-8 text-slate-600">
+                L'anteprima da sola la fanno in dieci con un'applicazione qualunque. EdiliziaInCloud
+                collega ogni render al contatto, alla trattativa, al preventivo e alla fattura elettronica.
+                Smetti di gestire clienti tra WhatsApp, fogli Excel e cartelle perse.
               </p>
             </div>
 
@@ -1478,7 +1856,7 @@ export default function RenderInfissi() {
                 onClick={openLeadModal}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-[#D95E0B]"
               >
-                Apri la tua dashboard di prova
+                Apri il tuo cruscotto di prova
                 <ArrowRight className="h-5 w-5" />
               </button>
             </div>
@@ -1486,43 +1864,49 @@ export default function RenderInfissi() {
         </section>
 
         {/* ROI CALCULATOR */}
-        <section className="bg-white px-6 py-20">
+        <section className="bg-white px-6 py-20" data-render-reveal>
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
               <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
                 <TrendingUp className="h-3.5 w-3.5" />
                 Calcola il tuo ROI
               </div>
-              <h2 className="mt-4 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
-                Quanto fatturato in più puoi fare con un prima/dopo in trattativa?
+              <h2 className="mt-4 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                Sposta i cursori. Vedi quanto stai lasciando al concorrente.
               </h2>
-              <p className="mt-4 text-lg leading-8 text-slate-600">
-                Sposta i cursori sulla tua realtà: preventivi al mese, ticket medio e close rate.
-                La stima parte da un'ipotesi conservativa di +12 punti di chiusura.
+              <p className="mt-4 text-base leading-7 sm:text-lg sm:leading-8 text-slate-600">
+                Quanti preventivi mandi al mese. Quanto vale in media un ordine chiuso. Quanti firmi su 10.
+                Tre numeri. Sposta i cursori sui tuoi.
               </p>
             </div>
             <div className="mt-10">
               <RoiCalculator onRequestInfo={openLeadModal} />
             </div>
             <p className="mt-4 text-center text-xs leading-6 text-slate-500">
-              Stima indicativa basata su benchmark di settore. Il risultato reale dipende da prodotto,
-              prezzo, qualità del lead e processo commerciale.
+              Stima indicativa basata su benchmark di trattativa visiva. Il risultato reale dipende da prodotto,
+              prezzo, qualità del cliente e processo commerciale.
             </p>
+            <ContextualCta
+              eyebrow="Analisi gratuita"
+              title="Porta i tuoi numeri: preventivi al mese, ticket medio e chiusure. Ti mostriamo dove stai lasciando margine."
+              action="Calcola sul mio caso"
+              onClick={openLeadModal}
+            />
           </div>
         </section>
 
         {/* Sales impact */}
-        <section className="bg-[#f8fafc] px-6 py-20">
+        <section className="bg-[#f8fafc] px-6 py-20" data-render-reveal>
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
               <div>
                 <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
                   Più vendite, meno preventivi dimenticati
                 </p>
-                <h2 className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                <h2 className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
                   Il render non serve a fare scena. Serve a far avanzare la decisione.
                 </h2>
-                <p className="mt-5 text-lg leading-8 text-slate-600">
+                <p className="mt-5 text-base leading-7 sm:text-lg sm:leading-8 text-slate-600">
                   Ogni cliente che rimanda ha bisogno di una ragione concreta per tornare sul preventivo.
                   Il prima/dopo crea quella ragione: visuale, semplice, immediata.
                 </p>
@@ -1544,11 +1928,11 @@ export default function RenderInfissi() {
         </section>
 
         {/* What you deliver */}
-        <section className="bg-white px-6 py-20">
+        <section className="bg-white px-6 py-20" data-render-reveal>
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">Cosa consegni</p>
-              <h2 className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+              <h2 className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
                 Non una bella immagine. Uno strumento commerciale per vendere meglio.
               </h2>
             </div>
@@ -1573,12 +1957,12 @@ export default function RenderInfissi() {
         </section>
 
         {/* Use scenarios */}
-        <section className="bg-[#f8fafc] px-6 py-20">
+        <section className="bg-[#f8fafc] px-6 py-20" data-render-reveal>
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
               <div>
                 <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">Uso sul campo</p>
-                <h2 className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                <h2 className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
                   Tre momenti in cui il render può spostare davvero la trattativa.
                 </h2>
               </div>
@@ -1599,8 +1983,8 @@ export default function RenderInfissi() {
           <div className="mx-auto max-w-5xl">
             <div className="text-center">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">Obiezioni frequenti</p>
-              <h2 id="faq-title" className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
-                Le domande che un serramentista serio si fa prima di usarlo.
+              <h2 id="faq-title" className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+                Le domande che un serramentista serio si fa prima di firmare.
               </h2>
             </div>
             <div className="mt-10 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
@@ -1627,18 +2011,17 @@ export default function RenderInfissi() {
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
-                Approfondisci
+                Esplora gli altri moduli
               </p>
               <h2
                 id="approfondisci-title"
-                className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl"
+                className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl"
               >
-                Esplora come Edilizia in Cloud aiuta i serramentisti a vendere meglio.
+                Render Infissi è un modulo di EdiliziaInCloud.
               </h2>
               <p className="mt-4 text-base leading-7 text-slate-600">
-                Render Infissi AI è un modulo della piattaforma Edilizia in Cloud, il software
-                gestionale per imprese edili e serramentisti italiani. Scopri tutti i moduli
-                collegati: dal CRM al preventivo, dalla pipeline ordini alla fattura elettronica.
+                Il gestionale per imprese edili e serramentisti italiani. Scopri tutti i moduli collegati:
+                archivio clienti, preventivi, ordini, fatturazione SDI, margini di commessa e marketing.
               </p>
             </div>
 
@@ -1726,28 +2109,51 @@ export default function RenderInfissi() {
         </section>
 
         {/* Final CTA */}
-        <section id="render-request" aria-labelledby="final-cta-title" className="bg-[#0b1220] px-6 py-20 text-center text-white">
+        <section id="render-request" aria-labelledby="final-cta-title" data-render-reveal className="relative overflow-hidden bg-[#0b1220] px-6 py-20 text-center text-white">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(249,116,21,0.28),transparent_46%)]" aria-hidden="true" />
           <div className="mx-auto max-w-3xl">
             <Wand2 className="mx-auto h-10 w-10 text-orange-300" />
-            <h2 id="final-cta-title" className="mt-5 text-3xl font-black tracking-tight sm:text-4xl">
-              Se il tuo concorrente manda solo un preventivo, tu manda una visione.
+            <h2 id="final-cta-title" className="mt-5 text-2xl font-black tracking-tight sm:text-4xl">
+              Il tuo concorrente sta finendo il preventivo PDF adesso.
             </h2>
-            <p className="mt-5 text-lg leading-8 text-slate-300">
-              Il cliente deve pensare: "Questa è casa mia con i nuovi infissi". Quando succede,
-              il preventivo diventa più concreto, più memorabile e più difficile da confrontare
-              soltanto sul prezzo.
+            <p className="mt-5 text-base leading-7 sm:text-lg sm:leading-8 text-slate-300">
+              Tu puoi mandare la foto di casa sua coi tuoi nuovi infissi. Il cliente apre WhatsApp
+              stasera dopo cena. Vede il preventivo del concorrente. Vede il tuo prima/dopo.
+              Indovina chi richiama domani mattina.
             </p>
+            <div className="mx-auto mt-8 grid max-w-2xl gap-2 text-left text-sm font-semibold text-slate-200 sm:grid-cols-2" data-render-stagger>
+              {[
+                "31 giorni di prova gratuita",
+                "Garanzia di risultato a 90 giorni",
+                "Setup in 48 ore · migrazione dati inclusa",
+                "Affiancamento singolo dedicato",
+                "Disdici quando vuoi, senza penali",
+                "Prezzo bloccato a vita per le prime 30 aziende",
+              ].map((item) => (
+                <div key={item} data-render-item className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 p-3">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
             <div className="mt-8 flex flex-col items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={openLeadModal}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-8 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/30 transition hover:bg-[#D95E0B]"
               >
-                Prova GRATIS il Render AI
+                Riserva il tuo posto in anteprima
                 <ArrowRight className="h-5 w-5" />
               </button>
+              <button
+                type="button"
+                onClick={openLeadModal}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-8 py-4 text-base font-extrabold text-white transition hover:bg-white/15"
+              >
+                Prenota la dimostrazione gratuita di 30 minuti
+              </button>
               <p className="text-xs font-medium text-slate-400">
-                Setup in 60 secondi · Onboarding 1-a-1 · Cancelli quando vuoi
+                Finisci di lavorare a sensazione. Inizia a guadagnare davvero.
               </p>
             </div>
           </div>

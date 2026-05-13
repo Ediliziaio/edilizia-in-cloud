@@ -130,7 +130,7 @@ export default function StatsSection() {
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.2 });
 
   return (
-    <section style={{ backgroundColor: "#111111" }} className="py-14 md:py-28 relative overflow-hidden">
+    <section style={{ backgroundColor: "#111111" }} className="py-12 md:py-20 relative overflow-hidden">
       {/* Subtle grid */}
       <div
         className="absolute inset-0 opacity-[0.03]"
@@ -160,7 +160,7 @@ export default function StatsSection() {
       <div ref={ref} className="relative z-10 max-w-6xl mx-auto px-6">
         {/* Heading */}
         <div
-          className="text-center mb-12 md:mb-16 transition-all duration-700"
+          className="text-center mb-8 md:mb-12 transition-all duration-700"
           style={{
             opacity: isVisible ? 1 : 0,
             transform: isVisible ? "translateY(0)" : "translateY(20px)",
@@ -203,25 +203,6 @@ export default function StatsSection() {
           ))}
         </div>
 
-        {/* Divider */}
-        <div
-          className="w-full h-px my-10 md:my-12"
-          style={{ backgroundColor: "rgba(255,255,255,0.07)" }}
-        />
-
-        {/* Quote */}
-        <div
-          className="text-center transition-all duration-700"
-          style={{
-            transitionDelay: isVisible ? "700ms" : "0ms",
-            opacity: isVisible ? 1 : 0,
-            transform: isVisible ? "translateY(0)" : "translateY(16px)",
-          }}
-        >
-          <blockquote className="text-base md:text-xl italic font-medium max-w-2xl mx-auto" style={{ color: "rgba(255,255,255,0.55)" }}>
-            "Ogni ora recuperata e' un'ora che puoi dedicare a crescere, non a sopravvivere."
-          </blockquote>
-        </div>
       </div>
     </section>
   );

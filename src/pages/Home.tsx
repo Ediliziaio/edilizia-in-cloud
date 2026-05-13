@@ -5,31 +5,18 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import HeroSection from "@/components/landing/HeroSection";
 import StatsSection from "@/components/landing/StatsSection";
-import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import { Link } from "react-router-dom";
 
 // Below-the-fold: lazy-loaded
-const ClientLogosSection = lazy(() => import("@/components/landing/ClientLogosSection"));
-const FounderLetterSection = lazy(() => import("@/components/landing/FounderLetterSection"));
-const BonusGiftSection = lazy(() => import("@/components/landing/BonusGiftSection"));
+const AISystemShowcaseSection = lazy(() => import("@/components/landing/AISystemShowcaseSection"));
 const PainPointsSection = lazy(() => import("@/components/landing/PainPointsSection"));
-const CostTableSection = lazy(() => import("@/components/landing/CostTableSection"));
 const SolutionSection = lazy(() => import("@/components/landing/SolutionSection"));
 const ModulesSection = lazy(() => import("@/components/landing/ModulesSection"));
-const IntegrationsTeaserSection = lazy(() => import("@/components/landing/IntegrationsTeaserSection"));
-const FeatureShowcaseSection = lazy(() => import("@/components/landing/FeatureShowcaseSection"));
-const VideoSection = lazy(() => import("@/components/landing/VideoSection"));
-const ComparisonSection = lazy(() => import("@/components/landing/ComparisonSection"));
-const ScenarioSection = lazy(() => import("@/components/landing/ScenarioSection"));
 const TestimonialsSection = lazy(() => import("@/components/landing/TestimonialsSection"));
-const TargetSection = lazy(() => import("@/components/landing/TargetSection"));
-const CriteriaSection = lazy(() => import("@/components/landing/CriteriaSection"));
 const GuaranteeSection = lazy(() => import("@/components/landing/GuaranteeSection"));
 const PricingSection = lazy(() => import("@/components/landing/PricingSection"));
 const FAQSection = lazy(() => import("@/components/landing/FAQSection"));
-const BlogTeaserSection = lazy(() => import("@/components/landing/BlogTeaserSection"));
 const FinalCtaSection = lazy(() => import("@/components/landing/FinalCtaSection"));
-const FounderLetterBottom = lazy(() => import("@/components/landing/FounderLetterBottom"));
 const LandingFooter = lazy(() => import("@/components/landing/LandingFooter"));
 const StickyBottomBar = lazy(() => import("@/components/landing/StickyBottomBar"));
 const QuickContactModal = lazy(() => import("@/components/landing/QuickContactModal"));
@@ -316,41 +303,27 @@ export default function Home() {
       <LandingNavbar />
       <HeroSection />
       <StatsSection />
-      <HowItWorksSection />
 
       <Suspense fallback={<SectionFallback />}>
-        <ClientLogosSection />
+        <AISystemShowcaseSection />
         <PainPointsSection />
-        <CostTableSection />
         <SolutionSection />
         <ModulesSection />
-        <IntegrationsTeaserSection />
-        <FeatureShowcaseSection />
-        <FounderLetterSection />
-        <BonusGiftSection />
-        <VideoSection />
-        <ComparisonSection />
-        <ScenarioSection />
         <TestimonialsSection />
-        <TargetSection />
-        <CriteriaSection />
         <GuaranteeSection />
         <PricingSection />
         <FAQSection />
-        <BlogTeaserSection />
         <FinalCtaSection />
-        <FounderLetterBottom />
       </Suspense>
 
       {/* ── Copertura Geografica ─────────────────────────────────────────── */}
-      <section className="py-12 bg-gray-50 border-t border-gray-200">
+      <section className="border-t border-gray-200 bg-gray-50/70 py-8">
         <div className="max-w-5xl mx-auto px-6">
-          <h2 className="text-lg font-bold text-[#111111] mb-4 text-center">Software Gestionale Edilizia per Città</h2>
-          <p className="max-w-3xl mx-auto text-center text-sm md:text-base text-gray-600 mb-4 leading-relaxed">
+          <h2 className="mb-3 text-center text-base font-bold text-[#111111] md:text-lg">Software gestionale edilizia nelle principali città italiane</h2>
+          <p className="max-w-3xl mx-auto text-center text-xs leading-relaxed text-gray-500 md:text-sm">
             Edilizia in Cloud è il software gestionale per imprese edili usato in tutta Italia: da Milano a Roma, da Napoli a Torino, abbiamo configurato il sistema per oltre 150 imprese edili nei principali capoluoghi italiani.
           </p>
-          <p className="text-center text-sm text-gray-500 mb-6">Scelto dalle imprese edili di tutta Italia</p>
-          <div className="flex justify-center mb-4">
+          <div className="my-4 flex justify-center">
             <Link
               to="/software-gestionale-edilizia"
               className="text-sm font-semibold text-[#F97415] hover:underline"
@@ -400,7 +373,7 @@ export default function Home() {
               <Link
                 key={city.slug}
                 to={`/software-gestionale-edilizia-${city.slug}`}
-                className="px-4 py-2 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:border-[#F97415] hover:text-[#F97415] transition-colors"
+                className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-[#F97415] hover:text-[#F97415] md:text-sm"
               >
                 {city.name}
               </Link>

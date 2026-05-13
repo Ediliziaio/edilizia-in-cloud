@@ -66,6 +66,39 @@ const CATEGORIES = ["Tutti", "Cantieri", "Finanziario", "Marketing", "HR", "AI"]
 
 const INITIAL_VISIBLE = 9;
 
+const OPERATIVE_AREAS = [
+  {
+    name: "Cantieri",
+    promise: "commesse, rapportini, sicurezza, materiali e avanzamento lavori",
+    icon: HardHat,
+    color: CATEGORY_COLORS.Cantieri,
+  },
+  {
+    name: "Margini e cassa",
+    promise: "margini reali, scadenze, previsionale, fatture e pagamenti",
+    icon: Wallet,
+    color: CATEGORY_COLORS.Finanziario,
+  },
+  {
+    name: "Vendite e clienti",
+    promise: "CRM, preventivi, follow-up, pipeline e marketing",
+    icon: Target,
+    color: CATEGORY_COLORS.Marketing,
+  },
+  {
+    name: "Persone",
+    promise: "squadre, presenze, costi manodopera e calendario risorse",
+    icon: Users,
+    color: CATEGORY_COLORS.HR,
+  },
+  {
+    name: "Silvio AI",
+    promise: "agenti AI, automazioni, chat interna e azioni consigliate",
+    icon: Bot,
+    color: CATEGORY_COLORS.AI,
+  },
+];
+
 function ModuleCard({ mod, delay, visible }: { mod: Module; delay: number; visible: boolean }) {
   const color = CATEGORY_COLORS[mod.category] ?? "#F97415";
   return (
@@ -134,13 +167,37 @@ export default function ModulesSection() {
           }`}
         >
           <h2 className="text-3xl md:text-5xl font-extrabold text-[#111111] mb-4">
-            26 moduli. Un'unica piattaforma.
+            5 aree operative. 26 moduli collegati.
             <br />
-            <span className="text-[#F97415]">Tutto quello che serve per gestire un'impresa edile.</span>
+            <span className="text-[#F97415]">Silvio tiene insieme cantieri, cassa, vendite, persone e documenti.</span>
           </h2>
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">
-            Cantieri, finanza, marketing, HR e AI integrati. Nessuna app separata, nessun dato duplicato. Tutto parla con tutto — in tempo reale.
+            Non devi imparare 26 strumenti diversi. Parti dall'area che ti fa perdere piu' margine oggi e il resto resta collegato alla stessa azienda.
           </p>
+        </div>
+
+        <div
+          className={`mb-10 grid gap-3 transition-all delay-100 duration-700 sm:grid-cols-2 lg:grid-cols-5 ${
+            sectionVisible ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
+          }`}
+        >
+          {OPERATIVE_AREAS.map((area) => (
+            <button
+              key={area.name}
+              type="button"
+              onClick={() => setActiveTab(area.name === "Margini e cassa" ? "Finanziario" : area.name === "Vendite e clienti" ? "Marketing" : area.name === "Persone" ? "HR" : area.name === "Silvio AI" ? "AI" : area.name)}
+              className="group rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+            >
+              <div
+                className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl transition group-hover:scale-105"
+                style={{ backgroundColor: `${area.color}18`, color: area.color }}
+              >
+                <area.icon size={20} />
+              </div>
+              <p className="font-extrabold text-[#111111]">{area.name}</p>
+              <p className="mt-1 text-xs leading-5 text-gray-500">{area.promise}</p>
+            </button>
+          ))}
         </div>
 
         {/* Category Tabs */}
