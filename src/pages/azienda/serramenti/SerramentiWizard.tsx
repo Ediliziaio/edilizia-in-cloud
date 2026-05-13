@@ -18,7 +18,12 @@
  */
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { useIsMutating } from "@tanstack/react-query";
+import { useIsMutating, useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";
+import { useTemplatePdf } from "@/lib/serramenti/queries";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -82,6 +87,39 @@ export default function SerramentiWizard() {
 
   const { data: detail, isLoading, isError, refetch } = useProgetto(id);
   const updateMut = useUpdateProgetto(id);
+
+  // ─── Anteprima PDF cross-step ──────────────────────────────────────────
+  // L'utente può vedere il PDF in qualsiasi momento del wizard, non solo
+  // allo Step PDF finale. Riduce sorprese in fase di invio cliente.
+  const { previewPDF, isGenerating: isGeneratingPdf } = useSerramentoPDF();
+  const { data: pdfTemplate } = useTemplatePdf();
+  const wizCompanyId = useEffectiveCompanyId();
+  const { data: pdfCompany } = useQuery({
+    queryKey: ["sr-wizard-company-pdf", wizCompanyId],
+    enabled: !!wizCompanyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("name, ragione_sociale, indirizzo, telefono, email, partita_iva, logo_url")
+        .eq("id", wizCompanyId!)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data;
+    },
+  });
+
+  // PDF anteprima è disponibile solo se il preventivo è salvato (ha id) e
+  // ha almeno 1 serramento o accessorio nel BOM (altrimenti PDF vuoto).
+  const hasContent = !!detail && (
+    detail.serramenti.length > 0 || detail.accessori.length > 0
+  );
+  const canPreview = !isNew && hasContent && !isGeneratingPdf;
+
+  const handlePreviewClick = () => {
+    if (!detail) return;
+    void previewPDF({ detail, template: pdfTemplate ?? null, company: pdfCompany ?? null });
+  };
   const createMut = useCreateProgetto();
 
   const pendingWrites = useIsMutating({ mutationKey: ["sr-progetto-autosave", id] });
@@ -345,6 +383,34 @@ export default function SerramentiWizard() {
               Step {currentStepIndex + 1} di {SR_WIZARD_STEPS.length} · {SR_WIZARD_STEPS[currentStepIndex]?.label}
             </p>
           </div>
+          {/* Anteprima PDF veloce: sempre presente nell'header sticky.
+              Permette al commerciale di vedere come apparirà il PDF cliente
+              SENZA dover navigare allo Step finale. Disable se preventivo
+              nuovo (no id) o BOM vuoto (PDF sarebbe inutile). */}
+          {!isNew && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreviewClick}
+              disabled={!canPreview}
+              className="hidden sm:inline-flex h-9 gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
+              title={
+                !hasContent
+                  ? "Aggiungi almeno un serramento o accessorio per vedere l'anteprima"
+                  : isGeneratingPdf
+                  ? "Generazione PDF in corso..."
+                  : "Apri anteprima PDF in nuova finestra"
+              }
+            >
+              {isGeneratingPdf ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+              <span className="hidden md:inline">Anteprima PDF</span>
+              <span className="md:hidden">PDF</span>
+            </Button>
+          )}
         </div>
         <div className="h-1 bg-muted">
           <div
