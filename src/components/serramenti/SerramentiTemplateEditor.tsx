@@ -1249,22 +1249,37 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     }}
                   >
                     {/* Logo + company name */}
-                    <div className="flex items-center gap-2 mb-auto">
-                      {form.logo_url ? (
-                        <img
-                          src={form.logo_url}
-                          alt="logo"
-                          className="h-7 w-7 object-contain rounded bg-white/10 p-0.5"
-                        />
-                      ) : (
-                        <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">
-                          A
-                        </div>
-                      )}
-                      <span className="text-[10px] font-semibold uppercase tracking-wide">
-                        {form.indirizzo_completo ? "Azienda" : "Il tuo brand"}
-                      </span>
-                    </div>
+                    {/* M17 · Posizione logo configurabile (preview HTML).
+                        hidden → blocco non renderizzato; top_left/right/center
+                        → justify-* gestisce l'allineamento orizzontale. */}
+                    {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
+                      <div
+                        className="flex items-center gap-2 mb-auto w-full"
+                        style={{
+                          justifyContent:
+                            form.pdf_cover_logo_position === "top_right"
+                              ? "flex-end"
+                              : form.pdf_cover_logo_position === "top_center"
+                                ? "center"
+                                : "flex-start",
+                        }}
+                      >
+                        {form.logo_url ? (
+                          <img
+                            src={form.logo_url}
+                            alt="logo"
+                            className="h-7 w-7 object-contain rounded bg-white/10 p-0.5"
+                          />
+                        ) : (
+                          <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">
+                            A
+                          </div>
+                        )}
+                        <span className="text-[10px] font-semibold uppercase tracking-wide">
+                          {form.indirizzo_completo ? "Azienda" : "Il tuo brand"}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Eyebrow + Title + Subtitle */}
                     <div className="mb-4 w-full">
@@ -1623,7 +1638,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
 
                 {/* Allineamento testo */}
                 <div className="col-span-12 md:col-span-4">
-                  <Label className="text-[11px] mb-1 block">Allineamento</Label>
+                  <Label className="text-[11px] mb-1 block">Allineamento testo</Label>
                   <div className="grid grid-cols-2 gap-1.5">
                     <Button
                       size="sm"
@@ -1641,6 +1656,37 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     >
                       Centro
                     </Button>
+                  </div>
+                </div>
+
+                {/* M17 · Posizione logo cover */}
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-[11px] mb-1 block">Posizione logo</Label>
+                  <div className="grid grid-cols-4 gap-1">
+                    {([
+                      { v: "top_left",   icon: "◰", title: "Alto sinistra" },
+                      { v: "top_center", icon: "◓", title: "Alto centro" },
+                      { v: "top_right",  icon: "◳", title: "Alto destra" },
+                      { v: "hidden",     icon: "✕", title: "Nascosto" },
+                    ] as const).map((opt) => {
+                      const isActive = (form.pdf_cover_logo_position ?? "top_left") === opt.v;
+                      return (
+                        <button
+                          key={opt.v}
+                          type="button"
+                          title={opt.title}
+                          onClick={() => update("pdf_cover_logo_position", opt.v)}
+                          className={
+                            "h-7 rounded border text-sm font-bold transition-all " +
+                            (isActive
+                              ? "bg-orange-500 text-white border-orange-500"
+                              : "bg-white border-slate-200 hover:border-orange-300 text-slate-700")
+                          }
+                        >
+                          {opt.icon}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

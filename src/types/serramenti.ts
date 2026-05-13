@@ -411,6 +411,9 @@ export interface SrTemplatePdfRow {
   /** M13 · Stile overlay sopra immagine cover. 'flat' (default) |
    *  'gradient' (vertical) | 'gradient_diag' | 'vignette'. */
   pdf_cover_overlay_style: "flat" | "gradient" | "gradient_diag" | "vignette";
+  /** M17 · Posizione logo cover. 'top_left' (default) | 'top_right' |
+   *  'top_center' | 'hidden'. Solo cover, non altre pagine. */
+  pdf_cover_logo_position: "top_left" | "top_right" | "top_center" | "hidden";
   pdf_cover_bg_color: string | null;
   pdf_cover_eyebrow_size: number | null;
   pdf_cover_title_size: number | null;

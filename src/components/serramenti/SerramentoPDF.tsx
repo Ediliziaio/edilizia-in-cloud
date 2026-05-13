@@ -1498,6 +1498,13 @@ export function SerramentoPDF({
     )
       ? (tpl.pdf_cover_overlay_style as "flat" | "gradient" | "gradient_diag" | "vignette")
       : "flat";
+  // M17 · posizione logo cover (top_left | top_right | top_center | hidden)
+  const coverLogoPosition: "top_left" | "top_right" | "top_center" | "hidden" =
+    (["top_left", "top_right", "top_center", "hidden"] as const).includes(
+      tpl.pdf_cover_logo_position as "top_left" | "top_right" | "top_center" | "hidden"
+    )
+      ? (tpl.pdf_cover_logo_position as "top_left" | "top_right" | "top_center" | "hidden")
+      : "top_left";
   const coverBgColor = tpl.pdf_cover_bg_color || null; // null = usa C.coverBg default
   const coverEyebrowSize = typeof tpl.pdf_cover_eyebrow_size === "number" ? tpl.pdf_cover_eyebrow_size : 10;
   const coverTitleSize = typeof tpl.pdf_cover_title_size === "number" ? tpl.pdf_cover_title_size : 40;
@@ -1840,22 +1847,35 @@ export function SerramentoPDF({
           </View>
         )}
 
-        <View style={{ alignItems: coverTextAlign === "center" ? "center" : "flex-start" }}>
-          <View style={styles.coverLogoBox}>
-            {logoUrl ? (
-              <Image src={logoUrl} style={styles.coverLogoImage} />
-            ) : (
-              <View style={styles.coverLogoCircle}>
-                <Text style={{ color: "#FFFFFF", fontSize: 28, fontWeight: 700 }}>
-                  {(companyName || "S").charAt(0).toUpperCase()}
-                </Text>
+        {/* M17 · Logo cover con posizione configurabile.
+            - top_left:   alignItems flex-start (default storico)
+            - top_right:  alignItems flex-end
+            - top_center: alignItems center
+            - hidden:     blocco non renderizzato (cover ultra-minimal) */}
+        <View style={{
+          alignItems: coverLogoPosition === "top_right"
+            ? "flex-end"
+            : coverLogoPosition === "top_center"
+              ? "center"
+              : coverTextAlign === "center" ? "center" : "flex-start",
+        }}>
+          {coverLogoPosition !== "hidden" && (
+            <View style={styles.coverLogoBox}>
+              {logoUrl ? (
+                <Image src={logoUrl} style={styles.coverLogoImage} />
+              ) : (
+                <View style={styles.coverLogoCircle}>
+                  <Text style={{ color: "#FFFFFF", fontSize: 28, fontWeight: 700 }}>
+                    {(companyName || "S").charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <View>
+                <Text style={[styles.coverCompanyName, { color: coverTextColor }]}>{companyName}</Text>
+                {company?.indirizzo && <Text style={styles.coverCompanyTag}>{company.indirizzo}</Text>}
               </View>
-            )}
-            <View>
-              <Text style={[styles.coverCompanyName, { color: coverTextColor }]}>{companyName}</Text>
-              {company?.indirizzo && <Text style={styles.coverCompanyTag}>{company.indirizzo}</Text>}
             </View>
-          </View>
+          )}
 
           <Text style={[styles.coverEyebrow, { fontSize: coverEyebrowSize, textAlign: coverTextAlign }]}>{coverEyebrow}</Text>
           <Text style={[styles.coverTitle, { fontSize: coverTitleSize, color: coverTextColor, textAlign: coverTextAlign }]}>{coverHero}</Text>
