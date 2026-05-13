@@ -12,6 +12,7 @@
  *  - Default cronoprogramma + anticipo + IVA + validità
  */
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -185,6 +186,41 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   // Detection live del preset attivo (per evidenziare la card selezionata).
   // Restituisce null se l'utente ha customizzato fuori dai preset.
   const activeCoverPresetId = useMemo(() => detectActiveCoverPreset(form), [form]);
+
+  // ─── REFACTOR · Sidebar navigation sezioni ─────────────────────────────
+  // Trasforma il "mappazzone" verticale in un layout app-like:
+  // sidebar a sinistra + content panel a destra. Una sezione visibile alla
+  // volta — niente più scroll infinito.
+  //
+  // Deeplink via URL `?section=brand|contenuti|macro|pagine|garanzie|default`.
+  // Default 'brand' alla prima apertura.
+  type EditorSection = "brand" | "contenuti" | "macro" | "pagine" | "garanzie" | "default";
+  const SECTIONS: Array<{ id: EditorSection; label: string; emoji: string; descr: string }> = [
+    { id: "brand",      label: "Brand & azienda",         emoji: "🏢", descr: "Logo, colori, anagrafica" },
+    { id: "pagine",     label: "Pagine PDF",              emoji: "📄", descr: "Cover, chi siamo, percorso, recensioni…" },
+    { id: "contenuti",  label: "Contenuti commerciali",   emoji: "📝", descr: "Esigenze, USP, incluso, recensioni" },
+    { id: "macro",      label: "Linee prodotto",          emoji: "📦", descr: "Pagine dedicate macrocategoria" },
+    { id: "garanzie",   label: "Garanzie & metriche",     emoji: "🛡️", descr: "Garanzie e perché noi" },
+    { id: "default",    label: "Default tecnici",         emoji: "⚙️", descr: "IVA, anticipo, validità" },
+  ];
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sectionFromUrl = (searchParams.get("section") ?? "brand") as EditorSection;
+  const activeSection: EditorSection = SECTIONS.some((s) => s.id === sectionFromUrl)
+    ? sectionFromUrl
+    : "brand";
+  const setActiveSection = (id: EditorSection) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("section", id);
+      return next;
+    }, { replace: true });
+    // Scroll top al cambio sezione per una transizione "pulita"
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+  // Mobile sidebar drawer open state
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // ─── M16 · Stock images dialog state ───────────────────────────────────
   // Dialog modale per scegliere fra le 18 immagini Unsplash. Categoria
@@ -534,8 +570,12 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           in basso. */}
       <div className="sticky top-0 z-20 -mx-1 px-1 py-2.5 bg-background/95 backdrop-blur border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="text-xs text-muted-foreground hidden sm:block">
-            Template PDF Serramenti
+          <div className="text-xs hidden sm:flex items-center gap-1.5 min-w-0">
+            <span className="text-muted-foreground">Template PDF Serramenti</span>
+            <span className="text-muted-foreground/40">/</span>
+            <span className="font-semibold text-orange-700 truncate">
+              {SECTIONS.find(s => s.id === activeSection)?.emoji} {SECTIONS.find(s => s.id === activeSection)?.label}
+            </span>
           </div>
           {dirty ? (
             <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 font-medium">
@@ -570,9 +610,89 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         </div>
       </div>
 
-      {/* SEZIONE: Brand & Azienda */}
+      {/* ─── REFACTOR · Layout sidebar + content ─────────────────────────
+          Sostituisce lo scroll infinito mono-pagina con una UI app-like:
+          - Sidebar sticky a sinistra (col-span-3) con 6 sezioni navigabili
+          - Content panel a destra (col-span-9) renderizza solo la sezione attiva
+          - Mobile (<md): sidebar collassa in un drawer apribile dall'header
+          - Deeplink: ?section=brand|pagine|… per share-friendly URL */}
+
+      {/* Mobile: bottone selettore sezione (hamburger) */}
+      <div className="md:hidden flex items-center justify-between gap-2 bg-orange-50 border border-orange-200 rounded-lg p-2">
+        <div className="text-xs text-orange-800 truncate">
+          <span className="font-semibold">{SECTIONS.find(s => s.id === activeSection)?.emoji} {SECTIONS.find(s => s.id === activeSection)?.label}</span>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+          className="h-7 text-[11px] border-orange-300"
+        >
+          {mobileSidebarOpen ? "Chiudi sezioni" : "Cambia sezione"}
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-12 gap-4">
+        {/* ── SIDEBAR ──────────────────────────────────────────────── */}
+        <aside className={
+          "md:col-span-3 col-span-12 " +
+          (mobileSidebarOpen ? "block" : "hidden md:block")
+        }>
+          <nav className="sticky top-[68px] space-y-1.5 bg-white border border-slate-200 rounded-lg p-2">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-2 py-1.5 border-b border-slate-100 mb-1">
+              Configurazione
+            </div>
+            {SECTIONS.map((s) => {
+              const isActive = activeSection === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveSection(s.id);
+                    setMobileSidebarOpen(false);
+                  }}
+                  className={
+                    "w-full text-left rounded-md px-2.5 py-2 transition-all flex items-start gap-2 " +
+                    (isActive
+                      ? "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm"
+                      : "hover:bg-orange-50 text-slate-700")
+                  }
+                >
+                  <span className="text-base leading-none mt-0.5">{s.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className={"text-xs font-semibold leading-tight " + (isActive ? "text-white" : "text-slate-900")}>
+                      {s.label}
+                    </div>
+                    <div className={"text-[10px] mt-0.5 leading-tight " + (isActive ? "text-orange-50" : "text-slate-500")}>
+                      {s.descr}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+            {/* Footer sidebar: scorciatoia Anteprima PDF */}
+            <div className="mt-2 pt-2 border-t border-slate-100">
+              <Button
+                onClick={() => setPreviewOpen(true)}
+                variant="outline"
+                size="sm"
+                className="w-full gap-1.5 border-orange-300 text-orange-600 hover:bg-orange-50 h-8"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Anteprima PDF
+              </Button>
+            </div>
+          </nav>
+        </aside>
+
+        {/* ── CONTENT PANEL ────────────────────────────────────────── */}
+        <div className="md:col-span-9 col-span-12 space-y-4 min-w-0">
+
+      {/* === SEZIONE: BRAND === */}
+      {activeSection === "brand" && (<>
       <SectionHeader
-        title="1. Brand & azienda"
+        title="🏢 Brand & azienda"
         description="Logo, dati anagrafici, colori e linee prodotto che compaiono in ogni PDF."
         number={1}
       />
@@ -825,10 +945,12 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </div>
         </div>
       </SrCard>
+      </>)}{/* === END SEZIONE BRAND === */}
 
-      {/* SEZIONE: Contenuti commerciali */}
+      {/* === SEZIONE: CONTENUTI COMMERCIALI === */}
+      {activeSection === "contenuti" && (<>
       <SectionHeader
-        title="2. Contenuti commerciali"
+        title="📝 Contenuti commerciali"
         description="Le librerie da cui pesca il consulente: esigenze, soluzioni, USP, incluso, recensioni, prossimi passi."
         number={2}
       />
@@ -1065,10 +1187,12 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         </div>
         {renderListEditor("step", "prossimi_passi_default", "Es. Ci vediamo a casa tua per la consulenza tecnica")}
       </SrCard>
+      </>)}{/* === END SEZIONE CONTENUTI === */}
 
-      {/* SEZIONE: Linee prodotto */}
+      {/* === SEZIONE: MACROCATEGORIE === */}
+      {activeSection === "macro" && (<>
       <SectionHeader
-        title="3. Linee prodotto (macrocategorie)"
+        title="📦 Linee prodotto (macrocategorie)"
         description="Le pagine dedicate macrocategoria che vengono inserite nel PDF dopo la composizione tecnica."
         number={3}
       />
@@ -1081,10 +1205,12 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       >
         <MacroPagineDedicateManager vertical="serramentista" />
       </SrCard>
+      </>)}{/* === END SEZIONE MACRO === */}
 
-      {/* SEZIONE: PDF preventivo */}
+      {/* === SEZIONE: PAGINE PDF (Cover + Chi siamo + Percorso + ...) === */}
+      {activeSection === "pagine" && (<>
       <SectionHeader
-        title="4. Pagine PDF preventivo"
+        title="📄 Pagine PDF preventivo"
         description="Personalizza ogni pagina del PDF cliente: cover, chi siamo, percorso, render, CTA, ordine pagine."
         number={4}
       />
@@ -2348,7 +2474,15 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </TabsContent>
         </Tabs>
       </SrCard>
+      </>)}{/* === END SEZIONE PAGINE PDF === */}
 
+      {/* === SEZIONE: GARANZIE & METRICHE === */}
+      {activeSection === "garanzie" && (<>
+      <SectionHeader
+        title="🛡️ Garanzie & metriche"
+        description="Le garanzie e i numeri 'Perché noi' mostrati come pagine dedicate nel PDF."
+        number={5}
+      />
       {/* Milestone 5: Garanzie editor — card visibili nella pagina "Le nostre
           garanzie" del PDF. Default 5 garanzie standard; l'azienda può
           override singoli campi o aggiungerne fino a 6. */}
@@ -2548,12 +2682,14 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </div>
         </div>
       </SrCard>
+      </>)}{/* === END SEZIONE GARANZIE & METRICHE === */}
 
-      {/* SEZIONE: Default tecnici */}
+      {/* === SEZIONE: DEFAULT TECNICI === */}
+      {activeSection === "default" && (<>
       <SectionHeader
-        title="5. Default tecnici"
+        title="⚙️ Default tecnici"
         description="Valori di partenza usati su ogni nuovo preventivo: validità offerta, anticipo, IVA."
-        number={5}
+        number={6}
       />
 
       <SrCard title="Default economia" icon={<Clock className="h-4 w-4" />}>
@@ -2600,6 +2736,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               consulente non li vede né li modifica. */}
         </div>
       </SrCard>
+      </>)}{/* === END SEZIONE DEFAULT === */}
+
+        </div>{/* /content-panel */}
+      </div>{/* /grid */}
 
       {/* Sticky bottom: Anteprima PDF + Salva. Due bottoni a sinistra/destra
           così l'utente può sempre vedere come verrà il PDF prima di salvare. */}
