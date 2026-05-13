@@ -11,7 +11,7 @@
  *  - Recensioni clienti (compaiono nel PDF pagina 2)
  *  - Default cronoprogramma + anticipo + IVA + validità
  */
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -65,6 +65,9 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+// M12 · Preset stili cover 1-click (front-end batches, no migration).
+import { COVER_PRESETS, detectActiveCoverPreset } from "./coverPresets";
 
 interface SerramentiTemplateEditorProps {
   /** Se true, nasconde lo sticky bottom save (usato dentro Tabs con bottone proprio) */
@@ -161,6 +164,20 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       onSuccess: () => setDirty(false),
     });
   };
+
+  // ─── M12 · Applica preset cover ────────────────────────────────────────
+  // Setta in batch tutti i campi pdf_cover_* del preset selezionato.
+  // L'immagine sfondo NON viene toccata (è un asset uploadato).
+  const applyCoverPreset = useCallback((presetId: string) => {
+    const preset = COVER_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    setForm((prev) => ({ ...prev, ...preset.patch }));
+    setDirty(true);
+  }, []);
+
+  // Detection live del preset attivo (per evidenziare la card selezionata).
+  // Restituisce null se l'utente ha customizzato fuori dai preset.
+  const activeCoverPresetId = useMemo(() => detectActiveCoverPreset(form), [form]);
 
   // ─── Logo upload ──────────────────────────────────────────────────────────
   const handleLogoUpload = async (file: File) => {
@@ -1072,6 +1089,79 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               <div className="text-xs text-muted-foreground">
                 Editor visuale · anteprima in tempo reale · tutti i parametri sotto
               </div>
+            </div>
+
+            {/* ─── M12 · Preset stili 1-click ────────────────────────────
+                 Gallery di 6 preset pre-confezionati. Click → applica in
+                 batch tutti i campi pdf_cover_* (no immagine).
+                 La card del preset attualmente attivo è evidenziata
+                 (ring orange + badge "Attivo"). */}
+            <div className="rounded-lg border bg-gradient-to-br from-orange-50 to-amber-50/30 p-3 space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+                    ✨ Preset stili 1-click
+                  </Label>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Configurazione completa (colori, font, layout) in un click.
+                    L'immagine di sfondo non viene modificata.
+                  </p>
+                </div>
+                {activeCoverPresetId && (
+                  <Badge variant="outline" className="bg-orange-100 border-orange-300 text-orange-800 gap-1 text-[10px] h-5">
+                    <span className="text-sm leading-none">{COVER_PRESETS.find(p => p.id === activeCoverPresetId)?.emoji}</span>
+                    Attivo: {COVER_PRESETS.find(p => p.id === activeCoverPresetId)?.nome}
+                  </Badge>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                {COVER_PRESETS.map((p) => {
+                  const isActive = activeCoverPresetId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => applyCoverPreset(p.id)}
+                      title={p.descrizione}
+                      className={
+                        "group relative rounded-md border-2 overflow-hidden transition-all text-left focus:outline-none focus:ring-2 focus:ring-orange-400 " +
+                        (isActive
+                          ? "border-orange-500 shadow-md ring-2 ring-orange-300"
+                          : "border-slate-200 hover:border-orange-300 hover:shadow-sm")
+                      }
+                    >
+                      {/* Swatch grande in alto con bg + sample text */}
+                      <div
+                        className="h-12 flex items-center justify-center text-[10px] font-bold"
+                        style={{ backgroundColor: p.swatchBg, color: p.swatchText }}
+                      >
+                        Aa
+                      </div>
+                      <div className="px-2 py-1.5 bg-white">
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm leading-none">{p.emoji}</span>
+                          <span className="text-[11px] font-semibold text-slate-900 truncate">{p.nome}</span>
+                        </div>
+                        <div className="text-[9px] text-muted-foreground mt-0.5 line-clamp-2 leading-tight">
+                          {p.descrizione.split("·")[0].trim()}
+                        </div>
+                      </div>
+                      {isActive && (
+                        <div className="absolute top-1 right-1 bg-orange-500 text-white rounded-full w-4 h-4 flex items-center justify-center">
+                          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                            <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {!activeCoverPresetId && (
+                <p className="text-[10px] text-amber-700 bg-amber-100/60 rounded px-2 py-1 inline-block">
+                  💡 Configurazione personalizzata — non corrisponde a nessun preset. I tuoi valori vengono mantenuti.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-12 gap-4">
