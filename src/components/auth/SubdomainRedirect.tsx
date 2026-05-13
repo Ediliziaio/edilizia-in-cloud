@@ -26,15 +26,15 @@
  *   Fix v3:
  *   - `FullScreenSpinner` con `fixed inset-0 z-50 bg-background` → copre l'intera
  *     viewport indipendentemente dal fallback Suspense parent. Niente flash possibile.
- *   - `authBootstrapPending = isLoading || (hasSessionToken && !user)` → estende
- *     il guard alla race window: finché c'è un token persisted MA user è ancora
- *     null, mostriamo lo spinner anziché skippare.
+ *   - `authBootstrapPending` usa una grace window breve per i token persisted:
+ *     evita il flash della landing, ma non può bloccare per sempre un utente con
+ *     refresh token scaduto/stale.
  *   - Branch Home invertito: `if (subdomain !== "www") return <RoleBasedRedirect />`
  *     → default safer su tutti i subdomain non-www. Home si renderizza SOLO su
  *     www.ediliziaincloud.com / ediliziaincloud.com / localhost.
  */
 
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useSubdomainRoute } from "@/hooks/useSubdomainRoute";
 import { useAuth } from "@/contexts/AuthContext";
@@ -90,23 +90,38 @@ function hasPersistedSupabaseSession(): boolean {
   return false;
 }
 
+const PERSISTED_SESSION_BOOT_GRACE_MS = 2_500;
+
 export function SubdomainRedirect() {
   const { subdomain } = useSubdomainRoute();
   const { user, isLoading } = useAuth();
 
-  // 🆕 v3: memoizzato per non riallocare scan localStorage su ogni render.
-  // Va calcolato una sola volta al mount: una volta che decidiamo "c'era token
-  // all'avvio", l'eventuale rimozione successiva (logout) si manifesta tramite
-  // user=null + isLoading=false e ricadiamo nel ramo corretto.
-  const hasSessionToken = useMemo(() => hasPersistedSupabaseSession(), []);
+  // Se al boot troviamo un token Supabase persisted, teniamo uno spinner breve
+  // per evitare flash della landing mentre AuthContext risolve INITIAL_SESSION.
+  // IMPORTANTE: questa grace window scade sempre. Prima era memorizzata a vita:
+  // con refresh token stale/invalidi l'utente restava bloccato sullo spinner e
+  // non veniva mai mandato a /login.
+  const [sessionTokenGraceActive, setSessionTokenGraceActive] = useState(() => hasPersistedSupabaseSession());
 
-  // 🆕 v3: guard tighter — copre 2 casi:
+  useEffect(() => {
+    if (!sessionTokenGraceActive || user) {
+      setSessionTokenGraceActive(false);
+      return;
+    }
+
+    const id = window.setTimeout(() => {
+      setSessionTokenGraceActive(false);
+    }, PERSISTED_SESSION_BOOT_GRACE_MS);
+
+    return () => window.clearTimeout(id);
+  }, [sessionTokenGraceActive, user]);
+
+  // Guard tight — copre 2 casi:
   //   (1) AuthContext sta ancora caricando (isLoading=true)
-  //   (2) AuthContext ha finito (isLoading=false) MA user è ancora null e
-  //       sappiamo che esiste un token persisted → siamo nella race window
-  //       post-INITIAL_SESSION dove user verrà popolato a momenti.
-  // Il FullScreenSpinner copre qualsiasi flash di Home sottostante.
-  const authBootstrapPending = isLoading || (hasSessionToken && !user);
+  //   (2) esisteva un token persisted al boot, ma solo per una grace window
+  //       breve. Se AuthContext risolve "utente non autenticato", lasciamo
+  //       proseguire RoleBasedRedirect verso /login invece di bloccare.
+  const authBootstrapPending = isLoading || (sessionTokenGraceActive && !user);
   if (authBootstrapPending) {
     return <FullScreenSpinner />;
   }

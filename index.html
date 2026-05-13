@@ -33,13 +33,15 @@
         }
 
         // Increment DEPLOY_KEY whenever a forced SW reset is needed.
+        // v11 (2026-05-13): forza la pulizia dopo il fix del loop login causato
+        // da token Supabase stale in localStorage + vecchi asset/SW cached.
         // v10 (2026-05-09): forza la pulizia dei device/localhost che avevano
         // già applicato v9 ma tenevano ancora asset SPA vecchi in cache.
         // v9 (2026-04-26): SW non deve più intercettare /auth/v1/* né
         // /functions/v1/* — quel pattern aveva bloccato il login mobile su
         // iOS Safari ("Accesso in corso..." infinito). Bump forza l'unregister
         // del vecchio SW sui device che hanno ancora la versione bacata.
-        var DEPLOY_KEY = 'sw_reset_v10';
+        var DEPLOY_KEY = 'sw_reset_v11';
         try {
           if (!localStorage.getItem(DEPLOY_KEY) && 'serviceWorker' in navigator) {
             localStorage.setItem(DEPLOY_KEY, '1');
@@ -428,6 +430,63 @@
       </div>
     </div>
     <style>@keyframes eic-spin{to{transform:rotate(360deg)}}</style>
+    <script>
+      (function () {
+        if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+          return;
+        }
+
+        var BOOT_RECOVERY_KEY = 'eic_boot_recovery_v1';
+        var PRIVATE_HOST_RE = /^(app|admin|clienti|lavori)\./;
+
+        function clearBrowserAppState() {
+          return Promise.all([
+            'serviceWorker' in navigator
+              ? navigator.serviceWorker.getRegistrations().then(function (regs) {
+                  return Promise.all(regs.map(function (r) { return r.unregister(); }));
+                })
+              : Promise.resolve(),
+            (typeof caches !== 'undefined' && caches.keys)
+              ? caches.keys().then(function (keys) {
+                  return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+                })
+              : Promise.resolve()
+          ]);
+        }
+
+        function recoverBootstrap(reason) {
+          try {
+            if (sessionStorage.getItem(BOOT_RECOVERY_KEY)) return;
+            sessionStorage.setItem(BOOT_RECOVERY_KEY, reason || 'bootstrap-timeout');
+          } catch (e) {}
+
+          clearBrowserAppState().finally(function () {
+            var url = new URL(location.href);
+            if (PRIVATE_HOST_RE.test(location.hostname) && location.pathname === '/') {
+              url.pathname = '/login';
+              url.search = '';
+            }
+            url.searchParams.set('__recovery', Date.now().toString());
+            location.replace(url.toString());
+          });
+        }
+
+        window.setTimeout(function () {
+          var root = document.getElementById('root');
+          if (!root) return;
+          var text = root.textContent || '';
+          var stillInitialBootstrap = text.indexOf('Caricamento Edilizia in Cloud') !== -1;
+          var privateRootStillSpinner =
+            PRIVATE_HOST_RE.test(location.hostname) &&
+            location.pathname === '/' &&
+            !root.querySelector('input, button, a[href*="login"]');
+
+          if (stillInitialBootstrap || privateRootStillSpinner) {
+            recoverBootstrap(stillInitialBootstrap ? 'initial-bootstrap-timeout' : 'private-root-spinner-timeout');
+          }
+        }, 15000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
