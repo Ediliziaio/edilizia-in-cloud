@@ -19,7 +19,7 @@
  * fallisce (CORS, network) il renderer fa fallback automatico a Helvetica.
  */
 import * as React from "react";
-import { Document, Page, Text, View, StyleSheet, Image, Svg, Path, Rect, Circle, G, Font } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image, Svg, Path, Rect, Circle, G, Font, Defs, LinearGradient, RadialGradient, Stop } from "@react-pdf/renderer";
 import type {
   SrProgettoDetail, SrSerramentoRow, SrPagamentoMilestone,
   SrPianoFinanziamento, SrEsigenza, SrSoluzioneItem, SrTestimonianza,
@@ -1491,6 +1491,13 @@ export function SerramentoPDF({
   const coverOverlayOpacity = typeof tpl.pdf_cover_overlay_opacity === "number"
     ? Math.max(0, Math.min(100, tpl.pdf_cover_overlay_opacity)) / 100
     : 0.65;
+  // M13 · stile overlay (flat | gradient | gradient_diag | vignette)
+  const coverOverlayStyle: "flat" | "gradient" | "gradient_diag" | "vignette" =
+    (["flat", "gradient", "gradient_diag", "vignette"] as const).includes(
+      tpl.pdf_cover_overlay_style as "flat" | "gradient" | "gradient_diag" | "vignette"
+    )
+      ? (tpl.pdf_cover_overlay_style as "flat" | "gradient" | "gradient_diag" | "vignette")
+      : "flat";
   const coverBgColor = tpl.pdf_cover_bg_color || null; // null = usa C.coverBg default
   const coverEyebrowSize = typeof tpl.pdf_cover_eyebrow_size === "number" ? tpl.pdf_cover_eyebrow_size : 10;
   const coverTitleSize = typeof tpl.pdf_cover_title_size === "number" ? tpl.pdf_cover_title_size : 40;
@@ -1767,7 +1774,13 @@ export function SerramentoPDF({
           />
         )}
         {/* Overlay scuro sopra immagine per leggibilità */}
-        {coverImageUrl && (
+        {/* M13 · Overlay sopra l'immagine cover. 4 stili:
+            - flat: View nero piatto con opacity (retrocompat, render veloce)
+            - gradient: SVG <LinearGradient> verticale alto→basso
+            - gradient_diag: gradient diagonale top-left→bottom-right
+            - vignette: SVG <RadialGradient> con centro chiaro + bordi scuri
+            L'intensità è sempre controllata da coverOverlayOpacity. */}
+        {coverImageUrl && coverOverlayStyle === "flat" && (
           <View
             style={{
               position: "absolute",
@@ -1779,6 +1792,43 @@ export function SerramentoPDF({
               opacity: coverOverlayOpacity,
             }}
           />
+        )}
+        {coverImageUrl && coverOverlayStyle !== "flat" && (
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: 595,
+              height: 842,
+            }}
+          >
+            <Svg width={595} height={842} viewBox="0 0 595 842">
+              <Defs>
+                {coverOverlayStyle === "gradient" && (
+                  <LinearGradient id="cover-overlay-grad" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.15} />
+                    <Stop offset="0.55" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.55} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity} />
+                  </LinearGradient>
+                )}
+                {coverOverlayStyle === "gradient_diag" && (
+                  <LinearGradient id="cover-overlay-grad" x1="0" y1="0" x2="1" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.2} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity} />
+                  </LinearGradient>
+                )}
+                {coverOverlayStyle === "vignette" && (
+                  <RadialGradient id="cover-overlay-grad" cx="0.5" cy="0.5" rx="0.7" ry="0.85" fx="0.5" fy="0.5">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.1} />
+                    <Stop offset="0.7" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.5} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.95} />
+                  </RadialGradient>
+                )}
+              </Defs>
+              <Rect x={0} y={0} width={595} height={842} fill="url(#cover-overlay-grad)" />
+            </Svg>
+          </View>
         )}
         {/* Decoro SVG finestra in alto a destra (toggle template).
             Usa il colore PRIMARIO (non l'accent) per coerenza con la preview

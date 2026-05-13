@@ -408,6 +408,9 @@ export interface SrTemplatePdfRow {
   pdf_cover_eyebrow: string | null;
   pdf_cover_image_url: string | null;
   pdf_cover_overlay_opacity: number | null;
+  /** M13 · Stile overlay sopra immagine cover. 'flat' (default) |
+   *  'gradient' (vertical) | 'gradient_diag' | 'vignette'. */
+  pdf_cover_overlay_style: "flat" | "gradient" | "gradient_diag" | "vignette";
   pdf_cover_bg_color: string | null;
   pdf_cover_eyebrow_size: number | null;
   pdf_cover_title_size: number | null;

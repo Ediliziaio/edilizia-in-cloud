@@ -1183,16 +1183,30 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       className="absolute inset-0 w-full h-full object-cover"
                     />
                   )}
-                  {/* Overlay scuro su immagine */}
-                  {form.pdf_cover_image_url && (
-                    <div
-                      className="absolute inset-0 bg-black pointer-events-none"
-                      style={{
-                        opacity:
-                          (form.pdf_cover_overlay_opacity ?? 65) / 100,
-                      }}
-                    />
-                  )}
+                  {/* Overlay scuro su immagine — M13 con stile selezionabile.
+                       L'anteprima HTML usa CSS gradient per replicare il PDF SVG. */}
+                  {form.pdf_cover_image_url && (() => {
+                    const op = (form.pdf_cover_overlay_opacity ?? 65) / 100;
+                    const style = form.pdf_cover_overlay_style ?? "flat";
+                    let bgValue = "#000000";
+                    let opacityValue: number = op;
+                    if (style === "gradient") {
+                      bgValue = `linear-gradient(to bottom, rgba(0,0,0,${op * 0.15}) 0%, rgba(0,0,0,${op * 0.55}) 55%, rgba(0,0,0,${op}) 100%)`;
+                      opacityValue = 1;
+                    } else if (style === "gradient_diag") {
+                      bgValue = `linear-gradient(135deg, rgba(0,0,0,${op * 0.2}) 0%, rgba(0,0,0,${op}) 100%)`;
+                      opacityValue = 1;
+                    } else if (style === "vignette") {
+                      bgValue = `radial-gradient(ellipse at center, rgba(0,0,0,${op * 0.1}) 0%, rgba(0,0,0,${op * 0.5}) 70%, rgba(0,0,0,${op * 0.95}) 100%)`;
+                      opacityValue = 1;
+                    }
+                    return (
+                      <div
+                        className="absolute inset-0 pointer-events-none"
+                        style={{ background: bgValue, opacity: opacityValue }}
+                      />
+                    );
+                  })()}
                   {/* Decoro accent in alto a destra (toggle) */}
                   {form.pdf_cover_show_decoration !== false && (
                     <div
@@ -1328,29 +1342,64 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </p>
                 </div>
 
-                {/* Overlay opacity — visibile solo se c'è un'immagine */}
+                {/* Overlay opacity + M13 stile (visibili solo con immagine) */}
                 {form.pdf_cover_image_url && (
-                  <div>
-                    <Label className="text-xs flex items-center justify-between mb-1">
-                      <span>Opacità overlay scuro</span>
-                      <span className="font-mono text-muted-foreground">
-                        {form.pdf_cover_overlay_opacity ?? 65}%
-                      </span>
-                    </Label>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={5}
-                      value={form.pdf_cover_overlay_opacity ?? 65}
-                      onChange={(e) =>
-                        update(
-                          "pdf_cover_overlay_opacity",
-                          Number(e.target.value),
-                        )
-                      }
-                      className="w-full accent-orange-500"
-                    />
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-xs flex items-center justify-between mb-1">
+                        <span>Opacità overlay scuro</span>
+                        <span className="font-mono text-muted-foreground">
+                          {form.pdf_cover_overlay_opacity ?? 65}%
+                        </span>
+                      </Label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={form.pdf_cover_overlay_opacity ?? 65}
+                        onChange={(e) =>
+                          update(
+                            "pdf_cover_overlay_opacity",
+                            Number(e.target.value),
+                          )
+                        }
+                        className="w-full accent-orange-500"
+                      />
+                    </div>
+                    {/* M13 · Tipo overlay (flat / gradient / vignette) */}
+                    <div>
+                      <Label className="text-xs mb-1 block">Stile overlay</Label>
+                      <div className="grid grid-cols-4 gap-1">
+                        {([
+                          { v: "flat",          label: "Piatto",     hint: "Nero uniforme" },
+                          { v: "gradient",      label: "Gradient ↓", hint: "Trasparente in alto, scuro in basso" },
+                          { v: "gradient_diag", label: "Gradient ↘", hint: "Diagonale alto-sx → basso-dx" },
+                          { v: "vignette",      label: "Vignette",   hint: "Centro chiaro, angoli scuri" },
+                        ] as const).map((opt) => {
+                          const isActive = (form.pdf_cover_overlay_style ?? "flat") === opt.v;
+                          return (
+                            <button
+                              key={opt.v}
+                              type="button"
+                              title={opt.hint}
+                              onClick={() => update("pdf_cover_overlay_style", opt.v)}
+                              className={
+                                "rounded border text-[10px] py-1 px-1 transition-all " +
+                                (isActive
+                                  ? "bg-orange-500 text-white border-orange-500 font-semibold"
+                                  : "bg-white border-slate-200 hover:border-orange-300 text-slate-700")
+                              }
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Gradient migliora la leggibilità del testo su foto chiare.
+                      </p>
+                    </div>
                   </div>
                 )}
 
