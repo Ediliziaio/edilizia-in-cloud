@@ -5,6 +5,8 @@ import {
   findNearestGridCell,
 } from "@/features/serramenti-listini/utils/pricing";
 import type { PricingInput } from "@/features/serramenti-listini/types";
+import { calcolaPrezzoProdotto as calcolaPrezzoProdottoPreventivo } from "@/lib/serramenti/pricing";
+import type { ListinoFamily } from "@/lib/serramenti/api";
 
 /**
  * Test formula prezzo serramenti — STEP 0 (listini avanzati).
@@ -213,5 +215,96 @@ describe("calcolaPrezzoSerramento — scenario reale utente", () => {
     expect(r.prezzo_vendita_no_posa).toBe(756);
     expect(r.prezzo_vendita_totale).toBe(906);
     expect(r.margine_percentuale).toBeCloseTo(52.38, 1);
+  });
+});
+
+describe("calcolaPrezzoProdotto — griglia preventivatore", () => {
+  const family = {
+    id: "fam-1",
+    nome: "Finestra test",
+    descrizione: null,
+    immagine_url: null,
+    vertical: "serramentista",
+    prezzo_base_vendita: 0,
+    vat_rate: null,
+    modalita_prezzo_base: "griglia",
+    categoria_id: null,
+    custom_field_values: {},
+    manodopera_modalita: "nessuna",
+    posa_tariffa_default_id: null,
+    posa_quantita_default: null,
+    posa_linked: null,
+    manodopera_unita: null,
+    manodopera_costo_acquisto: null,
+    manodopera_prezzo_vendita: null,
+  } satisfies ListinoFamily;
+
+  it("separa due linee fornitore con stessa misura e applica ricarico su prezzo_acquisto", () => {
+    const result = calcolaPrezzoProdottoPreventivo(
+      family,
+      1000,
+      1200,
+      2,
+      [
+        {
+          id: "cell-basic",
+          valore_x: 1000,
+          valore_y: 1200,
+          prezzo_vendita: 900,
+          prezzo_acquisto: 300,
+          supplier_catalog_id: "sup-1",
+          supplier_product_line_id: "line-basic",
+        },
+        {
+          id: "cell-premium",
+          valore_x: 1000,
+          valore_y: 1200,
+          prezzo_vendita: 1400,
+          prezzo_acquisto: 500,
+          supplier_catalog_id: "sup-1",
+          supplier_product_line_id: "line-premium",
+        },
+      ],
+      {
+        supplierProductLineId: "line-premium",
+        supplierLines: [{ id: "line-premium", supplier_catalog_id: "sup-1", ricarico_default: 1 }],
+      },
+    );
+
+    expect(result.matchedGrigliaId).toBe("cell-premium");
+    expect(result.supplierProductLineId).toBe("line-premium");
+    expect(result.prezzo).toBe(2000); // 500 acquisto × (1 + 100%) × 2 pz
+  });
+
+  it("richiede scelta linea quando la griglia contiene piu' linee fornitore", () => {
+    const result = calcolaPrezzoProdottoPreventivo(
+      family,
+      900,
+      1000,
+      1,
+      [
+        { id: "a", valore_x: 1000, valore_y: 1200, prezzo_vendita: 800, supplier_product_line_id: "line-a" },
+        { id: "b", valore_x: 1000, valore_y: 1200, prezzo_vendita: 900, supplier_product_line_id: "line-b" },
+      ],
+    );
+
+    expect(result.requiresSupplierLine).toBe(true);
+    expect(result.prezzo).toBe(0);
+  });
+
+  it("sceglie la cella contenente piu' piccola, non il prezzo piu' basso tra celle grandi", () => {
+    const result = calcolaPrezzoProdottoPreventivo(
+      family,
+      950,
+      1100,
+      1,
+      [
+        { id: "small-containing", valore_x: 1000, valore_y: 1200, prezzo_vendita: 600 },
+        { id: "huge-discounted", valore_x: 2000, valore_y: 2400, prezzo_vendita: 100 },
+      ],
+    );
+
+    expect(result.matchedGrigliaId).toBe("small-containing");
+    expect(result.prezzo).toBe(600);
   });
 });

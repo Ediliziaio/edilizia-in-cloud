@@ -252,6 +252,10 @@ export interface SrSerramentoRow {
    *  dedicata nel PDF. NULL = nessun override. */
   macrocategoria_override_id: string | null;
   listino_voce_id: string | null;
+  /** Snapshot del fornitore/listino usato per il prezzo. Necessario quando
+   *  piu' linee prodotto condividono la stessa family e le stesse misure. */
+  supplier_catalog_id: string | null;
+  supplier_product_line_id: string | null;
   prezzo_unitario: number | null;
   prezzo_totale: number | null;
   /** Snapshot delle scelte sugli ASSI (variabili prodotto) della family al
@@ -331,6 +335,9 @@ export interface SrAccessorioRow {
   /** Snapshot della modalita_prezzo del listino al momento del pick.
    *  Determina cosa copiare da serramenti: dims (griglia/mq) o quantita (pz). */
   modalita_prezzo: "pz" | "mq" | "griglia" | "misura_libera" | null;
+  /** Snapshot del fornitore/listino usato per il prezzo. */
+  supplier_catalog_id: string | null;
+  supplier_product_line_id: string | null;
   created_at: string;
   updated_at: string;
 }

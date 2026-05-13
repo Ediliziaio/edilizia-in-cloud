@@ -12,7 +12,7 @@
  * × quantità). Risolve il workflow "ho 10 finestre, voglio 10 tapparelle
  * con le stesse misure senza re-inserirle tutte".
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import {
   useAddAccessorio, useUpdateAccessorio, useDeleteAccessorio,
-  useListinoFamilies, useMacrocategorie,
+  useListinoFamilies, useMacrocategorie, useListinoGriglia, useTariffeManodopera,
 } from "@/lib/serramenti/queries";
 import { SR_ACCESSORI_TIPI } from "@/types/serramenti";
 import type { SrProgettoDetail, SrAccessorioRow, SrSerramentoRow } from "@/types/serramenti";
@@ -44,6 +44,10 @@ import { SrCard } from "@/lib/serramenti/wizardUI";
 import { formatEuro } from "@/lib/serramenti/format";
 import { toast } from "sonner";
 import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
+import { useFamily } from "@/hooks/useFamilies";
+import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/useSupplierProductLines";
+import type { SupplierProductLine } from "@/features/serramenti-listini/types";
+import { applyMaggiorazioniAssi, calcolaPosaInclusa, calcolaPrezzoProdotto } from "@/lib/serramenti/pricing";
 
 interface Props {
   progettoId: string;
@@ -90,6 +94,8 @@ export function AccessoriSection({ progettoId, detail }: Props) {
           ? Number((pick.prezzo_unitario * pick.quantita).toFixed(2))
           : null,
       family_id: pick.family_id,
+      supplier_catalog_id: pick.supplier_catalog_id ?? null,
+      supplier_product_line_id: pick.supplier_product_line_id ?? null,
       valori_assi: pick.valori_assi ?? null,
       modalita_prezzo: pick.modalita_prezzo,
       position: accessori.length,
@@ -470,6 +476,34 @@ function CopyMisureDialog({
   const pickedFamily = pickedFamilyId
     ? pickedFamilies.find((f) => f.id === pickedFamilyId)
     : null;
+  const { data: griglia = [], isLoading: loadingGriglia } = useListinoGriglia(pickedFamily?.id);
+  const { family: pickedFamilyWithAxes } = useFamily(pickedFamily?.id);
+  const { data: tariffe = [] } = useTariffeManodopera();
+  const tariffePrezzi = useMemo(() => {
+    const m = new Map<string, number>();
+    tariffe.forEach((t) => { if (t.prezzo_vendita != null) m.set(t.id, Number(t.prezzo_vendita)); });
+    return m;
+  }, [tariffe]);
+  const { lines: supplierLines = [] } = useSupplierProductLines({
+    enabled: open && mode === "listino" && pickedFamily?.modalita_prezzo_base === "griglia",
+  });
+  const supplierLineMap = useMemo(() => {
+    const m = new Map<string, SupplierProductLine>();
+    supplierLines.forEach((line) => m.set(line.id, line));
+    return m;
+  }, [supplierLines]);
+  const availableSupplierProductLineIds = useMemo(
+    () => Array.from(new Set(griglia.map((g) => g.supplier_product_line_id).filter((v): v is string => !!v))),
+    [griglia],
+  );
+  const defaultAxisSelection = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const axis of pickedFamilyWithAxes?.axes ?? []) {
+      const def = axis.values.find((v) => v.attivo && v.is_default);
+      if (def) out[axis.codice] = def.id;
+    }
+    return out;
+  }, [pickedFamilyWithAxes]);
 
   const handleCopy = async () => {
     const targets = serramenti.filter((s) => selected.has(s.id));
@@ -483,6 +517,24 @@ function CopyMisureDialog({
       toast.error("Scegli un articolo dal listino oppure passa a Manuale");
       return;
     }
+    if (
+      mode === "listino" &&
+      pickedFamily?.modalita_prezzo_base === "griglia" &&
+      availableSupplierProductLineIds.length > 1
+    ) {
+      toast.error("Questo articolo ha più linee fornitore", {
+        description: "Usa “Aggiungi da listino” per scegliere la linea prodotto corretta.",
+      });
+      return;
+    }
+    if (
+      mode === "listino" &&
+      pickedFamily?.modalita_prezzo_base === "griglia" &&
+      loadingGriglia
+    ) {
+      toast.error("Griglia prezzi ancora in caricamento");
+      return;
+    }
 
     try {
       let count = 0;
@@ -490,14 +542,45 @@ function CopyMisureDialog({
         if (mode === "listino" && pickedFamily) {
           // Smart copy: collega all'articolo del listino.
           // Logica dims/quantita basata su modalita_prezzo_base del listino:
-          //   - griglia/mq: copia larghezza+altezza dal serramento (il prezzo
-          //     dovrebbe poi essere ricalcolato dalla griglia — per ora usa
-          //     prezzo_base_vendita come approssimazione + l'utente può ritoccare)
+          //   - griglia/mq: copia larghezza+altezza dal serramento e calcola
+          //     subito prezzo listino reale (griglia/mq + variabili + posa)
           //   - pz/misura_libera: copia solo quantità, niente dims
           const modalita = pickedFamily.modalita_prezzo_base;
           const wantsDims = modalita === "griglia" || modalita === "mq";
-          const unit = pickedFamily.prezzo_base_vendita ?? 0;
           const qty = s.quantita ?? 1;
+          if (wantsDims && (!s.larghezza_mm || !s.altezza_mm)) {
+            throw new Error(`${pickedFamily.nome}: il serramento "${s.tipologia_label || s.tipologia}" non ha misure complete.`);
+          }
+          const singleSupplierLineId =
+            availableSupplierProductLineIds.length === 1
+              ? availableSupplierProductLineIds[0]
+              : null;
+          const calc = calcolaPrezzoProdotto(
+            pickedFamily,
+            wantsDims ? s.larghezza_mm : null,
+            wantsDims ? s.altezza_mm : null,
+            qty,
+            griglia,
+            { supplierProductLineId: singleSupplierLineId, supplierLines: supplierLineMap },
+          );
+          if (calc.fuoriRange) {
+            throw new Error(`${pickedFamily.nome}: ${calc.note ?? "misura fuori griglia"}`);
+          }
+          if (calc.requiresSupplierLine || calc.missingSupplierLinePricing) {
+            throw new Error(calc.note ?? "Linea fornitore richiesta per calcolare il prezzo");
+          }
+          const prezzoProdotto = pickedFamilyWithAxes
+            ? applyMaggiorazioniAssi(
+                calc.prezzo,
+                defaultAxisSelection,
+                pickedFamilyWithAxes.axes,
+                wantsDims ? s.larghezza_mm : null,
+                wantsDims ? s.altezza_mm : null,
+                qty,
+              )
+            : calc.prezzo;
+          const posa = calcolaPosaInclusa(pickedFamily, qty, tariffePrezzi);
+          const unit = qty > 0 ? Number(((prezzoProdotto + posa) / qty).toFixed(2)) : 0;
           await addMut.mutateAsync({
             tipo: tipoAccessorio,
             descrizione: pickedFamily.nome,
@@ -507,6 +590,10 @@ function CopyMisureDialog({
             prezzo_unitario: unit,
             prezzo_totale: Number((unit * qty).toFixed(2)),
             family_id: pickedFamily.id,
+            supplier_catalog_id: calc.supplierCatalogId ?? null,
+            supplier_product_line_id: calc.supplierProductLineId ?? singleSupplierLineId,
+            listino_voce_id: calc.matchedGrigliaId,
+            valori_assi: defaultAxisSelection,
             modalita_prezzo:
               (modalita === "pz" || modalita === "mq" || modalita === "griglia" || modalita === "misura_libera")
                 ? modalita
@@ -699,6 +786,11 @@ function CopyMisureDialog({
                   ) : (
                     <span>Solo la quantità (l'articolo è venduto a pezzo — niente dimensioni).</span>
                   )}
+                  {pickedFamily.modalita_prezzo_base === "griglia" && availableSupplierProductLineIds.length > 1 && (
+                    <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-900">
+                      Questo articolo ha più linee fornitore: per scegliere quella corretta usa “Aggiungi da listino”.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -788,7 +880,8 @@ function CopyMisureDialog({
             disabled={
               selected.size === 0 ||
               addMut.isPending ||
-              (mode === "listino" && !pickedFamily)
+              (mode === "listino" && !pickedFamily) ||
+              (mode === "listino" && pickedFamily?.modalita_prezzo_base === "griglia" && availableSupplierProductLineIds.length > 1)
             }
             className="bg-orange-500 hover:bg-orange-600 gap-1.5"
           >

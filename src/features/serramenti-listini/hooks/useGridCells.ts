@@ -10,7 +10,7 @@
  *
  * Convenzioni:
  *  - upsert: logica atomica insert-or-update, dedup per
- *    (family_id, COALESCE(axis_config, '{}'), valore_x, valore_y).
+ *    (family_id, supplier_product_line_id, COALESCE(axis_config, '{}'), valore_x, valore_y).
  *    Sul client usiamo .upsert con onConflict solo se ID nota; in alternativa
  *    cerchiamo match e decidiamo insert vs update.
  *  - remove: DELETE fisico (non soft) — una cella "mancante" = "nessun prezzo"
@@ -145,8 +145,10 @@ export function useGridCellMutations() {
   };
 
   /**
-   * Upsert atomico: se (family_id, axis_config, valore_x, valore_y) esiste,
-   * aggiorna i campi prezzi/supplier; altrimenti inserisce.
+   * Upsert atomico: se (family_id, supplier_product_line_id, axis_config,
+   * valore_x, valore_y) esiste, aggiorna i campi prezzi/supplier; altrimenti
+   * inserisce. La linea fornitore fa parte della chiave: due listini diversi
+   * possono avere la stessa misura senza sovrascriversi.
    */
   const upsert = useMutation({
     mutationFn: async (cell: GridCellUpsert): Promise<GridCell> => {
@@ -167,6 +169,11 @@ export function useGridCellMutations() {
           .containedBy("axis_config", canon);
       } else {
         existingQ = existingQ.is("axis_config", null);
+      }
+      if (cell.supplier_product_line_id) {
+        existingQ = existingQ.eq("supplier_product_line_id", cell.supplier_product_line_id);
+      } else {
+        existingQ = existingQ.is("supplier_product_line_id", null);
       }
       const { data: existing, error: errQ } = await existingQ.maybeSingle();
       if (errQ) throw new Error(errQ.message);

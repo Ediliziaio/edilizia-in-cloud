@@ -498,6 +498,8 @@ export async function addSerramento(
       // e nascondeva la scheda tecnica della macrocategoria.
       family_id: serramento.family_id ?? null,
       listino_voce_id: serramento.listino_voce_id ?? null,
+      supplier_catalog_id: serramento.supplier_catalog_id ?? null,
+      supplier_product_line_id: serramento.supplier_product_line_id ?? null,
       macrocategoria_override_id: serramento.macrocategoria_override_id ?? null,
       // Snapshot scelte assi (variabili prodotto) della family al momento
       // del preventivo. Mappa { axis_codice -> axis_value_id }. Default {}.
@@ -574,6 +576,8 @@ export async function addAccessorio(
       family_id: accessorio.family_id ?? null,
       valori_assi: accessorio.valori_assi ?? null,
       modalita_prezzo: accessorio.modalita_prezzo ?? null,
+      supplier_catalog_id: accessorio.supplier_catalog_id ?? null,
+      supplier_product_line_id: accessorio.supplier_product_line_id ?? null,
     })
     .select("*")
     .single();
@@ -631,7 +635,9 @@ export async function listTariffeManodopera(searchQuery?: string): Promise<Tarif
     .select("id, nome, descrizione, unita, prezzo_costo, prezzo_vendita, categoria_prodotto, vertical_associato, tipo, attiva")
     .eq("attiva", true)
     .order("nome", { ascending: true })
-    .limit(100);
+    // La posa inclusa su una family puo' puntare a una tariffa oltre le prime
+    // 100 alfabetiche. Aumentiamo il cap per evitare ricalcoli a 0.
+    .limit(1000);
   if (searchQuery && searchQuery.trim().length >= 2) {
     const t = `%${searchQuery.trim()}%`;
     q = q.or(`nome.ilike.${t},descrizione.ilike.${t},categoria_prodotto.ilike.${t}`);
@@ -999,6 +1005,7 @@ export interface ListinoFamily {
   prezzo_base_vendita: number | null;
   vat_rate: number | null;
   modalita_prezzo_base: string | null;
+  macrocategoria_id?: string | null;
   categoria_id: string | null;
   // ─── Scheda tecnica (valori tipizzati dei campi definiti su macrocategoria) ─
   custom_field_values: Record<string, unknown>;
@@ -1019,6 +1026,8 @@ export interface ListinoGrigliaItem {
   valore_y: number | null;
   prezzo_vendita: number | null;
   prezzo_acquisto: number | null;
+  supplier_catalog_id: string | null;
+  supplier_product_line_id: string | null;
   note: string | null;
 }
 
@@ -1037,7 +1046,7 @@ export async function listListinoFamiliesByIds(ids: string[]): Promise<ListinoFa
     .from("article_families")
     .select(`
       id, nome, descrizione, immagine_url, vertical, prezzo_base_vendita, vat_rate,
-      modalita_prezzo_base, categoria_id, custom_field_values,
+      modalita_prezzo_base, macrocategoria_id, categoria_id, custom_field_values,
       manodopera_modalita, posa_tariffa_default_id, posa_quantita_default, posa_linked,
       manodopera_unita, manodopera_costo_acquisto, manodopera_prezzo_vendita
     `)
@@ -1090,7 +1099,7 @@ export async function listGrigliaByFamily(family_id: string): Promise<ListinoGri
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("listino_griglia")
-    .select("id, family_id, valore_x, valore_y, prezzo_vendita, prezzo_acquisto, note")
+    .select("id, family_id, valore_x, valore_y, prezzo_vendita, prezzo_acquisto, supplier_catalog_id, supplier_product_line_id, note")
     .eq("family_id", family_id)
     .order("valore_x", { ascending: true })
     .order("valore_y", { ascending: true });
@@ -1438,4 +1447,3 @@ export async function upsertTemplatePdf(patch: Partial<SrTemplatePdfRow>): Promi
     throw new Error("Salvataggio template fallito");
   }
 }
-

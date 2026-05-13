@@ -16,11 +16,54 @@ export type CalcoloPrezzoResult = {
   prezzo: number;
   matchedGrigliaId: string | null;
   note: string | null;
+  supplierCatalogId?: string | null;
+  supplierProductLineId?: string | null;
+  /** True quando una griglia contiene piu' linee fornitore e la UI deve far scegliere quale usare. */
+  requiresSupplierLine?: boolean;
+  /** True se la linea selezionata non e' caricata: evitiamo ricalcoli al buio. */
+  missingSupplierLinePricing?: boolean;
+  availableSupplierProductLineIds?: string[];
   /** True se la misura inserita e' fuori range producibile (max o min). */
   fuoriRange?: boolean;
   /** Range disponibile dalla griglia listino, se applicabile. */
   range?: { minL: number | null; maxL: number | null; minH: number | null; maxH: number | null };
 };
+
+export type SupplierLinePricing = {
+  id: string;
+  supplier_catalog_id?: string | null;
+  nome?: string | null;
+  /** 0..N, es. 1 = +100% */
+  ricarico_default?: number | null;
+};
+
+type GrigliaPricingItem = {
+  id: string;
+  valore_x: number | null;
+  valore_y: number | null;
+  prezzo_vendita: number | null;
+  prezzo_acquisto?: number | null;
+  supplier_catalog_id?: string | null;
+  supplier_product_line_id?: string | null;
+};
+
+export type CalcolaPrezzoOptions = {
+  supplierProductLineId?: string | null;
+  supplierLines?: Map<string, SupplierLinePricing> | SupplierLinePricing[];
+};
+
+function supplierLineMapFrom(
+  supplierLines?: Map<string, SupplierLinePricing> | SupplierLinePricing[],
+): Map<string, SupplierLinePricing> {
+  if (!supplierLines) return new Map();
+  return supplierLines instanceof Map
+    ? supplierLines
+    : new Map(supplierLines.map((line) => [line.id, line]));
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
 
 // ─── Range griglia ─────────────────────────────────────────────────────────
 
@@ -47,8 +90,8 @@ export function getGrigliaRange(
 /**
  * Strategia di pricing griglia consolidata col picker:
  *   - case "griglia": trova il "quadrante che contiene le misure"
- *     (filter valore_x >= L && valore_y >= H) e prende il prezzo MIN
- *     fra i candidati. Se nessun candidato => fuoriRange=true.
+ *     (filter valore_x >= L && valore_y >= H) e prende la cella contenente
+ *     piu' piccola. Se nessun candidato => fuoriRange=true.
  *   - case "mq": prezzo_base × L × H × Q.
  *   - case "pz"/"misura_libera": prezzo_base × Q.
  *
@@ -60,7 +103,8 @@ export function calcolaPrezzoProdotto(
   larghezza: number | null,
   altezza: number | null,
   quantita: number,
-  griglia: Array<{ id: string; valore_x: number | null; valore_y: number | null; prezzo_vendita: number | null }>,
+  griglia: GrigliaPricingItem[],
+  options: CalcolaPrezzoOptions = {},
 ): CalcoloPrezzoResult {
   const base = Number(family.prezzo_base_vendita ?? 0);
   const modalita = family.modalita_prezzo_base ?? "pz";
@@ -78,16 +122,39 @@ export function calcolaPrezzoProdotto(
     case "misura_libera":
       return { prezzo: base * quantita, matchedGrigliaId: null, note: "Prezzo a corpo, misure indicative" };
     case "griglia": {
-      const range = getGrigliaRange(griglia);
+      const supplierLineMap = supplierLineMapFrom(options.supplierLines);
+      const availableSupplierProductLineIds = Array.from(
+        new Set(griglia.map((g) => g.supplier_product_line_id).filter((v): v is string => !!v)),
+      );
+      const requiresSupplierLine =
+        availableSupplierProductLineIds.length > 1 && !options.supplierProductLineId;
+      const grigliaFiltrata = options.supplierProductLineId
+        ? griglia.filter((g) => g.supplier_product_line_id === options.supplierProductLineId)
+        : griglia;
+      const range = getGrigliaRange(grigliaFiltrata);
+
+      if (requiresSupplierLine) {
+        return {
+          prezzo: 0,
+          matchedGrigliaId: null,
+          note: "Scegli la linea prodotto fornitore per calcolare il prezzo corretto.",
+          requiresSupplierLine: true,
+          availableSupplierProductLineIds,
+          range,
+        };
+      }
+
       if (!larghezza || !altezza) {
         return {
           prezzo: base * quantita, matchedGrigliaId: null,
           note: "Inserisci misure per leggere griglia",
+          availableSupplierProductLineIds,
           range,
         };
       }
-      const candidates = griglia.filter((g) =>
-        g.valore_x != null && g.valore_y != null && g.prezzo_vendita != null
+      const candidates = grigliaFiltrata.filter((g) =>
+        g.valore_x != null && g.valore_y != null
+        && (g.prezzo_vendita != null || g.prezzo_acquisto != null)
         && g.valore_x >= larghezza && g.valore_y >= altezza
       );
       if (candidates.length === 0) {
@@ -101,16 +168,43 @@ export function calcolaPrezzoProdotto(
         const noteMsg = `Misura non producibile. Range disponibile: da ${fmtMis(range.minL, range.minH)} a ${fmtMis(range.maxL, range.maxH)}.`;
         return {
           prezzo: 0, matchedGrigliaId: null, note: noteMsg,
-          fuoriRange: true, range,
+          fuoriRange: true, range, availableSupplierProductLineIds,
         };
       }
-      const best = candidates.reduce((min, g) =>
-        Number(g.prezzo_vendita ?? Infinity) < Number(min.prezzo_vendita ?? Infinity) ? g : min,
-      );
-      const prezzoBest = Number(best.prezzo_vendita ?? 0);
+      const best = [...candidates].sort((a, b) => {
+        const areaA = Number(a.valore_x ?? 0) * Number(a.valore_y ?? 0);
+        const areaB = Number(b.valore_x ?? 0) * Number(b.valore_y ?? 0);
+        if (areaA !== areaB) return areaA - areaB;
+        if (Number(a.valore_x ?? 0) !== Number(b.valore_x ?? 0)) {
+          return Number(a.valore_x ?? 0) - Number(b.valore_x ?? 0);
+        }
+        return Number(a.valore_y ?? 0) - Number(b.valore_y ?? 0);
+      })[0];
+      const supplierProductLineId = best.supplier_product_line_id ?? null;
+      const supplierLine = supplierProductLineId
+        ? supplierLineMap.get(supplierProductLineId)
+        : undefined;
+      if (supplierProductLineId && best.prezzo_acquisto != null && best.prezzo_acquisto > 0 && !supplierLine) {
+        return {
+          prezzo: 0,
+          matchedGrigliaId: best.id,
+          note: "Configurazione fornitore non caricata: aggiorna e riprova il calcolo.",
+          supplierCatalogId: best.supplier_catalog_id ?? null,
+          supplierProductLineId,
+          missingSupplierLinePricing: true,
+          availableSupplierProductLineIds,
+          range,
+        };
+      }
+      const prezzoBest = supplierLine && best.prezzo_acquisto != null && best.prezzo_acquisto > 0
+        ? round2(Number(best.prezzo_acquisto) * (1 + Number(supplierLine.ricarico_default ?? 0)))
+        : Number(best.prezzo_vendita ?? 0);
       return {
         prezzo: prezzoBest * quantita, matchedGrigliaId: best.id,
         note: `Griglia ${best.valore_x}×${best.valore_y}mm @ €${prezzoBest.toFixed(2)}`,
+        supplierCatalogId: best.supplier_catalog_id ?? supplierLine?.supplier_catalog_id ?? null,
+        supplierProductLineId,
+        availableSupplierProductLineIds,
         range,
       };
     }
@@ -180,9 +274,10 @@ export function applyMaggiorazioniAssi(
 ): number {
   let pv = prezzoBaseTotale;
   const mq = L != null && H != null ? (L / 1000) * (H / 1000) * quantita : null;
-  // Nessuna misura "lunghezza_ml" disponibile su serramenti -> ml=null,
-  // maggiorazioni fisso_ml vengono ignorate (skip silenzioso).
-  const ml = null;
+  // Per i serramenti non esiste una colonna "lunghezza_ml" dedicata: usiamo
+  // la larghezza come sviluppo lineare principale, evitando che maggiorazioni
+  // fisso_ml configurate sul listino vengano ignorate silenziosamente.
+  const ml = L != null ? (L / 1000) * quantita : null;
 
   // 1. Prima le percentuali (si applicano in cascata sul prezzo corrente).
   for (const axis of axes) {

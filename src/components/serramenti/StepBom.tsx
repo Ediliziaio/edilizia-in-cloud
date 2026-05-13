@@ -29,6 +29,8 @@ import {
 import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
 import { calcolaPrezzoProdotto, calcolaPosaInclusa, applyMaggiorazioniAssi } from "@/lib/serramenti/pricing";
 import { useFamily } from "@/hooks/useFamilies";
+import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/useSupplierProductLines";
+import type { SupplierProductLine } from "@/features/serramenti-listini/types";
 import { ServiziSection } from "./ServiziSection";
 import { AccessoriSection } from "./AccessoriSection";
 import {
@@ -97,6 +99,15 @@ export function StepBom({ progettoId, detail }: Props) {
     return m;
   }, [tariffe]);
 
+  const { lines: supplierLines = [] } = useSupplierProductLines({
+    enabled: familyIdsBOM.length > 0,
+  });
+  const supplierLineMap = useMemo(() => {
+    const m = new Map<string, SupplierProductLine>();
+    supplierLines.forEach((line) => m.set(line.id, line));
+    return m;
+  }, [supplierLines]);
+
   // Mappa categoria → macrocategoria_id per lookup scheda tecnica nella row.
   const { categorie } = useListinoCategorie();
   const catToMacro = useMemo(() => {
@@ -140,6 +151,8 @@ export function StepBom({ progettoId, detail }: Props) {
         position: serramenti.length,
         family_id: item.family_id,
         listino_voce_id: item.griglia_id ?? null,
+        supplier_catalog_id: item.supplier_catalog_id ?? null,
+        supplier_product_line_id: item.supplier_product_line_id ?? null,
         valori_assi: item.valori_assi ?? {},
         note: item.note ?? `Da listino: ${item.family_nome}`,
       },
@@ -210,6 +223,8 @@ export function StepBom({ progettoId, detail }: Props) {
       prezzo_totale: s.prezzo_totale,
       family_id: s.family_id,
       listino_voce_id: s.listino_voce_id,
+      supplier_catalog_id: s.supplier_catalog_id,
+      supplier_product_line_id: s.supplier_product_line_id,
       macrocategoria_override_id: s.macrocategoria_override_id,
       valori_assi: s.valori_assi ?? {},
       position: serramenti.length,
@@ -328,6 +343,7 @@ export function StepBom({ progettoId, detail }: Props) {
                   macroId={macroId}
                   macroNome={macroNome}
                   tariffePrezzi={tariffePrezzi}
+                  supplierLineMap={supplierLineMap}
                 />
               );
             })}
@@ -537,7 +553,7 @@ function BulkPosaActions({
 
 function SerramentoRow({
   serramento: s, index, expanded, onToggle, onPatch, onDuplicate, onDelete,
-  family, macroId, macroNome, tariffePrezzi,
+  family, macroId, macroNome, tariffePrezzi, supplierLineMap,
 }: {
   serramento: SrSerramentoRow;
   index: number;
@@ -554,6 +570,8 @@ function SerramentoRow({
   macroNome?: string;
   /** Mappa tariffe → prezzo vendita per ricalcolare posa nel prezzo unitario. */
   tariffePrezzi: Map<string, number>;
+  /** Mappa linee fornitore → ricarico per ricalcolare griglie avanzate. */
+  supplierLineMap: Map<string, SupplierProductLine>;
 }) {
   // Label header riga:
   //   - off-listino: usa SR_TIPOLOGIE_SERRAMENTO (Finestra a 1 anta, ecc.)
@@ -588,6 +606,9 @@ function SerramentoRow({
   // modifica L/A/Q. enabled solo se family esiste con modalità griglia.
   const { data: griglia = [] } = useListinoGriglia(family?.id);
   const isFromListino = !!family;
+  const selectedSupplierProductLineId = s.supplier_product_line_id
+    ?? griglia.find((g) => g.id === s.listino_voce_id)?.supplier_product_line_id
+    ?? null;
 
   // Carica family completa (con axes+values) per applicare le maggiorazioni
   // delle Variabili Prodotto al ricalcolo prezzo. Solo per righe listino.
@@ -624,8 +645,12 @@ function SerramentoRow({
 
     // 1. Prezzo BASE prodotto via la stessa strategia del picker
     //    (calcolaPrezzoProdotto: filter quadrante che contiene le misure,
-    //    min prezzo). Source of truth coerente.
-    const result = calcolaPrezzoProdotto(family, L, H, Qsafe, griglia);
+    //    cella contenente piu' piccola). Source of truth coerente.
+    const result = calcolaPrezzoProdotto(family, L, H, Qsafe, griglia, {
+      supplierProductLineId: selectedSupplierProductLineId,
+      supplierLines: supplierLineMap,
+    });
+    if (result.requiresSupplierLine || result.missingSupplierLinePricing) return null;
 
     // 2. Maggiorazioni assi (Variabili Prodotto) applicate sopra il prezzo
     //    base. Se familyWithAxes ancora in loading, skip (uso prezzo base).
@@ -654,9 +679,27 @@ function SerramentoRow({
     const L = s.larghezza_mm ?? null;
     const H = s.altezza_mm ?? null;
     if (L == null || H == null) return null;
-    const r = calcolaPrezzoProdotto(family, L, H, s.quantita ?? 1, griglia);
-    return { fuoriRange: r.fuoriRange === true, range: r.range, note: r.note };
-  }, [isFromListino, family, griglia, s.larghezza_mm, s.altezza_mm, s.quantita]);
+    const r = calcolaPrezzoProdotto(family, L, H, s.quantita ?? 1, griglia, {
+      supplierProductLineId: selectedSupplierProductLineId,
+      supplierLines: supplierLineMap,
+    });
+    return {
+      fuoriRange: r.fuoriRange === true,
+      range: r.range,
+      note: r.note,
+      requiresSupplierLine: r.requiresSupplierLine === true,
+      missingSupplierLinePricing: r.missingSupplierLinePricing === true,
+    };
+  }, [
+    isFromListino,
+    family,
+    griglia,
+    selectedSupplierProductLineId,
+    supplierLineMap,
+    s.larghezza_mm,
+    s.altezza_mm,
+    s.quantita,
+  ]);
 
   /**
    * Wrapper che, se la riga è del listino e cambiano L/A/Q, ricalcola anche
@@ -815,6 +858,14 @@ function SerramentoRow({
                 title={priceCheck.note ?? "Misure non in griglia listino"}
               >
                 ⚠ MISURE FUORI STANDARD
+              </span>
+            )}
+            {(priceCheck?.requiresSupplierLine || priceCheck?.missingSupplierLinePricing) && (
+              <span
+                className="text-[9px] font-semibold text-amber-700 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 inline-flex items-center gap-1"
+                title={priceCheck.note ?? "Linea fornitore richiesta per il ricalcolo"}
+              >
+                ⚠ LINEA FORNITORE
               </span>
             )}
             {/* BADGE "SOLO FORNITURA" — visibile quando il commerciale ha

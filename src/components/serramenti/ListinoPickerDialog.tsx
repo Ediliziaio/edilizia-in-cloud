@@ -38,6 +38,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { DynamicFieldsRenderer } from "@/components/listino/DynamicFieldsRenderer";
+import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/useSupplierProductLines";
+import type { SupplierProductLine } from "@/features/serramenti-listini/types";
 
 export interface ListinoPickResult {
   family_id: string;
@@ -49,6 +51,8 @@ export interface ListinoPickResult {
   prezzo_prodotto: number | null;
   prezzo_posa: number | null;
   griglia_id?: string | null;
+  supplier_catalog_id?: string | null;
+  supplier_product_line_id?: string | null;
   note?: string | null;
   /** Snapshot scelte sugli ASSI (variabili prodotto) della family.
    *  Mappa { axis_codice -> axis_value_id }. Se l'azienda modifica le
@@ -120,6 +124,7 @@ export function ListinoPickerDialog({
   const [larghezza, setLarghezza] = useState<string>("");
   const [altezza, setAltezza] = useState<string>("");
   const [quantita, setQuantita] = useState<string>("1");
+  const [selectedSupplierProductLineId, setSelectedSupplierProductLineId] = useState<string | null>(null);
   // Selezione assi (variabili prodotto): mappa axis.codice -> axis_value.id.
   // Pre-popolata con `is_default` quando la family viene caricata.
   // Reset al cambio famiglia / chiusura dialog.
@@ -140,6 +145,7 @@ export function ListinoPickerDialog({
       setSelectedMacro(null); setSelectedFamily(null);
       setLarghezza(""); setAltezza(""); setQuantita("1");
       setAxisSelection({});
+      setSelectedSupplierProductLineId(null);
     }
   }, [open]);
 
@@ -160,6 +166,24 @@ export function ListinoPickerDialog({
     macroId: !isSearching && selectedMacro ? selectedMacro.id : undefined,
   });
   const { data: griglia = [], isLoading: loadingGriglia } = useListinoGriglia(selectedFamily?.id);
+  const { lines: supplierLines = [], isLoading: loadingSupplierLines } = useSupplierProductLines({
+    enabled: open && selectedFamily?.modalita_prezzo_base === "griglia",
+  });
+  const supplierLineMap = useMemo(() => {
+    const m = new Map<string, SupplierProductLine>();
+    supplierLines.forEach((line) => m.set(line.id, line));
+    return m;
+  }, [supplierLines]);
+  const availableSupplierProductLineIds = useMemo(
+    () => Array.from(new Set(griglia.map((g) => g.supplier_product_line_id).filter((v): v is string => !!v))),
+    [griglia],
+  );
+  const availableSupplierLines = useMemo(
+    () => availableSupplierProductLineIds
+      .map((id) => supplierLineMap.get(id))
+      .filter((line): line is SupplierProductLine => !!line),
+    [availableSupplierProductLineIds, supplierLineMap],
+  );
   // FamilyWithAxes: carica family + assi + valori. Serve per:
   //   - mostrare i dropdown delle variabili prodotto (assi) nel picker
   //   - applicare le maggiorazioni dei valori scelti al prezzo
@@ -192,6 +216,24 @@ export function ListinoPickerDialog({
   }, [familyWithAxes, axes]);
   const { data: tariffe = [] } = useTariffeManodopera();
 
+  useEffect(() => {
+    if (!open || selectedFamily?.modalita_prezzo_base !== "griglia") return;
+    if (availableSupplierProductLineIds.length === 1) {
+      setSelectedSupplierProductLineId(availableSupplierProductLineIds[0]);
+    } else if (
+      selectedSupplierProductLineId &&
+      !availableSupplierProductLineIds.includes(selectedSupplierProductLineId)
+    ) {
+      setSelectedSupplierProductLineId(null);
+    }
+  }, [
+    open,
+    selectedFamily?.id,
+    selectedFamily?.modalita_prezzo_base,
+    availableSupplierProductLineIds,
+    selectedSupplierProductLineId,
+  ]);
+
   const tariffePrezzi = useMemo(() => {
     const m = new Map<string, number>();
     tariffe.forEach((t) => { if (t.prezzo_vendita != null) m.set(t.id, Number(t.prezzo_vendita)); });
@@ -207,8 +249,11 @@ export function ListinoPickerDialog({
 
     // 1. Prezzo BASE prodotto via la strategia consolidata
     //    `calcolaPrezzoProdotto` (filter "quadrante che contiene le misure",
-    //    min prezzo). Resta source of truth per griglia/mq/pz.
-    const calc = calcolaPrezzoProdotto(selectedFamily, l, h, q, griglia);
+    //    cella contenente piu' piccola). Resta source of truth per griglia/mq/pz.
+    const calc = calcolaPrezzoProdotto(selectedFamily, l, h, q, griglia, {
+      supplierProductLineId: selectedSupplierProductLineId,
+      supplierLines: supplierLineMap,
+    });
 
     // 2. Maggiorazioni assi (Variabili Prodotto) applicate SOPRA il prezzo
     //    base via `applyMaggiorazioniAssi` (replica della logica di
@@ -231,11 +276,15 @@ export function ListinoPickerDialog({
       extra_assi: extraAssi,
       totale, unitario,
       matchedGrigliaId: calc.matchedGrigliaId,
+      supplierCatalogId: calc.supplierCatalogId ?? null,
+      supplierProductLineId: calc.supplierProductLineId ?? selectedSupplierProductLineId ?? null,
       note: calc.note,
+      requiresSupplierLine: calc.requiresSupplierLine ?? false,
+      missingSupplierLinePricing: calc.missingSupplierLinePricing ?? false,
       fuoriRange: calc.fuoriRange ?? false,
       range: calc.range,
     };
-  }, [selectedFamily, familyWithAxes, axisSelection, larghezza, altezza, quantita, griglia, tariffePrezzi]);
+  }, [selectedFamily, familyWithAxes, axisSelection, larghezza, altezza, quantita, griglia, selectedSupplierProductLineId, supplierLineMap, tariffePrezzi]);
 
   const richiedeMisure = selectedFamily && (
     selectedFamily.modalita_prezzo_base === "mq" ||
@@ -256,6 +305,7 @@ export function ListinoPickerDialog({
     // Reset selezione assi su cambio famiglia (gli assi sono family-specific).
     // I default verranno applicati quando familyDetailWithAxes carica.
     setAxisSelection({});
+    setSelectedSupplierProductLineId(null);
   };
 
   const handleBack = () => {
@@ -287,6 +337,8 @@ export function ListinoPickerDialog({
       prezzo_prodotto: calcolo.prezzo_prodotto / calcolo.quantita,
       prezzo_posa: calcolo.prezzo_posa / calcolo.quantita,
       griglia_id: calcolo.matchedGrigliaId,
+      supplier_catalog_id: calcolo.supplierCatalogId,
+      supplier_product_line_id: calcolo.supplierProductLineId,
       note: calcolo.note,
       // Snapshot scelte assi: salvato sulla riga BOM in modo che modifiche
       // future al listino NON cambino i preventivi gia' inviati.
@@ -535,6 +587,41 @@ export function ListinoPickerDialog({
               </div>
             </div>
 
+            {selectedFamily.modalita_prezzo_base === "griglia" && availableSupplierProductLineIds.length > 0 && (
+              <Card className="border-blue-200 bg-blue-50/50 p-3">
+                <Label className="text-xs text-blue-900 font-semibold">Linea prodotto fornitore</Label>
+                <p className="text-[11px] text-blue-800 mt-0.5 mb-2">
+                  Serve per evitare prezzi mescolati quando la stessa famiglia ha più listini.
+                </p>
+                {loadingSupplierLines ? (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Caricamento linee fornitore…
+                  </p>
+                ) : availableSupplierLines.length === 0 ? (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                    Linea fornitore non trovata: aggiorna i listini prima di aggiungere l'articolo.
+                  </p>
+                ) : (
+                  <Select
+                    value={selectedSupplierProductLineId ?? ""}
+                    onValueChange={(v) => setSelectedSupplierProductLineId(v)}
+                    disabled={availableSupplierLines.length === 1}
+                  >
+                    <SelectTrigger className="h-9 text-xs bg-white">
+                      <SelectValue placeholder="Scegli linea prodotto…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSupplierLines.map((line) => (
+                        <SelectItem key={line.id} value={line.id} className="text-xs">
+                          {line.nome} · ricarico +{Math.round(Number(line.ricarico_default ?? 0) * 100)}%
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </Card>
+            )}
+
             {loadingGriglia && selectedFamily.modalita_prezzo_base === "griglia" && (
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Loader2 className="h-3 w-3 animate-spin" /> Caricamento griglia prezzi…
@@ -670,6 +757,17 @@ export function ListinoPickerDialog({
                 </p>
               </Card>
             )}
+
+            {(calcolo?.requiresSupplierLine || calcolo?.missingSupplierLinePricing) && (
+              <Card className="border-amber-300 bg-amber-50 p-4">
+                <p className="text-sm font-bold text-amber-900 mb-1 flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4" /> Prezzo non ancora determinabile
+                </p>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  {calcolo.note ?? "Seleziona la linea prodotto fornitore corretta per calcolare il prezzo."}
+                </p>
+              </Card>
+            )}
           </div>
         )}
 
@@ -680,6 +778,9 @@ export function ListinoPickerDialog({
           <div className="text-[11px] text-muted-foreground">
             {effectiveStep === "misure" && richiedeMisure && (!larghezza || !altezza) && (
               <span>Inserisci larghezza e altezza per calcolare il prezzo.</span>
+            )}
+            {effectiveStep === "misure" && calcolo?.requiresSupplierLine && (
+              <span>Scegli la linea prodotto fornitore prima di aggiungere.</span>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -693,6 +794,11 @@ export function ListinoPickerDialog({
                   || !calcolo || calcolo.totale <= 0
                   // Blocca aggiunta se misure fuori range producibile.
                   || calcolo.fuoriRange === true
+                  || calcolo.requiresSupplierLine === true
+                  || calcolo.missingSupplierLinePricing === true
+                  || (selectedFamily?.modalita_prezzo_base === "griglia"
+                    && availableSupplierProductLineIds.length > 0
+                    && availableSupplierLines.length === 0)
                   // Blocca se ci sono assi obbligatori senza scelta.
                   || axes.some((a) => a.obbligatorio && !axisSelection[a.codice])
                 }
