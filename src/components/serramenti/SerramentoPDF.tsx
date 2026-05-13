@@ -748,6 +748,29 @@ function materialeLabel(m: string | null | undefined): string {
   return SR_MATERIALI.find((x) => x.value === m)?.label ?? m;
 }
 
+/**
+ * Risolve il materiale "vero" da mostrare nel PDF a partire dalla scheda
+ * tecnica del listino (`family.custom_field_values.materiale_profilo`).
+ * Mappa i valori interni (es. "pvc") all'etichetta umana ("PVC").
+ * Ritorna null se la family non ha questa info → il chiamante usa il
+ * fallback legacy `s.materiale`.
+ */
+function materialeFromFamily(
+  family: { custom_field_values?: Record<string, unknown> | null } | null | undefined,
+): string | null {
+  if (!family?.custom_field_values) return null;
+  const raw = family.custom_field_values["materiale_profilo"];
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  // Stessa mappa usata in StepBom.SerramentoRow per coerenza UI ↔ PDF.
+  const map: Record<string, string> = {
+    pvc: "PVC",
+    alluminio: "Alluminio",
+    legno: "Legno",
+    legno_alluminio: "Legno-alluminio",
+  };
+  return map[raw] ?? raw;
+}
+
 // Raggruppa serramenti per (family_id, tipologia, materiale, serie, vetro,
 // L, H, ambiente, colore_int, colore_est). Serramenti completamente identici
 // si sommano; qualunque differenza (anche solo il colore) → riga separata.
@@ -1765,7 +1788,15 @@ export function SerramentoPDF({
                         <Text style={[styles.tableCellMuted, { fontWeight: 700, color: C.gray700 }]}>
                           {[
                             dimensioni,
-                            g.materiale !== "—" ? g.materiale : null,
+                            // Preferiamo il materiale dalla SCHEDA TECNICA del listino
+                            // (family.custom_field_values.materiale_profilo) — fonte
+                            // di verità autorevole quando l'articolo viene dal
+                            // listino. Solo se non disponibile cadiamo sul campo
+                            // legacy s.materiale (g.materiale) che spesso è il
+                            // default macrocategoria e può non riflettere il vero
+                            // materiale del prodotto. BUG FIX: prima il PDF
+                            // mostrava "Alluminio" per articoli PVC del listino.
+                            materialeFromFamily(family) ?? (g.materiale !== "—" ? g.materiale : null),
                             g.serie,
                             g.vetro,
                           ].filter(Boolean).join(" · ")}
@@ -1980,6 +2011,21 @@ export function SerramentoPDF({
                 <Text style={{ fontSize: 9, color: C.primary, marginTop: 4 }}>
                   Media: € {fmtEuro(totaleMedia)}
                 </Text>
+                {/* Nota IVA: spiega l'aliquota applicata. Per IVA mista
+                    richiama esplicitamente la normativa (art. 7 c.1 L.488/99
+                    + DM 29.12.99 Beni Significativi). Trasparenza fiscale
+                    al cliente — riduce contestazioni in fase di firma. */}
+                <Text style={{ fontSize: 8, color: C.gray600, marginTop: 6, fontStyle: "italic" }}>
+                  {p.iva_percentuale === -1
+                    ? "IVA mista applicata secondo regola Beni Significativi (DM 29.12.99): serramenti al 10% fino al valore di posa + opere accessorie; eccedenza al 22%."
+                    : p.iva_percentuale === 4
+                      ? "IVA agevolata 4% (Legge 104 — interventi per persone con disabilità)."
+                      : p.iva_percentuale === 10
+                        ? "IVA agevolata 10% per interventi di ristrutturazione edilizia (art. 7 c.1 L. 488/99)."
+                        : p.iva_percentuale === 0
+                          ? "Operazione esente / non imponibile IVA."
+                          : `Aliquota IVA ${p.iva_percentuale}% — ordinaria.`}
+                </Text>
               </View>
 
               {/* Box urgenza/scadenza prezzo + early bird (CRO) */}
@@ -2068,7 +2114,7 @@ export function SerramentoPDF({
 
               {cashflowYears.length > 0 && (
                 <>
-                  <Text style={styles.sectionTitle}>Cashflow 10 anni — rientro dell'investimento</Text>
+                  <Text style={styles.sectionTitle}>Ritorno sull'investimento · 10 anni</Text>
                   <CashflowSvg years={cashflowYears} primary={primaryColor} />
                   <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 4 }}>
                     Risparmio bolletta + detrazione fiscale cumulati anno dopo anno.

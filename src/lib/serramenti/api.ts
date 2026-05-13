@@ -74,6 +74,10 @@ export async function createProgetto(input: SrCreateProgettoInput): Promise<SrPr
     // pre-popolare il PDF con nome + foto profilo + ruolo senza richiedere
     // un secondo step "scegli consulente". Override possibile dopo via update.
     consulente_id: input.consulente_id ?? userId ?? null,
+    // Default IVA = 10% (aliquota ristrutturazione edilizia, caso piu' comune
+    // per i serramenti). Sovrascrive il DEFAULT 22 a livello DB. L'utente puo'
+    // sempre modificarla in StepEconomia (0/4/10/22/mista).
+    iva_percentuale: 10,
     stato: "bozza",
   };
 

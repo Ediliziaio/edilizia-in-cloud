@@ -121,7 +121,7 @@ export async function buildMockPdfData(opts: {
     totale_min: 3600,
     totale_max: 4400,
     iva_inclusa: true,
-    iva_percentuale: 22,
+    iva_percentuale: 10,
     sconto_percentuale: 0,
     sconto_importo: 0,
     fin_anticipo_pct: 30,

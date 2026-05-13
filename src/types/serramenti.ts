@@ -638,17 +638,23 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     descrizione: "Anagrafica cliente, esigenze, soluzione, perché scegliere voi.",
     obbligatoria: true,
   },
-  {
-    id: "allegato_tecnico",
-    label: "Allegato tecnico",
-    descrizione: "Composizione serramenti (foto + scheda tecnica) + La tua consulenza.",
-    obbligatoria: true,
-  },
+  // Le pagine dedicate macrocategoria ("Linea Prodotto") sono ora messe
+  // PRIMA dell'allegato tecnico: l'utente vede prima la presentazione del
+  // catalogo (cos'è la linea INFISSI WND, foto, descrizione estesa) e POI
+  // la composizione tecnica dettagliata (cosa entra in cantiere). Senza
+  // questo swap il cliente vedeva i singoli pezzi prima di sapere a che
+  // linea appartenevano — flusso narrativo invertito.
   {
     id: "macro_dedicate",
     label: "Pagine dedicate macrocategoria",
     descrizione: "Una pagina per ogni macrocategoria con mostra_pagina_dedicata_pdf=true.",
     obbligatoria: false,
+  },
+  {
+    id: "allegato_tecnico",
+    label: "Allegato tecnico",
+    descrizione: "Composizione serramenti (foto + scheda tecnica) + La tua consulenza.",
+    obbligatoria: true,
   },
   {
     id: "investimento",

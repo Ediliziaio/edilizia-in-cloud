@@ -7,7 +7,7 @@
  *  - Configurazione finanziamento (anticipo % + piani)
  *  - Detrazione fiscale (50/65%)
  *  - Calcolo risparmio energetico
- *  - Grafico cashflow 10 anni
+ *  - Grafico Ritorno sull'investimento (ROI) 10 anni
  */
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,36 @@ import type {
 import { SR_SCHEMI_PAGAMENTO } from "@/types/serramenti";
 import { SrCard, SrKpi, SrCallout } from "@/lib/serramenti/wizardUI";
 import { formatEuro, formatPct, formatNumero } from "@/lib/serramenti/format";
+// Recharts per il nuovo grafico ROI (sostituisce il vecchio SVG inline)
+import {
+  ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
+  ReferenceLine, ReferenceDot, ResponsiveContainer,
+} from "recharts";
+
+/** Aliquote IVA standard supportate dal Select. */
+const IVA_STANDARD_VALUES = new Set([0, 4, 10, 22]);
+
+/** Sentinel: IVA mista (riga per riga). Salvato come -1 sul DB. */
+const IVA_MISTA_SENTINEL = -1;
+
+/**
+ * Resolve il valore stringa del Select dato il numero (o null) dal form.
+ * Gestisce: aliquote standard, sentinel mista, valori legacy non standard
+ * (es. preventivi vecchi salvati a 21% o 27%).
+ */
+function ivaSelectValue(iva: number | null | undefined): string {
+  if (iva === IVA_MISTA_SENTINEL) return "mista";
+  if (iva == null) return "10"; // default UI
+  if (IVA_STANDARD_VALUES.has(iva)) return String(iva);
+  return String(iva); // legacy: mostriamo il valore reale (sara' rimappato)
+}
+
+/** True se il valore IVA non e' nello standard (e' un legacy da correggere). */
+function isLegacyIvaValue(iva: number | null | undefined): boolean {
+  if (iva == null) return false;
+  if (iva === IVA_MISTA_SENTINEL) return false;
+  return !IVA_STANDARD_VALUES.has(iva);
+}
 
 interface Props {
   progettoId: string;
@@ -66,7 +96,10 @@ export function StepEconomia({ detail, form, onChange }: Props) {
       detail.serramenti,
       detail.accessori,
       {
-        iva_percentuale: form.iva_percentuale ?? 22,
+        // Default IVA = 10% (aliquota ristrutturazione edilizia, caso piu'
+        // comune per serramenti). Le altre aliquote standard sono 0, 4, 22.
+        // Sentinel -1 = "IVA mista" (calcolo riga-per-riga, vedi commento sotto).
+        iva_percentuale: form.iva_percentuale ?? 10,
         sconto_percentuale: form.sconto_percentuale ?? 0,
         sconto_importo: form.sconto_importo ?? 0,
       },
@@ -481,13 +514,49 @@ export function StepEconomia({ detail, form, onChange }: Props) {
             />
           </div>
           <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs block h-4">IVA %</Label>
-            <Input
-              type="number"
-              defaultValue={form.iva_percentuale ?? 22}
-              onBlur={(e) => onChange("iva_percentuale", Number(e.target.value) || 22)}
-              className="h-9 text-xs mt-1"
-            />
+            <Label className="text-xs block h-4">IVA</Label>
+            <Select
+              value={ivaSelectValue(form.iva_percentuale)}
+              onValueChange={(v) => {
+                // "mista" → sentinel -1 (calcolo riga-per-riga, fallback 10%)
+                // numeri standard → applicati direttamente
+                const next = v === "mista" ? IVA_MISTA_SENTINEL : Number(v);
+                onChange("iva_percentuale", next);
+              }}
+            >
+              <SelectTrigger className="h-9 text-xs mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">0% — Esente / Non imponibile</SelectItem>
+                <SelectItem value="4">4% — IVA speciale (Legge 104 / disabilità)</SelectItem>
+                <SelectItem value="10">10% — Ristrutturazione edilizia</SelectItem>
+                <SelectItem value="22">22% — Ordinaria</SelectItem>
+                <SelectItem value="mista">IVA mista — Beni Significativi (DM 29.12.99)</SelectItem>
+                {/* Valore legacy fuori standard (es. preventivi vecchi a 21%, 5%,
+                    27%): lo mostriamo come opzione cosi' il commerciale
+                    sa che e' un valore non standard e puo' correggerlo. */}
+                {isLegacyIvaValue(form.iva_percentuale) && (
+                  <SelectItem value={String(form.iva_percentuale)}>
+                    {form.iva_percentuale}% — non standard (legacy)
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            {/* Hint contestuale per IVA mista: spiega la regola DM 29.12.99
+                (Beni Significativi). Il commerciale capisce subito perche'
+                vede 10% e 22% simultaneamente nel riepilogo sotto. */}
+            {form.iva_percentuale === IVA_MISTA_SENTINEL && (
+              <p className="text-[10px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-1 mt-1 leading-tight">
+                ℹ Regola Beni Significativi (DM 29.12.99): serramenti al 10% fino al valore di posa/accessori, eccedenza al 22%.
+              </p>
+            )}
+            {/* Hint per valore legacy non standard: invita a correggere. */}
+            {isLegacyIvaValue(form.iva_percentuale) && (
+              <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-1 mt-1 leading-tight">
+                ⚠ Valore non standard. Aliquote IT: 0/4/10/22%. Seleziona quella corretta.
+              </p>
+            )}
           </div>
           <div className="col-span-6 md:col-span-3">
             <Label className="text-xs block h-4">Validità (giorni)</Label>
@@ -508,6 +577,54 @@ export function StepEconomia({ detail, form, onChange }: Props) {
               <p className="text-[10px] text-orange-600 mt-1">Media: {formatEuro(forbice.media)}</p>
             </div>
           </div>
+
+          {/* ─── Riepilogo IVA mista (Beni Significativi DM 29.12.99) ─────────
+              Visibile solo quando l'utente ha selezionato "IVA mista". Mostra
+              lo split calcolato per categoria (BS al 10/22, altre prestazioni
+              al 10%) e l'IVA risultante. Il PDF replica esattamente questa
+              tabella nella sezione "Investimento". */}
+          {totaleCalc.iva_mista && totaleCalc.mista_breakdown && (
+            <div className="col-span-12">
+              <div className="rounded-md bg-blue-50/40 border border-blue-200 p-4 space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="text-[10px] uppercase font-semibold text-[#173b67]">
+                    📊 Riepilogo IVA mista · Regola Beni Significativi (DM 29.12.99)
+                  </p>
+                  <span className="text-[10px] text-slate-600">
+                    Aliquota effettiva: <strong>{totaleCalc.iva_pct_applicata.toFixed(2)}%</strong>
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  <div className="rounded bg-white border border-slate-200 p-2">
+                    <p className="text-[10px] uppercase text-slate-500">Imponibile 10%</p>
+                    <p className="font-bold text-slate-900 tabular-nums">{formatEuro(totaleCalc.mista_breakdown.imponibile_10)}</p>
+                  </div>
+                  <div className="rounded bg-white border border-slate-200 p-2">
+                    <p className="text-[10px] uppercase text-slate-500">IVA 10%</p>
+                    <p className="font-bold text-emerald-700 tabular-nums">{formatEuro(totaleCalc.mista_breakdown.iva_10)}</p>
+                  </div>
+                  <div className="rounded bg-white border border-slate-200 p-2">
+                    <p className="text-[10px] uppercase text-slate-500">Imponibile 22%</p>
+                    <p className="font-bold text-slate-900 tabular-nums">{formatEuro(totaleCalc.mista_breakdown.imponibile_22)}</p>
+                  </div>
+                  <div className="rounded bg-white border border-slate-200 p-2">
+                    <p className="text-[10px] uppercase text-slate-500">IVA 22%</p>
+                    <p className="font-bold text-amber-700 tabular-nums">{formatEuro(totaleCalc.mista_breakdown.iva_22)}</p>
+                  </div>
+                </div>
+                {/* Dettaglio split Beni Significativi (educational) */}
+                <p className="text-[10px] text-slate-600 leading-relaxed">
+                  <strong>Serramenti</strong> (bene significativo) al 10% fino a {formatEuro(totaleCalc.mista_breakdown.altre_prestazioni)}{" "}
+                  (= valore accessori + posa + altre opere).
+                  {totaleCalc.mista_breakdown.bs_quota_22 > 0 ? (
+                    <> Eccedenza al 22%: <strong>{formatEuro(totaleCalc.mista_breakdown.bs_quota_22)}</strong>.</>
+                  ) : (
+                    <> Nessuna eccedenza al 22%.</>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </SrCard>
 
@@ -978,10 +1095,10 @@ export function StepEconomia({ detail, form, onChange }: Props) {
         </div>
       </SrCard>
 
-      {/* Cashflow 10 anni */}
+      {/* Ritorno sull'investimento (ex-Cashflow, vista cliente) */}
       {cashflow && (
         <SrCard
-          title="Cashflow 10 anni — vista cliente"
+          title="Ritorno sull'investimento · 10 anni"
           description="Confronta investimento vs. risparmio bolletta + detrazione fiscale anno per anno."
           icon={<TrendingUp className="h-4 w-4" />}
           variant="highlight"
@@ -997,7 +1114,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
               variant={cashflow.payback_anni != null && cashflow.payback_anni <= 10 ? "success" : "warning"}
             />
           </div>
-          <CashflowChart righe={cashflow.righe} costoIniziale={forbice.media} />
+          <RoiChart righe={cashflow.righe} costoIniziale={forbice.media} payback={cashflow.payback_anni ?? null} />
           <div className="mt-3 overflow-x-auto">
             <Table>
               <TableHeader>
@@ -1018,7 +1135,7 @@ export function StepEconomia({ detail, form, onChange }: Props) {
                     <TableCell className="text-xs">{formatEuro(r.detrazione)}</TableCell>
                     <TableCell className="text-xs font-semibold text-orange-600">{formatEuro(r.flusso_anno)}</TableCell>
                     <TableCell className="text-xs">{formatEuro(r.cumulato)}</TableCell>
-                    <TableCell className={`text-xs font-semibold ${r.netto >= 0 ? "text-orange-600" : "text-rose-600"}`}>
+                    <TableCell className={`text-xs font-semibold ${r.netto >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                       {r.netto >= 0 ? "+" : ""}{formatEuro(r.netto)}
                     </TableCell>
                   </TableRow>
@@ -1044,58 +1161,171 @@ export function StepEconomia({ detail, form, onChange }: Props) {
   );
 }
 
-// ─── Cashflow SVG chart (semplice, inline) ──────────────────────────────────
+// ─── ROI Chart (Ritorno sull'investimento) ──────────────────────────────────
+//
+// Grafico vista-cliente del recupero economico anno per anno.
+// Recharts area + line con:
+//  - gradient verde sotto la curva (recuperato cumulato)
+//  - ReferenceLine rossa tratteggiata = soglia investimento
+//  - ReferenceDot arancione sul payback year (anno di break-even)
+//  - Tooltip personalizzato con risparmio + detrazione + cumulato
+//  - LabelList con i valori cumulati (a chi guarda al volo)
+//  - Asse Y con tick formattati €
 
-function CashflowChart({ righe, costoIniziale }: { righe: SrCashflowRiga[]; costoIniziale: number }) {
-  const W = 600, H = 200, PAD = 30;
-  const innerW = W - PAD * 2;
-  const innerH = H - PAD * 2;
+function RoiChart({
+  righe, costoIniziale, payback,
+}: {
+  righe: SrCashflowRiga[];
+  costoIniziale: number;
+  payback: number | null;
+}) {
+  // Dataset per recharts: prepend anno 0 = € 0 (origine del recupero)
+  const data = useMemo(() => [
+    { anno: 0, cumulato: 0, flusso_anno: 0, risparmio_bolletta: 0, detrazione: 0 },
+    ...righe.map((r) => ({
+      anno: r.anno,
+      cumulato: Number(r.cumulato.toFixed(0)),
+      flusso_anno: Number(r.flusso_anno.toFixed(0)),
+      risparmio_bolletta: Number(r.risparmio_bolletta.toFixed(0)),
+      detrazione: Number(r.detrazione.toFixed(0)),
+    })),
+  ], [righe]);
 
-  const maxValue = Math.max(costoIniziale, ...righe.map((r) => r.cumulato));
-  const minValue = Math.min(0, ...righe.map((r) => r.netto));
-  const range = maxValue - minValue || 1;
+  // Punto preciso del payback (interpolazione lineare tra anni vicini)
+  const paybackPoint = useMemo(() => {
+    if (payback == null) return null;
+    return { anno: Math.round(payback * 10) / 10, cumulato: costoIniziale };
+  }, [payback, costoIniziale]);
 
-  const yScale = (v: number) => PAD + innerH - ((v - minValue) / range) * innerH;
-  const xScale = (i: number) => PAD + (i / (righe.length - 1 || 1)) * innerW;
-
-  const linePath = righe
-    .map((r, i) => `${i === 0 ? "M" : "L"} ${xScale(i)} ${yScale(r.cumulato)}`)
-    .join(" ");
+  const totaleRecuperato = righe.length > 0 ? righe[righe.length - 1].cumulato : 0;
+  const maxY = Math.max(costoIniziale, totaleRecuperato) * 1.1;
 
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-2xl border border-orange-100 rounded-md bg-white">
-        {/* Asse 0 */}
-        <line x1={PAD} y1={yScale(0)} x2={W - PAD} y2={yScale(0)} stroke="#cbd5e1" strokeDasharray="2,2" />
-        {/* Investimento line */}
-        <line
-          x1={PAD} y1={yScale(costoIniziale)}
-          x2={W - PAD} y2={yScale(costoIniziale)}
-          stroke="#f43f5e" strokeWidth={1.5} strokeDasharray="4,4"
-        />
-        <text x={W - PAD - 4} y={yScale(costoIniziale) - 4} textAnchor="end" fontSize="9" fill="#f43f5e">
-          Investimento {formatEuro(costoIniziale)}
-        </text>
-        {/* Cumulato area */}
-        <path
-          d={`${linePath} L ${xScale(righe.length - 1)} ${yScale(0)} L ${xScale(0)} ${yScale(0)} Z`}
-          fill="#2D7D5C20"
-        />
-        {/* Cumulato line */}
-        <path d={linePath} fill="none" stroke="#2D7D5C" strokeWidth={2} />
-        {/* Punti */}
-        {righe.map((r, i) => (
-          <g key={r.anno}>
-            <circle cx={xScale(i)} cy={yScale(r.cumulato)} r={3} fill="#2D7D5C" />
-            <text x={xScale(i)} y={H - 10} textAnchor="middle" fontSize="9" fill="#475569">
-              {r.anno}
-            </text>
-          </g>
-        ))}
-        {/* Y axis labels */}
-        <text x={4} y={yScale(maxValue) + 4} fontSize="9" fill="#475569">{formatEuro(maxValue)}</text>
-        <text x={4} y={yScale(0) + 4} fontSize="9" fill="#475569">€ 0</text>
-      </svg>
+    <div className="w-full bg-white border border-emerald-100 rounded-md p-2 sm:p-3">
+      <div className="h-[260px] sm:h-[300px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 20, right: 25, left: 0, bottom: 5 }}>
+            <defs>
+              <linearGradient id="roiGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="#10b981" stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+            <XAxis
+              dataKey="anno"
+              tick={{ fontSize: 11, fill: "#64748b" }}
+              tickFormatter={(v) => v === 0 ? "" : `${v}`}
+              label={{ value: "Anni", position: "insideBottom", offset: -2, fontSize: 10, fill: "#94a3b8" }}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "#64748b" }}
+              tickFormatter={(v) => `€${Math.round(v).toLocaleString("it-IT")}`}
+              domain={[0, maxY]}
+              width={70}
+            />
+            <RTooltip
+              content={({ active, payload }) => {
+                if (!active || !payload || payload.length === 0) return null;
+                const d = payload[0].payload as {
+                  anno: number; cumulato: number; flusso_anno: number;
+                  risparmio_bolletta: number; detrazione: number;
+                };
+                if (d.anno === 0) return null;
+                const netto = d.cumulato - costoIniziale;
+                return (
+                  <div className="bg-white rounded-md border border-slate-200 shadow-md p-2.5 text-xs">
+                    <p className="font-bold text-slate-900 mb-1">Anno {d.anno}</p>
+                    <div className="space-y-0.5 text-[11px]">
+                      <p className="flex justify-between gap-3">
+                        <span className="text-muted-foreground">Risparmio bolletta</span>
+                        <span className="tabular-nums font-medium">€ {d.risparmio_bolletta.toLocaleString("it-IT")}</span>
+                      </p>
+                      <p className="flex justify-between gap-3">
+                        <span className="text-muted-foreground">Detrazione fiscale</span>
+                        <span className="tabular-nums font-medium">€ {d.detrazione.toLocaleString("it-IT")}</span>
+                      </p>
+                      <div className="border-t border-slate-100 my-1" />
+                      <p className="flex justify-between gap-3">
+                        <span className="text-muted-foreground">Cumulato</span>
+                        <span className="tabular-nums font-bold text-emerald-700">€ {d.cumulato.toLocaleString("it-IT")}</span>
+                      </p>
+                      <p className="flex justify-between gap-3">
+                        <span className="text-muted-foreground">Netto vs investimento</span>
+                        <span className={`tabular-nums font-semibold ${netto >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                          {netto >= 0 ? "+" : ""}€ {netto.toLocaleString("it-IT")}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                );
+              }}
+            />
+            {/* Area cumulato (verde gradient) */}
+            <Area
+              type="monotone"
+              dataKey="cumulato"
+              stroke="#10b981"
+              strokeWidth={2.5}
+              fill="url(#roiGradient)"
+              dot={{ r: 4, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
+              activeDot={{ r: 6, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
+              isAnimationActive={true}
+              animationDuration={800}
+            />
+            {/* Linea investimento rossa tratteggiata */}
+            <ReferenceLine
+              y={costoIniziale}
+              stroke="#ef4444"
+              strokeDasharray="6 4"
+              strokeWidth={1.5}
+              label={{
+                value: `Investimento € ${costoIniziale.toLocaleString("it-IT")}`,
+                position: "insideTopRight",
+                fill: "#ef4444",
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            />
+            {/* Punto break-even (payback) */}
+            {paybackPoint && (
+              <ReferenceDot
+                x={paybackPoint.anno}
+                y={paybackPoint.cumulato}
+                r={7}
+                fill="#f97316"
+                stroke="#fff"
+                strokeWidth={2}
+                label={{
+                  value: `🎯 Break-even anno ${paybackPoint.anno.toFixed(1)}`,
+                  position: "top",
+                  fill: "#f97316",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  offset: 12,
+                }}
+              />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      {/* Legenda compatta sotto al grafico */}
+      <div className="flex flex-wrap items-center justify-center gap-4 mt-2 text-[10px] text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-3 h-0.5 bg-emerald-500" />
+          Recupero cumulato
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-3 border-t border-dashed border-red-500" />
+          Soglia investimento
+        </span>
+        {paybackPoint && (
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-500" />
+            Break-even
+          </span>
+        )}
+      </div>
     </div>
   );
 }

@@ -550,6 +550,23 @@ function SerramentoRow({
   };
 
   /**
+   * Check live "misure fuori standard" per riga listino con modalità griglia.
+   * Espone fuoriRange + range disponibile per alert UI. Senza questo l'utente
+   * inseriva misure non producibili e vedeva il prezzo crollare a 0 senza
+   * spiegazione.
+   */
+  const priceCheck = useMemo(() => {
+    if (!isFromListino || !family) return null;
+    if (family.modalita_prezzo_base !== "griglia") return null;
+    if (griglia.length === 0) return null;
+    const L = s.larghezza_mm ?? null;
+    const H = s.altezza_mm ?? null;
+    if (L == null || H == null) return null;
+    const r = calcolaPrezzoProdotto(family, L, H, s.quantita ?? 1, griglia);
+    return { fuoriRange: r.fuoriRange === true, range: r.range, note: r.note };
+  }, [isFromListino, family, griglia, s.larghezza_mm, s.altezza_mm, s.quantita]);
+
+  /**
    * Wrapper che, se la riga è del listino e cambiano L/A/Q, ricalcola anche
    * il prezzo unitario coerente. Fix del bug "modifico larghezza ma prezzo
    * resta vecchio".
@@ -664,6 +681,18 @@ function SerramentoRow({
             {modalitaPrezzo === "griglia" && (
               <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">
                 da griglia
+              </span>
+            )}
+            {/* MISURE FUORI STANDARD: blocco visivo se la combinazione L×H
+                inserita non rientra nel range producibile dalla griglia.
+                Senza questo badge l'utente vedeva il prezzo crollare a 0
+                senza capirne il motivo. */}
+            {priceCheck?.fuoriRange && (
+              <span
+                className="text-[9px] font-semibold text-rose-700 bg-rose-100 border border-rose-300 rounded px-1.5 py-0.5 inline-flex items-center gap-1"
+                title={priceCheck.note ?? "Misure non in griglia listino"}
+              >
+                ⚠ MISURE FUORI STANDARD
               </span>
             )}
             {modalitaPrezzo === "misura_libera" && (
@@ -899,6 +928,23 @@ function SerramentoRow({
               <p className="text-[10px] text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1">
                 <span className="font-semibold">Prezzo fisso:</span> questo articolo del listino e' venduto {modalitaPrezzo === "pz" ? "a pezzo" : "a corpo"}.
                 Larghezza e altezza sono indicative e non modificano il prezzo unitario.
+              </p>
+            </div>
+          )}
+          {/* Alert "MISURE FUORI STANDARD": esplicativo + actionable. Si
+              mostra solo quando lo stato priceCheck.fuoriRange è true (modalità
+              griglia + L×H fuori range producibile). Indica chiaramente il
+              range disponibile per guidare l'utente a una correzione. */}
+          {isFromListino && priceCheck?.fuoriRange && priceCheck.range && (
+            <div className="col-span-12 -mb-1">
+              <p className="text-[11px] text-rose-800 bg-rose-50 border border-rose-200 rounded px-2.5 py-1.5 leading-tight">
+                <span className="font-semibold">⚠ Misure fuori standard:</span> queste misure non sono producibili da listino.
+                {priceCheck.range.minL != null && priceCheck.range.maxL != null && priceCheck.range.minH != null && priceCheck.range.maxH != null && (
+                  <>
+                    {" "}Range disponibile: <strong>{priceCheck.range.minL}×{priceCheck.range.minH} mm</strong> → <strong>{priceCheck.range.maxL}×{priceCheck.range.maxH} mm</strong>.
+                  </>
+                )}
+                {" "}Riduci le misure o contatta il fornitore per una lavorazione speciale.
               </p>
             </div>
           )}
