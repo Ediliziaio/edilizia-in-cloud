@@ -801,6 +801,8 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
   prezzo_totale: number;
   /** True se la riga e' un omaggio commerciale (prezzo=0 + nota OMAGGIO). */
   is_omaggio: boolean;
+  /** True se la posa e' stata esclusa dal commerciale (solo fornitura). */
+  posa_esclusa: boolean;
 }> {
   const map = new Map<string, {
     key: string; tipologia: string; materiale: string; serie: string;
@@ -812,6 +814,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     valori_assi: Record<string, string>;
     prezzo_totale: number;
     is_omaggio: boolean;
+    posa_esclusa: boolean;
   }>();
   for (const s of serr) {
     const L = s.larghezza_mm ?? null;
@@ -829,7 +832,10 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     const baseKey = s.family_id
       ? `fam-${s.family_id}__${s.tipologia}`
       : `oth-${s.tipologia}__${s.materiale ?? ""}__${s.serie ?? ""}__${s.vetro ?? ""}`;
-    const key = `${baseKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}__${ci}__${ce}__${assiKey}__${noteVal ?? ""}`;
+    // posa_esclusa fa parte della key: 2 righe identiche ma una "con posa" e
+    // una "senza posa" devono restare separate (prezzo unitario diverso).
+    const posaKey = s.posa_esclusa ? "noposa" : "posa";
+    const key = `${baseKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}__${ci}__${ce}__${assiKey}__${noteVal ?? ""}__${posaKey}`;
     const existing = map.get(key);
     if (existing) {
       existing.quantita += s.quantita ?? 1;
@@ -853,6 +859,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
       valori_assi: assi,
       prezzo_totale: Number(s.prezzo_totale ?? 0),
       is_omaggio: isOmaggio,
+      posa_esclusa: s.posa_esclusa ?? false,
     });
   }
   return Array.from(map.values());
@@ -1784,6 +1791,18 @@ export function SerramentoPDF({
                               {" "}🎁 IN OMAGGIO{" "}
                             </Text>
                           )}
+                          {/* Badge SOLO FORNITURA: ambra accanto al titolo se la
+                              posa e' stata esclusa dal commerciale. Cliente
+                              capisce subito che dovra' occuparsi della posa. */}
+                          {g.posa_esclusa && (
+                            <Text style={{
+                              fontSize: 8.5, fontWeight: 700, color: "#92400E",
+                              backgroundColor: "#FEF3C7", paddingHorizontal: 4,
+                              paddingVertical: 1, marginLeft: 6, borderRadius: 3,
+                            }}>
+                              {" "}⊘ SOLO FORNITURA{" "}
+                            </Text>
+                          )}
                         </Text>
                         <Text style={[styles.tableCellMuted, { fontWeight: 700, color: C.gray700 }]}>
                           {[
@@ -1812,6 +1831,17 @@ export function SerramentoPDF({
                         {/* Descrizione tecnica dal listino prodotti */}
                         {techDesc && (
                           <Text style={styles.tableTechDesc}>{techDesc}</Text>
+                        )}
+                        {/* Note esplicativa "solo fornitura": il cliente sa
+                            chiaramente che dovra' provvedere alla posa per
+                            questa specifica riga del preventivo. */}
+                        {g.posa_esclusa && (
+                          <Text style={{
+                            fontSize: 8.5, color: "#92400E", marginTop: 3,
+                            fontStyle: "italic",
+                          }}>
+                            ⓘ Vendita solo fornitura — manodopera e posa NON incluse per questo articolo.
+                          </Text>
                         )}
                         {specs.length > 0 && (
                           <View style={styles.specChips}>

@@ -41,7 +41,9 @@ interface Props {
   detail: SrProgettoDetail;
 }
 
-// Servizi tipici suggeriti come quick-add
+// Servizi tipici suggeriti come quick-add (catalogo predefinito).
+// Tutti i prezzi sono inseriti dopo dall'utente o pescati dal listino tariffe
+// aziendali via "Da listino tariffe". Quick-add crea solo lo scheletro voce.
 const SERVIZI_RAPIDI = [
   { tipo: "trasporto", label: "Trasporto", unita: "a_corpo", emoji: "🚚" },
   { tipo: "tiro_al_piano", label: "Tiro al piano", unita: "pz", emoji: "🏗️" },
@@ -49,6 +51,9 @@ const SERVIZI_RAPIDI = [
   { tipo: "smaltimento", label: "Smaltimento materiali", unita: "a_corpo", emoji: "♻️" },
   { tipo: "sopralluogo_extra", label: "Sopralluogo extra", unita: "pz", emoji: "📏" },
   { tipo: "ponteggio", label: "Ponteggio / piattaforma", unita: "giorno", emoji: "🚧" },
+  // Aggiunti 2026-05-13 per coprire opere accessorie tipiche serramenti:
+  { tipo: "davanzale_extra", label: "Davanzale extra", unita: "ml", emoji: "🪟" },
+  { tipo: "allargamento_foro", label: "Allargamento foro", unita: "pz", emoji: "🔨" },
 ];
 
 export function ServiziSection({ progettoId, detail }: Props) {

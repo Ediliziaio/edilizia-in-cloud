@@ -287,8 +287,26 @@ export function StepBom({ progettoId, detail }: Props) {
             </p>
           </div>
         ) : (
-          <div className="space-y-2 mb-3">
-            {serramenti.map((s, idx) => {
+          <>
+            {/* Bulk action manodopera: utili quando il commerciale vuole
+                applicare lo stesso flag a tutte le righe (preventivo "solo
+                fornitura" o "tutti con posa"). Visibile solo se ci sono >=2
+                righe — su 1 sola riga il toggle nel singolo card e' piu' veloce. */}
+            <BulkPosaActions
+              serramenti={serramenti}
+              onBulkUpdate={(esclusa) => {
+                // Applica posa_esclusa a TUTTE le righe in parallelo.
+                // updateMut e' la mutation di useUpdateSerramento; eseguita
+                // riga per riga senza Promise.all per evitare rate-limit
+                // su company con 50+ serramenti nello stesso BOM.
+                serramenti.forEach((s) => {
+                  if ((s.posa_esclusa ?? false) === esclusa) return; // no-op
+                  updateMut.mutate({ id: s.id, patch: { posa_esclusa: esclusa } });
+                });
+              }}
+            />
+            <div className="space-y-2 mb-3">
+              {serramenti.map((s, idx) => {
               const family = s.family_id ? familiesById.get(s.family_id) : undefined;
               const macroId = family?.categoria_id ? catToMacro.get(family.categoria_id) : undefined;
               const macroNome = macroId ? macroIdToNome.get(macroId) : undefined;
@@ -309,7 +327,8 @@ export function StepBom({ progettoId, detail }: Props) {
                 />
               );
             })}
-          </div>
+            </div>
+          </>
         )}
 
         {/* Bottoni di aggiunta — sempre visibili SOTTO la lista (o sotto
@@ -447,6 +466,69 @@ export function StepBom({ progettoId, detail }: Props) {
   );
 }
 
+// ─── Bulk action manodopera (toggle massivo posa inclusa/esclusa) ────────────
+
+/**
+ * Toolbar leggera sopra la lista BOM per applicare un flag posa_esclusa
+ * a TUTTE le righe in un colpo solo. Casi tipici:
+ *   - Preventivo "solo fornitura" (cliente fa installare da altri)
+ *   - Cambio idea: riattivare la posa su tutte dopo averla esclusa
+ *
+ * Visibile solo con >=2 serramenti (per 1 il toggle nel card singolo basta).
+ * Mostra contestualmente lo stato attuale aggregato (X di Y con posa).
+ */
+function BulkPosaActions({
+  serramenti, onBulkUpdate,
+}: {
+  serramenti: SrSerramentoRow[];
+  onBulkUpdate: (esclusa: boolean) => void;
+}) {
+  if (serramenti.length < 2) return null;
+  const senzaPosa = serramenti.filter((s) => s.posa_esclusa).length;
+  const conPosa = serramenti.length - senzaPosa;
+  const stato =
+    senzaPosa === 0 ? "tutte_con" :
+    conPosa === 0 ? "tutte_senza" :
+    "miste";
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50/60 p-2.5 mb-3 flex items-center justify-between gap-2 flex-wrap">
+      <div className="text-xs text-slate-700 min-w-0">
+        <span className="font-semibold">Manodopera:</span>{" "}
+        {stato === "tutte_con" && (
+          <span className="text-emerald-700">tutte le {serramenti.length} righe con posa inclusa</span>
+        )}
+        {stato === "tutte_senza" && (
+          <span className="text-amber-700">tutte le {serramenti.length} righe senza posa (solo fornitura)</span>
+        )}
+        {stato === "miste" && (
+          <span className="text-slate-600">{conPosa} con posa · {senzaPosa} senza posa</span>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-[11px] gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+          onClick={() => onBulkUpdate(false)}
+          disabled={stato === "tutte_con"}
+        >
+          🔧 Tutti con posa
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-[11px] gap-1 border-amber-200 text-amber-700 hover:bg-amber-50"
+          onClick={() => onBulkUpdate(true)}
+          disabled={stato === "tutte_senza"}
+        >
+          ⊘ Solo fornitura
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Singola riga serramento (collassabile) ─────────────────────────────────
 
 function SerramentoRow({
@@ -526,11 +608,15 @@ function SerramentoRow({
     H: number | null,
     Q: number,
     selections?: Record<string, string>,
+    posaEsclusaOverride?: boolean,
   ): number | null => {
     if (!family) return null;
     if (family.modalita_prezzo_base === "griglia" && griglia.length === 0) return null;
     const Qsafe = Q || 1;
     const sels = selections ?? (s.valori_assi ?? {}) as Record<string, string>;
+    // Override per supportare il toggle UI: l'utente cambia il flag e vuole
+    // un ricalcolo IMMEDIATO senza aspettare il roundtrip onPatch → DB → re-fetch.
+    const posaEsclusa = posaEsclusaOverride ?? s.posa_esclusa ?? false;
 
     // 1. Prezzo BASE prodotto via la stessa strategia del picker
     //    (calcolaPrezzoProdotto: filter quadrante che contiene le misure,
@@ -544,7 +630,9 @@ function SerramentoRow({
       : result.prezzo;
 
     // 3. Posa indipendente (tariffa cantiere, non scala con maggiorazioni).
-    const posa = calcolaPosaInclusa(family, Qsafe, tariffePrezzi);
+    //    Se l'utente ha attivato "Escludi manodopera" per questa riga, la
+    //    posa NON viene sommata → vendita "solo fornitura".
+    const posa = posaEsclusa ? 0 : calcolaPosaInclusa(family, Qsafe, tariffePrezzi);
     const totale = prezzoProdotto + posa;
     return Qsafe > 0 ? totale / Qsafe : totale;
   };
@@ -605,6 +693,36 @@ function SerramentoRow({
       onPatch({ valori_assi: nextSelections });
     }
   };
+
+  /**
+   * Toggle "Escludi manodopera" — Use case "solo fornitura": cliente fa
+   * installare da altro installatore, articolo a ricambio, sconto commerciale.
+   * Quando ON, il prezzo unitario viene ricalcolato SENZA sommare la posa
+   * configurata sul listino (calcolaPosaInclusa → 0). Quando torna OFF,
+   * la posa viene ri-aggiunta. Aggiornamento atomico {posa_esclusa, prezzo_unitario}.
+   */
+  const handlePosaEsclusaToggle = (escludi: boolean) => {
+    const L = s.larghezza_mm ?? null;
+    const H = s.altezza_mm ?? null;
+    const Q = s.quantita ?? 1;
+    const nuovoPrezzo = ricalcolaPrezzoUnitario(L, H, Q, undefined, escludi);
+    if (isFromListino && nuovoPrezzo != null && Number.isFinite(nuovoPrezzo)) {
+      onPatch({
+        posa_esclusa: escludi,
+        prezzo_unitario: Number(nuovoPrezzo.toFixed(2)),
+      });
+    } else {
+      onPatch({ posa_esclusa: escludi });
+    }
+  };
+
+  // Posa configurata sull'articolo? (per decidere se mostrare il toggle).
+  // Se la family non ha manodopera (modalita="nessuna" o null), il toggle
+  // non ha senso → lo nascondiamo del tutto per non confondere.
+  const hasPosaConfigured =
+    !!family &&
+    family.manodopera_modalita != null &&
+    family.manodopera_modalita !== "nessuna";
 
   return (
     <Card className="border-orange-100">
@@ -693,6 +811,15 @@ function SerramentoRow({
                 title={priceCheck.note ?? "Misure non in griglia listino"}
               >
                 ⚠ MISURE FUORI STANDARD
+              </span>
+            )}
+            {/* BADGE "SOLO FORNITURA" — visibile quando il commerciale ha
+                escluso la manodopera per questa riga. Evita confusione in
+                fase di firma: il cliente capisce a colpo d'occhio che la
+                posa NON e' inclusa nel preventivo per questo articolo. */}
+            {s.posa_esclusa && hasPosaConfigured && (
+              <span className="text-[9px] font-semibold text-amber-700 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 inline-flex items-center gap-1">
+                ⊘ Solo fornitura (no posa)
               </span>
             )}
             {modalitaPrezzo === "misura_libera" && (
@@ -1013,6 +1140,41 @@ function SerramentoRow({
                 : ""}
             />
           </div>
+
+          {/* TOGGLE "INCLUDI MANODOPERA" — visibile SOLO se la family ha
+              effettivamente una manodopera configurata (modalita != nessuna).
+              Default ON = posa inclusa nel prezzo (comportamento standard).
+              OFF = solo fornitura, prezzo unitario ricalcolato sottraendo
+              automaticamente la quota posa. Cambio prezzo immediato senza
+              roundtrip DB. */}
+          {hasPosaConfigured && (
+            <div className="col-span-12">
+              <div className={
+                "rounded-md border px-3 py-2 flex items-center justify-between gap-3 " +
+                (s.posa_esclusa
+                  ? "bg-amber-50 border-amber-200"
+                  : "bg-emerald-50/40 border-emerald-200")
+              }>
+                <div className="min-w-0 flex-1">
+                  <Label className="text-xs font-semibold flex items-center gap-1.5">
+                    {s.posa_esclusa ? "⊘ Solo fornitura" : "🔧 Manodopera inclusa"}
+                  </Label>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {s.posa_esclusa
+                      ? "Il cliente dovrà occuparsi della posa di questo articolo. Il prezzo unitario non include manodopera."
+                      : family?.manodopera_modalita === "tariffa"
+                        ? "Manodopera applicata dalla tariffa configurata sull'articolo del listino."
+                        : "Manodopera applicata dall'importo fisso configurato sull'articolo del listino."}
+                  </p>
+                </div>
+                <Switch
+                  checked={!s.posa_esclusa}
+                  onCheckedChange={(checked) => handlePosaEsclusaToggle(!checked)}
+                  aria-label="Includi manodopera per questo articolo"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Colore interno/esterno: SOLO off-listino. Per i prodotti del
               listino il colore appartiene alla scheda tecnica della famiglia. */}

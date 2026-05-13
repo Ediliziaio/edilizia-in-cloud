@@ -1157,6 +1157,34 @@ export function StepEconomia({ detail, form, onChange }: Props) {
           ⚠️ Aggiungi almeno un serramento nello Step 4 per calcolare il prezzo.
         </SrCallout>
       )}
+
+      {/* ─── Alert "Solo fornitura" ─────────────────────────────────────────
+          Riepilogo trasparente per il commerciale: se il preventivo contiene
+          righe BOM con posa esclusa, l'alert ricorda che il cliente dovra'
+          gestire la posa autonomamente. Evita malintesi in fase di firma. */}
+      {(() => {
+        const senzaPosa = detail.serramenti.filter((s) => s.posa_esclusa);
+        if (senzaPosa.length === 0) return null;
+        const tot = senzaPosa.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
+        const totSerr = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
+        const tutte = senzaPosa.length === detail.serramenti.length;
+        return (
+          <div className="rounded-md border border-amber-200 bg-amber-50/60 p-3 flex items-start gap-2.5">
+            <span className="text-amber-700 text-base leading-none mt-0.5">⊘</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-amber-900">
+                {tutte
+                  ? `Preventivo "solo fornitura": tutte le ${tot} unità senza manodopera.`
+                  : `${senzaPosa.length} riga${senzaPosa.length === 1 ? "" : "he"} con manodopera esclusa (${tot} di ${totSerr} unità).`}
+              </p>
+              <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                Il cliente dovrà occuparsi personalmente della posa per gli articoli marcati come <strong>"Solo fornitura"</strong>.
+                Riepilogo dettagliato verrà incluso nel PDF preventivo.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

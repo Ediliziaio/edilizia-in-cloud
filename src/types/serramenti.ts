@@ -255,6 +255,11 @@ export interface SrSerramentoRow {
   foto_storage_path: string | null;
   foto_render_path: string | null;
   note: string | null;
+  /** Se TRUE, esclude la manodopera dal prezzo unitario di questa riga.
+   *  Default FALSE = posa inclusa come configurata sull'articolo del listino.
+   *  Use case: vendita "solo fornitura" — cliente fa installare da altri,
+   *  ricambi, sconto commerciale. Vedi migration 20270513. */
+  posa_esclusa: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -308,6 +313,9 @@ export interface SrAccessorioRow {
   listino_voce_id: string | null;
   serramento_id: string | null;
   note: string | null;
+  /** Esclude la manodopera dal prezzo unitario di questo accessorio.
+   *  Default FALSE = posa inclusa come configurata sul listino. */
+  posa_esclusa: boolean;
   created_at: string;
   updated_at: string;
 }

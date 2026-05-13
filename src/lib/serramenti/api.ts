@@ -389,6 +389,11 @@ export async function addSerramento(
       // del preventivo. Mappa { axis_codice -> axis_value_id }. Default {}.
       valori_assi: serramento.valori_assi ?? {},
       note: serramento.note ?? null,
+      // Default FALSE = posa inclusa (comportamento di default per articoli
+      // del listino che hanno manodopera configurata). Il commerciale puo'
+      // disattivarla in StepBom per casi "solo fornitura". Vedi migration
+      // 20270513000000_sr_posa_esclusa.sql.
+      posa_esclusa: serramento.posa_esclusa ?? false,
     })
     .select("*")
     .single();
@@ -446,6 +451,8 @@ export async function addAccessorio(
       listino_voce_id: accessorio.listino_voce_id ?? null,
       serramento_id: accessorio.serramento_id ?? null,
       note: accessorio.note ?? null,
+      // Default FALSE = posa inclusa (vedi sr_serramenti_progetto).
+      posa_esclusa: accessorio.posa_esclusa ?? false,
     })
     .select("*")
     .single();
