@@ -194,20 +194,71 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   //
   // Deeplink via URL `?section=brand|contenuti|macro|pagine|garanzie|default`.
   // Default 'brand' alla prima apertura.
-  type EditorSection = "brand" | "contenuti" | "macro" | "pagine" | "garanzie" | "default";
-  const SECTIONS: Array<{ id: EditorSection; label: string; emoji: string; descr: string }> = [
-    { id: "brand",      label: "Brand & azienda",         emoji: "🏢", descr: "Logo, colori, anagrafica" },
-    { id: "pagine",     label: "Pagine PDF",              emoji: "📄", descr: "Cover, chi siamo, percorso, recensioni…" },
-    { id: "contenuti",  label: "Contenuti commerciali",   emoji: "📝", descr: "Esigenze, USP, incluso, recensioni" },
-    { id: "macro",      label: "Linee prodotto",          emoji: "📦", descr: "Pagine dedicate macrocategoria" },
-    { id: "garanzie",   label: "Garanzie & metriche",     emoji: "🛡️", descr: "Garanzie e perché noi" },
-    { id: "default",    label: "Default tecnici",         emoji: "⚙️", descr: "IVA, anticipo, validità" },
+  type EditorSection =
+    | "brand"
+    // Sub-sezioni delle "Pagine PDF" — corrispondono 1:1 ai value della
+    // <Tabs value={...}> interna alla card "Personalizzazione PDF preventivo".
+    // L'utente le vede flat nella sidebar invece di annidate nelle tab.
+    | "page_cover"
+    | "page_chi_siamo"
+    | "page_percorso"
+    | "page_consulente"
+    | "page_recensioni"
+    | "page_render"
+    | "page_cta"
+    | "page_conversione"
+    | "page_ordine"
+    | "contenuti" | "macro" | "garanzie" | "default";
+
+  // Sezioni raggruppate per UX: la sidebar mostra 3 gruppi con header,
+  // le voci della famiglia "Pagine PDF" sono ora top-level (no più tab interne).
+  const SECTION_GROUPS: Array<{
+    label: string;
+    items: Array<{ id: EditorSection; label: string; emoji: string; descr?: string }>;
+  }> = [
+    {
+      label: "Azienda",
+      items: [
+        { id: "brand", label: "Brand & azienda", emoji: "🏢", descr: "Logo, colori, anagrafica" },
+      ],
+    },
+    {
+      label: "Pagine del PDF",
+      items: [
+        { id: "page_cover",       label: "Cover",           emoji: "🖼️", descr: "Prima pagina del preventivo" },
+        { id: "page_chi_siamo",   label: "Chi siamo",       emoji: "👋", descr: "Presentazione azienda" },
+        { id: "page_percorso",    label: "Il tuo percorso", emoji: "🗺️", descr: "Fasi e step cliente" },
+        { id: "page_consulente",  label: "Consulente",      emoji: "👤", descr: "Dati commerciale" },
+        { id: "page_recensioni",  label: "Recensioni",      emoji: "⭐", descr: "Testimonianze cliente" },
+        { id: "page_render",      label: "Render AI",       emoji: "🪄", descr: "Prima/dopo + disclaimer" },
+        { id: "page_cta",         label: "CTA finale",      emoji: "✅", descr: "Prossimi passi" },
+        { id: "page_conversione", label: "⚡ Conversione",   emoji: "⚡", descr: "Urgenza, garanzie, bonus" },
+        { id: "page_ordine",      label: "Ordine pagine",   emoji: "📋", descr: "Drag-drop riordino" },
+      ],
+    },
+    {
+      label: "Dati & contenuti",
+      items: [
+        { id: "contenuti", label: "Contenuti commerciali", emoji: "📝", descr: "Esigenze, USP, incluso, recensioni" },
+        { id: "macro",     label: "Linee prodotto",        emoji: "📦", descr: "Pagine dedicate macrocategoria" },
+        { id: "garanzie",  label: "Garanzie & metriche",   emoji: "🛡️", descr: "Garanzie e perché noi" },
+        { id: "default",   label: "Default tecnici",       emoji: "⚙️", descr: "IVA, anticipo, validità" },
+      ],
+    },
   ];
+  // Flat list per lookup veloce (label/emoji nei breadcrumb, ecc.)
+  const SECTIONS = SECTION_GROUPS.flatMap((g) => g.items);
+  // Map sezione "page_*" → value Tabs interna (per controllo programmatico)
+  const sectionToPdfTab = (s: EditorSection): string | null => {
+    if (!s.startsWith("page_")) return null;
+    return s.replace(/^page_/, "").replace("chi_siamo", "chi-siamo").replace("ordine", "ordine-pagine");
+  };
+  const isPageSection = (s: EditorSection) => s.startsWith("page_");
   const [searchParams, setSearchParams] = useSearchParams();
   const sectionFromUrl = (searchParams.get("section") ?? "brand") as EditorSection;
   const activeSection: EditorSection = SECTIONS.some((s) => s.id === sectionFromUrl)
     ? sectionFromUrl
-    : "brand";
+    : ("brand" as EditorSection);
   const setActiveSection = (id: EditorSection) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -638,41 +689,42 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           "md:col-span-3 col-span-12 " +
           (mobileSidebarOpen ? "block" : "hidden md:block")
         }>
-          <nav className="sticky top-[68px] space-y-1.5 bg-white border border-slate-200 rounded-lg p-2">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-2 py-1.5 border-b border-slate-100 mb-1">
-              Configurazione
-            </div>
-            {SECTIONS.map((s) => {
-              const isActive = activeSection === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveSection(s.id);
-                    setMobileSidebarOpen(false);
-                  }}
-                  className={
-                    "w-full text-left rounded-md px-2.5 py-2 transition-all flex items-start gap-2 " +
-                    (isActive
-                      ? "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm"
-                      : "hover:bg-orange-50 text-slate-700")
-                  }
-                >
-                  <span className="text-base leading-none mt-0.5">{s.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className={"text-xs font-semibold leading-tight " + (isActive ? "text-white" : "text-slate-900")}>
-                      {s.label}
-                    </div>
-                    <div className={"text-[10px] mt-0.5 leading-tight " + (isActive ? "text-orange-50" : "text-slate-500")}>
-                      {s.descr}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+          <nav className="sticky top-[68px] bg-white border border-slate-200 rounded-lg p-2 max-h-[calc(100vh-90px)] overflow-y-auto">
+            {SECTION_GROUPS.map((group, gi) => (
+              <div key={group.label} className={gi > 0 ? "mt-3 pt-2 border-t border-slate-100" : ""}>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-2 py-1.5 mb-0.5">
+                  {group.label}
+                </div>
+                <div className="space-y-0.5">
+                  {group.items.map((s) => {
+                    const isActive = activeSection === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveSection(s.id);
+                          setMobileSidebarOpen(false);
+                        }}
+                        className={
+                          "w-full text-left rounded-md px-2 py-1.5 transition-all flex items-center gap-2 " +
+                          (isActive
+                            ? "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm"
+                            : "hover:bg-orange-50 text-slate-700")
+                        }
+                      >
+                        <span className="text-sm leading-none">{s.emoji}</span>
+                        <span className={"text-[12px] font-medium leading-tight flex-1 truncate " + (isActive ? "text-white" : "text-slate-800")}>
+                          {s.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
             {/* Footer sidebar: scorciatoia Anteprima PDF */}
-            <div className="mt-2 pt-2 border-t border-slate-100">
+            <div className="mt-3 pt-2 border-t border-slate-100">
               <Button
                 onClick={() => setPreviewOpen(true)}
                 variant="outline"
@@ -1207,31 +1259,55 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       </SrCard>
       </>)}{/* === END SEZIONE MACRO === */}
 
-      {/* === SEZIONE: PAGINE PDF (Cover + Chi siamo + Percorso + ...) === */}
-      {activeSection === "pagine" && (<>
+      {/* === SEZIONE: PAGINE PDF (Cover/Chi siamo/... ora 9 sezioni separate)
+           La <Tabs> interna è controllata dall'esterno via activeSection;
+           la <TabsList> è nascosta (sr-only) perché la navigazione è in sidebar. */}
+      {isPageSection(activeSection) && (<>
+      {/* Header sezione dinamico — mostra il nome della pagina PDF attiva. */}
       <SectionHeader
-        title="📄 Pagine PDF preventivo"
-        description="Personalizza ogni pagina del PDF cliente: cover, chi siamo, percorso, render, CTA, ordine pagine."
+        title={`${SECTIONS.find(s => s.id === activeSection)?.emoji ?? "📄"} ${SECTIONS.find(s => s.id === activeSection)?.label ?? ""}`}
+        description={SECTIONS.find(s => s.id === activeSection)?.descr ?? ""}
         number={4}
       />
 
-      {/* Personalizzazione PDF: cover, chi siamo, consulente, render, CTA, percorso — tabbed */}
+      {/* Editor pagina specifica del PDF — Tabs controllata dall'esterno */}
       <SrCard
-        title="Personalizzazione PDF preventivo"
-        description="Editor centralizzato per tutte le pagine del PDF: cover, chi siamo, consulente, percorso, recensioni, render e CTA finale."
+        title="Editor pagina PDF"
+        description="Modifica i contenuti della pagina selezionata dalla sidebar."
         icon={<FileText className="h-4 w-4" />}
       >
-        <Tabs defaultValue="cover" className="w-full">
-          <TabsList className="w-full flex flex-wrap h-auto justify-start gap-1 bg-muted/30 p-1">
-            <TabsTrigger value="cover" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Cover</TabsTrigger>
-            <TabsTrigger value="chi-siamo" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Chi siamo</TabsTrigger>
-            <TabsTrigger value="percorso" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Il tuo percorso</TabsTrigger>
-            <TabsTrigger value="consulente" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Consulente</TabsTrigger>
-            <TabsTrigger value="recensioni" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Recensioni</TabsTrigger>
-            <TabsTrigger value="render" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Render AI</TabsTrigger>
-            <TabsTrigger value="cta" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">CTA finale</TabsTrigger>
-            <TabsTrigger value="conversione" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">⚡ Conversione</TabsTrigger>
-            <TabsTrigger value="ordine-pagine" className="text-xs data-[state=active]:bg-orange-500 data-[state=active]:text-white">Ordine pagine</TabsTrigger>
+        <Tabs
+          value={sectionToPdfTab(activeSection) ?? "cover"}
+          onValueChange={(v) => {
+            // Mappatura inversa: value Tabs → EditorSection
+            const mapping: Record<string, EditorSection> = {
+              "cover": "page_cover",
+              "chi-siamo": "page_chi_siamo",
+              "percorso": "page_percorso",
+              "consulente": "page_consulente",
+              "recensioni": "page_recensioni",
+              "render": "page_render",
+              "cta": "page_cta",
+              "conversione": "page_conversione",
+              "ordine-pagine": "page_ordine",
+            };
+            if (mapping[v]) setActiveSection(mapping[v]);
+          }}
+          className="w-full"
+        >
+          {/* TabsList nascosto: la navigazione è in sidebar. Manteniamo
+              il componente per accessibilità ARIA (Radix richiede TabsList
+              come parent di TabsTrigger anche se invisibile). */}
+          <TabsList className="sr-only">
+            <TabsTrigger value="cover">Cover</TabsTrigger>
+            <TabsTrigger value="chi-siamo">Chi siamo</TabsTrigger>
+            <TabsTrigger value="percorso">Il tuo percorso</TabsTrigger>
+            <TabsTrigger value="consulente">Consulente</TabsTrigger>
+            <TabsTrigger value="recensioni">Recensioni</TabsTrigger>
+            <TabsTrigger value="render">Render AI</TabsTrigger>
+            <TabsTrigger value="cta">CTA finale</TabsTrigger>
+            <TabsTrigger value="conversione">⚡ Conversione</TabsTrigger>
+            <TabsTrigger value="ordine-pagine">Ordine pagine</TabsTrigger>
           </TabsList>
 
           {/* ═══ COVER ═══════════════════════════════════════════════════════ */}
@@ -1242,16 +1318,16 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               </div>
             </div>
 
-            {/* ─── M12 · Preset stili 1-click ────────────────────────────
-                 Gallery di 6 preset pre-confezionati. Click → applica in
-                 batch tutti i campi pdf_cover_* (no immagine).
-                 La card del preset attualmente attivo è evidenziata
-                 (ring orange + badge "Attivo"). */}
-            <div className="rounded-lg border bg-gradient-to-br from-orange-50 to-amber-50/30 p-3 space-y-2">
+            {/* ─── M12 · Preset stili 1-click (v2 con mini-anteprime A4) ──
+                 Gallery di 8 preset pre-confezionati. Click → applica in
+                 batch tutti i campi pdf_cover_*. L'immagine di sfondo non
+                 viene mai modificata. Le card mostrano una mini-cover A4
+                 con bg-color + titolo simulato + accent reali del preset. */}
+            <div className="rounded-lg border bg-gradient-to-br from-orange-50 to-amber-50/30 p-3 space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <Label className="text-xs font-semibold uppercase tracking-wide text-orange-700">
-                    ✨ Preset stili 1-click
+                    ✨ Preset stili — anteprima reale 1-click
                   </Label>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
                     Configurazione completa (colori, font, layout) in un click.
@@ -1265,7 +1341,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </Badge>
                 )}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                 {COVER_PRESETS.map((p) => {
                   const isActive = activeCoverPresetId === p.id;
                   return (
@@ -1275,32 +1351,82 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       onClick={() => applyCoverPreset(p.id)}
                       title={p.descrizione}
                       className={
-                        "group relative rounded-md border-2 overflow-hidden transition-all text-left focus:outline-none focus:ring-2 focus:ring-orange-400 " +
+                        "group relative rounded-lg overflow-hidden transition-all text-left focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white border-2 " +
                         (isActive
                           ? "border-orange-500 shadow-md ring-2 ring-orange-300"
                           : "border-slate-200 hover:border-orange-300 hover:shadow-sm")
                       }
                     >
-                      {/* Swatch grande in alto con bg + sample text */}
+                      {/* Mini-anteprima A4 — aspect 210/297, scala miniatura */}
                       <div
-                        className="h-12 flex items-center justify-center text-[10px] font-bold"
-                        style={{ backgroundColor: p.swatchBg, color: p.swatchText }}
+                        className="relative w-full overflow-hidden flex flex-col p-2"
+                        style={{
+                          aspectRatio: "210/297",
+                          backgroundColor: p.swatchBg,
+                          color: p.swatchText,
+                        }}
                       >
-                        Aa
+                        {/* Decoration top-right (se preset la mostra) */}
+                        {p.patch.pdf_cover_show_decoration !== false && (
+                          <div
+                            className="absolute top-1.5 right-1.5 w-3 h-3 rounded-sm opacity-80"
+                            style={{ backgroundColor: p.swatchAccent }}
+                          />
+                        )}
+                        {/* Logo placeholder */}
+                        <div className="flex items-center gap-1 mb-auto">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.swatchAccent, opacity: 0.7 }} />
+                          <div className="h-1 w-6 rounded-full opacity-30" style={{ backgroundColor: p.swatchText }} />
+                        </div>
+                        {/* Eyebrow + Titolo simulati con i font-size del preset */}
+                        <div className="mb-1" style={{
+                          textAlign: p.patch.pdf_cover_text_align === "center" ? "center" : "left",
+                        }}>
+                          <div
+                            className="font-bold uppercase tracking-wider mb-1"
+                            style={{
+                              fontSize: 5,
+                              color: p.swatchAccent,
+                              opacity: 0.9,
+                            }}
+                          >
+                            ★ Proposta
+                          </div>
+                          <div
+                            className="font-bold leading-tight whitespace-pre-line"
+                            style={{
+                              fontSize: Math.max(7, (p.patch.pdf_cover_title_size ?? 40) * 0.18),
+                            }}
+                          >
+                            {p.sampleTitle}
+                          </div>
+                          {p.patch.pdf_cover_show_client_card !== false && (
+                            <div className="mt-1 rounded-sm px-1 py-0.5"
+                              style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+                            >
+                              <div className="h-0.5 w-3 rounded-full opacity-50" style={{ backgroundColor: p.swatchText }} />
+                              <div className="h-1 w-4 rounded-full mt-0.5" style={{ backgroundColor: p.swatchText }} />
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="px-2 py-1.5 bg-white">
+                      {/* Footer card con nome + tag */}
+                      <div className="px-2 py-1.5 bg-white border-t border-slate-100">
                         <div className="flex items-center gap-1">
                           <span className="text-sm leading-none">{p.emoji}</span>
                           <span className="text-[11px] font-semibold text-slate-900 truncate">{p.nome}</span>
                         </div>
-                        <div className="text-[9px] text-muted-foreground mt-0.5 line-clamp-2 leading-tight">
-                          {p.descrizione.split("·")[0].trim()}
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="text-[8px] uppercase tracking-wide bg-slate-100 text-slate-600 px-1 py-px rounded font-semibold">
+                            {p.tag}
+                          </span>
                         </div>
                       </div>
+                      {/* Check icon su attivo */}
                       {isActive && (
-                        <div className="absolute top-1 right-1 bg-orange-500 text-white rounded-full w-4 h-4 flex items-center justify-center">
-                          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                            <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <div className="absolute top-1.5 right-1.5 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-md z-10">
+                          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                            <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
                           </svg>
                         </div>
                       )}
