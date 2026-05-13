@@ -54,6 +54,10 @@ export interface ListinoPickResult {
    *  Mappa { axis_codice -> axis_value_id }. Se l'azienda modifica le
    *  maggiorazioni dopo, il preventivo gia' inviato non cambia. */
   valori_assi: Record<string, string>;
+  /** Snapshot modalita_prezzo_base del listino al momento del pick.
+   *  Usato dal frontend per decidere cosa copiare quando l'accessorio
+   *  viene clonato in bulk da un serramento (dims vs quantita). */
+  modalita_prezzo: "pz" | "mq" | "griglia" | "misura_libera" | null;
 }
 
 interface Props {
@@ -259,6 +263,13 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
 
   const handleConferma = () => {
     if (!selectedFamily || !calcolo) return;
+    // Type-guard sulla modalita: il backend è uno dei 4 valori canonici,
+    // ma il tipo lato API è generico `string | null` per retrocompat.
+    const m = selectedFamily.modalita_prezzo_base;
+    const modalita: ListinoPickResult["modalita_prezzo"] =
+      m === "pz" || m === "mq" || m === "griglia" || m === "misura_libera"
+        ? m
+        : null;
     onSelect({
       family_id: selectedFamily.id,
       family_nome: selectedFamily.nome,
@@ -273,6 +284,7 @@ export function ListinoPickerDialog({ open, onOpenChange, onSelect }: Props) {
       // Snapshot scelte assi: salvato sulla riga BOM in modo che modifiche
       // future al listino NON cambino i preventivi gia' inviati.
       valori_assi: { ...axisSelection },
+      modalita_prezzo: modalita,
     });
     onOpenChange(false);
   };

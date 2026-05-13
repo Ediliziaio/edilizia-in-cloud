@@ -91,9 +91,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
           : null,
       family_id: pick.family_id,
       valori_assi: pick.valori_assi ?? null,
-      // NB: modalita_prezzo NON è in ListinoPickResult attualmente — verrà
-      // popolata da una versione futura del picker (oggi il calcolo è già fatto
-      // server-side, quindi il preventivo è stabile anche senza snapshot).
+      modalita_prezzo: pick.modalita_prezzo,
       position: accessori.length,
     });
     toast.success(`"${pick.family_nome}" aggiunto agli accessori`);
@@ -415,23 +413,27 @@ function CopyMisureDialog({
   const [pickedMacroId, setPickedMacroId] = useState<string | null>(null);
   const [pickedFamilyId, setPickedFamilyId] = useState<string | null>(null);
 
-  // Macrocategorie accessori (escluse "infissi" dal preventivo serramenti).
-  // Filtro client-side: in pratica le macro abilitate per Serramenti
-  // potrebbero contenere sia Infissi che Tapparelle/Zanzariere ecc.
-  const { data: allMacros = [] } = useMacrocategorie({ vertical: "serramentista" });
-  const accessoryMacros = useMemo(
-    () => allMacros.filter((m) => {
-      const nameLower = (m.nome ?? "").toLowerCase();
-      // Escludi macro chiaramente "Infissi" (i serramenti veri e propri).
-      return !nameLower.includes("infiss");
-    }),
-    [allMacros],
-  );
+  // Tutte le macrocategorie disponibili per Serramenti (Tapparelle, Zanzariere,
+  // Cassonetti, Persiane, Monoblocchi, ecc.). Niente filtro heuristic per nome:
+  // l'utente sceglie esplicitamente cosa è accessorio e cosa no.
+  const { data: allMacros = [], isLoading: loadingMacros } = useMacrocategorie({
+    vertical: "serramentista",
+  });
+  const accessoryMacros = allMacros;
 
   // Families della macro selezionata (limite 100 per default del backend).
-  const { data: pickedFamilies = [] } = useListinoFamilies({
-    macroId: pickedMacroId,
-  });
+  // Loading state esposto per evitare "lista vuota" durante il fetch.
+  const { data: pickedFamilies = [], isLoading: loadingFamilies } =
+    useListinoFamilies({ macroId: pickedMacroId });
+
+  // Auto-switch a "manuale" quando l'azienda NON ha ancora configurato
+  // macrocategorie. Evita il dead-end "Da listino" + 0 macro = utente
+  // bloccato senza poter avanzare.
+  useEffect(() => {
+    if (open && !loadingMacros && accessoryMacros.length === 0 && mode === "listino") {
+      setMode("manuale");
+    }
+  }, [open, loadingMacros, accessoryMacros.length, mode]);
 
   // Reset selezione e picker quando il dialog si apre o cambia la lista.
   useEffect(() => {
@@ -440,15 +442,6 @@ function CopyMisureDialog({
       setPickedMacroId(null);
       setPickedFamilyId(null);
     }
-  }, [open, serramenti]);
-
-  // Reset selezione quando il dialog si apre o cambia la lista serramenti:
-  // prima il `useState(() => new Set(...))` era lazy-initialized SOLO al
-  // primo mount -> riaprendo il dialog dopo aver aggiunto/eliminato un
-  // serramento, `selected` aveva ID stale o mancavano gli ID nuovi e il
-  // checkbox "tutti selezionati" mentiva all'utente.
-  useEffect(() => {
-    if (open) setSelected(new Set(serramenti.map((s) => s.id)));
   }, [open, serramenti]);
 
   const allSelected = serramenti.length > 0 && selected.size === serramenti.length;
@@ -599,9 +592,17 @@ function CopyMisureDialog({
               <div>
                 <Label className="text-xs">Macrocategoria accessorio</Label>
                 <div className="flex flex-wrap gap-1.5 mt-1">
-                  {accessoryMacros.length === 0 ? (
+                  {loadingMacros ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground italic py-1">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Caricamento macrocategorie…
+                    </div>
+                  ) : accessoryMacros.length === 0 ? (
+                    /* NB: l'auto-switch a 'manuale' partito sopra dovrebbe
+                       coprire questo caso, ma lo lasciamo come safety net
+                       (se l'utente ri-cambia manualmente a 'listino'). */
                     <p className="text-xs text-muted-foreground italic">
-                      Nessuna macrocategoria accessori configurata. Vai in Listino → Macrocategorie per crearne.
+                      Nessuna macrocategoria configurata. Vai in <strong>Listino → Macrocategorie</strong> per crearne.
                     </p>
                   ) : (
                     accessoryMacros.map((m) => (
@@ -627,10 +628,22 @@ function CopyMisureDialog({
                   <Label className="text-xs">
                     Articolo {pickedFamilies.length > 0 && `(${pickedFamilies.length})`}
                   </Label>
-                  {pickedFamilies.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic mt-1">
+                  {loadingFamilies ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground italic mt-1 py-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Caricamento articoli…
+                    </div>
+                  ) : pickedFamilies.length === 0 ? (
+                    <div className="text-xs text-muted-foreground italic mt-1 rounded-md border border-dashed p-3 text-center">
                       Nessun articolo in questa macrocategoria.
-                    </p>
+                      <br />
+                      Aggiungi articoli da <strong>Impostazioni → Listino prodotti</strong>,
+                      oppure passa a <button
+                        type="button"
+                        className="underline hover:text-foreground"
+                        onClick={() => setMode("manuale")}
+                      >Manuale</button> per inserirli senza listino.
+                    </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 mt-1 max-h-48 overflow-y-auto pr-1">
                       {pickedFamilies.map((f) => {
