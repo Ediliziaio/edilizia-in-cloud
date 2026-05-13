@@ -132,7 +132,7 @@ export function FamilyTemplatePicker({
             Importa articolo da template
           </DialogTitle>
           <DialogDescription>
-            Scegli un template pre-configurato (foto, assi, prezzo base, IVA).
+            Scegli un template pre-configurato (foto, variabili standard, griglia prezzi).
             Verrà creato come nuovo articolo nel tuo listino, pronto da personalizzare.
           </DialogDescription>
         </DialogHeader>
@@ -303,7 +303,7 @@ export function FamilyTemplatePicker({
                   <div className="pt-2 border-t">
                     <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground mb-1.5">
                       <Ruler className="h-3 w-3" />
-                      Assi configurati ({selected.assi_default.length})
+                      Variabili Standard ({selected.assi_default.length})
                     </div>
                     <ul className="space-y-1">
                       {selected.assi_default.map((a) => (

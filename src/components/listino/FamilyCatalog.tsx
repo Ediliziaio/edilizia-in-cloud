@@ -606,7 +606,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                   variant="outline"
                   onClick={() => setTemplatePickerOpen(true)}
                   className="h-10 border-orange-300 text-orange-700 hover:bg-orange-50"
-                  title="Importa un articolo pre-configurato (foto, assi, prezzo base, IVA)"
+                  title="Importa un articolo pre-configurato (foto, variabili standard, griglia prezzi)"
                 >
                   <Sparkles className="h-4 w-4 mr-1.5" aria-hidden="true" />
                   Importa da template
