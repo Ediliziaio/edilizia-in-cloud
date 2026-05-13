@@ -18,8 +18,8 @@
  *  - Bottoni "Aggiorna" (force regen) + "Scarica" + "Apri in nuova scheda"
  *  - Cleanup automatico dei blob URL al cambio o alla chiusura
  */
-import { useEffect, useState, useRef } from "react";
-import { Loader2, RefreshCw, Download, AlertCircle, ExternalLink } from "lucide-react";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { Loader2, RefreshCw, Download, AlertCircle, ExternalLink, FileText, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -27,6 +27,9 @@ import {
 import { toast } from "sonner";
 import type { SrTemplatePdfRow } from "@/types/serramenti";
 import { buildMockPdfData } from "@/lib/serramenti/mockPdfData";
+// M15 · Anteprima con dati reali: caricamento ultimi 5 preventivi
+// dell'azienda + fallback al mock se nessuno selezionato.
+import { useProgetti } from "@/lib/serramenti/queries";
 
 interface Props {
   open: boolean;
@@ -45,6 +48,10 @@ type PreviewState =
   | { status: "ready"; blobUrl: string; pageCount: number }
   | { status: "error"; message: string };
 
+// M15 · Persistenza scelta data-source. localStorage permette di ricordare
+// quale preventivo l'utente aveva usato l'ultima volta come "modello visivo".
+const STORAGE_KEY_PREVIEW_PROGETTO = "sr-template-preview-progetto-id";
+
 export function SerramentiTemplatePreviewDialog({
   open, onOpenChange, template,
   companyName, companyLogoUrl, companyIndirizzo,
@@ -53,6 +60,25 @@ export function SerramentiTemplatePreviewDialog({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastBlobUrlRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // M15 · Selettore data-source: null = mock demo, string = id preventivo reale.
+  const [selectedProgettoId, setSelectedProgettoId] = useState<string | null>(() => {
+    try { return localStorage.getItem(STORAGE_KEY_PREVIEW_PROGETTO); }
+    catch { return null; }
+  });
+  const { data: progettiAll } = useProgetti();
+  // Mostriamo solo gli ultimi 5 ordinati per created_at desc (già ordinati da api).
+  const progettiRecenti = useMemo(
+    () => (progettiAll ?? []).slice(0, 5),
+    [progettiAll],
+  );
+  const persistSelection = (id: string | null) => {
+    setSelectedProgettoId(id);
+    try {
+      if (id) localStorage.setItem(STORAGE_KEY_PREVIEW_PROGETTO, id);
+      else localStorage.removeItem(STORAGE_KEY_PREVIEW_PROGETTO);
+    } catch { /* localStorage potrebbe essere bloccato (Safari private) */ }
+  };
 
   const generate = async () => {
     setState({ status: "loading" });
@@ -74,13 +100,39 @@ export function SerramentiTemplatePreviewDialog({
       )).default as string;
       pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
-      // 1. Genera PDF blob via @react-pdf/renderer
-      const enriched = await buildMockPdfData({
-        template,
-        companyName,
-        companyLogoUrl,
-        companyIndirizzo,
-      });
+      // M15 · Sorgente dati: preventivo reale se selezionato, altrimenti mock.
+      // I dati reali vengono passati al SerramentoPDF tramite enrichForPdf()
+      // dell'hook useSerramentoPDF (riuso totale, no duplication).
+      let enriched;
+      if (selectedProgettoId) {
+        try {
+          const [{ getProgetto }, { enrichForPdfPublic }] = await Promise.all([
+            import("@/lib/serramenti/api"),
+            import("@/hooks/useSerramentoPDF"),
+          ]);
+          const detail = await getProgetto(selectedProgettoId);
+          enriched = await enrichForPdfPublic({
+            detail,
+            template: template as SrTemplatePdfRow | null,
+            company: companyName
+              ? { name: companyName, ragione_sociale: companyName, logo_url: companyLogoUrl ?? null, indirizzo: companyIndirizzo ?? null }
+              : null,
+          });
+        } catch (realErr) {
+          // Se il caricamento del preventivo reale fallisce (es. progetto
+          // cancellato), fallback al mock con toast non bloccante.
+          console.warn("[template-preview] real-data fetch failed, fallback to mock:", realErr);
+          toast.warning("Anteprima con dati reali non disponibile · uso demo");
+          enriched = await buildMockPdfData({ template, companyName, companyLogoUrl, companyIndirizzo });
+        }
+      } else {
+        enriched = await buildMockPdfData({
+          template,
+          companyName,
+          companyLogoUrl,
+          companyIndirizzo,
+        });
+      }
       const element = React.createElement(SerramentoPDF, enriched);
       const blob = await pdf(element).toBlob();
 
@@ -170,8 +222,9 @@ export function SerramentiTemplatePreviewDialog({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
+    // M15 · re-trigger anche al cambio data-source (demo ↔ preventivo reale).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, selectedProgettoId]);
 
   // Cleanup blob URL alla chiusura del dialog
   useEffect(() => {
@@ -201,14 +254,60 @@ export function SerramentiTemplatePreviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0 gap-0">
         <DialogHeader className="p-4 pb-3 border-b">
-          <div className="flex items-start justify-between gap-3">
-            <div>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex-1 min-w-0">
               <DialogTitle className="text-base">Anteprima PDF preventivo</DialogTitle>
               <DialogDescription className="text-xs mt-0.5">
-                Generato con dati cliente fittizi e tutte le personalizzazioni
-                correnti del template (anche quelle non ancora salvate). Clicca
-                "Aggiorna" per rigenerare con le ultime modifiche.
+                {selectedProgettoId
+                  ? "Generato con dati di un preventivo reale + template corrente."
+                  : "Generato con dati cliente fittizi + template corrente (anche modifiche non salvate)."}
+                {" "}Clicca "Aggiorna" per rigenerare con le ultime modifiche.
               </DialogDescription>
+              {/* M15 · Selettore data-source: demo vs preventivo reale */}
+              <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Dati anteprima:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => persistSelection(null)}
+                  className={
+                    "text-[11px] px-2 py-0.5 rounded border transition-all gap-1 inline-flex items-center " +
+                    (selectedProgettoId === null
+                      ? "bg-orange-500 text-white border-orange-500 font-semibold"
+                      : "bg-white border-slate-200 hover:border-orange-300 text-slate-700")
+                  }
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Demo (default)
+                </button>
+                {progettiRecenti.length === 0 && (
+                  <span className="text-[10px] italic text-muted-foreground">
+                    Nessun preventivo reale disponibile
+                  </span>
+                )}
+                {progettiRecenti.map((p) => {
+                  const isActive = selectedProgettoId === p.id;
+                  const label = `${p.code} · ${p.cliente_nome ?? "?"}${p.cliente_cognome ? " " + p.cliente_cognome : ""}`.slice(0, 28);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => persistSelection(p.id)}
+                      title={label}
+                      className={
+                        "text-[11px] px-2 py-0.5 rounded border transition-all gap-1 inline-flex items-center max-w-[180px] truncate " +
+                        (isActive
+                          ? "bg-orange-500 text-white border-orange-500 font-semibold"
+                          : "bg-white border-slate-200 hover:border-orange-300 text-slate-700")
+                      }
+                    >
+                      <FileText className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <Button

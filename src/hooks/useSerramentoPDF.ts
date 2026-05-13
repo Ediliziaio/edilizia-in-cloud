@@ -103,6 +103,12 @@ export interface SerramentoPdfPayload {
 
 // ─── Helper pre-fetch ──────────────────────────────────────────────────────
 
+// M15 · Export pubblico per riuso da SerramentiTemplatePreviewDialog (anteprima
+// con dati reali). Alias del helper interno: stesso comportamento, no fork.
+export async function enrichForPdfPublic(opts: SerramentoPdfPayload): Promise<SerramentoPdfEnriched> {
+  return enrichForPdf(opts);
+}
+
 async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEnriched> {
   const { detail, template, company } = opts;
   const prog = detail.progetto;
