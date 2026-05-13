@@ -454,6 +454,9 @@ export interface SrTemplatePdfRow {
   /** Font family PDF (migration 20270514000000). 'helvetica' (default safe)
    *  | 'inter' | 'roboto'. Helvetica fallback automatico se font fallisce. */
   pdf_font_family: "helvetica" | "inter" | "roboto";
+  /** Mostra footer versioning su ogni pagina PDF (migration 20270514010000).
+   *  Default true. "Preventivo {code} · v{rev} · pagina X/N · data". */
+  pdf_show_revision_footer: boolean;
   created_at: string;
   updated_at: string;
 }

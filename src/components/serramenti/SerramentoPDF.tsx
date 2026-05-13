@@ -1139,14 +1139,29 @@ function PageHeader({ code, clienteNome, companyName, logoUrl, primaryColor, sty
   );
 }
 
-function PageFooter({ companyName, indirizzo, telefono, email, vat, website, styles }: {
+function PageFooter({
+  companyName, indirizzo, telefono, email, vat, website, styles,
+  quoteCode, revisionNumber, showRevisionFooter,
+}: {
   companyName: string;
   indirizzo?: string | null; telefono?: string | null; email?: string | null;
   vat?: string | null; website?: string | null;
   styles: ReturnType<typeof makeStyles>;
+  /** Codice preventivo (es. "SR-2026-001") — usato dal footer versioning. */
+  quoteCode?: string | null;
+  /** Numero revisione (1 = originale). Mostrato come "v1/v2/v3" nel footer. */
+  revisionNumber?: number;
+  /** Toggle dal template azienda (pdf_show_revision_footer). Default true. */
+  showRevisionFooter?: boolean;
 }) {
   const line1 = [indirizzo, telefono, email].filter(Boolean).join(" · ");
   const line2 = [vat ? `P.IVA ${vat}` : null, website].filter(Boolean).join(" · ");
+  // Milestone 2: footer versione preventivo. Visibile se toggle ON (default).
+  // Format: "Preventivo SR-001 · v2 · pagina 3/8 · 13/05/2026"
+  const showRevFooter = showRevisionFooter !== false && !!quoteCode;
+  const dateStr = new Date().toLocaleDateString("it-IT", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+  });
   return (
     <View style={styles.footer} fixed>
       <View style={styles.footerRow}>
@@ -1155,6 +1170,16 @@ function PageFooter({ companyName, indirizzo, telefono, email, vat, website, sty
       </View>
       {line1 && <View style={styles.footerRow}><Text>{line1}</Text><Text></Text></View>}
       {line2 && <View style={styles.footerRow}><Text>{line2}</Text><Text></Text></View>}
+      {showRevFooter && (
+        <View style={styles.footerRow}>
+          <Text
+            render={({ pageNumber, totalPages }) =>
+              `Preventivo ${quoteCode} · v${revisionNumber ?? 1} · pagina ${pageNumber}/${totalPages} · ${dateStr}`
+            }
+          />
+          <Text></Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -1562,7 +1587,7 @@ export function SerramentoPDF({
                     ))}
                   </View>
                 )}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
               </Page>
             )}
             </>
@@ -1661,7 +1686,7 @@ export function SerramentoPDF({
                 </>
               )}
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
             </Page>
             </>
           ),
@@ -1972,7 +1997,7 @@ export function SerramentoPDF({
                 </View>
               </View>
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
             </Page>
             </>
           ),
@@ -2022,7 +2047,7 @@ export function SerramentoPDF({
                     })}
                   </View>
                 </View>
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
               </Page>
             ))}
             </>
@@ -2323,7 +2348,7 @@ export function SerramentoPDF({
                 </>
               )}
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
             </Page>
             </>
           ),
@@ -2416,7 +2441,7 @@ export function SerramentoPDF({
                   );
                 })()}
 
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
               </Page>
             )}
             </>
@@ -2650,7 +2675,7 @@ export function SerramentoPDF({
                 <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
               )}
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
             </Page>
             </>
           ),
@@ -2676,7 +2701,7 @@ export function SerramentoPDF({
                     </View>
                   ))}
                 </View>
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
               </Page>
             )}
             </>
@@ -2727,7 +2752,7 @@ export function SerramentoPDF({
                   Valori stimati confronto serramenti vecchi (anni 80-90 in PVC singolo vetro) vs nuovi standard moderni.
                   Bolletta gas: stima media nazionale Italia per appartamento 90 m² zona climatica E.
                 </Text>
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
               </Page>
             )}
             </>
@@ -2751,7 +2776,7 @@ export function SerramentoPDF({
                     </View>
                   ))}
                 </View>
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
               </Page>
             )}
             </>
@@ -2777,7 +2802,7 @@ export function SerramentoPDF({
                 {brandFooterTesto && (
                   <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
                 )}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
               </Page>
             )}
             </>

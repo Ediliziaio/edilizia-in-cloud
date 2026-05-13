@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditorSafe as RichTextEditor } from "@/components/ui/rich-text-editor-safe";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -673,6 +674,23 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               <p className="text-[10px] text-muted-foreground mt-1">
                 Inter/Roboto richiedono font self-hosted: se non disponibili il PDF userà Helvetica come fallback automatico.
               </p>
+            </div>
+            {/* Milestone 2: toggle versioning footer */}
+            <div className="col-span-12">
+              <div className="flex items-start gap-3 p-3 rounded-md border bg-slate-50/50">
+                <Switch
+                  checked={form.pdf_show_revision_footer !== false}
+                  onCheckedChange={(checked) => update("pdf_show_revision_footer", checked)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <Label className="text-sm font-medium block">Mostra info versione nel footer</Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Aggiunge su ogni pagina del PDF: <code className="font-mono text-[10px] bg-white px-1 rounded">Preventivo SR-001 · v2 · pagina 3/8 · data</code>.
+                    Utile per distinguere tra revisioni multiple dello stesso preventivo.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
