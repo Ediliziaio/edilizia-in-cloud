@@ -217,7 +217,11 @@ export interface SrProgettoRow {
   pdf_generated_at: string | null;
   pdf_html_url: string | null;
 
+  /** Solo backoffice, mai nel PDF cliente. */
   note_interne: string | null;
+  /** Visibili nel PDF cliente (migration 20270513240000): condizioni speciali,
+   *  tempi consegna concordati, scelte di stile, ecc. */
+  note_cliente: string | null;
 }
 
 export interface SrSerramentoRow {

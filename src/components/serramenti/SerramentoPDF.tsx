@@ -2587,6 +2587,31 @@ export function SerramentoPDF({
                 ))}
               </View>
 
+              {/* Note del consulente al cliente (migration 20270513240000):
+                  condizioni speciali, tempi consegna concordati, scelte di
+                  stile. Visibili nel PDF SOLO se il commerciale ha compilato
+                  il campo note_cliente in StepConsulenza. */}
+              {p.note_cliente && p.note_cliente.trim().length > 0 && (
+                <View
+                  style={{
+                    marginTop: 16,
+                    padding: 12,
+                    borderWidth: 1,
+                    borderColor: C.gray200,
+                    borderRadius: 6,
+                    backgroundColor: C.gray50,
+                  }}
+                  wrap
+                >
+                  <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>Note del consulente</Text>
+                  {p.note_cliente.split(/\n\n+/).map((para, i) => (
+                    <Text key={i} style={[styles.condizioniText, { marginBottom: 4 }]}>
+                      {para}
+                    </Text>
+                  ))}
+                </View>
+              )}
+
               {/* Testimonianze rapide nella stessa CTA page se attive.
                   Field map: SrTestimonianza = { quote, autore, citta?, intervento? }.
                   Prima il codice usava `testo/cliente_nome/dettaglio` che non esistono

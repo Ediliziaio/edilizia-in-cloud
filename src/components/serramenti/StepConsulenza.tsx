@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Calendar, MapPin, ListChecks } from "lucide-react";
+import { Calendar, ListChecks, FileText, EyeOff } from "lucide-react";
 import type { SrProgettoRow } from "@/types/serramenti";
 import { SrCard } from "@/lib/serramenti/wizardUI";
 
@@ -106,20 +106,47 @@ export function StepConsulenza({ form, onChange }: Props) {
         </div>
       </SrCard>
 
-      {/* Note interne (non in PDF) */}
-      <SrCard
-        title="Note interne"
-        description="Solo per il backoffice — non compaiono nel PDF cliente."
-        icon={<MapPin className="h-4 w-4" />}
-        variant="muted"
-      >
-        <Textarea
-          defaultValue={form.note_interne ?? ""}
-          onBlur={(e) => onChange("note_interne", e.target.value || null)}
-          placeholder="Vincoli, ferie cliente, urgenze, eccezioni..."
-          rows={3}
-        />
-      </SrCard>
+      {/* Note: 2 colonne side-by-side per distinguere visivamente i 2 ambiti
+          (cliente vs backoffice). Stack su mobile. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Note per il cliente — visibili nel PDF emesso */}
+        <SrCard
+          title="Note per il cliente"
+          description="Compaiono nel PDF preventivo. Usale per condizioni speciali, tempi consegna, scelte di stile concordate."
+          icon={<FileText className="h-4 w-4 text-orange-600" />}
+        >
+          <Textarea
+            defaultValue={form.note_cliente ?? ""}
+            onBlur={(e) => onChange("note_cliente", e.target.value || null)}
+            placeholder="Es: Consegna entro 30 giorni dall'accettazione. Colore RAL custom su misura, eventuali ritocchi inclusi."
+            rows={4}
+            className="bg-orange-50/30 border-orange-200 focus-visible:ring-orange-300"
+          />
+          <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
+            <FileText className="h-3 w-3" />
+            Questo testo apparirà nel PDF inviato al cliente.
+          </p>
+        </SrCard>
+
+        {/* Note interne — solo backoffice, mai esposte */}
+        <SrCard
+          title="Note interne"
+          description="Solo per il backoffice — non compaiono nel PDF cliente."
+          icon={<EyeOff className="h-4 w-4" />}
+          variant="muted"
+        >
+          <Textarea
+            defaultValue={form.note_interne ?? ""}
+            onBlur={(e) => onChange("note_interne", e.target.value || null)}
+            placeholder="Vincoli, ferie cliente, urgenze, eccezioni, promemoria interni..."
+            rows={4}
+          />
+          <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
+            <EyeOff className="h-3 w-3" />
+            Visibili solo allo staff. <strong>Mai</strong> esposte al cliente.
+          </p>
+        </SrCard>
+      </div>
     </div>
   );
 }
