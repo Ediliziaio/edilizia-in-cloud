@@ -474,6 +474,9 @@ export interface SrTemplatePdfRow {
   /** Mostra mini-tabella 10 anni con breakdown detrazione fiscale (M8,
    *  migration 20270514050000). Off di default. */
   pdf_mostra_tabella_ecobonus: boolean;
+  /** Genera una pagina A4 dedicata per ogni gruppo serramento con foto
+   *  di sopralluogo o render AI (M9, migration 20270514060000). Off default. */
+  pdf_pagine_articolo_dedicate: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -648,6 +651,7 @@ export type SrPdfPageId =
   | "proposta"
   | "allegato_tecnico"
   | "macro_dedicate"
+  | "articoli_dedicati"
   | "investimento"
   | "percorso"
   | "garanzie"
@@ -701,6 +705,16 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     label: "Allegato tecnico",
     descrizione: "Composizione serramenti (foto + scheda tecnica) + La tua consulenza.",
     obbligatoria: true,
+  },
+  // M9: pagine foto-tecniche dedicate per articolo. Visibili solo se il
+  // toggle pdf_pagine_articolo_dedicate è attivo AND ci sono media legati
+  // a serramenti via serramento_id. Mostrate DOPO allegato tecnico:
+  // sintesi tecnica → dettagli foto-tecnici → economia.
+  {
+    id: "articoli_dedicati",
+    label: "Pagine foto-tecniche per articolo",
+    descrizione: "Una pagina per ogni gruppo serramento con foto sopralluogo o render AI.",
+    obbligatoria: false,
   },
   {
     id: "investimento",

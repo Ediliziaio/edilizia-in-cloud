@@ -554,6 +554,76 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     },
     macroPageContent: { fontSize: 11, color: C.gray700, lineHeight: 1.65 },
 
+    // Milestone 9: pagina foto-tecnica dedicata per articolo
+    // Layout: 2 colonne foto (situazione | render) in alto, scheda tecnica sotto.
+    articoloPhotoRow: { flexDirection: "row" as const, gap: 12, marginTop: 14 },
+    articoloPhotoCol: {
+      flex: 1,
+      borderRadius: 10,
+      backgroundColor: C.gray100,
+      overflow: "hidden" as const,
+      borderWidth: 0.5,
+      borderColor: C.gray200,
+      borderStyle: "solid" as const,
+      height: 220,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+    },
+    articoloPhotoImg: { width: "100%" as const, height: 220, objectFit: "cover" as const },
+    articoloPhotoLabel: {
+      position: "absolute" as const,
+      top: 8, left: 8,
+      backgroundColor: C.white,
+      paddingHorizontal: 8, paddingVertical: 3,
+      borderRadius: 4,
+      fontSize: 8,
+      fontWeight: 700,
+      color: C.gray900,
+      letterSpacing: 0.5,
+      textTransform: "uppercase" as const,
+    },
+    articoloPhotoLabelDopo: {
+      position: "absolute" as const,
+      top: 8, left: 8,
+      backgroundColor: C.primary,
+      color: C.white,
+      paddingHorizontal: 8, paddingVertical: 3,
+      borderRadius: 4,
+      fontSize: 8,
+      fontWeight: 700,
+      letterSpacing: 0.5,
+      textTransform: "uppercase" as const,
+    },
+    articoloPhotoCaption: {
+      fontSize: 8,
+      color: C.gray500,
+      marginTop: 4,
+      textAlign: "center" as const,
+      fontStyle: "italic" as const,
+    },
+    articoloSpecsTable: {
+      marginTop: 16,
+      borderTop: `0.5pt solid ${C.gray200}`,
+      borderBottom: `0.5pt solid ${C.gray200}`,
+      paddingVertical: 6,
+    },
+    articoloSpecsRow: {
+      flexDirection: "row" as const,
+      paddingVertical: 5,
+      borderBottom: `0.5pt solid ${C.gray100}`,
+    },
+    articoloSpecsKey: { width: 130, fontSize: 9, color: C.gray500, textTransform: "uppercase" as const, letterSpacing: 0.4 },
+    articoloSpecsVal: { flex: 1, fontSize: 10, color: C.gray900, fontWeight: 500 },
+    articoloNote: {
+      marginTop: 10,
+      padding: 10,
+      backgroundColor: C.gray50,
+      borderRadius: 6,
+      borderLeft: `2pt solid ${C.primary}`,
+    },
+    articoloNoteLabel: { fontSize: 8, color: C.primary, fontWeight: 700, textTransform: "uppercase" as const, marginBottom: 3 },
+    articoloNoteText: { fontSize: 9.5, color: C.gray700, lineHeight: 1.5 },
+
     // Chi siamo
     // L'immagine usa objectFit "contain" + height ESPLICITA. In react-pdf
     // `maxHeight` non funziona come in CSS (viene ignorata sull'<Image>),
@@ -886,6 +956,9 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
   is_omaggio: boolean;
   /** True se la posa e' stata esclusa dal commerciale (solo fornitura). */
   posa_esclusa: boolean;
+  /** IDs dei serramenti aggregati nel gruppo. Usato da M9 per linkare le
+   *  foto sopralluogo/render via sr_progetti_media.serramento_id. */
+  serramento_ids: string[];
 }> {
   const map = new Map<string, {
     key: string; tipologia: string; materiale: string; serie: string;
@@ -898,6 +971,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     prezzo_totale: number;
     is_omaggio: boolean;
     posa_esclusa: boolean;
+    serramento_ids: string[];
   }>();
   for (const s of serr) {
     const L = s.larghezza_mm ?? null;
@@ -923,6 +997,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     if (existing) {
       existing.quantita += s.quantita ?? 1;
       existing.prezzo_totale += Number(s.prezzo_totale ?? 0);
+      existing.serramento_ids.push(s.id);
     }
     else map.set(key, {
       key,
@@ -943,6 +1018,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
       prezzo_totale: Number(s.prezzo_totale ?? 0),
       is_omaggio: isOmaggio,
       posa_esclusa: s.posa_esclusa ?? false,
+      serramento_ids: [s.id],
     });
   }
   return Array.from(map.values());
@@ -1399,6 +1475,7 @@ export function SerramentoPDF({
   const mostraRataMensile = tpl.pdf_mostra_rata_mensile === true;
   const mostraRecuperoFiscale = tpl.pdf_mostra_recupero_fiscale !== false; // default true
   const mostraTabellaEcobonus = tpl.pdf_mostra_tabella_ecobonus === true; // default false
+  const paginaArticoloDedicata = tpl.pdf_pagine_articolo_dedicate === true; // default false
 
   const ctaTitle = tpl.pdf_cta_finale_titolo || "Cosa fare adesso";
   const ctaSteps = (Array.isArray(tpl.pdf_cta_finale_passi) && tpl.pdf_cta_finale_passi.length > 0)
@@ -1495,6 +1572,27 @@ export function SerramentoPDF({
   const renderUrls = detail.media.filter((m) => m.kind === "render" && m.url).map((m) => m.url!);
   const hasPrimaDopo = primaUrls.length > 0 && renderUrls.length > 0;
   const serramentiGrouped = groupSerramentiAdvanced(detail.serramenti);
+
+  // ─── Milestone 9 · Pagine foto-tecniche per articolo ──────────────────
+  // Per ogni gruppo serramento, raccogliamo le foto sopralluogo + render AI
+  // legate via sr_progetti_media.serramento_id. La pagina dedicata è
+  // generata solo per gruppi con almeno una foto presente — evitiamo pagine
+  // vuote se l'utente non ha ancora fatto upload. Il toggle del template
+  // (pdf_pagine_articolo_dedicate) gate l'intera sezione.
+  const articoliConFoto = paginaArticoloDedicata
+    ? serramentiGrouped
+        .map((g) => {
+          const idSet = new Set(g.serramento_ids);
+          const sit = detail.media.find(
+            (m) => m.kind === "situazione" && m.url && m.serramento_id && idSet.has(m.serramento_id)
+          );
+          const ren = detail.media.find(
+            (m) => m.kind === "render" && m.url && m.serramento_id && idSet.has(m.serramento_id)
+          );
+          return { group: g, situazione: sit ?? null, render: ren ?? null };
+        })
+        .filter((x) => x.situazione || x.render)
+    : [];
 
   // Cronoprogramma fasi
   const numSerr = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
@@ -2204,6 +2302,87 @@ export function SerramentoPDF({
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             ))}
+            </>
+          ),
+          articoli_dedicati: (
+            <>
+            {/* ─── M9 · PAGINE FOTO-TECNICHE PER ARTICOLO ──────────────────────
+                Una pagina A4 per ogni gruppo serramento con almeno una foto
+                sopralluogo o render AI. Layout: 2 colonne foto sopra, scheda
+                tecnica + dimensioni + note sotto. Toggle controllato da
+                pdf_pagine_articolo_dedicate. */}
+            {articoliConFoto.map((art, ai) => {
+              const g = art.group;
+              const dims = g.larghezza && g.altezza ? `${g.larghezza} × ${g.altezza} mm` : null;
+              const macroIdResolved = (g.family_id && familiesById[g.family_id]?.macrocategoria_id) || g.macrocategoria_override_id || autoFallbackMacroId || null;
+              const macroNome = (macroIdResolved && macroNomeById[macroIdResolved]) || "Articolo";
+              const familyNome = g.family_id ? (familiesById[g.family_id]?.nome ?? null) : null;
+              const specs: Array<[string, string]> = [];
+              if (g.ambiente) specs.push(["Ambiente", g.ambiente]);
+              if (familyNome) specs.push(["Modello", familyNome]);
+              if (g.materiale) specs.push(["Materiale", g.materiale]);
+              if (g.serie) specs.push(["Serie", g.serie]);
+              if (g.vetro) specs.push(["Vetro", g.vetro]);
+              if (dims) specs.push(["Dimensioni", dims]);
+              if (g.colore_interno) specs.push(["Colore interno", g.colore_interno]);
+              if (g.colore_esterno) specs.push(["Colore esterno", g.colore_esterno]);
+              specs.push(["Quantità", `${g.quantita} pz`]);
+              return (
+                <Page key={`art-${ai}-${g.key}`} size="A4" style={styles.page}>
+                  <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                  <Text style={styles.pageEyebrow}>
+                    Foto-tecnica · {ai + 1} di {articoliConFoto.length} · {macroNome}
+                  </Text>
+                  <Text style={styles.pageTitle}>{g.tipologia}{g.ambiente ? `\n${g.ambiente}` : ""}</Text>
+
+                  <View style={styles.articoloPhotoRow}>
+                    <View style={styles.articoloPhotoCol}>
+                      {art.situazione?.url ? (
+                        <>
+                          <Image src={art.situazione.url} style={styles.articoloPhotoImg} />
+                          <Text style={styles.articoloPhotoLabel}>Prima</Text>
+                        </>
+                      ) : (
+                        <Text style={{ fontSize: 9, color: C.gray500 }}>Foto sopralluogo non disponibile</Text>
+                      )}
+                    </View>
+                    <View style={styles.articoloPhotoCol}>
+                      {art.render?.url ? (
+                        <>
+                          <Image src={art.render.url} style={styles.articoloPhotoImg} />
+                          <Text style={styles.articoloPhotoLabelDopo}>Dopo · render AI</Text>
+                        </>
+                      ) : (
+                        <Text style={{ fontSize: 9, color: C.gray500 }}>Render AI non disponibile</Text>
+                      )}
+                    </View>
+                  </View>
+                  {(art.situazione?.caption || art.render?.caption) && (
+                    <Text style={styles.articoloPhotoCaption}>
+                      {[art.situazione?.caption, art.render?.caption].filter(Boolean).join(" · ")}
+                    </Text>
+                  )}
+
+                  <View style={styles.articoloSpecsTable}>
+                    {specs.map(([k, v], si) => (
+                      <View key={si} style={styles.articoloSpecsRow}>
+                        <Text style={styles.articoloSpecsKey}>{k}</Text>
+                        <Text style={styles.articoloSpecsVal}>{v}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {g.note?.trim() && !g.note.startsWith("🎁 OMAGGIO") && (
+                    <View style={styles.articoloNote}>
+                      <Text style={styles.articoloNoteLabel}>Note tecniche</Text>
+                      <Text style={styles.articoloNoteText}>{g.note}</Text>
+                    </View>
+                  )}
+
+                  <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+                </Page>
+              );
+            })}
             </>
           ),
           investimento: (

@@ -760,6 +760,26 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 </div>
               </div>
             </div>
+            {/* Milestone 9: toggle pagine foto-tecniche per articolo */}
+            <div className="col-span-12">
+              <div className="flex items-start gap-3 p-3 rounded-md border bg-slate-50/50">
+                <Switch
+                  checked={form.pdf_pagine_articolo_dedicate === true}
+                  onCheckedChange={(checked) => update("pdf_pagine_articolo_dedicate", checked)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <Label className="text-sm font-medium block">Pagine foto-tecniche dedicate per articolo</Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Per ogni gruppo serramento con almeno una foto di sopralluogo o render AI,
+                    il PDF aggiunge una pagina A4 dedicata: layout 2 colonne (Prima | Dopo) +
+                    scheda tecnica completa (modello, materiale, vetro, dimensioni, colori, quantità) +
+                    note tecniche libere. <strong>Off di default</strong> — aumenta il numero di pagine.
+                    Le foto vanno caricate sul preventivo legate al singolo serramento.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </SrCard>
