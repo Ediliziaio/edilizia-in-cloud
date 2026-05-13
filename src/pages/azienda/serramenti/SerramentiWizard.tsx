@@ -23,7 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";
 import { useTemplatePdf } from "@/lib/serramenti/queries";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { Eye, ChevronDown } from "lucide-react";
+import { Eye, ChevronDown, Copy, GitBranch } from "lucide-react";
 import { STATI_LABEL, TRANSIZIONI_STATO } from "@/lib/serramenti/statoLabels";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -48,7 +48,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  useProgetto, useCreateProgetto, useUpdateProgetto,
+  useProgetto, useCreateProgetto, useUpdateProgetto, useDuplicaProgetto,
 } from "@/lib/serramenti/queries";
 import { SR_WIZARD_STEPS } from "@/types/serramenti";
 import type { SrProgettoRow, SrWizardStep, SrTipoIntervento } from "@/types/serramenti";
@@ -171,6 +171,23 @@ export default function SerramentiWizard() {
     });
   }, [detail?.progetto?.stato, detail?.progetto?.valido_fino_data, id]); // eslint-disable-line react-hooks/exhaustive-deps
   const createMut = useCreateProgetto();
+  const duplicaMut = useDuplicaProgetto();
+
+  /** Duplica come nuova revisione: crea SR-xxx-r2/r3/... linked al parent.
+   *  Naviga al nuovo progetto in stato bozza per editing immediato. */
+  const handleDuplicateAsRevision = async () => {
+    if (!id || !detail) return;
+    try {
+      const result = await duplicaMut.mutateAsync(id);
+      toast.success(`Revisione ${result.revision_number} creata`, {
+        description: `Nuovo codice: ${result.newCode}. Naviga per modificare.`,
+      });
+      navigate(`/azienda/serramenti/${result.newId}/modifica`);
+    } catch (err) {
+      // Error toast già gestito dal mutation onError
+      console.error("[duplicate] failed", err);
+    }
+  };
 
   const pendingWrites = useIsMutating({ mutationKey: ["sr-progetto-autosave", id] });
 
@@ -591,6 +608,23 @@ export default function SerramentiWizard() {
                   {statoMeta.label}
                 </Badge>
               ) : null}
+              {/* Badge revisione: visibile solo se revision_number > 1
+                  (es. "Rev. 2"). Click → toast info su parent_id (utente
+                  capisce che esiste una versione precedente). */}
+              {!isNew && detail && detail.progetto.revision_number > 1 && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-violet-300 bg-violet-50 text-violet-700"
+                  title={
+                    detail.progetto.parent_id
+                      ? `Revisione ${detail.progetto.revision_number} di un preventivo precedente`
+                      : `Revisione ${detail.progetto.revision_number}`
+                  }
+                >
+                  <GitBranch className="h-2.5 w-2.5 mr-0.5" />
+                  Rev. {detail.progetto.revision_number}
+                </Badge>
+              )}
               {(updateMut.isPending || pendingWrites > 0) ? (
                 <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                   <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
@@ -609,6 +643,27 @@ export default function SerramentiWizard() {
               Step {currentStepIndex + 1} di {SR_WIZARD_STEPS.length} · {SR_WIZARD_STEPS[currentStepIndex]?.label}
             </p>
           </div>
+          {/* Duplica come revisione: crea copia del preventivo come nuova
+              revisione (parent_id linked). Utile per "Cliente vuole 3 offerte
+              base/medio/premium" senza ri-creare tutto da zero. */}
+          {!isNew && detail && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleDuplicateAsRevision()}
+              disabled={duplicaMut.isPending}
+              className="hidden md:inline-flex h-9 gap-1.5 border-violet-300 text-violet-700 hover:bg-violet-50"
+              title="Crea una nuova revisione del preventivo (es. variante per il cliente)"
+            >
+              {duplicaMut.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+              <span className="hidden lg:inline">Nuova revisione</span>
+              <span className="lg:hidden">Rev</span>
+            </Button>
+          )}
           {/* Anteprima PDF veloce: sempre presente nell'header sticky.
               Permette al commerciale di vedere come apparirà il PDF cliente
               SENZA dover navigare allo Step finale. Disable se preventivo

@@ -18,6 +18,7 @@ import {
   listMacroFields, createMacroField, updateMacroField, deleteMacroField,
   seedMacroFieldsFromVertical,
   listTariffeManodopera, addManodopera, updateManodopera, deleteManodopera,
+  duplicaProgetto,
   type SrCreateProgettoInput,
   type UploadMediaInput,
   type ListinoMacroField,
@@ -59,6 +60,23 @@ export function useCreateProgetto() {
       toast.success("Progetto creato");
     },
     onError: (e) => toast.error("Creazione progetto fallita", { description: String(e) }),
+  });
+}
+
+/**
+ * Duplica preventivo come nuova revisione (parent_id linked).
+ * Vedi `duplicaProgetto` in api.ts per i dettagli del clone.
+ */
+export function useDuplicaProgetto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (originalId: string) => duplicaProgetto(originalId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sr-progetti"] });
+    },
+    onError: (e) => toast.error("Duplica revisione fallita", {
+      description: e instanceof Error ? e.message : String(e),
+    }),
   });
 }
 

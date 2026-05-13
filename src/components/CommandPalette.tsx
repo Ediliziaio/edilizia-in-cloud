@@ -72,6 +72,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { label: "White-Label",                path: "/azienda/impostazioni/branding" },
   { label: "Listino prodotti",           path: "/azienda/impostazioni/listino" },
   { label: "Tariffe aziendali",          path: "/azienda/impostazioni/tariffe" },
+  { label: "Bundle & Pacchetti",         path: "/azienda/impostazioni/bundle-serramentista" },
   { label: "Preventivi & margini",       path: "/azienda/impostazioni/margini" },
   { label: "Stati ordine",               path: "/azienda/impostazioni/stati-ordine" },
   { label: "Fornitori",                  path: "/azienda/impostazioni/fornitori" },

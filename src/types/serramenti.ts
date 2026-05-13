@@ -222,6 +222,9 @@ export interface SrProgettoRow {
   /** Visibili nel PDF cliente (migration 20270513240000): condizioni speciali,
    *  tempi consegna concordati, scelte di stile, ecc. */
   note_cliente: string | null;
+  /** Revisioni preventivo (migration 20270513250000). */
+  parent_id: string | null;
+  revision_number: number;
 }
 
 export interface SrSerramentoRow {

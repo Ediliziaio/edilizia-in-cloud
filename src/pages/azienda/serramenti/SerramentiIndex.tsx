@@ -369,6 +369,41 @@ export default function SerramentiIndex() {
       p.stato === "accettato" && !p.ordine_id,
     );
 
+    // ─── Performance per commerciale (multi-comm dashboard) ─────────────
+    // Aggrega in-period per consulente_id: count tot/vinti/persi + conversion.
+    // Mostrato solo se >1 commerciale per evitare leaderboard mono-attore.
+    type CommStat = {
+      id: string;
+      totale: number;
+      vinti: number;
+      persi: number;
+      valoreVinti: number;
+      conv: number | null;
+    };
+    const byComm = new Map<string, CommStat>();
+    inPeriod.forEach((p) => {
+      const id = p.consulente_id ?? "_unassigned";
+      if (!byComm.has(id)) {
+        byComm.set(id, { id, totale: 0, vinti: 0, persi: 0, valoreVinti: 0, conv: null });
+      }
+      const c = byComm.get(id)!;
+      c.totale += 1;
+      const isVinto = STATI_VINTI.includes(p.stato as SrStatoProgetto);
+      const isPerso = STATI_PERSI.includes(p.stato as SrStatoProgetto);
+      if (isVinto) {
+        c.vinti += 1;
+        c.valoreVinti += (Number(p.totale_min ?? 0) + Number(p.totale_max ?? 0)) / 2;
+      }
+      if (isPerso) c.persi += 1;
+    });
+    // Calcola conversion per ciascuno
+    byComm.forEach((c) => {
+      const decisi = c.vinti + c.persi;
+      c.conv = decisi > 0 ? Math.round((c.vinti / decisi) * 100) : null;
+    });
+    const performanceByComm = Array.from(byComm.values())
+      .sort((a, b) => b.valoreVinti - a.valoreVinti);
+
     return {
       totale: inPeriod.length,
       aperti: aperti.length,
@@ -383,6 +418,8 @@ export default function SerramentiIndex() {
       scaduti,
       inScadenzaProssimi,
       accettatiDaConvertire,
+      // Multi-comm leaderboard
+      performanceByComm,
     };
   }, [progetti, cutoff]);
 
@@ -607,6 +644,67 @@ export default function SerramentiIndex() {
               </Card>
             )}
           </div>
+        )}
+
+        {/* ─── Performance per commerciale (multi-comm leaderboard) ─────
+            Visibile solo se >1 commerciale ha preventivi nel periodo. Mostra
+            ranking per valore vinto + conversion rate per identificare
+            top-performer e team-member da supportare. */}
+        {stats.performanceByComm.length > 1 && (
+          <Card className="border-slate-200">
+            <CardContent className="p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <Trophy className="h-4 w-4 text-slate-700" />
+                  <span className="text-sm font-semibold">Performance commerciali</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  {stats.performanceByComm.length} commerciali · ordinati per valore vinto
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-[10px] uppercase tracking-wide text-muted-foreground border-b">
+                      <th className="text-left py-1 px-2 font-medium">Commerciale</th>
+                      <th className="text-right py-1 px-2 font-medium">Totale</th>
+                      <th className="text-right py-1 px-2 font-medium">Vinti</th>
+                      <th className="text-right py-1 px-2 font-medium">Persi</th>
+                      <th className="text-right py-1 px-2 font-medium">Conv.</th>
+                      <th className="text-right py-1 px-2 font-medium">Valore vinto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.performanceByComm.map((c, idx) => {
+                      const nome = c.id === "_unassigned"
+                        ? <span className="text-muted-foreground italic">Non assegnato</span>
+                        : teamById.get(c.id) ?? <span className="text-muted-foreground">—</span>;
+                      const isTop = idx === 0 && c.valoreVinti > 0;
+                      return (
+                        <tr key={c.id} className="border-b last:border-0 hover:bg-slate-50/60">
+                          <td className="py-1.5 px-2">
+                            <span className="flex items-center gap-1.5">
+                              {isTop && <Trophy className="h-3 w-3 text-amber-500" />}
+                              {nome}
+                            </span>
+                          </td>
+                          <td className="text-right py-1.5 px-2 tabular-nums">{c.totale}</td>
+                          <td className="text-right py-1.5 px-2 tabular-nums text-emerald-700 font-medium">{c.vinti}</td>
+                          <td className="text-right py-1.5 px-2 tabular-nums text-rose-700">{c.persi}</td>
+                          <td className="text-right py-1.5 px-2 tabular-nums">
+                            {c.conv != null ? `${c.conv}%` : "—"}
+                          </td>
+                          <td className="text-right py-1.5 px-2 tabular-nums font-semibold">
+                            {c.valoreVinti > 0 ? fmtEur(c.valoreVinti) : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Toolbar: Search inline + Filtri sheet trigger */}

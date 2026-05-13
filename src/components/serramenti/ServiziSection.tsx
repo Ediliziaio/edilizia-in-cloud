@@ -367,7 +367,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
                           /* Menu compatto: sgancia + elimina su righe da-listino. */
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button size="icon" variant="ghost" className="h-7 w-7">
+                              <Button size="icon" variant="ghost" className="h-8 w-8 sm:h-7 sm:w-7">
                                 <MoreVertical className="h-3.5 w-3.5" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -395,7 +395,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
                           </DropdownMenu>
                         ) : (
                           <Button
-                            size="icon" variant="ghost" className="h-7 w-7"
+                            size="icon" variant="ghost" className="h-8 w-8 sm:h-7 sm:w-7"
                             onClick={() => setToDelete(r)}
                             title="Elimina"
                           >

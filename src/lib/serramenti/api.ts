@@ -342,6 +342,103 @@ export async function deleteProgetto(id: string): Promise<void> {
 
 // ─── SERRAMENTI (BOM) ───────────────────────────────────────────────────────
 
+/**
+ * Duplica un progetto come nuova revisione: clona riga progetto + serramenti +
+ * accessori + servizi sotto un nuovo id.
+ *
+ * Strategia:
+ *  - parent_id = id originale → la nuova riga sa di essere figlia
+ *  - revision_number = max(child.revision_number) + 1
+ *  - stato = "bozza" (la revisione parte sempre da bozza per editing)
+ *  - code = ${original.code}-r${revision_number} (es. SR-2026-001-r2)
+ *  - PDF urls + ordine_id NON copiati (sono output, vanno rigenerati)
+ *  - consulenza_at + valido_fino_data resetati (nuovo ciclo offerta)
+ *
+ * Le righe figlie (serramenti/accessori/servizi) sono insertate via copia
+ * delle colonne dati eccetto id/progetto_id/created_at.
+ */
+export async function duplicaProgetto(originalId: string): Promise<{ newId: string; newCode: string; revision_number: number }> {
+  // 1. Carica originale + childen
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: orig, error: origErr } = await (supabase as any)
+    .from("sr_progetti")
+    .select("*")
+    .eq("id", originalId)
+    .maybeSingle();
+  if (origErr || !orig) throw new Error("Progetto originale non trovato");
+
+  // 2. Compute revision_number: max(children) + 1 (parent stesso conta come r1)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existingRevs } = await (supabase as any)
+    .from("sr_progetti")
+    .select("revision_number")
+    .or(`parent_id.eq.${originalId},id.eq.${originalId}`);
+  const revs = (existingRevs ?? []) as Array<{ revision_number: number }>;
+  const nextRev = Math.max(...revs.map((r) => r.revision_number ?? 1), 1) + 1;
+
+  // 3. Insert nuovo progetto: copia tutti i campi rilevanti, override id e
+  //    metadata. Lasciamo che il DB generi created_at / updated_at.
+   
+  const {
+    id: _origId,
+    code: _origCode,
+    created_at: _ca,
+    updated_at: _ua,
+    pdf_url: _pdf,
+    pdf_generated_at: _pdfAt,
+    pdf_html_url: _pdfHtml,
+    ordine_id: _ordId,
+    consulenza_at: _ca2,
+    valido_fino_data: _vfd,
+    ...copyableFields
+  } = orig as Record<string, unknown>;
+   
+
+  const newCode = `${orig.code}-r${nextRev}`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: nuovo, error: nuovoErr } = await (supabase as any)
+    .from("sr_progetti")
+    .insert({
+      ...copyableFields,
+      code: newCode,
+      stato: "bozza",
+      parent_id: originalId,
+      revision_number: nextRev,
+    })
+    .select("id, code, revision_number")
+    .single();
+  if (nuovoErr || !nuovo) throw new Error(`Creazione revisione fallita: ${nuovoErr?.message}`);
+  const newId = nuovo.id as string;
+
+  // 4. Clona righe figlie. Helper interno per copia generica (skip id/keys server-managed).
+  const cloneRows = async (tableName: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: children } = await (supabase as any)
+      .from(tableName)
+      .select("*")
+      .eq("progetto_id", originalId);
+    if (!children || children.length === 0) return;
+    const rowsToInsert = (children as Array<Record<string, unknown>>).map((r) => {
+       
+      const { id: _id, progetto_id: _pid, created_at: _ca, updated_at: _ua, ...rest } = r;
+       
+      return { ...rest, progetto_id: newId };
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: cloneErr } = await (supabase as any).from(tableName).insert(rowsToInsert);
+    if (cloneErr) {
+      console.warn(`[duplicaProgetto] clone ${tableName} fallito:`, cloneErr.message);
+    }
+  };
+  await Promise.all([
+    cloneRows("sr_serramenti_progetto"),
+    cloneRows("sr_accessori_progetto"),
+    cloneRows("sr_servizi_progetto"),
+  ]);
+
+  return { newId, newCode, revision_number: nextRev };
+}
+
 export async function addSerramento(
   progetto_id: string,
   serramento: Partial<SrSerramentoRow>,

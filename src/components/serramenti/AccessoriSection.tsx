@@ -303,7 +303,7 @@ export function AccessoriSection({ progettoId, detail }: Props) {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className="h-8 w-8 sm:h-7 sm:w-7"
                           onClick={() => setToDelete(a)}
                         >
                           <Trash2 className="h-3.5 w-3.5 text-rose-600" />
