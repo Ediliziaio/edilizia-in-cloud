@@ -692,6 +692,23 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 </div>
               </div>
             </div>
+            {/* Milestone 3: toggle footer legale esteso */}
+            <div className="col-span-12">
+              <div className="flex items-start gap-3 p-3 rounded-md border bg-slate-50/50">
+                <Switch
+                  checked={form.pdf_show_legal_footer === true}
+                  onCheckedChange={(checked) => update("pdf_show_legal_footer", checked)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <Label className="text-sm font-medium block">Mostra footer legale esteso (B2B)</Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Aggiunge in fondo a ogni pagina: <code className="font-mono text-[10px] bg-white px-1 rounded">Cap. Soc. €X · REA Y · PEC: ...</code>.
+                    I dati sono presi da <strong>Impostazioni → Profilo aziendale</strong>: compila prima REA, capitale sociale e PEC. Default off.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </SrCard>

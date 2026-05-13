@@ -1142,6 +1142,7 @@ function PageHeader({ code, clienteNome, companyName, logoUrl, primaryColor, sty
 function PageFooter({
   companyName, indirizzo, telefono, email, vat, website, styles,
   quoteCode, revisionNumber, showRevisionFooter,
+  capitaleSociale, numeroRea, pec, showLegalFooter,
 }: {
   companyName: string;
   indirizzo?: string | null; telefono?: string | null; email?: string | null;
@@ -1153,9 +1154,22 @@ function PageFooter({
   revisionNumber?: number;
   /** Toggle dal template azienda (pdf_show_revision_footer). Default true. */
   showRevisionFooter?: boolean;
+  /** Milestone 3 white-label legal footer */
+  capitaleSociale?: string | null;
+  numeroRea?: string | null;
+  pec?: string | null;
+  showLegalFooter?: boolean;
 }) {
   const line1 = [indirizzo, telefono, email].filter(Boolean).join(" · ");
   const line2 = [vat ? `P.IVA ${vat}` : null, website].filter(Boolean).join(" · ");
+  // Milestone 3 · footer legale esteso (REA + capitale + PEC) — opt-in.
+  const legalLine = showLegalFooter
+    ? [
+        capitaleSociale ? `Cap. Soc. ${capitaleSociale}` : null,
+        numeroRea ? `REA ${numeroRea}` : null,
+        pec ? `PEC: ${pec}` : null,
+      ].filter(Boolean).join(" · ")
+    : "";
   // Milestone 2: footer versione preventivo. Visibile se toggle ON (default).
   // Format: "Preventivo SR-001 · v2 · pagina 3/8 · 13/05/2026"
   const showRevFooter = showRevisionFooter !== false && !!quoteCode;
@@ -1170,6 +1184,7 @@ function PageFooter({
       </View>
       {line1 && <View style={styles.footerRow}><Text>{line1}</Text><Text></Text></View>}
       {line2 && <View style={styles.footerRow}><Text>{line2}</Text><Text></Text></View>}
+      {legalLine && <View style={styles.footerRow}><Text>{legalLine}</Text><Text></Text></View>}
       {showRevFooter && (
         <View style={styles.footerRow}>
           <Text
@@ -1374,6 +1389,16 @@ export function SerramentoPDF({
   const email = template?.email || company?.email;
   const vat = template?.partita_iva || company?.partita_iva;
   const website = company?.website;
+  // Milestone 3 · White-label legal footer extras: campi non ancora nel
+  // SrTemplatePdfRow né nel companies tipizzato → cast safe per leggerli.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const companyAny = (company ?? {}) as any;
+  const capitaleSociale: string | null = companyAny.capitale_sociale != null
+    ? `€ ${Number(companyAny.capitale_sociale).toLocaleString("it-IT")}`
+    : null;
+  const numeroRea: string | null = companyAny.numero_rea ?? null;
+  const pec: string | null = companyAny.pec ?? null;
+  const showLegalFooter = tpl.pdf_show_legal_footer === true;
 
   // Ordine pagine PDF configurato dall'admin nel template editor.
   // normalizePdfPagesOrder garantisce robustezza: aggiunge pagine nuove
@@ -1587,7 +1612,7 @@ export function SerramentoPDF({
                     ))}
                   </View>
                 )}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
             </>
@@ -1686,7 +1711,7 @@ export function SerramentoPDF({
                 </>
               )}
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
             </>
           ),
@@ -1997,7 +2022,7 @@ export function SerramentoPDF({
                 </View>
               </View>
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
             </>
           ),
@@ -2047,7 +2072,7 @@ export function SerramentoPDF({
                     })}
                   </View>
                 </View>
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             ))}
             </>
@@ -2348,7 +2373,7 @@ export function SerramentoPDF({
                 </>
               )}
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
             </>
           ),
@@ -2441,7 +2466,7 @@ export function SerramentoPDF({
                   );
                 })()}
 
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
             </>
@@ -2675,7 +2700,7 @@ export function SerramentoPDF({
                 <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
               )}
 
-              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
+              <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
             </>
           ),
@@ -2701,7 +2726,7 @@ export function SerramentoPDF({
                     </View>
                   ))}
                 </View>
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
             </>
@@ -2752,7 +2777,7 @@ export function SerramentoPDF({
                   Valori stimati confronto serramenti vecchi (anni 80-90 in PVC singolo vetro) vs nuovi standard moderni.
                   Bolletta gas: stima media nazionale Italia per appartamento 90 m² zona climatica E.
                 </Text>
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
             </>
@@ -2776,7 +2801,7 @@ export function SerramentoPDF({
                     </View>
                   ))}
                 </View>
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
             </>
@@ -2802,7 +2827,7 @@ export function SerramentoPDF({
                 {brandFooterTesto && (
                   <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
                 )}
-                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} />
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}
             </>

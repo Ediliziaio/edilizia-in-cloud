@@ -457,6 +457,9 @@ export interface SrTemplatePdfRow {
   /** Mostra footer versioning su ogni pagina PDF (migration 20270514010000).
    *  Default true. "Preventivo {code} · v{rev} · pagina X/N · data". */
   pdf_show_revision_footer: boolean;
+  /** Mostra footer legale esteso (REA, capitale sociale, PEC). Migration
+   *  20270514020000. Default false — opt-in per setup B2B. */
+  pdf_show_legal_footer: boolean;
   created_at: string;
   updated_at: string;
 }
