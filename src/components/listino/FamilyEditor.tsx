@@ -81,6 +81,7 @@ import { Switch } from "@/components/ui/switch";
 import { FamilyAxesEditor } from "./FamilyAxesEditor";
 import { FamilyGridEditor } from "./FamilyGridEditor";
 import { PhotoTemplatePicker } from "./PhotoTemplatePicker";
+import { firstGallerySlugFor } from "@/lib/verticalMapping";
 import { FamilyPricePreview } from "./FamilyPricePreview";
 import { MacroCategorieManager } from "./MacroCategorieManager";
 import { DynamicFieldsRenderer, type DynamicFieldValues } from "./DynamicFieldsRenderer";
@@ -590,7 +591,9 @@ export function FamilyEditor() {
    * del handleImageUpload) e poi applica l'URL.
    */
   const handlePhotoTemplateSelect = async (photo: { image_url: string; nome: string }) => {
-    setImmagineUrl(photo.image_url);
+    // NB: NON aggiorniamo `immagineUrl` prima del save: se saveBase fallisce,
+    // l'utente vedrebbe l'immagine selezionata ma non persistita (UI bugiarda).
+    // Update locale SOLO dopo conferma della mutation server-side.
     if (!family?.id) {
       // Articolo nuovo: salviamo per ottenere un id, poi persistiamo l'URL.
       const savedId = await saveBase();
@@ -603,6 +606,7 @@ export function FamilyEditor() {
           id: savedId,
           patch: { immagine_url: photo.image_url },
         });
+        setImmagineUrl(photo.image_url);
         toast.success(`Foto "${photo.nome}" applicata`);
       } catch (err) {
         toast.error("Errore salvataggio foto", {
@@ -616,6 +620,7 @@ export function FamilyEditor() {
         id: family.id,
         patch: { immagine_url: photo.image_url },
       });
+      setImmagineUrl(photo.image_url);
       toast.success(`Foto "${photo.nome}" applicata`);
     } catch (err) {
       toast.error("Errore salvataggio foto", {
@@ -1909,18 +1914,13 @@ export function FamilyEditor() {
       {/* Galleria foto template — alternativa rapida all'upload manuale.
           Pre-filtra il picker sul primo verticale abilitato della macro
           dell'articolo (es. macro Serramenti → galleria solo Serramenti).
-          Mappatura serramentista→serramenti perche' il company-side usa
-          slug differente da quello della galleria globale. */}
+          Mappatura centralizzata in @/lib/verticalMapping. */}
       <PhotoTemplatePicker
         open={photoTemplatePickerOpen}
         onOpenChange={setPhotoTemplatePickerOpen}
-        initialVertical={(() => {
-          const macro = macrocategorie.find((m) => m.id === macrocategoriaId);
-          const firstV = macro?.verticali_abilitati?.[0];
-          if (!firstV) return null;
-          // Mappa "serramentista" → "serramenti" (gli altri slug coincidono).
-          return firstV === "serramentista" ? "serramenti" : firstV;
-        })()}
+        initialVertical={firstGallerySlugFor(
+          macrocategorie.find((m) => m.id === macrocategoriaId)?.verticali_abilitati,
+        )}
         onSelect={(photo) => void handlePhotoTemplateSelect(photo)}
       />
     </div>

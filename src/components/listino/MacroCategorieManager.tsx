@@ -35,6 +35,7 @@ import {
   Loader2,
   ArrowRight,
   Settings2,
+  Sparkles,
   Tag,
   Upload,
   X as XIcon,
@@ -89,21 +90,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SchedaTecnicaEditor } from "./SchedaTecnicaEditor";
 import { PhotoTemplatePicker } from "./PhotoTemplatePicker";
 import { SubcategorieTemplateDialog } from "./SubcategorieTemplateDialog";
-
-/**
- * Mappa il verticale "company-side" (es. "serramentista") con il vertical_slug
- * usato nella galleria foto template (es. "serramenti"). Serve a pre-filtrare
- * il PhotoTemplatePicker in base al primo verticale abilitato della macro.
- */
-const VERTICAL_TO_GALLERY_SLUG: Record<string, string> = {
-  serramentista: "serramenti",
-  serramenti: "serramenti",
-  fotovoltaico: "fotovoltaico",
-  bagno: "bagno",
-  tetti: "tetti",
-  cappotto: "cappotto",
-  pompe_calore: "pompe_calore",
-};
+import { firstGallerySlugFor, toGallerySlug } from "@/lib/verticalMapping";
 
 // Valori coerenti con companies_vertical_check + fotovoltaico (gestito a parte).
 const VERTICALI_OPTIONS: { value: string; label: string }[] = [
@@ -359,8 +346,7 @@ export function MacroCategorieManager() {
         toast.success("Macrocategoria creata");
         // Auto-suggest subcategorie standard solo se l'utente ha indicato
         // almeno un verticale (altrimenti non sappiamo che template proporre).
-        const firstV = formVerticali[0];
-        const gallerySlug = firstV ? (VERTICAL_TO_GALLERY_SLUG[firstV] ?? firstV) : null;
+        const gallerySlug = firstGallerySlugFor(formVerticali);
         if (created?.id && gallerySlug) {
           setSuggestSubcategorieFor({
             macroId: created.id,
@@ -543,6 +529,20 @@ export function MacroCategorieManager() {
                   onEditCategoria={(row) => openForm({ kind: "cat-edit", row })}
                   onDeleteCategoria={(row) => setToDelete({ kind: "cat", row })}
                   onEditSchedaTecnica={() => setSchedaTecnicaFor(m)}
+                  // Apertura manuale del dialog auto-suggest subcategorie:
+                  // utile quando la macro è già stata creata in passato (no
+                  // verticale impostato all'epoca) e ora si vuole popolarla
+                  // velocemente con i template di settore.
+                  onSuggestSubcategorie={() => {
+                    const slug = firstGallerySlugFor(m.verticali_abilitati);
+                    if (!slug) {
+                      toast.error(
+                        "Imposta prima almeno un verticale (in Modifica macrocategoria).",
+                      );
+                      return;
+                    }
+                    setSuggestSubcategorieFor({ macroId: m.id, nome: m.nome, vertical: slug });
+                  }}
                 />
               );
             })}
@@ -929,11 +929,7 @@ export function MacroCategorieManager() {
       <PhotoTemplatePicker
         open={photoTemplatePickerOpen}
         onOpenChange={setPhotoTemplatePickerOpen}
-        initialVertical={(() => {
-          const firstV = formVerticali[0];
-          if (!firstV) return null;
-          return VERTICAL_TO_GALLERY_SLUG[firstV] ?? firstV;
-        })()}
+        initialVertical={firstGallerySlugFor(formVerticali)}
         onSelect={(photo) => void handlePhotoTemplateSelect(photo)}
       />
     </div>
@@ -954,6 +950,8 @@ interface MacroRowProps {
   onEditCategoria: (row: ListinoCategoria) => void;
   onDeleteCategoria: (row: ListinoCategoria) => void;
   onEditSchedaTecnica: () => void;
+  /** Apre il dialog di auto-suggest subcategorie standard del verticale. */
+  onSuggestSubcategorie: () => void;
 }
 
 // Mappa value→label per le badge dei verticali nel MacroRow header
@@ -972,6 +970,7 @@ function MacroRow({
   onEditCategoria,
   onDeleteCategoria,
   onEditSchedaTecnica,
+  onSuggestSubcategorie,
 }: MacroRowProps) {
   const verticali = macro.verticali_abilitati ?? [];
   return (
@@ -1073,6 +1072,15 @@ function MacroRow({
             className="h-9 w-9"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onSuggestSubcategorie}
+            title="Aggiungi subcategorie standard del verticale"
+            className="h-9 w-9 text-orange-700 hover:text-orange-800 hover:bg-orange-50"
+          >
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"

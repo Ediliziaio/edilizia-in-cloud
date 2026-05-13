@@ -61,10 +61,14 @@ export function useApplySubcategorieTemplate() {
       return (data ?? []) as string[];
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ predicate: (q) => {
-        const k = q.queryKey?.[0];
-        return typeof k === "string" && (k.startsWith("listino-categorie") || k.startsWith("listino-macrocategorie"));
-      }});
+      // Invalidation chirurgica: solo le query del listino categorie/macro
+      // e i loro alias usati nel preventivatore. Niente prefix-match larghi.
+      void qc.invalidateQueries({ queryKey: ["listino-categorie"] });
+      void qc.invalidateQueries({ queryKey: ["listino-categorie-for-families"] });
+      void qc.invalidateQueries({ queryKey: ["listino-categorie-for-editor"] });
+      void qc.invalidateQueries({ queryKey: ["catalog-categories"] });
+      void qc.invalidateQueries({ queryKey: ["listino-macrocategorie"] });
+      void qc.invalidateQueries({ queryKey: ["sr-listino-macrocategorie"] });
     },
   });
 }

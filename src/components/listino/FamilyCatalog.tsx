@@ -52,6 +52,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { FamilyTemplatePicker } from "./FamilyTemplatePicker";
+import { firstGallerySlugFor } from "@/lib/verticalMapping";
 import { useFamilies, useFamiliesCestino } from "@/hooks/useFamilies";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
 import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
@@ -1768,6 +1769,21 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
           open={templatePickerOpen}
           onOpenChange={setTemplatePickerOpen}
           companyId={effectiveCompany.id}
+          // Pre-filtra il verticale in base alla macrocategoria attiva nel
+          // filtro listino: se l'utente sta guardando "Serramenti", la galleria
+          // template si apre già filtrata su quel verticale (meno click).
+          initialVertical={(() => {
+            if (macroFilter === ALL_FILTER || macroFilter === NO_MACRO) return null;
+            const macro = macrocategorie.find((m) => m.id === macroFilter);
+            return firstGallerySlugFor(macro?.verticali_abilitati);
+          })()}
+          // Se anche la categoria è filtrata, l'articolo importato viene
+          // assegnato direttamente lì (UX: zero step manuali post-import).
+          targetCategoriaId={
+            categoriaFilter !== ALL_FILTER && categoriaFilter !== NO_CAT
+              ? categoriaFilter
+              : null
+          }
           onImported={(familyId) => {
             // Naviga al wizard per personalizzare ulteriormente la famiglia
             // appena creata (Step 1 dati base già pre-popolato).

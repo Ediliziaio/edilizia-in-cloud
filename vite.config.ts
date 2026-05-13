@@ -70,7 +70,12 @@ export default defineConfig(() => ({
         // JS/CSS chunks already have content-hash filenames and are cached
         // by Cloudflare edge (immutable, 1 year). Precaching them in the SW
         // causes stale-cache blank-page crashes whenever a new deploy ships.
-        globPatterns: ["**/*.{ico,png,svg,woff2}"],
+        // ESCLUDIAMO /templates/** dal precache: sono asset opzionali (foto
+        // template gallery, ~200KB per il pacchetto Serramenti) caricati on
+        // demand solo dal picker. Cloudflare CDN li serve già velocemente.
+        // Pattern globale + esclusione esplicita /templates/** (foto picker).
+        globPatterns: ["**/*.{ico,svg,woff2}", "icons/**/*.png", "apple-touch-icon.png"],
+        globIgnores: ["**/templates/**", "**/img/**"],
         // NO navigateFallback: Cloudflare Pages handles SPA routing server-side
         // via _redirects (/* /index.html 200). Caching index.html in the SW
         // causes stale chunk-hash references after deploys → "Failed to fetch

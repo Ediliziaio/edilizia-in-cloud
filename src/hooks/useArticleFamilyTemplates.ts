@@ -129,12 +129,16 @@ export function useImportArticleFamilyTemplate() {
       return data as string; // family id
     },
     onSuccess: () => {
-      // Invalida cache famiglie del listino (best effort: invalidiamo tutte
-      // le chiavi che iniziano con "article-families" o "listino-families").
-      void qc.invalidateQueries({ predicate: (q) => {
-        const k = q.queryKey?.[0];
-        return typeof k === "string" && (k.startsWith("article-families") || k.startsWith("listino-families") || k.startsWith("family"));
-      }});
+      // Invalidation chirurgica: SOLO le query che leggono article_families
+      // o le sue derivate. Evitiamo prefix-match larghi tipo "family" che
+      // intercettavano family-editor, family-axes, family-grid... causando
+      // ri-fetch a cascata di stati locali non correlati.
+      void qc.invalidateQueries({ queryKey: ["article-families"] });
+      void qc.invalidateQueries({ queryKey: ["article_families"] });
+      void qc.invalidateQueries({ queryKey: ["families"] });
+      void qc.invalidateQueries({ queryKey: ["listino-families"] });
+      void qc.invalidateQueries({ queryKey: ["article-templates-full"] });
+      void qc.invalidateQueries({ queryKey: ["article-templates"] });
     },
   });
 }
