@@ -1507,15 +1507,20 @@ export function SerramentoPDF({
   const mostraTabellaEcobonus = tpl.pdf_mostra_tabella_ecobonus === true; // default false
   const paginaArticoloDedicata = tpl.pdf_pagine_articolo_dedicate === true; // default false
 
+  // Cast unico a `any` su company per accedere ai campi non ancora nel
+  // type ufficiale (numero_rea, capitale_sociale, pec, anno_fondazione).
+  // Le migrations 20270514020000 e 20270514070000 li aggiungono al DB ma
+  // il tipo `company` qui è ancora il vecchio shape ereditato dal context.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const companyAny = (company ?? {}) as any;
+
   // ─── Milestone 10 · "Perché noi" data-driven ─────────────────────────
   // Le metriche sono memorizzate sul template come array di {label, value,
   // suffix?, icon?, auto_kind?}. Se auto_kind = "auto_anni_fondazione",
   // sostituiamo il value con (annoCorrente - company.anno_fondazione).
   // Se anno_fondazione mancante, scartiamo la metrica auto invece di
   // mostrare "—" o numeri spuri.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const companyM10 = (company ?? {}) as any;
-  const annoFondazione = Number(companyM10?.anno_fondazione ?? 0) || null;
+  const annoFondazione = Number(companyAny?.anno_fondazione ?? 0) || null;
   const annoCorrente = new Date().getFullYear();
   const percheNoiMetricheRaw = (Array.isArray(tpl.pdf_perche_noi_metriche)
     ? tpl.pdf_perche_noi_metriche
@@ -1696,10 +1701,8 @@ export function SerramentoPDF({
   const email = template?.email || company?.email;
   const vat = template?.partita_iva || company?.partita_iva;
   const website = company?.website;
-  // Milestone 3 · White-label legal footer extras: campi non ancora nel
-  // SrTemplatePdfRow né nel companies tipizzato → cast safe per leggerli.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const companyAny = (company ?? {}) as any;
+  // Milestone 3 · White-label legal footer extras: usa il companyAny cast
+  // già dichiarato sopra (consolidato per evitare duplicazioni M10/M3).
   const capitaleSociale: string | null = companyAny.capitale_sociale != null
     ? `€ ${Number(companyAny.capitale_sociale).toLocaleString("it-IT")}`
     : null;
