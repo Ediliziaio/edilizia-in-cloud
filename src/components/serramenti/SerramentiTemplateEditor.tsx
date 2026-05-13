@@ -66,10 +66,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 // M12 · Preset stili cover 1-click (front-end batches, no migration).
 import { COVER_PRESETS, detectActiveCoverPreset } from "./coverPresets";
 // M14 · Contrast WCAG check (testo vs sfondo cover)
 import { contrastRatio, wcagLevel, suggestBestTextColor } from "@/lib/utils/contrast";
+// M16 · Galleria immagini stock (Unsplash free) per cover
+import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "./coverStockImages";
 
 interface SerramentiTemplateEditorProps {
   /** Se true, nasconde lo sticky bottom save (usato dentro Tabs con bottone proprio) */
@@ -180,6 +183,24 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   // Detection live del preset attivo (per evidenziare la card selezionata).
   // Restituisce null se l'utente ha customizzato fuori dai preset.
   const activeCoverPresetId = useMemo(() => detectActiveCoverPreset(form), [form]);
+
+  // ─── M16 · Stock images dialog state ───────────────────────────────────
+  // Dialog modale per scegliere fra le 18 immagini Unsplash. Categoria
+  // filtrabile, click → setta pdf_cover_image_url con URL Unsplash.
+  const [stockDialogOpen, setStockDialogOpen] = useState(false);
+  const [stockCategory, setStockCategory] = useState<CoverStockImage["categoria"] | "all">("all");
+  const stockFiltered = useMemo(
+    () => stockCategory === "all"
+      ? COVER_STOCK_IMAGES
+      : COVER_STOCK_IMAGES.filter((img) => img.categoria === stockCategory),
+    [stockCategory],
+  );
+  const applyStockImage = useCallback((img: CoverStockImage) => {
+    setForm((prev) => ({ ...prev, pdf_cover_image_url: img.url }));
+    setDirty(true);
+    setStockDialogOpen(false);
+    toast.success(`Immagine "${img.label}" impostata`);
+  }, []);
 
   // ─── Logo upload ──────────────────────────────────────────────────────────
   const handleLogoUpload = async (file: File) => {
@@ -1310,13 +1331,13 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       e.target.files?.[0] && handleCoverUpload(e.target.files[0])
                     }
                   />
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => coverInputRef.current?.click()}
                       disabled={uploadingCover}
-                      className="flex-1 h-8 text-xs"
+                      className="flex-1 min-w-[120px] h-8 text-xs"
                     >
                       {uploadingCover ? (
                         <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
@@ -1324,8 +1345,17 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                         <Upload className="h-3 w-3 mr-1.5" />
                       )}
                       {form.pdf_cover_image_url
-                        ? "Cambia immagine"
-                        : "Carica immagine"}
+                        ? "Cambia"
+                        : "Carica"}
+                    </Button>
+                    {/* M16 · Galleria stock images (18 immagini Unsplash) */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStockDialogOpen(true)}
+                      className="flex-1 min-w-[120px] h-8 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                    >
+                      📷 Galleria stock
                     </Button>
                     {form.pdf_cover_image_url && (
                       <Button
@@ -1339,8 +1369,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     )}
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Senza immagine viene usato il colore di sfondo solido.
-                    PNG/JPG max 8 MB.
+                    Carica file (PNG/JPG max 8 MB) o scegli dalle 18 immagini stock free.
                   </p>
                 </div>
 
@@ -2439,6 +2468,84 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           />
         </Suspense>
       )}
+
+      {/* M16 · Dialog galleria immagini stock (18 immagini Unsplash) */}
+      <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="p-4 pb-3 border-b">
+            <DialogTitle className="text-base">📷 Galleria immagini stock</DialogTitle>
+            <DialogDescription className="text-xs">
+              Click su un'immagine per usarla come sfondo cover. Tutte le immagini sono
+              libere da licenza (Unsplash) — uso commerciale incluso.
+            </DialogDescription>
+            {/* Filtri categoria */}
+            <div className="flex flex-wrap gap-1 pt-2">
+              {COVER_STOCK_CATEGORIE.map((cat) => {
+                const isActive = stockCategory === cat.value;
+                return (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => setStockCategory(cat.value)}
+                    className={
+                      "text-[11px] px-2 py-1 rounded-md border transition-all gap-1 inline-flex items-center " +
+                      (isActive
+                        ? "bg-orange-500 text-white border-orange-500 font-semibold"
+                        : "bg-white border-slate-200 hover:border-orange-300 text-slate-700")
+                    }
+                  >
+                    <span>{cat.emoji}</span>
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {stockFiltered.map((img) => {
+                const isActive = form.pdf_cover_image_url === img.url;
+                return (
+                  <button
+                    key={img.id}
+                    type="button"
+                    onClick={() => applyStockImage(img)}
+                    className={
+                      "group relative aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all focus:outline-none focus:ring-2 focus:ring-orange-400 " +
+                      (isActive
+                        ? "border-orange-500 shadow-md ring-2 ring-orange-300"
+                        : "border-slate-200 hover:border-orange-300 hover:shadow-sm")
+                    }
+                    title={img.label}
+                  >
+                    <img
+                      src={img.thumb}
+                      alt={img.label}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                      <span className="text-[10px] font-semibold text-white">{img.label}</span>
+                    </div>
+                    {isActive && (
+                      <div className="absolute top-1.5 right-1.5 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {stockFiltered.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-8">
+                Nessuna immagine in questa categoria.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={delTestIdx !== null} onOpenChange={(o) => !o && setDelTestIdx(null)}>
         <AlertDialogContent>
