@@ -57,14 +57,16 @@ interface Props {
   companyId: string;
   /** Pre-filtro verticale (es. "serramenti"). */
   initialVertical?: string | null;
-  /** Categoria_id da assegnare alla famiglia importata (opzionale). */
-  targetCategoriaId?: string | null;
+  /** Macrocategoria_id da assegnare alla famiglia importata (opzionale).
+   *  Post-refactor 20270513200000 le famiglie si agganciano direttamente
+   *  alla macrocategoria, niente più passaggio per categoria. */
+  targetMacrocategoriaId?: string | null;
   /** Callback con l'id della famiglia creata, dopo import riuscito. */
   onImported?: (familyId: string, template: ArticleFamilyTemplate) => void;
 }
 
 export function FamilyTemplatePicker({
-  open, onOpenChange, companyId, initialVertical, targetCategoriaId, onImported,
+  open, onOpenChange, companyId, initialVertical, targetMacrocategoriaId, onImported,
 }: Props) {
   const [vertical, setVertical] = useState<string>(initialVertical ?? "all");
   const [search, setSearch] = useState("");
@@ -110,7 +112,7 @@ export function FamilyTemplatePicker({
       const familyId = await importMutation.mutateAsync({
         templateId: selected.id,
         companyId,
-        categoriaId: targetCategoriaId ?? null,
+        macrocategoriaId: targetMacrocategoriaId ?? null,
       });
       toast.success(`Articolo "${selected.nome}" importato dal template`, {
         description: `Assi e prezzi pre-popolati. Personalizza ora il listino.`,

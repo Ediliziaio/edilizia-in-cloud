@@ -233,7 +233,6 @@ export function FamilyEditor() {
   // ── Form state Step 1 ────────────────────────────────────────────────────
   const [nome, setNome] = useState("");
   const [macrocategoriaId, setMacrocategoriaId] = useState<string | "none">("none");
-  const [categoriaId, setCategoriaId] = useState<string | "none">("none");
   const [descrizione, setDescrizione] = useState("");
   /**
    * URL pubblico dell'immagine articolo (bucket `article-images`).
@@ -299,11 +298,11 @@ export function FamilyEditor() {
   const currentSnapshot = useMemo(
     () => JSON.stringify({
       nome, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
-      categoriaId, macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
+      macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
     }),
     [
       nome, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
-      categoriaId, macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
+      macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
     ],
   );
   const isDirty =
@@ -318,11 +317,12 @@ export function FamilyEditor() {
   useEffect(() => {
     if (family) {
       setNome(family.nome);
-      const cat = family.categoria_id
-        ? categorie.find((c) => c.id === family.categoria_id)
+      // Preferenza al FK diretto (post-refactor 20270513200000). Fallback al
+      // vecchio path via categoria.macrocategoria_id per articoli pre-refactor.
+      const macroFromCat = family.categoria_id
+        ? categorie.find((c) => c.id === family.categoria_id)?.macrocategoria_id ?? null
         : null;
-      setCategoriaId(family.categoria_id ?? "none");
-      setMacrocategoriaId(cat?.macrocategoria_id ?? "none");
+      setMacrocategoriaId(family.macrocategoria_id ?? macroFromCat ?? "none");
       setDescrizione(family.descrizione ?? "");
       setImmagineUrl(family.immagine_url ?? null);
       setModalita(family.modalita_prezzo_base);
@@ -409,27 +409,6 @@ export function FamilyEditor() {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
-
-  // Categorie filtrate per macrocategoria selezionata
-  const categorieFiltered = useMemo(() => {
-    if (macrocategoriaId === "none") {
-      // Nessuna macro selezionata → mostra solo quelle orfane
-      return categorie.filter((c) => c.macrocategoria_id === null);
-    }
-    return categorie.filter((c) => c.macrocategoria_id === macrocategoriaId);
-  }, [categorie, macrocategoriaId]);
-
-  // Se la macrocategoria cambia e la categoria corrente non appartiene a
-  // quella macro, resetta la selezione.
-  useEffect(() => {
-    if (categoriaId === "none") return;
-    const cat = categorie.find((c) => c.id === categoriaId);
-    if (!cat) return;
-    const macroOfCat = cat.macrocategoria_id ?? "none";
-    if (macroOfCat !== macrocategoriaId) {
-      setCategoriaId("none");
-    }
-  }, [macrocategoriaId, categoriaId, categorie]);
 
   const { data: tariffe = [] } = useQuery({
     queryKey: ["tariffe-for-editor", companyId],
@@ -729,7 +708,11 @@ export function FamilyEditor() {
 
     const payload = {
       nome: nome.trim(),
-      categoria_id: categoriaId === "none" ? null : categoriaId,
+      // Refactor 20270513200000: scriviamo direttamente macrocategoria_id;
+      // categoria_id resta esposto sui tipi ma settato a NULL su tutte le
+      // nuove creazioni (la colonna DB verrà droppata in migration futura).
+      macrocategoria_id: macrocategoriaId === "none" ? null : macrocategoriaId,
+      categoria_id: null,
       descrizione: descrizione.trim() || null,
       modalita_prezzo_base: modalita,
       unit_of_measure: unitOfMeasure,
@@ -925,75 +908,36 @@ export function FamilyEditor() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <div className="flex items-center justify-between gap-2">
-                        <Label htmlFor="f-macrocategoria">Macrocategoria</Label>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-auto p-1 text-xs"
-                          onClick={() => setShowCategorieManager(true)}
-                        >
-                          <FolderTree className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
-                          Gestisci
-                        </Button>
-                      </div>
-                      <Select
-                        value={macrocategoriaId}
-                        onValueChange={(v) => setMacrocategoriaId(v)}
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="f-macrocategoria">Macrocategoria</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-1 text-xs"
+                        onClick={() => setShowCategorieManager(true)}
                       >
-                        <SelectTrigger id="f-macrocategoria">
-                          <SelectValue placeholder="Nessuna" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">— Nessuna —</SelectItem>
-                          {macrocategorie.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {m.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <FolderTree className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+                        Gestisci
+                      </Button>
                     </div>
-                    <div>
-                      <Label htmlFor="f-categoria">Categoria</Label>
-                      <Select
-                        value={categoriaId}
-                        onValueChange={(v) => setCategoriaId(v)}
-                      >
-                        <SelectTrigger id="f-categoria">
-                          <SelectValue
-                            placeholder={
-                              categorieFiltered.length === 0
-                                ? "Crea prima una categoria"
-                                : "Nessuna"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">— Nessuna —</SelectItem>
-                          {categorieFiltered.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {macrocategoriaId !== "none" && categorieFiltered.length === 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Nessuna categoria in questa macrocategoria.{" "}
-                          <button
-                            type="button"
-                            className="underline hover:text-foreground"
-                            onClick={() => setShowCategorieManager(true)}
-                          >
-                            Creane una
-                          </button>
-                        </p>
-                      )}
-                    </div>
+                    <Select
+                      value={macrocategoriaId}
+                      onValueChange={(v) => setMacrocategoriaId(v)}
+                    >
+                      <SelectTrigger id="f-macrocategoria">
+                        <SelectValue placeholder="Nessuna" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— Nessuna —</SelectItem>
+                        {macrocategorie.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div>
@@ -2401,14 +2345,15 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
     duplicating,
   } = props;
 
-  const cat = family.categoria_id
-    ? categorie.find((c) => c.id === family.categoria_id)
-    : null;
-  const macroId = cat?.macrocategoria_id;
+  // Refactor 20270513200000: usa direttamente macrocategoria_id, con fallback
+  // backward-compat via categoria_id per articoli pre-refactor.
+  const macroId = family.macrocategoria_id
+    ?? (family.categoria_id
+      ? categorie.find((c) => c.id === family.categoria_id)?.macrocategoria_id ?? null
+      : null);
   const macroNome = macroId
     ? macrocategorie.find((m) => m.id === macroId)?.nome ?? "—"
     : "Nessuna";
-  const catNome = cat?.nome ?? "Nessuna";
 
   const modalitaPrezzoLabel =
     MODALITA_CARDS.find((m) => m.value === family.modalita_prezzo_base)?.label ??
@@ -2467,7 +2412,6 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
             <div className="font-semibold text-base">{family.nome}</div>
             <div className="flex flex-wrap gap-1 text-xs">
               <Badge variant="outline">{macroNome}</Badge>
-              <Badge variant="outline">{catNome}</Badge>
               <Badge variant="secondary">{family.unit_of_measure}</Badge>
               <Badge variant="secondary">IVA {family.vat_rate}%</Badge>
             </div>

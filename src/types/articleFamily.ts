@@ -62,6 +62,17 @@ export interface ArticleFamily {
   id: string;
   company_id: string;
   vertical: string;
+  /**
+   * FK diretto a listino_macrocategorie. È il nuovo standard dopo il refactor
+   * 20270513200000 — il livello "categoria" intermedio è stato deprecato.
+   * NULL = articolo non assegnato a nessuna macrocategoria.
+   */
+  macrocategoria_id: string | null;
+  /**
+   * @deprecated dal 20270513200000. Mantenuto per retrocompat lettura su
+   * articoli pre-refactor. Le nuove creazioni scrivono solo macrocategoria_id.
+   * La colonna DB verrà droppata in una migration separata dopo verifica.
+   */
   categoria_id: string | null;
   nome: string;
   descrizione: string | null;

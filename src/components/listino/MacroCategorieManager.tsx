@@ -22,7 +22,7 @@
  *  - Tutto opera via hook dedicati → invalidation automatica.
  */
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
   Plus,
@@ -33,7 +33,6 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
-  ArrowRight,
   Settings2,
   Sparkles,
   Tag,
@@ -41,7 +40,6 @@ import {
   X as XIcon,
   ImageIcon,
   FileText,
-  FolderTree,
 } from "lucide-react";
 import { useRef } from "react";
 import { useListinoEntityImage } from "@/hooks/useListinoEntityImage";
@@ -68,28 +66,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
+
 import {
   useListinoMacrocategorie,
   useMacrocategorieMutations,
   type ListinoMacrocategoria,
 } from "@/hooks/useListinoMacrocategorie";
-import {
-  useListinoCategorie,
-  useCategorieMutations,
-  type ListinoCategoria,
-} from "@/hooks/useListinoCategorie";
 import { translateListinoError } from "@/lib/listinoErrors";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SchedaTecnicaEditor } from "./SchedaTecnicaEditor";
 import { PhotoTemplatePicker } from "./PhotoTemplatePicker";
-import { SubcategorieTemplateDialog } from "./SubcategorieTemplateDialog";
 import { FamilyTemplateBulkDialog } from "./FamilyTemplateBulkDialog";
 import { firstGallerySlugFor } from "@/lib/verticalMapping";
 import { useAuthSelector } from "@/contexts/AuthContext";
@@ -113,23 +100,18 @@ const VERTICALI_OPTIONS: { value: string; label: string }[] = [
 type EditMode =
   | { kind: "none" }
   | { kind: "macro-new" }
-  | { kind: "macro-edit"; row: ListinoMacrocategoria }
-  | { kind: "cat-new"; macrocategoriaId: string | null }
-  | { kind: "cat-edit"; row: ListinoCategoria };
+  | { kind: "macro-edit"; row: ListinoMacrocategoria };
 
 type DeleteTarget =
-  | { kind: "macro"; row: ListinoMacrocategoria; childCount: number }
-  | { kind: "cat"; row: ListinoCategoria };
+  | { kind: "macro"; row: ListinoMacrocategoria; childCount: number };
 
 // ─────────────────────────────────────────────────────────────────────────
 // Componente
 // ─────────────────────────────────────────────────────────────────────────
 export function MacroCategorieManager() {
   const { macrocategorie, isLoading: loadingMacro } = useListinoMacrocategorie();
-  const { categorie, isLoading: loadingCat } = useListinoCategorie();
   const { createMacrocategoria, updateMacrocategoria, deleteMacrocategoria } =
     useMacrocategorieMutations();
-  const { createCategoria, updateCategoria, deleteCategoria } = useCategorieMutations();
 
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set<string>());
   const [editMode, setEditMode] = useState<EditMode>({ kind: "none" });
@@ -137,8 +119,9 @@ export function MacroCategorieManager() {
 
   // Form state (riutilizzato per tutti i modal)
   const [formNome, setFormNome] = useState("");
-  const [formDescrizione, setFormDescrizione] = useState("");
-  const [formMacroId, setFormMacroId] = useState<string | "none">("none");
+  // Riservato per future re-introduzioni di campi descrizione brevi (la macro
+  // usa solo descrizione_estesa, mantenuto setter per setForm... cleanup).
+  const [, setFormDescrizione] = useState("");
   const [formVerticali, setFormVerticali] = useState<string[]>([]);
   const [formImmagineUrl, setFormImmagineUrl] = useState<string | null>(null);
   const [formDescrizioneEstesa, setFormDescrizioneEstesa] = useState("");
@@ -150,13 +133,8 @@ export function MacroCategorieManager() {
   const [photoTemplatePickerOpen, setPhotoTemplatePickerOpen] = useState(false);
   // Suggerimento subcategorie standard: aperto dopo create macro riuscito.
   // Contiene la macro appena creata + il primo verticale abilitato.
-  const [suggestSubcategorieFor, setSuggestSubcategorieFor] = useState<{
-    macroId: string;
-    nome: string;
-    vertical: string;
-  } | null>(null);
-  // Bulk import template articoli: aperto dopo SubcategorieTemplateDialog
-  // applicata, oppure manualmente dal bottone Sparkles su una macro esistente.
+  // Bulk import template articoli: aperto auto post-creazione macro
+  // (chain), o manualmente dal bottone Sparkles su una macro esistente.
   const [bulkImportFor, setBulkImportFor] = useState<{
     macroId: string;
     nome: string;
@@ -164,19 +142,6 @@ export function MacroCategorieManager() {
   } | null>(null);
 
   const companyId = useAuthSelector((c) => c.effectiveCompany?.id ?? null);
-
-  // Raggruppa categorie per macrocategoria_id (null → orfane)
-  const byMacroId = useMemo(() => {
-    const m = new Map<string | null, ListinoCategoria[]>();
-    for (const c of categorie) {
-      const key = c.macrocategoria_id;
-      if (!m.has(key)) m.set(key, []);
-      m.get(key)!.push(c);
-    }
-    return m;
-  }, [categorie]);
-
-  const orfane = byMacroId.get(null) ?? [];
 
   const toggleExpanded = (id: string) => {
     setExpanded((prev) => {
@@ -192,28 +157,13 @@ export function MacroCategorieManager() {
     if (mode.kind === "macro-edit") {
       setFormNome(mode.row.nome);
       setFormDescrizione(mode.row.descrizione ?? "");
-      setFormMacroId("none");
       setFormVerticali(mode.row.verticali_abilitati ?? []);
       setFormImmagineUrl(mode.row.immagine_url ?? null);
       setFormDescrizioneEstesa(mode.row.descrizione_estesa ?? mode.row.descrizione ?? "");
-    } else if (mode.kind === "cat-edit") {
-      setFormNome(mode.row.nome);
-      setFormDescrizione(mode.row.descrizione ?? "");
-      setFormMacroId(mode.row.macrocategoria_id ?? "none");
-      setFormVerticali([]);
-      setFormImmagineUrl(null);
-      setFormDescrizioneEstesa("");
-    } else if (mode.kind === "cat-new") {
-      setFormNome("");
-      setFormDescrizione("");
-      setFormMacroId(mode.macrocategoriaId ?? "none");
-      setFormVerticali([]);
-      setFormImmagineUrl(null);
-      setFormDescrizioneEstesa("");
     } else {
+      // macro-new o none: campi vuoti
       setFormNome("");
       setFormDescrizione("");
-      setFormMacroId("none");
       setFormVerticali([]);
       setFormImmagineUrl(null);
       setFormDescrizioneEstesa("");
@@ -224,7 +174,6 @@ export function MacroCategorieManager() {
     setEditMode({ kind: "none" });
     setFormNome("");
     setFormDescrizione("");
-    setFormMacroId("none");
     setFormVerticali([]);
     setFormImmagineUrl(null);
     setFormDescrizioneEstesa("");
@@ -293,30 +242,14 @@ export function MacroCategorieManager() {
   };
 
   const saving =
-    createMacrocategoria.isPending ||
-    updateMacrocategoria.isPending ||
-    createCategoria.isPending ||
-    updateCategoria.isPending;
+    createMacrocategoria.isPending || updateMacrocategoria.isPending;
 
   // Validazione duplicati client-side: evita round-trip al DB per errori
   // prevedibili (UNIQUE constraint su nome). Case-insensitive + trim.
-  const isDuplicateName = (
-    nome: string,
-    kind: "macro" | "cat",
-    excludeId?: string,
-  ): boolean => {
+  const isDuplicateMacroName = (nome: string, excludeId?: string): boolean => {
     const normalized = nome.trim().toLocaleLowerCase("it-IT");
-    if (kind === "macro") {
-      return macrocategorie.some(
-        (m) =>
-          m.id !== excludeId &&
-          m.nome.trim().toLocaleLowerCase("it-IT") === normalized,
-      );
-    }
-    return categorie.some(
-      (c) =>
-        c.id !== excludeId &&
-        c.nome.trim().toLocaleLowerCase("it-IT") === normalized,
+    return macrocategorie.some(
+      (m) => m.id !== excludeId && m.nome.trim().toLocaleLowerCase("it-IT") === normalized,
     );
   };
 
@@ -327,20 +260,9 @@ export function MacroCategorieManager() {
       return;
     }
 
-    // Pre-check duplicati (UX: messaggio immediato invece di errore DB).
-    const isMacro = editMode.kind === "macro-new" || editMode.kind === "macro-edit";
-    const excludeId =
-      editMode.kind === "macro-edit"
-        ? editMode.row.id
-        : editMode.kind === "cat-edit"
-          ? editMode.row.id
-          : undefined;
-    if (isDuplicateName(nome, isMacro ? "macro" : "cat", excludeId)) {
-      toast.error(
-        isMacro
-          ? "Esiste già una macrocategoria con questo nome."
-          : "Esiste già una categoria con questo nome.",
-      );
+    const excludeId = editMode.kind === "macro-edit" ? editMode.row.id : undefined;
+    if (isDuplicateMacroName(nome, excludeId)) {
+      toast.error("Esiste già una macrocategoria con questo nome.");
       return;
     }
 
@@ -355,11 +277,12 @@ export function MacroCategorieManager() {
           verticali_abilitati: formVerticali,
         });
         toast.success("Macrocategoria creata");
-        // Auto-suggest subcategorie standard solo se l'utente ha indicato
-        // almeno un verticale (altrimenti non sappiamo che template proporre).
+        // Post-refactor 20270513200000: bypassiamo il livello categoria
+        // (deprecato) e proponiamo SUBITO l'import dei template articolo per
+        // il verticale scelto. Lo step subcategorie standard è stato rimosso.
         const gallerySlug = firstGallerySlugFor(formVerticali);
         if (created?.id && gallerySlug) {
-          setSuggestSubcategorieFor({
+          setBulkImportFor({
             macroId: created.id,
             nome: created.nome,
             vertical: gallerySlug,
@@ -376,23 +299,6 @@ export function MacroCategorieManager() {
           },
         });
         toast.success("Macrocategoria aggiornata");
-      } else if (editMode.kind === "cat-new") {
-        await createCategoria.mutateAsync({
-          nome,
-          descrizione: formDescrizione.trim() || null,
-          macrocategoria_id: formMacroId === "none" ? null : formMacroId,
-        });
-        toast.success("Categoria creata");
-      } else if (editMode.kind === "cat-edit") {
-        await updateCategoria.mutateAsync({
-          id: editMode.row.id,
-          patch: {
-            nome,
-            descrizione: formDescrizione.trim() || null,
-            macrocategoria_id: formMacroId === "none" ? null : formMacroId,
-          },
-        });
-        toast.success("Categoria aggiornata");
       }
       closeForm();
     } catch (err) {
@@ -410,23 +316,13 @@ export function MacroCategorieManager() {
     }
   };
 
-  const deleting = deleteMacrocategoria.isPending || deleteCategoria.isPending;
+  const deleting = deleteMacrocategoria.isPending;
 
   const handleDelete = async () => {
-    if (!toDelete) return;
+    if (!toDelete || toDelete.kind !== "macro") return;
     try {
-      if (toDelete.kind === "macro") {
-        await deleteMacrocategoria.mutateAsync(toDelete.row.id);
-        toast.success("Macrocategoria eliminata", {
-          description:
-            toDelete.childCount > 0
-              ? `Le ${toDelete.childCount} categorie collegate sono ora senza macrocategoria.`
-              : undefined,
-        });
-      } else {
-        await deleteCategoria.mutateAsync(toDelete.row.id);
-        toast.success("Categoria eliminata");
-      }
+      await deleteMacrocategoria.mutateAsync(toDelete.row.id);
+      toast.success("Macrocategoria eliminata");
       setToDelete(null);
     } catch (err) {
       const { message } = translateListinoError(err);
@@ -434,22 +330,14 @@ export function MacroCategorieManager() {
     }
   };
 
-  const isLoading = loadingMacro || loadingCat;
+  const isLoading = loadingMacro;
 
   const formTitle =
     editMode.kind === "macro-new"
       ? "Nuova macrocategoria"
       : editMode.kind === "macro-edit"
         ? "Modifica macrocategoria"
-        : editMode.kind === "cat-new"
-          ? "Nuova categoria"
-          : editMode.kind === "cat-edit"
-            ? "Modifica categoria"
-            : "";
-
-  const isCatForm = editMode.kind === "cat-new" || editMode.kind === "cat-edit";
-
-  const numCategorieTotali = categorie.length;
+        : "";
 
   return (
     <div className="space-y-3">
@@ -459,21 +347,8 @@ export function MacroCategorieManager() {
           <span className="font-medium">
             {macrocategorie.length} {macrocategorie.length === 1 ? "macrocategoria" : "macrocategorie"}
           </span>
-          <span className="text-muted-foreground">·</span>
-          <span className="text-muted-foreground">
-            {numCategorieTotali} {numCategorieTotali === 1 ? "categoria" : "categorie"}
-          </span>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openForm({ kind: "cat-new", macrocategoriaId: null })}
-            className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
-          >
-            <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-            Nuova categoria
-          </Button>
           <Button
             size="sm"
             onClick={() => openForm({ kind: "macro-new" })}
@@ -491,7 +366,7 @@ export function MacroCategorieManager() {
             <Loader2 className="h-5 w-5 animate-spin mr-2" aria-hidden="true" />
             Caricamento…
           </div>
-        ) : macrocategorie.length === 0 && orfane.length === 0 ? (
+        ) : macrocategorie.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground space-y-3">
             <Folder className="h-10 w-10 mx-auto opacity-40" aria-hidden="true" />
             <div className="space-y-1">
@@ -499,9 +374,9 @@ export function MacroCategorieManager() {
                 Nessuna macrocategoria configurata
               </p>
               <p className="text-xs max-w-md mx-auto">
-                Crea la prima macrocategoria (es. <em>Infissi</em>) per iniziare a
-                strutturare il listino. Le categorie (es. <em>Finestra 1 anta</em>)
-                andranno al suo interno.
+                Crea la prima macrocategoria (es. <em>Serramenti WND Square</em>)
+                per iniziare a strutturare il listino. Gli articoli (es.
+                <em> Finestra 1 anta</em>) andranno al suo interno.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 justify-center pt-1">
@@ -509,42 +384,27 @@ export function MacroCategorieManager() {
                 <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
                 Crea macrocategoria
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => openForm({ kind: "cat-new", macrocategoriaId: null })}
-              >
-                Solo categoria (senza macro)
-              </Button>
             </div>
           </div>
         ) : (
           <div className="space-y-2">
             {macrocategorie.map((m) => {
-              const figlie = byMacroId.get(m.id) ?? [];
               const isOpen = expanded.has(m.id);
               return (
                 <MacroRow
                   key={m.id}
                   macro={m}
-                  categorie={figlie}
                   isOpen={isOpen}
                   onToggle={() => toggleExpanded(m.id)}
                   onEditMacro={() => openForm({ kind: "macro-edit", row: m })}
                   onDeleteMacro={() =>
-                    setToDelete({ kind: "macro", row: m, childCount: figlie.length })
+                    setToDelete({ kind: "macro", row: m, childCount: 0 })
                   }
-                  onAddCategoria={() =>
-                    openForm({ kind: "cat-new", macrocategoriaId: m.id })
-                  }
-                  onEditCategoria={(row) => openForm({ kind: "cat-edit", row })}
-                  onDeleteCategoria={(row) => setToDelete({ kind: "cat", row })}
                   onEditSchedaTecnica={() => setSchedaTecnicaFor(m)}
-                  // Apertura manuale del dialog auto-suggest subcategorie:
-                  // utile quando la macro è già stata creata in passato (no
-                  // verticale impostato all'epoca) e ora si vuole popolarla
-                  // velocemente con i template di settore.
-                  onSuggestSubcategorie={() => {
+                  // Apertura manuale del bulk import template articoli per la
+                  // macro: utile per popolarla velocemente con i template di
+                  // settore. Richiede almeno un verticale impostato.
+                  onImportTemplates={() => {
                     const slug = firstGallerySlugFor(m.verticali_abilitati);
                     if (!slug) {
                       toast.error(
@@ -552,34 +412,11 @@ export function MacroCategorieManager() {
                       );
                       return;
                     }
-                    setSuggestSubcategorieFor({ macroId: m.id, nome: m.nome, vertical: slug });
+                    setBulkImportFor({ macroId: m.id, nome: m.nome, vertical: slug });
                   }}
                 />
               );
             })}
-
-            {/* Gruppo categorie orfane (senza macrocat) */}
-            {orfane.length > 0 && (
-              <div className="rounded-lg border border-dashed bg-muted/20 mt-3">
-                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-dashed">
-                  <Folder className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  <span className="font-medium text-sm text-muted-foreground">Senza macrocategoria</span>
-                  <Badge variant="outline" className="h-5 text-[10px] font-mono">
-                    {orfane.length}
-                  </Badge>
-                </div>
-                <ul className="divide-y divide-border/50">
-                  {orfane.map((c) => (
-                    <CategoriaRow
-                      key={c.id}
-                      row={c}
-                      onEdit={() => openForm({ kind: "cat-edit", row: c })}
-                      onDelete={() => setToDelete({ kind: "cat", row: c })}
-                    />
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -596,18 +433,12 @@ export function MacroCategorieManager() {
           <DialogHeader>
             <div className="flex items-start gap-3">
               <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
-                {isCatForm ? (
-                  <FolderTree className="h-4.5 w-4.5 text-white" aria-hidden="true" />
-                ) : (
-                  <Folder className="h-4.5 w-4.5 text-white" aria-hidden="true" />
-                )}
+                <Folder className="h-4.5 w-4.5 text-white" aria-hidden="true" />
               </div>
               <div className="min-w-0">
                 <DialogTitle>{formTitle}</DialogTitle>
                 <DialogDescription>
-                  {isCatForm
-                    ? "Una categoria può essere dentro una macrocategoria oppure indipendente."
-                    : "Le macrocategorie sono il livello più alto della gerarchia listino (es. INFISSO MODELLO 1)."}
+                  Le macrocategorie sono il livello più alto della gerarchia listino (es. <em>Serramenti WND Square</em>). Sotto vi finiranno direttamente gli articoli del listino.
                 </DialogDescription>
               </div>
             </div>
@@ -620,7 +451,7 @@ export function MacroCategorieManager() {
                 id="mc-nome"
                 value={formNome}
                 onChange={(e) => setFormNome(e.target.value)}
-                placeholder={isCatForm ? "es. FINESTRA 1 ANTA" : "es. INFISSO MODELLO 1"}
+                placeholder="es. SERRAMENTI WND SQUARE"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && formNome.trim() && !saving) {
@@ -630,47 +461,7 @@ export function MacroCategorieManager() {
                 }}
               />
             </div>
-            {/* Per le CATEGORIE manteniamo il campo descrizione semplice
-                (testo breve mostrato negli elenchi). Per le MACROCATEGORIE
-                c'è invece un singolo campo "Descrizione estesa" più sotto,
-                che viene usato sia come riepilogo negli elenchi sia come
-                contenuto della pagina dedicata nel PDF. */}
-            {isCatForm && (
-              <div>
-                <Label htmlFor="mc-descrizione" className="flex items-center justify-between">
-                  <span>Descrizione (opzionale)</span>
-                  <span className="text-[10px] text-muted-foreground font-normal">
-                    {formDescrizione.length}/250
-                  </span>
-                </Label>
-                <Textarea
-                  id="mc-descrizione"
-                  value={formDescrizione}
-                  onChange={(e) => setFormDescrizione(e.target.value.slice(0, 250))}
-                  rows={2}
-                  placeholder="Breve descrizione della categoria"
-                />
-              </div>
-            )}
-            {isCatForm && (
-              <div>
-                <Label htmlFor="mc-macro">Macrocategoria</Label>
-                <Select value={formMacroId} onValueChange={setFormMacroId}>
-                  <SelectTrigger id="mc-macro">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— Nessuna (indipendente) —</SelectItem>
-                    {macrocategorie.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {!isCatForm && formVerticali.length > 0 && editMode.kind === "macro-new" && (
+            {formVerticali.length > 0 && editMode.kind === "macro-new" && (
               <div className="rounded-md border border-orange-200 bg-orange-50/60 p-3 space-y-1">
                 <div className="flex items-center gap-2 text-sm font-medium text-orange-900">
                   <Sparkles className="h-4 w-4 text-orange-600" />
@@ -683,7 +474,8 @@ export function MacroCategorieManager() {
                 </p>
               </div>
             )}
-            {!isCatForm && (
+            {(
+
               <div className="space-y-2 pt-1 border-t">
                 <div className="flex items-center gap-2">
                   <ImageIcon className="h-4 w-4 text-muted-foreground" />
@@ -812,7 +604,8 @@ export function MacroCategorieManager() {
                   Impostazioni → Preventivi Serramenti (o altri verticali) →
                   pannello "Pagine dedicate".
                 Qui sotto è solo un hint informativo. */}
-            {!isCatForm && (
+            {(
+
               <div className="space-y-2 pt-3 border-t">
                 <div className="flex items-start gap-2">
                   <FileText className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
@@ -938,27 +731,8 @@ export function MacroCategorieManager() {
         />
       )}
 
-      {/* Auto-suggest subcategorie standard subito dopo create macrocategoria.
-          Dopo l'applicazione (anche 0 nuove), chain → bulk-import template
-          articoli per quel verticale. Il chain consente all'utente di
-          completare l'onboarding macro → subcategorie → articoli in un solo
-          flusso senza navigation tra pagine. */}
-      <SubcategorieTemplateDialog
-        open={!!suggestSubcategorieFor}
-        onOpenChange={(o) => { if (!o) setSuggestSubcategorieFor(null); }}
-        vertical={suggestSubcategorieFor?.vertical ?? null}
-        macrocategoriaId={suggestSubcategorieFor?.macroId ?? null}
-        macrocategoriaNome={suggestSubcategorieFor?.nome}
-        onApplied={() => {
-          // Chain → bulk import articoli template (stesso macro+vertical).
-          if (suggestSubcategorieFor) {
-            setBulkImportFor({ ...suggestSubcategorieFor });
-          }
-          setSuggestSubcategorieFor(null);
-        }}
-      />
-
-      {/* Bulk import template articoli — chain post subcategorie OR manuale. */}
+      {/* Bulk import template articoli — aperto auto post-creazione macro
+          (chain) o manualmente dal bottone Sparkles sulla riga macro. */}
       {bulkImportFor && companyId && (
         <FamilyTemplateBulkDialog
           open={!!bulkImportFor}
@@ -989,17 +763,13 @@ export function MacroCategorieManager() {
 // ─────────────────────────────────────────────────────────────────────────
 interface MacroRowProps {
   macro: ListinoMacrocategoria;
-  categorie: ListinoCategoria[];
   isOpen: boolean;
   onToggle: () => void;
   onEditMacro: () => void;
   onDeleteMacro: () => void;
-  onAddCategoria: () => void;
-  onEditCategoria: (row: ListinoCategoria) => void;
-  onDeleteCategoria: (row: ListinoCategoria) => void;
   onEditSchedaTecnica: () => void;
-  /** Apre il dialog di auto-suggest subcategorie standard del verticale. */
-  onSuggestSubcategorie: () => void;
+  /** Apre il dialog di bulk import template articoli del verticale. */
+  onImportTemplates: () => void;
 }
 
 // Mappa value→label per le badge dei verticali nel MacroRow header
@@ -1009,16 +779,12 @@ const VERTICAL_LABEL_BY_VALUE = new Map(
 
 function MacroRow({
   macro,
-  categorie,
   isOpen,
   onToggle,
   onEditMacro,
   onDeleteMacro,
-  onAddCategoria,
-  onEditCategoria,
-  onDeleteCategoria,
   onEditSchedaTecnica,
-  onSuggestSubcategorie,
+  onImportTemplates,
 }: MacroRowProps) {
   const verticali = macro.verticali_abilitati ?? [];
   return (
@@ -1068,13 +834,6 @@ function MacroRow({
         >
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             <span className="font-semibold truncate text-[15px] leading-tight">{macro.nome}</span>
-            <Badge
-              variant="secondary"
-              className="shrink-0 text-[10px] h-5 px-1.5 font-mono"
-              title={`${categorie.length} categorie`}
-            >
-              {categorie.length}
-            </Badge>
           </div>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {verticali.length > 0 ? (
@@ -1115,17 +874,8 @@ function MacroRow({
           <Button
             variant="ghost"
             size="icon"
-            onClick={onAddCategoria}
-            title="Aggiungi categoria"
-            className="h-9 w-9"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onSuggestSubcategorie}
-            title="Aggiungi subcategorie standard del verticale"
+            onClick={onImportTemplates}
+            title="Importa articoli template del verticale"
             className="h-9 w-9 text-orange-700 hover:text-orange-800 hover:bg-orange-50"
           >
             <Sparkles className="h-4 w-4" aria-hidden="true" />
@@ -1153,68 +903,14 @@ function MacroRow({
 
       {isOpen && (
         <div className="border-t bg-muted/20">
-          {categorie.length === 0 ? (
-            <div className="px-6 py-5 text-sm text-muted-foreground text-center">
-              Nessuna categoria in questa macrocategoria.
-              <Button
-                variant="link"
-                size="sm"
-                onClick={onAddCategoria}
-                className="h-auto p-0 ml-1"
-              >
-                Aggiungi la prima <ArrowRight className="h-3 w-3 ml-1" aria-hidden="true" />
-              </Button>
-            </div>
-          ) : (
-            <ul className="divide-y divide-border/50">
-              {categorie.map((c) => (
-                <CategoriaRow
-                  key={c.id}
-                  row={c}
-                  onEdit={() => onEditCategoria(c)}
-                  onDelete={() => onDeleteCategoria(c)}
-                />
-              ))}
-            </ul>
-          )}
+          <div className="px-6 py-5 text-sm text-muted-foreground text-center">
+            Gli articoli di questa macrocategoria si gestiscono dal{" "}
+            <strong>Listino articoli</strong>. Usa il pulsante{" "}
+            <Sparkles className="inline h-3.5 w-3.5 text-orange-600" /> qui sopra per
+            importare articoli template pre-configurati.
+          </div>
         </div>
       )}
     </div>
-  );
-}
-
-interface CategoriaRowProps {
-  row: ListinoCategoria;
-  onEdit: () => void;
-  onDelete: () => void;
-}
-
-function CategoriaRow({ row, onEdit, onDelete }: CategoriaRowProps) {
-  return (
-    <li className="flex items-center gap-2 pl-[88px] pr-2 py-2 hover:bg-accent/30 transition-colors group">
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        <span className="text-muted-foreground/50 shrink-0 text-xs">└─</span>
-        <span className="text-sm truncate">{row.nome}</span>
-        {row.descrizione && (
-          <span className="text-xs text-muted-foreground truncate hidden sm:inline">
-            · {row.descrizione}
-          </span>
-        )}
-      </div>
-      <div className="flex gap-0.5 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
-        <Button variant="ghost" size="icon" onClick={onEdit} title="Modifica" className="h-8 w-8">
-          <Edit2 className="h-3.5 w-3.5" aria-hidden="true" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onDelete}
-          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-          title="Elimina"
-        >
-          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-        </Button>
-      </div>
-    </li>
   );
 }

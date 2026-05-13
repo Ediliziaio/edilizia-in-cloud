@@ -112,7 +112,8 @@ export function useImportArticleFamilyTemplate() {
     mutationFn: async (params: {
       templateId: string;
       companyId: string;
-      categoriaId?: string | null;
+      /** Post-refactor 20270513200000: aggancia direttamente alla macro. */
+      macrocategoriaId?: string | null;
       nomeOverride?: string | null;
     }) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -121,7 +122,7 @@ export function useImportArticleFamilyTemplate() {
         {
           p_template_id: params.templateId,
           p_company_id: params.companyId,
-          p_categoria_id: params.categoriaId ?? null,
+          p_macrocategoria_id: params.macrocategoriaId ?? null,
           p_nome_override: params.nomeOverride ?? null,
         },
       );
@@ -145,7 +146,9 @@ export function useImportArticleFamilyTemplatesBatch() {
   return useMutation({
     mutationFn: async (params: {
       companyId: string;
-      items: Array<{ templateId: string; categoriaId?: string | null; nomeOverride?: string | null }>;
+      /** Macrocategoria target (stessa per tutti gli item del batch). */
+      macrocategoriaId?: string | null;
+      items: Array<{ templateId: string; nomeOverride?: string | null }>;
     }) => {
       const created: string[] = [];
       const failed: Array<{ templateId: string; error: string }> = [];
@@ -161,7 +164,7 @@ export function useImportArticleFamilyTemplatesBatch() {
             {
               p_template_id: item.templateId,
               p_company_id: params.companyId,
-              p_categoria_id: item.categoriaId ?? null,
+              p_macrocategoria_id: params.macrocategoriaId ?? null,
               p_nome_override: item.nomeOverride ?? null,
             },
           );

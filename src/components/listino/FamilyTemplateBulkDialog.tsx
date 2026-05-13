@@ -6,20 +6,14 @@
  *  - FamilyTemplateBulkDialog: N template multi-select, batch RPC,
  *    rimaniamo in macro setup (no redirect)
  *
- * Use case principale: aperto automaticamente DOPO che l'utente ha:
- *  1. creato una nuova macrocategoria con un verticale (es. Serramenti)
- *  2. creato le subcategorie standard via SubcategorieTemplateDialog
- * → il sistema offre di pre-popolare il listino con gli articoli template
- * del verticale, mappando ogni template alla subcategoria appena creata
- * (auto-match per nome).
+ * Use case principale: aperto automaticamente DOPO che l'utente ha creato
+ * una nuova macrocategoria con un verticale (es. Serramenti) — il sistema
+ * offre di pre-popolare il listino con tutti gli articoli template del
+ * verticale, agganciandoli direttamente alla macrocategoria appena creata.
  *
- * Auto-mapping categoria:
- *  - Ogni template ha `categoria_slug` (es. "infissi")
- *  - Le subcategorie create hanno `nome` (es. "Infissi")
- *  - Match: `slug.toLowerCase() === nome.toLowerCase().replace(/\s/g, '_')`
- *  - Match also accepts `slug === nome.toLowerCase()` per slug spaziati
- *  - Se nessun match, categoria_id = NULL (la famiglia è sotto macro senza
- *    subcategoria — il commerciale può spostarla dopo)
+ * Post-refactor 20270513200000: gli articoli si agganciano direttamente
+ * alla macrocategoria via article_families.macrocategoria_id (no più
+ * passaggio per la categoria intermedia, che è stata deprecata).
  */
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -27,16 +21,14 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Package, Sparkles, Check } from "lucide-react";
+import { Loader2, Package, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useArticleFamilyTemplates,
   useImportArticleFamilyTemplatesBatch,
   type ArticleFamilyTemplate,
 } from "@/hooks/useArticleFamilyTemplates";
-import type { ListinoCategoria } from "@/hooks/useListinoCategorie";
 
 interface Props {
   open: boolean;
@@ -44,44 +36,16 @@ interface Props {
   companyId: string;
   /** Verticale per cui caricare i template (es. "serramenti"). */
   vertical: string | null;
-  /** Macrocategoria di destinazione. Riservato per future RPC che assegnano
-   *  esplicitamente macrocategoria_id sulle famiglie; oggi la macro è
-   *  derivata via categoria (categoriaId → macrocategoria_id su listino_categorie). */
+  /** Macrocategoria di destinazione: gli articoli importati vi si agganciano
+   *  direttamente via article_families.macrocategoria_id. */
   macroId: string;
   macroNome: string;
-  /** Categorie esistenti sotto questa macro (per auto-match categoria_slug). */
-  availableCategorie: ListinoCategoria[];
   /** Callback dopo import riuscito (lista degli id famiglia creati). */
   onImported?: (familyIds: string[]) => void;
 }
 
-/**
- * Normalizza una stringa per matching: lowercase, trim, spazi→underscore.
- * Es. "Porta Finestra" → "porta_finestra", "Infissi" → "infissi".
- */
-function normalizeForMatch(s: string): string {
-  return s.toLowerCase().trim().replace(/\s+/g, "_");
-}
-
-/**
- * Cerca tra le categorie disponibili quella che matcha lo slug del template.
- * Auto-match basato sul nome normalizzato; se nessun match, restituisce null.
- */
-function autoMatchCategoria(
-  templateCategoriaSlug: string | null,
-  categorie: ListinoCategoria[],
-): string | null {
-  if (!templateCategoriaSlug) return null;
-  const target = normalizeForMatch(templateCategoriaSlug);
-  const match = categorie.find((c) => normalizeForMatch(c.nome) === target);
-  return match?.id ?? null;
-}
-
 export function FamilyTemplateBulkDialog({
-  open, onOpenChange, companyId, vertical,
-  macroId: _macroId,
-  macroNome,
-  availableCategorie, onImported,
+  open, onOpenChange, companyId, vertical, macroId, macroNome, onImported,
 }: Props) {
   const { data: templates = [], isLoading } = useArticleFamilyTemplates({
     vertical: vertical,
@@ -91,8 +55,6 @@ export function FamilyTemplateBulkDialog({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   // Pre-seleziona TUTTI i template ad apertura (UX: "vuoi tutto pronto?").
-  // L'utente deseleziona ciò che non vuole. Per dataset di ~23 elementi è
-  // più rapido che selezionare uno a uno.
   useEffect(() => {
     if (open && templates.length > 0) {
       setSelectedIds(new Set(templates.map((t) => t.id)));
@@ -106,19 +68,6 @@ export function FamilyTemplateBulkDialog({
     () => templates.length > 0 && selectedIds.size === templates.length,
     [templates, selectedIds],
   );
-
-  // Calcolo statistiche match categoria per UI feedback.
-  const stats = useMemo(() => {
-    let matched = 0;
-    let unmatched = 0;
-    selectedIds.forEach((id) => {
-      const t = templates.find((x) => x.id === id);
-      if (!t) return;
-      if (autoMatchCategoria(t.categoria_slug, availableCategorie)) matched++;
-      else unmatched++;
-    });
-    return { matched, unmatched };
-  }, [selectedIds, templates, availableCategorie]);
 
   const toggleAll = () => {
     if (allSelected) setSelectedIds(new Set());
@@ -136,16 +85,14 @@ export function FamilyTemplateBulkDialog({
 
   const handleImport = async () => {
     if (selectedIds.size === 0) return;
-    const items = Array.from(selectedIds).map((id) => {
-      const t = templates.find((x) => x.id === id)!;
-      return {
-        templateId: id,
-        categoriaId: autoMatchCategoria(t.categoria_slug, availableCategorie),
-      };
-    });
+    const items = Array.from(selectedIds).map((id) => ({ templateId: id }));
 
     try {
-      const result = await batchImport.mutateAsync({ companyId, items });
+      const result = await batchImport.mutateAsync({
+        companyId,
+        macrocategoriaId: macroId,
+        items,
+      });
       if (result.failed.length === 0) {
         toast.success(`${result.created.length} articoli importati`, {
           description: macroNome ? `Aggiunti sotto "${macroNome}"` : undefined,
@@ -209,14 +156,6 @@ export function FamilyTemplateBulkDialog({
             <div className="flex items-center justify-between border-b pb-2 shrink-0">
               <span className="text-xs text-muted-foreground">
                 {selectedIds.size}/{templates.length} selezionati
-                {selectedIds.size > 0 && (
-                  <span className="ml-2">
-                    · <span className="text-emerald-700">{stats.matched} con subcategoria</span>
-                    {stats.unmatched > 0 && (
-                      <span className="text-amber-700"> · {stats.unmatched} senza match</span>
-                    )}
-                  </span>
-                )}
               </span>
               <Button variant="ghost" size="sm" onClick={toggleAll} className="text-xs h-7">
                 {allSelected ? "Deseleziona tutti" : "Seleziona tutti"}
@@ -232,10 +171,6 @@ export function FamilyTemplateBulkDialog({
                   <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     {items.map((t) => {
                       const checked = selectedIds.has(t.id);
-                      const categoriaMatch = autoMatchCategoria(t.categoria_slug, availableCategorie);
-                      const matchedCategoria = categoriaMatch
-                        ? availableCategorie.find((c) => c.id === categoriaMatch)
-                        : null;
                       return (
                         <li
                           key={t.id}
@@ -268,19 +203,11 @@ export function FamilyTemplateBulkDialog({
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium leading-tight truncate">{t.nome}</p>
-                            <p className="text-[10px] text-muted-foreground leading-tight mt-0.5 flex items-center gap-1 flex-wrap">
-                              {matchedCategoria ? (
-                                <Badge variant="outline" className="text-[9px] h-4 px-1 border-emerald-300 text-emerald-700">
-                                  <Check className="h-2.5 w-2.5 mr-0.5" />
-                                  {matchedCategoria.nome}
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-[9px] h-4 px-1 border-amber-300 text-amber-700">
-                                  no subcategoria
-                                </Badge>
-                              )}
-                              {t.materiale && <span>{t.materiale}</span>}
-                            </p>
+                            {t.materiale && (
+                              <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                                {t.materiale}
+                              </p>
+                            )}
                           </div>
                         </li>
                       );

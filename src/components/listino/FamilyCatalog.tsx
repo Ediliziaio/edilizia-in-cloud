@@ -37,7 +37,6 @@ import {
   ChevronRight,
   Grid3x3,
   Ruler,
-  Tag,
   Layers,
   Euro,
   TrendingUp,
@@ -263,7 +262,6 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
 
   const [search, setSearch] = useState("");
   const [macroFilter, setMacroFilter] = useState(ALL_FILTER);
-  const [categoriaFilter, setCategoriaFilter] = useState(ALL_FILTER);
   const [modalitaFilter, setModalitaFilter] = useState<string>(ALL_FILTER);
   const [marginFilter, setMarginFilter] = useState<MarginFilter>("all");
   const [toDelete, setToDelete] = useState<FamilyWithAxes | null>(null);
@@ -275,7 +273,6 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
   // densa. Un Dialog esterno e' piu' pulito e allineato a Duplica/Elimina.
   const [toMove, setToMove] = useState<FamilyWithAxes | null>(null);
   const [moveMacroId, setMoveMacroId] = useState<string>(NO_MACRO);
-  const [moveCatId, setMoveCatId] = useState<string>(NO_CAT);
   // Cestino
   const [cestinoOpen, setCestinoOpen] = useState(false);
   const [toHardDelete, setToHardDelete] = useState<ArticleFamily | null>(null);
@@ -324,34 +321,35 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
     [macrocategorie],
   );
 
-  const filterCategorieDisponibili = useMemo(() => {
-    if (macroFilter === ALL_FILTER) return categorie;
-    if (macroFilter === NO_MACRO) return categorie.filter((c) => !c.macrocategoria_id);
-    return categorie.filter((c) => c.macrocategoria_id === macroFilter);
-  }, [categorie, macroFilter]);
-
   const hasActiveFilters =
     search.trim() !== "" ||
     macroFilter !== ALL_FILTER ||
-    categoriaFilter !== ALL_FILTER ||
     modalitaFilter !== ALL_FILTER ||
     marginFilter !== "all";
 
   const resetFilters = () => {
     setSearch("");
     setMacroFilter(ALL_FILTER);
-    setCategoriaFilter(ALL_FILTER);
     setModalitaFilter(ALL_FILTER);
     setMarginFilter("all");
   };
 
-  // Grouping gerarchico macrocat → cat → articoli
+  // Grouping macrocat → articoli (livello categoria deprecato dal refactor 20270513200000)
   const grouped: MacroGroup[] = useMemo(() => {
+    // Resolver macroId per articolo: priorità al FK diretto post-refactor
+    // 20270513200000, fallback via categoria per backward compat.
+    const resolveMacroId = (f: FamilyWithAxes): string => {
+      if (f.macrocategoria_id) return f.macrocategoria_id;
+      if (f.categoria_id) {
+        const cat = categoriaById.get(f.categoria_id);
+        if (cat?.macrocategoria_id) return cat.macrocategoria_id;
+      }
+      return NO_MACRO;
+    };
+
     const q = search.trim().toLowerCase();
     const filtered = families.filter((f) => {
-      const cat = f.categoria_id ? categoriaById.get(f.categoria_id) : null;
-      const catId = cat?.id ?? NO_CAT;
-      const macroId = cat?.macrocategoria_id ?? NO_MACRO;
+      const macroId = resolveMacroId(f);
 
       const matchesSearch =
         q === "" ||
@@ -360,7 +358,6 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
       if (!matchesSearch) return false;
 
       if (macroFilter !== ALL_FILTER && macroId !== macroFilter) return false;
-      if (categoriaFilter !== ALL_FILTER && catId !== categoriaFilter) return false;
       if (modalitaFilter !== ALL_FILTER && f.modalita_prezzo_base !== modalitaFilter) {
         return false;
       }
@@ -372,18 +369,12 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
       return true;
     });
 
-    // macroId → (catId → items[])
-    const bucket = new Map<string, Map<string, FamilyWithAxes[]>>();
-
+    // macroId → items[] — niente più sotto-livello categoria.
+    const bucket = new Map<string, FamilyWithAxes[]>();
     for (const f of filtered) {
-      const cat = f.categoria_id ? categoriaById.get(f.categoria_id) : null;
-      const catId = cat?.id ?? NO_CAT;
-      const macroId = cat?.macrocategoria_id ?? NO_MACRO;
-
-      if (!bucket.has(macroId)) bucket.set(macroId, new Map());
-      const catMap = bucket.get(macroId)!;
-      if (!catMap.has(catId)) catMap.set(catId, []);
-      catMap.get(catId)!.push(f);
+      const macroId = resolveMacroId(f);
+      if (!bucket.has(macroId)) bucket.set(macroId, []);
+      bucket.get(macroId)!.push(f);
     }
 
     const result: MacroGroup[] = [];
@@ -395,8 +386,8 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
     ];
 
     for (const macroId of macroOrder) {
-      const catMap = bucket.get(macroId);
-      if (!catMap || catMap.size === 0) continue;
+      const items = bucket.get(macroId);
+      if (!items || items.length === 0) continue;
 
       const macroRow = macroId === NO_MACRO ? null : macroById.get(macroId);
       const macroNome =
@@ -405,29 +396,19 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
           : macroRow?.nome ?? "Macrocategoria sconosciuta";
       const macroImmagineUrl = macroRow?.immagine_url ?? null;
 
-      // Ordina categorie per sort_order
-      const catIdsSorted = Array.from(catMap.keys()).sort((a, b) => {
-        if (a === NO_CAT) return 1;
-        if (b === NO_CAT) return -1;
-        const ca = categoriaById.get(a);
-        const cb = categoriaById.get(b);
-        const oa = ca?.sort_order ?? 0;
-        const ob = cb?.sort_order ?? 0;
-        if (oa !== ob) return oa - ob;
-        return (ca?.nome ?? "").localeCompare(cb?.nome ?? "");
-      });
+      // Compat schema MacroGroup: 1 sola "categoria virtuale" con tutti gli
+      // articoli della macro (livello categoria deprecato).
+      const categorieGroups: CategoriaGroup[] = [
+        { categoriaId: NO_CAT, categoriaNome: "Articoli", items },
+      ];
 
-      const categorieGroups: CategoriaGroup[] = catIdsSorted.map((catId) => {
-        const items = catMap.get(catId)!;
-        const nome =
-          catId === NO_CAT
-            ? "Senza categoria"
-            : categoriaById.get(catId)?.nome ?? "Categoria sconosciuta";
-        return { categoriaId: catId, categoriaNome: nome, items };
+      result.push({
+        macroId,
+        macroNome,
+        macroImmagineUrl,
+        categorie: categorieGroups,
+        totalItems: items.length,
       });
-
-      const totalItems = categorieGroups.reduce((sum, c) => sum + c.items.length, 0);
-      result.push({ macroId, macroNome, macroImmagineUrl, categorie: categorieGroups, totalItems });
     }
 
     return result;
@@ -435,7 +416,6 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
     families,
     search,
     macroFilter,
-    categoriaFilter,
     modalitaFilter,
     marginFilter,
     categoriaById,
@@ -482,23 +462,26 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
    * Evita di caricare i valori a ogni apertura → UX più fluida.
    */
   const openMove = (f: FamilyWithAxes) => {
-    const currentCat = f.categoria_id ? categoriaById.get(f.categoria_id) : null;
-    setMoveMacroId(currentCat?.macrocategoria_id ?? NO_MACRO);
-    setMoveCatId(currentCat?.id ?? NO_CAT);
+    // Post-refactor 20270513200000: usa direttamente macrocategoria_id,
+    // fallback al vecchio path via categoria per articoli pre-refactor.
+    const currentMacroId = f.macrocategoria_id
+      ?? (f.categoria_id ? categoriaById.get(f.categoria_id)?.macrocategoria_id : null);
+    setMoveMacroId(currentMacroId ?? NO_MACRO);
+    setMoveCatId(NO_CAT);
     setToMove(f);
   };
 
   /**
-   * Applica lo spostamento: aggiorna solo categoria_id (la macrocategoria è
-   * derivata dalla categoria stessa). Se l'utente sceglie "Senza categoria",
-   * persistiamo NULL → l'articolo ricade nel gruppo "Senza macrocategoria".
+   * Sposta un articolo in un'altra macrocategoria. Post-refactor 20270513200000
+   * scriviamo direttamente macrocategoria_id (no più via categoria intermedia).
+   * categoria_id viene azzerato per coerenza con il nuovo schema.
    */
   const handleMove = async (familyId: string) => {
     try {
-      const newCatId = moveCatId === NO_CAT ? null : moveCatId;
+      const newMacroId = moveMacroId === NO_MACRO ? null : moveMacroId;
       await updateFamily.mutateAsync({
         id: familyId,
-        patch: { categoria_id: newCatId } as never,
+        patch: { macrocategoria_id: newMacroId, categoria_id: null } as never,
       });
       toast.success("Articolo spostato");
       setToMove(null);
@@ -508,15 +491,6 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
       });
     }
   };
-
-  // Categorie filtrate per macro scelta nel popover "Sposta". Orfane (macro_id
-  // NULL) restano disponibili solo quando l'utente sceglie "Senza macro".
-  const moveCategorieDisponibili = useMemo(() => {
-    if (moveMacroId === NO_MACRO) {
-      return categorie.filter((c) => !c.macrocategoria_id);
-    }
-    return categorie.filter((c) => c.macrocategoria_id === moveMacroId);
-  }, [categorie, moveMacroId]);
 
   const handleRestore = async (id: string) => {
     try {
@@ -648,10 +622,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
               </Label>
               <Select
                 value={macroFilter}
-                onValueChange={(value) => {
-                  setMacroFilter(value);
-                  setCategoriaFilter(ALL_FILTER);
-                }}
+                onValueChange={setMacroFilter}
               >
                 <SelectTrigger id="filter-macro" className="h-10">
                   <SelectValue />
@@ -662,25 +633,6 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                   {macrocategorie.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
-              <Label htmlFor="filter-categoria" className="text-xs">
-                Categoria
-              </Label>
-              <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-                <SelectTrigger id="filter-categoria" className="h-10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER}>Tutte</SelectItem>
-                  <SelectItem value={NO_CAT}>Senza categoria</SelectItem>
-                  {filterCategorieDisponibili.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -872,7 +824,6 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                         (sum, a) => sum + a.values.length,
                         0,
                       );
-                      const catName = catGroup.categoriaNome;
                       const macroName = macroGroup.macroNome;
                       const econ = computeEconomics(f);
                       return (
@@ -956,16 +907,6 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                             </CardHeader>
                             <CardContent className="pt-0 space-y-2 mt-auto">
                               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                                <span
-                                  className="inline-flex items-center gap-1 max-w-full"
-                                  title={`Categoria: ${catName}`}
-                                >
-                                  <Tag
-                                    className="h-3 w-3 shrink-0"
-                                    aria-hidden="true"
-                                  />
-                                  <span className="truncate">{catName}</span>
-                                </span>
                                 <span
                                   className="inline-flex items-center gap-1"
                                   title="Unità di misura"
@@ -1136,8 +1077,6 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                                     aria-hidden="true"
                                   />
                                   <span className="truncate">{macroName}</span>
-                                  <span aria-hidden="true">›</span>
-                                  <span className="truncate">{catName}</span>
                                 </p>
                                 <h4 className="font-semibold text-sm leading-snug">
                                   {f.nome}
@@ -1461,15 +1400,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
               <Label htmlFor="move-macro" className="text-xs">
                 Macrocategoria
               </Label>
-              <Select
-                value={moveMacroId}
-                onValueChange={(v) => {
-                  setMoveMacroId(v);
-                  // Reset cat quando cambia macro: la cat corrente potrebbe
-                  // non appartenere alla nuova macro.
-                  setMoveCatId(NO_CAT);
-                }}
-              >
+              <Select value={moveMacroId} onValueChange={setMoveMacroId}>
                 <SelectTrigger id="move-macro" className="h-10">
                   <SelectValue />
                 </SelectTrigger>
@@ -1482,29 +1413,6 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="move-cat" className="text-xs">
-                Categoria
-              </Label>
-              <Select value={moveCatId} onValueChange={setMoveCatId}>
-                <SelectTrigger id="move-cat" className="h-10">
-                  <SelectValue placeholder="Nessuna" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_CAT}>Senza categoria</SelectItem>
-                  {moveCategorieDisponibili.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {moveCategorieDisponibili.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Nessuna categoria in questa macrocategoria.
-                </p>
-              ) : null}
             </div>
           </div>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
@@ -1777,12 +1685,10 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
             const macro = macrocategorie.find((m) => m.id === macroFilter);
             return firstGallerySlugFor(macro?.verticali_abilitati);
           })()}
-          // Se anche la categoria è filtrata, l'articolo importato viene
-          // assegnato direttamente lì (UX: zero step manuali post-import).
-          targetCategoriaId={
-            categoriaFilter !== ALL_FILTER && categoriaFilter !== NO_CAT
-              ? categoriaFilter
-              : null
+          // Macrocategoria di destinazione: se l'utente è già filtrato su una
+          // macro specifica, l'articolo importato vi viene assegnato direttamente.
+          targetMacrocategoriaId={
+            macroFilter !== ALL_FILTER && macroFilter !== NO_MACRO ? macroFilter : null
           }
           onImported={(familyId) => {
             // Naviga al wizard per personalizzare ulteriormente la famiglia
