@@ -1,102 +1,31 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+/**
+ * Preventivi — hub principale dei preventivi.
+ *
+ * Layout a tab:
+ *  - "lista"        → vista unificata cross-modulo (UnifiedPreventiviList)
+ *                     Classico + Serramenti + Fotovoltaico in unica tabella
+ *                     con KPI hero, grafici, filtri Sheet, export Excel.
+ *  - "moduli"       → card dei preventivatori verticali (ModuliVendutaTab)
+ *  - "approvazioni" → richieste sconto pending/storico (solo admin)
+ *  - "analisi"      → analisi AI dei preventivi (solo admin)
+ *
+ * Deep-link supportato via query params:
+ *  - ?tab=<lista|moduli|approvazioni|analisi>
+ *  - ?action=import-computo|import-foto|import-smart → apre il modal AI
+ *
+ * NOTA: il refactor V2 (2026-05) ha unificato l'intera lista in
+ * `UnifiedPreventiviList`. Tutto il vecchio rendering quote-only è stato
+ * rimosso (KPI dedicati, charts, bulk select, columns picker, advanced
+ * filters sheet). Le feature equivalenti sono ora dentro UnifiedPreventiviList.
+ */
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import AnalisiPreventivi from "./AnalisiPreventivi";
-import QuoteApprovals from "./QuoteApprovals";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { formatCurrency } from "@/lib/formatters";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
-import { queryKeys } from "@/lib/queryKeys";
-import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
 
-// ─── Local types ───────────────────────────────────────────────────────────────
-
-/** Shape returned by the quotes list query (partial select) */
-interface QuoteRow {
-  id: string;
-  quote_number: string;
-  client_name: string | null;
-  title: string | null;
-  status: string;
-  total: number | null;
-  created_at: string;
-  expires_at: string | null;
-  source?: string | null;
-  salesperson_id?: string | null;
-  approval_status?: string | null;
-  contact_id?: string | null;
-  opportunity_id?: string | null;
-  margine_pct_snapshot?: number | null;
-  commission_amount_snapshot?: number | null;
-  pdf_storage_path?: string | null;
-}
-
-/** Shape returned by the KPI query (partial select) */
-interface QuoteKpiRow {
-  status: string;
-  total: number | null;
-  sent_at: string | null;
-  signed_at: string | null;
-  expires_at: string | null;
-  created_at: string;
-}
-
-/** Shape of duplicate mutation input (superset of QuoteRow) */
-interface QuoteForDuplicate extends QuoteRow {
-  contact_id?: string | null;
-  client_email?: string | null;
-  client_phone?: string | null;
-  client_company?: string | null;
-  client_address?: string | null;
-  client_fiscal_code?: string | null;
-  client_vat_number?: string | null;
-  description?: string | null;
-  notes?: string | null;
-  internal_notes?: string | null;
-  validity_days?: number | null;
-  discount_percent?: number | null;
-  subtotal?: number | null;
-  discount_amount?: number | null;
-  vat_amount?: number | null;
-  [key: string]: unknown;
-}
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  QuotesFiltersSheet,
-  EMPTY_QUOTE_FILTERS,
-  countActiveQuoteFilters,
-  type QuotesFilters,
-} from "@/components/marketing/preventivi/QuotesFiltersSheet";
-import { QuoteQuickViewSheet } from "@/components/marketing/preventivi/QuoteQuickViewSheet";
-import {
-  QuoteColumnsPicker,
-  loadVisibleColumns,
-  type QuoteColumnKey,
-} from "@/components/marketing/preventivi/QuoteColumnsPicker";
-import {
-  QuoteBulkToolbar,
-  type BulkQuoteLite,
-} from "@/components/marketing/preventivi/QuoteBulkToolbar";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend,
-} from "recharts";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -105,76 +34,45 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Plus,
-  Search,
-  MoreHorizontal,
-  Eye,
-  Copy,
-  Trash2,
   FileSignature,
-  Loader2,
-  FileText,
-  Download,
-  TrendingUp,
-  Clock,
-  Target,
-  BrainCircuit,
-  Percent,
-  FileUp,
-  Sparkles,
-  SlidersHorizontal,
-  ChevronDown,
-  FileCheck2,
-  Euro,
   ShoppingBag,
+  Percent,
+  BrainCircuit,
+  ChevronDown,
+  Sparkles,
+  FileUp,
 } from "lucide-react";
+
+import {
+  QuoteHubTabs,
+  QuotePageHeader,
+  type HubTab,
+} from "@/components/marketing/preventivi/ui/builderUI";
 import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
 import { QuoteFromCaptureDialog } from "@/components/quotes/QuoteFromCaptureDialog";
 import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentImportModal";
 import { ModuliVendutaTab } from "@/components/marketing/preventivi/moduli/ModuliVendutaTab";
-import {
-  QuoteHubTabs,
-  QuotePageHeader,
-  QuoteKpi,
-  QuoteCard,
-  type HubTab,
-} from "@/components/marketing/preventivi/ui/builderUI";
+import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
+import { UnifiedPreventiviList } from "@/components/marketing/preventivi/UnifiedPreventiviList";
 
-const QUOTE_LIST_SELECT =
-  "id, quote_number, client_name, title, status, total, created_at, expires_at, source, salesperson_id, approval_status, contact_id, opportunity_id, margine_pct_snapshot, commission_amount_snapshot, pdf_storage_path";
+import AnalisiPreventivi from "./AnalisiPreventivi";
+import QuoteApprovals from "./QuoteApprovals";
+
 const ALLOWED_USER_TABS = new Set(["lista", "moduli"]);
 const ALLOWED_ADMIN_TABS = new Set(["lista", "moduli", "approvazioni", "analisi"]);
 
-const escapeSupabaseSearch = (value: string) =>
-  value.trim().replace(/[%_]/g, "\\$&").replace(/[(),]/g, " ");
-
 export default function Preventivi() {
-  const { effectiveCompany, user, role } = useAuth();
+  const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+
   // NOTA: `isAdmin` controlla l'accesso a dati finanziari sensibili
-  // (margine %, commissioni, approvazioni sconto, analisi).
+  // (margine %, commissioni, approvazioni sconto, analisi AI).
   // - `company_admin`: admin DELL'AZIENDA corrente → corretto vedere margini
-  // - `super_admin`: staff EdiliziaInCloud → oggi vede sempre (globale),
-  //   è corretto quando è in `PlatformCompanyProvider` perché sta guardando
-  //   i preventivi della platform-company (i suoi dati).
-  //   ⚠️ Se in futuro staff potrà impersonare aziende clienti, valutare di
-  //   richiedere audit log per il caso super_admin + effectiveCompany.id !==
-  //   profile.company_id per evitare visibilità indesiderata su margini
-  //   commerciali di terzi.
+  // - `super_admin`: staff EdiliziaInCloud → oggi vede sempre.
   const isAdmin = role === "company_admin" || role === "super_admin";
+
   const requestedTab = searchParams.get("tab") || "lista";
   const activeTab = (isAdmin ? ALLOWED_ADMIN_TABS : ALLOWED_USER_TABS).has(requestedTab)
     ? requestedTab
@@ -186,7 +84,19 @@ export default function Preventivi() {
     setSearchParams(next);
   };
 
-  // Count richieste approvazione sconto pending (solo per admin — badge nel tab)
+  // Cleanup ?status= legacy: vecchio drill-down Sales OS passava ?status=inviata.
+  // Ora il filtro stato è gestito da UnifiedPreventiviList in modo unificato.
+  // Strip silenzioso al primo render per evitare URL "sporche".
+  useEffect(() => {
+    if (searchParams.has("status")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("status");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ─── Count approvazioni pending (badge sul tab — solo admin) ─────────────
   const { data: pendingApprovalsCount = 0 } = useQuery({
     queryKey: ["quote-approvals-pending-count", companyId],
     enabled: !!companyId && isAdmin,
@@ -202,66 +112,20 @@ export default function Preventivi() {
     },
   });
 
-  // Sprint 3: accetta drill-down da Sales OS via ?status=inviata
-  const [statusFilter, setStatusFilter] = useState<string>(() => {
-    const qpStatus = searchParams.get("status");
-    return qpStatus || "tutti";
-  });
-  useEffect(() => {
-    if (searchParams.has("status")) {
-      const next = new URLSearchParams(searchParams);
-      next.delete("status");
-      setSearchParams(next, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const [search, setSearch] = useState("");
-  // Filtri avanzati v4 — centralizzati in QuotesFilters (sheet laterale)
-  const [filters, setFilters] = useState<QuotesFilters>(EMPTY_QUOTE_FILTERS);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [deleteQuote, setDeleteQuote] = useState<QuoteRow | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-
-  // 🛠️ 2026-05-10 — Server-side sorting per preventivi (stesso pattern di
-  // OrdersList). Persisted in localStorage. 7 colonne sortabili dal DB.
-  type QuoteSortField = "created_at" | "issue_date" | "valid_until" | "total"
-    | "margine_pct_snapshot" | "quote_number" | "client_name";
-  const [sortField, setSortField] = useState<QuoteSortField>(() => {
-    try {
-      const v = localStorage.getItem("quotes-sort-field");
-      const valid = ["created_at","issue_date","valid_until","total","margine_pct_snapshot","quote_number","client_name"];
-      if (v && valid.includes(v)) return v as QuoteSortField;
-    } catch { /* private mode */ }
-    return "created_at";
-  });
-  const [sortDir, setSortDir] = useState<"asc" | "desc">(() => {
-    try {
-      return localStorage.getItem("quotes-sort-dir") === "asc" ? "asc" : "desc";
-    } catch { return "desc"; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem("quotes-sort-field", sortField); } catch { /* noop */ }
-  }, [sortField]);
-  useEffect(() => {
-    try { localStorage.setItem("quotes-sort-dir", sortDir); } catch { /* noop */ }
-  }, [sortDir]);
-
+  // ─── Modal AI import (deep-link via ?action=...) ─────────────────────────
   const [showComputoModal, setShowComputoModal] = useState(false);
   const [showFotoModal, setShowFotoModal] = useState(false);
   const [showSmartImportModal, setShowSmartImportModal] = useState(false);
 
-  // 🆕 Bug fix 2026-05-10: gestione query param `?action=` per deep-link da
-  // SilvioFAB ("Computo metrico → Preventivo") e SmartDocumentImportModal
-  // (smista 'computo_metrico' → ?action=import-computo). Senza questo handler
-  // l'utente cliccava il bottone, navigava qui ma il modal non si apriva.
+  // Handler ?action=... per deep-link da SilvioFAB / SmartDocumentImportModal.
+  // Senza questo, cliccando "Computo metrico → Preventivo" il modal non si apriva.
+  // Pulisce il query param dopo l'apertura per evitare re-trigger su back/forward.
   useEffect(() => {
     const action = searchParams.get("action");
     if (!action) return;
     if (action === "import-computo") setShowComputoModal(true);
     else if (action === "import-foto") setShowFotoModal(true);
     else if (action === "import-smart") setShowSmartImportModal(true);
-    // Pulisce il query param dopo l'apertura per evitare re-trigger su back/forward
     if (["import-computo", "import-foto", "import-smart"].includes(action)) {
       const next = new URLSearchParams(searchParams);
       next.delete("action");
@@ -269,439 +133,8 @@ export default function Preventivi() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
-  const [quickViewId, setQuickViewId] = useState<string | null>(null);
-  const PAGE_SIZE = 50;
 
-  // Bulk + colonne (Sprint 5)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [visibleColumns, setVisibleColumns] = useState<Set<QuoteColumnKey>>(() =>
-    loadVisibleColumns()
-  );
-  const isColVisible = (k: QuoteColumnKey) => visibleColumns.has(k);
-
-  const applyQuoteListFilters = (query: any) => {
-    let next = query;
-    if (statusFilter !== "tutti") {
-      next = next.eq("status", statusFilter);
-    }
-    if (filters.statuses.length > 0) {
-      next = next.in("status", filters.statuses);
-    }
-    if (filters.salespersonId) {
-      if (filters.salespersonId === "none") {
-        next = next.is("salesperson_id", null);
-      } else {
-        next = next.eq("salesperson_id", filters.salespersonId);
-      }
-    }
-    if (filters.source) {
-      if (filters.source === "manuale") {
-        next = next.or("source.is.null,source.eq.manual");
-      } else {
-        next = next.eq("source", filters.source);
-      }
-    }
-    if (filters.approvalStatus) {
-      next = next.eq("approval_status", filters.approvalStatus);
-    }
-    if (filters.dateFrom) next = next.gte("created_at", filters.dateFrom);
-    if (filters.dateTo) next = next.lte("created_at", `${filters.dateTo}T23:59:59`);
-    if (filters.importoMin) next = next.gte("total", parseFloat(filters.importoMin));
-    if (filters.importoMax) next = next.lte("total", parseFloat(filters.importoMax));
-    if (isAdmin && filters.marginMin) next = next.gte("margine_pct_snapshot", parseFloat(filters.marginMin));
-    if (isAdmin && filters.marginMax) next = next.lte("margine_pct_snapshot", parseFloat(filters.marginMax));
-    const searchTerm = escapeSupabaseSearch(debouncedSearch);
-    if (searchTerm) {
-      next = next.or(
-        `quote_number.ilike.%${searchTerm}%,client_name.ilike.%${searchTerm}%,title.ilike.%${searchTerm}%`,
-      );
-    }
-    return next;
-  };
-
-  // Debounce ricerca: aspetta 300ms prima di filtrare, resetta la pagina
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-      setCurrentPage(0);
-    }, 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [search]);
-
-  const { data: quotesPage = { data: [], total: 0 }, isLoading } = useQuery({
-    queryKey: [...queryKeys.quotes.list(companyId), currentPage, statusFilter, filters, debouncedSearch, sortField, sortDir],
-    enabled: !!companyId,
-    queryFn: async () => {
-      // nullsFirst: per date di scadenza (valid_until, issue_date) vogliamo
-      // i NULL alla fine sia ASC che DESC (UX più chiara — i preventivi senza
-      // data programmata non rubano la testa).
-      const isDateField = ["created_at", "issue_date", "valid_until"].includes(sortField);
-      const query = applyQuoteListFilters(
-        supabase
-        .from("quotes")
-          .select(QUOTE_LIST_SELECT, { count: "exact" })
-        .eq("company_id", companyId!)
-          .order(sortField, {
-            ascending: sortDir === "asc",
-            nullsFirst: isDateField ? false : (sortDir === "asc"),
-          }),
-      ).range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
-
-      const { data, error, count } = await query;
-      if (error) throw error;
-      return { data: data || [], total: count || 0 };
-    },
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
-
-  // Fetch commerciali per filtro dropdown
-  const { data: salespeopleList = [] } = useQuery({
-    queryKey: ["salespeople-for-filter", companyId],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("salespeople")
-        .select("id, first_name, last_name")
-        .eq("company_id", companyId!)
-        .eq("is_active", true)
-        .order("last_name");
-      if (error) throw error;
-      return data as Array<{ id: string; first_name: string; last_name: string }>;
-    },
-  });
-
-  const salespersonNameById = useMemo(() => {
-    const m = new Map<string, string>();
-    salespeopleList.forEach((s) => m.set(s.id, `${s.first_name} ${s.last_name}`));
-    return m;
-  }, [salespeopleList]);
-
-  // KPI charts — fetch aggregato ultimi 6 mesi (no paginazione)
-  const { data: chartQuotes = [] } = useQuery({
-    queryKey: ["quotes-chart", companyId],
-    enabled: !!companyId,
-    staleTime: 2 * 60 * 1000,
-    queryFn: async () => {
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      const { data, error } = await supabase
-        .from("quotes")
-        .select("status, total, created_at")
-        .eq("company_id", companyId!)
-        .gte("created_at", sixMonthsAgo.toISOString());
-      if (error) throw error;
-      return data as Array<{ status: string; total: number | null; created_at: string }>;
-    },
-  });
-
-  const monthlyTrend = useMemo(() => {
-    // Ultimi 6 mesi con count creati + accettati
-    const now = new Date();
-    const buckets: Array<{ label: string; key: string; created: number; accepted: number; value: number }> = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const label = d.toLocaleString("it-IT", { month: "short" });
-      buckets.push({ label, key, created: 0, accepted: 0, value: 0 });
-    }
-    const byKey = new Map(buckets.map((b) => [b.key, b]));
-    chartQuotes.forEach((q) => {
-      const d = new Date(q.created_at);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const b = byKey.get(key);
-      if (!b) return;
-      b.created++;
-      if (q.status === "accettata") {
-        b.accepted++;
-        b.value += q.total ?? 0;
-      }
-    });
-    return buckets;
-  }, [chartQuotes]);
-
-  const statusDistribution = useMemo(() => {
-    const map = new Map<string, number>();
-    chartQuotes.forEach((q) => map.set(q.status, (map.get(q.status) ?? 0) + 1));
-    const colors: Record<string, string> = {
-      bozza: "#94a3b8",
-      inviata: "#3b82f6",
-      visualizzata: "#8b5cf6",
-      accettata: "#16a34a",
-      rifiutata: "#ef4444",
-      scaduta: "#f97316",
-    };
-    const labels: Record<string, string> = {
-      bozza: "Bozza",
-      inviata: "Inviata",
-      visualizzata: "Visualizzata",
-      accettata: "Accettata",
-      rifiutata: "Rifiutata",
-      scaduta: "Scaduta",
-    };
-    return Array.from(map.entries()).map(([status, value]) => ({
-      name: labels[status] ?? status,
-      value,
-      color: colors[status] ?? "#64748b",
-    }));
-  }, [chartQuotes]);
-
-  const quotes = quotesPage.data;
-  const totalQuotes = quotesPage.total;
-  const totalPages = Math.ceil(totalQuotes / PAGE_SIZE);
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      if (!companyId) throw new Error("Azienda non disponibile");
-      const { data, error } = await supabase
-        .from("quotes")
-        .delete()
-        .eq("id", id)
-        .eq("company_id", companyId)
-        .eq("status", "bozza")
-        .select("id")
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) throw new Error("Preventivo non trovato o non eliminabile");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
-      toast.success("Preventivo eliminato");
-      setDeleteQuote(null);
-    },
-    onError: () => toast.error("Errore eliminazione"),
-  });
-
-  const duplicateMutation = useMutation({
-    mutationFn: async (quote: QuoteForDuplicate) => {
-      if (!companyId) throw new Error("Azienda non disponibile");
-
-      const { data: originalQuote, error: quoteLoadErr } = await supabase
-        .from("quotes")
-        .select("*")
-        .eq("id", quote.id)
-        .eq("company_id", companyId)
-        .maybeSingle();
-      if (quoteLoadErr) throw quoteLoadErr;
-      if (!originalQuote) throw new Error("Preventivo sorgente non trovato");
-
-      // 1. Carica righe originali
-      const { data: originalItems, error: itemsErr } = await supabase
-        .from("quote_items")
-        .select("*")
-        .eq("quote_id", quote.id)
-        .order("sort_order");
-      if (itemsErr) throw itemsErr;
-
-      // 2. Carica allegati originali
-      const { data: originalAttachments } = await supabase
-        .from("quote_pdf_attachments")
-        .select("material_id, sort_order")
-        .eq("quote_id", quote.id);
-
-      // 3. Genera nuovo numero (fail-fast: niente fallback 'OFF-YEAR-DUP',
-      // altrimenti due duplicazioni concorrenti collidono sul UNIQUE quote_number)
-      const { data: numData } = await supabase.rpc("generate_quote_number", {
-        p_company_id: companyId!,
-      });
-      if (!numData) {
-        throw new Error("Generazione numero preventivo fallita, riprova");
-      }
-
-      // 4. Inserisci testata (escludi campi univoci)
-      const {
-        id, created_at, updated_at, quote_number,
-        signature_token, sent_at, viewed_at, signed_at,
-        signed_by_name, signed_by_ip, refused_at, refused_reason,
-        pdf_storage_path, pdf_generated_at, expires_at, created_by,
-        ...rest
-      } = originalQuote as QuoteForDuplicate;
-
-      const { data: newQuote, error: quoteErr } = await supabase
-        .from("quotes")
-        .insert({
-          ...rest,
-          company_id: companyId,
-          quote_number: numData,
-          status: "bozza",
-          approval_status: null,
-          created_by: user?.id ?? null,
-          created_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-      if (quoteErr) throw quoteErr;
-
-      // 5. Copia righe — P0-2: usa save_quote_items_atomic per preservare
-      // le relazioni parent_item_id. Prima il codice spreadava `...item`
-      // includendo `parent_item_id` che però puntava a UUID del preventivo
-      // SORGENTE → le nuove righe avevano FK orfano (o peggio: cross-quote).
-      // Qui passiamo l'ID sorgente come `client_temp_id` e il parent sorgente
-      // come `parent_temp_id`: la RPC rimappa i temp id ai nuovi UUID generati.
-      if (originalItems && originalItems.length > 0) {
-        const payload = originalItems.map((oi, idx) => {
-          const {
-            id: _origId,
-            created_at: _oiCa,
-            updated_at: _oiUa,
-            quote_id: _oiQid,
-            parent_item_id: origParentId,
-            ...itemRest
-          } = oi;
-          return {
-            ...itemRest,
-            sort_order: idx,
-            client_temp_id: oi.id,
-            parent_temp_id: origParentId ?? null,
-          };
-        });
-        const { error: rpcErr } = await supabase.rpc("save_quote_items_atomic", {
-          p_quote_id: newQuote.id,
-          p_company_id: companyId!,
-          p_items: payload,
-        });
-        if (rpcErr) throw rpcErr;
-      }
-
-      // 6. Copia allegati PDF
-      if (originalAttachments && originalAttachments.length > 0) {
-        const { error: attachmentsErr } = await supabase.from("quote_pdf_attachments").insert(
-          originalAttachments.map((a) => ({ ...a, quote_id: newQuote.id }))
-        );
-        if (attachmentsErr) throw attachmentsErr;
-      }
-
-      return newQuote.id;
-    },
-    onSuccess: (newId) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
-      toast.success("Preventivo duplicato con tutte le righe");
-      navigate(`/azienda/marketing/preventivi/${newId}`);
-    },
-    onError: (err: Error) => toast.error("Errore duplicazione: " + (err.message || "errore")),
-  });
-
-  // Reset to page 0 when status filter changes
-  const handleStatusFilter = (value: string) => {
-    setStatusFilter(value);
-    setCurrentPage(0);
-  };
-
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [statusFilter, filters, debouncedSearch, currentPage]);
-
-  const filtered = quotes;
-
-  // KPIs — query separata senza paginazione né filtro status
-  const { data: kpiData } = useQuery({
-    queryKey: ["quotes-kpi", companyId],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("quotes")
-        .select("status, total, sent_at, signed_at, expires_at, created_at")
-        .eq("company_id", companyId!);
-      if (error) throw error;
-      return data || [];
-    },
-    staleTime: 3 * 60 * 1000,
-  });
-  const kpiRows: QuoteKpiRow[] = kpiData || [];
-  const bozze = kpiRows.filter((q) => q.status === "bozza").length;
-  const inviate = kpiRows.filter((q) => q.status === "inviata").length;
-  const accettate = kpiRows.filter((q) => q.status === "accettata").length;
-  const rifiutate = kpiRows.filter((q) => q.status === "rifiutata").length;
-  const valoreTotale = kpiRows
-    .filter((q) => q.status === "accettata")
-    .reduce((sum, q) => sum + (q.total || 0), 0);
-
-  // KPI avanzati
-  const pipeline = kpiRows
-    .filter((q) => q.status === "inviata")
-    .reduce((sum, q) => sum + (q.total || 0), 0);
-
-  const decisioni = accettate + rifiutate;
-  const tassoConversione = decisioni > 0 ? Math.round((accettate / decisioni) * 100) : null;
-
-  const conRisposta = kpiRows.filter(
-    (q) => q.status === "accettata" && q.sent_at && q.signed_at
-  );
-  const tempoMedioMs = conRisposta.length > 0
-    ? conRisposta.reduce((sum, q) => {
-        return sum + (new Date(q.signed_at!).getTime() - new Date(q.sent_at!).getTime());
-      }, 0) / conRisposta.length
-    : null;
-  const tempoMedioGiorni = tempoMedioMs !== null
-    ? Math.round(tempoMedioMs / (1000 * 60 * 60 * 24))
-    : null;
-
-  const nonBozze = kpiRows.filter((q) => q.status !== "bozza");
-  const valoremedioOfferta = nonBozze.length > 0
-    ? nonBozze.reduce((s, q) => s + (q.total || 0), 0) / nonBozze.length
-    : 0;
-
-  // Export Excel
-  const handleExportExcel = async () => {
-    const ExcelJS = (await import("exceljs")).default;
-    if (!companyId) {
-      toast.error("Azienda non disponibile");
-      return;
-    }
-    const exportQuery = applyQuoteListFilters(
-      supabase
-        .from("quotes")
-        .select(QUOTE_LIST_SELECT)
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false }),
-    ).limit(5000);
-    const { data: exportData, error: exportError } = await exportQuery;
-    if (exportError) {
-      toast.error("Errore esportazione preventivi");
-      throw exportError;
-    }
-    const exportRows = ((exportData || []) as QuoteRow[]).map((q: QuoteRow) => {
-      const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
-      return {
-        Numero: q.quote_number || "",
-        Titolo: q.title || "",
-        Cliente: q.client_name || "",
-        Stato: sc.label,
-        "Totale (€)": q.total || 0,
-        "Data creazione": q.created_at ? format(new Date(q.created_at), "dd/MM/yyyy", { locale: it }) : "",
-        Scadenza: q.expires_at ? format(new Date(q.expires_at), "dd/MM/yyyy", { locale: it }) : "",
-      };
-    });
-
-    if (exportRows.length === 0) {
-      toast.info("Nessun preventivo da esportare con i filtri attuali");
-      return;
-    }
-
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet("Preventivi");
-    if (exportRows.length > 0) {
-      const keys = Object.keys(exportRows[0]) as (keyof typeof exportRows[0])[];
-      ws.columns = keys.map((k) => ({
-        header: String(k),
-        key: String(k),
-        width: Math.max(String(k).length, ...exportRows.map((r) => String(r[k] ?? "").length)) + 2,
-      }));
-      ws.addRows(exportRows);
-    }
-    const buffer = await wb.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `preventivi_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Tabs configuration per QuoteHubTabs (replica look del wizard FV)
+  // ─── Tab navigation config ───────────────────────────────────────────────
   const hubTabs: HubTab[] = [
     { key: "lista", label: "Lista Preventivi", icon: <FileSignature className="h-4 w-4" /> },
     { key: "moduli", label: "Moduli Vendita", icon: <ShoppingBag className="h-4 w-4" /> },
@@ -728,734 +161,70 @@ export default function Preventivi() {
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      {/* ─── Tab navigation (replica look wizard FV) ─────────────────── */}
       <QuoteHubTabs tabs={hubTabs} active={activeTab} onSelect={handleTabChange} />
 
       {activeTab === "lista" && (
         <>
-      <QuotePageHeader
-        title="Preventivi"
-        subtitle="Gestisci le offerte commerciali"
-        icon={<FileSignature className="h-5 w-5" />}
-        actions={
-          <>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9">
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Crea da...
-                  <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuItem onClick={() => setShowSmartImportModal(true)} className="font-semibold">
-                  <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
-                  Documento intelligente <span className="ml-auto text-[10px] text-orange-600">AI sceglie</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setShowComputoModal(true)}>
-                  <FileUp className="h-4 w-4 mr-2" />
-                  Computo metrico
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
-                  <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
-                  Foto, schizzi o audio (AI)
-                  <span className="ml-auto text-[10px] text-orange-600">Smart</span>
-                </DropdownMenuItem>
-                {filtered.length > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleExportExcel}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Esporta Excel (tutti)
+          <QuotePageHeader
+            title="Preventivi"
+            subtitle="Vista unificata cross-modulo · classici + serramenti + fotovoltaico"
+            icon={<FileSignature className="h-5 w-5" />}
+            actions={
+              <>
+                {/* "Crea da..." — entry points AI (smart import, computo, foto/audio). */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9">
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Crea da...
+                      <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuItem
+                      onClick={() => setShowSmartImportModal(true)}
+                      className="font-semibold"
+                    >
+                      <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                      Documento intelligente
+                      <span className="ml-auto text-[10px] text-orange-600">AI sceglie</span>
                     </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              onClick={() => navigate("/azienda/marketing/preventivi/nuovo")}
-              size="sm"
-              className="h-9 bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] hover:-translate-y-px transition-all border-0"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Nuovo preventivo
-            </Button>
-          </>
-        }
-      />
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setShowComputoModal(true)}>
+                      <FileUp className="h-4 w-4 mr-2" />
+                      Computo metrico
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
+                      <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                      Foto, schizzi o audio (AI)
+                      <span className="ml-auto text-[10px] text-orange-600">Smart</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-      {/* KPI Hero — 4 metriche chiave (look replica wizard FV) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <QuoteKpi
-          variant="slate"
-          label="Bozze"
-          value={bozze}
-          hint="da completare"
-          icon={<FileText className="h-4 w-4" />}
-        />
-        <QuoteKpi
-          variant="blue"
-          label="Inviate"
-          value={inviate}
-          hint={pipeline > 0 ? `${formatCurrency(pipeline)} in pipeline` : "nessuna pipeline"}
-          icon={<TrendingUp className="h-4 w-4" />}
-        />
-        <QuoteKpi
-          variant="green"
-          label="Accettate"
-          value={accettate}
-          hint={tassoConversione !== null ? `${tassoConversione}% conversion rate` : "—"}
-          icon={<FileCheck2 className="h-4 w-4" />}
-        />
-        <QuoteKpi
-          variant="orange"
-          label="Ricavo firmato"
-          value={formatCurrency(valoreTotale)}
-          hint={accettate > 0 ? `ticket medio ${formatCurrency(valoreTotale / accettate)}` : "nessuna firmata"}
-          icon={<Euro className="h-4 w-4" />}
-        />
-      </div>
-
-      {/* KPI avanzati — striscia compatta navy gradient (replica hero FV) */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-[#1E3A5F] to-[#2C5184] p-4 sm:p-5 shadow-sm">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="flex items-start gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-              <Target className="h-4 w-4 text-orange-300" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Tasso conversione</p>
-              <p className="text-lg font-bold text-white tabular-nums">
-                {tassoConversione !== null ? `${tassoConversione}%` : "—"}
-              </p>
-              {decisioni > 0 && (
-                <p className="text-[10px] text-slate-300">{accettate}/{decisioni} con risposta</p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-start gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-              <TrendingUp className="h-4 w-4 text-orange-300" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Pipeline attiva</p>
-              <p className="text-lg font-bold text-white tabular-nums truncate">{formatCurrency(pipeline)}</p>
-              <p className="text-[10px] text-slate-300">{inviate} offert{inviate === 1 ? "a" : "e"}</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-              <FileText className="h-4 w-4 text-orange-300" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Valore medio</p>
-              <p className="text-lg font-bold text-white tabular-nums truncate">{formatCurrency(valoremedioOfferta)}</p>
-              <p className="text-[10px] text-slate-300">su {nonBozze.length} offert{nonBozze.length === 1 ? "a" : "e"}</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-              <Clock className="h-4 w-4 text-orange-300" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Tempo medio firma</p>
-              <p className="text-lg font-bold text-white tabular-nums">
-                {tempoMedioGiorni !== null ? `${tempoMedioGiorni}gg` : "—"}
-              </p>
-              {conRisposta.length > 0 && (
-                <p className="text-[10px] text-slate-300">su {conRisposta.length} firmat{conRisposta.length === 1 ? "a" : "e"}</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Grafici KPI — trend mensile + distribuzione stati */}
-      {chartQuotes.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <QuoteCard
-            className="lg:col-span-2"
-            title="Trend ultimi 6 mesi"
-            subtitle="Preventivi creati vs accettati"
-            action={
-              <span className="text-emerald-600 tabular-nums">
-                {formatCurrency(monthlyTrend.reduce((s, m) => s + m.value, 0))} firmato
-              </span>
+                {/* "Nuovo preventivo" — dropdown con moduli sbloccati dal super admin
+                    via feature flag. Se nessun modulo è attivo, è un bottone diretto. */}
+                <NewPreventivoMenu size="sm" />
+              </>
             }
-            compact
-          >
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={monthlyTrend} barCategoryGap="25%">
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  cursor={{ fill: "rgba(0,0,0,0.04)" }}
-                  formatter={(v: number, name: string) => [v, name]}
-                />
-                <Bar dataKey="created" name="Creati" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="accepted" name="Accettati" fill="#16a34a" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </QuoteCard>
-
-          <QuoteCard
-            title="Distribuzione stati"
-            subtitle={`${chartQuotes.length} preventivi (6 mesi)`}
-            compact
-          >
-            {statusDistribution.length === 0 ? (
-              <div className="h-[180px] flex items-center justify-center text-muted-foreground text-xs">
-                Nessun dato
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie
-                    data={statusDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={75}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {statusDistribution.map((d, i) => (
-                      <Cell key={i} fill={d.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </QuoteCard>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Cerca per numero, cliente, titolo..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9"
-            />
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setFiltersOpen(true)}
-            className={`h-9 ${countActiveQuoteFilters(filters) > 0 ? "border-primary text-primary" : ""}`}
-          >
-            <SlidersHorizontal className="h-4 w-4 mr-2" />
-            Filtri avanzati
-            {countActiveQuoteFilters(filters) > 0 && (
-              <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">
-                {countActiveQuoteFilters(filters)}
-              </Badge>
-            )}
-          </Button>
-          <QuoteColumnsPicker
-            visible={visibleColumns}
-            onChange={setVisibleColumns}
-            isAdmin={isAdmin}
           />
-        </div>
 
-        {/* 🆕 2026-05-10 — Sort selector server-side: ordina l'INTERO dataset
-            (non solo la pagina visibile). Persisted in localStorage. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground font-medium">Ordina:</span>
-          <Select value={sortField} onValueChange={(v) => { setSortField(v as QuoteSortField); setCurrentPage(0); }}>
-            <SelectTrigger className="h-8 w-auto min-w-[200px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="created_at">Data creazione</SelectItem>
-              <SelectItem value="issue_date">Data emissione</SelectItem>
-              <SelectItem value="valid_until">Validità</SelectItem>
-              <SelectItem value="total">Importo totale</SelectItem>
-              {isAdmin && <SelectItem value="margine_pct_snapshot">Margine %</SelectItem>}
-              <SelectItem value="quote_number">Numero preventivo</SelectItem>
-              <SelectItem value="client_name">Cliente</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setCurrentPage(0); }}>
-            <SelectTrigger className="h-8 w-auto min-w-[160px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="desc">{
-                ["created_at","issue_date","valid_until","total","margine_pct_snapshot"].includes(sortField)
-                  ? "↓ Più recente / grande"
-                  : "↓ Z → A"
-              }</SelectItem>
-              <SelectItem value="asc">{
-                ["created_at","issue_date","valid_until","total","margine_pct_snapshot"].includes(sortField)
-                  ? "↑ Più vecchio / piccolo"
-                  : "↑ A → Z"
-              }</SelectItem>
-            </SelectContent>
-          </Select>
-          {(sortField !== "created_at" || sortDir !== "desc") && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs"
-              onClick={() => { setSortField("created_at"); setSortDir("desc"); setCurrentPage(0); }}
-            >
-              Ripristina
-            </Button>
-          )}
-        </div>
-
-        {/* Bulk actions toolbar — visibile solo con selezione attiva */}
-        <QuoteBulkToolbar
-          selectedIds={selectedIds}
-          selectedQuotes={
-            filtered.filter((q: QuoteRow) => selectedIds.has(q.id)) as unknown as BulkQuoteLite[]
-          }
-          onClearSelection={() => setSelectedIds(new Set())}
-          onReload={() => queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all })}
-        />
-
-        <Tabs value={statusFilter} onValueChange={handleStatusFilter}>
-          <TabsList className="h-9">
-            <TabsTrigger value="tutti" className="gap-1.5 text-xs">
-              Tutti
-              <span className="text-[10px] bg-muted rounded px-1.5 py-0.5 tabular-nums">
-                {kpiRows.length}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="bozza" className="gap-1.5 text-xs">
-              Bozze
-              <span className="text-[10px] bg-slate-200 dark:bg-slate-700 rounded px-1.5 py-0.5 tabular-nums">
-                {bozze}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="inviata" className="gap-1.5 text-xs">
-              Inviate
-              <span className="text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded px-1.5 py-0.5 tabular-nums">
-                {inviate}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="accettata" className="gap-1.5 text-xs">
-              Accettate
-              <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 rounded px-1.5 py-0.5 tabular-nums">
-                {accettate}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="rifiutata" className="gap-1.5 text-xs">
-              Rifiutate
-              <span className="text-[10px] bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded px-1.5 py-0.5 tabular-nums">
-                {rifiutate}
-              </span>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
-      {/* Table */}
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16">
-          <FileSignature className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
-          <h3 className="text-lg font-medium mb-1">Nessun preventivo</h3>
-          <p className="text-muted-foreground mb-4">Crea il tuo primo preventivo</p>
-          <div className="flex gap-2 justify-center">
-            <Button variant="outline" onClick={() => setShowComputoModal(true)}>
-              <FileUp className="h-4 w-4 mr-2" />
-              Da Computo Metrico
-            </Button>
-            <Button onClick={() => navigate("/azienda/marketing/preventivi/nuovo")}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nuovo Preventivo
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <>
-        {/* Mobile card view */}
-        <div className="sm:hidden divide-y">
-          {filtered.map((q: QuoteRow) => {
-            const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
-            return (
-              <div
-                key={q.id}
-                className="p-3 flex items-center gap-3 active:bg-muted/50 cursor-pointer"
-                onClick={() => navigate(`/azienda/marketing/preventivi/${q.id}`)}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-muted-foreground">{q.quote_number}</span>
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 whitespace-nowrap ${sc.className}`}>{sc.label}</Badge>
-                  </div>
-                  <p className="text-sm font-medium truncate mt-0.5">{q.client_name || "—"}</p>
-                  {q.title && <p className="text-xs text-muted-foreground truncate">{q.title}</p>}
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-semibold">{formatCurrency(q.total || 0)}</p>
-                  <p className="text-[10px] text-muted-foreground">{format(new Date(q.created_at), "dd MMM yy", { locale: it })}</p>
-                </div>
-              </div>
-            );
-          })}
-          {filtered.length === 0 && (
-            <p className="text-center text-sm text-muted-foreground py-8">Nessun preventivo trovato</p>
-          )}
-        </div>
-        {/* Desktop table */}
-        <div className="hidden sm:block border rounded-lg overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={(() => {
-                      if (filtered.length === 0) return false;
-                      const allSelected = filtered.every((q: QuoteRow) =>
-                        selectedIds.has(q.id)
-                      );
-                      if (allSelected) return true;
-                      const someSelected = filtered.some((q: QuoteRow) =>
-                        selectedIds.has(q.id)
-                      );
-                      return someSelected ? "indeterminate" : false;
-                    })()}
-                    onCheckedChange={(v) => {
-                      if (v) {
-                        setSelectedIds(
-                          new Set(filtered.map((q: QuoteRow) => q.id))
-                        );
-                      } else {
-                        setSelectedIds(new Set());
-                      }
-                    }}
-                    aria-label="Seleziona tutti"
-                  />
-                </TableHead>
-                {isColVisible("numero") && <TableHead>Numero</TableHead>}
-                {isColVisible("cliente") && <TableHead>Cliente</TableHead>}
-                {isColVisible("titolo") && <TableHead>Titolo</TableHead>}
-                {isColVisible("commerciale") && <TableHead>Commerciale</TableHead>}
-                {isColVisible("stato") && <TableHead>Stato</TableHead>}
-                {isColVisible("approvazione") && <TableHead>Approvazione</TableHead>}
-                {isColVisible("fonte") && <TableHead>Fonte</TableHead>}
-                {isColVisible("totale") && <TableHead className="text-right">Totale</TableHead>}
-                {isAdmin && isColVisible("margine") && (
-                  <TableHead className="text-right">Margine %</TableHead>
-                )}
-                {isAdmin && isColVisible("commissione") && (
-                  <TableHead className="text-right">Commissione</TableHead>
-                )}
-                {isColVisible("data") && <TableHead>Data</TableHead>}
-                {isColVisible("scadenza") && <TableHead>Scadenza</TableHead>}
-                {isColVisible("contatto") && <TableHead>Contatto</TableHead>}
-                {isColVisible("opportunita") && <TableHead>Opp.</TableHead>}
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((q: QuoteRow, idx: number) => {
-                const sc = QUOTE_STATUS_CONFIG[q.status as QuoteStatus] || QUOTE_STATUS_CONFIG.bozza;
-                const isSelected = selectedIds.has(q.id);
-                return (
-                  <TableRow
-                    key={q.id}
-                    className={`cursor-pointer transition-colors ${
-                      isSelected
-                        ? "bg-primary/10 hover:bg-primary/15"
-                        : idx % 2 === 1
-                        ? "bg-muted/30 hover:bg-muted/60"
-                        : "hover:bg-muted/40"
-                    }`}
-                    onClick={() => navigate(`/azienda/marketing/preventivi/${q.id}`)}
-                  >
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={(v) => {
-                          setSelectedIds((prev) => {
-                            const next = new Set(prev);
-                            if (v) next.add(q.id);
-                            else next.delete(q.id);
-                            return next;
-                          });
-                        }}
-                        aria-label={`Seleziona ${q.quote_number}`}
-                      />
-                    </TableCell>
-                    {isColVisible("numero") && (
-                      <TableCell className="font-mono text-sm">
-                        {q.quote_number}
-                        {q.source === "computo_ai" && (
-                          <Badge variant="outline" className="ml-1.5 text-[9px] py-0 border-orange-300 text-orange-600 bg-orange-50">
-                            <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                            Computo AI
-                          </Badge>
-                        )}
-                      </TableCell>
-                    )}
-                    {isColVisible("cliente") && (
-                      <TableCell>{q.client_name || "—"}</TableCell>
-                    )}
-                    {isColVisible("titolo") && (
-                      <TableCell className="max-w-[200px] truncate">{q.title || "—"}</TableCell>
-                    )}
-                    {isColVisible("commerciale") && (
-                      <TableCell className="text-xs">
-                        {q.salesperson_id ? (
-                          <span className="text-foreground">{salespersonNameById.get(q.salesperson_id) ?? "—"}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                    )}
-                    {isColVisible("stato") && (
-                      <TableCell>
-                        <Badge variant="outline" className={`whitespace-nowrap ${sc.className}`}>{sc.label}</Badge>
-                      </TableCell>
-                    )}
-                    {isColVisible("approvazione") && (
-                      <TableCell>
-                        {q.approval_status === "pending" && (
-                          <Badge variant="outline" className="border-orange-500 text-orange-600 text-[10px]">Pending</Badge>
-                        )}
-                        {q.approval_status === "approved" && (
-                          <Badge variant="outline" className="border-green-500 text-green-600 text-[10px]">OK</Badge>
-                        )}
-                        {q.approval_status === "rejected" && (
-                          <Badge variant="outline" className="border-red-500 text-red-600 text-[10px]">Rifiutato</Badge>
-                        )}
-                        {!q.approval_status && <span className="text-muted-foreground text-xs">—</span>}
-                      </TableCell>
-                    )}
-                    {isColVisible("fonte") && (
-                      <TableCell className="text-xs">
-                        {q.source ? (
-                          <Badge variant="secondary" className="text-[10px]">{q.source}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">manuale</span>
-                        )}
-                      </TableCell>
-                    )}
-                    {isColVisible("totale") && (
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(q.total || 0)}
-                      </TableCell>
-                    )}
-                    {isAdmin && isColVisible("margine") && (
-                      <TableCell className="text-right text-xs">
-                        {q.margine_pct_snapshot != null
-                          ? `${Number(q.margine_pct_snapshot).toFixed(1)}%`
-                          : "—"}
-                      </TableCell>
-                    )}
-                    {isAdmin && isColVisible("commissione") && (
-                      <TableCell className="text-right text-xs">
-                        {q.commission_amount_snapshot != null
-                          ? formatCurrency(Number(q.commission_amount_snapshot))
-                          : "—"}
-                      </TableCell>
-                    )}
-                    {isColVisible("data") && (
-                      <TableCell className="text-muted-foreground text-sm">
-                        {format(new Date(q.created_at), "dd MMM yyyy", { locale: it })}
-                      </TableCell>
-                    )}
-                    {isColVisible("scadenza") && (
-                      <TableCell className="text-muted-foreground text-sm">
-                        {q.expires_at
-                          ? format(new Date(q.expires_at), "dd MMM yyyy", { locale: it })
-                          : "—"}
-                      </TableCell>
-                    )}
-                    {isColVisible("contatto") && (
-                      <TableCell>
-                        {q.contact_id ? (
-                          <span
-                            className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold"
-                            title="Collegato a contatto"
-                          >
-                            ✓
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/50 text-xs">—</span>
-                        )}
-                      </TableCell>
-                    )}
-                    {isColVisible("opportunita") && (
-                      <TableCell>
-                        {q.opportunity_id ? (
-                          <span
-                            className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-[10px] font-bold"
-                            title="Collegato a opportunità"
-                          >
-                            ✓
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/50 text-xs">—</span>
-                        )}
-                      </TableCell>
-                    )}
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/azienda/marketing/preventivi/${q.id}`);
-                            }}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            Apri
-                          </DropdownMenuItem>
-                          {isAdmin && (
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setQuickViewId(q.id);
-                              }}
-                            >
-                              <TrendingUp className="h-4 w-4 mr-2" />
-                              Anteprima admin (margini)
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              duplicateMutation.mutate(q);
-                            }}
-                          >
-                            <Copy className="h-4 w-4 mr-2" />
-                            Duplica
-                          </DropdownMenuItem>
-                          {q.contact_id && (
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/azienda/marketing/contatti/${q.contact_id}`);
-                              }}
-                            >
-                              <Eye className="h-4 w-4 mr-2" />
-                              Apri contatto
-                            </DropdownMenuItem>
-                          )}
-                          {q.opportunity_id && (
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/azienda/marketing/opportunita?id=${q.opportunity_id}`);
-                              }}
-                            >
-                              <Eye className="h-4 w-4 mr-2" />
-                              Apri opportunità
-                            </DropdownMenuItem>
-                          )}
-                          {q.status === "bozza" && (
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteQuote(q);
-                              }}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Elimina
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-        </>
-      )}
-
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-2">
-          <p className="text-sm text-muted-foreground">
-            {currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, totalQuotes)} di {totalQuotes}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage === 0}
-              onClick={() => setCurrentPage((p) => p - 1)}
-            >
-              Precedente
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage >= totalPages - 1}
-              onClick={() => setCurrentPage((p) => p + 1)}
-            >
-              Successiva
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <AlertDialog open={!!deleteQuote} onOpenChange={(o) => !o && setDeleteQuote(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Elimina preventivo</AlertDialogTitle>
-            <AlertDialogDescription>
-              Eliminare il preventivo {deleteQuote?.quote_number}? L'azione è irreversibile.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteQuote && deleteMutation.mutate(deleteQuote.id)}
-              disabled={deleteMutation.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Eliminazione...</>
-              ) : "Elimina"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          <UnifiedPreventiviList />
         </>
       )}
 
       {activeTab === "moduli" && <ModuliVendutaTab />}
-
       {activeTab === "approvazioni" && isAdmin && <QuoteApprovals />}
-
       {activeTab === "analisi" && isAdmin && <AnalisiPreventivi />}
 
-      {/* Modal Computo Metrico AI */}
+      {/* Modal AI: Computo metrico → Preventivo */}
       <ComputoUploadModal
         open={showComputoModal}
         onOpenChange={setShowComputoModal}
         onComplete={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
       />
 
-      {/* Modal Foto/Audio/Testo — AI moderna ai-quote-from-capture
-          Multi-foto (10), audio (3min), testo libero.
-          Pipeline: vision → matching pgvector listino → review interattivo */}
+      {/* Modal AI: Foto/audio/testo → Preventivo (multi-foto, audio 3min) */}
       <QuoteFromCaptureDialog
         open={showFotoModal}
         onOpenChange={setShowFotoModal}
@@ -1467,25 +236,6 @@ export default function Preventivi() {
         open={showSmartImportModal}
         onOpenChange={setShowSmartImportModal}
       />
-
-      {/* Sidebar filtri avanzati (stile Contatti/Opportunità) */}
-      <QuotesFiltersSheet
-        open={filtersOpen}
-        onOpenChange={setFiltersOpen}
-        filters={filters}
-        onApply={(f) => { setFilters(f); setCurrentPage(0); }}
-        salespeople={salespeopleList}
-        isAdmin={isAdmin}
-      />
-
-      {/* Drawer anteprima admin con margini/provvigione/approvazioni */}
-      {isAdmin && (
-        <QuoteQuickViewSheet
-          quoteId={quickViewId}
-          open={!!quickViewId}
-          onOpenChange={(o) => { if (!o) setQuickViewId(null); }}
-        />
-      )}
     </div>
   );
 }
