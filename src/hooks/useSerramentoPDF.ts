@@ -16,6 +16,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { getTemplatePdf } from "@/lib/serramenti/api";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import type {
   SrProgettoDetail, SrTemplatePdfRow,
@@ -111,6 +112,14 @@ export interface SerramentoPdfEnriched {
 export interface SerramentoPdfPayload {
   detail: SrProgettoDetail;
   template?: SrTemplatePdfRow | null;
+  /**
+   * Se true rilegge il template aziendale da Supabase al momento della
+   * generazione. Serve per preview/download dal wizard: l'ordine pagine e le
+   * impostazioni PDF devono riflettere l'ultimo salvataggio, non la cache
+   * React Query aperta magari 5 minuti prima. Le anteprime live del template
+   * editor lasciano false per usare il draft non ancora salvato.
+   */
+  useFreshTemplate?: boolean;
   company?: SerramentoPdfEnriched["company"];
 }
 
@@ -188,7 +197,10 @@ async function mapWithConcurrency<T, R>(
 }
 
 async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEnriched> {
-  const { detail, template, company } = opts;
+  const { detail, company } = opts;
+  const template = opts.useFreshTemplate
+    ? await getTemplatePdf()
+    : opts.template ?? null;
   const prog = detail.progetto;
   const companyId = prog.company_id;
 
@@ -572,8 +584,12 @@ export function useSerramentoPDF() {
       }.pdf`;
       a.href = url;
       a.download = filename;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      // Alcuni browser (Safari/Chrome con download manager lento) leggono il
+      // blob dopo il click async: revoca immediata = download talvolta vuoto.
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
       toast.success("PDF scaricato", { description: filename });
       return { ok: true };
     } catch (err) {

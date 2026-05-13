@@ -78,7 +78,7 @@ Deno.serve(async (req: Request) => {
     // Carica azienda branding
     const { data: company } = await sb
       .from("companies")
-      .select("name, ragione_sociale, indirizzo, telefono, email, partita_iva, logo_url")
+      .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url")
       .eq("id", prog.company_id)
       .maybeSingle();
 
@@ -124,6 +124,12 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const companyAddress = [
+      company?.legal_address,
+      [company?.legal_postal_code, company?.legal_city].filter(Boolean).join(" "),
+      company?.legal_province,
+    ].filter(Boolean).join(", ");
+
     return jsonResponse({
       ok: true,
       progetto: {
@@ -152,11 +158,11 @@ Deno.serve(async (req: Request) => {
       },
       pdf_url: pdfUrl,
       azienda: {
-        nome: tpl?.ragione_sociale || company?.ragione_sociale || company?.name || "Azienda",
-        indirizzo: tpl?.indirizzo_completo || company?.indirizzo,
-        telefono: tpl?.telefono || company?.telefono,
+        nome: tpl?.ragione_sociale || company?.business_name || company?.name || "Azienda",
+        indirizzo: tpl?.indirizzo_completo || companyAddress || null,
+        telefono: tpl?.telefono || company?.phone,
         email: tpl?.email || company?.email,
-        partita_iva: company?.partita_iva,
+        partita_iva: company?.vat_number,
         logo_url: tpl?.logo_url || company?.logo_url,
         colore_primario: tpl?.colore_primario || "#2D7D5C",
       },

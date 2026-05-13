@@ -1,7 +1,7 @@
 /**
  * Edge Function: sr-genera-pdf
  *
- * Genera l'HTML del preventivo Serramenti (3 pagine A4) e lo salva su
+ * Genera l'HTML del preventivo Serramenti (4+ pagine A4) e lo salva su
  * Supabase Storage. Il cliente può aprirlo nel browser e stamparlo come
  * PDF tramite Ctrl+P (CSS @page A4).
  *
@@ -207,7 +207,7 @@ Deno.serve(async (req: Request) => {
         supabaseAdmin.from("sr_accessori_progetto").select("*").eq("progetto_id", p.progetto_id).order("position"),
         supabaseAdmin.from("sr_progetti_media").select("*").eq("progetto_id", p.progetto_id).order("position"),
         supabaseAdmin.from("sr_template_pdf").select("*").eq("company_id", prog.company_id).maybeSingle(),
-        supabaseAdmin.from("companies").select("name, ragione_sociale, indirizzo, telefono, email, partita_iva, logo_url").eq("id", prog.company_id).maybeSingle(),
+        supabaseAdmin.from("companies").select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url").eq("id", prog.company_id).maybeSingle(),
       ]);
 
     // 2b. Scheda tecnica dinamica: per ogni serramento → family_id →
@@ -420,6 +420,29 @@ Deno.serve(async (req: Request) => {
       }
     };
 
+    const refreshSrProgettiUrl = async (
+      rawUrl: string | null,
+      expiresIn = 60 * 60 * 24 * 7,
+    ): Promise<string | null> => {
+      if (!rawUrl) return null;
+      try {
+        const url = new URL(rawUrl);
+        const match = url.pathname.match(/sr-progetti\/(.+)/);
+        if (!match) return rawUrl;
+        const storagePath = decodeURIComponent(match[1]).split("?")[0];
+        const { data: signed, error: e } = await supabaseAdmin.storage
+          .from("sr-progetti")
+          .createSignedUrl(storagePath, expiresIn);
+        if (e) {
+          console.warn("[sr-genera-pdf] signed url refresh failed", storagePath, e.message);
+          return rawUrl;
+        }
+        return signed?.signedUrl ?? rawUrl;
+      } catch {
+        return rawUrl;
+      }
+    };
+
     const mediaRows = (media ?? []) as MediaRow[];
 
     // Render foto-realistici (max 4 nel PDF)
@@ -427,6 +450,14 @@ Deno.serve(async (req: Request) => {
     const renders = await Promise.all(renderRows.slice(0, 4).map(async (m) => ({
       url: await refreshMediaUrl(m),
       caption: m.caption,
+    })));
+
+    // Anche le immagini configurate a livello macrocategoria possono essere
+    // signed URL Supabase scaduti: le rinfreschiamo qui, altrimenti le pagine
+    // dedicate prodotto mostrano box vuoti proprio nel PDF cliente.
+    macroPagineDedicate = await Promise.all(macroPagineDedicate.map(async (mp) => ({
+      ...mp,
+      immagine_url: await refreshSrProgettiUrl(mp.immagine_url),
     })));
 
     // 4c. Public URL + QR code
@@ -446,6 +477,11 @@ Deno.serve(async (req: Request) => {
     const tpl = (template ?? {}) as any;
     // deno-lint-ignore no-explicit-any
     const com = (company ?? {}) as any;
+    const companyAddress = [
+      com.legal_address,
+      [com.legal_postal_code, com.legal_city].filter(Boolean).join(" "),
+      com.legal_province,
+    ].filter(Boolean).join(", ");
 
     const finPianiInput = (prog.fin_piani && Array.isArray(prog.fin_piani) ? prog.fin_piani : []) as Array<{
       nome: string; mesi: number; tasso: number; rata_mese: number; anticipo?: number; finanziato?: number;
@@ -544,34 +580,18 @@ Deno.serve(async (req: Request) => {
       qr_svg: qrSvg,
       renders,
       valido_fino_giorni: prog.valido_fino_giorni ?? 15,
-      azienda_nome: tpl.ragione_sociale || com.ragione_sociale || com.name || "Azienda",
-      azienda_indirizzo: tpl.indirizzo_completo || com.indirizzo,
-      azienda_telefono: tpl.telefono || com.telefono,
+      azienda_nome: tpl.ragione_sociale || com.business_name || com.name || "Azienda",
+      azienda_indirizzo: tpl.indirizzo_completo || companyAddress || null,
+      azienda_telefono: tpl.telefono || com.phone,
       azienda_email: tpl.email || com.email,
-      azienda_partita_iva: tpl.partita_iva || com.partita_iva,
+      azienda_partita_iva: tpl.partita_iva || com.vat_number,
       azienda_logo_url: tpl.logo_url || com.logo_url,
       colore_primario: tpl.colore_primario || "#2D7D5C",
     };
 
-    // 6b. Rigenera signed URL del logo se proviene dal bucket sr-progetti
-    // (path template-logos/...). Anche il logo scade dopo 1 anno, ma se
-    // l'azienda lo carica oggi e genera PDF tra 2 anni, l'URL sarebbe morto.
-    if (data.azienda_logo_url) {
-      try {
-        const url = new URL(data.azienda_logo_url);
-        // Path tipo /storage/v1/object/sign/sr-progetti/<company>/template-logos/<file>
-        const match = url.pathname.match(/sr-progetti\/(.+)/);
-        if (match) {
-          const logoPath = decodeURIComponent(match[1]).split("?")[0];
-          const { data: signed } = await supabaseAdmin.storage
-            .from("sr-progetti")
-            .createSignedUrl(logoPath, 60 * 60 * 24 * 365);
-          if (signed?.signedUrl) data.azienda_logo_url = signed.signedUrl;
-        }
-      } catch (err) {
-        console.warn("[sr-genera-pdf] logo refresh failed", err);
-      }
-    }
+    // 6b. Rigenera signed URL del logo/foto se provengono dal bucket sr-progetti.
+    data.azienda_logo_url = await refreshSrProgettiUrl(data.azienda_logo_url, 60 * 60 * 24 * 365);
+    data.consulente_foto_url = await refreshSrProgettiUrl(data.consulente_foto_url);
 
     // 6. Render HTML
     const html = renderSrPdfHtml(data);
@@ -604,7 +624,7 @@ Deno.serve(async (req: Request) => {
 
     // 10. Log
     const duration_ms = Date.now() - t0;
-    const pagesCount = 3 + macroPagineDedicate.length;
+    const pagesCount = 4 + macroPagineDedicate.length;
     await supabaseAdmin.from("sr_pdf_generation_log").insert({
       progetto_id: prog.id,
       company_id: prog.company_id,

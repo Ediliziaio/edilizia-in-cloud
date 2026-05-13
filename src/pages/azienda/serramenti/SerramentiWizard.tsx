@@ -105,11 +105,25 @@ export default function SerramentiWizard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("name, ragione_sociale, indirizzo, telefono, email, partita_iva, logo_url")
+        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url")
         .eq("id", wizCompanyId!)
         .maybeSingle();
       if (error) throw new Error(error.message);
-      return data;
+      if (!data) return null;
+      const indirizzo = [
+        data.legal_address,
+        [data.legal_postal_code, data.legal_city].filter(Boolean).join(" "),
+        data.legal_province,
+      ].filter(Boolean).join(", ");
+      return {
+        name: data.name,
+        ragione_sociale: data.business_name ?? data.name,
+        indirizzo: indirizzo || null,
+        telefono: data.phone,
+        email: data.email,
+        partita_iva: data.vat_number,
+        logo_url: data.logo_url,
+      };
     },
   });
 
@@ -122,7 +136,7 @@ export default function SerramentiWizard() {
 
   const handlePreviewClick = () => {
     if (!detail) return;
-    void previewPDF({ detail, template: pdfTemplate ?? null, company: pdfCompany ?? null });
+    void previewPDF({ detail, template: pdfTemplate ?? null, company: pdfCompany ?? null, useFreshTemplate: true });
   };
 
   // ─── Status workflow ──────────────────────────────────────────────────
@@ -699,6 +713,45 @@ export default function SerramentiWizard() {
             style={{ width: `${progress}%` }}
           />
         </div>
+        <div className="md:hidden overflow-x-auto border-t bg-background/95 px-3 py-2">
+          <nav className="flex min-w-max gap-2" aria-label="Step preventivo serramenti">
+            {SR_WIZARD_STEPS.map((s, idx) => {
+              const Icon = STEP_ICONS[s.key];
+              const isActive = s.key === currentStep;
+              const isPast = idx < currentStepIndex;
+              const disabled = isNew && idx > 0;
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => !disabled && handleStepClick(s.key)}
+                  disabled={disabled}
+                  aria-current={isActive ? "step" : undefined}
+                  className={cn(
+                    "inline-flex min-h-11 min-w-[96px] items-center justify-center gap-1.5 rounded-md border px-3 text-xs transition-colors",
+                    isActive
+                      ? "border-orange-300 bg-orange-100 text-orange-900 font-semibold"
+                      : isPast
+                      ? "border-orange-100 bg-background text-foreground"
+                      : "border-border bg-background text-muted-foreground",
+                    disabled && "cursor-not-allowed opacity-50",
+                  )}
+                >
+                  <span className={cn(
+                    "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold",
+                    isActive ? "bg-orange-600 text-white" :
+                    isPast ? "bg-orange-100 text-orange-700" :
+                    "bg-muted text-muted-foreground",
+                  )}>
+                    {idx + 1}
+                  </span>
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="max-w-[72px] truncate">{s.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
       </div>
 
       <div className="container mx-auto p-3 md:p-6 max-w-6xl">
@@ -784,14 +837,19 @@ export default function SerramentiWizard() {
             </ErrorBoundary>
 
             {/* Navigation footer */}
-            <div className="flex items-center justify-between pt-2">
-              <Button variant="outline" onClick={handleBack} disabled={currentStepIndex === 0}>
+            <div className="sticky bottom-0 z-20 -mx-3 flex items-center justify-between gap-2 border-t bg-background/95 px-3 py-3 backdrop-blur md:static md:mx-0 md:border-t-0 md:bg-transparent md:px-0 md:py-2 md:backdrop-blur-0">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                disabled={currentStepIndex === 0}
+                className="min-h-11 md:min-h-0"
+              >
                 <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
               </Button>
               <Button
                 onClick={handleSaveAndContinue}
                 disabled={updateMut.isPending || creating}
-                className="bg-orange-500 hover:bg-orange-600 gap-1"
+                className="min-h-11 flex-1 bg-orange-500 hover:bg-orange-600 gap-1 sm:flex-none md:min-h-0"
               >
                 {(updateMut.isPending || creating) ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

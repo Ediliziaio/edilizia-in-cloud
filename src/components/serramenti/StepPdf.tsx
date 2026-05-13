@@ -1,5 +1,5 @@
 /**
- * StepPdf — Step 8 wizard: generazione PDF (3 pagine HTML).
+ * StepPdf — Step 8 wizard: generazione PDF e pagina firma cliente.
  *
  * In Wave 4: chiama edge function sr-genera-pdf, salva HTML su Storage,
  * genera link condivisibile + QR firma cliente.
@@ -54,18 +54,32 @@ export function StepPdf({ progettoId, detail }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("name, ragione_sociale, indirizzo, telefono, email, partita_iva, logo_url")
+        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, logo_url")
         .eq("id", companyId!)
         .maybeSingle();
       if (error) throw new Error(error.message);
-      return data;
+      if (!data) return null;
+      const indirizzo = [
+        data.legal_address,
+        [data.legal_postal_code, data.legal_city].filter(Boolean).join(" "),
+        data.legal_province,
+      ].filter(Boolean).join(", ");
+      return {
+        name: data.name,
+        ragione_sociale: data.business_name ?? data.name,
+        indirizzo: indirizzo || null,
+        telefono: data.phone,
+        email: data.email,
+        partita_iva: data.vat_number,
+        logo_url: data.logo_url,
+      };
     },
   });
   const handleDownloadNative = () => {
-    void downloadPDF({ detail, template: template ?? null, company: company ?? null });
+    void downloadPDF({ detail, template: template ?? null, company: company ?? null, useFreshTemplate: true });
   };
   const handlePreviewNative = () => {
-    void previewPDF({ detail, template: template ?? null, company: company ?? null });
+    void previewPDF({ detail, template: template ?? null, company: company ?? null, useFreshTemplate: true });
   };
 
   const checks: ChecklistItem[] = [

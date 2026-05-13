@@ -67,11 +67,13 @@ const DEFAULT_ACCENT = "#F59E0B";
 const COVER_BG = "#0F2A2E";
 
 function makePalette(primary: string, accent = DEFAULT_ACCENT) {
+  const safePrimary = normalizeHexColor(primary, DEFAULT_PRIMARY) ?? DEFAULT_PRIMARY;
+  const safeAccent = normalizeHexColor(accent, DEFAULT_ACCENT) ?? DEFAULT_ACCENT;
   return {
-    primary,
-    accent,
-    primaryLight: hexToTint(primary, 0.92),
-    primaryBorder: hexToTint(primary, 0.65),
+    primary: safePrimary,
+    accent: safeAccent,
+    primaryLight: hexToTint(safePrimary, 0.92),
+    primaryBorder: hexToTint(safePrimary, 0.65),
     coverBg: COVER_BG,
     white: "#FFFFFF",
     gray50: "#F8FAFC",
@@ -83,9 +85,22 @@ function makePalette(primary: string, accent = DEFAULT_ACCENT) {
     gray900: "#0F172A",
     successBg: "#DCFCE7",
     successText: "#15803D",
-    accentLight: "#FEF3C7",
+    accentLight: hexToTint(safeAccent, 0.82),
     accentText: "#92400E",
   };
+}
+
+function normalizeHexColor(value: unknown, fallback: string | null = null): string | null {
+  if (typeof value !== "string") return fallback;
+  const raw = value.trim();
+  const match3 = raw.match(/^#?([0-9a-fA-F]{3})$/);
+  if (match3) {
+    const [r, g, b] = match3[1].split("");
+    return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+  }
+  const match6 = raw.match(/^#?([0-9a-fA-F]{6})$/);
+  if (match6) return `#${match6[1]}`.toUpperCase();
+  return fallback;
 }
 
 // Schiarisce un colore hex verso il bianco (alpha=1 → bianco puro).
@@ -1570,7 +1585,7 @@ export function SerramentoPDF({
   const p = detail.progetto;
   const companyName = template?.ragione_sociale || company?.ragione_sociale || company?.name || "Azienda";
   const logoUrl = template?.logo_url || company?.logo_url || null;
-  const primaryColor = template?.colore_primario || DEFAULT_PRIMARY;
+  const primaryColor = normalizeHexColor(template?.colore_primario, DEFAULT_PRIMARY) ?? DEFAULT_PRIMARY;
   const C = makePalette(primaryColor);
   const styles = makeStyles(C);
 
@@ -1624,11 +1639,11 @@ export function SerramentoPDF({
     )
       ? (tpl.pdf_cover_decoration_style as "square" | "circle" | "line" | "pattern" | "none")
       : "square";
-  const coverBgColor = tpl.pdf_cover_bg_color || null; // null = usa C.coverBg default
+  const coverBgColor = normalizeHexColor(tpl.pdf_cover_bg_color, null); // null = usa C.coverBg default
   const coverEyebrowSize = typeof tpl.pdf_cover_eyebrow_size === "number" ? tpl.pdf_cover_eyebrow_size : 10;
   const coverTitleSize = typeof tpl.pdf_cover_title_size === "number" ? tpl.pdf_cover_title_size : 40;
   const coverSubtitleSize = typeof tpl.pdf_cover_subtitle_size === "number" ? tpl.pdf_cover_subtitle_size : 13;
-  const coverTextColor = tpl.pdf_cover_text_color || "#FFFFFF";
+  const coverTextColor = normalizeHexColor(tpl.pdf_cover_text_color, "#FFFFFF") ?? "#FFFFFF";
   const coverShowDecoration = tpl.pdf_cover_show_decoration !== false;
   const coverShowClientCard = tpl.pdf_cover_show_client_card !== false;
   const coverTextAlign = (tpl.pdf_cover_text_align === "center" ? "center" : "left") as "left" | "center";
@@ -1860,6 +1875,10 @@ export function SerramentoPDF({
   const pdfPagesOrder = normalizePdfPagesOrder(
     (tpl.pdf_pages_order ?? null) as SrPdfPageOrderItem[] | null,
   );
+  const isPdfPageVisible = (id: SrPdfPageId) =>
+    pdfPagesOrder.some((pg) => pg.id === id && pg.visible);
+  const renderPageVisible = isPdfPageVisible("render");
+  const mainRenderPageUsesPairedGrid = beforeAfterPairs.length >= 2;
 
   return (
     <Document
@@ -2142,7 +2161,7 @@ export function SerramentoPDF({
             <Page size="A4" style={styles.page}>
               <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
-              <Text style={styles.pageEyebrow}>Pagina 2 · Proposta di intervento</Text>
+              <Text style={styles.pageEyebrow}>Proposta di intervento</Text>
               <Text style={styles.pageTitle}>Per {p.cliente_nome ?? clienteNome}</Text>
               <Text style={styles.pageSubtitle}>
                 {[p.cantiere_citta || p.cliente_citta, `${numSerr} serramenti`, p.tipo_intervento].filter(Boolean).join(" · ")}
@@ -2258,7 +2277,7 @@ export function SerramentoPDF({
             <Page size="A4" style={styles.page}>
               <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
-              <Text style={styles.pageEyebrow}>Pagina 3 · Allegato tecnico</Text>
+              <Text style={styles.pageEyebrow}>Allegato tecnico</Text>
               <Text style={styles.pageTitle}>Cosa entra{"\n"}in cantiere.</Text>
               <Text style={styles.pageSubtitle}>Composizione dettagliata dei serramenti e degli accessori previsti.</Text>
 
@@ -2716,7 +2735,7 @@ export function SerramentoPDF({
             <Page size="A4" style={styles.page}>
               <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
-              <Text style={styles.pageEyebrow}>Pagina 4 · L'investimento</Text>
+              <Text style={styles.pageEyebrow}>L'investimento</Text>
               <Text style={styles.pageTitle}>Trasparenza{"\n"}totale.</Text>
               <Text style={styles.pageSubtitle}>
                 Forbice indicativa basata sul primo contatto. Il prezzo definitivo si fissa con sopralluogo e scelta materiali.
@@ -2726,7 +2745,7 @@ export function SerramentoPDF({
                 <Text style={styles.priceLabel}>Il tuo investimento stimato</Text>
                 <Text style={styles.priceValue}>
                   € {fmtEuro(totaleMin)} – € {fmtEuro(totaleMax)}
-                  <Text style={styles.priceSuffix}>IVA inclusa</Text>
+                  <Text style={styles.priceSuffix}>{p.iva_inclusa ? "IVA inclusa" : "IVA esclusa"}</Text>
                 </Text>
                 <Text style={{ fontSize: 9, color: C.primary, marginTop: 4 }}>
                   Media: € {fmtEuro(totaleMedia)}
@@ -2735,7 +2754,7 @@ export function SerramentoPDF({
                     richiama esplicitamente la normativa (art. 7 c.1 L.488/99
                     + DM 29.12.99 Beni Significativi). Trasparenza fiscale
                     al cliente — riduce contestazioni in fase di firma. */}
-                <Text style={{ fontSize: 8, color: C.gray600, marginTop: 6, fontStyle: "italic" }}>
+                <Text style={{ fontSize: 8, color: C.gray500, marginTop: 6, fontStyle: "italic" }}>
                   {p.iva_percentuale === -1
                     ? "IVA mista applicata secondo regola Beni Significativi (DM 29.12.99): serramenti al 10% fino al valore di posa + opere accessorie; eccedenza al 22%."
                     : p.iva_percentuale === 4
@@ -3227,7 +3246,7 @@ export function SerramentoPDF({
                   Prima &amp; Dopo
                 </Text>
                 <Text style={[styles.pageSubtitle, { marginBottom: 10, fontSize: 10 }]}>
-                  Visualizza il confronto tra come appare oggi e come sarà dopo l'intervento.
+                  Visualizza una simulazione indicativa tra stato attuale e possibile risultato estetico.
                 </Text>
 
                 {/* Layout landscape: usable height ~470pt dopo header+title+disclaimer.
@@ -3497,9 +3516,9 @@ export function SerramentoPDF({
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Le nostre garanzie</Text>
-                <Text style={styles.pageTitle}>Zero rischi.{"\n"}Solo certezze.</Text>
+                <Text style={styles.pageTitle}>Più controllo.{"\n"}Meno dubbi.</Text>
                 <Text style={styles.pageSubtitle}>
-                  Ti diamo per iscritto le 5 garanzie più importanti del nostro lavoro.
+                  Le rassicurazioni operative che rendono il progetto più chiaro prima della conferma.
                 </Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
                   {garanzie.slice(0, 6).map((g, i) => (
@@ -3529,7 +3548,7 @@ export function SerramentoPDF({
                 <Text style={styles.pageEyebrow}>Confronto tecnico · Prima &amp; Dopo</Text>
                 <Text style={styles.pageTitle}>{confrontoTitolo}</Text>
                 <Text style={styles.pageSubtitle}>
-                  Numeri reali a confronto: i tuoi serramenti attuali vs quelli che installeremo.
+                  Numeri indicativi o configurati per confrontare lo stato attuale con la soluzione proposta.
                 </Text>
                 {/* Header tabella */}
                 <View style={{ flexDirection: "row", paddingVertical: 8, borderBottom: `1pt solid ${C.gray300}`, marginTop: 16 }}>
@@ -3563,8 +3582,8 @@ export function SerramentoPDF({
                   </View>
                 ))}
                 <Text style={{ fontSize: 8.5, color: C.gray500, marginTop: 14, fontStyle: "italic" }}>
-                  Valori stimati confronto serramenti vecchi (anni 80-90 in PVC singolo vetro) vs nuovi standard moderni.
-                  Bolletta gas: stima media nazionale Italia per appartamento 90 m² zona climatica E.
+                  Valori indicativi, da confermare con rilievo tecnico e schede prodotto definitive.
+                  Quando non personalizzati nel template, i dati rappresentano benchmark medi di settore.
                 </Text>
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
@@ -3631,7 +3650,7 @@ export function SerramentoPDF({
       })()}
 
       {/* Render aggiuntivi (3°, 4°...) in pagine landscape successive se presenti */}
-      {renderUrls.length >= 3 && renderUrls.slice(2, 6).reduce((acc: string[][], url, i) => {
+      {renderPageVisible && !mainRenderPageUsesPairedGrid && renderUrls.length >= 3 && renderUrls.slice(2, 6).reduce((acc: string[][], url, i) => {
         const idx = Math.floor(i / 2);
         if (!acc[idx]) acc[idx] = [];
         acc[idx].push(url);

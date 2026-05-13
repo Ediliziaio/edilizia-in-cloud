@@ -1,5 +1,5 @@
 /**
- * srHtmlTemplate.ts — Template HTML preventivo Serramenti (3 pagine A4).
+ * srHtmlTemplate.ts — Template HTML preventivo Serramenti (4+ pagine A4).
  *
  * Stile: verde elegante #2D7D5C ispirato al PDF di riferimento.
  * Self-contained: CSS inline, niente dipendenze esterne. SVG inline per
@@ -8,7 +8,8 @@
  * Pagine:
  *  1. Proposta di intervento — anagrafica + sintesi + esigenze + soluzione + perché noi
  *  2. Investimento + Finanziamento — forbice + 2 piani + testimonianze + incluso
- *  3. Allegato tecnico — BOM serramenti + accessori + consulenza + crono + prossimi passi
+ *  3. Allegato tecnico — BOM serramenti + accessori + consulenza + crono
+ *  4. Firma online — render, prossimi passi, QR/link pubblico
  */
 
 export interface SrPdfData {
@@ -201,7 +202,7 @@ function renderFooter(d: SrPdfData, page: number, total: number): string {
 }
 
 function totalPages(d: SrPdfData): number {
-  return 3 + (d.macro_pagine_dedicate?.length ?? 0);
+  return 4 + (d.macro_pagine_dedicate?.length ?? 0);
 }
 
 function renderPage1(d: SrPdfData, total = totalPages(d)): string {
@@ -479,7 +480,26 @@ function renderPage3(d: SrPdfData, total = totalPages(d)): string {
         </div>
       ` : ""}
 
-      ${d.renders && d.renders.length > 0 ? `
+    </main>
+    ${renderFooter(d, 3, total)}
+  </section>
+  `;
+}
+
+function renderPage4(d: SrPdfData, total = totalPages(d)): string {
+  const hasRenders = d.renders && d.renders.length > 0;
+  const hasSteps = d.prossimi_passi && d.prossimi_passi.length > 0;
+  const hasQr = !!(d.qr_svg && d.public_url);
+
+  return `
+  <section class="page">
+    ${renderHeader(d, 4, total)}
+    <main class="page-body">
+      <p class="overline">CONFERMA E FIRMA</p>
+      <h1 class="page-title">Cosa fare adesso</h1>
+      <p class="page-subtitle">Ultimi passaggi per trasformare la stima in ordine operativo, senza stampare documenti o perdere il link cliente.</p>
+
+      ${hasRenders ? `
         <h2 class="section-title">ANTEPRIMA FOTO-REALISTICA</h2>
         <p class="muted small">Simulazione AI dei nuovi serramenti applicata alle foto del cantiere.</p>
         <div class="render-grid">
@@ -492,14 +512,14 @@ function renderPage3(d: SrPdfData, total = totalPages(d)): string {
         </div>
       ` : ""}
 
-      ${d.prossimi_passi && d.prossimi_passi.length > 0 ? `
+      ${hasSteps ? `
         <h2 class="section-title">PROSSIMI PASSI</h2>
         <ol class="step-list">
           ${d.prossimi_passi.slice(0, 4).map((p) => `<li>${esc(p)}</li>`).join("")}
         </ol>
       ` : ""}
 
-      ${d.qr_svg && d.public_url ? `
+      ${hasQr ? `
         <h2 class="section-title">VISUALIZZA E FIRMA ONLINE</h2>
         <div class="qr-box">
           <div class="qr-svg">${d.qr_svg}</div>
@@ -509,9 +529,12 @@ function renderPage3(d: SrPdfData, total = totalPages(d)): string {
             <p class="qr-url">${esc(d.public_url)}</p>
           </div>
         </div>
-      ` : ""}
+      ` : `
+        <h2 class="section-title">LINK CLIENTE NON DISPONIBILE</h2>
+        <p class="paragraph">La stima è stata generata, ma il link pubblico di firma non è ancora configurato. Puoi comunque usare questo documento come anteprima interna e rigenerare il link dalla scheda PDF.</p>
+      `}
     </main>
-    ${renderFooter(d, 3, total)}
+    ${renderFooter(d, 4, total)}
   </section>
   `;
 }
@@ -545,7 +568,7 @@ function renderPagineMacroDedicate(d: SrPdfData): string {
       .join("");
     return `
     <section class="page macro-page">
-      ${renderHeader(d, 4 + idx, baseTotal)}
+      ${renderHeader(d, 5 + idx, baseTotal)}
       <main class="page-body">
         <div class="macro-page-meta">
           <span class="macro-page-eyebrow">Linea prodotto · ${idx + 1} di ${total}</span>
@@ -562,7 +585,7 @@ function renderPagineMacroDedicate(d: SrPdfData): string {
           </div>
         </div>
       </main>
-      ${renderFooter(d, 4 + idx, baseTotal)}
+      ${renderFooter(d, 5 + idx, baseTotal)}
     </section>
     `;
   }).join("");
@@ -639,21 +662,22 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
   position: relative;
   display: flex; flex-direction: column;
 }
-.page-body { flex: 1; padding-top: 8px; }
+.page-body { flex: 1; min-height: 0; padding-top: 8px; }
 
 /* Header */
 .page-header {
   display: flex; justify-content: space-between; align-items: flex-start;
   border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 8px;
 }
-.logo-box { display: flex; align-items: center; gap: 10px; }
-.logo-box img { width: 32px; height: 32px; object-fit: contain; }
+.logo-box { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.logo-box img { width: auto; max-width: 116px; height: 34px; max-height: 34px; object-fit: contain; }
 .logo-letter {
   width: 32px; height: 32px; border: 1.5px solid var(--sr-green);
   display: inline-flex; align-items: center; justify-content: center;
   font-weight: 700; color: var(--sr-green); font-size: 14px;
 }
-.company-name { font-weight: 700; font-size: 13px; line-height: 1.2; }
+.company-block { min-width: 0; }
+.company-name { font-weight: 700; font-size: 13px; line-height: 1.2; max-width: 350px; overflow-wrap: anywhere; }
 .company-sub { font-size: 10.5px; color: #64748b; }
 .stima-block { text-align: right; }
 .stima-label { font-size: 8.5px; color: #94a3b8; letter-spacing: 0.05em; }
@@ -717,8 +741,9 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
   padding: 16px 20px;
   margin-top: 8px;
   display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  flex-wrap: wrap;
 }
-.big-price { font-size: 32px; font-weight: 700; color: #1f5b43; letter-spacing: -0.5px; }
+.big-price { font-size: 30px; font-weight: 700; color: #1f5b43; letter-spacing: -0.5px; overflow-wrap: anywhere; }
 .big-price .dash { color: #6b8e7b; margin: 0 4px; }
 .big-price-note { font-size: 10.5px; letter-spacing: 0.05em; color: #4d6f5d; font-weight: 500; }
 
@@ -753,13 +778,13 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
 .quote-author { font-size: 9px; color: #64748b; margin-top: 4px; }
 
 /* Tabelle */
-.data-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
+.data-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
 .data-table thead th {
   text-align: left; font-size: 9px; letter-spacing: 0.05em; color: #64748b; font-weight: 700;
   border-bottom: 1.5px solid #cbd5e1; padding: 6px 4px; text-transform: uppercase;
 }
 .data-table thead th.num { text-align: right; }
-.data-table tbody td { padding: 8px 4px; border-bottom: 1px solid #e2e8f0; }
+.data-table tbody td { padding: 8px 4px; border-bottom: 1px solid #e2e8f0; vertical-align: top; overflow-wrap: anywhere; }
 .data-table tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .data-table tbody tr:last-child td { border-bottom: none; }
 .data-table .strong { font-weight: 500; }
@@ -773,7 +798,7 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
 .specs-tech .spec-chip {
   display: inline-flex; align-items: baseline; gap: 3px;
   background: #f1f5f9; border-radius: 3px; padding: 2px 6px;
-  color: #334155; white-space: nowrap;
+  color: #334155; white-space: normal; overflow-wrap: anywhere; max-width: 100%;
 }
 .specs-tech .spec-label { color: #64748b; font-weight: 500; }
 .specs-tech .spec-value { font-weight: 600; }
@@ -909,6 +934,7 @@ export function renderSrPdfHtml(d: SrPdfData): string {
     ${renderPage1(d)}
     ${renderPage2(d)}
     ${renderPage3(d)}
+    ${renderPage4(d)}
     ${renderPagineMacroDedicate(d)}
   </div>
 </body>

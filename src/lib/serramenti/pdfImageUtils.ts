@@ -14,13 +14,37 @@
  *  - PNG per loghi (URL con .png o "logo" nel path) → preserva trasparenza
  *
  * Best-effort: in caso di errore (CORS, formato corrotto, network timeout),
- * ritorna l'URL originale come fallback.
+ * ritorna l'URL originale come fallback quando react-pdf puo' comunque
+ * provarci. Per formati non supportati da react-pdf (webp/avif/gif) torna
+ * null: meglio un placeholder coerente di una generazione PDF rotta o appesa.
  */
+const IMAGE_LOAD_TIMEOUT_MS = 12_000;
+const UNSUPPORTED_REACT_PDF_IMAGE_RE = /\.(webp|avif|gif)(?:[?#].*)?$/i;
+
+function fallbackForFailedConversion(url: string): string | null {
+  return UNSUPPORTED_REACT_PDF_IMAGE_RE.test(url) ? null : url;
+}
+
 export async function toDataUrl(url: string | null | undefined): Promise<string | null> {
   if (!url) return null;
   if (url.startsWith("data:")) return url;
+  if (typeof globalThis.Image !== "function" || typeof document === "undefined") return url;
   return new Promise<string | null>((resolve) => {
+    let settled = false;
     const img = new globalThis.Image();
+    const finish = (value: string | null) => {
+      if (settled) return;
+      settled = true;
+      globalThis.clearTimeout(timer);
+      img.onload = null;
+      img.onerror = null;
+      resolve(value);
+    };
+    const timer = globalThis.setTimeout(() => {
+      console.warn("[pdf] toDataUrl image load timeout:", url.substring(0, 80));
+      finish(fallbackForFailedConversion(url));
+    }, IMAGE_LOAD_TIMEOUT_MS);
+
     img.crossOrigin = "anonymous";
     img.onload = () => {
       try {
@@ -37,7 +61,7 @@ export async function toDataUrl(url: string | null | undefined): Promise<string 
         canvas.height = h;
         const ctx = canvas.getContext("2d");
         if (!ctx) {
-          resolve(url);
+          finish(url);
           return;
         }
         ctx.drawImage(img, 0, 0, w, h);
@@ -46,15 +70,15 @@ export async function toDataUrl(url: string | null | undefined): Promise<string 
         const dataUrl = isPng
           ? canvas.toDataURL("image/png")
           : canvas.toDataURL("image/jpeg", 0.85);
-        resolve(dataUrl);
+        finish(dataUrl);
       } catch (e) {
         console.warn("[pdf] toDataUrl canvas failed:", e);
-        resolve(url);
+        finish(fallbackForFailedConversion(url));
       }
     };
     img.onerror = () => {
       console.warn("[pdf] toDataUrl image load failed:", url.substring(0, 80));
-      resolve(url);
+      finish(fallbackForFailedConversion(url));
     };
     img.src = url;
   });

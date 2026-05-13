@@ -84,8 +84,10 @@ async function hashCode(code: string): Promise<string> {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: getCorsHeaders(req) });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
@@ -95,13 +97,13 @@ Deno.serve(async (req) => {
 
     // Auth check
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) return errorResponse("Unauthorized", 401);
+    if (!authHeader?.startsWith("Bearer ")) return errorResponse("Unauthorized", 401, corsHeaders);
 
     const supabaseAnon = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user }, error: userError } = await supabaseAnon.auth.getUser();
-    if (userError || !user) return errorResponse("Unauthorized", 401);
+    if (userError || !user) return errorResponse("Unauthorized", 401, corsHeaders);
 
     const supabase = createClient(supabaseUrl, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -120,7 +122,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (existing?.is_verified) {
-          return errorResponse("2FA già configurata. Disattivala prima di riconfigurare.");
+          return errorResponse("2FA già configurata. Disattivala prima di riconfigurare.", 400, corsHeaders);
         }
 
         const secret = generateSecret();
@@ -134,12 +136,12 @@ Deno.serve(async (req) => {
           { onConflict: "user_id" }
         );
 
-        return jsonResponse({ secret, otpauth_uri: otpauthUri });
+        return jsonResponse({ secret, otpauth_uri: otpauthUri }, 200, corsHeaders);
       }
 
       // ── VERIFY: Confirm setup with a valid code ──
       case "verify": {
-        if (!token || token.length !== 6) return errorResponse("Codice a 6 cifre richiesto");
+        if (!token || token.length !== 6) return errorResponse("Codice a 6 cifre richiesto", 400, corsHeaders);
 
         const { data: totpRow } = await supabase
           .from("totp_secrets")
@@ -147,10 +149,10 @@ Deno.serve(async (req) => {
           .eq("user_id", user.id)
           .maybeSingle();
 
-        if (!totpRow) return errorResponse("Nessun setup 2FA trovato. Esegui prima il setup.");
+        if (!totpRow) return errorResponse("Nessun setup 2FA trovato. Esegui prima il setup.", 400, corsHeaders);
 
         const valid = await verifyTOTP(totpRow.encrypted_secret, token);
-        if (!valid) return errorResponse("Codice non valido. Riprova.");
+        if (!valid) return errorResponse("Codice non valido. Riprova.", 400, corsHeaders);
 
         // Mark as verified
         await supabase.from("totp_secrets")
@@ -175,12 +177,12 @@ Deno.serve(async (req) => {
         // Update profile
         await supabase.from("profiles").update({ require_2fa: true } as any).eq("id", user.id);
 
-        return jsonResponse({ verified: true, backup_codes: backupCodes });
+        return jsonResponse({ verified: true, backup_codes: backupCodes }, 200, corsHeaders);
       }
 
       // ── VALIDATE: Check TOTP code (for login) ──
       case "validate": {
-        if (!token || token.length !== 6) return errorResponse("Codice a 6 cifre richiesto");
+        if (!token || token.length !== 6) return errorResponse("Codice a 6 cifre richiesto", 400, corsHeaders);
 
         const { data: totpRow } = await supabase
           .from("totp_secrets")
@@ -188,17 +190,17 @@ Deno.serve(async (req) => {
           .eq("user_id", user.id)
           .maybeSingle();
 
-        if (!totpRow?.is_verified) return errorResponse("2FA non configurata");
+        if (!totpRow?.is_verified) return errorResponse("2FA non configurata", 400, corsHeaders);
 
         const valid = await verifyTOTP(totpRow.encrypted_secret, token);
-        if (!valid) return errorResponse("Codice non valido");
+        if (!valid) return errorResponse("Codice non valido", 400, corsHeaders);
 
-        return jsonResponse({ valid: true });
+        return jsonResponse({ valid: true }, 200, corsHeaders);
       }
 
       // ── VALIDATE BACKUP: Use a backup code ──
       case "validate_backup": {
-        if (!code) return errorResponse("Codice di backup richiesto");
+        if (!code) return errorResponse("Codice di backup richiesto", 400, corsHeaders);
 
         const codeHash = await hashCode(code);
         const { data: backupRow } = await supabase
@@ -209,13 +211,13 @@ Deno.serve(async (req) => {
           .eq("is_used", false)
           .maybeSingle();
 
-        if (!backupRow) return errorResponse("Codice di backup non valido o già usato");
+        if (!backupRow) return errorResponse("Codice di backup non valido o già usato", 400, corsHeaders);
 
         await supabase.from("totp_backup_codes")
           .update({ is_used: true, used_at: new Date().toISOString() })
           .eq("id", backupRow.id);
 
-        return jsonResponse({ valid: true });
+        return jsonResponse({ valid: true }, 200, corsHeaders);
       }
 
       // ── STATUS: Check if 2FA is enabled ──
@@ -247,12 +249,12 @@ Deno.serve(async (req) => {
           backup_codes_total: backupCodes?.length || 0,
           backup_codes_remaining: backupCodes?.filter((c: { is_used: boolean }) => !c.is_used).length || 0,
           require_2fa: profile?.require_2fa || false,
-        });
+        }, 200, corsHeaders);
       }
 
       // ── DISABLE: Remove 2FA ──
       case "disable": {
-        if (!token || token.length !== 6) return errorResponse("Codice corrente richiesto per disattivare");
+        if (!token || token.length !== 6) return errorResponse("Codice corrente richiesto per disattivare", 400, corsHeaders);
 
         const { data: totpRow } = await supabase
           .from("totp_secrets")
@@ -260,24 +262,24 @@ Deno.serve(async (req) => {
           .eq("user_id", user.id)
           .maybeSingle();
 
-        if (!totpRow?.is_verified) return errorResponse("2FA non configurata");
+        if (!totpRow?.is_verified) return errorResponse("2FA non configurata", 400, corsHeaders);
 
         const valid = await verifyTOTP(totpRow.encrypted_secret, token);
-        if (!valid) return errorResponse("Codice non valido");
+        if (!valid) return errorResponse("Codice non valido", 400, corsHeaders);
 
         await supabase.from("totp_secrets").delete().eq("user_id", user.id);
         await supabase.from("totp_backup_codes").delete().eq("user_id", user.id);
         await supabase.from("profiles").update({ require_2fa: false } as any).eq("id", user.id);
 
-        return jsonResponse({ disabled: true });
+        return jsonResponse({ disabled: true }, 200, corsHeaders);
       }
 
       default:
-        return errorResponse("Azione non supportata");
+        return errorResponse("Azione non supportata", 400, corsHeaders);
     }
   } catch (err) {
     if (err instanceof Response) return err;
     console.error("TOTP error:", err);
-    return errorResponse((err as Error).message, 500);
+    return errorResponse((err as Error).message, 500, corsHeaders);
   }
 });

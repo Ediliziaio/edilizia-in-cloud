@@ -608,32 +608,32 @@ export interface SrFaq {
   risposta: string;
 }
 
-/** Default per garanzie: 5 garanzie standard per serramentisti. */
+/** Default per garanzie: garanzie standard, prudenti e personalizzabili. */
 export const SR_GARANZIE_DEFAULT: SrGaranzia[] = [
   {
     icona: "shield",
-    titolo: "Garanzia 10 anni sul prodotto",
-    descrizione: "Profili, ferramenta e vetri coperti da garanzia decennale del produttore. Sostituzione gratuita in caso di difetto di fabbrica.",
+    titolo: "Garanzia prodotto chiara",
+    descrizione: "Profili, ferramenta e vetri sono coperti dalle garanzie del produttore, con condizioni e durata sempre riportate nella documentazione consegnata.",
   },
   {
     icona: "tools",
-    titolo: "Posa certificata UNI 11673",
-    descrizione: "Garanzia decennale sulla posa eseguita secondo norma UNI 11673 con tripla sigillatura. Nera su bianco in offerta.",
+    titolo: "Posa eseguita a regola d'arte",
+    descrizione: "La posa viene pianificata con attenzione a isolamento, tenuta e finitura. Quando applicabile, lavoriamo secondo i riferimenti tecnici di settore.",
   },
   {
     icona: "clock",
-    titolo: "Tempi garantiti contrattualmente",
-    descrizione: "Se sforiamo la data di consegna concordata, paghiamo noi la penale. Te la mettiamo per iscritto.",
+    titolo: "Tempi condivisi in anticipo",
+    descrizione: "Produzione, consegna e montaggio vengono programmati prima della conferma, così sai cosa succede e quando aspettarti ogni fase.",
   },
   {
     icona: "drop",
-    titolo: "Zero infiltrazioni in 10 anni",
-    descrizione: "Tripla sigillatura perimetrale: nastri autoespandenti + membrana traspirante + finitura. Garantito.",
+    titolo: "Tenuta e sigillature controllate",
+    descrizione: "I punti critici del foro finestra vengono verificati in fase di rilievo e posa, con materiali scelti in base al tipo di parete e intervento.",
   },
   {
     icona: "refresh",
-    titolo: "Soddisfatto o intervieni gratis",
-    descrizione: "Nei primi 12 mesi, qualsiasi anomalia di funzionamento o estetica viene risolta senza alcun costo aggiuntivo.",
+    titolo: "Assistenza post posa",
+    descrizione: "Dopo il montaggio restiamo disponibili per regolazioni, chiarimenti e supporto sulle prime settimane di utilizzo dei nuovi serramenti.",
   },
 ];
 
@@ -656,36 +656,36 @@ export const SR_CERTIFICAZIONI_DEFAULT: SrCertificazione[] = [
 
 /** Default bonus per value stacking. */
 export const SR_BONUS_DEFAULT: SrBonus[] = [
-  { icona: "gift", titolo: "Zanzariere magnetiche in regalo", valore_eur: 280 },
-  { icona: "tools", titolo: "Pulizia post-cantiere certificata", valore_eur: 150 },
-  { icona: "calendar", titolo: "1 anno di assistenza taratura gratuita", valore_eur: 120 },
+  { icona: "tools", titolo: "Controllo finale e regolazione serramenti", valore_eur: 120 },
+  { icona: "gift", titolo: "Pulizia ordinata dell'area di posa a fine lavori", valore_eur: 90 },
+  { icona: "calendar", titolo: "Supporto iniziale su uso, manutenzione e documentazione", valore_eur: 60 },
 ];
 
 /** Default FAQ con 6 obiezioni comuni del settore serramenti. */
 export const SR_FAQ_DEFAULT: SrFaq[] = [
   {
     domanda: "E se piove durante la posa?",
-    risposta: "Posiamo in qualsiasi condizione: i nostri teli e protezioni proteggono interni e mobili. Solo in caso di temporale violento o vento forte (sicurezza operatori) rinviamo di 1-2 giorni.",
+    risposta: "La posa viene pianificata valutando meteo, sicurezza e protezione degli ambienti. Se le condizioni non sono adatte, si riprogramma il lavoro per evitare disagi e rischi.",
   },
   {
     domanda: "Devo lasciarvi le chiavi?",
-    risposta: "Solo se preferisci. Possiamo lavorare in tua presenza, lasciamo sempre la casa pulita a fine giornata. Per multi-giorno alcuni clienti preferiscono lasciare le chiavi: in quel caso firmiamo verbale.",
+    risposta: "Non è obbligatorio. Se preferisci affidare l'accesso, concordiamo prima modalità, orari e responsabilità, lasciando tutto tracciato.",
   },
   {
     domanda: "Quando arrivano i serramenti?",
-    risposta: "Tempistica standard: 60-90 giorni dalla conferma ordine (produzione + logistica). Per ordini urgenti abbiamo accordi con il fornitore per consegne in 30-45 giorni.",
+    risposta: "La tempistica dipende da misure, finiture, produttore e periodo dell'anno. Prima della conferma ti indichiamo una finestra realistica di produzione e posa.",
   },
   {
     domanda: "Posso cambiare colore in corso d'opera?",
-    risposta: "Fino a 5 giorni dall'ordine senza costi. Dopo, dipende dallo stato di lavorazione: se i profili non sono ancora tagliati, possiamo cambiare. Altrimenti il colore va confermato.",
+    risposta: "Le modifiche sono possibili finché l'ordine non entra in produzione. Dopo quella fase eventuali variazioni vanno valutate con il fornitore.",
   },
   {
     domanda: "Funziona anche con condominio storico/vincolato?",
-    risposta: "Sì. Per immobili vincolati (centro storico, Belle Arti) prepariamo SCIA e materiale fotografico per autorizzazione. Tempistica aggiuntiva 30-45 giorni per pratica.",
+    risposta: "In contesti condominiali o vincolati verifichiamo vincoli, colori, profili e autorizzazioni prima di procedere, così la proposta resta compatibile con le regole dell'immobile.",
   },
   {
     domanda: "Come avviene il pagamento?",
-    risposta: "Acconto alla firma contratto (tipicamente 30-40%), saldo alla consegna serramenti in cantiere. Possibili finanziamenti a tasso agevolato fino a 60 mesi.",
+    risposta: "Lo schema viene definito nel preventivo: di solito acconto alla conferma, eventuali step intermedi e saldo secondo avanzamento o consegna. Se previsto, mostriamo anche simulazioni di finanziamento.",
   },
 ];
 
@@ -751,6 +751,12 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     obbligatoria: false,
   },
   {
+    id: "render",
+    label: "Prima & Dopo (render AI)",
+    descrizione: "Foto attuale vs render AI. Mostrata solo se ci sono media.",
+    obbligatoria: false,
+  },
+  {
     id: "allegato_tecnico",
     label: "Allegato tecnico",
     descrizione: "Composizione serramenti (foto + scheda tecnica) + La tua consulenza.",
@@ -781,19 +787,13 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
   {
     id: "garanzie",
     label: "Le nostre garanzie",
-    descrizione: "5 garanzie con badge visivi (decennale, posa, tempi, infiltrazioni, soddisfazione).",
+    descrizione: "Garanzie e rassicurazioni operative con badge visivi.",
     obbligatoria: false,
   },
   {
     id: "confronto",
     label: "Confronto Prima & Dopo numerico",
-    descrizione: "Tabella tecnica: serramento attuale vs nuovo (Uw, acustica, bolletta, ecc).",
-    obbligatoria: false,
-  },
-  {
-    id: "render",
-    label: "Prima & Dopo (render AI)",
-    descrizione: "Foto attuale vs render AI. Mostrata solo se ci sono media.",
+    descrizione: "Tabella tecnica indicativa o configurata: serramento attuale vs nuovo.",
     obbligatoria: false,
   },
   {

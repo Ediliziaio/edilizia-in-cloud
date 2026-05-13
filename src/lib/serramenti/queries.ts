@@ -531,8 +531,9 @@ export function useUpsertTemplatePdf() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (patch: Partial<SrTemplatePdfRow>) => upsertTemplatePdf(patch),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: SR_QK.template() });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: SR_QK.template() });
+      await qc.refetchQueries({ queryKey: SR_QK.template(), type: "active" });
       toast.success("Template salvato");
     },
     onError: (e) => toast.error("Salvataggio template fallito", { description: String(e) }),
