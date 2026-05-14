@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ActionProposalsList } from "./ActionProposalsList";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { withClientTimeout } from "@/lib/query-timeout";
 
 export function ActionProposalsBadge() {
   const companyId = useEffectiveCompanyId();
@@ -28,13 +29,21 @@ export function ActionProposalsBadge() {
 
     const fetchCount = async () => {
       // FIX TENANT ISOLATION: filtro company_id esplicito
-      const { count: c } = await supabase
-        .from("ai_action_proposals" as never)
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .eq("status", "pending")
-        .gt("expires_at", new Date().toISOString());
-      if (!cancelled) setCount(c ?? 0);
+      try {
+        const { count: c } = await withClientTimeout(
+          supabase
+            .from("ai_action_proposals" as never)
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .eq("status", "pending")
+            .gt("expires_at", new Date().toISOString()),
+          "Conteggio azioni AI",
+          8_000,
+        );
+        if (!cancelled) setCount(c ?? 0);
+      } catch {
+        if (!cancelled) setCount(0);
+      }
     };
 
     void fetchCount();

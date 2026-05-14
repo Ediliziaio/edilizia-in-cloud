@@ -32,6 +32,7 @@ import {
 import { CalendarDays, GanttChart, Calendar as CalendarIcon, RotateCcw, AlertTriangle, BarChart3, Plus, RefreshCw, SlidersHorizontal, Eye, CalendarRange, Download, MoreHorizontal, X, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { exportAppointmentsIcal } from "@/lib/icalExport";
+import { createTimeoutSignal, withClientTimeout } from "@/lib/query-timeout";
 import { cn } from "@/lib/utils";
 import type { CalendarOrder, CalendarViewType, OrderStatus, CustomerFilter, CalendarAppointment, GoogleBusySlot, CalendarWarehouseInfo, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
@@ -182,36 +183,44 @@ function CalendarInner() {
 
   const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: [...queryKeys.calendarOrders.list(effectiveCompany?.id), calendarRangeStart, calendarRangeEnd],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!effectiveCompany?.id) return [];
+      const timeout = createTimeoutSignal(10_000, signal);
 
-      const { data, error } = await supabase
-        .from("orders")
-        .select(`
-          id,
-          order_code,
-          description,
-          expected_date,
-          work_start_date,
-          work_end_date,
-          warehouse_arrival_date,
-          created_at,
-          customer_id,
-          current_status_id,
-          indirizzo_lavori,
-          customer:profiles!orders_customer_id_fkey(first_name, last_name),
-          status:order_statuses!orders_current_status_id_fkey(name, color),
-          order_employees(employee:employees(id, first_name, last_name)),
-          order_external_teams(external_team:external_teams(id, name))
-        `)
-        .eq("company_id", effectiveCompany.id)
-        .or(`work_start_date.lte.${calendarRangeEnd},expected_date.lte.${calendarRangeEnd},warehouse_arrival_date.lte.${calendarRangeEnd}`)
-        .or(`work_end_date.gte.${calendarRangeStart},work_start_date.gte.${calendarRangeStart},expected_date.gte.${calendarRangeStart},warehouse_arrival_date.gte.${calendarRangeStart}`)
-        .order("work_start_date", { ascending: true })
-        .limit(1000);
+      try {
+        const query = supabase
+          .from("orders")
+          .select(`
+            id,
+            order_code,
+            description,
+            expected_date,
+            work_start_date,
+            work_end_date,
+            warehouse_arrival_date,
+            created_at,
+            customer_id,
+            current_status_id,
+            indirizzo_lavori,
+            customer:profiles!orders_customer_id_fkey(first_name, last_name),
+            status:order_statuses!orders_current_status_id_fkey(name, color),
+            order_employees(employee:employees(id, first_name, last_name)),
+            order_external_teams(external_team:external_teams(id, name))
+          `)
+          .eq("company_id", effectiveCompany.id)
+          .or(`work_start_date.lte.${calendarRangeEnd},expected_date.lte.${calendarRangeEnd},warehouse_arrival_date.lte.${calendarRangeEnd}`)
+          .or(`work_end_date.gte.${calendarRangeStart},work_start_date.gte.${calendarRangeStart},expected_date.gte.${calendarRangeStart},warehouse_arrival_date.gte.${calendarRangeStart}`)
+          .order("work_start_date", { ascending: true })
+          .limit(1000)
+          .abortSignal(timeout.signal);
 
-      if (error) throw error;
-      return (data || []) as CalendarOrder[];
+        const { data, error } = await withClientTimeout(query, "Caricamento calendario lavori", 10_000);
+
+        if (error) throw error;
+        return (data || []) as CalendarOrder[];
+      } finally {
+        timeout.dispose();
+      }
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
@@ -238,27 +247,35 @@ function CalendarInner() {
   // Fetch appointments
   const { data: appointments = [], isLoading: isAppointmentsLoading } = useQuery({
     queryKey: ["appointments", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!effectiveCompany?.id) return [];
-      const { data, error } = await supabase
-        .from("appointments")
-        .select(`
-          *,
-          order:orders!appointments_order_id_fkey(order_code, description, customer:profiles!orders_customer_id_fkey(first_name, last_name)),
-          contact:marketing_contacts!appointments_contact_id_fkey(first_name, last_name)
-        `)
-        .eq("company_id", effectiveCompany.id)
-        // B10 — rimosso .is("calendar_id", null) che escludeva appuntamenti con calendario specifico
-        .gte("appointment_date", calendarRangeStart)
-        .lte("appointment_date", calendarRangeEnd)
-        .order("appointment_date", { ascending: true })
-        .limit(1000);
-      if (error) throw error;
+      const timeout = createTimeoutSignal(10_000, signal);
+      try {
+        const query = supabase
+          .from("appointments")
+          .select(`
+            *,
+            order:orders!appointments_order_id_fkey(order_code, description, customer:profiles!orders_customer_id_fkey(first_name, last_name)),
+            contact:marketing_contacts!appointments_contact_id_fkey(first_name, last_name)
+          `)
+          .eq("company_id", effectiveCompany.id)
+          // B10 — rimosso .is("calendar_id", null) che escludeva appuntamenti con calendario specifico
+          .gte("appointment_date", calendarRangeStart)
+          .lte("appointment_date", calendarRangeEnd)
+          .order("appointment_date", { ascending: true })
+          .limit(1000)
+          .abortSignal(timeout.signal);
+        const { data, error } = await withClientTimeout(query, "Caricamento appuntamenti calendario", 10_000);
+        if (error) throw error;
 
-      return (data || []) as CalendarAppointment[];
+        return (data || []) as CalendarAppointment[];
+      } finally {
+        timeout.dispose();
+      }
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 
   // ── Meteo multi-location: estrae coordinate dagli appuntamenti ──
@@ -480,7 +497,7 @@ function CalendarInner() {
       if (error) throw error;
       return (data || []) as GoogleBusySlot[];
     },
-    enabled: !!effectiveCompany?.id && isGoogleConnected,
+    enabled: !!effectiveCompany?.id && isGoogleConnected && showGoogleBusy,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -500,7 +517,7 @@ function CalendarInner() {
         provider: "apple",
       })) as GoogleBusySlot[];
     },
-    enabled: !!effectiveCompany?.id && isAppleConnected,
+    enabled: !!effectiveCompany?.id && isAppleConnected && showGoogleBusy,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -520,7 +537,7 @@ function CalendarInner() {
       const googleImported = new Set((data || []).filter((r: { appointment_id: string; source: string }) => r.source === "google").map((r: { appointment_id: string; source: string }) => r.appointment_id));
       return { synced, googleImported };
     },
-    enabled: !!effectiveCompany?.id && isGoogleConnected,
+    enabled: !!effectiveCompany?.id && isGoogleConnected && showGoogleBusy,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -617,58 +634,84 @@ function CalendarInner() {
   // B11 — usa calendarRangeStart/End invece dell'anno solare fisso
   const { data: approvedLeaves = [] } = useQuery({
     queryKey: ["approved-leaves", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!effectiveCompany?.id) return [];
-      const { data, error } = await supabase
-        .from("leave_requests")
-        .select("id, employee_id, type, start_date, end_date, total_days, total_hours, employee:employees!leave_requests_employee_id_fkey(id, first_name, last_name)")
-        .eq("company_id", effectiveCompany.id)
-        .eq("status", "approved")
-        .lte("start_date", calendarRangeEnd)
-        .gte("end_date", calendarRangeStart)
-        .order("start_date");
-      if (error) throw error;
-      return data ?? [];
+      const timeout = createTimeoutSignal(10_000, signal);
+      try {
+        const query = supabase
+          .from("leave_requests")
+          .select("id, employee_id, type, start_date, end_date, total_days, total_hours, employee:employees!leave_requests_employee_id_fkey(id, first_name, last_name)")
+          .eq("company_id", effectiveCompany.id)
+          .eq("status", "approved")
+          .lte("start_date", calendarRangeEnd)
+          .gte("end_date", calendarRangeStart)
+          .order("start_date")
+          .abortSignal(timeout.signal);
+        const { data, error } = await withClientTimeout(query, "Caricamento assenze calendario", 10_000);
+        if (error) throw error;
+        return data ?? [];
+      } finally {
+        timeout.dispose();
+      }
     },
-    enabled: !!effectiveCompany?.id,
+    enabled: !!effectiveCompany?.id && showLeaves,
     staleTime: 5 * 60 * 1000,
   });
 
   // Warehouse items for enriched "Arrivo Merce" events
   const { data: warehouseItems = [] } = useQuery({
     queryKey: ["calendar-warehouse-items", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!effectiveCompany?.id) return [];
-      const { data, error } = await supabase
-        .from("order_items")
-        .select("id, name, status, order_id, order:orders!inner(company_id)")
-        .eq("order.company_id", effectiveCompany.id)
-        .not("order_id", "is", null);
-      if (error) throw error;
-      return ((data || []) as Array<CalendarWarehouseItem & { order?: { company_id: string } }>).map(({ order: _order, ...item }) => item);
+      const timeout = createTimeoutSignal(10_000, signal);
+      try {
+        const query = supabase
+          .from("order_items")
+          .select("id, name, status, order_id, order:orders!inner(company_id, warehouse_arrival_date)")
+          .eq("order.company_id", effectiveCompany.id)
+          .not("order_id", "is", null)
+          .not("order.warehouse_arrival_date", "is", null)
+          .gte("order.warehouse_arrival_date", calendarRangeStart)
+          .lte("order.warehouse_arrival_date", calendarRangeEnd)
+          .limit(2500)
+          .abortSignal(timeout.signal);
+        const { data, error } = await withClientTimeout(query, "Caricamento merce calendario", 10_000);
+        if (error) throw error;
+        return ((data || []) as Array<CalendarWarehouseItem & { order?: { company_id: string; warehouse_arrival_date?: string | null } }>).map(({ order: _order, ...item }) => item);
+      } finally {
+        timeout.dispose();
+      }
     },
-    enabled: !!effectiveCompany?.id,
+    enabled: !!effectiveCompany?.id && showMerce,
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch interventi (tickets tipo=intervento with data_intervento_prevista in range)
   const { data: calInterventi = [] } = useQuery({
     queryKey: ["cal-interventi", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!effectiveCompany?.id) return [];
-      const { data, error } = await supabase
-        .from("tickets")
-        .select("id, subject, tipo, data_intervento_prevista, status, assigned_to")
-        .eq("company_id", effectiveCompany.id)
-        .in("tipo", ["intervento", "emergenza"])
-        .not("data_intervento_prevista", "is", null)
-        .gte("data_intervento_prevista", calendarRangeStart)
-        .lte("data_intervento_prevista", calendarRangeEnd)
-        .order("data_intervento_prevista");
-      if (error) throw error;
-      return (data ?? []) as CalendarIntervento[];
+      const timeout = createTimeoutSignal(10_000, signal);
+      try {
+        const query = supabase
+          .from("tickets")
+          .select("id, subject, tipo, data_intervento_prevista, status, assigned_to")
+          .eq("company_id", effectiveCompany.id)
+          .in("tipo", ["intervento", "emergenza"])
+          .not("data_intervento_prevista", "is", null)
+          .gte("data_intervento_prevista", calendarRangeStart)
+          .lte("data_intervento_prevista", calendarRangeEnd)
+          .order("data_intervento_prevista")
+          .limit(1000)
+          .abortSignal(timeout.signal);
+        const { data, error } = await withClientTimeout(query, "Caricamento interventi calendario", 10_000);
+        if (error) throw error;
+        return (data ?? []) as CalendarIntervento[];
+      } finally {
+        timeout.dispose();
+      }
     },
-    enabled: !!effectiveCompany?.id,
+    enabled: !!effectiveCompany?.id && showInterventi,
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
   });
@@ -676,25 +719,33 @@ function CalendarInner() {
   // Fetch piani manutenzione con prossima_scadenza in range
   const { data: calManutenzioni = [] } = useQuery({
     queryKey: ["cal-manutenzioni", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!effectiveCompany?.id) return [];
-      const { data, error } = await supabase
-        .from("piani_manutenzione")
-        .select("id, titolo, prossima_scadenza, attivo")
-        .eq("company_id", effectiveCompany.id)
-        .not("prossima_scadenza", "is", null)
-        .gte("prossima_scadenza", calendarRangeStart)
-        .lte("prossima_scadenza", calendarRangeEnd)
-        .order("prossima_scadenza");
-      if (error) throw error;
-      return (data ?? []).map((piano) => ({
-        id: piano.id,
-        titolo: piano.titolo,
-        prossima_scadenza: piano.prossima_scadenza,
-        stato: piano.attivo === false ? "inattivo" : "attivo",
-      })) as CalendarManutenzione[];
+      const timeout = createTimeoutSignal(10_000, signal);
+      try {
+        const query = supabase
+          .from("piani_manutenzione")
+          .select("id, titolo, prossima_scadenza, attivo")
+          .eq("company_id", effectiveCompany.id)
+          .not("prossima_scadenza", "is", null)
+          .gte("prossima_scadenza", calendarRangeStart)
+          .lte("prossima_scadenza", calendarRangeEnd)
+          .order("prossima_scadenza")
+          .limit(1000)
+          .abortSignal(timeout.signal);
+        const { data, error } = await withClientTimeout(query, "Caricamento manutenzioni calendario", 10_000);
+        if (error) throw error;
+        return (data ?? []).map((piano) => ({
+          id: piano.id,
+          titolo: piano.titolo,
+          prossima_scadenza: piano.prossima_scadenza,
+          stato: piano.attivo === false ? "inattivo" : "attivo",
+        })) as CalendarManutenzione[];
+      } finally {
+        timeout.dispose();
+      }
     },
-    enabled: !!effectiveCompany?.id,
+    enabled: !!effectiveCompany?.id && showManutenzioni,
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
   });

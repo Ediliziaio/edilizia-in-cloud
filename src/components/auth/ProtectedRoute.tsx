@@ -4,6 +4,9 @@ import { Loader2 } from "lucide-react";
 import type { AppRole } from "@/types/auth";
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import { logger } from "@/utils/logger";
+import { useEffect, useState } from "react";
+import { LoadingTimeoutFallback } from "@/components/auth/LoadingTimeoutFallback";
+import { captureVelocityError } from "@/lib/velocity/sentry";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -13,8 +16,40 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, role, isLoading } = useAuth();
   const location = useLocation();
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingTimedOut(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setLoadingTimedOut(true);
+      logger.warn("[auth] ProtectedRoute: auth loading oltre soglia", {
+        path: location.pathname,
+      });
+      captureVelocityError("auth.route_loading_timeout", new Error("Auth loading timeout"), {
+        path: location.pathname,
+        timeoutMs: 18_000,
+      });
+    }, 18_000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isLoading, location.pathname]);
 
   if (isLoading) {
+    if (loadingTimedOut) {
+      return (
+        <LoadingTimeoutFallback
+          title="Accesso ancora in verifica"
+          description="La sessione non ha completato il caricamento. Può succedere con rete instabile o database lento: riprova senza restare bloccato sulla rotellina."
+          detail={`Verifica sessione oltre 18 secondi: ${location.pathname}`}
+          homePath="/login"
+        />
+      );
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">

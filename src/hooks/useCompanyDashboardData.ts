@@ -287,13 +287,13 @@ export function useCompanyDashboardData() {
 
   const { data: dashboardData, isLoading: isDashboardLoading, isError: isDashboardError } = useQuery({
     queryKey: queryKeys.dashboard.company(companyId, `${dateRange.from.toISOString()}-${dateRange.to.toISOString()}-${filters.statusId}`),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await supabase.rpc("get_dashboard_kpis", {
         p_company_id: companyId!,
         p_date_from: dateRange.from.toISOString(),
         p_date_to: dateRange.to.toISOString(),
         p_status_id: filters.statusId || undefined,
-      });
+      }).abortSignal(signal);
 
       if (error) throw error;
 
@@ -327,6 +327,7 @@ export function useCompanyDashboardData() {
     },
     enabled: !!companyId,
     staleTime: 3 * 60 * 1000,
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: managementFinancials } = useQuery({
@@ -337,7 +338,7 @@ export function useCompanyDashboardData() {
       dateRange.to.toISOString(),
       filters.statusId,
     ],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!companyId) {
         return {
           stats: { totalOrders: 0, totalCustomers: 0, totalRevenue: 0, collectedRevenue: 0, pendingRevenue: 0, pendingOrdersCount: 0 },
@@ -365,7 +366,8 @@ export function useCompanyDashboardData() {
         `)
         .eq("company_id", companyId)
         .gte("created_at", dateRange.from.toISOString())
-        .lte("created_at", dateRange.to.toISOString());
+        .lte("created_at", dateRange.to.toISOString())
+        .abortSignal(signal);
 
       if (filters.statusId) ordersQuery = ordersQuery.eq("current_status_id", filters.statusId);
 
@@ -374,7 +376,8 @@ export function useCompanyDashboardData() {
         .select("amount, due_date")
         .eq("company_id", companyId)
         .gte("due_date", format(dateRange.from, "yyyy-MM-dd"))
-        .lte("due_date", format(dateRange.to, "yyyy-MM-dd"));
+        .lte("due_date", format(dateRange.to, "yyyy-MM-dd"))
+        .abortSignal(signal);
 
       const [ordersResult, costsResult] = await Promise.all([ordersQuery, costsQuery]);
 
@@ -392,7 +395,8 @@ export function useCompanyDashboardData() {
         const { data: installments, error: instErr } = await supabase
           .from("order_installments")
           .select("order_id, amount, is_paid")
-          .in("order_id", orderIds);
+          .in("order_id", orderIds)
+          .abortSignal(signal);
         if (instErr) throw instErr;
         for (const inst of installments ?? []) {
           if (!inst.order_id) continue;
@@ -449,6 +453,7 @@ export function useCompanyDashboardData() {
     },
     enabled: !!companyId,
     staleTime: 3 * 60 * 1000,
+    placeholderData: (previousData) => previousData,
   });
 
   // P3.1 fix — l'agenda ora rispetta il filtro periodo della dashboard.
@@ -474,7 +479,7 @@ export function useCompanyDashboardData() {
 
   const { data: operationalAgenda = [] } = useQuery({
     queryKey: ["company-dashboard-operational-agenda", companyId, agendaRange.from, agendaRange.to],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!companyId) return [];
 
       const [ordersResult, appointmentsResult, purchaseOrdersResult] = await Promise.all([
@@ -494,7 +499,8 @@ export function useCompanyDashboardData() {
           .or(`work_start_date.lte.${agendaRange.to},expected_date.lte.${agendaRange.to},warehouse_arrival_date.lte.${agendaRange.to}`)
           .or(`work_end_date.gte.${agendaRange.from},work_start_date.gte.${agendaRange.from},expected_date.gte.${agendaRange.from},warehouse_arrival_date.gte.${agendaRange.from}`)
           .order("work_start_date", { ascending: true })
-          .limit(300),
+          .limit(300)
+          .abortSignal(signal),
         supabase
           .from("appointments")
           .select(`
@@ -512,7 +518,8 @@ export function useCompanyDashboardData() {
           .gte("appointment_date", agendaRange.from)
           .lte("appointment_date", agendaRange.to)
           .order("appointment_date", { ascending: true })
-          .limit(300),
+          .limit(300)
+          .abortSignal(signal),
         supabase
           .from("purchase_orders")
           .select(`
@@ -531,7 +538,8 @@ export function useCompanyDashboardData() {
           .lte("expected_delivery_date", agendaRange.to)
           .not("expected_delivery_date", "is", null)
           .order("expected_delivery_date", { ascending: true })
-          .limit(200),
+          .limit(200)
+          .abortSignal(signal),
       ]);
 
       if (ordersResult.error) throw ordersResult.error;
@@ -678,6 +686,7 @@ export function useCompanyDashboardData() {
     },
     enabled: !!companyId,
     staleTime: 2 * 60 * 1000,
+    placeholderData: (previousData) => previousData,
   });
 
   const weeklyDeadlines = useMemo<WeeklyDeadlinesData>(() => {
@@ -746,7 +755,7 @@ export function useCompanyDashboardData() {
     dashboardData,
     // P2.3 fix — la condizione precedente `!companyId && isDashboardLoading`
     // era sempre false quando companyId era valorizzato → skeleton dead.
-    isLoading: !!companyId && isDashboardLoading,
+    isLoading: !!companyId && isDashboardLoading && !managementFinancials,
     isError: isDashboardError && !managementFinancials,
     stats,
     prevStats: dashboardData?.prevStats ?? { totalOrders: 0, totalCustomers: 0 },

@@ -108,7 +108,7 @@ import { NpsModal } from "@/components/onboarding/NpsModal";
 import { SilvioFAB } from "@/components/silvio/SilvioFAB";
 
 const MultiCompanySwitcher = memo(function MultiCompanySwitcher() {
-  const { role, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, effectiveCompany } = useAuth();
+  const { role, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany } = useAuth();
 
   if (role !== "multi_company_user" || multiCompanyAccesses.length <= 1) return null;
 
@@ -216,7 +216,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
     setOpenGroups(prev => ({ ...prev, [label]: !(prev[label] ?? true) }));
   };
 
-  const isGroupOpen = (label: string, items: NavItem[]) => {
+  const isGroupOpen = (label: string) => {
     if (label in openGroups) return openGroups[label];
     return true; // default open
   };
@@ -373,7 +373,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                         {group.label ? (
                           <SidebarSubcategory
                             label={group.label}
-                            isOpen={isGroupOpen(group.label, group.items)}
+                            isOpen={isGroupOpen(group.label)}
                             onToggle={() => toggleGroup(group.label!)}
                           >
                             {renderItems(group.items)}
@@ -462,7 +462,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                     {group.label ? (
                       <SidebarSubcategory
                         label={group.label}
-                        isOpen={isGroupOpen(group.label, group.items)}
+                        isOpen={isGroupOpen(group.label)}
                         onToggle={() => toggleGroup(group.label!)}
                       >
                         {renderExpandedItems(group.items)}
@@ -754,7 +754,7 @@ const CompanySidebar = memo(function CompanySidebar() {
   // restituisce i permessi REALI dell'utente target (letti da staff_permissions),
   // così la sidebar riflette esattamente quello che vedrebbe quell'utente.
   const permissions = usePermissions();
-  const { isModuleEnabled, isScopriPlan, isLoading: limitsLoading } = useSubscriptionLimits();
+  const { isModuleEnabled, isScopriPlan, isLoading: limitsLoading } = useSubscriptionLimits({ includeUsageCounts: false });
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
   // Mostriamo skeleton finché plan + feature flags non sono risolti: con
   // `isModuleEnabled` fail-closed, altrimenti la sidebar flickererebbe a vuoto.
@@ -771,7 +771,7 @@ const CompanySidebar = memo(function CompanySidebar() {
   // Close mobile sidebar on every navigation
   useEffect(() => {
     setOpenMobile(false);
-  }, [location.pathname]);
+  }, [location.pathname, setOpenMobile]);
 
   // Exclusive accordion: only one macro-area open at a time
   const findActiveAreaId = useCallback((path: string): string | null => {
@@ -805,7 +805,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       setOpenAreaId(active);
       try { localStorage.setItem("sidebar_open_area", active); } catch { /* storage non disponibile — silenzioso */ }
     }
-  }, [location.pathname]);
+  }, [findActiveAreaId, location.pathname, openAreaId]);
 
   // Apply CSS variables for brand colors
   useEffect(() => {
@@ -1059,14 +1059,14 @@ const CompanySidebar = memo(function CompanySidebar() {
 export function CompanyLayout() {
   const { effectiveCompany, isImpersonating } = useAuth();
   const permissions = usePermissions();
-  const { isModuleEnabled } = useSubscriptionLimits();
-  const { effectiveBrand } = useBrandSettings();
+  const { isModuleEnabled } = useSubscriptionLimits({ includeUsageCounts: false });
   useCustomCSS();
   const navigate = useNavigate();
   const [supportOpen, setSupportOpen] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
-  const { unreadCount, markAsRead } = useUnreadSupportCount();
+  const [deferredRealtimeReady, setDeferredRealtimeReady] = useState(false);
+  const { unreadCount, markAsRead } = useUnreadSupportCount({ enabled: deferredRealtimeReady });
   const { area, areaIcon: AreaIcon, page, pageUrl } = useBreadcrumb();
   const location = useLocation();
   // True only when the current path goes deeper than the matched nav item (sub-page)
@@ -1094,6 +1094,24 @@ export function CompanyLayout() {
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Evita che badge realtime, polling e widget accessori competano con la
+  // prima renderizzazione della pagina. Restano disponibili subito dopo il
+  // primo idle frame, senza cambiare il comportamento utente.
+  useEffect(() => {
+    const win = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (win.requestIdleCallback) {
+      const idleId = win.requestIdleCallback(() => setDeferredRealtimeReady(true), { timeout: 1_200 });
+      return () => win.cancelIdleCallback?.(idleId);
+    }
+
+    const timeoutId = window.setTimeout(() => setDeferredRealtimeReady(true), 700);
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   // Preventivatore Verticalizzato — FASE 1.4
@@ -1178,10 +1196,10 @@ export function CompanyLayout() {
               <Search className="h-4 w-4" aria-hidden="true" />
             </Button>
             {/* AI: azioni proposte che richiedono OK utente (MP-AIE-03) */}
-            <ActionProposalsBadge />
+            {deferredRealtimeReady && <ActionProposalsBadge />}
             {/* Silvio: cose da sapere proattive */}
-            <SilvioBellPopover />
-            <NotificationsBellPopover />
+            {deferredRealtimeReady && <SilvioBellPopover />}
+            {deferredRealtimeReady && <NotificationsBellPopover />}
             {showSupport && (
               <Button variant="outline" size="sm" className="relative hidden sm:flex" onClick={() => setChannelDialogOpen(true)}>
                 <HeadphonesIcon className="h-4 w-4 sm:mr-2" />
@@ -1198,7 +1216,7 @@ export function CompanyLayout() {
             </span>
           </header>
           <OfflineBanner />
-          <LifecycleNotificationsBanner />
+          {deferredRealtimeReady && <LifecycleNotificationsBanner />}
           <main className="flex-1 overflow-y-auto p-3 md:p-6 bg-muted/30 pb-4 md:pb-6" id="main-content" aria-label="Contenuto principale">
             <ErrorBoundary title="Errore nel caricamento della pagina">
               <Suspense fallback={
@@ -1233,10 +1251,10 @@ export function CompanyLayout() {
         </>
       )}
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
-      <PWAInstallBanner />
+      {deferredRealtimeReady && <PWAInstallBanner />}
       <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
       {/* Silvio FAB — sempre visibile in basso a sinistra */}
-      <SilvioFAB />
+      {deferredRealtimeReady && <SilvioFAB />}
     </SidebarProvider>
     </>
   );

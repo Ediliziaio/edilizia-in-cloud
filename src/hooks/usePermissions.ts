@@ -3,6 +3,7 @@ import { useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
+import { withClientTimeout } from "@/lib/query-timeout";
 
 export interface Permissions {
   canViewDashboard: boolean;
@@ -65,10 +66,69 @@ export interface Permissions {
   canViewControlloGestione: boolean;
   isAdmin: boolean;
   isLoading: boolean;
+  loadError?: string | null;
   onlyAssigned: boolean;
   /** Aree visibili all'utente. Vuoto = tutte le aree. */
   visibleAreas: string[];
 }
+
+const STAFF_PERMISSIONS_SELECT = [
+  "can_view_dashboard",
+  "can_view_orders",
+  "can_edit_orders",
+  "can_view_warehouse",
+  "can_edit_warehouse",
+  "can_view_calendar",
+  "can_view_customers",
+  "can_edit_customers",
+  "can_view_employees",
+  "can_view_tickets",
+  "can_edit_tickets",
+  "can_view_forecast",
+  "can_view_users",
+  "can_view_settings",
+  "can_view_settings_profile",
+  "can_edit_settings_profile",
+  "can_view_settings_orders",
+  "can_edit_settings_orders",
+  "can_view_settings_customization",
+  "can_edit_settings_customization",
+  "can_view_settings_people",
+  "can_edit_settings_people",
+  "can_view_settings_security",
+  "can_view_marketing",
+  "can_edit_marketing",
+  "can_view_marketing_dashboard",
+  "can_view_marketing_contacts",
+  "can_edit_marketing_contacts",
+  "can_view_marketing_opportunities",
+  "can_edit_marketing_opportunities",
+  "can_view_marketing_activities",
+  "can_view_marketing_appointments",
+  "can_view_marketing_automations",
+  "can_view_marketing_ai_agent",
+  "can_view_marketing_email",
+  "can_view_marketing_whatsapp",
+  "can_view_marketing_reports",
+  "can_view_cruscotto",
+  "can_view_billing",
+  "can_view_scadenzario",
+  "can_view_prima_nota",
+  "can_view_costs",
+  "can_view_tesoreria",
+  "can_view_persone",
+  "can_view_interventi",
+  "can_view_manutenzione",
+  "can_view_sicurezza_cantiere",
+  "can_view_subappaltatori",
+  "can_view_giornale_lavori",
+  "can_view_automazioni",
+  "can_view_render_ai",
+  "can_view_sales_os",
+  "can_view_sms_marketing",
+  "only_assigned",
+  "visible_areas",
+].join(",");
 
 const ALL_PERMISSIONS: Permissions = {
   canViewDashboard: true, canViewOrders: true, canEditOrders: true,
@@ -99,7 +159,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewAutomazioni: true, canViewRenderAi: true,
   canViewSalesOs: true, canViewSmsMarketing: true,
   canViewControlloGestione: true,
-  isAdmin: true, isLoading: false, onlyAssigned: false, visibleAreas: [],
+  isAdmin: true, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
 };
 
 const NO_PERMISSIONS: Permissions = {
@@ -131,7 +191,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewAutomazioni: false, canViewRenderAi: false,
   canViewSalesOs: false, canViewSmsMarketing: false,
   canViewControlloGestione: false,
-  isAdmin: false, isLoading: false, onlyAssigned: false, visibleAreas: [],
+  isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -239,15 +299,24 @@ export function usePermissions(): Permissions {
     return a?.access_role ?? null;
   }, [role, multiCompanyAccesses, selectedMultiCompanyId]);
 
-  const { data: permissions, isLoading } = useQuery({
+  const {
+    data: permissions,
+    isLoading,
+    isError: permissionsIsError,
+    error: permissionsError,
+  } = useQuery({
     queryKey: ["staff-permissions", user?.id, effectiveCompanyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("staff_permissions")
-        .select("*")
-        .eq("user_id", user!.id)
-        .eq("company_id", effectiveCompanyId!)
-        .maybeSingle();
+    queryFn: async ({ signal }) => {
+      const { data, error } = await withClientTimeout(
+        supabase
+          .from("staff_permissions")
+          .select(STAFF_PERMISSIONS_SELECT)
+          .eq("user_id", user!.id)
+          .eq("company_id", effectiveCompanyId!)
+          .abortSignal(signal)
+          .maybeSingle(),
+        "Verifica permessi aziendali",
+      );
 
       if (error) {
         logger.error("Error fetching permissions:", error);
@@ -269,15 +338,24 @@ export function usePermissions(): Permissions {
     !!viewAsUserId &&
     ["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(viewAsRole || "");
 
-  const { data: viewAsPermsRow, isLoading: viewAsLoading } = useQuery({
+  const {
+    data: viewAsPermsRow,
+    isLoading: viewAsLoading,
+    isError: viewAsIsError,
+    error: viewAsError,
+  } = useQuery({
     queryKey: ["staff-permissions", "view-as", viewAsUserId, effectiveCompanyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("staff_permissions")
-        .select("*")
-        .eq("user_id", viewAsUserId!)
-        .eq("company_id", effectiveCompanyId!)
-        .maybeSingle();
+    queryFn: async ({ signal }) => {
+      const { data, error } = await withClientTimeout(
+        supabase
+          .from("staff_permissions")
+          .select(STAFF_PERMISSIONS_SELECT)
+          .eq("user_id", viewAsUserId!)
+          .eq("company_id", effectiveCompanyId!)
+          .abortSignal(signal)
+          .maybeSingle(),
+        "Verifica permessi visualizza come",
+      );
       if (error) {
         logger.error("Error fetching view-as permissions:", error);
         return null;
@@ -315,6 +393,13 @@ export function usePermissions(): Permissions {
     };
   }, [user?.id, effectiveCompanyId, needsStaffPermsFetch, queryClient]);
 
+  const permissionsLoadError = permissionsIsError
+    ? (permissionsError instanceof Error ? permissionsError.message : "Errore nella verifica permessi")
+    : null;
+  const viewAsLoadError = viewAsIsError
+    ? (viewAsError instanceof Error ? viewAsError.message : "Errore nella verifica permessi simulati")
+    : null;
+
   // ─── View-as mode: il super_admin sta simulando un utente specifico ────
   // NB: valutato PRIMA dello shortcut super_admin → ALL_PERMISSIONS, altrimenti
   // il menu/pagine continuerebbero a mostrare tutto ignorando la simulazione.
@@ -322,6 +407,7 @@ export function usePermissions(): Permissions {
     if (viewAsRole === "company_admin") return ALL_PERMISSIONS;
     if (viewAsNeedsDbFetch) {
       if (viewAsLoading) return { ...NO_PERMISSIONS, isLoading: true };
+      if (viewAsLoadError) return { ...NO_PERMISSIONS, loadError: viewAsLoadError };
       // viewAsPermsRow può essere null se l'utente non ha una riga in staff_permissions:
       // in quel caso ricadiamo su NO_PERMISSIONS (fail-safe) ma non blocchiamo l'UI.
       return mapDbRowToPermissions(viewAsPermsRow);
@@ -360,6 +446,7 @@ export function usePermissions(): Permissions {
     if (["company_staff", "salesperson", "call_center"].includes(currentAccessRole)) {
       if (!effectiveCompanyId) return { ...NO_PERMISSIONS, isLoading: true };
       if (isLoading) return { ...NO_PERMISSIONS, isLoading: true };
+      if (permissionsLoadError) return { ...NO_PERMISSIONS, loadError: permissionsLoadError };
       return mapDbRowToPermissions(permissions);
     }
     // Ruolo accesso sconosciuto → fail-safe
@@ -385,98 +472,21 @@ export function usePermissions(): Permissions {
     if (isLoading) {
       return { ...NO_PERMISSIONS, isLoading: true };
     }
+    if (permissionsLoadError) {
+      return { ...NO_PERMISSIONS, loadError: permissionsLoadError };
+    }
 
-    return {
-      canViewDashboard: permissions?.can_view_dashboard ?? false,
-      canViewOrders: permissions?.can_view_orders ?? false,
-      canEditOrders: permissions?.can_edit_orders ?? false,
-      canViewWarehouse: permissions?.can_view_warehouse ?? false,
-      canEditWarehouse: permissions?.can_edit_warehouse ?? false,
-      canViewCalendar: permissions?.can_view_calendar ?? false,
-      canViewCustomers: permissions?.can_view_customers ?? false,
-      canEditCustomers: permissions?.can_edit_customers ?? false,
-      canViewEmployees: permissions?.can_view_employees ?? false,
-      canViewTickets: permissions?.can_view_tickets ?? false,
-      canEditTickets: permissions?.can_edit_tickets ?? false,
-      canViewForecast: permissions?.can_view_forecast ?? false,
-      canViewUsers: permissions?.can_view_users ?? false,
-      // Granular settings
-      canViewSettingsProfile:       permissions?.can_view_settings_profile       ?? false,
-      canEditSettingsProfile:       permissions?.can_edit_settings_profile       ?? false,
-      canViewSettingsOrders:        permissions?.can_view_settings_orders        ?? false,
-      canEditSettingsOrders:        permissions?.can_edit_settings_orders        ?? false,
-      canViewSettingsCustomization: permissions?.can_view_settings_customization ?? false,
-      canEditSettingsCustomization: permissions?.can_edit_settings_customization ?? false,
-      canViewSettingsPeople:        permissions?.can_view_settings_people        ?? false,
-      canEditSettingsPeople:        permissions?.can_edit_settings_people        ?? false,
-      canViewSettingsSecurity:      permissions?.can_view_settings_security      ?? false,
-      // Aggregate: true if any granular setting is enabled OR the legacy flag is still set
-      canViewSettings:
-        (permissions?.can_view_settings ?? false) ||
-        (permissions?.can_view_settings_profile ?? false) ||
-        (permissions?.can_view_settings_orders ?? false) ||
-        (permissions?.can_view_settings_customization ?? false) ||
-        (permissions?.can_view_settings_people ?? false) ||
-        (permissions?.can_view_settings_security ?? false),
-      // Aggregate: true se legacy flag OR qualsiasi flag marketing granulare è abilitato
-      canViewMarketing:
-        (permissions?.can_view_marketing ?? false) ||
-        (permissions?.can_view_marketing_dashboard ?? false) ||
-        (permissions?.can_view_marketing_contacts ?? false) ||
-        (permissions?.can_view_marketing_opportunities ?? false) ||
-        (permissions?.can_view_marketing_activities ?? false) ||
-        (permissions?.can_view_marketing_appointments ?? false) ||
-        (permissions?.can_view_marketing_automations ?? false) ||
-        (permissions?.can_view_marketing_ai_agent ?? false) ||
-        (permissions?.can_view_marketing_email ?? false) ||
-        (permissions?.can_view_marketing_whatsapp ?? false) ||
-        (permissions?.can_view_marketing_reports ?? false),
-      canEditMarketing:
-        (permissions?.can_edit_marketing ?? false) ||
-        (permissions?.can_edit_marketing_contacts ?? false) ||
-        (permissions?.can_edit_marketing_opportunities ?? false),
-      canViewCruscotto: permissions?.can_view_cruscotto ?? false,
-      canViewBilling: permissions?.can_view_billing ?? false,
-      canViewScadenzario: permissions?.can_view_scadenzario ?? false,
-      canViewPrimaNota: permissions?.can_view_prima_nota ?? false,
-      canViewCosts: permissions?.can_view_costs ?? false,
-      canViewPrevisionale: permissions?.can_view_forecast ?? false,
-      canViewTesoreria: permissions?.can_view_tesoreria ?? false,
-      canViewPersone: permissions?.can_view_persone ?? false,
-      canViewMarketingDashboard: permissions?.can_view_marketing_dashboard ?? false,
-      canViewMarketingContacts: permissions?.can_view_marketing_contacts ?? false,
-      canEditMarketingContacts: permissions?.can_edit_marketing_contacts ?? false,
-      canViewMarketingOpportunities: permissions?.can_view_marketing_opportunities ?? false,
-      canEditMarketingOpportunities: permissions?.can_edit_marketing_opportunities ?? false,
-      canViewMarketingActivities: permissions?.can_view_marketing_activities ?? false,
-      canViewMarketingAppointments: permissions?.can_view_marketing_appointments ?? false,
-      canViewMarketingAutomations: permissions?.can_view_marketing_automations ?? false,
-      canViewMarketingAiAgent: permissions?.can_view_marketing_ai_agent ?? false,
-      canViewMarketingEmail: permissions?.can_view_marketing_email ?? false,
-      canViewMarketingWhatsapp: permissions?.can_view_marketing_whatsapp ?? false,
-      canViewMarketingReports: permissions?.can_view_marketing_reports ?? false,
-      canViewInterventi:        permissions?.can_view_interventi          ?? false,
-      canViewManutenzione:      permissions?.can_view_manutenzione        ?? false,
-      canViewSicurezzaCantiere: permissions?.can_view_sicurezza_cantiere  ?? false,
-      canViewSubappaltatori:    permissions?.can_view_subappaltatori       ?? false,
-      canViewGiornaleLavori:    permissions?.can_view_giornale_lavori     ?? false,
-      canViewAutomazioni:       permissions?.can_view_automazioni         ?? false,
-      canViewRenderAi:          permissions?.can_view_render_ai           ?? false,
-      canViewSalesOs:           permissions?.can_view_sales_os            ?? false,
-      canViewSmsMarketing:      permissions?.can_view_sms_marketing       ?? false,
-      isAdmin: false,
-      isLoading: false,
-      onlyAssigned: permissions?.only_assigned ?? false,
-      visibleAreas: permissions?.visible_areas ?? [],
-    };
+    return mapDbRowToPermissions(permissions);
   }
 
-  // Safety net: user is authenticated but role is temporarily null.
-  // This can happen if a TOKEN_REFRESHED fetch previously failed and left role unresolved.
-  // Returning isLoading:true prevents filterNavItems from blanking the sidebar
-  // until the next successful auth resolution.
+  // Safety net: user authenticated but role unresolved. Do not return
+  // isLoading forever: this was the concrete path to infinite spinners on
+  // staff-only pages when auth/profile fetch failed for a real client.
   if (user && role == null) {
-    return { ...NO_PERMISSIONS, isLoading: true };
+    return {
+      ...NO_PERMISSIONS,
+      loadError: "Ruolo utente non risolto. Ricarica la sessione o accedi di nuovo.",
+    };
   }
 
   // Defensive: user is authenticated with a role that doesn't match any branch above

@@ -7,7 +7,7 @@
  *   1. Cover — sfondo scuro, hero personalizzabile, decoro SVG finestra,
  *               dati cliente in card con accent arancio
  *   2. Proposta intervento — anagrafica, sintesi, esigenze, soluzione, perché noi
- *   3. Investimento — prezzo big, modalità pagamento step-by-step, finanziamento,
+ *   3. Proposta economica — prezzo big, modalità pagamento step-by-step, finanziamento,
  *               detrazione ecobonus, cashflow SVG 10 anni
  *   4. Allegato tecnico — tabella serramenti con foto prodotto + scheda tecnica
  *               chip (show_in_pdf=true), accessori (con misure), cronoprogramma
@@ -30,6 +30,7 @@ import type {
   SrPercorsoCliente, SrPdfPageId, SrPdfPageOrderItem,
   SrGaranzia, SrConfrontoRiga, SrCertificazione, SrBonus, SrFaq,
 } from "@/types/serramenti";
+import { calcolaTotale } from "@/lib/serramenti/calcoli";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import type {
   SerramentoPdfConsulente, SerramentoPdfFamilyData,
@@ -986,6 +987,10 @@ function fmtEuro(v: number | null | undefined, decimals = 0): string {
   const n = Number(v ?? 0);
   return n.toLocaleString("it-IT", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
+function roundMoney(v: number | null | undefined): number {
+  const n = Number(v ?? 0);
+  return Math.round((Number.isFinite(n) ? n : 0) * 100) / 100;
+}
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
   try {
@@ -1815,9 +1820,25 @@ export function SerramentoPDF({
   })() : null;
   const percorsoTotaleStep = percorso.fasi.reduce((acc, f) => acc + f.step.length, 0);
 
-  const totaleMin = Number(p.totale_min ?? 0);
-  const totaleMax = Number(p.totale_max ?? 0);
-  const totaleMedia = (totaleMin + totaleMax) / 2;
+  const totaleCalcolato = calcolaTotale(
+    detail.serramenti,
+    detail.accessori,
+    {
+      iva_percentuale: p.iva_percentuale ?? 10,
+      sconto_percentuale: p.sconto_percentuale ?? 0,
+      sconto_importo: p.sconto_importo ?? 0,
+    },
+    detail.servizi ?? detail.manodopera ?? [],
+  );
+  const totaleFallback = Number(p.totale_max || p.totale_min || 0);
+  const ivaPctFallback = p.iva_percentuale === -1 ? 10 : Number(p.iva_percentuale ?? 0);
+  const imponibileFallback = p.iva_inclusa && ivaPctFallback > 0
+    ? totaleFallback / (1 + ivaPctFallback / 100)
+    : totaleFallback;
+  const totaleDocumento = roundMoney(totaleCalcolato.totale_iva_inclusa || totaleFallback);
+  const totaleImponibile = roundMoney(totaleCalcolato.imponibile_netto || imponibileFallback);
+  const totaleIva = roundMoney(totaleCalcolato.iva_importo || Math.max(0, totaleDocumento - totaleImponibile));
+  const totaleMedia = totaleDocumento;
   const esigenze = (Array.isArray(p.esigenze) ? p.esigenze : []) as SrEsigenza[];
   const soluzione = (Array.isArray(p.soluzione) ? p.soluzione : []) as SrSoluzioneItem[];
   const percheNoi = (Array.isArray(p.perche_noi) ? p.perche_noi : []) as Array<string | { titolo: string; descrizione?: string }>;
@@ -2745,7 +2766,7 @@ export function SerramentoPDF({
           ),
           investimento: (
             <>
-            {/* ─── PAGINA — INVESTIMENTO (spostata DOPO i prodotti) ──────────────
+            {/* ─── PAGINA — ECONOMICA (spostata DOPO i prodotti) ─────────────────
                 La pagina economica viene mostrata dopo l'allegato tecnico e le
                 pagine dedicate macrocategoria: il cliente vede prima COSA gli
                 stiamo proponendo (composizione + foto + descrizione macro), e
@@ -2753,20 +2774,20 @@ export function SerramentoPDF({
             <Page size="A4" style={styles.page}>
               <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
-              <Text style={styles.pageEyebrow}>L'investimento</Text>
-              <Text style={styles.investmentTitle}>Trasparenza{"\n"}totale.</Text>
+              <Text style={styles.pageEyebrow}>Proposta economica</Text>
+              <Text style={styles.investmentTitle}>Importo chiaro.{"\n"}Senza sorprese.</Text>
               <Text style={styles.investmentSubtitle}>
-                Stima indicativa basata sulle informazioni raccolte. L'importo definitivo viene confermato dopo sopralluogo tecnico e scelta dei materiali.
+                Il totale è calcolato sulla composizione dell'offerta, sugli sconti applicati e sull'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione.
               </Text>
 
               <View style={styles.priceBoxCompact} wrap={false}>
-                <Text style={styles.priceLabel}>Il tuo investimento stimato</Text>
+                <Text style={styles.priceLabel}>Totale preventivo</Text>
                 <Text style={styles.priceValueCompact}>
-                  € {fmtEuro(totaleMin)} – € {fmtEuro(totaleMax)}
+                  € {fmtEuro(totaleDocumento, 2)}
                   <Text style={styles.priceSuffix}>{p.iva_inclusa ? "IVA inclusa" : "IVA esclusa"}</Text>
                 </Text>
                 <Text style={{ fontSize: 9, color: C.primary, marginTop: 4 }}>
-                  Media: € {fmtEuro(totaleMedia)}
+                  Imponibile € {fmtEuro(totaleImponibile, 2)} · IVA € {fmtEuro(totaleIva, 2)}
                 </Text>
                 {/* Nota IVA: spiega l'aliquota applicata. Per IVA mista
                     richiama esplicitamente la normativa (art. 7 c.1 L.488/99
@@ -2774,14 +2795,14 @@ export function SerramentoPDF({
                     al cliente — riduce contestazioni in fase di firma. */}
                 <Text style={styles.priceFinePrint}>
                   {p.iva_percentuale === -1
-                    ? "IVA mista applicata secondo la regola dei Beni Significativi (DM 29.12.99): aliquota agevolata al 10% nei limiti previsti; eventuale eccedenza al 22%."
+                    ? "IVA calcolata sulle righe del preventivo secondo la regola dei Beni Significativi (DM 29.12.99): quota agevolata al 10% nei limiti previsti ed eventuale eccedenza al 22%."
                     : p.iva_percentuale === 4
-                      ? "IVA agevolata 4% (Legge 104 — interventi per persone con disabilità)."
+                      ? "IVA applicata: 4% agevolata (Legge 104 — interventi per persone con disabilità)."
                       : p.iva_percentuale === 10
-                        ? "IVA agevolata 10% per interventi di ristrutturazione edilizia (art. 7 c.1 L. 488/99)."
+                        ? "IVA applicata: 10% agevolata per interventi di ristrutturazione edilizia (art. 7 c.1 L. 488/99)."
                         : p.iva_percentuale === 0
                           ? "Operazione esente / non imponibile IVA."
-                          : `Aliquota IVA ${p.iva_percentuale}% — ordinaria.`}
+                          : `IVA applicata: ${p.iva_percentuale}% ordinaria.`}
                 </Text>
 
                 {/* Milestone 7: rata mensile + netto dopo recupero fiscale.
@@ -2907,12 +2928,12 @@ export function SerramentoPDF({
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
-                <Text style={styles.pageEyebrow}>Dettagli investimento</Text>
+                <Text style={styles.pageEyebrow}>Dettagli economici</Text>
                 <Text style={[styles.pageTitle, { fontSize: 24, marginBottom: 6 }]}>
                   Valore, recuperi e inclusioni.
                 </Text>
                 <Text style={[styles.pageSubtitle, { fontSize: 10, marginBottom: 12 }]}>
-                  Un riepilogo ordinato per leggere con chiarezza recupero fiscale, ritorno economico e ciò che è compreso.
+                  Un riepilogo ordinato per leggere con chiarezza recupero fiscale, recupero economico e ciò che è compreso.
                 </Text>
 
                 {hasTaxDeduction && (
@@ -2964,11 +2985,11 @@ export function SerramentoPDF({
 
                 {cashflowYears.length > 0 && (
                   <View wrap={false}>
-                    <Text style={styles.investmentSectionTitle}>Ritorno sull'investimento · 10 anni</Text>
+                    <Text style={styles.investmentSectionTitle}>Recupero economico · 10 anni</Text>
                     <CashflowSvg years={cashflowYears} primary={primaryColor} />
                     <Text style={{ fontSize: 8.2, color: C.gray500, marginTop: 4, lineHeight: 1.35 }}>
                       Risparmio bolletta + detrazione fiscale cumulati anno dopo anno.
-                      La linea tratteggiata indica l'anno in cui l'investimento è
+                      La linea tratteggiata indica l'anno in cui la spesa iniziale è
                       completamente ripagato (break-even).
                     </Text>
 
@@ -3023,7 +3044,7 @@ export function SerramentoPDF({
                       })}
                     </View>
                     <Text style={{ fontSize: 7.7, color: C.gray500, marginTop: 5, fontStyle: "italic" }}>
-                      * Anno di break-even — l'investimento iniziale è completamente ripagato dal risparmio + detrazione.
+                      * Anno di break-even — la spesa iniziale è completamente ripagata dal risparmio + detrazione.
                     </Text>
                   </View>
                 )}

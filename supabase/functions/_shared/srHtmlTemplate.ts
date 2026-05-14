@@ -7,7 +7,7 @@
  *
  * Pagine:
  *  1. Proposta di intervento — anagrafica + sintesi + esigenze + soluzione + perché noi
- *  2. Investimento + Finanziamento — forbice + 2 piani + testimonianze + incluso
+ *  2. Proposta economica + Finanziamento — totale + 2 piani + testimonianze + incluso
  *  3. Allegato tecnico — BOM serramenti + accessori + consulenza + crono
  *  4. Firma online — render, prossimi passi, link pubblico
  */
@@ -125,6 +125,16 @@ function fmtEur(n: number | null | undefined, decimals = 0): string {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
+}
+
+function fmtEurRangeOrSingle(min: number | null | undefined, max: number | null | undefined, decimals = 0): string {
+  const minN = Number(min ?? 0);
+  const maxN = Number(max ?? 0);
+  if (!minN && !maxN) return "—";
+  if (!minN) return fmtEur(maxN, decimals);
+  if (!maxN) return fmtEur(minN, decimals);
+  if (Math.abs(minN - maxN) < 0.01) return fmtEur(maxN, decimals);
+  return `${fmtEur(minN, decimals)} – ${fmtEur(maxN, decimals)}`;
 }
 
 function fmtNum(n: number | null | undefined, decimals = 0): string {
@@ -275,12 +285,12 @@ function renderPage2(d: SrPdfData, total = totalPages(d)): string {
   <section class="page">
     ${renderHeader(d, 2, total)}
     <main class="page-body">
-      <h2 class="section-title">IL TUO INVESTIMENTO STIMATO</h2>
+      <h2 class="section-title">TOTALE PREVENTIVO</h2>
       <div class="big-price-box">
-        <p class="big-price">${fmtEur(d.totale_min)} <span class="dash">—</span> ${fmtEur(d.totale_max)}</p>
+        <p class="big-price">${fmtEurRangeOrSingle(d.totale_min, d.totale_max)}</p>
         <p class="big-price-note">${d.iva_inclusa ? "IVA INCLUSA" : "IVA esclusa"}</p>
       </div>
-      <p class="muted small">Stima indicativa basata sulle informazioni raccolte. L'importo definitivo viene confermato con consulenza tecnica, misure puntuali e scelta dei materiali.</p>
+      <p class="muted small">Importo calcolato sulla composizione dell'offerta, sugli sconti applicati e sull'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione.</p>
 
       ${d.risparmio_eur_anno || d.detrazione_eur_totale ? `
         <h2 class="section-title">VANTAGGIO ECONOMICO</h2>
@@ -316,7 +326,7 @@ function renderPage2(d: SrPdfData, total = totalPages(d)): string {
       ${d.fin_piani && d.fin_piani.length > 0 ? `
         <h2 class="section-title">SIMULAZIONE FINANZIAMENTO</h2>
         <div class="info-grid mb">
-          <div class="info-row"><span class="info-label">Importo di riferimento</span><span class="info-val">${fmtEur((d.totale_min + d.totale_max) / 2)} <span class="muted">(media del range IVA inclusa)</span></span></div>
+          <div class="info-row"><span class="info-label">Importo di riferimento</span><span class="info-val">${fmtEurRangeOrSingle(d.totale_min, d.totale_max)} <span class="muted">(totale preventivo IVA inclusa)</span></span></div>
           <div class="info-row"><span class="info-label">Anticipo</span><span class="info-val">${fmtNum(d.fin_anticipo_pct)}% · ${fmtEur(d.fin_anticipo_eur)}</span></div>
         </div>
         <div class="fin-grid">
@@ -347,7 +357,7 @@ function renderPage2(d: SrPdfData, total = totalPages(d)): string {
       ` : ""}
 
       ${d.incluso_investimento && d.incluso_investimento.length > 0 ? `
-        <h2 class="section-title">COSA È INCLUSO NELL'INVESTIMENTO</h2>
+        <h2 class="section-title">COSA È INCLUSO NEL PREVENTIVO</h2>
         <ul class="check-list">
           ${d.incluso_investimento.slice(0, 6).map((i) => `<li>${esc(i)}</li>`).join("")}
         </ul>
@@ -405,7 +415,7 @@ function renderPage3(d: SrPdfData, total = totalPages(d)): string {
     ${renderHeader(d, 3, total)}
     <main class="page-body">
       <h1 class="page-title">Allegato tecnico</h1>
-      <p class="page-subtitle">Composizione dell'intervento e importo finale stimato.</p>
+      <p class="page-subtitle">Composizione dell'intervento e totale preventivo indicato nell'offerta.</p>
 
       <h2 class="section-title">COMPOSIZIONE SERRAMENTI · ${d.totale_serramenti} PEZZI</h2>
       <table class="data-table">

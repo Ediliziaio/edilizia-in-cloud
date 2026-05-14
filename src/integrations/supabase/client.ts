@@ -5,6 +5,8 @@ import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_REST_TIMEOUT_MS = 25_000;
+const SUPABASE_FUNCTION_TIMEOUT_MS = 90_000;
 
 // Sicurezza: le variabili d'ambiente sono obbligatorie — nessun fallback hardcoded
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
@@ -16,7 +18,45 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+function getRequestTimeout(input: RequestInfo | URL): number {
+  const url = typeof input === "string"
+    ? input
+    : input instanceof URL
+      ? input.toString()
+      : input.url;
+
+  // Le edge function AI possono legittimamente impiegare piu tempo.
+  // Le query REST/RPC invece non devono lasciare il portale bloccato per un minuto.
+  return url.includes("/functions/v1/")
+    ? SUPABASE_FUNCTION_TIMEOUT_MS
+    : SUPABASE_REST_TIMEOUT_MS;
+}
+
+function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
+  const timeoutMs = getRequestTimeout(input);
+  const controller = new AbortController();
+  const upstreamSignal = init?.signal;
+  const timeoutId = window.setTimeout(() => {
+    controller.abort(new DOMException(`Supabase request timeout after ${timeoutMs}ms`, "TimeoutError"));
+  }, timeoutMs);
+
+  if (upstreamSignal) {
+    if (upstreamSignal.aborted) {
+      controller.abort(upstreamSignal.reason);
+    } else {
+      upstreamSignal.addEventListener("abort", () => controller.abort(upstreamSignal.reason), { once: true });
+    }
+  }
+
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => {
+    window.clearTimeout(timeoutId);
+  });
+}
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  global: {
+    fetch: fetchWithTimeout,
+  },
   auth: {
     storage: localStorage,
     persistSession: true,

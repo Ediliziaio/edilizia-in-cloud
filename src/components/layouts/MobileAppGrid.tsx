@@ -25,11 +25,11 @@ interface MobileAppGridProps {
 
 export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
   const permissions = usePermissions();
-  const { isModuleEnabled, isLoading: limitsLoading } = useSubscriptionLimits();
+  const { isModuleEnabled, isLoading: limitsLoading } = useSubscriptionLimits({ includeUsageCounts: false });
   const { mode: billingMode } = useBillingMode();
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
   const gatingLoading = limitsLoading || flagsLoading;
-  const { effectiveCompany, role } = useAuth();
+  const { role } = useAuth();
   const location = useLocation();
   const [search, setSearch] = useState("");
 

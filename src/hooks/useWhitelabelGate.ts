@@ -55,12 +55,13 @@ export function useWhitelabelGate(): WhitelabelGate {
   // 1. Legge il tier della company corrente da company_branding
   const { data: brandingTier, isLoading: loadingBranding } = useQuery({
     queryKey: ["wl-branding-tier", companyId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!companyId) return "none";
       const { data } = await (supabase as any)
         .from("company_branding")
         .select("whitelabel_tier")
         .eq("company_id", companyId)
+        .abortSignal(signal)
         .maybeSingle();
       return (data?.whitelabel_tier as string) ?? "none";
     },
@@ -72,11 +73,28 @@ export function useWhitelabelGate(): WhitelabelGate {
   const tier = brandingTier ?? "none";
   const { data: capabilities, isLoading: loadingTiers } = useQuery({
     queryKey: ["wl-tier-capabilities", tier],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data } = await (supabase as any)
         .from("whitelabel_tiers")
-        .select("*")
+        .select(`
+          slug,
+          name,
+          description,
+          can_change_logo,
+          can_change_colors,
+          can_change_login_page,
+          can_custom_domain,
+          can_hide_powered_by,
+          can_custom_email_branding,
+          can_custom_pdf_branding,
+          can_custom_pwa,
+          can_custom_css,
+          can_resell,
+          max_custom_domains,
+          price_monthly
+        `)
         .eq("slug", tier)
+        .abortSignal(signal)
         .maybeSingle();
       if (!data) return NO_CAPABILITIES;
       return {
@@ -97,12 +115,12 @@ export function useWhitelabelGate(): WhitelabelGate {
         priceMonthly: data.price_monthly ?? 0,
       } as WhitelabelTierCapabilities;
     },
-    enabled: tier !== "none" || !loadingBranding,
+    enabled: tier !== "none",
     staleTime: 10 * 60 * 1000, // 10 minuti — i tier cambiano raramente
   });
 
-  const resolved = capabilities ?? NO_CAPABILITIES;
-  const isLoading = loadingBranding || loadingTiers;
+  const resolved = tier === "none" ? NO_CAPABILITIES : capabilities ?? NO_CAPABILITIES;
+  const isLoading = loadingBranding || (tier !== "none" && loadingTiers);
 
   return {
     tier,

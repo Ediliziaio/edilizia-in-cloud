@@ -511,6 +511,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (user) {
         const userData = await fetchUserData(user.id, user.email);
         if (myGen !== authGenRef.current) return;
+        if (userData.role === null) {
+          clearProfileCache();
+          resolvedRoleRef.current = null;
+          setState({
+            user: null,
+            profile: null,
+            role: null,
+            company: null,
+            isLoading: false,
+          });
+          return;
+        }
         setState({
           user,
           ...userData,
@@ -703,16 +715,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // blanking to only "Attività" after a 12 s DB timeout mid-session.
             logger.warn("[auth] SIGNED_IN/INITIAL_SESSION: background fetchUserData failed — keeping existing state");
             if (!usedCachedAuth && myGen === authGenRef.current) {
-              setState(prev => prev.isLoading
-                ? { ...prev, user: session.user, isLoading: false }
-                : prev
-              );
+              clearProfileCache();
+              resolvedRoleRef.current = null;
+              setState({
+                user: null,
+                profile: null,
+                role: null,
+                company: null,
+                isLoading: false,
+              });
             }
             return;
           }
 
           // Another auth event fired while we were fetching — bail out.
           if (myGen !== authGenRef.current) return;
+
+          if (userData.role === null) {
+            logger.warn("[auth] SIGNED_IN/INITIAL_SESSION: ruolo non risolto, fail-closed per evitare permessi/spinner incoerenti", {
+              usedCachedAuth,
+            });
+            clearProfileCache();
+            if (!usedCachedAuth) {
+              resolvedRoleRef.current = null;
+              setState({
+                user: null,
+                profile: null,
+                role: null,
+                company: null,
+                isLoading: false,
+              });
+            }
+            return;
+          }
 
           resolvedRoleRef.current = userData.role;
 
@@ -780,6 +815,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return;
             }
             if (myGen !== authGenRef.current) return;
+            if (userData.role === null) {
+              clearProfileCache();
+              resolvedRoleRef.current = null;
+              setState({
+                user: null,
+                profile: null,
+                role: null,
+                company: null,
+                isLoading: false,
+              });
+              return;
+            }
             resolvedRoleRef.current = userData.role;
             setState({ user: session.user, ...userData, isLoading: false });
           }

@@ -469,7 +469,7 @@ export function StepContenuti({ form, onChange }: Props) {
     },
     {
       key: "incluso",
-      title: "Cosa è incluso nell'investimento",
+      title: "Cosa è incluso nel preventivo",
       emoji: "✅",
       icon: <ListChecks className="h-4 w-4 text-orange-600" />,
       count: selIncluso.length,
@@ -579,7 +579,7 @@ export function StepContenuti({ form, onChange }: Props) {
         Le voci che selezioni qui andranno nel PDF cliente nelle rispettive sezioni:
         <ul className="list-disc list-inside mt-1 space-y-0.5">
           <li><strong>Esigenze + Soluzione</strong> → Pagina 1 (Proposta)</li>
-          <li><strong>Cosa è incluso</strong> → Pagina 2 (Investimento)</li>
+          <li><strong>Cosa è incluso</strong> → Pagina economica</li>
           <li><strong>Perché noi + Prossimi passi</strong> → fine PDF (chiusura)</li>
         </ul>
       </SrCallout>

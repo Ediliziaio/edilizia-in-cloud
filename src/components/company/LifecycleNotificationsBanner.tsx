@@ -24,15 +24,16 @@ export function LifecycleNotificationsBanner() {
 
   const { data: notifications = [] } = useQuery({
     queryKey: queryKeys.lifecycleNotifications.byCompany(companyId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("lifecycle_notifications")
-        .select("*")
+        .select("id, notification_type, title, message, is_read, is_dismissed, created_at")
         .eq("company_id", companyId)
         .eq("is_dismissed", false)
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(5)
+        .abortSignal(signal);
       if (error) throw error;
       return data as LifecycleNotification[];
     },

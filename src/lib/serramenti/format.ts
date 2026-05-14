@@ -30,3 +30,17 @@ export const formatNumero = (n: number | null | undefined, decimals = 0): string
     maximumFractionDigits: decimals,
   });
 };
+
+export const formatEuroRangeOrSingle = (
+  min: number | null | undefined,
+  max: number | null | undefined,
+  decimals = 0,
+): string => {
+  const minN = Number(min ?? 0);
+  const maxN = Number(max ?? 0);
+  if (!minN && !maxN) return "—";
+  if (!minN) return formatEuro(maxN, decimals);
+  if (!maxN) return formatEuro(minN, decimals);
+  if (Math.abs(minN - maxN) < 0.01) return formatEuro(maxN, decimals);
+  return `${formatEuro(minN, decimals)} – ${formatEuro(maxN, decimals)}`;
+};

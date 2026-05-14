@@ -1,13 +1,13 @@
 /**
- * StepEconomia — Step 6 wizard: forbice prezzo + Ecobonus + ROI 10 anni.
+ * StepEconomia — Step 6 wizard: totale preventivo + Ecobonus + recupero 10 anni.
  *
  * Sezioni:
  *  - Riepilogo BOM (auto-calcolato)
- *  - Sconto / range forbice
+ *  - Sconto / totale documento
  *  - Configurazione finanziamento (anticipo % + piani)
  *  - Detrazione fiscale (50/65%)
  *  - Calcolo risparmio energetico
- *  - Grafico Ritorno sull'investimento (ROI) 10 anni
+ *  - Grafico recupero economico 10 anni
  */
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { calcolaTotale, forbicePrezzo } from "@/lib/serramenti/calcoli";
+import { calcolaTotale } from "@/lib/serramenti/calcoli";
 import {
   calcolaEcobonus, calcolaCashflow, calcolaPianoFinanziamento,
 } from "@/lib/serramenti/ecobonus";
@@ -87,6 +87,10 @@ function isLegacyIvaValue(iva: number | null | undefined): boolean {
   return !IVA_STANDARD_VALUES.has(iva);
 }
 
+function roundMoney(value: number): number {
+  return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+}
+
 interface Props {
   progettoId: string;
   detail: SrProgettoDetail;
@@ -124,9 +128,17 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
     [detail.serramenti, detail.accessori, detail.servizi, detail.manodopera, form.iva_percentuale, form.sconto_percentuale, form.sconto_importo],
   );
 
-  const forbice = useMemo(() => forbicePrezzo(totaleCalc.totale_iva_inclusa, 12), [totaleCalc.totale_iva_inclusa]);
+  const importoDocumento = useMemo(
+    () => roundMoney(totaleCalc.totale_iva_inclusa),
+    [totaleCalc.totale_iva_inclusa],
+  );
+  const forbice = useMemo(
+    () => ({ min: importoDocumento, max: importoDocumento, media: importoDocumento }),
+    [importoDocumento],
+  );
 
-  // Salva totale_min/max nel progetto quando cambia il calcolo.
+  // Salva totale_min/max allineati allo stesso totale documento: il preventivo
+  // serramenti ha un prezzo finale, non una forbice indicativa.
   // Tolleranza 0.5 € per evitare il "dirty fantasma": float imprecisi possono
   // far apparire differenze submillesimali tra forbice.min e form.totale_min
   // anche se nessun utente ha toccato nulla, marcando il progetto come dirty
@@ -134,13 +146,13 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
   useEffect(() => {
     const currentMin = Number(form.totale_min ?? 0);
     const currentMax = Number(form.totale_max ?? 0);
-    if (Math.abs(forbice.min - currentMin) > 0.5) {
-      onChange("totale_min", forbice.min);
+    if (Math.abs(importoDocumento - currentMin) > 0.5) {
+      onChange("totale_min", importoDocumento);
     }
-    if (Math.abs(forbice.max - currentMax) > 0.5) {
-      onChange("totale_max", forbice.max);
+    if (Math.abs(importoDocumento - currentMax) > 0.5) {
+      onChange("totale_max", importoDocumento);
     }
-  }, [forbice.min, forbice.max]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [importoDocumento]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Sconto: collegamento alle regole azienda ────────────────────────────
   // Replica client-side del compute_max_discount SQL: valuta in tempo reale
@@ -173,36 +185,121 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
     }
   }, [discountEval.primaryRule?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const costGridIds = useMemo(
+    () => Array.from(new Set([
+      ...detail.serramenti.map((s) => s.listino_voce_id).filter((v): v is string => !!v),
+      ...detail.accessori.map((a) => a.listino_voce_id).filter((v): v is string => !!v),
+    ])),
+    [detail.serramenti, detail.accessori],
+  );
+
+  const { data: costGridRows = [], isFetching: isFetchingGridCosts } = useQuery({
+    queryKey: ["sr-margin-grid-costs", progettoId, costGridIds],
+    enabled: isAdmin && costGridIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Array<{ id: string; prezzo_acquisto: number | null }>> => {
+      const { data, error } = await (supabase as any)
+        .from("listino_griglia")
+        .select("id, prezzo_acquisto")
+        .in("id", costGridIds);
+      if (error) {
+        console.warn("[StepEconomia] listino_griglia cost fetch failed:", error.message);
+        return [];
+      }
+      return (data ?? []).map((row: { id: string; prezzo_acquisto: number | null }) => ({
+        id: row.id,
+        prezzo_acquisto: row.prezzo_acquisto == null ? null : Number(row.prezzo_acquisto),
+      }));
+    },
+  });
+
+  const prezzoAcquistoByGridId = useMemo(
+    () => new Map(costGridRows.map((row) => [row.id, row.prezzo_acquisto])),
+    [costGridRows],
+  );
+
   // ─── Margine € + Margine % ──────────────────────────────────────────────
-  // Visibile SOLO a isAdmin. Calcolato sommando prezzo_costo dalle righe BOM
-  // (serramenti + accessori + servizi). Confronta con margine_min della regola
-  // scontistica per alert "sotto target".
+  // Visibile SOLO a isAdmin. Margine reale sul NETTO: vendita imponibile
+  // post-sconto meno costo acquisto netto. Se i costi non sono completi, non
+  // mostriamo percentuali fuorvianti (es. 100% quando manca il costo).
   const marginCalc = useMemo(() => {
     if (!isAdmin) return null;
     let costoTotale = 0;
-    // Serramenti: ogni riga ha prezzo_costo (calcolato da listino)
+    let righeConVendita = 0;
+    let righeConCosto = 0;
+    let righeSenzaCosto = 0;
+
+    const addRiga = (
+      venditaRiga: number,
+      quantita: number,
+      costoEsplicito: number | null | undefined,
+      listinoVoceId: string | null | undefined,
+    ) => {
+      if (venditaRiga <= 0) return;
+      righeConVendita += 1;
+      const explicit = Number(costoEsplicito ?? 0);
+      const gridCost = listinoVoceId ? prezzoAcquistoByGridId.get(listinoVoceId) : null;
+      const costoRiga = explicit > 0
+        ? explicit
+        : gridCost != null && gridCost > 0
+          ? Number(gridCost) * Math.max(1, quantita || 1)
+          : null;
+      if (costoRiga != null && costoRiga > 0) {
+        costoTotale += costoRiga;
+        righeConCosto += 1;
+      } else {
+        righeSenzaCosto += 1;
+      }
+    };
+
     detail.serramenti.forEach((s) => {
-      const cost = Number((s as { prezzo_costo_totale?: number | null }).prezzo_costo_totale ?? 0);
-      costoTotale += cost;
+      addRiga(
+        Number(s.prezzo_totale ?? (s.prezzo_unitario ?? 0) * (s.quantita ?? 1)),
+        s.quantita ?? 1,
+        (s as { prezzo_costo_totale?: number | null }).prezzo_costo_totale,
+        s.listino_voce_id,
+      );
     });
-    // Accessori: prezzo_unitario_costo è solo sulle righe linked al listino
     detail.accessori.forEach((a) => {
-      const cost = Number((a as { prezzo_costo_unitario?: number | null }).prezzo_costo_unitario ?? 0) * (a.quantita ?? 1);
-      costoTotale += cost;
+      const costoAccessorioTotale = (a as { prezzo_costo_totale?: number | null }).prezzo_costo_totale;
+      const costoAccessorioUnitario = (a as { prezzo_costo_unitario?: number | null }).prezzo_costo_unitario;
+      addRiga(
+        Number(a.prezzo_totale ?? (a.prezzo_unitario ?? 0) * (a.quantita ?? 1)),
+        a.quantita ?? 1,
+        costoAccessorioTotale
+          ?? (costoAccessorioUnitario != null ? Number(costoAccessorioUnitario) * (a.quantita ?? 1) : null),
+        a.listino_voce_id,
+      );
     });
-    // Servizi: prezzo_unitario_costo presente sulle righe da tariffa
     (detail.servizi ?? detail.manodopera ?? []).forEach((m) => {
-      const cost = Number(m.prezzo_unitario_costo ?? 0) * (m.quantita ?? 1);
-      costoTotale += cost;
+      addRiga(
+        Number(m.prezzo_totale_vendita ?? (m.prezzo_unitario_vendita ?? 0) * (m.quantita ?? 1)),
+        m.quantita ?? 1,
+        m.prezzo_totale_costo ?? Number(m.prezzo_unitario_costo ?? 0) * (m.quantita ?? 1),
+        null,
+      );
     });
     const vendita = totaleCalc.imponibile_netto;
     const margine = vendita - costoTotale;
-    const marginePct = vendita > 0 ? (margine / vendita) * 100 : 0;
+    const costiCompleti = righeConVendita > 0 && righeSenzaCosto === 0 && costoTotale > 0;
+    const marginePct = costiCompleti && vendita > 0 ? (margine / vendita) * 100 : null;
     const margineMinPct = discountEval.margineMinPct;
-    const sottoTarget = marginePct < margineMinPct;
-    return { costoTotale, vendita, margine, marginePct, margineMinPct, sottoTarget };
+    const sottoTarget = marginePct != null && marginePct < margineMinPct;
+    return {
+      costoTotale,
+      vendita,
+      margine,
+      marginePct,
+      margineMinPct,
+      sottoTarget,
+      costiCompleti,
+      righeConVendita,
+      righeConCosto,
+      righeSenzaCosto,
+      isFetchingGridCosts,
+    };
   }, [
-    isAdmin,
+    isAdmin, isFetchingGridCosts, prezzoAcquistoByGridId,
     detail.serramenti, detail.accessori, detail.servizi, detail.manodopera,
     totaleCalc.imponibile_netto, discountEval.margineMinPct,
   ]);
@@ -513,10 +610,10 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
         </div>
       </SrCard>
 
-      {/* Sconto + forbice */}
+      {/* Sconto + totale */}
       <SrCard
-        title="Forbice prezzo (PDF cliente)"
-        description="L'importo definitivo viene confermato dopo sopralluogo tecnico e scelta dei materiali. Nel PDF mostri una stima indicativa."
+        title="Totale preventivo (PDF cliente)"
+        description="Il PDF mostra un importo unico e definitivo per questa revisione: sconti, imponibile e IVA sono calcolati dalle righe dell'offerta."
         icon={<Euro className="h-4 w-4" />}
       >
         {/* ─── Regole scontistica aziendale ───────────────────────────────
@@ -769,7 +866,9 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
             <div className="col-span-12">
               <div
                 className={`rounded-md border p-4 ${
-                  marginCalc.sottoTarget
+                  !marginCalc.costiCompleti
+                    ? "border-amber-300 bg-amber-50/60"
+                    : marginCalc.sottoTarget
                     ? "border-rose-300 bg-rose-50/60"
                     : "border-emerald-200 bg-emerald-50/40"
                 }`}
@@ -779,7 +878,12 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                     <TrendingUp className="h-3.5 w-3.5" />
                     Margine preventivo (solo titolare/admin)
                   </p>
-                  {marginCalc.sottoTarget && (
+                  {!marginCalc.costiCompleti ? (
+                    <span className="text-[10px] font-semibold text-amber-700 flex items-center gap-1">
+                      <Info className="h-3 w-3" />
+                      Costi incompleti
+                    </span>
+                  ) : marginCalc.sottoTarget && (
                     <span className="text-[10px] font-semibold text-rose-700 flex items-center gap-1">
                       <TrendingDown className="h-3 w-3" />
                       Sotto target {marginCalc.margineMinPct.toFixed(1)}%
@@ -788,7 +892,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                   <div className="rounded bg-white border border-slate-200 p-2">
-                    <p className="text-[10px] uppercase text-slate-500">Costo acquisto</p>
+                    <p className="text-[10px] uppercase text-slate-500">Costo acquisto netto</p>
                     <p className="font-bold text-slate-800 tabular-nums">{formatEuro(marginCalc.costoTotale)}</p>
                   </div>
                   <div className="rounded bg-white border border-slate-200 p-2">
@@ -796,22 +900,25 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                     <p className="font-bold text-slate-800 tabular-nums">{formatEuro(marginCalc.vendita)}</p>
                   </div>
                   <div className="rounded bg-white border border-slate-200 p-2">
-                    <p className="text-[10px] uppercase text-slate-500">Margine €</p>
+                    <p className="text-[10px] uppercase text-slate-500">{marginCalc.costiCompleti ? "Margine €" : "Margine parziale €"}</p>
                     <p className={`font-bold tabular-nums ${marginCalc.margine >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                      {formatEuro(marginCalc.margine)}
+                      {marginCalc.righeConCosto > 0 ? formatEuro(marginCalc.margine) : "—"}
                     </p>
                   </div>
                   <div className="rounded bg-white border border-slate-200 p-2">
                     <p className="text-[10px] uppercase text-slate-500">Margine %</p>
                     <p className={`font-bold tabular-nums ${marginCalc.sottoTarget ? "text-rose-700" : "text-emerald-700"}`}>
-                      {marginCalc.marginePct.toFixed(1)}%
+                      {marginCalc.marginePct != null ? `${marginCalc.marginePct.toFixed(1)}%` : "—"}
                     </p>
                   </div>
                 </div>
                 <p className="text-[10px] text-slate-600 mt-2 leading-tight">
                   <Info className="inline h-3 w-3 mr-0.5 -mt-0.5" />
-                  Costi: somma prezzo_acquisto da listino su serramenti/accessori/servizi linkati.
-                  Articoli senza costo configurato (free-form) non contribuiscono al calcolo.
+                  Il margine è calcolato su valori netti IVA esclusa: imponibile vendita meno costo acquisto netto.
+                  {marginCalc.costiCompleti
+                    ? " Tutte le righe vendute hanno un costo collegato."
+                    : ` Mancano costi su ${marginCalc.righeSenzaCosto} righe: completa il listino/costo per vedere il margine reale.`}
+                  {marginCalc.isFetchingGridCosts ? " Aggiornamento costi in corso..." : ""}
                 </p>
               </div>
             </div>
@@ -819,12 +926,14 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
 
           <div className="col-span-12">
             <div className="rounded-md bg-orange-50 border border-orange-200 p-4">
-              <p className="text-[10px] uppercase font-semibold text-orange-900 mb-1">Il tuo investimento stimato</p>
+              <p className="text-[10px] uppercase font-semibold text-orange-900 mb-1">Totale preventivo</p>
               <p className="text-2xl font-bold text-orange-900 tabular-nums">
-                {formatEuro(forbice.min)} – {formatEuro(forbice.max)}
+                {formatEuro(forbice.media, 2)}
                 <span className="text-xs font-normal opacity-70 ml-2">IVA inclusa</span>
               </p>
-              <p className="text-[10px] text-orange-600 mt-1">Media: {formatEuro(forbice.media)}</p>
+              <p className="text-[10px] text-orange-600 mt-1">
+                Imponibile {formatEuro(totaleCalc.imponibile_netto, 2)} · IVA {formatEuro(totaleCalc.iva_importo, 2)}
+              </p>
             </div>
           </div>
 
@@ -832,7 +941,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               Visibile solo quando l'utente ha selezionato "IVA mista". Mostra
               lo split calcolato per categoria (BS al 10/22, altre prestazioni
               al 10%) e l'IVA risultante. Il PDF replica esattamente questa
-              tabella nella sezione "Investimento". */}
+              tabella nella sezione economica. */}
           {totaleCalc.iva_mista && totaleCalc.mista_breakdown && (
             <div className="col-span-12">
               <div className="rounded-md bg-blue-50/40 border border-blue-200 p-4 space-y-2">
@@ -841,7 +950,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                     📊 Riepilogo IVA mista · Regola Beni Significativi (DM 29.12.99)
                   </p>
                   <span className="text-[10px] text-slate-600">
-                    Aliquota effettiva: <strong>{totaleCalc.iva_pct_applicata.toFixed(2)}%</strong>
+                    IVA calcolata sulle righe del preventivo
                   </span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
@@ -1345,16 +1454,16 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
         </div>
       </SrCard>
 
-      {/* Ritorno sull'investimento (ex-Cashflow, vista cliente) */}
+      {/* Recupero economico 10 anni (vista cliente) */}
       {cashflow && (
         <SrCard
-          title="Ritorno sull'investimento · 10 anni"
-          description="Confronta investimento vs. risparmio bolletta + detrazione fiscale anno per anno."
+          title="Recupero economico · 10 anni"
+          description="Confronta il totale preventivo con risparmio bolletta e detrazione fiscale anno per anno."
           icon={<TrendingUp className="h-4 w-4" />}
           variant="highlight"
         >
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-            <SrKpi label="Investimento" value={formatEuro(forbice.media)} />
+            <SrKpi label="Totale preventivo" value={formatEuro(forbice.media)} />
             <SrKpi label="Recuperato in 10 anni" value={formatEuro(cashflow.totale_recuperato_10y)} variant="success" />
             <SrKpi label="% Recupero" value={formatPct(cashflow.pct_recuperato_10y, 0)} variant={cashflow.pct_recuperato_10y >= 100 ? "success" : "warning"} />
             <SrKpi
@@ -1374,7 +1483,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   <TableHead className="text-[10px]">Detrazione</TableHead>
                   <TableHead className="text-[10px]">Flusso anno</TableHead>
                   <TableHead className="text-[10px]">Cumulato</TableHead>
-                  <TableHead className="text-[10px]">Netto vs. investimento</TableHead>
+                  <TableHead className="text-[10px]">Netto vs. totale</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1439,12 +1548,12 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
   );
 }
 
-// ─── ROI Chart (Ritorno sull'investimento) ──────────────────────────────────
+// ─── ROI Chart (recupero economico) ──────────────────────────────────────────
 //
 // Grafico vista-cliente del recupero economico anno per anno.
 // Recharts area + line con:
 //  - gradient verde sotto la curva (recuperato cumulato)
-//  - ReferenceLine rossa tratteggiata = soglia investimento
+//  - ReferenceLine rossa tratteggiata = soglia totale preventivo
 //  - ReferenceDot arancione sul payback year (anno di break-even)
 //  - Tooltip personalizzato con risparmio + detrazione + cumulato
 //  - LabelList con i valori cumulati (a chi guarda al volo)
@@ -1529,7 +1638,7 @@ function RoiChart({
                         <span className="tabular-nums font-bold text-emerald-700">€ {d.cumulato.toLocaleString("it-IT")}</span>
                       </p>
                       <p className="flex justify-between gap-3">
-                        <span className="text-muted-foreground">Netto vs investimento</span>
+                        <span className="text-muted-foreground">Netto vs totale</span>
                         <span className={`tabular-nums font-semibold ${netto >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
                           {netto >= 0 ? "+" : ""}€ {netto.toLocaleString("it-IT")}
                         </span>
@@ -1551,14 +1660,14 @@ function RoiChart({
               isAnimationActive={true}
               animationDuration={800}
             />
-            {/* Linea investimento rossa tratteggiata */}
+            {/* Linea totale preventivo rossa tratteggiata */}
             <ReferenceLine
               y={costoIniziale}
               stroke="#ef4444"
               strokeDasharray="6 4"
               strokeWidth={1.5}
               label={{
-                value: `Investimento € ${costoIniziale.toLocaleString("it-IT")}`,
+                value: `Totale € ${costoIniziale.toLocaleString("it-IT")}`,
                 position: "insideTopRight",
                 fill: "#ef4444",
                 fontSize: 11,
@@ -1595,7 +1704,7 @@ function RoiChart({
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-3 border-t border-dashed border-red-500" />
-          Soglia investimento
+          Soglia totale
         </span>
         {paybackPoint && (
           <span className="flex items-center gap-1.5">

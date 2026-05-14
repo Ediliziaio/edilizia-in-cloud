@@ -48,11 +48,15 @@ const SerramentiConversionEditor = lazy(() =>
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
+import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
 import { FileText } from "lucide-react";
 import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza, SrPercorsoCliente, SrPercorsoFase, SrGaranzia } from "@/types/serramenti";
 import { SR_PERCORSO_DEFAULT, SR_GARANZIE_DEFAULT, SR_FAQ_DEFAULT, SR_PERCHE_NOI_METRICHE_DEFAULT, type SrPercheNoiMetrica } from "@/types/serramenti";
+import { blankTemplateForKind } from "@/types/quoteTemplate";
+import type { QuoteTemplate } from "@/types/quoteTemplate";
+import type { SharedLegalTemplateKind, SharedLegalTemplateOption } from "@/components/serramenti/SerramentiConversionEditor";
 import {
   PRESET_ESIGENZE, PRESET_ESIGENZE_ALT, PRESET_ESIGENZE_FAMIGLIA,
   PRESET_SOLUZIONE, PRESET_SOLUZIONE_PREMIUM,
@@ -78,6 +82,37 @@ import { generateBrandPalette, CURATED_PALETTES } from "@/lib/utils/colorPalette
 
 const DEFAULT_RENDER_DISCLAIMER =
   "Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità: misure, materiali, colori e finiture definitive vengono confermati prima dell'ordine.";
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function normalizeSharedLegalTemplateBody(template: QuoteTemplate): string {
+  const raw = String(
+    template.body_html ??
+      (template.kind === "condizioni" ? template.contractual_terms_text : template.legal_terms_text) ??
+      "",
+  );
+  if (!raw.trim()) return "";
+
+  return decodeHtmlEntities(raw)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "- ")
+    .replace(/<h[1-6][^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
 
 function hasLegacyCopy(value: unknown, markers: string[]) {
   const text = JSON.stringify(value ?? "");
@@ -178,7 +213,7 @@ function buildTemplateQualityItems(form: Partial<SrTemplatePdfRow>): TemplateQua
   if (incluso.filter((v) => hasReadableText(v, 10)).length < 4) {
     items.push({
       level: "warning",
-      title: "Incluso nell'investimento troppo corto",
+      title: "Incluso nel preventivo troppo corto",
       detail: "Elenca almeno 4 voci incluse: rilievo, posa, assistenza, documenti o gestione cantiere.",
       section: "Contenuti",
     });
@@ -313,6 +348,7 @@ interface SerramentiTemplateEditorProps {
 export function SerramentiTemplateEditor({ embedded: _embedded = false }: SerramentiTemplateEditorProps) {
   const { data: template, isLoading } = useTemplatePdf();
   const upsertMut = useUpsertTemplatePdf();
+  const { templates: quoteTemplates, upsertTemplate: upsertQuoteTemplate } = useQuoteTemplates();
 
   const [form, setForm] = useState<Partial<SrTemplatePdfRow>>({});
   const [dirty, setDirty] = useState(false);
@@ -330,6 +366,17 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   const qualityItems = useMemo(() => buildTemplateQualityItems(form), [form]);
   const qualityCriticalCount = qualityItems.filter((item) => item.level === "critical").length;
   const qualityWarningCount = qualityItems.filter((item) => item.level === "warning").length;
+  const sharedLegalTemplates = useMemo<SharedLegalTemplateOption[]>(() => {
+    return quoteTemplates
+      .filter((template) => template.is_active !== false && (template.kind === "condizioni" || template.kind === "legali"))
+      .map((template) => ({
+        id: template.id,
+        kind: template.kind as SharedLegalTemplateKind,
+        name: template.name,
+        body: normalizeSharedLegalTemplateBody(template),
+      }))
+      .filter((template) => template.body.length > 0);
+  }, [quoteTemplates]);
 
   useEffect(() => {
     if (template) {
@@ -372,6 +419,56 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     setForm((prev) => ({ ...prev, [key]: value }));
     setDirty(true);
   }, []);
+
+  const applySharedLegalTemplate = useCallback((templateId: string, mode: "replace" | "append") => {
+    const templateToApply = sharedLegalTemplates.find((templateOption) => templateOption.id === templateId);
+    if (!templateToApply) {
+      toast.error("Template non disponibile", {
+        description: "Il blocco scelto non è più presente nella libreria Template offerte.",
+      });
+      return;
+    }
+
+    setForm((prev) => {
+      const current = String(prev.condizioni_legali_testo ?? "").trim();
+      const nextText = mode === "append" && current
+        ? `${current}\n\n${templateToApply.body}`
+        : templateToApply.body;
+      return {
+        ...prev,
+        condizioni_legali_attivo: true,
+        condizioni_legali_testo: nextText,
+      };
+    });
+    setDirty(true);
+    toast.success(
+      mode === "append" ? "Blocco aggiunto alle condizioni serramenti" : "Condizioni serramenti aggiornate",
+      { description: templateToApply.name },
+    );
+  }, [sharedLegalTemplates]);
+
+  const saveSharedLegalTemplate = useCallback(async (kind: SharedLegalTemplateKind) => {
+    const text = String(form.condizioni_legali_testo ?? "").trim();
+    if (!text) {
+      toast.error("Inserisci prima un testo da salvare");
+      return;
+    }
+
+    const base = blankTemplateForKind(kind);
+    await upsertQuoteTemplate.mutateAsync({
+      ...base,
+      kind,
+      name: kind === "condizioni" ? "Condizioni serramenti" : "Termini legali serramenti",
+      description: "Creato dal template preventivo serramenti.",
+      body_html: text,
+      body_format: "plain",
+      is_default: false,
+      is_active: true,
+    });
+    toast.success(kind === "condizioni" ? "Condizioni salvate nei Template offerte" : "Termini legali salvati nei Template offerte", {
+      description: "Ora il blocco è riutilizzabile anche nei preventivi standard.",
+    });
+  }, [form.condizioni_legali_testo, upsertQuoteTemplate]);
 
   // UID stabili per le bullet/object list dei renderListEditor /
   // renderBulletObjectEditor. Prima usavano key={idx} -> rimuovendo una
@@ -1322,7 +1419,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
 
       {/* Incluso */}
       <SrCard
-        title="Libreria 'Cosa è incluso nell'investimento'"
+        title="Libreria 'Cosa è incluso nel preventivo'"
         description="Tutte le voci che possono essere incluse nelle tue offerte. Nel preventivo scegli quali sono attive per quel cliente."
         icon={<ListChecks className="h-4 w-4" />}
       >
@@ -2826,7 +2923,14 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           {/* ═══ CONVERSIONE (CRO playbook) ═════════════════════════════════ */}
           <TabsContent value="conversione" className="mt-4">
             <Suspense fallback={<div className="h-20 flex items-center justify-center text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" />Caricamento…</div>}>
-              <SerramentiConversionEditor form={form} update={update} />
+              <SerramentiConversionEditor
+                form={form}
+                update={update}
+                sharedLegalTemplates={sharedLegalTemplates}
+                onApplySharedLegalTemplate={applySharedLegalTemplate}
+                onSaveSharedLegalTemplate={saveSharedLegalTemplate}
+                isSharedLegalSaving={upsertQuoteTemplate.isPending}
+              />
             </Suspense>
           </TabsContent>
 

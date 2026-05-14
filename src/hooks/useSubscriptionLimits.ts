@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { differenceInDays } from "date-fns";
 import type { CompanyStatus } from "@/types/auth";
 import { queryKeys } from "@/lib/queryKeys";
+import { withClientTimeout } from "@/lib/query-timeout";
 
 // Lista moduli gestiti dal piano.
 // Tenuta come tipo puro (nessuna const runtime) perché i consumer la usano
@@ -19,7 +20,17 @@ export type ModuleKey =
   | "tickets"
   | "forecast";
 
-export function useSubscriptionLimits() {
+interface UseSubscriptionLimitsOptions {
+  /**
+   * I conteggi di ordini/utenti servono solo nelle pagine dove mostriamo
+   * limiti o CTA di creazione. La shell del gestionale usa il piano solo per
+   * abilitare i moduli, quindi può saltare i COUNT(*) e partire più veloce.
+   */
+  includeUsageCounts?: boolean;
+}
+
+export function useSubscriptionLimits(options: UseSubscriptionLimitsOptions = {}) {
+  const includeUsageCounts = options.includeUsageCounts ?? true;
   const {
     effectiveCompany,
     isImpersonating,
@@ -38,11 +49,15 @@ export function useSubscriptionLimits() {
     queryKey: queryKeys.subscriptionLimits.plan(planId),
     queryFn: async () => {
       if (!planId) return null;
-      const { data, error } = await supabase
-        .from("subscription_plans")
-        .select("*")
-        .eq("id", planId)
-        .maybeSingle();
+      const { data, error } = await withClientTimeout(
+        supabase
+          .from("subscription_plans")
+          .select("id, name, slug, included_modules, max_orders, max_users, price_monthly, price_yearly")
+          .eq("id", planId)
+          .maybeSingle(),
+        "Caricamento piano aziendale",
+        8_000,
+      );
       if (error) throw error;
       return data;
     },
@@ -54,14 +69,14 @@ export function useSubscriptionLimits() {
   const { data: orderCount = 0, isLoading: ordersLoading } = useQuery({
     queryKey: queryKeys.subscriptionLimits.orderCount(companyId),
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { count, error } = await withClientTimeout(supabase
         .from("orders")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId!);
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!), "Conteggio commesse piano", 8_000);
       if (error) throw error;
       return count || 0;
     },
-    enabled: !!companyId,
+    enabled: !!companyId && includeUsageCounts,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -69,14 +84,14 @@ export function useSubscriptionLimits() {
   const { data: userCount = 0, isLoading: usersLoading } = useQuery({
     queryKey: queryKeys.subscriptionLimits.userCount(companyId),
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { count, error } = await withClientTimeout(supabase
         .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId!);
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!), "Conteggio utenti piano", 8_000);
       if (error) throw error;
       return count || 0;
     },
-    enabled: !!companyId,
+    enabled: !!companyId && includeUsageCounts,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -154,6 +169,6 @@ export function useSubscriptionLimits() {
     isFullyOperational,
     isScopriPlan,
     maxCampoOperai,
-    isLoading: planLoading || ordersLoading || usersLoading,
+    isLoading: planLoading || (includeUsageCounts && (ordersLoading || usersLoading)),
   };
 }

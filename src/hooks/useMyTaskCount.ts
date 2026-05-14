@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { isBefore, isAfter, addDays, startOfDay } from "date-fns";
+import { addDays, format, startOfDay } from "date-fns";
+import { withClientTimeout } from "@/lib/query-timeout";
 
 interface TaskCounts {
   total: number;
@@ -19,30 +20,36 @@ export function useMyTaskCount(): { data: TaskCounts | null; isLoading: boolean 
     queryFn: async (): Promise<TaskCounts> => {
       if (!userId || !companyId) return { total: 0, overdue: 0, dueToday: 0 };
 
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("id, due_date, status")
-        .eq("company_id", companyId)
-        .eq("assigned_to", userId)
-        .neq("status", "completata");
-
-      if (error) throw error;
-      const tasks = data || [];
       const now = new Date();
-      const todayStart = startOfDay(now);
-      const tomorrowStart = startOfDay(addDays(now, 1));
+      const todayStart = format(startOfDay(now), "yyyy-MM-dd");
+      const tomorrowStart = format(startOfDay(addDays(now, 1)), "yyyy-MM-dd");
 
-      let overdue = 0;
-      let dueToday = 0;
-      for (const t of tasks) {
-        if (t.due_date) {
-          const due = new Date(t.due_date);
-          if (isBefore(due, todayStart)) overdue++;
-          else if (isBefore(due, tomorrowStart) && isAfter(due, todayStart) || due.getTime() === todayStart.getTime()) dueToday++;
-        }
-      }
+      const base = () =>
+        supabase
+          .from("tasks")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("assigned_to", userId)
+          .neq("status", "completata");
 
-      return { total: tasks.length, overdue, dueToday };
+      const [totalRes, overdueRes, todayRes] = await Promise.all([
+        withClientTimeout(base(), "Conteggio attività", 8_000),
+        withClientTimeout(base().lt("due_date", todayStart), "Conteggio attività scadute", 8_000),
+        withClientTimeout(
+          base().gte("due_date", todayStart).lt("due_date", tomorrowStart),
+          "Conteggio attività di oggi",
+          8_000,
+        ),
+      ]);
+
+      const error = totalRes.error || overdueRes.error || todayRes.error;
+      if (error) throw error;
+
+      return {
+        total: totalRes.count ?? 0,
+        overdue: overdueRes.count ?? 0,
+        dueToday: todayRes.count ?? 0,
+      };
     },
     enabled: !!userId && !!companyId,
     refetchInterval: 60_000,

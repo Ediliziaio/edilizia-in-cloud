@@ -1,8 +1,14 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { withClientTimeout } from "@/lib/query-timeout";
 
-export function useUnreadSupportCount() {
+interface UseUnreadSupportCountOptions {
+  enabled?: boolean;
+}
+
+export function useUnreadSupportCount(options: UseUnreadSupportCountOptions = {}) {
+  const enabled = options.enabled ?? true;
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [unreadCount, setUnreadCount] = useState(0);
@@ -20,24 +26,37 @@ export function useUnreadSupportCount() {
   }, [storageKey]);
 
   const fetchCount = useCallback(async () => {
-    if (!companyId) return;
+    if (!companyId || !enabled) return;
     const lastRead = getLastRead();
-    const { count } = await supabase
-      .from("support_messages")
-      .select("*", { count: "exact", head: true })
-      .eq("company_id", companyId)
-      .eq("sender_role", "super_admin")
-      .gt("created_at", lastRead);
-    setUnreadCount(count ?? 0);
-  }, [companyId, getLastRead]);
+    try {
+      const { count } = await withClientTimeout(
+        supabase
+          .from("support_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("sender_role", "super_admin")
+          .gt("created_at", lastRead),
+        "Conteggio assistenza non letta",
+        8_000,
+      );
+      setUnreadCount(count ?? 0);
+    } catch {
+      // Il badge assistenza non deve mai bloccare o sporcare il layout.
+      setUnreadCount(0);
+    }
+  }, [companyId, enabled, getLastRead]);
 
   useEffect(() => {
+    if (!enabled) {
+      setUnreadCount(0);
+      return;
+    }
     fetchCount();
-  }, [fetchCount]);
+  }, [enabled, fetchCount]);
 
   // Realtime subscription
   useEffect(() => {
-    if (!companyId) return;
+    if (!companyId || !enabled) return;
 
     const channel = supabase
       .channel("unread-support-" + companyId)
@@ -61,7 +80,7 @@ export function useUnreadSupportCount() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [companyId]);
+  }, [companyId, enabled]);
 
   const markAsRead = useCallback(() => {
     if (storageKey) {

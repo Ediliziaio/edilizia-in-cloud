@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 export function SubscriptionBanner() {
   const { isImpersonating, effectiveCompany } = useAuth();
-  const { companyStatus, trialDaysLeft, trialExpired } = useSubscriptionLimits();
+  const { companyStatus, trialDaysLeft, trialExpired } = useSubscriptionLimits({ includeUsageCounts: false });
 
   if (isImpersonating) return null;
   if (!effectiveCompany) return null;

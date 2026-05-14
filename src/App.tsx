@@ -189,6 +189,28 @@ const VsTeamSystem  = lazy(() => import("@/pages/confronto/VsTeamSystem"));
 const VsExcel       = lazy(() => import("@/pages/confronto/VsExcel"));
 const VsBuildertrend = lazy(() => import("@/pages/confronto/VsBuildertrend"));
 
+const isNonRetriableQueryError = (error: unknown) => {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes("timeout") ||
+    message.includes("aborted") ||
+    message.includes("aborterror") ||
+    message.includes("jwt") ||
+    message.includes("permission") ||
+    message.includes("not authorized") ||
+    message.includes("unauthorized") ||
+    message.includes("forbidden") ||
+    message.includes("401") ||
+    message.includes("403") ||
+    message.includes("404")
+  );
+};
+
+const shouldRetryQuery = (failureCount: number, error: unknown) => {
+  if (failureCount >= 1) return false;
+  return !isNonRetriableQueryError(error);
+};
+
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {
@@ -229,10 +251,11 @@ const queryClient = new QueryClient({
   }),
   defaultOptions: {
     queries: {
-      retry: 1,
-      staleTime: 2 * 60 * 1000,
-      gcTime: 15 * 60 * 1000,
+      retry: shouldRetryQuery,
+      staleTime: 5 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
       refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
     },
   },
 });
@@ -267,6 +290,9 @@ const MARKETING_ANALYTICS_HOSTS = new Set(["ediliziaincloud.com", "www.ediliziai
 const PRIVATE_ANALYTICS_PREFIXES =
   /^\/(app|admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref)(\/|$)/;
 
+const PRIVATE_APP_PREFIXES =
+  /^\/(app|admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente)(\/|$)/;
+
 function canTrackMarketingPage(pathname: string) {
   if (typeof window === "undefined") return false;
   return (
@@ -287,6 +313,12 @@ function GARouteTracker() {
     });
   }, [location]);
   return null;
+}
+
+function PublicSiteChatWidgetGate() {
+  const { pathname } = useLocation();
+  if (PRIVATE_APP_PREFIXES.test(pathname || "/")) return null;
+  return <SiteChatWidget />;
 }
 
 const App = () => (
@@ -449,7 +481,7 @@ const App = () => (
             {/* Public chat widget — appare in basso a destra su pagine pubbliche
                 (login, landing); auto-nascosto per utenti autenticati che hanno
                 già la chat Silvio interna. Usa VITE_PUBLIC_CHAT_TOKEN env var. */}
-            <SiteChatWidget />
+            <PublicSiteChatWidgetGate />
           </Suspense>
           </BillingModeProvider>
         </AuthProvider>

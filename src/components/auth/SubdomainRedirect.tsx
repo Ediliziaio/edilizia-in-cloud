@@ -32,6 +32,13 @@
  *   - Branch Home invertito: `if (subdomain !== "www") return <RoleBasedRedirect />`
  *     → default safer su tutti i subdomain non-www. Home si renderizza SOLO su
  *     www.ediliziaincloud.com / ediliziaincloud.com / localhost.
+ *
+ * 🛠️ BUG FIX v4 (2026-05-14): localhost non deve mai mostrare la home se
+ *   esiste un indizio di sessione. In sviluppo `localhost` è trattato come
+ *   `www` per poter vedere il sito pubblico, ma quando l'utente sta lavorando
+ *   in piattaforma questo causava un flash della home al refresh/root redirect.
+ *   Se troviamo token Supabase/cache profilo/session id, la root locale viene
+ *   trattata come app bootstrap e passa sempre da RoleBasedRedirect/Login.
  */
 
 import { lazy, Suspense, useEffect, useState } from "react";
@@ -74,6 +81,9 @@ function FullScreenSpinner({ label }: { label?: string }) {
  *   - flash della landing su utente loggato (bug fix principale)
  *   - spinner inutile su visitor anonimo che vuole vedere la landing subito
  */
+const AUTH_PROFILE_CACHE_KEY = "auth_profile_v1";
+const SESSION_ID_KEY = "user_session_id";
+
 function hasPersistedSupabaseSession(): boolean {
   if (typeof window === "undefined") return false;
   try {
@@ -90,7 +100,25 @@ function hasPersistedSupabaseSession(): boolean {
   return false;
 }
 
-const PERSISTED_SESSION_BOOT_GRACE_MS = 2_500;
+function hasStoredAuthBootstrapHint(): boolean {
+  if (typeof window === "undefined") return false;
+  if (hasPersistedSupabaseSession()) return true;
+  try {
+    return Boolean(
+      sessionStorage.getItem(AUTH_PROFILE_CACHE_KEY) ||
+      sessionStorage.getItem(SESSION_ID_KEY),
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isLocalAppHost(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+}
+
+const PERSISTED_SESSION_BOOT_GRACE_MS = 4_000;
 
 export function SubdomainRedirect() {
   const { subdomain } = useSubdomainRoute();
@@ -101,7 +129,8 @@ export function SubdomainRedirect() {
   // IMPORTANTE: questa grace window scade sempre. Prima era memorizzata a vita:
   // con refresh token stale/invalidi l'utente restava bloccato sullo spinner e
   // non veniva mai mandato a /login.
-  const [sessionTokenGraceActive, setSessionTokenGraceActive] = useState(() => hasPersistedSupabaseSession());
+  const [hadAuthBootstrapHint] = useState(() => hasStoredAuthBootstrapHint());
+  const [sessionTokenGraceActive, setSessionTokenGraceActive] = useState(() => hadAuthBootstrapHint);
 
   useEffect(() => {
     if (!sessionTokenGraceActive || user) {
@@ -141,6 +170,13 @@ export function SubdomainRedirect() {
   // se la detection del subdomain dovesse mai degradarsi, il fallback
   // sicuro è "manda al login giusto" non "mostra la landing pubblica".
   if (subdomain !== "www") {
+    return <RoleBasedRedirect />;
+  }
+
+  // Localhost è usato sia per preview marketing sia per sviluppo app. Se c'è
+  // qualunque traccia di sessione, non renderizziamo mai Home: al massimo si
+  // finisce su /login, ma non si vede la landing durante refresh/login.
+  if (isLocalAppHost() && hadAuthBootstrapHint) {
     return <RoleBasedRedirect />;
   }
 

@@ -378,7 +378,7 @@ function OperationalCalendarCard({
   const selectedOrderId = selectedEvent?.type === "work" ? selectedEvent.orderId : null;
   const { data: selectedOrder, isFetching: isSelectedOrderLoading } = useQuery({
     queryKey: ["dashboard-calendar-order-detail", selectedOrderId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!selectedOrderId || !companyId) return null;
       const { data, error } = await supabase
         .from("orders")
@@ -401,6 +401,7 @@ function OperationalCalendarCard({
         `)
         .eq("id", selectedOrderId)
         .eq("company_id", companyId)
+        .abortSignal(signal)
         .maybeSingle();
       if (error) throw error;
       return (data || null) as CalendarOrder | null;

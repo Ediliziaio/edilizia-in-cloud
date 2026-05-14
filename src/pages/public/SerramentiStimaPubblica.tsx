@@ -5,7 +5,7 @@
  *
  * Vista cliente del preventivo:
  *  - Vista del PDF in iframe
- *  - Box riepilogo (forbice, risparmio, payback)
+ *  - Box riepilogo (totale, risparmio, payback)
  *  - CTA "Contatta consulente" (telefono / email / WhatsApp)
  *  - CTA "Firma digitalmente" se allow_self_signing e non già firmato
  *  - Badge "Firmato il [data]" se firmato
@@ -78,6 +78,16 @@ function formatEuro(n: number | null | undefined, decimals = 0): string {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
+}
+
+function formatEuroRangeOrSingle(min: number | null | undefined, max: number | null | undefined, decimals = 0): string {
+  const minN = Number(min ?? 0);
+  const maxN = Number(max ?? 0);
+  if (!minN && !maxN) return "—";
+  if (!minN) return formatEuro(maxN, decimals);
+  if (!maxN) return formatEuro(minN, decimals);
+  if (Math.abs(minN - maxN) < 0.01) return formatEuro(maxN, decimals);
+  return `${formatEuro(minN, decimals)} – ${formatEuro(maxN, decimals)}`;
 }
 
 function formatNum(n: number | null | undefined, decimals = 0): string {
@@ -331,17 +341,17 @@ export default function SerramentiStimaPubblica() {
           </CardContent>
         </Card>
 
-        {/* Big investment box */}
+        {/* Big total box */}
         <Card style={{ background: `${colore}10`, borderColor: `${colore}40` }}>
           <CardContent className="p-6">
             <p className="text-[11px] uppercase tracking-wide font-semibold mb-1" style={{ color: colore }}>
-              Il tuo investimento stimato
+              Totale preventivo
             </p>
             <p className="text-3xl md:text-4xl font-bold tabular-nums" style={{ color: colore }}>
-              {formatEuro(progetto.totale_min)} <span className="opacity-50 text-2xl">—</span> {formatEuro(progetto.totale_max)}
+              {formatEuroRangeOrSingle(progetto.totale_min, progetto.totale_max)}
             </p>
             <p className="text-xs mt-1" style={{ color: colore }}>
-              {progetto.iva_inclusa ? "IVA inclusa" : "IVA esclusa"} · Forbice indicativa, fissata in consulenza
+              {progetto.iva_inclusa ? "IVA inclusa" : "IVA esclusa"} · Importo della revisione corrente
             </p>
           </CardContent>
         </Card>

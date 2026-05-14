@@ -116,6 +116,16 @@ const PAGE_SIZE = 50;
 const fmtEur = (n: number) =>
   `€ ${Number(n).toLocaleString("it-IT", { maximumFractionDigits: 0 })}`;
 
+const fmtEurRangeOrSingle = (min?: number | null, max?: number | null) => {
+  const minN = Number(min ?? 0);
+  const maxN = Number(max ?? 0);
+  if (!minN && !maxN) return "—";
+  if (!minN) return fmtEur(maxN);
+  if (!maxN) return fmtEur(minN);
+  if (Math.abs(minN - maxN) < 0.01) return fmtEur(maxN);
+  return `${fmtEur(minN)} – ${fmtEur(maxN)}`;
+};
+
 export default function SerramentiIndex() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -918,10 +928,8 @@ export default function SerramentiIndex() {
                             </TableCell>
                             <TableCell className="text-xs text-right tabular-nums">{p.totale_serramenti ?? 0}</TableCell>
                             <TableCell className="text-xs text-right tabular-nums font-medium">
-                              {p.totale_min && p.totale_max ? (
-                                <span>
-                                  {fmtEur(Number(p.totale_min))} – {fmtEur(Number(p.totale_max))}
-                                </span>
+                              {fmtEurRangeOrSingle(p.totale_min, p.totale_max) !== "—" ? (
+                                <span>{fmtEurRangeOrSingle(p.totale_min, p.totale_max)}</span>
                               ) : (
                                 <span className="text-muted-foreground">—</span>
                               )}
@@ -1003,8 +1011,8 @@ export default function SerramentiIndex() {
                         </div>
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-medium tabular-nums">
-                            {p.totale_min && p.totale_max ? (
-                              <>{fmtEur(Number(p.totale_min))} – {fmtEur(Number(p.totale_max))}</>
+                            {fmtEurRangeOrSingle(p.totale_min, p.totale_max) !== "—" ? (
+                              <>{fmtEurRangeOrSingle(p.totale_min, p.totale_max)}</>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}

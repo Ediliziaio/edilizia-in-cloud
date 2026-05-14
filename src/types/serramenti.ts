@@ -450,7 +450,7 @@ export interface SrTemplatePdfRow {
   // ─── Blocchi conversione PDF (CRO playbook) ───────────────────────────
   /** Lista garanzie mostrate sulla pagina "Le nostre garanzie". */
   garanzie: SrGaranzia[] | null;
-  /** Mostra box urgenza/validità prezzo nel PDF (cover + investimento). */
+  /** Mostra box urgenza/validità prezzo nel PDF (cover + pagina economica). */
   urgenza_attiva: boolean;
   urgenza_titolo: string | null;
   urgenza_descrizione: string | null;
@@ -487,12 +487,12 @@ export interface SrTemplatePdfRow {
    *  NULL = fallback a pdf_cover_subhero. Placeholders: {cliente_nome},
    *  {cliente_nome_completo}, {cantiere_citta}, {num_serramenti}, ecc. */
   pdf_cover_subhero_template: string | null;
-  /** Mostra rata mensile minima nel box "Il tuo investimento" (M7,
+  /** Mostra rata mensile minima nel box "Totale preventivo" (M7,
    *  migration 20270514040000). Richiede piano di finanziamento configurato.
    *  Default false. */
   pdf_mostra_rata_mensile: boolean;
   /** Mostra prezzo netto dopo recupero fiscale (es. ecobonus 50%) nel box
-   *  "Il tuo investimento" (M7, migration 20270514040000). Default true. */
+   *  "Totale preventivo" (M7, migration 20270514040000). Default true. */
   pdf_mostra_recupero_fiscale: boolean;
   /** Mostra mini-tabella 10 anni con breakdown detrazione fiscale (M8,
    *  migration 20270514050000). Off di default. */
@@ -779,8 +779,8 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
   },
   {
     id: "investimento",
-    label: "L'investimento",
-    descrizione: "Prezzo, modalità pagamento, finanziamento, risparmio + cashflow, incluso.",
+    label: "Proposta economica",
+    descrizione: "Totale preventivo, modalità pagamento, finanziamento, risparmio + cashflow, incluso.",
     obbligatoria: true,
   },
   {

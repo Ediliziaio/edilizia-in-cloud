@@ -20,14 +20,15 @@ export function AnnouncementBanner() {
 
   const { data: announcements = [] } = useQuery({
     queryKey: queryKeys.admin.announcements,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await supabase
         .from("platform_announcements")
         .select("id, title, content, type, target_status")
         .eq("is_active", true)
         .or("expires_at.is.null,expires_at.gt." + new Date().toISOString())
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(5)
+        .abortSignal(signal);
       if (error) throw error;
       return data as Announcement[];
     },

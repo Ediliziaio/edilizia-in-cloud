@@ -1347,6 +1347,12 @@ export default function SettingsQuoteTemplates() {
                     Testo multi-pagina (markdown). Supporta merge tag come <code className="text-[10px] bg-white border px-1 rounded">{`{{cliente.nome}}`}</code>.
                     Il PDF inserirà page break automatici.
                   </p>
+                  {(formKind === 'condizioni' || formKind === 'legali') && (
+                    <div className="mt-3 rounded-md border border-orange-200 bg-orange-50/50 px-3 py-2 text-xs text-orange-950">
+                      Questo blocco è condiviso: dopo il salvataggio potrai inserirlo anche nei template serramenti dalla sezione
+                      <span className="font-semibold"> Condizioni e disclaimer</span>. Lo stesso testo creato nei serramenti può essere salvato qui e riusato nei preventivi standard.
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between">

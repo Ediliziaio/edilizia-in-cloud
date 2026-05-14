@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { SrProgettoDetail } from "@/types/serramenti";
 import { SrCard, SrCallout, SrKpi } from "@/lib/serramenti/wizardUI";
-import { formatEuro, formatNumero } from "@/lib/serramenti/format";
+import { formatEuro, formatEuroRangeOrSingle, formatNumero } from "@/lib/serramenti/format";
 import { useGeneraPdf, useConvertiInOrdine, useTemplatePdf } from "@/lib/serramenti/queries";
 import { ClipboardList } from "lucide-react";
 import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";
@@ -114,9 +114,9 @@ export function StepPdf({ progettoId, detail }: Props) {
       hint: numSerramenti === 0 ? "Mancanti — vai allo Step Serramenti" : undefined,
     },
     {
-      ok: Number(p.totale_max ?? 0) > 0,
-      label: "Forbice prezzo calcolata",
-      hint: !p.totale_max ? "Vai allo Step Economia e clicca 'Applica calcoli'" : undefined,
+      ok: Number(p.totale_max ?? p.totale_min ?? 0) > 0,
+      label: "Totale preventivo calcolato",
+      hint: !Number(p.totale_max ?? p.totale_min ?? 0) ? "Vai allo Step Economia e clicca 'Applica calcoli'" : undefined,
     },
     {
       ok: !!p.consulenza_at,
@@ -142,10 +142,8 @@ export function StepPdf({ progettoId, detail }: Props) {
           <SrKpi label="Serramenti" value={numSerramenti} />
           <SrKpi label="Accessori" value={detail.accessori.reduce((a, x) => a + (x.quantita ?? 1), 0)} />
           <SrKpi
-            label="Forbice IVA inclusa"
-            value={p.totale_min && p.totale_max
-              ? `${formatEuro(p.totale_min)} – ${formatEuro(p.totale_max)}`
-              : "—"}
+            label="Totale IVA inclusa"
+            value={formatEuroRangeOrSingle(p.totale_min, p.totale_max, 2)}
             variant="primary"
           />
         </div>
@@ -163,11 +161,9 @@ export function StepPdf({ progettoId, detail }: Props) {
             </p>
           </div>
           <div className="border-l-4 border-orange-200 pl-3 py-1">
-            <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Pagina 2 — Investimento</p>
+            <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Pagina economica</p>
             <p className="text-sm font-bold text-orange-600">
-              {p.totale_min && p.totale_max
-                ? `${formatEuro(p.totale_min)} – ${formatEuro(p.totale_max)}`
-                : "(da calcolare)"}
+              {formatEuroRangeOrSingle(p.totale_min, p.totale_max, 2)}
             </p>
             {p.risparmio_calcolato && p.risparmio_eur_anno && (
               <p className="text-xs text-orange-600 mt-1">
@@ -212,7 +208,7 @@ export function StepPdf({ progettoId, detail }: Props) {
       {/* Genera PDF nativo A4 (RACCOMANDATO) */}
       <SrCard
         title="Scarica PDF da inviare al cliente"
-        description="PDF A4 pronto da stampare o allegare via email. Include anagrafica, investimento, modalità di pagamento, allegato tecnico e render."
+        description="PDF A4 pronto da stampare o allegare via email. Include anagrafica, totale preventivo, modalità di pagamento, allegato tecnico e render."
         icon={<Download className="h-4 w-4" />}
       >
         {!ready && (
