@@ -44,6 +44,7 @@ import {
 import {
   ArrowLeft, ArrowRight, Save, Loader2, RectangleVertical,
   User, Home, MessageCircle, Image as ImageIcon, Euro, Calendar, FileText,
+  Users, CheckCircle2, Phone, Mail, MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -51,7 +52,7 @@ import {
   useProgetto, useCreateProgetto, useUpdateProgetto, useDuplicaProgetto,
 } from "@/lib/serramenti/queries";
 import { SR_WIZARD_STEPS } from "@/types/serramenti";
-import type { SrProgettoRow, SrWizardStep, SrTipoIntervento } from "@/types/serramenti";
+import type { SrProgettoDetail, SrProgettoRow, SrWizardStep, SrTipoIntervento } from "@/types/serramenti";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { StepBom } from "@/components/serramenti/StepBom";
 import { StepAccessori } from "@/components/serramenti/StepAccessori";
@@ -61,7 +62,7 @@ import { StepPdf } from "@/components/serramenti/StepPdf";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { StepContenuti } from "@/components/serramenti/StepContenuti";
 import { ContactPickerDialog } from "@/components/serramenti/ContactPickerDialog";
-import { Users } from "lucide-react";
+import { AiSerramentiDraftLauncher } from "@/components/serramenti/AiSerramentiDraftLauncher";
 import type { CrmContactMinimal } from "@/lib/serramenti/api";
 
 const STEP_ICONS: Record<SrWizardStep, React.FC<React.SVGProps<SVGSVGElement>>> = {
@@ -74,6 +75,39 @@ const STEP_ICONS: Record<SrWizardStep, React.FC<React.SVGProps<SVGSVGElement>>> 
   consulenza: Calendar,
   pdf: FileText,
 };
+
+const compactText = (...parts: Array<string | null | undefined>) =>
+  parts.map((part) => part?.trim()).filter(Boolean).join(" ");
+
+const compactAddress = (...parts: Array<string | null | undefined>) =>
+  parts.map((part) => part?.trim()).filter(Boolean).join(", ");
+
+function isWizardStepComplete(
+  step: SrWizardStep,
+  form: Partial<SrProgettoRow>,
+  detail?: SrProgettoDetail,
+): boolean {
+  switch (step) {
+    case "cliente":
+      return Boolean(form.cliente_id || form.cliente_nome || form.cliente_cognome);
+    case "immobile":
+      return Boolean(form.cantiere_indirizzo || form.cantiere_citta || form.tipo_intervento);
+    case "esigenze":
+      return Boolean((form.esigenze?.length ?? 0) > 0 || (form.soluzione?.length ?? 0) > 0);
+    case "bom":
+      return Boolean((detail?.serramenti.length ?? 0) > 0);
+    case "accessori_foto":
+      return Boolean((detail?.media.length ?? 0) > 0 || (detail?.accessori.length ?? 0) > 0);
+    case "economia":
+      return Boolean((form.totale_min ?? 0) > 0 || (form.totale_max ?? 0) > 0 || form.schema_pagamento);
+    case "consulenza":
+      return Boolean(form.consulenza_at || (form.prossimi_passi?.length ?? 0) > 0);
+    case "pdf":
+      return Boolean(form.pdf_url || form.pdf_generated_at);
+    default:
+      return false;
+  }
+}
 
 export default function SerramentiWizard() {
   const { id } = useParams<{ id?: string }>();
@@ -728,6 +762,7 @@ export default function SerramentiWizard() {
               const Icon = STEP_ICONS[s.key];
               const isActive = s.key === currentStep;
               const isPast = idx < currentStepIndex;
+              const isComplete = isWizardStepComplete(s.key, form, detail);
               const disabled = isNew && idx > 0;
               return (
                 <button
@@ -743,8 +778,10 @@ export default function SerramentiWizard() {
                     "inline-flex min-h-11 min-w-[92px] items-center justify-center gap-1.5 rounded-md border px-3 text-xs transition-colors",
                     isActive
                       ? "border-orange-300 bg-orange-100 text-orange-900 font-semibold"
+                      : isComplete
+                      ? "border-emerald-100 bg-emerald-50 text-emerald-800"
                       : isPast
-                      ? "border-orange-100 bg-background text-foreground"
+                      ? "border-slate-200 bg-background text-foreground"
                       : "border-border bg-background text-muted-foreground",
                     disabled && "cursor-not-allowed opacity-50",
                   )}
@@ -752,10 +789,11 @@ export default function SerramentiWizard() {
                   <span className={cn(
                     "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold",
                     isActive ? "bg-orange-600 text-white" :
-                    isPast ? "bg-orange-100 text-orange-700" :
+                    isComplete ? "bg-emerald-100 text-emerald-700" :
+                    isPast ? "bg-slate-100 text-slate-700" :
                     "bg-muted text-muted-foreground",
                   )}>
-                    {idx + 1}
+                    {isComplete && !isActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : idx + 1}
                   </span>
                   <Icon className="h-3.5 w-3.5 shrink-0" />
                   <span className="max-w-[72px] truncate">{s.label}</span>
@@ -766,10 +804,10 @@ export default function SerramentiWizard() {
         </div>
       </div>
 
-      <div className="container mx-auto max-w-6xl p-3 pb-6 md:p-6">
+      <div className="container mx-auto max-w-[1400px] p-3 pb-6 md:p-6">
         <div className="grid grid-cols-12 gap-4">
           {/* Sidebar step */}
-          <aside className="hidden md:block md:col-span-3">
+          <aside className="hidden md:block md:col-span-3 xl:col-span-2">
             <Card>
               <CardContent className="p-2">
                 <nav className="space-y-0.5">
@@ -777,6 +815,7 @@ export default function SerramentiWizard() {
                     const Icon = STEP_ICONS[s.key];
                     const isActive = s.key === currentStep;
                     const isPast = idx < currentStepIndex;
+                    const isComplete = isWizardStepComplete(s.key, form, detail);
                     const disabled = isNew && idx > 0;
                     return (
                       <button
@@ -787,6 +826,8 @@ export default function SerramentiWizard() {
                           "w-full text-left px-2.5 py-2 rounded-md text-xs flex items-center gap-2 transition-colors",
                           isActive
                             ? "bg-orange-100 text-orange-900 font-semibold"
+                            : isComplete
+                            ? "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
                             : isPast
                             ? "text-foreground hover:bg-muted"
                             : "text-muted-foreground",
@@ -796,10 +837,11 @@ export default function SerramentiWizard() {
                         <span className={cn(
                           "h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold",
                           isActive ? "bg-orange-600 text-white" :
-                          isPast ? "bg-orange-100 text-orange-600" :
+                          isComplete ? "bg-emerald-100 text-emerald-700" :
+                          isPast ? "bg-slate-100 text-slate-700" :
                           "bg-muted text-muted-foreground",
                         )}>
-                          {idx + 1}
+                          {isComplete && !isActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : idx + 1}
                         </span>
                         <Icon className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">{s.label}</span>
@@ -817,13 +859,19 @@ export default function SerramentiWizard() {
           </aside>
 
           {/* Step content */}
-          <main className="col-span-12 md:col-span-9 space-y-4">
+          <main className="col-span-12 space-y-4 md:col-span-9 lg:col-span-6 xl:col-span-7">
             {/* ErrorBoundary granulare per step: se uno step crasha (es. dato
                 corrotto), gli altri step restano navigabili e l'utente vede
                 un fallback con "Riprova" invece dell'app blank. */}
             <ErrorBoundary title="Errore in questa sezione del preventivo">
             {currentStep === "cliente" && (
-              <StepCliente form={form} onChange={onChange} />
+              <StepCliente
+                form={form}
+                onChange={onChange}
+                progettoId={id}
+                detail={detail}
+                onGoToComposition={() => setCurrentStep("bom")}
+              />
             )}
             {currentStep === "immobile" && (
               <StepImmobile form={form} onChange={onChange} />
@@ -875,6 +923,15 @@ export default function SerramentiWizard() {
               </Button>
             </div>
           </main>
+
+          {!isNew && detail && (
+            <aside className="hidden lg:block lg:col-span-3">
+              <StepClienteSummary
+                form={form}
+                detail={{ ...detail, progetto: { ...detail.progetto, ...form } as SrProgettoRow }}
+              />
+            </aside>
+          )}
         </div>
       </div>
 
@@ -908,12 +965,18 @@ export default function SerramentiWizard() {
 // ─── Step inline (Cliente, Immobile, Esigenze) ──────────────────────────────
 
 function StepCliente({
-  form, onChange,
+  form, onChange, progettoId, detail, onGoToComposition,
 }: {
   form: Partial<SrProgettoRow>;
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
+  progettoId?: string;
+  detail?: SrProgettoDetail;
+  onGoToComposition?: () => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const detailForAi = detail
+    ? ({ ...detail, progetto: { ...detail.progetto, ...form } as SrProgettoRow })
+    : undefined;
 
   const handleSelectContact = (c: CrmContactMinimal) => {
     // Popola tutti i campi dal contatto CRM, salva il riferimento via cliente_id
@@ -931,38 +994,42 @@ function StepCliente({
   return (
     <SrCard
       title="Contatto"
-      description="Seleziona un contatto esistente dal CRM oppure compila a mano. I campi non obbligatori (telefono, email, indirizzo) compaiono nel PDF e nel microsito cliente."
+      description="Collega un contatto CRM o compila i dati cliente. Verranno usati nel PDF, nel microsito e nella bozza AI."
       icon={<User className="h-4 w-4" />}
     >
-      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-md border border-dashed border-orange-300 bg-orange-50/40 p-3">
-        <div>
-          <p className="text-xs font-semibold text-orange-900">Hai già un contatto nel CRM?</p>
-          <p className="text-[11px] text-orange-600">
-            {form.cliente_id
-              ? "Contatto CRM selezionato — i dati sono pre-popolati dal record esistente."
-              : "Selezionalo per pre-popolare nome, telefono, email e indirizzo."}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {form.cliente_id && (
+      <div className="mb-3 rounded-md border border-slate-200 bg-white px-3 py-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-900">
+              {form.cliente_id ? "Contatto CRM collegato" : "Contatto CRM"}
+            </p>
+            <p className="truncate text-[11px] text-slate-500">
+              {form.cliente_id
+                ? `${compactText(form.cliente_nome, form.cliente_cognome) || "Contatto selezionato"} · dati sincronizzati nel preventivo`
+                : "Collega un contatto per compilare anagrafica e recapiti."}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            {form.cliente_id && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onChange("cliente_id", null)}
+                className="h-8 px-2 text-xs text-slate-600 hover:bg-slate-100"
+              >
+                Scollega
+              </Button>
+            )}
             <Button
-              variant="ghost"
               size="sm"
-              onClick={() => onChange("cliente_id", null)}
-              className="text-xs"
+              variant="outline"
+              onClick={() => setPickerOpen(true)}
+              className="h-8 gap-1.5 border-slate-200 px-3 text-xs text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
             >
-              Scollega contatto
+              <Users className="h-3.5 w-3.5" />
+              {form.cliente_id ? "Cambia" : "Seleziona da CRM"}
             </Button>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setPickerOpen(true)}
-            className="gap-1 border-orange-400 text-orange-600 hover:bg-orange-100"
-          >
-            <Users className="h-3.5 w-3.5" />
-            {form.cliente_id ? "Cambia contatto" : "Seleziona da CRM"}
-          </Button>
+          </div>
         </div>
       </div>
 
@@ -971,6 +1038,17 @@ function StepCliente({
         onOpenChange={setPickerOpen}
         onSelect={handleSelectContact}
       />
+
+      {progettoId && detailForAi && (
+        <div className="mb-3">
+          <AiSerramentiDraftLauncher
+            progettoId={progettoId}
+            detail={detailForAi}
+            context="contact"
+            onGoToComposition={onGoToComposition}
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-12 gap-3">
         <div className="col-span-12 md:col-span-6">
@@ -1049,6 +1127,109 @@ function StepCliente({
         </div>
       </div>
     </SrCard>
+  );
+}
+
+function StepClienteSummary({
+  form, detail,
+}: {
+  form: Partial<SrProgettoRow>;
+  detail?: SrProgettoDetail;
+}) {
+  const clienteNome = compactText(form.cliente_nome, form.cliente_cognome);
+  const clienteIndirizzo = compactAddress(
+    form.cliente_indirizzo,
+    compactText(form.cliente_cap, form.cliente_citta),
+    form.cliente_provincia,
+  );
+  const cantiere = compactAddress(
+    form.cantiere_indirizzo,
+    compactText(form.cantiere_cap, form.cantiere_citta),
+    form.cantiere_provincia,
+  );
+  const righeOfferta = detail?.serramenti.length ?? 0;
+
+  return (
+    <div className="sticky top-24 rounded-md border border-slate-200 bg-slate-50/80 p-3 shadow-sm">
+      <div className="mb-3">
+        <p className="text-xs font-semibold text-slate-900">Scheda preventivo</p>
+        <p className="text-[11px] leading-4 text-slate-500">
+          Dati usati da PDF, microsito cliente e AI.
+        </p>
+      </div>
+
+      <div className="space-y-2.5">
+        <SummaryLine
+          icon={<User className="h-3.5 w-3.5" />}
+          label="Cliente"
+          value={clienteNome || "Da completare"}
+          muted={!clienteNome}
+        />
+        <SummaryLine
+          icon={<Phone className="h-3.5 w-3.5" />}
+          label="Telefono"
+          value={form.cliente_telefono || "Non indicato"}
+          muted={!form.cliente_telefono}
+        />
+        <SummaryLine
+          icon={<Mail className="h-3.5 w-3.5" />}
+          label="Email"
+          value={form.cliente_email || "Non indicata"}
+          muted={!form.cliente_email}
+        />
+        <SummaryLine
+          icon={<MapPin className="h-3.5 w-3.5" />}
+          label="Indirizzo cliente"
+          value={clienteIndirizzo || "Non indicato"}
+          muted={!clienteIndirizzo}
+        />
+        <SummaryLine
+          icon={<Home className="h-3.5 w-3.5" />}
+          label="Cantiere"
+          value={cantiere || "Si completa nello step Immobile"}
+          muted={!cantiere}
+        />
+        <SummaryLine
+          icon={<RectangleVertical className="h-3.5 w-3.5" />}
+          label="Composizione"
+          value={`${righeOfferta} ${righeOfferta === 1 ? "riga" : "righe"} in offerta`}
+          muted={righeOfferta === 0}
+        />
+      </div>
+
+      <div className="mt-3 rounded-md border border-orange-100 bg-orange-50/60 p-2">
+        <p className="text-[11px] font-semibold text-orange-900">AI legge anche questa scheda</p>
+        <p className="mt-0.5 text-[11px] leading-4 text-orange-800/80">
+          Cliente, indirizzo, cantiere e contenuti già inseriti vengono usati per proporre righe offerta più coerenti.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function SummaryLine({
+  icon, label, value, muted,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  muted?: boolean;
+}) {
+  return (
+    <div className="flex gap-2">
+      <span className={cn(
+        "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+        muted ? "bg-slate-100 text-slate-400" : "bg-white text-slate-700 ring-1 ring-slate-200",
+      )}>
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+        <p className={cn("truncate text-xs", muted ? "text-slate-400" : "text-slate-900")}>
+          {value}
+        </p>
+      </div>
+    </div>
   );
 }
 

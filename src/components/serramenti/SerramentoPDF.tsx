@@ -128,17 +128,12 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     cover: {
       fontFamily: FF,
       color: C.white,
-      paddingTop: 64,
-      paddingBottom: 64,
-      paddingHorizontal: 54,
+      width: 595,
+      height: 841,
+      padding: 0,
       backgroundColor: C.coverBg,
-      flexDirection: "column",
-      // NB: NIENTE `justifyContent: space-between` qui.
-      // react-pdf con space-between + Image absolute full-A4 calcola male
-      // l'altezza della Page e splitta la cover in 2-3 pagine (bug riprodotto
-      // più volte). Usiamo invece `marginTop: auto` sulla View del footer
-      // per pushare il footer in basso → comportamento equivalente,
-      // ZERO splitting.
+      position: "relative",
+      overflow: "hidden",
     },
 
     // Header
@@ -179,7 +174,7 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     footerCompanyName: { fontWeight: 700, color: C.gray700 },
 
     // Cover
-    coverLogoBox: { flexDirection: "row", alignItems: "center", marginBottom: 58 },
+    coverLogoBox: { flexDirection: "row", alignItems: "center" },
     coverLogoCircle: {
       width: 56, height: 56, borderRadius: 12,
       backgroundColor: C.primary,
@@ -239,16 +234,16 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     coverClientAddr: { fontSize: 10.5, color: "#9CA3AF" },
 
     coverFooter: {
+      position: "absolute",
+      left: 54,
+      right: 54,
+      bottom: 42,
       flexDirection: "row",
       justifyContent: "space-between",
-      paddingTop: 18,
+      paddingTop: 14,
       borderTop: `0.5pt solid rgba(255,255,255,0.18)`,
       fontSize: 9,
       color: "#9CA3AF",
-      // marginTop: "auto" sostituisce il `justifyContent: space-between` del
-      // parent cover. Pusha il footer in basso senza far calcolare male
-      // l'altezza alla Page → niente split multi-pagina.
-      marginTop: "auto",
     },
     coverFooterStrong: { fontWeight: 700, color: C.white },
     coverDecoSvg: {
@@ -1670,13 +1665,36 @@ export function SerramentoPDF({
       ? (tpl.pdf_cover_decoration_style as "square" | "circle" | "line" | "pattern" | "none")
       : "square";
   const coverBgColor = normalizeHexColor(tpl.pdf_cover_bg_color, null); // null = usa C.coverBg default
-  const coverEyebrowSize = typeof tpl.pdf_cover_eyebrow_size === "number" ? tpl.pdf_cover_eyebrow_size : 10;
-  const coverTitleSize = typeof tpl.pdf_cover_title_size === "number" ? tpl.pdf_cover_title_size : 40;
-  const coverSubtitleSize = typeof tpl.pdf_cover_subtitle_size === "number" ? tpl.pdf_cover_subtitle_size : 13;
+  const coverEyebrowSize = typeof tpl.pdf_cover_eyebrow_size === "number"
+    ? Math.max(8, Math.min(12, tpl.pdf_cover_eyebrow_size))
+    : 10;
+  const coverTitleSize = typeof tpl.pdf_cover_title_size === "number"
+    ? Math.max(28, Math.min(54, tpl.pdf_cover_title_size))
+    : 40;
+  const coverSubtitleSize = typeof tpl.pdf_cover_subtitle_size === "number"
+    ? Math.max(10, Math.min(15, tpl.pdf_cover_subtitle_size))
+    : 13;
   const coverTextColor = normalizeHexColor(tpl.pdf_cover_text_color, "#FFFFFF") ?? "#FFFFFF";
   const coverShowDecoration = tpl.pdf_cover_show_decoration !== false;
   const coverShowClientCard = tpl.pdf_cover_show_client_card !== false;
   const coverTextAlign = (tpl.pdf_cover_text_align === "center" ? "center" : "left") as "left" | "center";
+  const coverContentTop = coverTextVertical === "top"
+    ? (coverLogoPosition === "hidden" ? 96 : 166)
+    : coverTextVertical === "center"
+      ? 248
+      : 322;
+  const coverLogoPositionStyle = coverLogoPosition === "top_right"
+    ? { position: "absolute" as const, top: 54, right: 54, alignItems: "flex-end" as const }
+    : coverLogoPosition === "top_center"
+      ? { position: "absolute" as const, top: 54, left: 54, right: 54, alignItems: "center" as const }
+      : { position: "absolute" as const, top: 54, left: 54, alignItems: coverTextAlign === "center" ? "center" as const : "flex-start" as const };
+  const coverTextBlockStyle = {
+    position: "absolute" as const,
+    top: coverContentTop,
+    left: 54,
+    right: 54,
+    alignItems: coverTextAlign === "center" ? "center" as const : "flex-start" as const,
+  };
 
   // ─── Milestone 7 · Box prezzo arricchito (rata + recupero fiscale) ────
   // Toggle attivi solo se i dati sottostanti sono presenti sul preventivo.
@@ -1918,24 +1936,10 @@ export function SerramentoPDF({
       subject={`Preventivo serramenti per ${clienteNome}`}
     >
       {/* ─── PAGINA 1 — COVER ───────────────────────────────────────────────
-          FIX DEFINITIVO cover A4.
-
-          CAUSA: il combo di 3 fattori = react-pdf calcola male l'altezza
-          della Page e splitta:
-            (a) Image absolute full-A4 (595×842pt) → react-pdf in alcune
-                build conta verso l'altezza del flex parent.
-            (b) styles.cover con `justifyContent: space-between` → forza il
-                parent a "espandere" alla somma dei children.
-            (c) wrap={false} direttamente sulla <Page> → in @react-pdf 4.3.2
-                la pagina viene shrink-wrappata sul contenuto e NON resta A4.
-
-          FIX: neutralizziamo i fattori senza toccare il MediaBox A4.
-            (a) Image rimane absolute con dimensioni esplicite — OK
-            (b) RIMOSSO space-between dal cover style; il footer va in basso
-                via `marginTop: auto` sulla View del footer.
-            (c) la Page resta wrappable/default: così il MediaBox resta 595×842pt.
-                Per evitare split, la cover deve restare compatta con margini e font
-                configurabili, non con wrap={false} sulla Page. */}
+          La cover usa layer assoluti dentro un canvas A4 fisso. In react-pdf
+          le immagini full-page alte 842pt superano di poco l'A4 reale
+          (841.89pt) e react-pdf le spezza. Usiamo 841pt + layer assoluti:
+          sfondo, contenuto e footer restano dentro una sola pagina. */}
       <Page
         size="A4"
         style={[
@@ -1945,7 +1949,7 @@ export function SerramentoPDF({
         ]}
       >
         {/* Immagine di sfondo opzionale.
-            Dimensioni in pt esplicite (A4 = 595×842pt) invece di "100%" perché
+            Dimensioni in pt esplicite (A4 safe = 595×841pt) invece di "100%" perché
             react-pdf ha un bug noto: width/height "100%" su Image absolute-positioned
             genera una pagina vuota extra ALL'INIZIO del documento. */}
         {coverImageUrl && (
@@ -1956,7 +1960,7 @@ export function SerramentoPDF({
               top: 0,
               left: 0,
               width: 595,
-              height: 842,
+              height: 841,
               objectFit: "cover" as const,
             }}
           />
@@ -1975,7 +1979,7 @@ export function SerramentoPDF({
               top: 0,
               left: 0,
               width: 595,
-              height: 842,
+              height: 841,
               backgroundColor: "#000000",
               opacity: coverOverlayOpacity,
             }}
@@ -1988,10 +1992,10 @@ export function SerramentoPDF({
               top: 0,
               left: 0,
               width: 595,
-              height: 842,
+              height: 841,
             }}
           >
-            <Svg width={595} height={842} viewBox="0 0 595 842">
+            <Svg width={595} height={841} viewBox="0 0 595 841">
               <Defs>
                 {coverOverlayStyle === "gradient" && (
                   <LinearGradient id="cover-overlay-grad" x1="0" y1="0" x2="0" y2="1">
@@ -2014,7 +2018,7 @@ export function SerramentoPDF({
                   </RadialGradient>
                 )}
               </Defs>
-              <Rect x={0} y={0} width={595} height={842} fill="url(#cover-overlay-grad)" />
+              <Rect x={0} y={0} width={595} height={841} fill="url(#cover-overlay-grad)" />
             </Svg>
           </View>
         )}
@@ -2028,44 +2032,27 @@ export function SerramentoPDF({
           </View>
         )}
 
-        {/* M17 · Logo cover con posizione configurabile.
-            - top_left:   alignItems flex-start (default storico)
-            - top_right:  alignItems flex-end
-            - top_center: alignItems center
-            - hidden:     blocco non renderizzato (cover ultra-minimal) */}
-        <View style={{
-          alignItems: coverLogoPosition === "top_right"
-            ? "flex-end"
-            : coverLogoPosition === "top_center"
-              ? "center"
-              : coverTextAlign === "center" ? "center" : "flex-start",
-        }}>
-          {coverLogoPosition !== "hidden" && (
+        {coverLogoPosition !== "hidden" && (
+          <View wrap={false} style={coverLogoPositionStyle}>
             <View style={styles.coverLogoBox}>
-              {logoUrl ? (
-                <Image src={logoUrl} style={styles.coverLogoImage} />
-              ) : (
-                <View style={styles.coverLogoCircle}>
-                  <Text style={{ color: "#FFFFFF", fontSize: 28, fontWeight: 700 }}>
-                    {(companyName || "S").charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-              <View>
-                <Text style={[styles.coverCompanyName, { color: coverTextColor }]}>{companyName}</Text>
-                {company?.indirizzo && <Text style={styles.coverCompanyTag}>{company.indirizzo}</Text>}
+            {logoUrl ? (
+              <Image src={logoUrl} style={styles.coverLogoImage} />
+            ) : (
+              <View style={styles.coverLogoCircle}>
+                <Text style={{ color: "#FFFFFF", fontSize: 28, fontWeight: 700 }}>
+                  {(companyName || "S").charAt(0).toUpperCase()}
+                </Text>
               </View>
+            )}
+            <View>
+              <Text style={[styles.coverCompanyName, { color: coverTextColor }]}>{companyName}</Text>
+              {company?.indirizzo && <Text style={styles.coverCompanyTag}>{company.indirizzo}</Text>}
             </View>
-          )}
+            </View>
+          </View>
+        )}
 
-          {/* M18 · Wrapper blocco testo con allineamento verticale.
-              - bottom: marginTop auto → blocco va in fondo (pre-footer)
-              - center: marginTop+marginBottom auto entrambi → centro
-              - top: nessun marginTop → blocco appena sotto il logo */}
-          <View style={{
-            marginTop: coverTextVertical === "top" ? 0 : "auto",
-            marginBottom: coverTextVertical === "center" ? "auto" : 0,
-          }}>
+        <View wrap={false} style={coverTextBlockStyle}>
           <Text style={[styles.coverEyebrow, { fontSize: coverEyebrowSize, textAlign: coverTextAlign }]}>{coverEyebrow}</Text>
           <Text style={[styles.coverTitle, { fontSize: coverTitleSize, color: coverTextColor, textAlign: coverTextAlign }]}>{coverHero}</Text>
           <Text style={[styles.coverSubtitle, { fontSize: coverSubtitleSize, textAlign: coverTextAlign }]}>{coverSubhero}</Text>
@@ -2100,10 +2087,9 @@ export function SerramentoPDF({
               )}
             </View>
           )}
-          </View>{/* end M18 vertical-align wrapper */}
-        </View>{/* end M17 logo-position wrapper */}
+        </View>
 
-        <View style={styles.coverFooter}>
+        <View wrap={false} style={styles.coverFooter}>
           <View>
             <Text>Preventivo <Text style={styles.coverFooterStrong}>{p.code}</Text></Text>
             <Text>{fmtDate(p.created_at)} · valido {p.valido_fino_giorni ?? 15} giorni</Text>

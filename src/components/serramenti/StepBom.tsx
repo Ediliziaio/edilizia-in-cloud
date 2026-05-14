@@ -27,6 +27,7 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
+import { AiSerramentiDraftLauncher } from "./AiSerramentiDraftLauncher";
 import { calcolaPrezzoProdotto, calcolaPosaInclusa, applyMaggiorazioniAssi } from "@/lib/serramenti/pricing";
 import { useFamily } from "@/hooks/useFamilies";
 import { useSupplierProductLines } from "@/features/serramenti-listini/hooks/useSupplierProductLines";
@@ -355,6 +356,15 @@ export function StepBom({ progettoId, detail }: Props) {
           </>
         )}
 
+        <div className="mb-3">
+          <AiSerramentiDraftLauncher
+            progettoId={progettoId}
+            detail={detail}
+            context="bom"
+            onInserted={setExpanded}
+          />
+        </div>
+
         {/* Bottoni di aggiunta — sempre visibili SOTTO la lista (o sotto
             il box vuoto). Stile dashed/outline meno invasivo dei CTA pieni:
             l'utente vede chiaramente la lista come elemento primario e i
@@ -391,6 +401,7 @@ export function StepBom({ progettoId, detail }: Props) {
           onSubmit={handleManualSubmit}
           submitting={addMut.isPending}
         />
+
       </SrCard>
 
       {/* Accessori e complementi — tapparelle/cassonetti/persiane/zanzariere.

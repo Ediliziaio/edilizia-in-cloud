@@ -3,22 +3,18 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight,
   BadgeCheck,
-  Blinds,
   Camera,
   CheckCircle2,
   Clock,
-  DoorOpen,
   FileText,
   Image as ImageIcon,
   LineChart,
-  Lock,
   MessageCircle,
   Play,
   Send,
   ShieldCheck,
   Sparkles,
   Star,
-  Sun,
   Target,
   TrendingUp,
   Users,
@@ -36,6 +32,13 @@ import { SITE_URL, useSEO } from "@/hooks/useSEO";
 
 const HERO_BEFORE_IMAGE = "/images/render-infissi/demo-prima.jpg";
 const HERO_AFTER_IMAGE = "/images/render-infissi/demo-dopo.png";
+const JOURNEY_BEFORE_IMAGE = "/images/render-infissi/demo-latest-prima.jpg";
+const JOURNEY_AFTER_IMAGE = "/images/render-infissi/demo-latest-dopo.jpg";
+const YOUTUBE_RENDER_DEMO_ID = "wBpdDN21vb0";
+const YOUTUBE_RENDER_DEMO_URL = `https://www.youtube.com/watch?v=${YOUTUBE_RENDER_DEMO_ID}`;
+const YOUTUBE_RENDER_DEMO_EMBED_URL = `https://www.youtube-nocookie.com/embed/${YOUTUBE_RENDER_DEMO_ID}?rel=0&modestbranding=1`;
+const YOUTUBE_RENDER_DEMO_AUTOPLAY_URL = `${YOUTUBE_RENDER_DEMO_EMBED_URL}&autoplay=1`;
+const YOUTUBE_RENDER_DEMO_THUMBNAIL = `https://img.youtube.com/vi/${YOUTUBE_RENDER_DEMO_ID}/hqdefault.jpg`;
 
 const proofPoints = [
   "Creato per serramentisti, showroom e reti vendita",
@@ -182,7 +185,7 @@ const scenarioCards = [
 
 const speedStats = [
   { value: 47, suffix: " sec", label: "tempo medio per generare un'anteprima visiva dal telefono" },
-  { value: 12, prefix: "+", suffix: " punti", label: "tasso di chiusura preventivi stimato col prima/dopo in trattativa" },
+  { value: 18, prefix: "+", suffix: "%", label: "di chiusura stimata: dal 30% al 48% con il prima/dopo" },
   { value: 3, prefix: "× ", suffix: "", label: "quanto resta in mente un'immagine rispetto a un foglio di testo" },
 ];
 
@@ -304,22 +307,22 @@ function CountUp({
 
 function VisualDemoStoryboard() {
   return (
-    <div className="relative overflow-hidden rounded-[28px] border border-slate-200 bg-slate-950 p-4 text-white shadow-2xl sm:p-6">
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-3 text-white shadow-2xl sm:rounded-[28px] sm:p-6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(249,116,21,0.28),transparent_38%),radial-gradient(circle_at_80%_55%,rgba(16,185,129,0.16),transparent_34%)]" />
       <div className="relative grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-3">
-          <div className="mb-3 flex items-center justify-between px-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/55">
+        <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2 sm:rounded-2xl sm:p-3">
+          <div className="mb-2 flex items-center justify-between px-1 text-[9px] font-black uppercase tracking-[0.16em] text-white/55 sm:mb-3 sm:text-[10px] sm:tracking-[0.18em]">
             <span>Foto cliente</span>
             <span>Render pronto</span>
           </div>
           <RenderBeforeAfterSlider
-            beforeUrl={HERO_BEFORE_IMAGE}
-            afterUrl={HERO_AFTER_IMAGE}
+            beforeUrl={JOURNEY_BEFORE_IMAGE}
+            afterUrl={JOURNEY_AFTER_IMAGE}
             beforeLabel="Foto"
             afterLabel="Render"
             beforeOnLeft
             compact
-            className="rounded-2xl bg-slate-900"
+            className="max-h-[58vh] rounded-xl bg-slate-900 sm:max-h-none sm:rounded-2xl"
           />
         </div>
 
@@ -329,20 +332,20 @@ function VisualDemoStoryboard() {
             ["20 sec", "Scegli finiture e oscuranti", "Profilo, colore, vetro, maniglia, cassonetto o persiana diventano visibili."],
             ["47 sec", "Invii prima/dopo", "PDF e WhatsApp pronti per riaprire la trattativa mentre è ancora calda."],
           ].map(([time, title, text]) => (
-            <div key={title} className="group rounded-2xl border border-white/10 bg-white/[0.06] p-4 transition hover:-translate-y-0.5 hover:bg-white/[0.09]">
+            <div key={title} className="group rounded-xl border border-white/10 bg-white/[0.06] p-3 transition hover:-translate-y-0.5 hover:bg-white/[0.09] sm:rounded-2xl sm:p-4">
               <div className="flex items-start gap-3">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#F97415] text-sm font-black text-white shadow-lg shadow-orange-950/20">
+                <span className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-[#F97415] text-xs font-black leading-tight text-white shadow-lg shadow-orange-950/20 sm:w-12 sm:text-sm">
                   {time}
                 </span>
                 <div>
-                  <p className="text-base font-black">{title}</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-300">{text}</p>
+                  <p className="text-sm font-black sm:text-base">{title}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-300 sm:text-sm sm:leading-6">{text}</p>
                 </div>
               </div>
             </div>
           ))}
-          <p className="rounded-2xl border border-orange-300/20 bg-orange-500/10 p-4 text-sm font-semibold leading-6 text-orange-50">
-            Quando caricheremo il video reale, questa demo diventa il poster interattivo della clip da 60 secondi.
+          <p className="rounded-xl border border-orange-300/20 bg-orange-500/10 p-3 text-xs font-semibold leading-5 text-orange-50 sm:rounded-2xl sm:p-4 sm:text-sm sm:leading-6">
+            Il cliente non deve immaginare il risultato: lo vede sulla propria casa e puoi usarlo subito nel follow-up.
           </p>
         </div>
       </div>
@@ -350,42 +353,114 @@ function VisualDemoStoryboard() {
   );
 }
 
-/* ================================================================== */
-/* FAMIGLIA RENDER — moduli AI per ogni categoria                      */
-/* ================================================================== */
+function YouTubeDemoEmbed() {
+  const srcDoc = `
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #020617; font-family: Inter, system-ui, sans-serif; }
+      a {
+        position: relative;
+        display: flex;
+        min-height: 100vh;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        color: white;
+        text-decoration: none;
+      }
+      img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: .78;
+      }
+      .shade {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 50% 45%, rgba(249,116,21,.36), transparent 34%), linear-gradient(180deg, rgba(2,6,23,.18), rgba(2,6,23,.72));
+      }
+      .play {
+        position: relative;
+        display: grid;
+        width: 88px;
+        height: 88px;
+        place-items: center;
+        border-radius: 999px;
+        background: #F97415;
+        box-shadow: 0 22px 60px rgba(249,116,21,.42);
+      }
+      .play::before {
+        content: "";
+        margin-left: 6px;
+        border-left: 25px solid white;
+        border-top: 16px solid transparent;
+        border-bottom: 16px solid transparent;
+      }
+      .copy {
+        position: absolute;
+        left: 24px;
+        right: 24px;
+        bottom: 22px;
+        font-weight: 800;
+        line-height: 1.45;
+        text-shadow: 0 2px 14px rgba(0,0,0,.55);
+      }
+      .copy span {
+        display: block;
+        margin-top: 4px;
+        color: rgba(255,255,255,.74);
+        font-size: 13px;
+        font-weight: 700;
+      }
+    </style>
+    <a href="${YOUTUBE_RENDER_DEMO_AUTOPLAY_URL}" aria-label="Guarda il video demo Render Infissi AI">
+      <img src="${YOUTUBE_RENDER_DEMO_THUMBNAIL}" alt="Anteprima video demo Render Infissi AI" />
+      <span class="shade"></span>
+      <span class="play"></span>
+      <span class="copy">Guarda il video demo<span>Click per riprodurre dentro questa card</span></span>
+    </a>
+  `;
 
-const renderFamily = [
-  {
-    icon: AppWindow,
-    title: "Render Infissi",
-    text: "Finestre, portefinestre, profili, vetri, cornici e davanzali sulla foto reale del cliente.",
-    available: true,
-  },
-  {
-    icon: Blinds,
-    title: "Render Persiane",
-    text: "Persiane, scuri e oscuranti applicati alla facciata: colore, materiale e geometria.",
-    available: true,
-  },
-  {
-    icon: DoorOpen,
-    title: "Render Porte",
-    text: "Porte interne ed esterne: essenza, finitura, vetro e maniglieria sul vano reale.",
-    available: true,
-  },
-  {
-    icon: Sun,
-    title: "Render Pergole",
-    text: "Pergolati e coperture sul giardino o terrazzo reale del cliente, con luce naturale.",
-    available: true,
-  },
-  {
-    icon: Lock,
-    title: "Render Porta Blindata",
-    text: "Pannelli, finiture e accessori applicati direttamente all'ingresso vero del cliente.",
-    available: true,
-  },
-] as const;
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-2 shadow-2xl sm:rounded-[28px] sm:p-4">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(249,116,21,0.22),transparent_34%)]" />
+      <div className="relative">
+        <div className="mb-3 flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-200">
+              Video demo reale
+            </p>
+            <p className="mt-1 hidden text-sm font-semibold text-slate-300 sm:block">
+              Guarda come il prima/dopo entra nel flusso commerciale.
+            </p>
+          </div>
+          <a
+            href={YOUTUBE_RENDER_DEMO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-orange-200 transition hover:text-white"
+          >
+            Apri su YouTube
+            <ArrowRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+        <div className="relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-black">
+          <iframe
+            className="absolute inset-0 h-full w-full"
+            src={YOUTUBE_RENDER_DEMO_EMBED_URL}
+            srcDoc={srcDoc}
+            title="Video demo Render Infissi AI"
+            loading="lazy"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ================================================================== */
 /* ROI Calculator                                                      */
@@ -397,7 +472,7 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
   const [closeRateAttuale, setCloseRateAttuale] = useState(30);
 
   const result = useMemo(() => {
-    const upliftPct = 12;
+    const upliftPct = 18;
     const newCloseRate = Math.min(closeRateAttuale + upliftPct, 100);
     const ordiniAttuali = (preventiviMese * closeRateAttuale) / 100;
     const ordiniNuovi = (preventiviMese * newCloseRate) / 100;
@@ -489,13 +564,16 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
             Stima conservativa
           </p>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            Stima prudente: +12 punti di chiusura preventivi col prima/dopo in trattativa.
+            Stima prudente: +18% di chiusura preventivi col prima/dopo in trattativa.
           </p>
 
           <div className="mt-5 space-y-4">
             <div className="rounded-lg bg-white p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Nuovo tasso di chiusura</p>
-              <p className="mt-1 text-2xl font-black text-[#0f172a]">{result.newCloseRate.toFixed(0)}%</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Close rate prima / dopo</p>
+              <p className="mt-1 text-2xl font-black text-[#0f172a]">
+                {closeRateAttuale}% → {result.newCloseRate.toFixed(0)}%
+              </p>
+              <p className="mt-1 text-xs font-bold text-[#D95E0B]">+18% di chiusura</p>
             </div>
             <div className="rounded-lg bg-white p-4">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Ordini in più al mese</p>
@@ -671,13 +749,13 @@ function ConversionInfographic() {
           <div className="mt-5 grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-white/8 p-4">
               <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Prima</p>
-              <p className="mt-1 text-3xl font-black">3/15</p>
-              <p className="mt-1 text-xs text-slate-300">preventivi chiusi</p>
+              <p className="mt-1 text-3xl font-black">3/10</p>
+              <p className="mt-1 text-xs text-slate-300">30% di chiusura</p>
             </div>
             <div className="rounded-xl bg-orange-500 p-4 text-white">
               <p className="text-[11px] font-black uppercase tracking-wider text-orange-100">Con render</p>
-              <p className="mt-1 text-3xl font-black">6/10</p>
-              <p className="mt-1 text-xs text-orange-50">preventivi chiusi</p>
+              <p className="mt-1 text-3xl font-black">4,8/10</p>
+              <p className="mt-1 text-xs text-orange-50">48% di chiusura stimata</p>
             </div>
           </div>
         </div>
@@ -741,57 +819,6 @@ function VisualProofMosaic() {
   );
 }
 
-function SuiteVisualGallery({ onRequestInfo }: { onRequestInfo: () => void }) {
-  const categories = [
-    { title: "Infissi", detail: "Profilo antracite, vetro, maniglia", tone: "from-orange-500 to-amber-400" },
-    { title: "Persiane", detail: "Scuro, lamelle, colore facciata", tone: "from-emerald-500 to-teal-400" },
-    { title: "Porte", detail: "Essenza, vetro, ferramenta", tone: "from-sky-500 to-blue-500" },
-    { title: "Pergole", detail: "Copertura, luce, proporzioni", tone: "from-lime-500 to-emerald-400" },
-    { title: "Blindate", detail: "Pannello, accessori, ingresso", tone: "from-slate-700 to-slate-500" },
-  ];
-
-  return (
-    <div className="rounded-[28px] border border-orange-200 bg-white p-4 shadow-xl sm:p-6">
-      <div className="grid gap-4 lg:grid-cols-5">
-        {categories.map((item, index) => (
-          <div
-            key={item.title}
-            className="group relative min-h-[220px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-3 text-white transition hover:-translate-y-1 hover:shadow-xl"
-          >
-            <div className={`absolute inset-x-0 top-0 h-20 bg-gradient-to-r ${item.tone} opacity-80`} />
-            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/5">
-              <div className="grid grid-cols-2">
-                <img src={index % 2 === 0 ? HERO_BEFORE_IMAGE : HERO_AFTER_IMAGE} alt={`${item.title} prima`} className="h-28 w-full object-cover opacity-75 grayscale" loading="lazy" />
-                <img src={HERO_AFTER_IMAGE} alt={`${item.title} dopo`} className="h-28 w-full object-cover" loading="lazy" />
-              </div>
-            </div>
-            <div className="relative mt-4">
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white/80">
-                Render {index + 1}
-              </span>
-              <h3 className="mt-3 text-lg font-black">{item.title}</h3>
-              <p className="mt-1 text-xs font-semibold leading-5 text-slate-300">{item.detail}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-5 flex flex-col gap-3 rounded-2xl bg-orange-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm font-bold leading-6 text-slate-800">
-          Una sola logica commerciale: mostri il risultato nel contesto reale del cliente, poi lo colleghi a preventivo e follow-up.
-        </p>
-        <button
-          type="button"
-          onClick={onRequestInfo}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#F97415] px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
-        >
-          Voglio vedere la suite
-          <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function ContextualCta({
   eyebrow,
   title,
@@ -847,9 +874,9 @@ export default function RenderInfissi() {
         gsap.utils.toArray<HTMLElement>("[data-render-reveal]").forEach((el) => {
           gsap.fromTo(
             el,
-            { autoAlpha: 0, y: 34, scale: 0.985 },
+            { opacity: 0, y: 34, scale: 0.985 },
             {
-              autoAlpha: 1,
+              opacity: 1,
               y: 0,
               scale: 1,
               duration: 0.82,
@@ -868,9 +895,9 @@ export default function RenderInfissi() {
           if (!children.length) return;
           gsap.fromTo(
             children,
-            { autoAlpha: 0, y: 24 },
+            { opacity: 0, y: 24 },
             {
-              autoAlpha: 1,
+              opacity: 1,
               y: 0,
               duration: 0.62,
               ease: "power2.out",
@@ -909,7 +936,7 @@ export default function RenderInfissi() {
     title:
       "Render Infissi AI per Serramentisti | Aumenta la chiusura preventivi",
     description:
-      "Da 3 preventivi chiusi su 15 a 6 chiusi su 10: carichi la foto della casa, scegli profilo, colore, vetro e oscurante, generi il prima/dopo in 60 secondi.",
+      "Da 3 preventivi chiusi su 10 a quasi 5 su 10: dal 30% al 48% di chiusura stimata con il prima/dopo generato in 60 secondi.",
     canonical: "/funzionalita/render-infissi",
     keywords:
       "render infissi, render serramenti, render finestre AI, software serramentisti, prima dopo infissi, configuratore infissi AI, vendita serramenti, render tapparelle, render persiane, render porte blindate, render pergole, AI infissi, software preventivi serramenti, gestionale serramentisti",
@@ -1005,10 +1032,10 @@ export default function RenderInfissi() {
           name: "Demo Render Infissi AI · Trasforma una foto in una vendita",
           description:
             "Video demo di Render Infissi AI: in 60 secondi carichi la foto del cliente, scegli profilo, colore, vetro e oscurante, generi il prima/dopo e lo invii…",
-          thumbnailUrl: [`${SITE_URL}/videos/render-infissi-poster.jpg`],
+          thumbnailUrl: [YOUTUBE_RENDER_DEMO_THUMBNAIL],
           uploadDate: videoUploadDate,
-          contentUrl: `${SITE_URL}/videos/render-infissi-demo.mp4`,
-          embedUrl: `${pageUrl}#video-demo`,
+          contentUrl: YOUTUBE_RENDER_DEMO_URL,
+          embedUrl: YOUTUBE_RENDER_DEMO_EMBED_URL,
           duration: "PT1M",
           publisher: {
             "@type": "Organization",
@@ -1043,23 +1070,6 @@ export default function RenderInfissi() {
             name: step.title,
             text: step.text,
             url: `${pageUrl}#step-${idx + 1}`,
-          })),
-        }}
-      />
-      <JsonLd
-        id="jsonld-itemlist-render-infissi"
-        data={{
-          "@context": "https://schema.org",
-          "@type": "ItemList",
-          name: "Famiglia Render AI · Moduli per serramentisti",
-          itemListOrder: "https://schema.org/ItemListOrderAscending",
-          numberOfItems: renderFamily.length,
-          itemListElement: renderFamily.map((m, idx) => ({
-            "@type": "ListItem",
-            position: idx + 1,
-            name: m.title,
-            description: m.text,
-            url: `${pageUrl}#famiglia-render`,
           })),
         }}
       />
@@ -1112,7 +1122,7 @@ export default function RenderInfissi() {
 
       <noscript>
         <div style={{ padding: "24px", maxWidth: "960px", margin: "0 auto" }}>
-          <h1>Da 3 preventivi chiusi su 15 a 6 chiusi su 10.</h1>
+          <h1>Da 3 preventivi chiusi su 10 a quasi 5 su 10.</h1>
           <p>
             Per serramentisti, sale espositive e reti vendita. Carichi la foto
             della casa del cliente, scegli profilo, colore, vetro e oscurante.
@@ -1133,13 +1143,13 @@ export default function RenderInfissi() {
         </div>
       </noscript>
 
-      <main className="pb-24 lg:pb-0">
+      <main className="pb-20 lg:pb-0">
         {/* ============================================================ */}
         {/* HERO — single column centered, immagine sotto i bottoni      */}
         {/* ============================================================ */}
         <section
           aria-labelledby="hero-title"
-          className="relative overflow-hidden bg-gradient-to-br from-[#0b1220] via-[#0f1a2e] to-[#1a2540] px-6 pb-16 pt-28 text-white sm:pt-32"
+          className="relative overflow-hidden bg-gradient-to-br from-[#0b1220] via-[#0f1a2e] to-[#1a2540] px-4 pb-12 pt-20 text-white sm:px-6 sm:pb-16 sm:pt-32"
         >
           {/* Subtle orange grid pattern overlay */}
           <div
@@ -1158,27 +1168,27 @@ export default function RenderInfissi() {
 
           {/* Diagonal orange light beam from top-left */}
           <div
-            className="pointer-events-none absolute -top-20 -left-20 h-[120%] w-[60%] -rotate-12 bg-gradient-to-br from-orange-500/25 via-orange-500/5 to-transparent blur-2xl"
+            className="pointer-events-none absolute -top-20 -left-20 hidden h-[120%] w-[60%] -rotate-12 bg-gradient-to-br from-orange-500/25 via-orange-500/5 to-transparent blur-2xl sm:block"
             aria-hidden="true"
           />
 
           {/* Diagonal orange light beam from bottom-right */}
           <div
-            className="pointer-events-none absolute -bottom-32 -right-20 h-[100%] w-[55%] rotate-12 bg-gradient-to-tl from-orange-600/20 via-orange-500/5 to-transparent blur-3xl"
+            className="pointer-events-none absolute -bottom-32 -right-20 hidden h-[100%] w-[55%] rotate-12 bg-gradient-to-tl from-orange-600/20 via-orange-500/5 to-transparent blur-3xl sm:block"
             aria-hidden="true"
           />
 
           {/* Glow blobs */}
           <div
-            className="pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[480px] -translate-x-1/2 animate-pulse-glow rounded-full bg-orange-500/35 blur-[120px]"
+            className="pointer-events-none absolute -top-40 left-1/2 h-[280px] w-[280px] -translate-x-1/2 animate-pulse-glow rounded-full bg-orange-500/25 blur-[90px] sm:h-[480px] sm:w-[480px] sm:bg-orange-500/35 sm:blur-[120px]"
             aria-hidden="true"
           />
           <div
-            className="pointer-events-none absolute top-32 right-10 h-72 w-72 animate-float-slow rounded-full bg-orange-500/25 blur-[100px]"
+            className="pointer-events-none absolute right-10 top-32 hidden h-72 w-72 animate-float-slow rounded-full bg-orange-500/25 blur-[100px] sm:block"
             aria-hidden="true"
           />
           <div
-            className="pointer-events-none absolute bottom-20 left-10 h-80 w-80 animate-float rounded-full bg-orange-600/20 blur-[110px]"
+            className="pointer-events-none absolute bottom-20 left-10 hidden h-80 w-80 animate-float rounded-full bg-orange-600/20 blur-[110px] sm:block"
             aria-hidden="true"
           />
           <div
@@ -1188,7 +1198,7 @@ export default function RenderInfissi() {
 
           {/* Floating orange "sparks" */}
           <div
-            className="pointer-events-none absolute left-[8%] top-[18%] h-2 w-2 animate-float rounded-full bg-orange-300 shadow-[0_0_24px_8px_rgba(249,116,21,0.55)]"
+            className="pointer-events-none absolute left-[8%] top-[18%] hidden h-2 w-2 animate-float rounded-full bg-orange-300 shadow-[0_0_24px_8px_rgba(249,116,21,0.55)] sm:block"
             aria-hidden="true"
           />
           <div
@@ -1196,7 +1206,7 @@ export default function RenderInfissi() {
             aria-hidden="true"
           />
           <div
-            className="pointer-events-none absolute left-[15%] top-[62%] h-1 w-1 animate-float rounded-full bg-orange-400 shadow-[0_0_14px_5px_rgba(249,116,21,0.55)]"
+            className="pointer-events-none absolute left-[15%] top-[62%] hidden h-1 w-1 animate-float rounded-full bg-orange-400 shadow-[0_0_14px_5px_rgba(249,116,21,0.55)] sm:block"
             aria-hidden="true"
           />
           <div
@@ -1214,22 +1224,46 @@ export default function RenderInfissi() {
             aria-hidden="true"
           />
 
-          <div className="relative mx-auto max-w-5xl text-center">
-            <div className="mb-6 inline-flex max-w-full items-center gap-2 rounded-full border border-orange-400/35 bg-orange-500/15 px-3 py-2 text-[10px] font-extrabold uppercase leading-4 tracking-[0.14em] text-orange-200 sm:px-4 sm:text-xs sm:tracking-[0.18em]">
-              <Sparkles className="h-4 w-4" />
+          <div className="relative mx-auto flex max-w-5xl flex-col items-center text-center">
+            <div className="mb-4 inline-flex max-w-full items-center gap-2 rounded-2xl border border-orange-400/35 bg-orange-500/15 px-3 py-2 text-[9px] font-extrabold uppercase leading-4 tracking-[0.08em] text-orange-200 sm:mb-6 sm:rounded-full sm:px-4 sm:text-xs sm:tracking-[0.18em]">
+              <Sparkles className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
               Per serramentisti, sale espositive e reti vendita · Anteprima riservata alle prime 30 aziende
             </div>
             <h1
               id="hero-title"
-              className="mx-auto max-w-4xl text-[1.9rem] font-black leading-[1.1] tracking-tight text-white min-[390px]:text-[2.05rem] sm:text-5xl lg:text-6xl"
+              className="mx-auto max-w-4xl text-[1.62rem] font-black leading-[1.08] tracking-tight text-white min-[390px]:text-[1.78rem] sm:text-5xl lg:text-6xl"
             >
-              Da 3 preventivi chiusi su 15 a 6 chiusi su 10. Sugli stessi clienti che già vedi. Senza scendere di prezzo.
+              Da 3 preventivi chiusi su 10 a quasi 5 su 10. Dal 30% al 48%, senza scendere di prezzo.
             </h1>
 
+            <p className="order-3 mx-auto mt-5 max-w-3xl text-base font-medium leading-7 text-slate-200 sm:mt-6 sm:text-xl sm:leading-8">
+              Carichi la foto della casa del cliente. Scegli profilo, colore, vetro e oscurante.
+              In 60 secondi esce il prima/dopo che il cliente non vedrà da nessun altro.
+              Stesso preventivo. Stesso prezzo. Una foto in più. Fino a +18% di chiusura preventivi.
+            </p>
+
+            <div className="order-4 mt-6 flex w-full flex-col items-center justify-center gap-3 sm:mt-9 sm:w-auto sm:flex-row">
+              <button
+                type="button"
+                onClick={openLeadModal}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-6 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-orange-950/30 transition hover:bg-[#D95E0B] sm:w-auto sm:px-7 sm:py-4 sm:text-base"
+              >
+                Prova GRATIS il Render AI
+                <ArrowRight className="h-5 w-5" />
+              </button>
+              <a
+                href="#video-demo"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/25 bg-white/10 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-white/15 sm:w-auto sm:px-7 sm:py-4 sm:text-base"
+              >
+                <Play className="h-4 w-4 fill-white" />
+                Guarda il video demo
+              </a>
+            </div>
+
             {/* HERO IMAGE — caso reale Demo Azienda */}
-            <div className="mx-auto mt-8 w-full max-w-md sm:mt-10 sm:max-w-xl lg:max-w-[620px] xl:max-w-[680px]">
-              <div className="overflow-hidden rounded-[28px] border border-white/12 bg-white/6 p-3 shadow-[0_30px_80px_rgba(15,23,42,0.38)] backdrop-blur-sm sm:p-4">
-                <div className="mb-2 flex items-center justify-between px-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/55 sm:mb-3 sm:text-xs">
+            <div className="order-5 mx-auto mt-8 w-full max-w-md sm:mt-10 sm:max-w-xl lg:max-w-[620px] xl:max-w-[680px]">
+              <div className="overflow-hidden rounded-2xl border border-white/12 bg-white/6 p-2 shadow-[0_30px_80px_rgba(15,23,42,0.38)] backdrop-blur-sm sm:rounded-[28px] sm:p-4">
+                <div className="mb-2 flex items-center justify-between px-1 text-[9px] font-black uppercase tracking-[0.16em] text-white/55 sm:mb-3 sm:text-xs sm:tracking-[0.18em]">
                   <span>Prima</span>
                   <span>Dopo</span>
                 </div>
@@ -1240,13 +1274,13 @@ export default function RenderInfissi() {
                   afterLabel="Dopo"
                   beforeOnLeft
                   compact
-                  className="rounded-[22px] bg-slate-950/70"
+                  className="max-h-[54vh] rounded-xl bg-slate-950/70 sm:max-h-none sm:rounded-[22px]"
                 />
-                <p className="mt-3 text-center text-xs font-semibold text-white/65 sm:text-sm">
+                <p className="mt-3 hidden text-center text-xs font-semibold text-white/65 sm:block sm:text-sm">
                   Trascina la linea per passare dalla foto reale al render finale.
                 </p>
               </div>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55 sm:text-xs">
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-2 text-center text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55 sm:mt-4 sm:gap-x-4 sm:text-xs sm:tracking-[0.18em]">
                 <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1.5">
                   Caso reale Demo Azienda
                 </span>
@@ -1257,36 +1291,12 @@ export default function RenderInfissi() {
                   Render finale usato nel prima/dopo
                 </span>
               </div>
-              <p className="mt-3 text-center text-[11px] font-medium leading-5 text-white/50 sm:text-xs">
-                Qui non stai vedendo una mockup generica: è un prima/dopo reale preso dall&apos;area render della Demo Azienda S.r.l.
+              <p className="mt-3 hidden text-center text-[11px] font-medium leading-5 text-white/50 sm:block sm:text-xs">
+                Qui non stai vedendo un mockup generico: è un prima/dopo reale preso dall&apos;area render della Demo Azienda S.r.l.
               </p>
             </div>
 
-            <p className="mx-auto mt-6 max-w-3xl text-lg font-medium leading-8 text-slate-200 sm:text-xl">
-              Carichi la foto della casa del cliente. Scegli profilo, colore, vetro e oscurante.
-              In 60 secondi esce il prima/dopo che il cliente non vedrà da nessun altro.
-              Stesso preventivo. Stesso prezzo. Una foto in più. Fino a +12 punti di chiusura preventivi.
-            </p>
-
-            <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={openLeadModal}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-950/30 transition hover:bg-[#D95E0B] sm:w-auto"
-              >
-                Prova GRATIS il Render AI
-                <ArrowRight className="h-5 w-5" />
-              </button>
-              <a
-                href="#video-demo"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/25 bg-white/10 px-7 py-4 text-base font-bold text-white transition hover:bg-white/15 sm:w-auto"
-              >
-                <Play className="h-4 w-4 fill-white" />
-                Guarda il video demo
-              </a>
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-semibold text-slate-300 sm:text-sm">
+            <div className="order-6 mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs font-semibold text-slate-300 sm:gap-x-5 sm:text-sm">
               {reassurancePoints.map((item) => (
                 <span key={item} className="inline-flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4 text-emerald-300" />
@@ -1296,7 +1306,7 @@ export default function RenderInfissi() {
             </div>
 
             {/* Trust badges row */}
-            <div className="mx-auto mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
+            <div className="order-7 mx-auto mt-8 flex flex-wrap items-center justify-center gap-x-5 gap-y-3 sm:mt-10 sm:gap-x-6">
               {trustBadges.map(({ icon: Icon, label }) => (
                 <span
                   key={label}
@@ -1309,7 +1319,7 @@ export default function RenderInfissi() {
             </div>
 
             {/* Original proof points */}
-            <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <div className="order-8 mt-6 flex flex-wrap justify-center gap-2 sm:gap-3">
               {proofPoints.map((item) => (
                 <span
                   key={item}
@@ -1324,7 +1334,7 @@ export default function RenderInfissi() {
         </section>
 
         {/* Quick objective summary */}
-        <section className="border-b border-slate-200 bg-white px-6 py-7">
+        <section className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 sm:py-7">
           <div className="mx-auto grid max-w-6xl gap-4 sm:grid-cols-3">
             {[
               ["Obiettivo", "Far dire al cliente: adesso riesco a immaginarlo"],
@@ -1363,22 +1373,22 @@ export default function RenderInfissi() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] ring-1 ring-white/20">
                 <Sparkles className="h-3.5 w-3.5" />
-                30 serramentisti italiani · prezzo bloccato · poi sale
+                30 serramentisti italiani · prezzo di lancio · poi condizioni aggiornate
               </div>
               <h2 id="beta-title" className="mt-4 text-2xl font-black leading-tight sm:text-4xl">
                 Stiamo aprendo l'anteprima alle prime 30 aziende.
               </h2>
               <p className="mt-3 text-base font-semibold leading-7 sm:text-lg sm:leading-8 text-orange-50">
-                Tu sei il numero quanto? Chi entra adesso blocca il prezzo lanciatissimo a vita,
-                riceve affiancamento singolo con un Consulente del Controllo e decide insieme a noi
-                quali categorie aggiungere dopo gli infissi.
+                Se entri ora blocchi le condizioni di lancio, ricevi affiancamento singolo
+                con un Consulente del Controllo e puoi aiutarci a scegliere quali categorie
+                aggiungere dopo gli infissi.
               </p>
             </div>
             <div className="rounded-2xl border border-white/18 bg-white/10 p-5 shadow-2xl backdrop-blur" data-render-stagger>
               {[
-                "Prezzo lanciatissimo bloccato a vita. Quando i 30 posti finiscono, il prezzo sale per tutti gli altri.",
+                "Prezzo di lancio riservato alle prime 30 aziende attivate.",
                 "Affiancamento singolo con un Consulente del Controllo dedicato di EdiliziaInCloud.",
-                "31 giorni di prova senza rischio. Se non ti porta più di quanto costa, ti rimborsiamo tutto.",
+                "31 giorni di prova senza rischio, con setup e primi casi reali seguiti passo passo.",
               ].map((item) => (
                 <div key={item} data-render-item className="flex gap-3 border-b border-white/10 py-3 last:border-b-0">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
@@ -1386,7 +1396,7 @@ export default function RenderInfissi() {
                 </div>
               ))}
               <p className="mt-4 rounded-xl bg-black/20 p-3 text-sm font-black text-white">
-                Quando i 30 posti sono finiti, sono finiti. Niente coda. Niente eccezioni.
+                Quando i posti di lancio si chiudono, riapriremo con condizioni aggiornate.
               </p>
               <button
                 type="button"
@@ -1460,22 +1470,25 @@ export default function RenderInfissi() {
         </section>
 
         {/* VIDEO DEMO */}
-        <section id="video-demo" aria-labelledby="video-title" data-render-reveal className="bg-white px-6 py-20">
+        <section id="video-demo" aria-labelledby="video-title" data-render-reveal className="bg-white px-4 py-14 sm:px-6 sm:py-20">
           <div className="mx-auto max-w-5xl">
             <div className="mx-auto max-w-3xl text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
+              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#D95E0B] sm:text-xs sm:tracking-[0.18em]">
                 <Play className="h-3.5 w-3.5 fill-[#D95E0B]" />
                 Demo visuale · 60 secondi
               </div>
-              <h2 id="video-title" className="mt-4 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
+              <h2 id="video-title" className="mt-4 text-[1.65rem] font-black leading-tight tracking-tight text-[#0f172a] sm:text-4xl">
                 Guarda il percorso: foto, scelta, prima/dopo, WhatsApp.
               </h2>
-              <p className="mt-4 text-base leading-7 sm:text-lg sm:leading-8 text-slate-600">
-                Finché non carichi il video reale, questa sezione mostra il flusso commerciale da replicare in trattativa:
-                una prova visiva veloce, memorabile e pronta da allegare al preventivo.
+              <p className="mt-4 text-sm leading-6 text-slate-600 sm:text-lg sm:leading-8">
+                Questa demo mostra il flusso commerciale da replicare in trattativa:
+                foto reale, scelta delle finiture, prima/dopo e invio al cliente.
               </p>
             </div>
-            <div className="mt-10">
+            <div className="mt-7 sm:mt-10">
+              <YouTubeDemoEmbed />
+            </div>
+            <div className="mt-6">
               <VisualDemoStoryboard />
             </div>
             <div className="mt-7 text-center">
@@ -1516,92 +1529,6 @@ export default function RenderInfissi() {
               </div>
             </div>
             <PhoneFollowUpMock />
-          </div>
-        </section>
-
-        {/* FAMIGLIA RENDER — moduli AI per ogni categoria */}
-        <section
-          id="famiglia-render"
-          aria-labelledby="famiglia-title"
-          data-render-reveal
-          className="bg-gradient-to-b from-white to-[#fff7ed] px-6 py-20"
-        >
-          <div className="mx-auto max-w-6xl">
-            <div className="mx-auto max-w-3xl text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
-                <Sparkles className="h-3.5 w-3.5" />
-                Famiglia Render AI
-              </div>
-              <h2 id="famiglia-title" className="mt-4 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
-                Un abbonamento. Cinque categorie. Zero costi extra quando ne arrivano altre.
-              </h2>
-              <p className="mt-4 text-base leading-7 sm:text-lg sm:leading-8 text-slate-600">
-                Non solo infissi. Un'anteprima visiva per ogni cosa che vendi. Lo stesso meccanismo
-                del Render Infissi, esteso a tutto il mondo aperture e spazi esterni.
-              </p>
-            </div>
-
-            <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3" data-render-stagger>
-              {renderFamily.map((m, i) => (
-                <div
-                  key={m.title}
-                  data-render-item
-                  className={`group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-orange-300 hover:shadow-lg ${
-                    i === 0 ? "lg:col-span-1 lg:row-span-1" : ""
-                  }`}
-                >
-                  <div className="pointer-events-none absolute -top-10 -right-10 h-32 w-32 rounded-full bg-orange-500/10 blur-2xl transition group-hover:bg-orange-500/20" />
-                  <div className="relative flex items-start justify-between">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 text-[#D95E0B] shadow-sm">
-                      <m.icon className="h-6 w-6" />
-                    </div>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
-                        m.available
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {m.available ? "Disponibile" : "In arrivo"}
-                    </span>
-                  </div>
-                  <h3 className="relative mt-5 text-xl font-black text-[#0f172a]">{m.title}</h3>
-                  <p className="relative mt-2 text-sm leading-7 text-slate-600">{m.text}</p>
-                  <div className="relative mt-5 inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#D95E0B]">
-                    <Sparkles className="h-3 w-3" />
-                    Prima/dopo · PDF · CRM
-                  </div>
-                </div>
-              ))}
-
-              {/* Bonus card: tutto incluso */}
-              <div className="relative overflow-hidden rounded-2xl border-2 border-[#F97415] bg-gradient-to-br from-[#0f172a] to-[#1a2540] p-6 text-white shadow-xl">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(249,116,21,0.35),transparent_55%)]" />
-                <div className="relative">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-orange-500/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-orange-200">
-                    <Sparkles className="h-3 w-3" />
-                    Tutto in 1
-                  </div>
-                  <h3 className="mt-5 text-xl font-black">Tutta la suite Render AI</h3>
-                  <p className="mt-2 text-sm leading-7 text-slate-300">
-                    Quando aggiungiamo nuove categorie, come cucine in muratura, controsoffitti o scale interne,
-                    entrano nel tuo piano. Senza costi extra. Per sempre.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={openLeadModal}
-                    className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-4 py-2.5 text-xs font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
-                  >
-                    Sblocca tutta la suite
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-12">
-              <SuiteVisualGallery onRequestInfo={openLeadModal} />
-            </div>
           </div>
         </section>
 
@@ -1835,7 +1762,7 @@ export default function RenderInfissi() {
             <div className="mt-10 grid gap-4 sm:grid-cols-3">
               {[
                 { value: 38, suffix: "%", label: "in più di preventivi visualizzati dal cliente" },
-                { value: 12, prefix: "+", suffix: " pt", label: "di close rate stimati con il prima/dopo" },
+                { value: 18, prefix: "+", suffix: "%", label: "di chiusura stimata: dal 30% al 48%" },
                 { value: 6, prefix: "-", suffix: " gg", label: "di tempo medio di chiusura preventivo" },
               ].map((item) => (
                 <div
@@ -2161,16 +2088,16 @@ export default function RenderInfissi() {
       </main>
 
       {/* STICKY MOBILE CTA */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 py-2 pr-[104px] shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur sm:px-4 sm:py-3 sm:pr-4 lg:hidden">
         <button
           type="button"
           onClick={openLeadModal}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-4 py-2.5 text-xs font-extrabold text-white shadow-md transition hover:bg-[#D95E0B] min-[390px]:text-sm sm:px-5 sm:py-3"
         >
-          Prova GRATIS il Render AI
+          Prova gratis
           <ArrowRight className="h-4 w-4" />
         </button>
-        <p className="mt-1 text-center text-[10px] font-semibold text-slate-500">
+        <p className="mt-1 hidden text-center text-[10px] font-semibold text-slate-500 min-[390px]:block">
           Onboarding incluso · Cancelli quando vuoi
         </p>
       </div>

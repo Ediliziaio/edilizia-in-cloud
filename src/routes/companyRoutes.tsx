@@ -105,9 +105,6 @@ const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
 const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
 const AttivitaStaff = lazy(() => import("@/pages/azienda/AttivitaStaff"));
-const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
-const FeriePersonali = lazy(() => import("@/pages/azienda/FeriePersonali"));
-const CedoliniPersonali = lazy(() => import("@/pages/azienda/CedoliniPersonali"));
 
 /**
  * AttivitaRouter — mostra la pagina corretta in base al ruolo.
@@ -596,13 +593,22 @@ export function companyRoutes() {
         } />
         {/* Modulo Preventivatore Serramenti */}
         <Route path="serramenti" element={
-          <ErrorBoundary title="Errore modulo Serramenti"><SerramentiIndex /></ErrorBoundary>
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore modulo Serramenti"><SerramentiIndex /></ErrorBoundary>,
+          )
         } />
         <Route path="serramenti/nuovo" element={
-          <ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary>
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary>,
+          )
         } />
         <Route path="serramenti/:id/modifica" element={
-          <ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary>
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary>,
+          )
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewMarketingOpportunities", <Preventivi />)} />
         <Route path="marketing/preventivi/approvazioni" element={<Navigate to="/azienda/marketing/preventivi?tab=approvazioni" replace />} />
