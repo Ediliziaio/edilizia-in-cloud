@@ -219,8 +219,8 @@ export function calcolaTotale(
 
 /**
  * Forbice min/max: il totale è ±X% per coprire variabili (materiale, vetro,
- * finitura, accessori opzionali) — il prezzo definitivo si fissa con il
- * sopralluogo e la consulenza.
+ * finitura, accessori opzionali) — l'importo definitivo viene confermato dopo
+ * sopralluogo tecnico e scelta dei materiali.
  *
  * Guard: totale non negativo, range_pct clampato 0-50%.
  */

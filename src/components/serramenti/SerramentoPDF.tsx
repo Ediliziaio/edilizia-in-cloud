@@ -863,13 +863,6 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
       borderColor: C.primaryBorder,
       backgroundColor: C.primaryLight,
     },
-    signatureQr: {
-      width: 96,
-      height: 96,
-      backgroundColor: C.white,
-      borderRadius: 6,
-      padding: 5,
-    },
     signatureTitle: { fontSize: 13, fontWeight: 800, color: C.primary, marginBottom: 4 },
     signatureText: { fontSize: 9.5, lineHeight: 1.45, color: C.gray700 },
     signatureUrl: {
@@ -1107,9 +1100,10 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     // Senza, due "PORTA BALCONE" con Profilo "Square" vs "Etrum" verrebbero
     // mostrate come UNA riga ×2 con scheda tecnica ambigua nel PDF.
     const assiKey = Object.entries(assi).sort().map(([k, v]) => `${k}=${v}`).join(";");
+    const manualLabelKey = (s.tipologia_label ?? s.tipologia ?? "").trim();
     const baseKey = s.family_id
       ? `fam-${s.family_id}__${s.tipologia}`
-      : `oth-${s.tipologia}__${s.materiale ?? ""}__${s.serie ?? ""}__${s.vetro ?? ""}`;
+      : `oth-${s.tipologia}__${manualLabelKey}__${s.materiale ?? ""}__${s.serie ?? ""}__${s.vetro ?? ""}`;
     // posa_esclusa fa parte della key: 2 righe identiche ma una "con posa" e
     // una "senza posa" devono restare separate (prezzo unitario diverso).
     const posaKey = s.posa_esclusa ? "noposa" : "posa";
@@ -1123,7 +1117,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     }
     else map.set(key, {
       key,
-      tipologia: tipologiaLabel(s.tipologia),
+      tipologia: s.family_id ? tipologiaLabel(s.tipologia) : (s.tipologia_label || tipologiaLabel(s.tipologia)),
       materiale: materialeLabel(s.materiale),
       serie: s.serie ?? "",
       vetro: s.vetro ?? "",
@@ -1600,9 +1594,8 @@ export interface SerramentoPDFProps {
   axisLabelByKey?: Record<string, { axisLabel: string; valueLabel: string }>;
   /** Lookup linea fornitore, usato nel BOM PDF per distinguere cataloghi e linee. */
   supplierLineById?: Record<string, SerramentoPdfSupplierLine>;
-  /** Link pubblico/QR della pagina firma da inserire nel PDF cliente. */
+  /** Link pubblico della pagina firma da inserire nel PDF cliente. */
   publicUrl?: string | null;
-  qrDataUrl?: string | null;
   /** Macro_id default per BOM senza family e senza override esplicito. */
   autoFallbackMacroId?: string | null;
 }
@@ -1617,7 +1610,6 @@ export function SerramentoPDF({
   axisLabelByKey = {},
   supplierLineById = {},
   publicUrl = null,
-  qrDataUrl = null,
   autoFallbackMacroId = null,
 }: SerramentoPDFProps) {
   const p = detail.progetto;
@@ -1727,12 +1719,12 @@ export function SerramentoPDF({
   const ctaTitle = tpl.pdf_cta_finale_titolo || "Cosa fare adesso";
   const ctaSteps = (Array.isArray(tpl.pdf_cta_finale_passi) && tpl.pdf_cta_finale_passi.length > 0)
     ? tpl.pdf_cta_finale_passi as string[]
-    : [
-        "Conferma l'appuntamento di consulenza tecnica",
-        "Firma digitale del preventivo via link sicuro",
-        "Versa l'acconto secondo lo schema concordato",
-        "Diamo il via alla produzione e cantiere",
-      ];
+	    : [
+	        "Chiarisci eventuali dubbi tecnici o commerciali",
+	        "Conferma misure, finiture e condizioni definitive",
+	        "Firma il preventivo e versa l'acconto concordato",
+	        "Avviamo ordine, produzione e pianificazione della posa",
+	      ];
 
   // "Chi siamo" — pagina opzionale subito dopo la cover
   const chiSiamoAttivo = !!tpl.chi_siamo_attivo;
@@ -1745,11 +1737,11 @@ export function SerramentoPDF({
 
   // Render — disclaimer custom o default IT
   const renderDisclaimer = tpl.render_disclaimer ||
-    "Render generato con intelligenza artificiale a scopo esclusivamente dimostrativo e illustrativo. L'immagine non rappresenta il risultato finale dell'intervento, che potrà variare in base a rilievi tecnici, materiali scelti, misure reali, condizioni dell'ambiente e fattibilità esecutiva.";
+    "Il render AI è una simulazione indicativa pensata per aiutarti a immaginare il risultato estetico. L'immagine non sostituisce il progetto definitivo: il risultato finale dipende da rilievi tecnici, misure reali, materiali scelti, condizioni dell'ambiente e fattibilità esecutiva.";
 
   // Descrizione consulente — testo generico mostrato sotto nome+contatti
   const consulenteDescrizione = tpl.consulente_descrizione_default ||
-    "Ti accompagnerò personalmente dal primo sopralluogo fino al collaudo finale. Per qualunque domanda o necessità durante il preventivo, sono il tuo punto di riferimento.";
+    "Ti seguirò personalmente dal primo sopralluogo fino al collaudo finale. Per qualsiasi domanda o necessità durante il percorso, sarò il tuo punto di riferimento.";
 
   // Percorso cliente — pagina dedicata con fasi/step (default sensato se nullo)
   const percorso: SrPercorsoCliente = (tpl.percorso_cliente as SrPercorsoCliente | null) ?? SR_PERCORSO_DEFAULT;
@@ -1828,8 +1820,6 @@ export function SerramentoPDF({
   // Prima & Dopo: situazione (foto attuale del cliente) vs render (AI)
   const primaUrls = detail.media.filter((m) => m.kind === "situazione" && m.url).map((m) => m.url!);
   const renderUrls = detail.media.filter((m) => m.kind === "render" && m.url).map((m) => m.url!);
-  const hasPrimaDopo = primaUrls.length > 0 && renderUrls.length > 0;
-
   // ─── Milestone 11 · Before/After con pairing esplicito ────────────────
   // Per ogni render con pair_situazione_id, troviamo la situazione "prima"
   // accoppiata. Se mancante (legacy), fallback al parsing session-id da
@@ -1920,10 +1910,6 @@ export function SerramentoPDF({
   const pdfPagesOrder = normalizePdfPagesOrder(
     (tpl.pdf_pages_order ?? null) as SrPdfPageOrderItem[] | null,
   );
-  const isPdfPageVisible = (id: SrPdfPageId) =>
-    pdfPagesOrder.some((pg) => pg.id === id && pg.visible);
-  const renderPageVisible = isPdfPageVisible("render");
-  const mainRenderPageUsesPairedGrid = beforeAfterPairs.length >= 2;
 
   return (
     <Document
@@ -1932,8 +1918,7 @@ export function SerramentoPDF({
       subject={`Preventivo serramenti per ${clienteNome}`}
     >
       {/* ─── PAGINA 1 — COVER ───────────────────────────────────────────────
-          FIX DEFINITIVO multi-page bug (PDF split su 3 pagine: bg image standalone
-          + cover content + overflow rosso).
+          FIX DEFINITIVO cover A4.
 
           CAUSA: il combo di 3 fattori = react-pdf calcola male l'altezza
           della Page e splitta:
@@ -1941,16 +1926,18 @@ export function SerramentoPDF({
                 build conta verso l'altezza del flex parent.
             (b) styles.cover con `justifyContent: space-between` → forza il
                 parent a "espandere" alla somma dei children.
-            (c) wrap=true (default) → consente lo split.
+            (c) wrap={false} direttamente sulla <Page> → in @react-pdf 4.3.2
+                la pagina viene shrink-wrappata sul contenuto e NON resta A4.
 
-          FIX: tutti e 3 fattori neutralizzati simultaneamente.
+          FIX: neutralizziamo i fattori senza toccare il MediaBox A4.
             (a) Image rimane absolute con dimensioni esplicite — OK
             (b) RIMOSSO space-between dal cover style; il footer va in basso
                 via `marginTop: auto` sulla View del footer.
-            (c) wrap={false} sulla Page — clip dell'eventuale overflow, NO split. */}
+            (c) la Page resta wrappable/default: così il MediaBox resta 595×842pt.
+                Per evitare split, la cover deve restare compatta con margini e font
+                configurabili, non con wrap={false} sulla Page. */}
       <Page
         size="A4"
-        wrap={false}
         style={[
           styles.cover,
           coverBgColor ? { backgroundColor: coverBgColor } : undefined,
@@ -2323,8 +2310,8 @@ export function SerramentoPDF({
               <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
               <Text style={styles.pageEyebrow}>Allegato tecnico</Text>
-              <Text style={styles.pageTitle}>Cosa entra{"\n"}in cantiere.</Text>
-              <Text style={styles.pageSubtitle}>Composizione dettagliata dei serramenti e degli accessori previsti.</Text>
+              <Text style={styles.pageTitle}>Cosa installeremo{"\n"}in cantiere.</Text>
+              <Text style={styles.pageSubtitle}>Composizione dettagliata di serramenti, accessori e scelte tecniche previste.</Text>
 
               <Text style={styles.sectionTitle}>Composizione serramenti · {numSerr} pezzi</Text>
               <View style={styles.table}>
@@ -2513,7 +2500,7 @@ export function SerramentoPDF({
                             fontSize: 8.5, color: "#92400E", marginTop: 3,
                             fontStyle: "italic",
                           }}>
-                            Info: vendita solo fornitura — manodopera e posa NON incluse per questo articolo.
+                            Nota: vendita in sola fornitura. Manodopera e posa non sono incluse per questo articolo.
                           </Text>
                         )}
                         {specs.length > 0 && (
@@ -2735,10 +2722,10 @@ export function SerramentoPDF({
                       {art.render?.url ? (
                         <>
                           <Image src={art.render.url} style={styles.articoloPhotoImg} />
-                          <Text style={styles.articoloPhotoLabelDopo}>Dopo · render AI</Text>
+                          <Text style={styles.articoloPhotoLabelDopo}>Dopo · simulazione AI</Text>
                         </>
                       ) : (
-                        <Text style={{ fontSize: 9, color: C.gray500 }}>Render AI non disponibile</Text>
+                        <Text style={{ fontSize: 9, color: C.gray500 }}>Simulazione AI non disponibile</Text>
                       )}
                     </View>
                   </View>
@@ -2783,7 +2770,7 @@ export function SerramentoPDF({
               <Text style={styles.pageEyebrow}>L'investimento</Text>
               <Text style={styles.investmentTitle}>Trasparenza{"\n"}totale.</Text>
               <Text style={styles.investmentSubtitle}>
-                Forbice indicativa basata sul primo contatto. Il prezzo definitivo si fissa con sopralluogo e scelta materiali.
+                Stima indicativa basata sulle informazioni raccolte. L'importo definitivo viene confermato dopo sopralluogo tecnico e scelta dei materiali.
               </Text>
 
               <View style={styles.priceBoxCompact} wrap={false}>
@@ -2801,7 +2788,7 @@ export function SerramentoPDF({
                     al cliente — riduce contestazioni in fase di firma. */}
                 <Text style={styles.priceFinePrint}>
                   {p.iva_percentuale === -1
-                    ? "IVA mista applicata secondo regola Beni Significativi (DM 29.12.99): serramenti al 10% fino al valore di posa + opere accessorie; eccedenza al 22%."
+                    ? "IVA mista applicata secondo la regola dei Beni Significativi (DM 29.12.99): aliquota agevolata al 10% nei limiti previsti; eventuale eccedenza al 22%."
                     : p.iva_percentuale === 4
                       ? "IVA agevolata 4% (Legge 104 — interventi per persone con disabilità)."
                       : p.iva_percentuale === 10
@@ -2936,10 +2923,10 @@ export function SerramentoPDF({
 
                 <Text style={styles.pageEyebrow}>Dettagli investimento</Text>
                 <Text style={[styles.pageTitle, { fontSize: 24, marginBottom: 6 }]}>
-                  Valore, recupero e inclusioni.
+                  Valore, recuperi e inclusioni.
                 </Text>
                 <Text style={[styles.pageSubtitle, { fontSize: 10, marginBottom: 12 }]}>
-                  Un riepilogo ordinato per leggere con chiarezza recupero fiscale, ritorno economico e valore incluso.
+                  Un riepilogo ordinato per leggere con chiarezza recupero fiscale, ritorno economico e ciò che è compreso.
                 </Text>
 
                 {hasTaxDeduction && (
@@ -3177,9 +3164,7 @@ export function SerramentoPDF({
                     fontSize: 18, fontWeight: 700, color: C.gray900,
                     textAlign: "center" as const, marginTop: 4, letterSpacing: -0.3,
                   }}>
-                    {percorso.titolo === SR_PERCORSO_DEFAULT.titolo
-                      ? `passaggi curati nei minimi dettagli`
-                      : percorso.titolo}
+	                    {percorso.titolo}
                   </Text>
                   <Text style={{
                     fontSize: 10, color: C.gray500, textAlign: "center" as const,
@@ -3252,17 +3237,18 @@ export function SerramentoPDF({
           ),
           render: (
             <>
-            {/* ─── PAGINA RENDER AI in LANDSCAPE (orizzontale) per dare massimo
-                  risalto al PRIMA/DOPO.
+            {/* ─── PAGINA RENDER AI in A4 verticale.
                   Logica:
                   - "Prima" = foto reale dello stato attuale (media.kind = situazione)
                   - "Dopo"  = render AI generato (media.kind = render)
+                  Layout: confronto verticale, una coppia principale per evitare
+                  pagine spezzate o render troppo grandi.
                   Si mostra solo se almeno uno dei due è presente. */}
             {(primaUrls.length > 0 || renderUrls.length > 0) && (
-              <Page size="A4" orientation="landscape" style={{
+              <Page size="A4" style={{
                 ...styles.page,
-                paddingTop: 30, paddingBottom: 48,
-                paddingHorizontal: 50,
+                paddingTop: 34, paddingBottom: 56,
+                paddingHorizontal: 46,
               }}>
                 <View style={styles.header} fixed>
                   <View style={styles.headerLeft}>
@@ -3286,172 +3272,136 @@ export function SerramentoPDF({
                   </View>
                 </View>
 
-                <Text style={styles.pageEyebrow}>Anteprima visiva · Render AI</Text>
-                <Text style={[styles.pageTitle, { fontSize: 22, marginBottom: 2 }]}>
-                  Prima &amp; Dopo
-                </Text>
-                <Text style={[styles.pageSubtitle, { marginBottom: 10, fontSize: 10 }]}>
-                  Visualizza una simulazione indicativa tra stato attuale e possibile risultato estetico.
-                </Text>
-
-                {/* Layout landscape: usable height ~470pt dopo header+title+disclaimer.
-                    CRITICO: label + immagini in singolo View con wrap={false} così
-                    react-pdf NON le separa su pagine diverse.
-                    M11: priorità a beforeAfterPairs (pairing esplicito o
-                    session-id), così 2-4 coppie diventano una griglia 2×2. */}
-                {beforeAfterPairs.length >= 2 ? (
-                  <View wrap={false}>
-                    {/* Grid 2 colonne × N righe (max 2 righe = 4 coppie totali) */}
-                    {(() => {
-                      const rows: typeof beforeAfterPairs[] = [];
-                      for (let i = 0; i < beforeAfterPairs.length; i += 2) {
-                        rows.push(beforeAfterPairs.slice(i, i + 2));
-                      }
-                      // Altezza dinamica: 360pt per 1 riga, 175pt per 2 righe (per stare in landscape).
-                      const pairHeight = rows.length === 1 ? 360 : 175;
-                      return rows.map((rowPairs, ri) => (
-                        <View key={ri} style={{ flexDirection: "row", marginBottom: ri < rows.length - 1 ? 10 : 0 }}>
-                          {rowPairs.map((pair, ci) => (
-                            <View key={ci} style={{ flex: 1, marginRight: ci === 0 && rowPairs.length === 2 ? 10 : 0 }}>
-                              <View style={{ flexDirection: "row", marginBottom: 4 }}>
-                                <View style={{ flex: 1 }}>
-                                  <Text style={[styles.renderPairLabel, { fontSize: 9, color: C.gray700 }]}>
-                                    Prima {pair.situazione.caption ? `· ${pair.situazione.caption}` : ""}
-                                  </Text>
-                                </View>
-                                <View style={{ width: 6 }} />
-                                <View style={{ flex: 1 }}>
-                                  <Text style={[styles.renderPairLabel, { fontSize: 9, color: primaryColor }]}>
-                                    Dopo · render AI
-                                  </Text>
-                                </View>
-                              </View>
-                              <View style={{ flexDirection: "row" }}>
-                                <View style={{
-                                  flex: 1, height: pairHeight,
-                                  borderRadius: 8, overflow: "hidden",
-                                  backgroundColor: C.gray100,
-                                  borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
-                                }}>
-                                  <Image src={pair.situazione.url!} style={styles.renderImg} />
-                                </View>
-                                <View style={{ width: 6 }} />
-                                <View style={{
-                                  flex: 1, height: pairHeight,
-                                  borderRadius: 8, overflow: "hidden",
-                                  backgroundColor: C.gray100,
-                                  borderWidth: 0.5, borderColor: primaryColor, borderStyle: "solid",
-                                }}>
-                                  <Image src={pair.render.url!} style={styles.renderImg} />
-                                </View>
-                              </View>
-                            </View>
-                          ))}
-                          {/* Se la riga ha 1 sola coppia (es. 3 coppie → 2+1), aggiungiamo
-                              uno spacer per non far stirare la coppia singola. */}
-                          {rowPairs.length === 1 && <View style={{ flex: 1, marginLeft: 10 }} />}
-                        </View>
-                      ));
-                    })()}
-                  </View>
-                ) : hasPrimaDopo ? (
-                  <View wrap={false}>
-                    <View style={{ flexDirection: "row", marginBottom: 6 }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.renderPairLabel, { fontSize: 11, color: C.gray700 }]}>
-                          Prima · foto attuale
-                        </Text>
-                      </View>
-                      <View style={{ width: 14 }} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.renderPairLabel, { fontSize: 11, color: primaryColor }]}>
-                          Dopo · render AI
-                        </Text>
-                      </View>
+                <View wrap={false}>
+                  <View style={{
+                    flexDirection: "row",
+                    alignItems: "flex-end",
+                    justifyContent: "space-between",
+                    marginBottom: 8,
+                    paddingBottom: 9,
+                    borderBottomWidth: 0.7,
+                    borderBottomColor: C.gray100,
+                    borderBottomStyle: "solid",
+                  }}>
+                    <View>
+                      <Text style={styles.pageEyebrow}>Anteprima visiva · Render AI</Text>
+                      <Text style={[styles.pageTitle, { fontSize: 21, marginBottom: 1 }]}>
+                        Prima &amp; Dopo
+                      </Text>
+                      <Text style={[styles.pageSubtitle, { marginBottom: 0, fontSize: 9.5 }]}>
+                        Simulazione indicativa: foto reale a confronto con il possibile risultato estetico.
+                      </Text>
                     </View>
-                    <View style={{ flexDirection: "row" }}>
-                      <View style={{
-                        flex: 1, height: 360,
-                        borderRadius: 10, overflow: "hidden",
-                        backgroundColor: C.gray100,
-                        borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid",
-                      }}>
-                        <Image src={(beforeAfterPairs[0]?.situazione.url) ?? primaUrls[0]} style={styles.renderImg} />
-                      </View>
-                      <View style={{ width: 14 }} />
-                      <View style={{
-                        flex: 1, height: 360,
-                        borderRadius: 10, overflow: "hidden",
-                        backgroundColor: C.gray100,
-                        borderWidth: 0.5, borderColor: primaryColor, borderStyle: "solid",
-                      }}>
-                        <Image src={(beforeAfterPairs[0]?.render.url) ?? renderUrls[0]} style={styles.renderImg} />
-                      </View>
-                    </View>
-                  </View>
-                ) : renderUrls.length >= 2 ? (
-                  // Fallback: nessuna foto situazione ma almeno 2 render → mostra due render
-                  <View wrap={false}>
-                    <View style={{ flexDirection: "row", marginBottom: 6 }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Render AI · vista 1</Text>
-                      </View>
-                      <View style={{ width: 14 }} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.renderPairLabel, { fontSize: 11 }]}>Render AI · vista 2</Text>
-                      </View>
-                    </View>
-                    <View style={{ flexDirection: "row" }}>
-                      <View style={{
-                        flex: 1, height: 360,
-                        borderRadius: 10, overflow: "hidden",
-                        backgroundColor: C.gray100,
-                      }}>
-                        <Image src={renderUrls[0]} style={styles.renderImg} />
-                      </View>
-                      <View style={{ width: 14 }} />
-                      <View style={{
-                        flex: 1, height: 360,
-                        borderRadius: 10, overflow: "hidden",
-                        backgroundColor: C.gray100,
-                      }}>
-                        <Image src={renderUrls[1]} style={styles.renderImg} />
-                      </View>
-                    </View>
-                  </View>
-                ) : (
-                  // Una sola immagine disponibile (render o situazione) — full width hero
-                  <View wrap={false}>
-                    <Text style={[styles.renderPairLabel, {
-                      fontSize: 11,
-                      marginBottom: 6,
-                      color: renderUrls.length > 0 ? primaryColor : C.gray700,
-                    }]}>
-                      {renderUrls.length > 0 ? "Dopo · render AI" : "Foto attuale"}
-                    </Text>
                     <View style={{
-                      width: "100%", height: 380,
-                      borderRadius: 10, overflow: "hidden", backgroundColor: C.gray100,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 999,
+                      backgroundColor: C.primaryLight,
                       borderWidth: 0.5,
-                      borderColor: renderUrls.length > 0 ? primaryColor : C.gray200,
+                      borderColor: C.primaryBorder,
                       borderStyle: "solid",
                     }}>
-                      <Image
-                        src={renderUrls[0] ?? primaUrls[0]}
-                        style={styles.renderImg}
-                       
-                      />
+                      <Text style={{ fontSize: 8, fontWeight: 800, color: C.primary, textTransform: "uppercase", letterSpacing: 0.6 }}>
+                        Preview cliente
+                      </Text>
                     </View>
                   </View>
-                )}
 
-                {/* Disclaimer legale OBBLIGATORIO sotto i render AI */}
-                <View style={[styles.renderDisclaimerBox, { marginTop: 14 }]} wrap={false}>
-                  <Text style={styles.renderDisclaimerLabel}>Disclaimer render AI</Text>
-                  <Text style={styles.renderDisclaimerText}>{renderDisclaimer}</Text>
+                {/* Layout verticale: una coppia principale, Prima sopra e Dopo sotto.
+                    CRITICO: tutto in un blocco wrap={false} per evitare che react-pdf
+                    separi immagini e disclaimer su pagine diverse. */}
+                {(() => {
+                  const mainPair = beforeAfterPairs[0];
+                  const beforeUrl = mainPair?.situazione.url ?? primaUrls[0] ?? null;
+                  const afterUrl = mainPair?.render.url ?? renderUrls[0] ?? null;
+                  const secondRenderUrl = !beforeUrl && renderUrls.length >= 2 ? renderUrls[1] : null;
+                  const firstUrl = beforeUrl ?? renderUrls[0] ?? primaUrls[0];
+                  const secondUrl = beforeUrl ? afterUrl : secondRenderUrl;
+                  const firstLabel = beforeUrl
+                    ? `Prima${mainPair?.situazione.caption ? ` · ${mainPair.situazione.caption}` : " · foto attuale"}`
+                    : renderUrls.length > 0
+                      ? "Simulazione AI · vista 1"
+                      : "Foto attuale";
+                  const secondLabel = beforeUrl && afterUrl
+                    ? "Dopo · simulazione AI"
+                    : secondRenderUrl
+                      ? "Simulazione AI · vista 2"
+                      : null;
+
+                  return (
+                    <View wrap={false}>
+                      <View style={{
+                        borderRadius: 12,
+                        borderWidth: 0.7,
+                        borderColor: C.gray200,
+                        borderStyle: "solid",
+                        backgroundColor: C.gray50,
+                        padding: 10,
+                      }}>
+                        <Text style={[styles.renderPairLabel, {
+                          fontSize: 9.5,
+                          color: beforeUrl ? C.gray700 : primaryColor,
+                          marginBottom: 5,
+                        }]}>
+                          {firstLabel}
+                        </Text>
+                        <View style={{
+                          width: "100%",
+                          height: secondUrl ? 218 : 455,
+                          borderRadius: 10,
+                          overflow: "hidden",
+                          backgroundColor: C.white,
+                          borderWidth: 0.5,
+                          borderColor: beforeUrl ? C.gray200 : primaryColor,
+                          borderStyle: "solid",
+                        }}>
+                          <Image src={firstUrl} style={styles.renderImg} />
+                        </View>
+                      </View>
+
+                      {secondUrl && (
+                        <View style={{
+                          marginTop: 10,
+                          borderRadius: 12,
+                          borderWidth: 0.7,
+                          borderColor: C.primaryBorder,
+                          borderStyle: "solid",
+                          backgroundColor: C.primaryLight,
+                          padding: 10,
+                        }}>
+                          <Text style={[styles.renderPairLabel, {
+                            fontSize: 9.5,
+                            color: primaryColor,
+                            marginBottom: 5,
+                          }]}>
+                            {secondLabel}
+                          </Text>
+                          <View style={{
+                            width: "100%",
+                            height: 218,
+                            borderRadius: 10,
+                            overflow: "hidden",
+                            backgroundColor: C.white,
+                            borderWidth: 0.5,
+                            borderColor: primaryColor,
+                            borderStyle: "solid",
+                          }}>
+                            <Image src={secondUrl} style={styles.renderImg} />
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })()}
+
+                {/* Disclaimer legale obbligatorio, compatto e nello stesso foglio */}
+                <View style={[styles.renderDisclaimerBox, { marginTop: 9, padding: 8 }]} wrap={false}>
+                  <Text style={styles.renderDisclaimerLabel}>Nota sul render AI</Text>
+                  <Text style={[styles.renderDisclaimerText, { fontSize: 8, lineHeight: 1.35 }]}>{renderDisclaimer}</Text>
+                </View>
                 </View>
 
-                <View style={[styles.footer, { left: 50, right: 50 }]} fixed>
+                <View style={[styles.footer, { left: 46, right: 46 }]} fixed>
                   <View style={styles.footerRow}>
                     <Text style={styles.footerCompanyName}>{companyName}</Text>
                     <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
@@ -3470,7 +3420,7 @@ export function SerramentoPDF({
               <Text style={styles.pageEyebrow}>Il prossimo passo</Text>
               <Text style={styles.pageTitle}>Pronti{"\n"}per partire.</Text>
               <Text style={styles.pageSubtitle}>
-                Tutto quello che serve per trasformare il preventivo in cantiere.
+                Tutto quello che serve per trasformare il preventivo in un intervento programmato.
               </Text>
 
               {/* CTA box */}
@@ -3486,12 +3436,11 @@ export function SerramentoPDF({
 
               {publicUrl && (
                 <View style={styles.signatureBox} wrap={false}>
-                  {qrDataUrl && <Image src={qrDataUrl} style={styles.signatureQr} />}
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.signatureTitle}>Firma e conferma dal telefono</Text>
+                    <Text style={styles.signatureTitle}>Firma e conferma online</Text>
                     <Text style={styles.signatureText}>
-                      Inquadra il QR o apri il link per leggere la pagina pubblica del preventivo
-                      e firmare digitalmente senza stampare il documento.
+                      Usa il link per consultare la pagina pubblica del preventivo e confermare
+                      digitalmente, senza stampare il documento.
                     </Text>
                     <Text style={styles.signatureUrl}>{publicUrl}</Text>
                   </View>
@@ -3563,7 +3512,7 @@ export function SerramentoPDF({
                 <Text style={styles.pageEyebrow}>Le nostre garanzie</Text>
                 <Text style={styles.pageTitle}>Più controllo.{"\n"}Meno dubbi.</Text>
                 <Text style={styles.pageSubtitle}>
-                  Le rassicurazioni operative che rendono il progetto più chiaro prima della conferma.
+                  Le garanzie che rendono il progetto più chiaro prima della conferma.
                 </Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
                   {garanzie.slice(0, 6).map((g, i) => (
@@ -3593,7 +3542,7 @@ export function SerramentoPDF({
                 <Text style={styles.pageEyebrow}>Confronto tecnico · Prima &amp; Dopo</Text>
                 <Text style={styles.pageTitle}>{confrontoTitolo}</Text>
                 <Text style={styles.pageSubtitle}>
-                  Numeri indicativi o configurati per confrontare lo stato attuale con la soluzione proposta.
+                  Un confronto semplice tra la situazione attuale e la soluzione proposta.
                 </Text>
                 {/* Header tabella */}
                 <View style={{ flexDirection: "row", paddingVertical: 8, borderBottom: `1pt solid ${C.gray300}`, marginTop: 16 }}>
@@ -3642,9 +3591,9 @@ export function SerramentoPDF({
               <Page size="A4" style={styles.page}>
                 <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Domande frequenti</Text>
-                <Text style={styles.pageTitle}>Sai già{"\n"}cosa chiederci.</Text>
+                <Text style={styles.pageTitle}>Le risposte{"\n"}prima della conferma.</Text>
                 <Text style={styles.pageSubtitle}>
-                  Le risposte ai dubbi più comuni che ci fanno i nostri clienti.
+                  I dubbi più comuni spiegati in modo semplice, prima di decidere.
                 </Text>
                 <View style={{ marginTop: 14 }}>
                   {faqItems.slice(0, 8).map((f, i) => (
@@ -3694,53 +3643,6 @@ export function SerramentoPDF({
           .map((pg) => <React.Fragment key={pg.id}>{pageEls[pg.id]}</React.Fragment>);
       })()}
 
-      {/* Render aggiuntivi (3°, 4°...) in pagine landscape successive se presenti */}
-      {renderPageVisible && !mainRenderPageUsesPairedGrid && renderUrls.length >= 3 && renderUrls.slice(2, 6).reduce((acc: string[][], url, i) => {
-        const idx = Math.floor(i / 2);
-        if (!acc[idx]) acc[idx] = [];
-        acc[idx].push(url);
-        return acc;
-      }, []).map((coppia, ci) => (
-        <Page key={`render-extra-${ci}`} size="A4" orientation="landscape" style={{
-          ...styles.page,
-          paddingTop: 30, paddingBottom: 48,
-          paddingHorizontal: 50,
-        }}>
-          <View style={styles.header} fixed>
-            <View style={styles.headerLeft}>
-              {logoUrl ? <Image src={logoUrl} style={styles.headerLogo} /> : null}
-              <View>
-                <Text style={styles.headerName}>{companyName}</Text>
-                <Text style={{ fontSize: 7.5, color: C.gray500 }}>{clienteNome}</Text>
-              </View>
-            </View>
-            <View style={styles.headerRight}>
-              <Text>STIMA N.</Text>
-              <Text style={styles.headerStimaCode}>{p.code}</Text>
-            </View>
-          </View>
-          <Text style={styles.pageEyebrow}>Render AI · vista aggiuntiva</Text>
-          <Text style={[styles.pageTitle, { fontSize: 22, marginBottom: 10 }]}>
-            Altre prospettive
-          </Text>
-          <View style={{ flexDirection: "row" }} wrap={false}>
-            {coppia.map((url, i) => (
-              <View key={i} style={{
-                flex: 1, height: 380,
-                borderRadius: 10, overflow: "hidden",
-                backgroundColor: C.gray100,
-                marginRight: i < coppia.length - 1 ? 14 : 0,
-              }}>
-                <Image src={url} style={styles.renderImg} />
-              </View>
-            ))}
-          </View>
-          <View style={[styles.renderDisclaimerBox, { marginTop: 14 }]} wrap={false}>
-            <Text style={styles.renderDisclaimerLabel}>Disclaimer render AI</Text>
-            <Text style={styles.renderDisclaimerText}>{renderDisclaimer}</Text>
-          </View>
-        </Page>
-      ))}
     </Document>
   );
 }

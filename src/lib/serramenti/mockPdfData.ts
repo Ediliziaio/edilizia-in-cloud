@@ -80,42 +80,42 @@ export async function buildMockPdfData(opts: {
     totale_serramenti: 3,
     totale_accessori: 0,
     metri_quadri_totali: 5.4,
-    esigenze: [
-      {
-        titolo: "Spifferi e correnti d'aria",
-        descrizione: "Già a ottobre devi tenere le tende chiuse perché entra freddo dalle finestre. Con telai a triplo battuta e perimetro sigillato a regola d'arte, l'aria fredda resta fuori.",
-      },
-      {
-        titolo: "Condensa e muffa al mattino",
-        descrizione: "Ogni mattina d'inverno asciughi i vetri con lo straccio e sotto le finestre è già spuntata la prima macchia di muffa. Vetri basso-emissivi e telai a taglio termico portano la condensa a zero.",
-      },
-      {
-        titolo: "Estetica datata della casa",
-        descrizione: "I serramenti vecchi tradiscono l'età della casa: si notano appena entri. Profili sottili e finiture scelte con te ringiovaniscono la facciata di 15 anni.",
-      },
-    ],
+	    esigenze: [
+	      {
+	        titolo: "Spifferi e correnti d'aria",
+	        descrizione: "Se vicino alle finestre senti aria fredda, il problema può dipendere da telaio, guarnizioni e posa. La proposta valuta prodotto e sigillature in modo coerente.",
+	      },
+	      {
+	        titolo: "Condensa e muffa al mattino",
+	        descrizione: "Condensa e aloni vicino al foro finestra indicano dispersione, ponti termici o aerazione non corretta. La soluzione punta a ridurre questi punti critici.",
+	      },
+	      {
+	        titolo: "Estetica datata della casa",
+	        descrizione: "Profili, colori, maniglie e accessori vengono scelti in modo coerente con lo stile dell'abitazione e con le finiture esistenti.",
+	      },
+	    ],
     soluzione: [
-      {
-        titolo: "Serramenti misurati al millimetro sulla tua casa",
-        descrizione: "Niente cataloghi standard adattati ad occhio. Veniamo a casa tua con il laser e produciamo serramenti unici per i tuoi fori.",
-      },
-      {
-        titolo: "Posa qualificata, scritta in contratto",
-        descrizione: "Il 60% dei problemi sui serramenti nuovi nasce da una posa fatta male. Le nostre squadre posano secondo norma UNI 11673.",
-      },
-    ],
-    perche_noi: [
-      "Oltre 1.200 finestre installate nella tua provincia negli ultimi 24 mesi",
-      "Showroom aperto al pubblico: tocchi materiali, finiture e maniglie prima di scegliere",
-      "Sopralluogo tecnico gratuito e senza impegno",
-      "Tempi di consegna garantiti contrattualmente, con penale a nostro carico se sforiamo",
-    ],
-    incluso_investimento: [
-      "Smontaggio dei vecchi serramenti e smaltimento in discarica autorizzata",
-      "Posa eseguita da squadre interne specializzate — mai subappaltata",
-      "Sopralluogo tecnico a casa tua con rilievo al millimetro",
-      "Tripla sigillatura perimetrale: zero infiltrazioni anche dopo 10 anni",
-    ],
+	      {
+	        titolo: "Serramenti misurati al millimetro sulla tua casa",
+	        descrizione: "Prima dell'ordine verifichiamo misure, fuori squadra, soglie, spallette e condizioni del foro finestra.",
+	      },
+	      {
+	        titolo: "Posa qualificata, scritta in contratto",
+	        descrizione: "La posa viene pianificata in base al tipo di parete e alla situazione esistente, con lavorazioni incluse indicate nel preventivo.",
+	      },
+	    ],
+	    perche_noi: [
+	      "Un referente unico segue preventivo, rilievo, posa e collaudo",
+	      "Ogni voce del preventivo è spiegata prima della firma",
+	      "Rilievo tecnico prima dell'ordine definitivo",
+	      "Materiali, finiture e accessori riepilogati per iscritto",
+	    ],
+	    incluso_investimento: [
+	      "Sopralluogo tecnico con rilievo misure e verifica condizioni di posa",
+	      "Smontaggio dei vecchi serramenti, se previsto dal preventivo",
+	      "Fornitura dei nuovi serramenti con finiture e accessori concordati",
+	      "Posa e regolazione iniziale di ante, maniglie e ferramenta",
+	    ],
     testimonianze: [],
     prossimi_passi: null,
     totale_min: 3600,
@@ -175,7 +175,7 @@ export async function buildMockPdfData(opts: {
     pdf_generated_at: null,
     pdf_html_url: null,
     note_interne: null,
-    note_cliente: "Preventivo demo generato per verificare impaginazione, QR e dati tecnici prima dell'invio al cliente.",
+    note_cliente: "Preventivo demo generato per verificare impaginazione e dati tecnici prima dell'invio al cliente.",
     parent_id: null,
     revision_number: 1,
   };
@@ -379,7 +379,6 @@ export async function buildMockPdfData(opts: {
     axisLabelByKey: {},
     supplierLineById: {},
     publicUrl,
-    qrDataUrl: null,
     autoFallbackMacroId: null,
   };
 }

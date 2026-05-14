@@ -516,7 +516,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
       {/* Sconto + forbice */}
       <SrCard
         title="Forbice prezzo (PDF cliente)"
-        description="Il prezzo definitivo si fissa con sopralluogo e scelta materiali. Mostra una forbice indicativa."
+        description="L'importo definitivo viene confermato dopo sopralluogo tecnico e scelta dei materiali. Nel PDF mostri una stima indicativa."
         icon={<Euro className="h-4 w-4" />}
       >
         {/* ─── Regole scontistica aziendale ───────────────────────────────

@@ -99,9 +99,8 @@ export interface SerramentoPdfEnriched {
   /** Lookup linea fornitore: due righe stessa family/misura ma linea diversa
    *  restano distinguibili anche nel PDF cliente. */
   supplierLineById: Record<string, SerramentoPdfSupplierLine>;
-  /** Link pubblico stabile per firma/accettazione e QR relativo. */
+  /** Link pubblico stabile per firma/accettazione. */
   publicUrl: string | null;
-  qrDataUrl: string | null;
   /** macro_id da usare come default per i BOM senza family_id e senza
    *  macrocategoria_override_id. Solo se l'azienda ha una macro attiva con
    *  pagina dedicata (o, in subordine, una sola macro attiva). NULL = nessun
@@ -132,7 +131,7 @@ export async function enrichForPdfPublic(opts: SerramentoPdfPayload): Promise<Se
 }
 
 function getPublicAppOrigin(): string {
-  // In locale non vogliamo stampare QR verso localhost in un PDF consegnato al
+  // In locale non vogliamo stampare link verso localhost in un PDF consegnato al
   // cliente. Preferiamo env esplicita, poi l'origine reale non-local, poi prod.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const env = (import.meta as any).env ?? {};
@@ -155,25 +154,6 @@ function buildPublicStimaUrl(prog: SrProgettoDetail["progetto"]): string | null 
   if (!storedUrl) return null;
   if (/^https?:\/\//i.test(storedUrl)) return storedUrl;
   return `${getPublicAppOrigin()}${storedUrl.startsWith("/") ? "" : "/"}${storedUrl}`;
-}
-
-async function buildQrDataUrl(publicUrl: string | null): Promise<string | null> {
-  if (!publicUrl) return null;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mod: any = await import("qrcode");
-    const toDataURL = mod.toDataURL ?? mod.default?.toDataURL;
-    if (typeof toDataURL !== "function") return null;
-    return await toDataURL(publicUrl, {
-      errorCorrectionLevel: "M",
-      margin: 1,
-      width: 180,
-      color: { dark: "#2D7D5C", light: "#FFFFFF" },
-    });
-  } catch (err) {
-    console.warn("[useSerramentoPDF] QR generation failed", err);
-    return null;
-  }
 }
 
 async function mapWithConcurrency<T, R>(
@@ -485,14 +465,12 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     inlinedChiSiamoFoto,
     inlinedConsulenteFoto,
     inlinedCoverImage,
-    qrDataUrl,
   ] = await Promise.all([
     toDataUrl(template?.logo_url ?? company?.logo_url ?? null),
     toDataUrl(template?.chi_siamo_foto_url ?? null),
     toDataUrl(consulente?.foto_url ?? null),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     toDataUrl((template as any)?.pdf_cover_image_url ?? null),
-    buildQrDataUrl(publicUrl),
   ]);
 
   // Applica i data URL pre-caricati ai rispettivi oggetti
@@ -556,7 +534,6 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
     axisLabelByKey,
     supplierLineById,
     publicUrl,
-    qrDataUrl,
     autoFallbackMacroId,
   };
 }

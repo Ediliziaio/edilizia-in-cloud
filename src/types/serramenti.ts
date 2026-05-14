@@ -526,24 +526,24 @@ export interface SrPercorsoFase {
 /** Template di default (mostrato la prima volta nell'editor). */
 export const SR_PERCORSO_DEFAULT: SrPercorsoCliente = {
   attivo: true,
-  titolo: "Il tuo percorso",
-  sottotitolo: "Dalla prima chiamata alla consegna chiavi in mano: ogni fase è documentata.",
+  titolo: "Dal sopralluogo al collaudo",
+  sottotitolo: "Un percorso chiaro, con passaggi verificabili prima, durante e dopo la posa.",
   fasi: [
     {
-      nome: "Consulenza", icona: "chiamata",
-      step: ["Chiamata conoscitiva", "Primo appuntamento", "Comprensione esigenze"],
+      nome: "Analisi", icona: "chiamata",
+      step: ["Raccolta esigenze", "Verifica foto e misure disponibili", "Prima valutazione tecnica"],
     },
     {
-      nome: "Proposta", icona: "proposta",
-      step: ["Ricerca prodotto", "Proposta soluzione", "Offerta personalizzata", "Firma contratto"],
+      nome: "Rilievo", icona: "proposta",
+      step: ["Sopralluogo tecnico", "Rilievo misure definitive", "Verifica posa, soglie e finiture"],
     },
     {
-      nome: "Produzione", icona: "produzione",
-      step: ["Presa misure", "Produzione", "Consegna magazzino", "Fissaggio data posa"],
+      nome: "Conferma", icona: "produzione",
+      step: ["Scelta materiali e accessori", "Preventivo definitivo", "Firma e avvio ordine"],
     },
     {
-      nome: "Montaggio", icona: "montaggio",
-      step: ["Preparazione area", "Montaggio", "Pulizia finale", "Collaudo", "Pratica ENEA"],
+      nome: "Posa", icona: "montaggio",
+      step: ["Programmazione cantiere", "Protezione ambienti", "Montaggio e regolazioni", "Collaudo finale e documenti"],
     },
   ],
 };
@@ -576,9 +576,9 @@ export interface SrPercheNoiMetrica {
  *  sezione. Servono come template editabile, non vengono auto-inserite. */
 export const SR_PERCHE_NOI_METRICHE_DEFAULT: SrPercheNoiMetrica[] = [
   { value: "—", label: "anni di esperienza", icon: "📅", auto_kind: "auto_anni_fondazione" },
-  { value: "100+", label: "cantieri completati", icon: "🏗️", auto_kind: null },
-  { value: "98%", label: "clienti soddisfatti", icon: "⭐", auto_kind: null },
-  { value: "10", label: "anni di garanzia", suffix: " anni", icon: "🛡️", auto_kind: null },
+  { value: "—", label: "cantieri completati", icon: "🏗️", auto_kind: null },
+  { value: "—", label: "recensioni verificate", icon: "⭐", auto_kind: null },
+  { value: "—", label: "anni di garanzia indicati", suffix: null, icon: "🛡️", auto_kind: null },
 ];
 
 /** Riga della tabella Confronto Prima/Dopo numerico (parametro tecnico). */
@@ -612,28 +612,33 @@ export interface SrFaq {
 export const SR_GARANZIE_DEFAULT: SrGaranzia[] = [
   {
     icona: "shield",
-    titolo: "Garanzia prodotto chiara",
-    descrizione: "Profili, ferramenta e vetri sono coperti dalle garanzie del produttore, con condizioni e durata sempre riportate nella documentazione consegnata.",
+    titolo: "Garanzia prodotto documentata",
+    descrizione: "Profili, vetri e ferramenta sono accompagnati dalle condizioni del produttore, così sai cosa è coperto e per quanto tempo.",
   },
   {
     icona: "tools",
-    titolo: "Posa eseguita a regola d'arte",
-    descrizione: "La posa viene pianificata con attenzione a isolamento, tenuta e finitura. Quando applicabile, lavoriamo secondo i riferimenti tecnici di settore.",
+    titolo: "Rilievo tecnico prima dell'ordine",
+    descrizione: "Prima della produzione verifichiamo misure, fuori squadra, soglie, spallette e vincoli di posa per ridurre sorprese in cantiere.",
   },
   {
     icona: "clock",
-    titolo: "Tempi condivisi in anticipo",
-    descrizione: "Produzione, consegna e montaggio vengono programmati prima della conferma, così sai cosa succede e quando aspettarti ogni fase.",
+    titolo: "Tempi condivisi e tracciabili",
+    descrizione: "Produzione, arrivo merce e posa vengono programmati in anticipo, con aggiornamenti se cambiano disponibilità o condizioni operative.",
   },
   {
     icona: "drop",
-    titolo: "Tenuta e sigillature controllate",
-    descrizione: "I punti critici del foro finestra vengono verificati in fase di rilievo e posa, con materiali scelti in base al tipo di parete e intervento.",
+    titolo: "Posa curata nei punti critici",
+    descrizione: "Sigillature, fissaggi e finiture vengono scelti in base al foro finestra e al tipo di intervento, non applicati in modo generico.",
   },
   {
     icona: "refresh",
-    titolo: "Assistenza post posa",
-    descrizione: "Dopo il montaggio restiamo disponibili per regolazioni, chiarimenti e supporto sulle prime settimane di utilizzo dei nuovi serramenti.",
+    titolo: "Assistenza dopo la posa",
+    descrizione: "Dopo il montaggio restiamo disponibili per regolazioni, chiarimenti e supporto sulle prime settimane di utilizzo.",
+  },
+  {
+    icona: "award",
+    titolo: "Documenti finali ordinati",
+    descrizione: "A fine lavoro consegniamo la documentazione utile: dati prodotto, indicazioni di manutenzione e riferimenti per eventuali pratiche.",
   },
 ];
 
@@ -664,28 +669,28 @@ export const SR_BONUS_DEFAULT: SrBonus[] = [
 /** Default FAQ con 6 obiezioni comuni del settore serramenti. */
 export const SR_FAQ_DEFAULT: SrFaq[] = [
   {
-    domanda: "E se piove durante la posa?",
-    risposta: "La posa viene pianificata valutando meteo, sicurezza e protezione degli ambienti. Se le condizioni non sono adatte, si riprogramma il lavoro per evitare disagi e rischi.",
+    domanda: "Il prezzo può cambiare dopo il sopralluogo?",
+    risposta: "Il prezzo può cambiare solo se dal rilievo emergono misure, lavorazioni o vincoli non visibili prima. In quel caso lo segnaliamo prima della conferma definitiva.",
   },
   {
-    domanda: "Devo lasciarvi le chiavi?",
-    risposta: "Non è obbligatorio. Se preferisci affidare l'accesso, concordiamo prima modalità, orari e responsabilità, lasciando tutto tracciato.",
+    domanda: "Quando vengono ordinate le misure definitive?",
+    risposta: "Le misure definitive vengono prese prima dell'ordine al fornitore o della produzione. È il passaggio che serve per evitare adattamenti improvvisati in posa.",
   },
   {
     domanda: "Quando arrivano i serramenti?",
-    risposta: "La tempistica dipende da misure, finiture, produttore e periodo dell'anno. Prima della conferma ti indichiamo una finestra realistica di produzione e posa.",
+    risposta: "La tempistica dipende da misure, finiture, disponibilità del fornitore e periodo dell'anno. Prima della conferma indichiamo una finestra realistica di produzione, consegna e posa.",
   },
   {
-    domanda: "Posso cambiare colore in corso d'opera?",
-    risposta: "Le modifiche sono possibili finché l'ordine non entra in produzione. Dopo quella fase eventuali variazioni vanno valutate con il fornitore.",
+    domanda: "Cosa devo preparare prima della posa?",
+    risposta: "Ti chiediamo di liberare le aree vicine ai serramenti e segnalarci eventuali mobili, impianti o punti delicati. Il resto viene organizzato con la squadra prima del cantiere.",
   },
   {
-    domanda: "Funziona anche con condominio storico/vincolato?",
-    risposta: "In contesti condominiali o vincolati verifichiamo vincoli, colori, profili e autorizzazioni prima di procedere, così la proposta resta compatibile con le regole dell'immobile.",
+    domanda: "Il render AI è vincolante?",
+    risposta: "No. Il render aiuta a immaginare l'effetto estetico, ma il risultato finale dipende da misure reali, prodotti scelti, luce, finiture e fattibilità tecnica.",
   },
   {
     domanda: "Come avviene il pagamento?",
-    risposta: "Lo schema viene definito nel preventivo: di solito acconto alla conferma, eventuali step intermedi e saldo secondo avanzamento o consegna. Se previsto, mostriamo anche simulazioni di finanziamento.",
+    risposta: "Lo schema viene indicato nel preventivo: acconto alla conferma, eventuali passaggi intermedi e saldo secondo consegna, avanzamento o posa. Se previsto, possiamo includere anche una simulazione di finanziamento.",
   },
 ];
 

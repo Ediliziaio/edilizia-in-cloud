@@ -364,7 +364,7 @@ export function ListinoPickerDialog({
       {/* max-w-4xl: prima era 3xl ma con breadcrumb a 3 livelli (Macro › Cat ›
           Famiglia) + caratteristiche prodotto (4-5 chip) il dialog si
           impaginava male. 4xl dà respiro senza overflow. */}
-      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="max-h-[92dvh] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-4xl sm:p-6">
         <DialogHeader className="space-y-1.5">
           {/* Riga 1: solo step icon + titolo step (corto), no breadcrumb.
               Breadcrumb pieno va in una riga dedicata sotto. */}
@@ -426,7 +426,7 @@ export function ListinoPickerDialog({
 
         {/* ─── STEP MACROCATEGORIA ──────────────────────────────────────── */}
         {effectiveStep === "macro" && (
-          <div className="max-h-[55vh] overflow-y-auto">
+          <div className="max-h-[62dvh] overflow-y-auto sm:max-h-[55vh]">
             {loadingMacros ? (
               <LoadingState />
             ) : macros.length === 0 ? (
@@ -487,7 +487,7 @@ export function ListinoPickerDialog({
 
         {/* ─── STEP FAMIGLIA — grid con immagini prodotto ─────────────── */}
         {effectiveStep === "famiglia" && (
-          <div className="max-h-[55vh] overflow-y-auto">
+          <div className="max-h-[62dvh] overflow-y-auto sm:max-h-[55vh]">
             {loadingFam ? (
               <LoadingState />
             ) : families.length === 0 ? (
@@ -499,7 +499,7 @@ export function ListinoPickerDialog({
                 }
               />
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                 {families.map((f) => (
                   <button
                     key={f.id}
@@ -556,7 +556,7 @@ export function ListinoPickerDialog({
             </Card>
 
             <div className="grid grid-cols-12 gap-3">
-              <div className={richiedeMisure ? "col-span-4" : "col-span-6"}>
+              <div className={richiedeMisure ? "col-span-12 sm:col-span-4" : "col-span-12 sm:col-span-6"}>
                 <Label className="text-xs">Larghezza (mm)</Label>
                 <Input
                   type="number" min={0}
@@ -566,7 +566,7 @@ export function ListinoPickerDialog({
                   className="h-9"
                 />
               </div>
-              <div className={richiedeMisure ? "col-span-4" : "col-span-6"}>
+              <div className={richiedeMisure ? "col-span-12 sm:col-span-4" : "col-span-12 sm:col-span-6"}>
                 <Label className="text-xs">Altezza (mm)</Label>
                 <Input
                   type="number" min={0}
@@ -576,7 +576,7 @@ export function ListinoPickerDialog({
                   className="h-9"
                 />
               </div>
-              <div className="col-span-4">
+              <div className="col-span-12 sm:col-span-4">
                 <Label className="text-xs">Quantità</Label>
                 <Input
                   type="number" min={1}
@@ -771,7 +771,7 @@ export function ListinoPickerDialog({
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-2 pt-3 mt-1 border-t">
+        <div className="mt-1 flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Hint contestuale a sinistra solo nello step misure quando il
               bottone è disabled: prima il bottone disabled appariva sospeso
               senza spiegazione, ora l'utente sa subito cosa manca. */}
@@ -783,12 +783,12 @@ export function ListinoPickerDialog({
               <span>Scegli la linea prodotto fornitore prima di aggiungere.</span>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <div className="flex w-full shrink-0 flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">Annulla</Button>
             {effectiveStep === "misure" && (
               <Button
                 onClick={handleConferma}
-                className="bg-orange-500 hover:bg-orange-600"
+                className="w-full bg-orange-500 hover:bg-orange-600 sm:w-auto"
                 disabled={
                   (richiedeMisure && (!larghezza || !altezza))
                   || !calcolo || calcolo.totale <= 0

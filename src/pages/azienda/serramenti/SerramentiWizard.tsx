@@ -88,6 +88,7 @@ export default function SerramentiWizard() {
   const [currentStep, setCurrentStep] = useState<SrWizardStep>("cliente");
   const [creating, setCreating] = useState(false);
   const [pendingStep, setPendingStep] = useState<SrWizardStep | null>(null);
+  const mobileStepRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const { data: detail, isLoading, isError, refetch } = useProgetto(id);
   const updateMut = useUpdateProgetto(id);
@@ -519,6 +520,14 @@ export default function SerramentiWizard() {
     [currentStepIndex],
   );
 
+  useEffect(() => {
+    const activeButton = mobileStepRefs.current[currentStep];
+    if (!activeButton || window.innerWidth >= 768) return;
+    window.requestAnimationFrame(() => {
+      activeButton.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    });
+  }, [currentStep]);
+
   if (!isNew && isLoading) {
     return (
       <div className="container mx-auto p-4 max-w-4xl space-y-3">
@@ -555,11 +564,11 @@ export default function SerramentiWizard() {
   }
 
   return (
-    <div className="pb-20">
+    <div className="pb-28 md:pb-20">
       {/* Sticky header */}
-      <div className="sticky top-0 z-30 bg-background border-b">
-        <div className="container mx-auto p-3 flex items-center gap-3 max-w-6xl">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/serramenti")}>
+      <div className="sticky top-0 z-30 border-b bg-background/95 shadow-sm backdrop-blur">
+        <div className="container mx-auto flex max-w-6xl items-center gap-2 p-2.5 sm:gap-3 sm:p-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/serramenti")} className="h-10 w-10 shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
@@ -653,7 +662,7 @@ export default function SerramentiWizard() {
                 </span>
               ) : null}
             </div>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground truncate">
               Step {currentStepIndex + 1} di {SR_WIZARD_STEPS.length} · {SR_WIZARD_STEPS[currentStepIndex]?.label}
             </p>
           </div>
@@ -713,7 +722,7 @@ export default function SerramentiWizard() {
             style={{ width: `${progress}%` }}
           />
         </div>
-        <div className="md:hidden overflow-x-auto border-t bg-background/95 px-3 py-2">
+        <div className="md:hidden overflow-x-auto border-t bg-background/95 px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <nav className="flex min-w-max gap-2" aria-label="Step preventivo serramenti">
             {SR_WIZARD_STEPS.map((s, idx) => {
               const Icon = STEP_ICONS[s.key];
@@ -723,12 +732,15 @@ export default function SerramentiWizard() {
               return (
                 <button
                   key={s.key}
+                  ref={(node) => {
+                    mobileStepRefs.current[s.key] = node;
+                  }}
                   type="button"
                   onClick={() => !disabled && handleStepClick(s.key)}
                   disabled={disabled}
                   aria-current={isActive ? "step" : undefined}
                   className={cn(
-                    "inline-flex min-h-11 min-w-[96px] items-center justify-center gap-1.5 rounded-md border px-3 text-xs transition-colors",
+                    "inline-flex min-h-11 min-w-[92px] items-center justify-center gap-1.5 rounded-md border px-3 text-xs transition-colors",
                     isActive
                       ? "border-orange-300 bg-orange-100 text-orange-900 font-semibold"
                       : isPast
@@ -754,7 +766,7 @@ export default function SerramentiWizard() {
         </div>
       </div>
 
-      <div className="container mx-auto p-3 md:p-6 max-w-6xl">
+      <div className="container mx-auto max-w-6xl p-3 pb-6 md:p-6">
         <div className="grid grid-cols-12 gap-4">
           {/* Sidebar step */}
           <aside className="hidden md:block md:col-span-3">
@@ -837,7 +849,7 @@ export default function SerramentiWizard() {
             </ErrorBoundary>
 
             {/* Navigation footer */}
-            <div className="sticky bottom-0 z-20 -mx-3 flex items-center justify-between gap-2 border-t bg-background/95 px-3 py-3 backdrop-blur md:static md:mx-0 md:border-t-0 md:bg-transparent md:px-0 md:py-2 md:backdrop-blur-0">
+            <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-2 border-t bg-background/95 px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:border-t-0 md:bg-transparent md:px-0 md:py-2 md:shadow-none md:backdrop-blur-0">
               <Button
                 variant="outline"
                 onClick={handleBack}

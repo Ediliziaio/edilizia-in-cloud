@@ -107,6 +107,14 @@ export function generateInterventoSintesi(
   // ── 1. Raggruppa serramenti per categoria narrativa ───────────────────────
   const serramentiCounts = new Map<string, number>();
   for (const s of serramenti) {
+    if ((s.tipologia === "voce_manuale" || s.tipologia === "a_corpo") && s.tipologia_label) {
+      const label = s.tipologia_label.trim();
+      if (label) {
+        const qty = s.quantita ?? 1;
+        serramentiCounts.set(label, (serramentiCounts.get(label) ?? 0) + qty);
+        continue;
+      }
+    }
     const group = TIPOLOGIA_GROUPS[s.tipologia];
     const key = group ? `${group.singular}|${group.plural}` : (s.tipologia_label || "serramento");
     const qty = s.quantita ?? 1;

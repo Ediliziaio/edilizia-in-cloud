@@ -194,7 +194,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
                   ? situazioni.find((s) => s.storage_path?.startsWith(`render-session:${sessionId}:`))
                   : null;
                 return (
-                  <div key={render.id} className="grid grid-cols-2 gap-2">
+                  <div key={render.id} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {/* PRIMA — foto originale */}
                     <div className="relative group rounded-md overflow-hidden border bg-muted aspect-video">
                       {prima?.url ? (
@@ -403,7 +403,7 @@ function ImportRenderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-h-[90dvh] max-w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Importa render esistente</DialogTitle>
           <DialogDescription>
@@ -430,7 +430,7 @@ function ImportRenderDialog({
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto">
+          <div className="grid max-h-[62dvh] grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2 md:grid-cols-3">
             {sessions.map((s) => {
               const urls = (s.result_urls ?? []) as string[];
               const url0 = urls[0];

@@ -9,7 +9,7 @@
  *  1. Proposta di intervento — anagrafica + sintesi + esigenze + soluzione + perché noi
  *  2. Investimento + Finanziamento — forbice + 2 piani + testimonianze + incluso
  *  3. Allegato tecnico — BOM serramenti + accessori + consulenza + crono
- *  4. Firma online — render, prossimi passi, QR/link pubblico
+ *  4. Firma online — render, prossimi passi, link pubblico
  */
 
 export interface SrPdfData {
@@ -87,9 +87,8 @@ export interface SrPdfData {
   // Render foto-realistici dei serramenti (kind='render' in sr_progetti_media)
   renders: { url: string; caption: string | null }[];
 
-  // QR code + microsito
+  // Link pubblico / microsito
   public_url: string | null;
-  qr_svg: string | null;             // SVG inline del QR
 
   // Consulenza
   consulenza_at: string | null;     // ISO datetime
@@ -281,7 +280,7 @@ function renderPage2(d: SrPdfData, total = totalPages(d)): string {
         <p class="big-price">${fmtEur(d.totale_min)} <span class="dash">—</span> ${fmtEur(d.totale_max)}</p>
         <p class="big-price-note">${d.iva_inclusa ? "IVA INCLUSA" : "IVA esclusa"}</p>
       </div>
-      <p class="muted small">Forbice indicativa basata sulle informazioni emerse al primo contatto. Il prezzo definitivo si fissa con la consulenza tecnica, le misure puntuali e la scelta esatta dei materiali.</p>
+      <p class="muted small">Stima indicativa basata sulle informazioni raccolte. L'importo definitivo viene confermato con consulenza tecnica, misure puntuali e scelta dei materiali.</p>
 
       ${d.risparmio_eur_anno || d.detrazione_eur_totale ? `
         <h2 class="section-title">VANTAGGIO ECONOMICO</h2>
@@ -406,7 +405,7 @@ function renderPage3(d: SrPdfData, total = totalPages(d)): string {
     ${renderHeader(d, 3, total)}
     <main class="page-body">
       <h1 class="page-title">Allegato tecnico</h1>
-      <p class="page-subtitle">Cosa entra in cantiere e il prezzo finale della stima.</p>
+      <p class="page-subtitle">Composizione dell'intervento e importo finale stimato.</p>
 
       <h2 class="section-title">COMPOSIZIONE SERRAMENTI · ${d.totale_serramenti} PEZZI</h2>
       <table class="data-table">
@@ -450,7 +449,7 @@ function renderPage3(d: SrPdfData, total = totalPages(d)): string {
         </table>
       ` : ""}
 
-      <h2 class="section-title">PREZZO FINALE DELLA STIMA</h2>
+      <h2 class="section-title">INVESTIMENTO STIMATO</h2>
       <div class="big-price-box">
         <p class="big-price">${fmtEur(d.totale_min)} <span class="dash">—</span> ${fmtEur(d.totale_max)}</p>
         <p class="big-price-note">${d.iva_inclusa ? "IVA INCLUSA" : "IVA esclusa"}</p>
@@ -489,7 +488,7 @@ function renderPage3(d: SrPdfData, total = totalPages(d)): string {
 function renderPage4(d: SrPdfData, total = totalPages(d)): string {
   const hasRenders = d.renders && d.renders.length > 0;
   const hasSteps = d.prossimi_passi && d.prossimi_passi.length > 0;
-  const hasQr = !!(d.qr_svg && d.public_url);
+  const hasPublicLink = !!d.public_url;
 
   return `
   <section class="page">
@@ -497,11 +496,11 @@ function renderPage4(d: SrPdfData, total = totalPages(d)): string {
     <main class="page-body">
       <p class="overline">CONFERMA E FIRMA</p>
       <h1 class="page-title">Cosa fare adesso</h1>
-      <p class="page-subtitle">Ultimi passaggi per trasformare la stima in ordine operativo, senza stampare documenti o perdere il link cliente.</p>
+      <p class="page-subtitle">Ultimi passaggi per trasformare il preventivo in ordine operativo, senza stampare documenti.</p>
 
       ${hasRenders ? `
         <h2 class="section-title">ANTEPRIMA FOTO-REALISTICA</h2>
-        <p class="muted small">Simulazione AI dei nuovi serramenti applicata alle foto del cantiere.</p>
+        <p class="muted small">Simulazione AI dei nuovi serramenti applicata alle foto reali del cantiere.</p>
         <div class="render-grid">
           ${d.renders.slice(0, 4).map((r) => `
             <div class="render-item">
@@ -519,19 +518,16 @@ function renderPage4(d: SrPdfData, total = totalPages(d)): string {
         </ol>
       ` : ""}
 
-      ${hasQr ? `
+      ${hasPublicLink ? `
         <h2 class="section-title">VISUALIZZA E FIRMA ONLINE</h2>
-        <div class="qr-box">
-          <div class="qr-svg">${d.qr_svg}</div>
-          <div class="qr-info">
-            <p class="qr-title">Inquadra il QR Code con il tuo smartphone</p>
-            <p class="qr-text">Apri la stima online, leggila comoda da casa e firma direttamente dal cellulare senza dover stampare nulla.</p>
-            <p class="qr-url">${esc(d.public_url)}</p>
-          </div>
+        <div class="signature-link-box">
+          <p class="signature-link-title">Apri la pagina pubblica del preventivo</p>
+          <p class="signature-link-text">Consulta il preventivo da telefono o computer e confermalo digitalmente senza stampare il documento.</p>
+          <p class="signature-link-url">${esc(d.public_url)}</p>
         </div>
       ` : `
         <h2 class="section-title">LINK CLIENTE NON DISPONIBILE</h2>
-        <p class="paragraph">La stima è stata generata, ma il link pubblico di firma non è ancora configurato. Puoi comunque usare questo documento come anteprima interna e rigenerare il link dalla scheda PDF.</p>
+        <p class="paragraph">Il preventivo è stato generato, ma il link pubblico di firma non è ancora configurato. Puoi usare questo documento come anteprima interna e rigenerare il link dalla scheda PDF.</p>
       `}
     </main>
     ${renderFooter(d, 4, total)}
@@ -896,18 +892,14 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
 .render-item img { width: 100%; height: 180px; object-fit: cover; display: block; }
 .render-caption { padding: 4px 8px; font-size: 10px; color: #475569; }
 
-/* QR box */
-.qr-box {
-  display: flex; gap: 14px; align-items: center;
+/* Link firma online */
+.signature-link-box {
   background: var(--sr-green-light); border: 1px solid #c6e1d3;
   border-radius: 4px; padding: 14px;
 }
-.qr-svg { width: 130px; height: 130px; flex-shrink: 0; background: white; padding: 6px; border-radius: 4px; }
-.qr-svg svg { width: 100%; height: 100%; display: block; }
-.qr-info { flex: 1; }
-.qr-title { font-size: 12px; font-weight: 700; color: var(--sr-green); margin-bottom: 4px; }
-.qr-text { font-size: 10.5px; color: #475569; line-height: 1.4; }
-.qr-url { font-size: 9px; color: #64748b; font-family: ui-monospace, monospace; word-break: break-all; margin-top: 6px; }
+.signature-link-title { font-size: 12px; font-weight: 700; color: var(--sr-green); margin-bottom: 4px; }
+.signature-link-text { font-size: 10.5px; color: #475569; line-height: 1.4; }
+.signature-link-url { font-size: 9px; color: #64748b; font-family: ui-monospace, monospace; word-break: break-all; margin-top: 6px; }
 
 @media print {
   html, body { background: white !important; }

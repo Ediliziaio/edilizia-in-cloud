@@ -631,7 +631,7 @@ function CopyMisureDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] max-w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <div className="flex items-start gap-3">
             <div className="h-9 w-9 rounded-lg bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center shrink-0">
@@ -873,8 +873,8 @@ function CopyMisureDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Annulla</Button>
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <Button variant="ghost" onClick={onClose} className="w-full sm:w-auto">Annulla</Button>
           <Button
             onClick={handleCopy}
             disabled={
@@ -883,7 +883,7 @@ function CopyMisureDialog({
               (mode === "listino" && !pickedFamily) ||
               (mode === "listino" && pickedFamily?.modalita_prezzo_base === "griglia" && availableSupplierProductLineIds.length > 1)
             }
-            className="bg-orange-500 hover:bg-orange-600 gap-1.5"
+            className="w-full gap-1.5 bg-orange-500 hover:bg-orange-600 sm:w-auto"
           >
             {addMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             <Copy className="h-4 w-4" />

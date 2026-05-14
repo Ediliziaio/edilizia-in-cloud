@@ -28,7 +28,7 @@ import {
 import {
   Save, Plus, Trash2, Loader2, MessageCircle, Eye,
   Sparkles, ListChecks, Clock, Quote, Upload, Image as ImageIcon,
-  Building2, Wand2,
+  Building2, Wand2, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 // Lazy load dei 3 sub-editor pesanti.
 // PERF: caricati on-demand quando la tab è attiva o il dialog si apre.
@@ -52,14 +52,13 @@ import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
 import { FileText } from "lucide-react";
 import type { SrTemplatePdfRow, SrEsigenza, SrSoluzioneItem, SrTestimonianza, SrPercorsoCliente, SrPercorsoFase, SrGaranzia } from "@/types/serramenti";
-import { SR_PERCORSO_DEFAULT, SR_GARANZIE_DEFAULT, SR_PERCHE_NOI_METRICHE_DEFAULT, type SrPercheNoiMetrica } from "@/types/serramenti";
+import { SR_PERCORSO_DEFAULT, SR_GARANZIE_DEFAULT, SR_FAQ_DEFAULT, SR_PERCHE_NOI_METRICHE_DEFAULT, type SrPercheNoiMetrica } from "@/types/serramenti";
 import {
   PRESET_ESIGENZE, PRESET_ESIGENZE_ALT, PRESET_ESIGENZE_FAMIGLIA,
   PRESET_SOLUZIONE, PRESET_SOLUZIONE_PREMIUM,
   PRESET_PERCHE_NOI, PRESET_PERCHE_NOI_ALT, PRESET_PERCHE_NOI_TRUST,
   PRESET_INCLUSO, PRESET_INCLUSO_PLUS,
   PRESET_PROSSIMI_PASSI, PRESET_PROSSIMI_PASSI_PREMIUM,
-  PRESET_RECENSIONI, PRESET_RECENSIONI_EXTRA, PRESET_RECENSIONI_ANZIANI,
 } from "@/lib/serramenti/presets";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -76,6 +75,235 @@ import { contrastRatio, wcagLevel, suggestBestTextColor } from "@/lib/utils/cont
 import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "./coverStockImages";
 // M20 · Palette colore intelligente (brand variations + curate)
 import { generateBrandPalette, CURATED_PALETTES } from "@/lib/utils/colorPalette";
+
+const DEFAULT_RENDER_DISCLAIMER =
+  "Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità: misure, materiali, colori e finiture definitive vengono confermati prima dell'ordine.";
+
+function hasLegacyCopy(value: unknown, markers: string[]) {
+  const text = JSON.stringify(value ?? "");
+  return markers.some((marker) => text.includes(marker));
+}
+
+function isEmptyArray(value: unknown) {
+  return Array.isArray(value) && value.length === 0;
+}
+
+type TemplateQualityLevel = "ok" | "warning" | "critical";
+
+interface TemplateQualityItem {
+  level: TemplateQualityLevel;
+  title: string;
+  detail: string;
+  section?: string;
+}
+
+function plainText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasReadableText(value: unknown, minLength = 8): boolean {
+  return plainText(value).length >= minLength;
+}
+
+function isReviewDraft(value: unknown): boolean {
+  return hasLegacyCopy(value, [
+    "Cliente residenziale",
+    "Cliente privato",
+    "Cliente verificato",
+    "Bozza",
+    "Da completare",
+    "testimonianza reale",
+  ]);
+}
+
+function buildTemplateQualityItems(form: Partial<SrTemplatePdfRow>): TemplateQualityItem[] {
+  const items: TemplateQualityItem[] = [];
+  const esigenze = (form.esigenze_default ?? []) as SrEsigenza[];
+  const soluzioni = (form.soluzione_default ?? []) as SrSoluzioneItem[];
+  const percheNoi = (form.perche_noi_default ?? []) as string[];
+  const incluso = (form.incluso_default ?? []) as string[];
+  const prossimiPassi = (form.prossimi_passi_default ?? []) as string[];
+  const recensioni = (form.testimonianze_default ?? []) as SrTestimonianza[];
+  const percorso = (form.percorso_cliente as SrPercorsoCliente | null) ?? null;
+  const garanzie = (form.garanzie ?? SR_GARANZIE_DEFAULT) as SrGaranzia[];
+  const faq = (form.faq_items ?? SR_FAQ_DEFAULT) as NonNullable<SrTemplatePdfRow["faq_items"]>;
+  const ctaPassi = (form.pdf_cta_finale_passi ?? []) as string[];
+
+  if (!hasReadableText(form.ragione_sociale, 3)) {
+    items.push({
+      level: "warning",
+      title: "Ragione sociale mancante",
+      detail: "Aggiungi il nome azienda: rende il PDF più riconoscibile e professionale.",
+      section: "Brand",
+    });
+  }
+  if (!hasReadableText(form.telefono, 6) && !hasReadableText(form.email, 6)) {
+    items.push({
+      level: "warning",
+      title: "Contatto aziendale assente",
+      detail: "Inserisci almeno telefono o email, così il cliente sa come procedere dopo il preventivo.",
+      section: "Brand",
+    });
+  }
+  if (esigenze.filter((e) => hasReadableText(e.titolo) && hasReadableText(e.descrizione, 16)).length < 3) {
+    items.push({
+      level: "critical",
+      title: "Proposta cliente poco completa",
+      detail: "Servono almeno 3 esigenze con descrizione concreta per spiegare il problema che stai risolvendo.",
+      section: "Contenuti",
+    });
+  }
+  if (soluzioni.filter((s) => hasReadableText(s.titolo) && hasReadableText(s.descrizione, 16)).length < 3) {
+    items.push({
+      level: "critical",
+      title: "Soluzione tecnica da completare",
+      detail: "Aggiungi almeno 3 punti chiari su prodotto, posa e vantaggi della soluzione proposta.",
+      section: "Contenuti",
+    });
+  }
+  if (percheNoi.filter((v) => hasReadableText(v, 12)).length < 3) {
+    items.push({
+      level: "warning",
+      title: "Perché scegliere voi debole",
+      detail: "Inserisci almeno 3 motivi verificabili, evitando numeri non dimostrabili.",
+      section: "Contenuti",
+    });
+  }
+  if (incluso.filter((v) => hasReadableText(v, 10)).length < 4) {
+    items.push({
+      level: "warning",
+      title: "Incluso nell'investimento troppo corto",
+      detail: "Elenca almeno 4 voci incluse: rilievo, posa, assistenza, documenti o gestione cantiere.",
+      section: "Contenuti",
+    });
+  }
+  if (form.chi_siamo_attivo && (!hasReadableText(form.chi_siamo_titolo, 8) || !hasReadableText(form.chi_siamo_testo, 80))) {
+    items.push({
+      level: "critical",
+      title: "Pagina Chi siamo attiva ma incompleta",
+      detail: "Completa titolo e descrizione azienda oppure disattiva la pagina.",
+      section: "Chi siamo",
+    });
+  }
+  if (form.recensioni_attivo !== false && recensioni.length === 0) {
+    items.push({
+      level: "warning",
+      title: "Recensioni assenti",
+      detail: "Va bene così se non hai testimonianze reali. Evita recensioni inventate: puoi nascondere la pagina.",
+      section: "Recensioni",
+    });
+  }
+  if (recensioni.length > 0 && recensioni.some((r) => !hasReadableText(r.quote, 35) || !hasReadableText(r.autore, 2) || isReviewDraft(r))) {
+    items.push({
+      level: "critical",
+      title: "Recensioni da verificare",
+      detail: "Una o più recensioni sembrano bozze o mancano di autore/testo reale. Sistemarle prima di inviare il PDF.",
+      section: "Recensioni",
+    });
+  }
+  if (!percorso?.attivo || !hasReadableText(percorso?.titolo, 8) || (percorso?.fasi ?? []).filter((f) => hasReadableText(f.nome, 3) && f.step.some((s) => hasReadableText(s, 8))).length < 4) {
+    items.push({
+      level: "warning",
+      title: "Percorso cliente da rifinire",
+      detail: "Mantieni 4 fasi con step pratici: analisi, rilievo, conferma, posa/collaudo.",
+      section: "Percorso",
+    });
+  }
+  if (garanzie.filter((g) => hasReadableText(g.titolo, 5) && hasReadableText(g.descrizione, 30)).length < 4) {
+    items.push({
+      level: "warning",
+      title: "Garanzie troppo deboli",
+      detail: "Servono almeno 4 garanzie concrete: prodotto, rilievo, posa, assistenza o documenti finali.",
+      section: "Garanzie",
+    });
+  }
+  if (faq.filter((f) => hasReadableText(f.domanda, 10) && hasReadableText(f.risposta, 35)).length < 4) {
+    items.push({
+      level: "warning",
+      title: "FAQ poco utili",
+      detail: "Aggiungi almeno 4 obiezioni reali: prezzo, tempi, misure, posa, render, pagamento.",
+      section: "FAQ",
+    });
+  }
+  if (!hasReadableText(form.render_disclaimer, 60)) {
+    items.push({
+      level: "critical",
+      title: "Disclaimer render mancante",
+      detail: "Il render AI deve essere chiaramente indicato come simulazione non vincolante.",
+      section: "Render",
+    });
+  }
+  if (prossimiPassi.filter((v) => hasReadableText(v, 8)).length < 3 && ctaPassi.filter((v) => hasReadableText(v, 8)).length < 3) {
+    items.push({
+      level: "warning",
+      title: "Prossimi passi poco chiari",
+      detail: "Indica cosa deve fare il cliente dopo il preventivo: dubbi, conferma, firma, acconto, ordine.",
+      section: "CTA finale",
+    });
+  }
+
+  if (items.length === 0) {
+    items.push({
+      level: "ok",
+      title: "Template pronto",
+      detail: "I contenuti principali sono completi e non risultano bozze evidenti.",
+    });
+  }
+
+  return items;
+}
+
+function normalizeSerramentiTemplateCopy(template: Partial<SrTemplatePdfRow>): {
+  next: Partial<SrTemplatePdfRow>;
+  changed: boolean;
+} {
+  const next: Partial<SrTemplatePdfRow> = { ...template };
+  let changed = false;
+
+  const replace = <K extends keyof SrTemplatePdfRow>(key: K, value: SrTemplatePdfRow[K]) => {
+    next[key] = value;
+    changed = true;
+  };
+
+  if (isEmptyArray(next.esigenze_default) || hasLegacyCopy(next.esigenze_default, ["Già a ottobre", "ringiovaniscono la facciata di 15 anni"])) {
+    replace("esigenze_default", PRESET_ESIGENZE as SrTemplatePdfRow["esigenze_default"]);
+  }
+  if (isEmptyArray(next.soluzione_default) || hasLegacyCopy(next.soluzione_default, ["Niente cataloghi standard", "Il 60% dei problemi"])) {
+    replace("soluzione_default", PRESET_SOLUZIONE as SrTemplatePdfRow["soluzione_default"]);
+  }
+  if (isEmptyArray(next.perche_noi_default) || hasLegacyCopy(next.perche_noi_default, ["1.200 finestre", "[N] stelle", "non muovi un dito"])) {
+    replace("perche_noi_default", PRESET_PERCHE_NOI as SrTemplatePdfRow["perche_noi_default"]);
+  }
+  if (isEmptyArray(next.incluso_default) || hasLegacyCopy(next.incluso_default, ["zero infiltrazioni", "ENEA entro 90 giorni", "mai subappaltata"])) {
+    replace("incluso_default", PRESET_INCLUSO as SrTemplatePdfRow["incluso_default"]);
+  }
+  if (isEmptyArray(next.prossimi_passi_default) || hasLegacyCopy(next.prossimi_passi_default, ["Ti chiamiamo per fissare", "Firmi solo se sei convinto"])) {
+    replace("prossimi_passi_default", PRESET_PROSSIMI_PASSI as SrTemplatePdfRow["prossimi_passi_default"]);
+  }
+  if (!next.percorso_cliente || hasLegacyCopy(next.percorso_cliente, ["Chiamata conoscitiva", "Ricerca prodotto", "Pratica ENEA"])) {
+    replace("percorso_cliente", SR_PERCORSO_DEFAULT as SrTemplatePdfRow["percorso_cliente"]);
+  }
+  if (isEmptyArray(next.garanzie) || hasLegacyCopy(next.garanzie, ["Garanzia prodotto chiara", "Tempi condivisi in anticipo"])) {
+    replace("garanzie", SR_GARANZIE_DEFAULT as SrTemplatePdfRow["garanzie"]);
+  }
+  if (isEmptyArray(next.faq_items) || hasLegacyCopy(next.faq_items, ["E se piove durante la posa?", "Devo lasciarvi le chiavi?"])) {
+    replace("faq_items", SR_FAQ_DEFAULT as SrTemplatePdfRow["faq_items"]);
+  }
+  if (hasLegacyCopy(next.testimonianze_default, ["Andrea e Silvia M.", "Marco e Chiara G.", "Roberto P.", "Famiglia Rossi", "Ing. Lorenzo T."])) {
+    replace("testimonianze_default", [] as SrTemplatePdfRow["testimonianze_default"]);
+  }
+  if (!next.render_disclaimer) {
+    replace("render_disclaimer", DEFAULT_RENDER_DISCLAIMER as SrTemplatePdfRow["render_disclaimer"]);
+  }
+
+  return { next, changed };
+}
 
 interface SerramentiTemplateEditorProps {
   /** Se true, nasconde lo sticky bottom save (usato dentro Tabs con bottone proprio) */
@@ -99,11 +327,15 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   // template renderizzato + dati cliente demo. Aggiornamento auto su edit
   // (debounced 300ms) — vedi SerramentiTemplatePreviewDialog.
   const [previewOpen, setPreviewOpen] = useState(false);
+  const qualityItems = useMemo(() => buildTemplateQualityItems(form), [form]);
+  const qualityCriticalCount = qualityItems.filter((item) => item.level === "critical").length;
+  const qualityWarningCount = qualityItems.filter((item) => item.level === "warning").length;
 
   useEffect(() => {
     if (template) {
-      setForm(template);
-      setDirty(false);
+      const normalized = normalizeSerramentiTemplateCopy(template);
+      setForm(normalized.next);
+      setDirty(normalized.changed);
       // Reset UID delle bullet list: dopo "Scarta modifiche" / reload
       // dal server, le posizioni degli item potrebbero non coincidere
       // piu' con gli UID accumulati -> rebuild lazy al prossimo render.
@@ -111,12 +343,16 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     } else if (!isLoading) {
       setForm({
         colore_primario: "#2D7D5C",
-        esigenze_default: [],
-        soluzione_default: [],
-        perche_noi_default: [],
-        incluso_default: [],
-        prossimi_passi_default: [],
+        esigenze_default: PRESET_ESIGENZE,
+        soluzione_default: PRESET_SOLUZIONE,
+        perche_noi_default: PRESET_PERCHE_NOI,
+        incluso_default: PRESET_INCLUSO,
+        prossimi_passi_default: PRESET_PROSSIMI_PASSI,
         testimonianze_default: [],
+        percorso_cliente: SR_PERCORSO_DEFAULT,
+        garanzie: SR_GARANZIE_DEFAULT,
+        faq_items: SR_FAQ_DEFAULT,
+        render_disclaimer: DEFAULT_RENDER_DISCLAIMER,
         iva_percentuale_default: 22,
         anticipo_pct_default: 40,
         valido_giorni_default: 15,
@@ -637,6 +873,19 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               ✓ Salvato
             </span>
           )}
+          <span
+            className={
+              "text-xs border rounded-full px-2 py-0.5 font-medium hidden lg:inline-flex items-center gap-1 " +
+              (qualityCriticalCount > 0
+                ? "bg-rose-50 text-rose-700 border-rose-200"
+                : qualityWarningCount > 0
+                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                  : "bg-emerald-50 text-emerald-700 border-emerald-200")
+            }
+          >
+            {qualityCriticalCount > 0 ? "!" : qualityWarningCount > 0 ? "!" : "✓"}
+            Qualità: {qualityCriticalCount > 0 ? `${qualityCriticalCount} da sistemare` : qualityWarningCount > 0 ? `${qualityWarningCount} avvisi` : "pronto"}
+          </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button
@@ -660,6 +909,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </Button>
         </div>
       </div>
+
+      <TemplateQualityPanel items={qualityItems} />
 
       {/* ─── REFACTOR · Layout sidebar + content ─────────────────────────
           Sostituisce lo scroll infinito mono-pagina con una UI app-like:
@@ -1019,8 +1270,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             currentValue={(form.esigenze_default ?? []) as SrEsigenza[]}
             presets={[
               { label: "🏠 Comfort termico — Spifferi · Condensa · Estetica", value: PRESET_ESIGENZE },
-              { label: "💰 Risparmio + Sicurezza — Bollette · Rumore · Antieffrazione", value: PRESET_ESIGENZE_ALT },
-              { label: "👶 Famiglia — Sicurezza bimbi · Caldo estate · Manutenzione zero", value: PRESET_ESIGENZE_FAMIGLIA },
+              { label: "💰 Risparmio + sicurezza — Bollette · Rumore · Punti accessibili", value: PRESET_ESIGENZE_ALT },
+              { label: "👶 Famiglia — Sicurezza · Comfort estivo · Manutenzione ridotta", value: PRESET_ESIGENZE_FAMIGLIA },
             ]}
             onApply={(v) => update("esigenze_default", v)}
           />
@@ -1039,8 +1290,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             label="Applica template standard"
             currentValue={(form.soluzione_default ?? []) as SrSoluzioneItem[]}
             presets={[
-              { label: "💎 Standard (Su misura + Posa UNI 11673)", value: PRESET_SOLUZIONE },
-              { label: "🏆 Premium (Uw 0.8 + Taglio termico + 42 dB acustico)", value: PRESET_SOLUZIONE_PREMIUM },
+              { label: "💎 Standard (Rilievo tecnico + posa chiara)", value: PRESET_SOLUZIONE },
+              { label: "🏆 Premium (Vetri, profili e posa documentata)", value: PRESET_SOLUZIONE_PREMIUM },
             ]}
             onApply={(v) => update("soluzione_default", v)}
           />
@@ -1059,9 +1310,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             label="Applica template standard"
             currentValue={(form.perche_noi_default ?? []) as string[]}
             presets={[
-              { label: "✅ Servizio chiavi in mano (1 contatto · Garanzia 10 anni)", value: PRESET_PERCHE_NOI },
-              { label: "🏆 Numeri reali (1.200 cantieri · Showroom · Penale ritardi)", value: PRESET_PERCHE_NOI_ALT },
-              { label: "🛡️ Trust & sicurezza (Iscrizione CCIAA · Polizza · Recensioni Google)", value: PRESET_PERCHE_NOI_TRUST },
+              { label: "✅ Servizio chiaro (referente unico · documenti · passaggi scritti)", value: PRESET_PERCHE_NOI },
+              { label: "🏆 Metodo operativo (showroom · rilievo · posa · assistenza)", value: PRESET_PERCHE_NOI_ALT },
+              { label: "🛡️ Fiducia verificabile (dati aziendali · certificazioni · recensioni reali)", value: PRESET_PERCHE_NOI_TRUST },
             ]}
             onApply={(v) => update("perche_noi_default", v)}
           />
@@ -1081,7 +1332,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             currentValue={(form.incluso_default ?? []) as string[]}
             presets={[
               { label: "📦 Standard (5 voci — rilievo, posa, sigillature, collaudo)", value: PRESET_INCLUSO },
-              { label: "⭐ Plus (8 voci — ENEA + foto cantiere + pulizia + garanzie scritte)", value: PRESET_INCLUSO_PLUS },
+              { label: "⭐ Plus (8 voci — documenti, foto, pulizia e assistenza)", value: PRESET_INCLUSO_PLUS },
             ]}
             onApply={(v) => update("incluso_default", v)}
           />
@@ -1096,68 +1347,14 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         icon={<Quote className="h-4 w-4" />}
         variant="highlight"
       >
-        <div className="flex justify-end mb-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="gap-1 border-orange-300 text-orange-600 hover:bg-orange-50">
-                <Wand2 className="h-3.5 w-3.5" />
-                Carica recensioni di esempio
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel className="text-xs">Aggiungi recensioni di esempio</DropdownMenuLabel>
-              <p className="px-2 pb-1 text-[10px] text-muted-foreground italic">
-                Placeholder credibili da personalizzare con nomi e cantieri reali della tua azienda
-              </p>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="cursor-pointer text-xs"
-                onClick={() => {
-                  update("testimonianze_default", [...testimonianze, ...PRESET_RECENSIONI]);
-                  toast.success("3 recensioni aggiunte. Personalizzale con dati reali.");
-                }}
-              >
-                ⭐ Set classico — 3 recensioni con prova sociale
-                <span className="block text-[10px] text-muted-foreground">Bifamiliare · Villa · Appartamento</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="cursor-pointer text-xs"
-                onClick={() => {
-                  update("testimonianze_default", [...testimonianze, ...PRESET_RECENSIONI_EXTRA]);
-                  toast.success("3 recensioni aggiunte. Personalizzale con dati reali.");
-                }}
-              >
-                💰 Set risultati misurabili — 3 recensioni con numeri concreti
-                <span className="block text-[10px] text-muted-foreground">Bolletta -35% · Cantiere con bimbi · Payback verificato</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="cursor-pointer text-xs"
-                onClick={() => {
-                  update("testimonianze_default", [...testimonianze, ...PRESET_RECENSIONI_ANZIANI]);
-                  toast.success("1 recensione aggiunta — target anziani / cura cantiere.");
-                }}
-              >
-                🤝 Aggiungi 1 recensione 'cura del cliente anziano'
-                <span className="block text-[10px] text-muted-foreground">Empatia, pazienza, casa lasciata pulita</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="cursor-pointer text-xs"
-                onClick={() => {
-                  if (testimonianze.length > 0 && !confirm("Sostituire tutte le recensioni attuali con il set completo (7 recensioni)?")) return;
-                  update("testimonianze_default", [...PRESET_RECENSIONI, ...PRESET_RECENSIONI_EXTRA, ...PRESET_RECENSIONI_ANZIANI]);
-                  toast.success("7 recensioni esempio applicate.");
-                }}
-              >
-                ⚠ Sostituisci con set completo (7 recensioni)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Usa questa pagina solo con testimonianze reali. Se non hai recensioni verificabili,
+          lasciala vuota o nascondila: è più professionale di una recensione generica.
         </div>
         <div className="space-y-3">
           {testimonianze.length === 0 && (
             <SrCallout variant="info">
-              Nessuna recensione caricata. Aggiungile per mostrare prova sociale ai nuovi clienti, o clicca <strong>"Carica recensioni di esempio"</strong> qui sopra per partire da template realistici.
+              Nessuna recensione caricata. Va bene lasciare la pagina vuota finché non hai testimonianze reali: meglio nessuna recensione che una recensione inventata.
             </SrCallout>
           )}
           {testimonianze.map((t, idx) => (
@@ -1176,7 +1373,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   <Textarea
                     value={t.quote ?? ""}
                     onChange={(e) => updateTestimonianza(idx, "quote", e.target.value)}
-                    placeholder={'"Avevamo chiesto un preventivo a quattro aziende: loro ce l\'hanno fatto interamente in casa..."'}
+                    placeholder={'"Ci hanno spiegato bene materiali, tempi e posa prima della firma..."'}
                     rows={3}
                   />
                 </div>
@@ -1185,7 +1382,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   <Input
                     value={t.autore ?? ""}
                     onChange={(e) => updateTestimonianza(idx, "autore", e.target.value)}
-                    placeholder="Andrea e Silvia M."
+                    placeholder="Nome cliente o iniziali reali"
                     className="h-9 text-xs"
                   />
                 </div>
@@ -1194,7 +1391,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   <Input
                     value={t.citta ?? ""}
                     onChange={(e) => updateTestimonianza(idx, "citta", e.target.value)}
-                    placeholder="Gorgonzola"
+                    placeholder="Città"
                     className="h-9 text-xs"
                   />
                 </div>
@@ -1203,7 +1400,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   <Input
                     value={t.intervento ?? ""}
                     onChange={(e) => updateTestimonianza(idx, "intervento", e.target.value)}
-                    placeholder="22 serramenti alluminio-legno"
+                    placeholder="Tipo intervento"
                     className="h-9 text-xs"
                   />
                 </div>
@@ -2330,7 +2527,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     <Input
                       value={form.chi_siamo_titolo ?? ""}
                       onChange={(e) => update("chi_siamo_titolo", e.target.value || null)}
-                      placeholder="Es. 15 anni di artigianato a Milano"
+                      placeholder="Es. Serramenti su misura, posati con metodo"
                       className="h-9 text-xs"
                     />
                   </div>
@@ -2339,7 +2536,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     <RichTextEditor
                       value={form.chi_siamo_testo ?? ""}
                       onChange={(html) => update("chi_siamo_testo", html || null)}
-                      placeholder="Dal 2010 produciamo serramenti su misura per il residenziale. Lavoriamo solo con materiali italiani: profili PVC a 7 camere, vetri triplo basso-emissivi, pose certificate UNI 11673."
+                      placeholder="Racconta in poche righe chi siete, che tipo di lavori seguite, come gestite rilievo, posa e assistenza. Inserisci solo dati reali: anni di attività, certificazioni, zona servita e punti di forza verificabili."
                       minHeight={160}
                     />
                     <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -2401,7 +2598,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             <RichTextEditor
               value={form.render_disclaimer ?? ""}
               onChange={(html) => update("render_disclaimer", html || null)}
-              placeholder="Render generato con intelligenza artificiale a scopo esclusivamente dimostrativo e illustrativo..."
+              placeholder="Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità."
               minHeight={120}
             />
           </TabsContent>
@@ -2425,16 +2622,16 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 <Label className="text-xs">Passi (uno per riga)</Label>
                 <Textarea
                   value={(form.pdf_cta_finale_passi ?? []).join("\n")}
-                  onChange={(e) => {
-                    const lines = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean);
-                    update("pdf_cta_finale_passi", lines.length > 0 ? lines : null);
-                  }}
-                  rows={5}
-                  placeholder={
-                    "Conferma l'appuntamento di consulenza tecnica\nFirma digitale del preventivo via link sicuro\nVersa l'acconto secondo lo schema concordato\nDiamo il via alla produzione e cantiere"
-                  }
-                  className="text-xs"
-                />
+	                  onChange={(e) => {
+	                    const lines = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean);
+	                    update("pdf_cta_finale_passi", lines.length > 0 ? lines : null);
+	                  }}
+	                  rows={5}
+	                  placeholder={
+	                    "Chiarisci eventuali dubbi tecnici o commerciali\nConferma misure, finiture e condizioni definitive\nFirma il preventivo e versa l'acconto concordato\nAvviamo ordine, produzione e pianificazione della posa"
+	                  }
+	                  className="text-xs"
+	                />
                 <p className="text-[10px] text-muted-foreground mt-0.5">
                   Ogni riga è uno step numerato. Lascia vuoto per usare i 4 step default.
                 </p>
@@ -2622,8 +2819,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   </div>
                 </>
               )}
-              </TabsContent>
-            );
+            </TabsContent>
+          );
           })()}
 
           {/* ═══ CONVERSIONE (CRO playbook) ═════════════════════════════════ */}
@@ -2667,11 +2864,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       {/* Milestone 5: Garanzie editor — card visibili nella pagina "Le nostre
           garanzie" del PDF. Default 5 garanzie standard; l'azienda può
           override singoli campi o aggiungerne fino a 6. */}
-      <SrCard
-        title="Garanzie (pagina dedicata PDF)"
-        description="Le 5-6 garanzie mostrate come card con icone nel PDF. Modifica titolo e descrizione per personalizzare. Lascia vuoto per usare i default standard del settore."
-        icon={<FileText className="h-4 w-4" />}
-      >
+	      <SrCard
+	        title="Garanzie (pagina dedicata PDF)"
+	        description="Le garanzie mostrate come card nel PDF. Usa testi concreti e verificabili: evita promesse generiche o numeri non dimostrabili."
+	        icon={<FileText className="h-4 w-4" />}
+	      >
         <div className="space-y-2">
           {(form.garanzie ?? SR_GARANZIE_DEFAULT).slice(0, 6).map((g, idx) => (
             <div key={idx} className="rounded-md border p-3 grid grid-cols-12 gap-2 bg-slate-50/50">
@@ -2706,7 +2903,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     update("garanzie", next);
                   }}
                   className="h-9 text-xs"
-                  placeholder="Es. Garanzia 10 anni"
+	                  placeholder="Es. Garanzia prodotto documentata"
                 />
               </div>
               <div className="col-span-12 md:col-span-6">
@@ -2922,26 +3119,14 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         </div>{/* /content-panel */}
       </div>{/* /grid */}
 
-      {/* Sticky bottom: Anteprima PDF + Salva. Due bottoni a sinistra/destra
-          così l'utente può sempre vedere come verrà il PDF prima di salvare. */}
-      {/* Sticky footer: SEMPRE visibile (anche in modalità embedded usata
-          dal SettingsQuoteTemplates). Prima era nascosto da `!embedded` →
-          l'utente che arrivava da /azienda/impostazioni non vedeva mai
-          il bottone "Anteprima PDF". */}
-      <div className="sticky bottom-4 flex justify-between gap-3 z-10">
-        <Button
-          onClick={() => setPreviewOpen(true)}
-          variant="outline"
-          className="bg-white shadow-lg gap-1.5 border-orange-300 hover:bg-orange-50"
-          size="lg"
-        >
-          <Eye className="h-4 w-4" />
-          Anteprima PDF
-        </Button>
+      {/* Sticky footer: mantiene solo il salvataggio sempre raggiungibile.
+          L'anteprima PDF resta accessibile dalla sidebar/header, senza duplicare
+          un bottone fisso in basso che copreva la lettura delle impostazioni. */}
+      <div className="sticky bottom-4 flex justify-end gap-3 z-10 pointer-events-none">
         <Button
           onClick={handleSave}
           disabled={!dirty || upsertMut.isPending}
-          className="bg-orange-600 hover:bg-orange-500 gap-1 shadow-lg"
+          className="bg-orange-600 hover:bg-orange-500 gap-1 shadow-lg pointer-events-auto"
           size="lg"
         >
           {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -3064,6 +3249,89 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function TemplateQualityPanel({ items }: { items: TemplateQualityItem[] }) {
+  const critical = items.filter((item) => item.level === "critical");
+  const warnings = items.filter((item) => item.level === "warning");
+  const isReady = critical.length === 0 && warnings.length === 0;
+  const visibleItems = isReady ? items : [...critical, ...warnings].slice(0, 5);
+
+  return (
+    <div
+      className={
+        "rounded-lg border p-3 shadow-sm " +
+        (isReady
+          ? "border-emerald-200 bg-emerald-50/70"
+          : critical.length > 0
+            ? "border-rose-200 bg-rose-50/70"
+            : "border-amber-200 bg-amber-50/70")
+      }
+    >
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div className="flex items-start gap-2 min-w-0">
+          <div
+            className={
+              "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border " +
+              (isReady
+                ? "border-emerald-200 bg-white text-emerald-700"
+                : critical.length > 0
+                  ? "border-rose-200 bg-white text-rose-700"
+                  : "border-amber-200 bg-white text-amber-700")
+            }
+          >
+            {isReady ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-slate-900">Controllo qualità template</p>
+              <Badge variant="outline" className={isReady ? "border-emerald-300 text-emerald-700" : critical.length > 0 ? "border-rose-300 text-rose-700" : "border-amber-300 text-amber-700"}>
+                {isReady ? "Pronto" : `${critical.length} errori · ${warnings.length} avvisi`}
+              </Badge>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-600">
+              {isReady
+                ? "I blocchi principali sono compilati e non risultano bozze evidenti."
+                : "Prima di inviare un preventivo, controlla questi punti: non bloccano il lavoro, ma evitano PDF generici o poco credibili."}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {!isReady && (
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {visibleItems.map((item) => (
+            <div
+              key={`${item.level}-${item.section ?? "generale"}-${item.title}`}
+              className="rounded-md border border-white/80 bg-white/75 px-3 py-2"
+            >
+              <div className="flex items-start gap-2">
+                <span className={item.level === "critical" ? "mt-0.5 text-rose-600" : "mt-0.5 text-amber-600"}>
+                  {item.level === "critical" ? "●" : "•"}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="text-xs font-semibold text-slate-900">{item.title}</p>
+                    {item.section && (
+                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                        {item.section}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-slate-600">{item.detail}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          {[...critical, ...warnings].length > visibleItems.length && (
+            <div className="rounded-md border border-white/80 bg-white/60 px-3 py-2 text-[11px] text-slate-600">
+              + {[...critical, ...warnings].length - visibleItems.length} altri punti da controllare nelle sezioni laterali.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

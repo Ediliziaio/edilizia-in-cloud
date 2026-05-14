@@ -21,7 +21,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { renderSrPdfHtml, type SrPdfData } from "../_shared/srHtmlTemplate.ts";
-import { generateQrSvg } from "../_shared/qrcode.ts";
 
 interface Payload {
   progetto_id: string;
@@ -460,7 +459,7 @@ Deno.serve(async (req: Request) => {
       immagine_url: await refreshSrProgettiUrl(mp.immagine_url),
     })));
 
-    // 4c. Public URL + QR code
+    // 4c. Public URL per firma online: il documento mostra solo il link testuale.
     const appOrigin = (Deno.env.get("APP_PUBLIC_URL") ?? Deno.env.get("SITE_URL") ?? "https://app.ediliziaincloud.com").replace(/\/+$/, "");
     const storedPublicUrl = typeof prog.public_url === "string" ? prog.public_url.trim() : "";
     const publicUrl = prog.public_token
@@ -470,7 +469,6 @@ Deno.serve(async (req: Request) => {
             ? storedPublicUrl
             : `${appOrigin}${storedPublicUrl.startsWith("/") ? "" : "/"}${storedPublicUrl}`)
         : null;
-    const qrSvg = publicUrl ? generateQrSvg(publicUrl, { size: 200, margin: 1, color: "#2D7D5C" }) : null;
 
     // 5. Costruisci payload template
     // deno-lint-ignore no-explicit-any
@@ -577,7 +575,6 @@ Deno.serve(async (req: Request) => {
       crono_fasi: cronoFasi,
       crono_durata_giorni: cronoDurata,
       public_url: publicUrl,
-      qr_svg: qrSvg,
       renders,
       valido_fino_giorni: prog.valido_fino_giorni ?? 15,
       azienda_nome: tpl.ragione_sociale || com.business_name || com.name || "Azienda",

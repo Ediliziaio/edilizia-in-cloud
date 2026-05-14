@@ -42,7 +42,7 @@ export function ContactPickerDialog({ open, onOpenChange, onSelect }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[90dvh] max-w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Seleziona contatto dal CRM</DialogTitle>
           <DialogDescription>
@@ -61,7 +61,7 @@ export function ContactPickerDialog({ open, onOpenChange, onSelect }: Props) {
           />
         </div>
 
-        <div className="max-h-[60vh] overflow-y-auto -mx-2 px-2 space-y-1">
+        <div className="-mx-2 max-h-[62dvh] space-y-1 overflow-y-auto px-2">
           {isLoading ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
@@ -121,8 +121,8 @@ export function ContactPickerDialog({ open, onOpenChange, onSelect }: Props) {
           )}
         </div>
 
-        <div className="flex justify-end pt-2 border-t">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
+        <div className="flex justify-end border-t pt-2">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">Annulla</Button>
         </div>
       </DialogContent>
     </Dialog>

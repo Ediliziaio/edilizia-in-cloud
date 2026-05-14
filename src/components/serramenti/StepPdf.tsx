@@ -2,7 +2,7 @@
  * StepPdf — Step 8 wizard: generazione PDF e pagina firma cliente.
  *
  * In Wave 4: chiama edge function sr-genera-pdf, salva HTML su Storage,
- * genera link condivisibile + QR firma cliente.
+ * genera link condivisibile per la firma cliente.
  *
  * Per ora mostra solo l'anteprima dei dati che entreranno nel PDF e un
  * placeholder per la generazione effettiva.
@@ -212,7 +212,7 @@ export function StepPdf({ progettoId, detail }: Props) {
       {/* Genera PDF nativo A4 (RACCOMANDATO) */}
       <SrCard
         title="Scarica PDF da inviare al cliente"
-        description="PDF nativo A4 stampabile e allegabile via email. Layout impaginato professionalmente con anagrafica, investimento, modalità pagamento, tecnico e render."
+        description="PDF A4 pronto da stampare o allegare via email. Include anagrafica, investimento, modalità di pagamento, allegato tecnico e render."
         icon={<Download className="h-4 w-4" />}
       >
         {!ready && (
@@ -246,7 +246,7 @@ export function StepPdf({ progettoId, detail }: Props) {
           </Button>
         </div>
         <p className="text-[11px] text-muted-foreground mb-2">
-          ⚡ Generato direttamente nel browser, niente attesa server. File pronto da{" "}
+          ⚡ Generato direttamente nel browser, senza attese server. File pronto da{" "}
           <strong>allegare via email</strong> o <strong>stampare</strong>.
         </p>
       </SrCard>
@@ -255,10 +255,10 @@ export function StepPdf({ progettoId, detail }: Props) {
           NON è alternativa al PDF: è il LINK che il cliente apre dal cellulare
           per firmare digitalmente. Funzioni distinte:
           - "Scarica PDF (A4)" sopra → file PDF da inviare via email
-          - Questo qui sotto       → URL pubblico per firma digitale + QR */}
+          - Questo qui sotto       → URL pubblico per firma digitale */}
       <SrCard
-        title="Pagina pubblica per firma cliente"
-        description="Genera un link che il cliente apre dal cellulare per visualizzare il preventivo e firmare digitalmente. È separato dal PDF: questo serve solo per la firma."
+        title="Link pubblico per firma cliente"
+        description="Genera un link che il cliente può aprire dal telefono per leggere il preventivo e firmarlo digitalmente. È separato dal PDF: serve solo per la firma."
         icon={<Link2 className="h-4 w-4" />}
       >
         <div className="flex flex-col sm:flex-row gap-2">
@@ -291,7 +291,7 @@ export function StepPdf({ progettoId, detail }: Props) {
           <div className="mt-3 p-3 rounded-md bg-orange-50 border border-orange-200">
             <p className="text-[11px] font-semibold text-orange-900 mb-1 flex items-center gap-1.5">
               <Link2 className="h-3.5 w-3.5" />
-              Link condivisibile col cliente
+              Link da condividere con il cliente
             </p>
             <div className="flex items-center gap-2 flex-wrap">
               <code className="text-xs bg-white px-2 py-1 rounded border border-orange-200 flex-1 min-w-0 truncate font-mono">
@@ -314,15 +314,14 @@ export function StepPdf({ progettoId, detail }: Props) {
               </Button>
             </div>
             <p className="text-[10px] text-orange-600 mt-1.5">
-              Il cliente può aprire il preventivo senza login e firmare digitalmente. Il QR code viene inserito nel PDF A4 quando scarichi/rigeneri il documento.
+              Il cliente può aprire il preventivo senza login e firmarlo digitalmente dal link condiviso.
             </p>
           </div>
         )}
 
         <SrCallout variant="info" className="mt-3">
-          💡 Per il <strong>PDF da inviare via email</strong> usa la sezione qui sopra
-          "Scarica PDF (A4)". Questa pagina pubblica serve solo per la firma digitale
-          del cliente dal cellulare.
+          💡 Per il <strong>PDF da inviare via email</strong> usa “Scarica PDF (A4)”.
+          Questo link pubblico serve invece per la firma digitale del cliente.
         </SrCallout>
       </SrCard>
 

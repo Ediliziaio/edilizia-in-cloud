@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle, Package, Sparkles, Gift } from "lucide-react";
+import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle, Package, Sparkles, Gift, Euro, FileText } from "lucide-react";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
@@ -53,6 +53,8 @@ interface Props {
   progettoId: string;
   detail: SrProgettoDetail;
 }
+
+type ManualPricingMode = "prodotto" | "corpo";
 
 export function StepBom({ progettoId, detail }: Props) {
   const addMut = useAddSerramento(progettoId);
@@ -167,22 +169,24 @@ export function StepBom({ progettoId, detail }: Props) {
    * badge "Omaggio" nell'header riga).
    */
   const handleManualSubmit = (form: {
+    mode: ManualPricingMode;
     nome: string;
     descrizione: string;
     quantita: number;
     prezzo_unitario: number;
     isOmaggio: boolean;
   }) => {
-    const q = Math.max(1, form.quantita || 1);
+    const q = form.mode === "corpo" ? 1 : Math.max(1, form.quantita || 1);
     const prezzo = form.isOmaggio ? 0 : form.prezzo_unitario;
     const noteParts: string[] = [];
     if (form.isOmaggio) noteParts.push("🎁 OMAGGIO");
+    if (form.mode === "corpo") noteParts.push("A CORPO");
     if (form.descrizione.trim()) noteParts.push(form.descrizione.trim());
     addMut.mutate(
       {
-        // tipologia "fisso" come catch-all per voci custom (non e' finestra,
-        // potrebbe essere un servizio aggiuntivo, accessorio extra, regalo).
-        tipologia: "fisso",
+        // Tipologie interne per righe non agganciate al listino. Evitano di
+        // confondere voci libere / importi a corpo con una "vetrata fissa".
+        tipologia: form.mode === "corpo" ? "a_corpo" : "voce_manuale",
         tipologia_label: form.nome.trim() || "Voce custom",
         materiale: null,
         quantita: q,
@@ -262,7 +266,7 @@ export function StepBom({ progettoId, detail }: Props) {
     <div className="space-y-3">
       <SrCard
         title="Composizione offerta"
-        description="Costruisci l'offerta con i pezzi del tuo listino. I prezzi vengono dal listino aziendale — modificabili per ogni preventivo."
+        description="Costruisci l'offerta con articoli da listino, voci fuori listino o importi a corpo. I prezzi manuali restano salvati solo sul preventivo."
         icon={<RectangleVertical className="h-4 w-4" />}
       >
         {detail.progetto.sopralluogo_id && (
@@ -371,7 +375,7 @@ export function StepBom({ progettoId, detail }: Props) {
             disabled={addMut.isPending}
           >
             {addMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Aggiungi a mano
+            Aggiungi voce manuale
           </Button>
         </div>
 
@@ -580,7 +584,7 @@ function SerramentoRow({
   //     s.tipologia_label dal picker quindi e' preferito.
   const tipoLabel = family
     ? (family.nome || s.tipologia_label || s.tipologia)
-    : (SR_TIPOLOGIE_SERRAMENTO.find((t) => t.value === s.tipologia)?.label ?? s.tipologia);
+    : (s.tipologia_label || SR_TIPOLOGIE_SERRAMENTO.find((t) => t.value === s.tipologia)?.label || s.tipologia);
   // Materiale label: per righe da listino legge dalla scheda tecnica della
   // family (`custom_field_values.materiale_profilo`) -> sempre coerente con
   // quello che il commerciale vede nel blocco "Caratteristiche da listino".
@@ -601,11 +605,13 @@ function SerramentoRow({
   // Modalita' prezzo: serve per spiegare all'utente perche' modificando
   // L/A in alcuni casi il prezzo non cambia (es. listino "a pezzo").
   const modalitaPrezzo = family?.modalita_prezzo_base ?? null;
+  const isFromListino = !!family;
+  const isManualCorpo = !family && (s.tipologia === "a_corpo" || /\bA CORPO\b/i.test(s.note ?? ""));
+  const isListinoManualPrice = isFromListino && modalitaPrezzo === "misura_libera";
 
   // Carico griglia listino della family per ricalcolo prezzo on-the-fly su
   // modifica L/A/Q. enabled solo se family esiste con modalità griglia.
   const { data: griglia = [] } = useListinoGriglia(family?.id);
-  const isFromListino = !!family;
   const selectedSupplierProductLineId = s.supplier_product_line_id
     ?? griglia.find((g) => g.id === s.listino_voce_id)?.supplier_product_line_id
     ?? null;
@@ -711,6 +717,10 @@ function SerramentoRow({
       onPatch(patch);
       return;
     }
+    if (isListinoManualPrice) {
+      onPatch(patch);
+      return;
+    }
     const next = { ...s, ...patch };
     const L = next.larghezza_mm ?? null;
     const H = next.altezza_mm ?? null;
@@ -774,17 +784,17 @@ function SerramentoRow({
   return (
     <Card className="border-orange-100">
       <CardHeader className="p-3 hover:bg-orange-50/30">
-        <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
+        <CardTitle className="flex items-start gap-2 text-sm">
           <button
             type="button"
             onClick={onToggle}
-            className="flex items-center gap-2 flex-wrap flex-1 min-w-0 text-left cursor-pointer"
+            className="flex min-w-0 flex-1 cursor-pointer flex-wrap items-start gap-x-2 gap-y-1 text-left"
             aria-expanded={expanded}
           >
             <span className="h-6 w-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-[11px] font-bold shrink-0">
               {index + 1}
             </span>
-            <span className="flex-1 min-w-0">
+            <span className="min-w-[190px] flex-1">
               {/* Breadcrumb: Macrocategoria > Articolo. La macro viene
                   visualizzata in stile pillola/uppercase per gerarchia. */}
               {macroNome && (
@@ -823,7 +833,7 @@ function SerramentoRow({
                 🎁 Omaggio
               </span>
             ) : s.prezzo_totale ? (
-              <span className="font-semibold text-orange-600">{formatEuro(s.prezzo_totale)}</span>
+              <span className="font-semibold text-orange-600 tabular-nums">{formatEuro(s.prezzo_totale)}</span>
             ) : (
               <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">
                 Prezzo da impostare
@@ -882,6 +892,11 @@ function SerramentoRow({
                 a corpo
               </span>
             )}
+            {isManualCorpo && (
+              <span className="text-[9px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5">
+                importo a corpo
+              </span>
+            )}
           </button>
 
           {/* Azioni rapide: duplica + elimina sempre visibili (no toggle) */}
@@ -906,7 +921,7 @@ function SerramentoRow({
         </CardTitle>
       </CardHeader>
       {expanded && (
-        <CardContent className="p-3 pt-0 grid grid-cols-12 gap-2 border-t">
+        <CardContent className="grid grid-cols-12 gap-3 border-t p-3 pt-0 sm:gap-2">
           {/* Tipologia editabile SOLO off-listino. Per le righe da listino
               la "tipologia" coincide con il nome dell'articolo (gia' nella
               riga 1 dell'header) -> il dropdown sarebbe ridondante e
@@ -921,23 +936,13 @@ function SerramentoRow({
             </div>
           ) : (
             <div className="col-span-12 md:col-span-6">
-              <Label className="text-xs">Tipologia</Label>
-              <Select
-                value={s.tipologia}
-                onValueChange={(v) => {
-                  const lbl = SR_TIPOLOGIE_SERRAMENTO.find((t) => t.value === v)?.label;
-                  onPatch({ tipologia: v, tipologia_label: lbl });
-                }}
-              >
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SR_TIPOLOGIE_SERRAMENTO.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">Nome voce manuale</Label>
+              <Input
+                defaultValue={s.tipologia_label ?? ""}
+                onBlur={(e) => onPatch({ tipologia_label: e.target.value.trim() || "Voce manuale" })}
+                placeholder="Es. Fornitura infissi a corpo, Davanzale extra..."
+                className="h-9 text-xs"
+              />
             </div>
           )}
           <div className="col-span-12 md:col-span-6">
@@ -1031,6 +1036,16 @@ function SerramentoRow({
               (aggiunta a mano). Per le righe dal listino, sono già definite
               dalla scheda tecnica e ridondanti. */}
           {!isFromListino && (
+            <div className="col-span-12 -mb-1">
+              <p className="text-[10px] text-indigo-800 bg-indigo-50 border border-indigo-200 rounded px-2 py-1 leading-tight">
+                <span className="font-semibold">{isManualCorpo ? "Importo a corpo:" : "Voce fuori listino:"}</span>{" "}
+                questo prezzo è salvato solo nel preventivo e non modifica il listino aziendale.
+                {!isManualCorpo && " Se vuoi grafica/foto nel PDF, collega una macrocategoria qui sotto."}
+              </p>
+            </div>
+          )}
+
+          {!isFromListino && !isManualCorpo && (
             <>
               {/* Macrocategoria override — permette di collegare un BOM manuale
                   ad una macrocategoria del listino. Nel PDF carica così la foto
@@ -1039,7 +1054,7 @@ function SerramentoRow({
                 value={s.macrocategoria_override_id}
                 onChange={(v) => onPatch({ macrocategoria_override_id: v })}
               />
-              <div className="col-span-6 md:col-span-4">
+              <div className="col-span-12 sm:col-span-6 md:col-span-4">
                 <Label className="text-xs">Materiale</Label>
                 <Select
                   value={s.materiale ?? ""}
@@ -1055,7 +1070,7 @@ function SerramentoRow({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-6 md:col-span-4">
+              <div className="col-span-12 sm:col-span-6 md:col-span-4">
                 <Label className="text-xs">Serie</Label>
                 <Input
                   defaultValue={s.serie ?? ""}
@@ -1108,8 +1123,17 @@ function SerramentoRow({
           {isFromListino && (modalitaPrezzo === "pz" || modalitaPrezzo === "misura_libera") && (
             <div className="col-span-12 -mb-1">
               <p className="text-[10px] text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1">
-                <span className="font-semibold">Prezzo fisso:</span> questo articolo del listino e' venduto {modalitaPrezzo === "pz" ? "a pezzo" : "a corpo"}.
-                Larghezza e altezza sono indicative e non modificano il prezzo unitario.
+                {isListinoManualPrice ? (
+                  <>
+                    <span className="font-semibold">Prezzo manuale:</span> questo articolo nasce dal listino, ma il prezzo vendita si inserisce sul preventivo.
+                    Le misure restano descrittive e non aggiornano l'importo.
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold">Prezzo fisso:</span> questo articolo del listino e' venduto a pezzo.
+                    Larghezza e altezza sono indicative e non modificano il prezzo unitario.
+                  </>
+                )}
               </p>
             </div>
           )}
@@ -1130,67 +1154,87 @@ function SerramentoRow({
               </p>
             </div>
           )}
-          <div className="col-span-4 md:col-span-3">
-            <Label className="text-xs">Largh. (mm)</Label>
-            <Input
-              type="number"
-              key={`L-${s.id}`}
-              defaultValue={s.larghezza_mm ?? ""}
-              onBlur={(e) => handleMisurePatch({ larghezza_mm: e.target.value ? Number(e.target.value) : null })}
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="col-span-4 md:col-span-3">
-            <Label className="text-xs">Altezza (mm)</Label>
-            <Input
-              type="number"
-              key={`H-${s.id}`}
-              defaultValue={s.altezza_mm ?? ""}
-              onBlur={(e) => handleMisurePatch({ altezza_mm: e.target.value ? Number(e.target.value) : null })}
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="col-span-4 md:col-span-2">
-            <Label className="text-xs">Quantità</Label>
-            <Input
-              type="number"
-              min={1}
-              key={`Q-${s.id}`}
-              defaultValue={s.quantita}
-              onBlur={(e) => handleMisurePatch({ quantita: Math.max(1, Number(e.target.value) || 1) })}
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="col-span-12 md:col-span-4">
+          {!isManualCorpo && (
+            <>
+              <div className="col-span-12 sm:col-span-4 md:col-span-3">
+                <Label className="text-xs">Largh. (mm)</Label>
+                <Input
+                  type="number"
+                  key={`L-${s.id}`}
+                  defaultValue={s.larghezza_mm ?? ""}
+                  onBlur={(e) => handleMisurePatch({ larghezza_mm: e.target.value ? Number(e.target.value) : null })}
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="col-span-12 sm:col-span-4 md:col-span-3">
+                <Label className="text-xs">Altezza (mm)</Label>
+                <Input
+                  type="number"
+                  key={`H-${s.id}`}
+                  defaultValue={s.altezza_mm ?? ""}
+                  onBlur={(e) => handleMisurePatch({ altezza_mm: e.target.value ? Number(e.target.value) : null })}
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="col-span-12 sm:col-span-4 md:col-span-2">
+                <Label className="text-xs">Quantità</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  key={`Q-${s.id}`}
+                  defaultValue={s.quantita}
+                  onBlur={(e) => handleMisurePatch({ quantita: Math.max(1, Number(e.target.value) || 1) })}
+                  className="h-9 text-xs"
+                />
+              </div>
+            </>
+          )}
+          <div className={isManualCorpo ? "col-span-12 md:col-span-6" : "col-span-12 md:col-span-4"}>
             <Label className="text-xs flex items-center justify-between">
-              <span>Prezzo unitario (€)</span>
-              {isFromListino && (
+              <span>
+                {isManualCorpo
+                  ? "Importo vendita totale (€)"
+                  : isListinoManualPrice
+                    ? "Prezzo manuale vendita (€)"
+                    : "Prezzo unitario (€)"}
+              </span>
+              {isFromListino && !isListinoManualPrice && (
                 <Badge variant="outline" className="text-[10px] h-4 px-1 border-orange-200 bg-orange-50 text-orange-600">
                   da listino · auto
                 </Badge>
               )}
+              {isListinoManualPrice && (
+                <Badge variant="outline" className="text-[10px] h-4 px-1 border-indigo-200 bg-indigo-50 text-indigo-700">
+                  manuale
+                </Badge>
+              )}
             </Label>
             {/* Prezzo unitario:
-                - off-listino: editabile (commerciale lo definisce a mano)
-                - da listino: READ-ONLY. Cambia solo modificando L/A/Q (la
-                  griglia listino ricalcola). Il commerciale non puo' alterare
-                  i prezzi vendita a mano per coerenza con la marginalita'. */}
+                - off-listino / a corpo: editabile sul singolo preventivo
+                - listino automatico: read-only e ricalcolato da L/A/Q
+                - listino misura_libera: editabile per preventivi senza prezzo
+                  tabellare, ma sempre collegato alla scheda listino. */}
             <Input
               type="number"
               step="0.01"
               key={`P-${s.id}-${s.prezzo_unitario ?? ""}`}
               defaultValue={s.prezzo_unitario ?? ""}
               onBlur={(e) => {
-                if (isFromListino) return; // read-only per listino
-                onPatch({ prezzo_unitario: e.target.value ? Number(e.target.value) : null });
+                if (isFromListino && !isListinoManualPrice) return; // read-only per listino automatico
+                const nextPrice = e.target.value ? Number(e.target.value) : null;
+                if (isManualCorpo) {
+                  onPatch({ prezzo_unitario: nextPrice, quantita: 1 });
+                  return;
+                }
+                onPatch({ prezzo_unitario: nextPrice });
               }}
-              readOnly={isFromListino}
-              tabIndex={isFromListino ? -1 : undefined}
+              readOnly={isFromListino && !isListinoManualPrice}
+              tabIndex={isFromListino && !isListinoManualPrice ? -1 : undefined}
               className={
                 "h-9 text-xs " +
-                (isFromListino ? "bg-slate-50 cursor-not-allowed text-slate-700" : "")
+                (isFromListino && !isListinoManualPrice ? "bg-slate-50 cursor-not-allowed text-slate-700" : "")
               }
-              title={isFromListino
+              title={isFromListino && !isListinoManualPrice
                 ? "Calcolato automaticamente dalla griglia del listino in base a larghezza/altezza/quantita'."
                 : ""}
             />
@@ -1235,7 +1279,7 @@ function SerramentoRow({
               listino il colore appartiene alla scheda tecnica della famiglia. */}
           {!isFromListino && (
             <>
-              <div className="col-span-6 md:col-span-4">
+              <div className="col-span-12 sm:col-span-6 md:col-span-4">
                 <Label className="text-xs">Colore interno</Label>
                 <Input
                   defaultValue={s.colore_interno ?? ""}
@@ -1244,7 +1288,7 @@ function SerramentoRow({
                   className="h-9 text-xs"
                 />
               </div>
-              <div className="col-span-6 md:col-span-4">
+              <div className="col-span-12 sm:col-span-6 md:col-span-4">
                 <Label className="text-xs">Colore esterno</Label>
                 <Input
                   defaultValue={s.colore_esterno ?? ""}
@@ -1332,8 +1376,10 @@ function MacroOverrideSelect({
 // ─── Dialog "Aggiungi a mano" ────────────────────────────────────────────────
 //
 // Form libero per voci off-listino: il commerciale inserisce manualmente
-// nome, descrizione, quantita' e prezzo. Toggle "Omaggio/Regalo" forza il
-// prezzo a 0 e aggiunge marcatore visivo nella riga BOM (badge verde).
+// nome, descrizione, quantita' e prezzo. Supporta due casi distinti:
+// prodotto fuori listino (qta x prezzo unitario) e importo a corpo (totale
+// libero del preventivo). Toggle "Omaggio/Regalo" forza il prezzo a 0 e
+// aggiunge marcatore visivo nella riga BOM (badge verde).
 //
 // Use case tipici:
 //   - "Sostituzione vetro singolo" (servizio one-off)
@@ -1347,6 +1393,7 @@ function ManualAddDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (form: {
+    mode: ManualPricingMode;
     nome: string;
     descrizione: string;
     quantita: number;
@@ -1355,6 +1402,7 @@ function ManualAddDialog({
   }) => void;
   submitting: boolean;
 }) {
+  const [mode, setMode] = useState<ManualPricingMode>("prodotto");
   const [nome, setNome] = useState("");
   const [descrizione, setDescrizione] = useState("");
   const [quantita, setQuantita] = useState("1");
@@ -1371,12 +1419,18 @@ function ManualAddDialog({
   // al prossimo apri).
   useEffect(() => {
     if (!open) {
-      setNome(""); setDescrizione(""); setQuantita("1");
-      setPrezzo(""); setIsOmaggio(false); setCondizioniRegalo("");
+      setMode("prodotto");
+      setNome("");
+      setDescrizione("");
+      setQuantita("1");
+      setPrezzo("");
+      setIsOmaggio(false);
+      setCondizioniRegalo("");
     }
   }, [open]);
 
-  const isValid = nome.trim().length > 0 && Number(quantita) > 0;
+  const quantitaValida = mode === "corpo" || Number(quantita) > 0;
+  const isValid = nome.trim().length > 0 && quantitaValida;
 
   const handleSubmit = () => {
     if (!isValid) return;
@@ -1387,9 +1441,10 @@ function ManualAddDialog({
       ? `Condizioni: ${condizioniRegalo.trim()}${descrizione.trim() ? " · " + descrizione.trim() : ""}`
       : descrizione.trim();
     onSubmit({
+      mode,
       nome: nome.trim(),
       descrizione: descrizioneFinale,
-      quantita: Math.max(1, Number(quantita) || 1),
+      quantita: mode === "corpo" ? 1 : Math.max(1, Number(quantita) || 1),
       prezzo_unitario: isOmaggio ? 0 : (Number(prezzo) || 0),
       isOmaggio,
     });
@@ -1397,25 +1452,61 @@ function ManualAddDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[90dvh] max-w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <Plus className="h-4 w-4 text-orange-600" />
-            Aggiungi voce a mano
+            Aggiungi voce manuale
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Inserisci una voce libera non presente nel listino (es. accessorio
-            extra, servizio aggiuntivo, omaggio commerciale).
+            Usa questa opzione per prodotti fuori listino o preventivi a corpo. Il prezzo resta salvato solo su questo preventivo.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setMode("prodotto")}
+              className={
+                "rounded-md border px-3 py-2 text-left transition-colors " +
+                (mode === "prodotto"
+                  ? "border-orange-300 bg-orange-50 text-orange-900"
+                  : "border-slate-200 bg-white hover:bg-slate-50")
+              }
+            >
+              <span className="flex items-center gap-1.5 text-xs font-semibold">
+                <Package className="h-3.5 w-3.5" /> Prodotto fuori listino
+              </span>
+              <span className="mt-1 block text-[10px] text-muted-foreground">
+                Quantità × prezzo unitario
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("corpo")}
+              className={
+                "rounded-md border px-3 py-2 text-left transition-colors " +
+                (mode === "corpo"
+                  ? "border-indigo-300 bg-indigo-50 text-indigo-950"
+                  : "border-slate-200 bg-white hover:bg-slate-50")
+              }
+            >
+              <span className="flex items-center gap-1.5 text-xs font-semibold">
+                <FileText className="h-3.5 w-3.5" /> Importo a corpo
+              </span>
+              <span className="mt-1 block text-[10px] text-muted-foreground">
+                Totale libero, senza listino
+              </span>
+            </button>
+          </div>
+
           <div>
-            <Label className="text-xs">Nome prodotto / voce *</Label>
+            <Label className="text-xs">{mode === "corpo" ? "Titolo importo a corpo *" : "Nome prodotto / voce *"}</Label>
             <Input
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              placeholder="Es. Davanzale in marmo, Sopralluogo extra…"
+              placeholder={mode === "corpo" ? "Es. Fornitura e posa serramenti a corpo" : "Es. Davanzale in marmo, Sopralluogo extra..."}
               className="h-9"
               autoFocus
             />
@@ -1432,20 +1523,29 @@ function ManualAddDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Quantità *</Label>
-              <Input
-                type="number"
-                min={1}
-                value={quantita}
-                onChange={(e) => setQuantita(e.target.value)}
-                className="h-9"
-              />
-            </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {mode === "prodotto" ? (
+              <div>
+                <Label className="text-xs">Quantità *</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={quantita}
+                  onChange={(e) => setQuantita(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+            ) : (
+              <div>
+                <Label className="text-xs text-muted-foreground">Quantità</Label>
+                <div className="h-9 rounded-md border bg-slate-50 px-3 flex items-center text-xs text-slate-700">
+                  1 importo unico
+                </div>
+              </div>
+            )}
             <div>
               <Label className="text-xs flex items-center justify-between">
-                <span>Prezzo unitario (€)</span>
+                <span>{mode === "corpo" ? "Importo totale (€)" : "Prezzo unitario (€)"}</span>
                 {isOmaggio && <span className="text-[10px] text-emerald-700 font-semibold">In omaggio</span>}
               </Label>
               <Input
@@ -1461,14 +1561,22 @@ function ManualAddDialog({
             </div>
           </div>
 
+          {mode === "corpo" && !isOmaggio && (
+            <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-[11px] text-indigo-900 leading-relaxed">
+              <Euro className="h-3.5 w-3.5 inline mr-1 align-[-2px]" />
+              Perfetto quando l'azienda non ha ancora caricato il listino o vuole quotare una lavorazione unica.
+              Il margine potrà essere verificato meglio quando verranno inseriti costi o listino.
+            </div>
+          )}
+
           {/* Toggle Regalo/Omaggio: forza prezzo a 0, badge dedicato sul BOM.
               Quando attivo si espande con campo "Condizioni regalo" per
               dettagliare l'offerta commerciale (es. "solo con ordine
               > 5000 €", "valido fino al 31/12"). */}
           <div className="rounded-md border border-emerald-200 bg-emerald-50/50 px-3 py-2 space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Gift className="h-4 w-4 text-emerald-700" />
+                <Gift className="h-4 w-4 shrink-0 text-emerald-700" />
                 <div>
                   <p className="text-xs font-semibold text-emerald-900">Regalo / Omaggio</p>
                   <p className="text-[10px] text-emerald-700/80">Prezzo forzato a 0. Comparira' con badge "Omaggio".</p>
@@ -1496,7 +1604,7 @@ function ManualAddDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 items-center sm:items-center">
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:items-center">
           {/* Hint contestuale: spiega all'utente perche' il bottone "Aggiungi"
               e' disabled. Senza, l'utente cliccca senza capire. */}
           {!isValid && (
@@ -1506,13 +1614,13 @@ function ManualAddDialog({
                 : "Quantita' deve essere almeno 1."}
             </p>
           )}
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting} className="w-full sm:w-auto">
             Annulla
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={!isValid || submitting}
-            className="bg-orange-500 hover:bg-orange-600 gap-1"
+            className="w-full gap-1 bg-orange-500 hover:bg-orange-600 sm:w-auto"
           >
             {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Aggiungi
