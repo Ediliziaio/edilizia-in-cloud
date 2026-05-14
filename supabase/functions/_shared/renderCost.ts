@@ -49,7 +49,6 @@ export interface CostCaptureResult {
  *
  * "Attivo" = effective_to IS NULL (open-ended).
  */
-// deno-lint-ignore no-explicit-any
 export async function fetchPricing(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -191,6 +190,32 @@ export function computeGeminiCost(
   };
 }
 
+// ── OpenRouter image: parse header x-or-cost passato dal provider wrapper ───
+
+export function computeOpenRouterImageCost(
+  rawResponse: Record<string, unknown>,
+  pricing: RenderPricing,
+): CostCaptureResult {
+  const costUsd = Number(rawResponse._cost_usd ?? 0);
+  const costEurFromHeader = Number.isFinite(costUsd) && costUsd > 0
+    ? costUsd * 0.92
+    : 0;
+  const cost = costEurFromHeader > 0
+    ? costEurFromHeader
+    : (pricing.fallback_cost_per_call_eur || pricing.price_output_image_eur || 0.039);
+
+  return {
+    cost_eur: Number(cost.toFixed(6)),
+    usage: {
+      openrouter_cost_usd: Number.isFinite(costUsd) ? costUsd : null,
+      cost_is_estimated: Boolean(rawResponse._cost_is_estimated ?? true),
+      raw_usage: (rawResponse.usage as Record<string, unknown>) ?? null,
+    },
+    model: (rawResponse._model_used as string) || pricing.model,
+    request_id: (rawResponse.id as string) || null,
+  };
+}
+
 // ── Dispatch principale ────────────────────────────────────────────────────
 
 /**
@@ -239,6 +264,9 @@ export async function captureRealCost(args: {
     }
     if (providerKey === "gemini") {
       return computeGeminiCost(rawResponse, pricing);
+    }
+    if (providerKey === "openrouter_image") {
+      return computeOpenRouterImageCost(rawResponse, pricing);
     }
 
     // Provider sconosciuto: fallback puro con pricing.fallback_cost_per_call_eur

@@ -9,16 +9,15 @@ const OR_MODELS_URL = "https://openrouter.ai/api/v1/models";
 
 const WHITELIST = new Set([
   "anthropic/claude-sonnet-4",
-  "anthropic/claude-haiku-4",
   "anthropic/claude-sonnet-4.5",
   "anthropic/claude-haiku-4.5",
   "openai/gpt-4o",
   "openai/gpt-4o-mini",
-  "moonshot/kimi-k2",
-  "deepseek/deepseek-v3",
+  "moonshotai/kimi-k2.5",
+  "moonshotai/kimi-k2.6",
   "deepseek/deepseek-chat-v3.1",
-  "google/gemini-flash-2.5",
-  "google/gemini-pro-2.5",
+  "google/gemini-2.5-flash",
+  "google/gemini-2.5-pro",
   "openrouter/auto",
 ]);
 

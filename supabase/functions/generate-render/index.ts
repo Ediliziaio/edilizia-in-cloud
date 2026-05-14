@@ -1,61 +1,55 @@
-// generate-render — Edge Function EiC
-// Render Infissi AI — Multi-Provider (OpenAI / Gemini)
-// NO Lovable Gateway — API keys da platform_settings
-// Prompt Engine v6 completo (ported from Edile Genius)
+// generate-render — Edge Function EiC (REFACTORED 2026-05-14)
+// Render Infissi AI — pipeline unificata via _shared/ai-provider/
+//
+// Cambiamenti rispetto alla versione precedente:
+//   ✓ Eliminata la vecchia fallback chain image legacy
+//   ✓ Eliminato resolveRenderSize duplicato (ora in image.ts)
+//   ✓ Eliminato l'helper legacy di fallback OpenAI (chain ora gestita in image.ts)
+//   ✓ Eliminate fetch dirette a OpenAI/Gemini (tutto via _shared/ai-provider/)
+//   ✓ Validation prima del deduct credito (no più refund inutili)
+//   ✓ Idempotency key (no doppia generazione su doppio click)
+//   ✓ Refund log esplicito (no più catch silenzioso)
+//   ✓ Prompt original salvato separato dal retry
+//   ✓ Logging strutturato JSON
+//   ✓ provider_chain_used tracking
+//
+// Routing:
+//   image edit  → Gemini Nano Banana → OpenAI gpt-image-1.5 → gpt-image-1
+//   QA vision   → Gemini Flash → Claude Haiku → GPT-4o mini
+//
+// NON modifica la pipeline di prompt engineering in shared/render-window/.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
-import { prepareInputImage, pickProviderSize } from "../_shared/renderImage.ts";
+import { prepareInputImage } from "../_shared/renderImage.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
-import { shouldFallbackOpenAIImageEdit } from "../_shared/openaiImageEdit.ts";
+import {
+  deductRenderCreditSafe,
+  refundRenderCreditSafe,
+} from "../_shared/renderCreditDeduct.ts";
+import { editImage } from "../_shared/ai-provider/image.ts";
+import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { buildWindowPrompt } from "../../../shared/render-window/windowPromptBuilder.ts";
 import type { WindowRenderConfig } from "../../../shared/render-window/types.ts";
 
-// ── resolveRenderSize ─────────────────────────────────────────────────────────
-// OpenAI gpt-image-1 / dall-e-2 supportano: 256x256, 512x512, 1024x1024, 1792x1024, 1024x1792
-function resolveRenderSize(w?: number, h?: number): string {
-  if (!w || !h) return "1024x1024";
-  const ratio = w / h;
-  // Landscape (>1.4): 1792x1024
-  if (ratio > 1.4) return "1792x1024";
-  // Portrait (<0.7): 1024x1792
-  if (ratio < 0.7) return "1024x1792";
-  // Square-ish: 1024x1024
-  return "1024x1024";
-}
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
 
-// ── fetchWithTimeout ──────────────────────────────────────────────────────────
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit = {},
-  timeoutMs = 120_000
-): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    return res;
-  } finally {
-    clearTimeout(timer);
-  }
+// ── Helpers logging strutturato ──────────────────────────────────────────────
+function logInfo(args: Record<string, unknown>) {
+  console.log(JSON.stringify({ lvl: "info", fn: "generate-render", ...args }));
 }
-
-// ── fetchWithRetry ───────────────────────────────────────────────────────────
-async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 2000): Promise<Response> {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const res = await fetch(url, options);
-      if (res.ok || i === retries) return res;
-      // Non-ok but retryable (5xx)
-      if (res.status < 500) return res;
-    } catch (err) {
-      if (i === retries) throw err;
-    }
-    await new Promise(r => setTimeout(r, delayMs * (i + 1)));
-  }
-  throw new Error("fetchWithRetry: all retries exhausted");
+function logWarn(args: Record<string, unknown>) {
+  console.warn(JSON.stringify({ lvl: "warn", fn: "generate-render", ...args }));
+}
+function logError(args: Record<string, unknown>) {
+  console.error(
+    JSON.stringify({ lvl: "error", fn: "generate-render", ...args }),
+  );
 }
 
 function uint8ToBase64(uint8: Uint8Array): string {
@@ -67,79 +61,71 @@ function uint8ToBase64(uint8: Uint8Array): string {
   return btoa(binary);
 }
 
-function parseDataUrl(dataUrl: string): { mimeType: string; data: string } {
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (!match) throw new Error("Formato data URL render non valido");
-  return { mimeType: match[1], data: match[2] };
+// ── Idempotency key ──────────────────────────────────────────────────────────
+function stableJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(stableJsonValue);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => [key, stableJsonValue(item)]),
+    );
+  }
+  return value;
 }
 
-async function fetchInlineImageData(url: string): Promise<{ mimeType: string; data: string }> {
-  const resp = await fetchWithTimeout(url, {}, 30_000);
-  if (!resp.ok) throw new Error(`Impossibile leggere immagine per QA: ${resp.status}`);
-  const mimeType = resp.headers.get("content-type")?.split(";")[0]?.trim() || "image/jpeg";
-  const buffer = await resp.arrayBuffer();
-  return { mimeType, data: uint8ToBase64(new Uint8Array(buffer)) };
+async function computeIdempotencyKey(
+  sessionId: string,
+  config: unknown,
+): Promise<string> {
+  const data = new TextEncoder().encode(
+    `${sessionId}:${JSON.stringify(stableJsonValue(config))}`,
+  );
+  const hashBuf = await crypto.subtle.digest("SHA-256", data);
+  const hashArr = Array.from(new Uint8Array(hashBuf));
+  return hashArr.map((b) => b.toString(16).padStart(2, "0")).join("").substring(
+    0,
+    32,
+  );
 }
 
-async function getGeminiQaApiKey(supabase: any): Promise<string> {
-  const envKey = Deno.env.get("GEMINI_API_KEY")?.trim();
-  if (envKey) return envKey;
-
-  const { data: setting } = await supabase
-    .from("platform_settings")
-    .select("value")
-    .eq("key", "render_gemini_api_key")
-    .maybeSingle();
-
-  return typeof setting?.value === "string" ? setting.value.trim() : "";
-}
-
+// ── QA helpers ───────────────────────────────────────────────────────────────
 function getMotorizedManualCleanupTargets(config: WindowRenderConfig): Array<{
   openingId: string;
   openingLabel: string;
   placementNotes: string;
 }> {
   return config.technical_specification.flatMap((spec) => {
-    const opening = config.scene_analysis.openings.find((item) => item.id === spec.openingId);
-    if (!opening || !spec.shutter.isMotorized || (!opening.hasBelt && !opening.hasBeltBox)) return [];
+    const opening = config.scene_analysis.openings.find((item) =>
+      item.id === spec.openingId
+    );
+    if (
+      !opening || !spec.shutter.isMotorized ||
+      (!opening.hasBelt && !opening.hasBeltBox)
+    ) return [];
     return [{
       openingId: opening.id,
       openingLabel: opening.label,
-      placementNotes: opening.beltPlacementNotes || "manual control visible near the opening side wall/reveal",
+      placementNotes: opening.beltPlacementNotes ||
+        "manual control visible near the opening side wall/reveal",
     }];
   });
 }
 
-async function runMotorizedManualCleanupQa(args: {
-  supabase: any;
-  sourceImageUrl: string;
-  candidateImageData: string;
-  normalizedConfig: WindowRenderConfig;
-}): Promise<{
-  checked: boolean;
-  pass: boolean;
-  issues: string[];
-}> {
-  const targets = getMotorizedManualCleanupTargets(args.normalizedConfig);
-  if (targets.length === 0) return { checked: false, pass: true, issues: [] };
-
-  const geminiApiKey = await getGeminiQaApiKey(args.supabase);
-  if (!geminiApiKey) {
-    console.warn("[generate-render] QA skipped: missing GEMINI_API_KEY / render_gemini_api_key");
-    return { checked: false, pass: true, issues: [] };
-  }
-
-  const [sourceImage, candidateImage] = await Promise.all([
-    fetchInlineImageData(args.sourceImageUrl),
-    Promise.resolve(parseDataUrl(args.candidateImageData)),
-  ]);
-
-  const qaPrompt = `Compare TWO IMAGES.
+function buildMotorizedQaPrompt(config: WindowRenderConfig): string {
+  const targets = getMotorizedManualCleanupTargets(config);
+  return `Compare TWO IMAGES.
 Image 1 = SOURCE PHOTO.
 Image 2 = CANDIDATE WINDOW RENDER.
 
 We selected MOTORIZED roller shutters for these target openings:
-${targets.map((target) => `- Opening ${target.openingLabel}: ${target.placementNotes}`).join("\n")}
+${
+    targets.map((t) => `- Opening ${t.openingLabel}: ${t.placementNotes}`).join(
+      "\n",
+    )
+  }
 
 Strict compliance rule:
 - If a shutter is motorized, NO manual control can remain visible.
@@ -148,74 +134,22 @@ Strict compliance rule:
 - Ignore the window hardware itself; evaluate only old shutter manual controls.
 
 Return ONLY JSON:
-{
-  "pass": boolean,
-  "issues": ["short issue 1", "short issue 2"]
-}`;
-
-  const qaResp = await fetchWithRetry(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: qaPrompt },
-            { inline_data: { mime_type: sourceImage.mimeType, data: sourceImage.data } },
-            { inline_data: { mime_type: candidateImage.mimeType, data: candidateImage.data } },
-          ],
-        }],
-        generationConfig: {
-          temperature: 0,
-          responseMimeType: "application/json",
-        },
-      }),
-    },
-  );
-
-  if (!qaResp.ok) {
-    const err = await qaResp.text();
-    console.warn("[generate-render] QA skipped: Gemini response error", qaResp.status, err.substring(0, 300));
-    return { checked: false, pass: true, issues: [] };
-  }
-
-  const qaData = await qaResp.json().catch(() => ({}));
-  const qaText = String(qaData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();
-  if (!qaText) {
-    console.warn("[generate-render] QA skipped: empty Gemini QA text");
-    return { checked: false, pass: true, issues: [] };
-  }
-
-  try {
-    const parsed = JSON.parse(qaText) as { pass?: boolean; issues?: unknown };
-    const issues = Array.isArray(parsed.issues)
-      ? parsed.issues.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-      : [];
-    return {
-      checked: true,
-      pass: parsed.pass !== false,
-      issues,
-    };
-  } catch (error) {
-    console.warn("[generate-render] QA skipped: invalid Gemini QA JSON", error, qaText.substring(0, 300));
-    return { checked: false, pass: true, issues: [] };
-  }
+{"pass": boolean, "issues": ["short issue 1", "short issue 2"]}`;
 }
 
-function buildMotorizedManualCleanupRetryPrompt(
+function buildRetryPrompt(
   basePrompt: string,
-  normalizedConfig: WindowRenderConfig,
+  config: WindowRenderConfig,
   issues: string[],
 ): string {
-  const targets = getMotorizedManualCleanupTargets(normalizedConfig);
-  const targetLines = targets.map((target) =>
-    `- Opening ${target.openingLabel}: remove the entire old manual shutter-control assembly exactly where it appears (${target.placementNotes}).`,
+  const targets = getMotorizedManualCleanupTargets(config);
+  const targetLines = targets.map(
+    (t) =>
+      `- Opening ${t.openingLabel}: remove the entire old manual shutter-control assembly exactly where it appears (${t.placementNotes}).`,
   );
-
-  const issueLines = issues.length > 0
-    ? issues.map((issue) => `- ${issue}`)
-    : ["- The previous render still showed a legacy manual shutter-control element even though motorization was selected."];
+  const issueLines = issues.length > 0 ? issues.map((i) => `- ${i}`) : [
+    "- The previous render still showed a legacy manual shutter-control element even though motorization was selected.",
+  ];
 
   return `${basePrompt}
 
@@ -232,31 +166,34 @@ ${targetLines.join("\n")}
 - Keep the same exact room, geometry, crop, lighting and window proportions. Only fix the leftover manual-control artifact.`;
 }
 
-// ── CORS ──────────────────────────────────────────────────────────────────────
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-// ── Main handler ──────────────────────────────────────────────────────────────
+// ── Main handler ─────────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
   let supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   let user = { id: "" };
   let refundableSessionId: string | null = null;
   let refundableCompanyId: string | null = null;
   let creditDeducted = false;
+  const providerChain: Array<{
+    model: string;
+    attempt: number;
+    ok: boolean;
+    latency_ms?: number;
+    error?: string;
+    provider?: string;
+    provider_attempts?: number;
+  }> = [];
 
   try {
     const auth = await requireAuth(req, CORS);
     supabase = auth.supabaseAdmin;
     user = { id: auth.userId };
 
-    // ── Parse request ───────────────────────────────────────────────────────
+    // ── Parse request ─────────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
     const { session_id, config, target_width, target_height } = body as {
       session_id?: string;
@@ -267,13 +204,18 @@ Deno.serve(async (req) => {
 
     if (!session_id) {
       return new Response(
-        JSON.stringify({ error: "validation_error", message: "session_id is required" }),
-        { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
+        JSON.stringify({
+          error: "validation_error",
+          message: "session_id is required",
+        }),
+        {
+          status: 400,
+          headers: { ...CORS, "Content-Type": "application/json" },
+        },
       );
     }
     refundableSessionId = session_id;
 
-    // ── Legge la sessione ───────────────────────────────────────────────────
     const { data: session, error: sessionErr } = await supabase
       .from("render_sessions")
       .select("*")
@@ -283,16 +225,14 @@ Deno.serve(async (req) => {
     if (sessionErr || !session) {
       return new Response(
         JSON.stringify({ error: "not_found", message: "Sessione non trovata" }),
-        { status: 404, headers: { ...CORS, "Content-Type": "application/json" } }
+        {
+          status: 404,
+          headers: { ...CORS, "Content-Type": "application/json" },
+        },
       );
     }
     refundableCompanyId = session.company_id as string;
 
-    // FIX P1.3: verifica tenant access tramite helper impersonation-aware.
-    // L'helper considera: (a) super_admin → accesso globale, (b) impersonation
-    // attiva in active_impersonations, (c) fallback profiles.company_id.
-    // Il vecchio pattern basato solo su profiles.company_id bloccava i
-    // superadmin che lavoravano in impersonazione.
     const allowed = await canAccessCompany(
       supabase,
       user.id,
@@ -300,43 +240,146 @@ Deno.serve(async (req) => {
     );
     if (!allowed) {
       return new Response(
-        JSON.stringify({ error: "forbidden", message: "Accesso negato alla sessione render" }),
-        { status: 403, headers: { ...CORS, "Content-Type": "application/json" } }
+        JSON.stringify({
+          error: "forbidden",
+          message: "Accesso negato alla sessione render",
+        }),
+        {
+          status: 403,
+          headers: { ...CORS, "Content-Type": "application/json" },
+        },
       );
     }
 
-    // ── Controlla e deduce crediti (v3: audit ledger + FIFO revenue tracking) ──
-    // Helper shared: prova v3 → v2 → v1 per backward-compat con ambienti
-    // pre-migrazione. v3 scrive render_credit_ledger con session_id + user_id.
+    // ── Build prompt + validate PRIMA del deduct credito ──────────────────
+    const rawConfig =
+      (config || (session.config as Record<string, unknown>) || {}) as Record<
+        string,
+        unknown
+      >;
+    const {
+      systemPrompt,
+      userPrompt,
+      negativePrompt,
+      promptVersion,
+      blocks,
+      validation,
+      normalizedConfig,
+    } = buildWindowPrompt(
+      rawConfig,
+      (session as Record<string, unknown>).foto_analisi || {},
+    );
+
+    if (!validation.isValid) {
+      logWarn({
+        session_id,
+        msg: "prompt_validation_failed_pre_deduct",
+        missing_sections: validation.missingSections,
+        missing_rules: validation.missingBusinessRules,
+      });
+      return new Response(
+        JSON.stringify({
+          error: "validation_error",
+          message: `Configurazione render incompleta: ${
+            validation.missingSections.join(", ") || "regole business mancanti"
+          }`,
+        }),
+        {
+          status: 400,
+          headers: { ...CORS, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // ── Idempotency check ─────────────────────────────────────────────────
+    const idempotencyKey = await computeIdempotencyKey(session_id, rawConfig);
+    if (
+      session.idempotency_key === idempotencyKey &&
+      session.status === "completed" &&
+      Array.isArray(session.result_urls) &&
+      session.result_urls.length > 0
+    ) {
+      logInfo({
+        session_id,
+        msg: "idempotent_cached_result",
+        idempotency_key: idempotencyKey,
+      });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          session_id,
+          result_url: session.result_urls[0],
+          cached: true,
+          prompt_version: session.prompt_version ?? promptVersion,
+        }),
+        {
+          status: 200,
+          headers: { ...CORS, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // ── Deduct crediti ────────────────────────────────────────────────────
     const deductResult = await deductRenderCreditSafe(supabase, {
       companyId: session.company_id as string,
       sessionId: session_id,
-      userId:    user.id,
+      userId: user.id,
       reasonMeta: { vertical: "infissi", edge_fn: "generate-render" },
-      logTag:    "generate-render",
+      logTag: "generate-render",
     });
 
     if (deductResult.status === "insufficient") {
       return new Response(
-        JSON.stringify({ error: "insufficient_credits", message: "Crediti render insufficienti" }),
-        { status: 402, headers: { ...CORS, "Content-Type": "application/json" } }
+        JSON.stringify({
+          error: "insufficient_credits",
+          message: "Crediti render insufficienti",
+        }),
+        {
+          status: 402,
+          headers: { ...CORS, "Content-Type": "application/json" },
+        },
       );
     }
     creditDeducted = true;
-
     const revenueEur = deductResult.revenue_eur;
     const purchaseId = deductResult.purchase_id;
 
-    // ── Aggiorna sessione: processing ───────────────────────────────────────
-    await supabase
-      .from("render_sessions")
-      .update({ status: "processing", processing_started_at: new Date().toISOString() })
-      .eq("id", session_id);
+    // ── Marca sessione processing + idempotency ──────────────────────────
+    const originalPrompt = [
+      systemPrompt,
+      userPrompt,
+      `[NEGATIVE CONSTRAINTS]\n${negativePrompt}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
-    // ── Prepara immagine input (resize server-side A4) ──────────────────────
-    // target_width/target_height sono gli hint originali dal client (foto iPhone,
-    // upload utente). Se > 1600 lato lungo, applichiamo Supabase transform per
-    // ridurre input tokens e costo API (enorme risparmio).
+    const processingUpdate = await supabase
+      .from("render_sessions")
+      .update({
+        status: "processing",
+        processing_started_at: new Date().toISOString(),
+        idempotency_key: idempotencyKey,
+        prompt_original: originalPrompt,
+        prompt_version: promptVersion,
+      })
+      .eq("id", session_id);
+    if (processingUpdate.error) {
+      logWarn({
+        session_id,
+        msg: "processing_update_extended_columns_failed_fallback",
+        error: processingUpdate.error.message,
+      });
+      await supabase
+        .from("render_sessions")
+        .update({
+          status: "processing",
+          processing_started_at: new Date().toISOString(),
+          prompt_version: promptVersion,
+        })
+        .eq("id", session_id);
+    }
+
+    // ── Prepara immagine input ───────────────────────────────────────────
     const originalPath = session.original_photo_url as string;
     const prepared = await prepareInputImage({
       supabase,
@@ -347,214 +390,92 @@ Deno.serve(async (req) => {
     });
     const imageUrl = prepared.url;
 
-    // ── Build prompt v7 ─────────────────────────────────────────────────────
-    const rawConfig = (config || (session.config as Record<string, unknown>) || {}) as Record<string, unknown>;
-    const {
-      systemPrompt,
-      userPrompt,
-      negativePrompt,
-      promptVersion,
-      blocks,
-      validation,
-      normalizedConfig,
-    } = buildWindowPrompt(rawConfig, (session as Record<string, unknown>).foto_analisi || {});
-    let composedPrompt = [systemPrompt, userPrompt, `[NEGATIVE CONSTRAINTS]\n${negativePrompt}`]
-      .filter(Boolean)
-      .join("\n\n");
-
-    if (!validation.isValid) {
-      throw new Error(
-        `Prompt render infissi non valido: sections=${validation.missingSections.join(", ") || "none"}; rules=${validation.missingBusinessRules.join(", ") || "none"}`,
-      );
+    // Scarica blob foto sorgente per passarlo al provider
+    const imgResp = await fetch(imageUrl, {
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!imgResp.ok) {
+      throw new Error(`Impossibile scaricare foto sorgente: ${imgResp.status}`);
     }
+    const sourceBlob = await imgResp.blob();
 
-    // ── Legge provider config e API key ─────────────────────────────────────
-    const { data: providerConfig } = await supabase
-      .from("render_provider_config")
-      .select("*")
-      .eq("is_default", true)
-      .eq("is_active", true)
-      .single();
-
-    if (!providerConfig) {
-      throw new Error("Nessun provider render attivo. Configurare in Admin > Impostazioni AI > Render.");
-    }
-
-    const platformKeyName = `render_${providerConfig.provider_key}_api_key`;
-    const { data: keyRow } = await supabase
-      .from("platform_settings")
-      .select("value")
-      .eq("key", platformKeyName)
-      .maybeSingle();
-
-    // Fallback chain: DB platform_settings → Supabase edge function secret (env)
-    // Env names:  OPENAI_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY
-    const envName = `${providerConfig.provider_key.toUpperCase()}_API_KEY`;
-    const apiKey =
-      (keyRow as { value: string } | null)?.value?.trim() ||
-      Deno.env.get(envName)?.trim() ||
-      "";
-    if (!apiKey) {
-      throw new Error(
-        `API key mancante per provider '${providerConfig.provider_key}'.` +
-        ` Configurarla in Admin > Impostazioni AI > Render o come Supabase secret ${envName}.`
-      );
-    }
-
-    // ── Chiama il provider AI ───────────────────────────────────────────────
-    const renderSize = pickProviderSize(
-      prepared.effective_width,
-      prepared.effective_height,
-      "openai",
-    ) ?? resolveRenderSize(target_width, target_height);
-
-    const generateCandidate = async (promptText: string): Promise<{
-      imageData: string;
-      providerRawResponse: Record<string, unknown>;
-    }> => {
-      let imageData: string | null = null;
-      let providerRawResponse: Record<string, unknown> = {};
-
-      if (providerConfig.provider_key === "openai") {
-        const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
-        const imgBlob = await imgResp.blob();
-
-        const buildForm = (modelName: string) => {
-          const form = new FormData();
-          form.append("model", modelName);
-          form.append("prompt", promptText);
-          if (modelName === "dall-e-2") {
-            form.append("image", imgBlob, "photo.png");
-          } else {
-            form.append("image[]", imgBlob, "photo.jpg");
-          }
-          form.append("n", "1");
-          form.append("size", modelName === "dall-e-2" ? "1024x1024" : renderSize);
-          if (modelName === "dall-e-2") {
-            form.append("response_format", "b64_json");
-          }
-          return form;
-        };
-
-        const modelChain = [providerConfig.model || "gpt-image-1"];
-        if (modelChain[0] !== "dall-e-2") modelChain.push("dall-e-2");
-
-        let resp: Response | null = null;
-        let lastErr = "";
-        let modelUsed = providerConfig.model;
-        for (const m of modelChain) {
-          const r = await fetchWithRetry(
-            "https://api.openai.com/v1/images/edits",
-            {
-              method: "POST",
-              headers: { Authorization: `Bearer ${apiKey}` },
-              body: buildForm(m),
-            },
-          );
-          if (r.ok) {
-            resp = r;
-            modelUsed = m;
-            break;
-          }
-          const txt = await r.text();
-          lastErr = `OpenAI error ${r.status}: ${txt.substring(0, 300)}`;
-          const isModelAccessIssue = shouldFallbackOpenAIImageEdit(r.status, txt);
-          if (!isModelAccessIssue) throw new Error(lastErr);
-        }
-        if (!resp) throw new Error(lastErr || "OpenAI: tutti i model tentati sono falliti");
-
-        const oaiData = await resp.json();
-        providerRawResponse = { ...oaiData, _model_used: modelUsed } as Record<string, unknown>;
-        const b64 = oaiData.data?.[0]?.b64_json;
-        if (b64) imageData = `data:image/png;base64,${b64}`;
-      } else if (providerConfig.provider_key === "gemini") {
-        const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
-        const imgBuffer = await imgResp.arrayBuffer();
-        const imgB64 = uint8ToBase64(new Uint8Array(imgBuffer));
-
-        const geminiBody = {
-          contents: [{
-            parts: [
-              { text: promptText },
-              { inline_data: { mime_type: "image/jpeg", data: imgB64 } },
-            ],
-          }],
-          generationConfig: {
-            responseModalities: ["IMAGE", "TEXT"],
-            temperature: 1,
-          },
-        };
-
-        const geminiUrl = `${providerConfig.api_endpoint}/${providerConfig.model}:generateContent?key=${apiKey}`;
-        const resp = await fetchWithRetry(
-          geminiUrl,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(geminiBody),
-          },
-        );
-
-        if (!resp.ok) {
-          const err = await resp.text();
-          throw new Error(`Gemini error ${resp.status}: ${err.substring(0, 300)}`);
-        }
-
-        const gemData = await resp.json();
-        providerRawResponse = gemData as Record<string, unknown>;
-        const parts = gemData.candidates?.[0]?.content?.parts ?? [];
-        for (const part of parts) {
-          if (part.inlineData?.mimeType?.startsWith("image/")) {
-            imageData = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-            break;
-          }
-        }
-      } else {
-        throw new Error(
-          `Provider '${providerConfig.provider_key}' non supportato. Selezionare OpenAI o Gemini.`
-        );
-      }
-
-      if (!imageData) {
-        throw new Error("Nessuna immagine ricevuta dal provider AI");
-      }
-
-      return { imageData, providerRawResponse };
+    // ── Genera candidate render ──────────────────────────────────────────
+    const generateCandidate = async (promptText: string) => {
+      const result = await editImage({
+        prompt: promptText,
+        sourceImageBlob: sourceBlob,
+        effectiveWidth: prepared.effective_width ?? undefined,
+        effectiveHeight: prepared.effective_height ?? undefined,
+        negativePrompt,
+        timeoutMs: 180_000,
+        metadata: {
+          task_kind: "render_image_edit",
+          company_id: session.company_id as string,
+          session_id,
+        },
+      });
+      providerChain.push({
+        model: result.modelUsed,
+        attempt: providerChain.length + 1,
+        ok: true,
+        latency_ms: result.latencyMs,
+        provider: result.providerUsed,
+        provider_attempts: result.attempts,
+      });
+      return result;
     };
 
+    let composedPrompt = originalPrompt;
+    let candidate = await generateCandidate(composedPrompt);
     let generationAttempts = 1;
-    let { imageData, providerRawResponse } = await generateCandidate(composedPrompt);
 
-    const qaResult = await runMotorizedManualCleanupQa({
-      supabase,
-      sourceImageUrl: imageUrl,
-      candidateImageData: imageData,
-      normalizedConfig,
-    });
+    // ── QA Vision: shutter motorizzata → verifica rimozione cinghia ─────
+    const motorizedTargets = getMotorizedManualCleanupTargets(normalizedConfig);
+    if (motorizedTargets.length > 0) {
+      // Costruisci data URL della foto sorgente per il QA
+      const sourceBuf = await sourceBlob.arrayBuffer();
+      const sourceB64 = uint8ToBase64(new Uint8Array(sourceBuf));
+      const sourceMime = sourceBlob.type || "image/jpeg";
 
-    if (qaResult.checked && !qaResult.pass) {
-      generationAttempts += 1;
-      composedPrompt = buildMotorizedManualCleanupRetryPrompt(
-        composedPrompt,
-        normalizedConfig,
-        qaResult.issues,
-      );
-      const retried = await generateCandidate(composedPrompt);
-      imageData = retried.imageData;
-      providerRawResponse = retried.providerRawResponse;
+      const qaResult = await callVisionQa({
+        sourceImageDataUrl: `data:${sourceMime};base64,${sourceB64}`,
+        candidateImageDataUrl: candidate.imageDataUrl,
+        qaPrompt: buildMotorizedQaPrompt(normalizedConfig),
+        metadata: {
+          task_kind: "render_image_qa",
+          company_id: session.company_id as string,
+          session_id,
+        },
+      });
+
+      if (qaResult.checked && !qaResult.pass) {
+        logInfo({
+          session_id,
+          msg: "qa_failed_retry_corrective",
+          issues: qaResult.issues,
+        });
+        composedPrompt = buildRetryPrompt(
+          composedPrompt,
+          normalizedConfig,
+          qaResult.issues,
+        );
+        candidate = await generateCandidate(composedPrompt);
+        generationAttempts = 2;
+      }
     }
 
-    // ── Upload risultato su Storage ─────────────────────────────────────────
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
+    // ── Upload risultato su Storage ──────────────────────────────────────
+    const base64Data = candidate.imageDataUrl.replace(
+      /^data:image\/\w+;base64,/,
+      "",
+    );
     const uint8 = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-    const resultPath = `${session.company_id}/${session_id}/render_${Date.now()}.png`;
+    const resultPath =
+      `${session.company_id}/${session_id}/render_${Date.now()}.png`;
 
     const { error: uploadErr } = await supabase.storage
       .from("render-results")
-      .upload(resultPath, uint8, {
-        contentType: "image/png",
-        upsert: true,
-      });
+      .upload(resultPath, uint8, { contentType: "image/png", upsert: true });
 
     if (uploadErr) {
       throw new Error(`Errore upload risultato: ${uploadErr.message}`);
@@ -563,88 +484,107 @@ Deno.serve(async (req) => {
     const { data: publicUrlData } = supabase.storage
       .from("render-results")
       .getPublicUrl(resultPath);
-
     const resultUrl = publicUrlData.publicUrl;
 
-    // ── Capture costo reale API (B2) ────────────────────────────────────────
-    // Provo a leggere il pricing da render_provider_pricing (migration B1).
-    // Se fallisce (pricing non definito / parsing response errato), fallback
-    // su legacy providerConfig.cost_real_per_render.
-    const legacyCostReal = Number(providerConfig.cost_real_per_render ?? 0.04);
+    // ── Capture costo reale ──────────────────────────────────────────────
+    const providerKey = candidate.providerUsed === "openrouter"
+      ? "openrouter_image"
+      : "openai";
+    const providerRawResponse = {
+      ...candidate.rawResponse,
+      _provider_used: candidate.providerUsed,
+      _model_used: candidate.modelUsed,
+      _cost_usd: candidate.costUsd ?? null,
+      _cost_is_estimated: candidate.costIsEstimated,
+      _latency_ms: candidate.latencyMs,
+    };
     const capture = await captureRealCost({
       supabase,
-      providerKey: providerConfig.provider_key,
-      model: providerConfig.model,
+      providerKey,
+      model: candidate.modelUsed,
       rawResponse: providerRawResponse,
-      legacyFallbackEur: legacyCostReal,
+      legacyFallbackEur: candidate.costUsd
+        ? candidate.costUsd * 0.92 // USD→EUR approx
+        : 0.039,
     });
 
-    // ── Aggiorna render_sessions: completed ─────────────────────────────────
     const costReal = capture.cost_eur * generationAttempts;
-    const costBilled = providerConfig.cost_billed_per_render ?? 0.10;
+    const { data: providerConfig } = await supabase
+      .from("render_provider_config")
+      .select("id, cost_billed_per_render, renders_generated")
+      .eq("provider_key", providerKey)
+      .maybeSingle();
+    const costBilled = Number(providerConfig?.cost_billed_per_render ?? 0.156);
+
+    // ── Aggiorna render_sessions: completed ──────────────────────────────
     const activeConfig = normalizedConfig as unknown as Record<string, unknown>;
     const ni = (activeConfig?.nuovo_infisso as Record<string, unknown>) || {};
 
-    // Update in due fasi per essere robusto se migration economics non
-    // ancora applicata (retrocompat deploy order-independent).
-    const legacyUpdate = {
+    const baseCompletedUpdate = {
       status: "completed",
       result_urls: [resultUrl],
       prompt_used: composedPrompt,
       prompt_blocks: blocks,
       prompt_version: promptVersion,
       prompt_char_count: composedPrompt.length,
-      provider_key: providerConfig.provider_key,
+      provider_key: providerKey,
       cost_real: costReal,
       cost_billed: costBilled,
       config_snapshot: activeConfig,
       processing_completed_at: new Date().toISOString(),
     };
 
+    const extendedCompletedUpdate = {
+      ...baseCompletedUpdate,
+      prompt_retried: generationAttempts > 1,
+      provider_chain_used: providerChain,
+    };
+
     const economicsUpdate = {
       cost_real_api: costReal,
       revenue_eur: revenueEur,
       provider_usage: capture.usage,
-      provider_model: capture.model,
+      provider_model: candidate.modelUsed,
       provider_request_id: capture.request_id,
       vertical: "infissi",
       meta: {
         purchase_id: purchaseId,
         input_image: prepared.meta,
         generation_attempts: generationAttempts,
-        provider_size_used: providerConfig.provider_key === "openai"
-          ? (pickProviderSize(prepared.effective_width, prepared.effective_height, "openai") ?? null)
-          : null,
+        provider_used: candidate.providerUsed,
+        provider_key: providerKey,
       },
     };
 
-    // Prova prima con tutti i campi. Se fallisce (migration non applicata),
-    // retry solo legacy — l'update legacy è garantito dallo schema esistente.
     const fullUpdate = await supabase
       .from("render_sessions")
-      .update({ ...legacyUpdate, ...economicsUpdate })
+      .update({ ...extendedCompletedUpdate, ...economicsUpdate })
       .eq("id", session_id);
 
     if (fullUpdate.error) {
-      console.warn(
-        "[generate-render] economics columns missing, fallback to legacy update:",
-        fullUpdate.error.message
+      logWarn({
+        session_id,
+        msg: "economics_columns_missing_fallback_legacy",
+        error: fullUpdate.error.message,
+      });
+      await supabase.from("render_sessions").update(baseCompletedUpdate).eq(
+        "id",
+        session_id,
       );
-      await supabase
-        .from("render_sessions")
-        .update(legacyUpdate)
-        .eq("id", session_id);
     }
 
-    // ── Incrementa contatore provider ───────────────────────────────────────
-    await supabase
-      .from("render_provider_config")
-      .update({ renders_generated: (providerConfig.renders_generated ?? 0) + 1 })
-      .eq("id", providerConfig.id);
+    if (providerConfig?.id) {
+      await supabase
+        .from("render_provider_config")
+        .update({
+          renders_generated: Number(providerConfig.renders_generated ?? 0) + 1,
+        })
+        .eq("id", providerConfig.id);
+    }
 
-    // ── Inserisce in render_gallery ─────────────────────────────────────────
-    const tagMat = (ni.materiale as string) || (activeConfig?.materiale as string) || null;
-    const tagCol = ((ni.colore as Record<string, string>)?.nome) || (activeConfig?.colore as string) || null;
+    // ── Inserisce in render_gallery ──────────────────────────────────────
+    const tagMat = (ni.materiale as string) || null;
+    const tagCol = ((ni.colore as Record<string, string>)?.nome) || null;
     await supabase.from("render_gallery").insert({
       company_id: session.company_id,
       session_id,
@@ -655,47 +595,98 @@ Deno.serve(async (req) => {
       tags: [tagMat, tagCol].filter(Boolean),
     });
 
+    logInfo({
+      session_id,
+      msg: "render_completed",
+      provider: candidate.providerUsed,
+      provider_key: providerKey,
+      model: candidate.modelUsed,
+      attempts: generationAttempts,
+      cost_real_eur: costReal,
+    });
+
     return new Response(
       JSON.stringify({
         success: true,
         session_id,
         result_url: resultUrl,
-        provider: providerConfig.provider_key,
+        provider: candidate.providerUsed,
+        model: candidate.modelUsed,
+        attempts: generationAttempts,
         cost_billed: costBilled,
         prompt_version: promptVersion,
         prompt_char_count: composedPrompt.length,
       }),
-      { status: 200, headers: { ...CORS, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
     );
-
   } catch (err: unknown) {
     if (err instanceof Response) return err;
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[generate-render] error:", msg);
+    logError({
+      session_id: refundableSessionId,
+      msg: "render_failed",
+      error: msg,
+    });
 
-    try {
-      const body2 = await req.clone().json().catch(() => ({}));
-      const sid = (body2 as { session_id?: string }).session_id;
-      if (sid) {
-        if (creditDeducted && refundableCompanyId && refundableSessionId) {
-          await refundRenderCreditSafe(supabase, {
-            companyId: refundableCompanyId,
-            sessionId: refundableSessionId,
-            userId: user.id,
-            reasonMeta: { vertical: "infissi", edge_fn: "generate-render", error: msg.substring(0, 500) },
-            logTag: "generate-render",
-          });
-        }
-        await supabase
-          .from("render_sessions")
-          .update({ status: "failed", error_message: msg })
-          .eq("id", sid);
+    if (creditDeducted && refundableCompanyId && refundableSessionId) {
+      try {
+        await refundRenderCreditSafe(supabase, {
+          companyId: refundableCompanyId,
+          sessionId: refundableSessionId,
+          userId: user.id,
+          reasonMeta: {
+            vertical: "infissi",
+            edge_fn: "generate-render",
+            error: msg.substring(0, 500),
+          },
+          logTag: "generate-render",
+        });
+        logInfo({ session_id: refundableSessionId, msg: "credit_refunded_ok" });
+      } catch (refundErr) {
+        logError({
+          session_id: refundableSessionId,
+          msg: "refund_failed",
+          error: String(refundErr),
+        });
       }
-    } catch { /* ignore */ }
+    }
+
+    if (refundableSessionId) {
+      try {
+        const failedUpdate = await supabase
+          .from("render_sessions")
+          .update({
+            status: "failed",
+            error_message: msg,
+            provider_chain_used: providerChain,
+          })
+          .eq("id", refundableSessionId);
+        if (failedUpdate.error) {
+          logWarn({
+            session_id: refundableSessionId,
+            msg: "failed_update_extended_columns_failed_fallback",
+            error: failedUpdate.error.message,
+          });
+          await supabase
+            .from("render_sessions")
+            .update({
+              status: "failed",
+              error_message: msg,
+            })
+            .eq("id", refundableSessionId);
+        }
+      } catch (updateErr) {
+        logError({
+          session_id: refundableSessionId,
+          msg: "session_update_failed",
+          error: String(updateErr),
+        });
+      }
+    }
 
     return new Response(
       JSON.stringify({ error: "render_failed", message: msg }),
-      { status: 500, headers: { ...CORS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CORS, "Content-Type": "application/json" } },
     );
   }
 });

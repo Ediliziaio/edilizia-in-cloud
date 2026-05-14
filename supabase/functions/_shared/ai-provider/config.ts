@@ -58,7 +58,7 @@ export async function resolveModelConfig(
   // 3. Emergency hardcoded
   return {
     primary_model: "openai/gpt-4o-mini",
-    fallback_chain: ["anthropic/claude-haiku-4"],
+    fallback_chain: ["anthropic/claude-haiku-4.5"],
     max_cost_usd_per_call: 0.2,
     temperature: 0.5,
     max_tokens: 800,

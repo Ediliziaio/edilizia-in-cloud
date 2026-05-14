@@ -11,14 +11,17 @@ export type TaskKind =
   | "computo_metrico"
   | "bank_categorize"
   | "chat_routine"
+  | "render_image_edit"
+  | "render_scene_analysis"
+  | "render_image_qa"
   | "default";
 
 export type ChatMessageContentPart =
   | { type: "text"; text: string }
   | {
-      type: "image_url";
-      image_url: { url: string; detail?: "low" | "high" | "auto" };
-    };
+    type: "image_url";
+    image_url: { url: string; detail?: "low" | "high" | "auto" };
+  };
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";

@@ -6,7 +6,7 @@
 // {
 //   "task_kind": "bot_operativo_operaio",
 //   "messages": [{ "role": "user", "content": "Ciao" }],
-//   "model_override": "anthropic/claude-haiku-4"   // opzionale, per A/B
+//   "model_override": "anthropic/claude-haiku-4.5" // opzionale, per A/B
 // }
 
 import { getCorsHeaders } from "../_shared/headers.ts";
