@@ -254,7 +254,17 @@ Re-render the new window with all corrections applied. The output must pass all 
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
+// v8.4.3 — Budget tempo totale edge function (Supabase Edge cap = 150s free).
+// Riserviamo 130s al lavoro, 20s di margine per upload + DB updates.
+const TOTAL_BUDGET_MS = 130_000;
+// Se elapsed > QA_RETRY_BUDGET_MS, saltiamo il retry corrective (consegniamo
+// il primo render anche se imperfetto). L'utente può rigenerare se vuole.
+const QA_RETRY_BUDGET_MS = 90_000;
+
 Deno.serve(async (req) => {
+  const requestStartMs = Date.now();
+  const elapsed = () => Date.now() - requestStartMs;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
   let supabase = createClient(
@@ -576,7 +586,11 @@ Deno.serve(async (req) => {
           effectiveWidth: prepared.effective_width ?? undefined,
           effectiveHeight: prepared.effective_height ?? undefined,
           negativePrompt,
-          timeoutMs: 180_000,
+          // v8.4.3 — Timeout per-provider 180s → 75s.
+          // Supabase Edge Function ha cap 150s (free tier). Con 180s un singolo
+          // provider lento può consumare TUTTO il budget. Con 75s, se Tier 1
+          // non risponde, fallback rapido a Tier 2 entro 30-60s extra.
+          timeoutMs: 75_000,
           metadata: {
             task_kind: "render_image_edit",
             company_id: session.company_id as string,
@@ -674,13 +688,20 @@ Deno.serve(async (req) => {
       }
       qaIssuesForLog = parsedIssues;
 
-      if (qaResult.checked && !qaResult.pass && parsedIssues.length > 0) {
+      // v8.4.3 — Budget time-aware: il retry corrective consuma altri 30-60s.
+      // Se siamo gia' oltre QA_RETRY_BUDGET_MS (90s), saltiamo il retry e
+      // consegniamo il primo render anche se imperfetto. Evita il kill a 150s.
+      const elapsedNow = elapsed();
+      const canRetry = elapsedNow < QA_RETRY_BUDGET_MS;
+
+      if (qaResult.checked && !qaResult.pass && parsedIssues.length > 0 && canRetry) {
         logInfo({
           session_id,
           msg: "qa_failed_retry_corrective",
           qa_model: qaResult.modelUsed,
           issue_categories: parsedIssues.map((i) => i.category),
           issues_count: parsedIssues.length,
+          elapsed_ms: elapsedNow,
         });
         composedPrompt = buildRetryPrompt(
           composedPrompt,
@@ -689,6 +710,17 @@ Deno.serve(async (req) => {
         );
         candidate = await generateCandidate(composedPrompt);
         generationAttempts = 2;
+      } else if (qaResult.checked && !qaResult.pass && parsedIssues.length > 0 && !canRetry) {
+        // QA fail ma siamo a corto di tempo. Logging speciale: consegniamo
+        // primo render con issue note per audit, ma non rilanciamo.
+        logWarn({
+          session_id,
+          msg: "qa_failed_retry_skipped_budget_exhausted",
+          qa_model: qaResult.modelUsed,
+          issue_categories: parsedIssues.map((i) => i.category),
+          elapsed_ms: elapsedNow,
+          budget_ms: QA_RETRY_BUDGET_MS,
+        });
       } else if (qaResult.checked && qaResult.pass) {
         logInfo({
           session_id,
@@ -812,6 +844,9 @@ Deno.serve(async (req) => {
         qa_issue_categories: qaIssuesForLog.map((i) => i.category),
         qa_issues_count: qaIssuesForLog.length,
         qa_retried: generationAttempts > 1,
+        // v8.4.3 — Tempo totale processing (server-side) per audit budget
+        total_processing_ms: elapsed(),
+        budget_ms: TOTAL_BUDGET_MS,
       },
     };
 

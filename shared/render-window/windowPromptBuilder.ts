@@ -673,7 +673,7 @@ Before generating, mentally check: "Am I about to commit any of the 7 failures a
       "cassonetto with embossed wood grain when smooth PVC is specified, " +
       "old cassonetto front cover with visible old screws or hinges, " +
       "sloped or projecting cassonetto front (must be flat flush sheet)",
-    promptVersion: "8.3.8",
+    promptVersion: "8.4.3",
     blocks,
     validation,
     normalizedConfig,
