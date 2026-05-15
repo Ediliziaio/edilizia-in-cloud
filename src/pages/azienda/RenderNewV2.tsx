@@ -146,20 +146,14 @@ export default function RenderNewV2() {
   const [photoMeta, setPhotoMeta] = useState<WindowPhotoMeta | null>(null);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  // v8.4 — persistenza wizard state in sessionStorage:
-  // refresh durante il wizard non perde piu' le scelte (tipo/profilo/colori).
-  // Solo la foto File non e' serializzabile e va ricaricata se l'utente
-  // refresha (preview/photoPath possono essere ricreati da photoPath).
-  const [state, setState] = useState<WizardState>(() => {
-    if (typeof window === "undefined") return INITIAL_STATE;
-    try {
-      const saved = sessionStorage.getItem("render-wizard-state");
-      if (saved) return { ...INITIAL_STATE, ...JSON.parse(saved) };
-    } catch {
-      // sessionStorage non disponibile (Safari private mode) o JSON corrotto
-    }
-    return INITIAL_STATE;
-  });
+  // v8.5.7 — Rimossa persistenza wizard state in sessionStorage (era v8.4).
+  // Causava bug UX: quando l'utente apriva il render, vedeva pre-selezionate
+  // le scelte del render PRECEDENTE (colore/aperture/maniglia ecc).
+  // Trade-off accettato: F5 dentro al wizard perde le scelte (e perderebbe
+  // comunque la foto File non serializzabile). Ogni nuovo render parte pulito.
+  // Per ripristinare la persistenza in futuro serve un meccanismo di TTL +
+  // distinzione "rientro dopo F5" vs "nuovo render".
+  const [state, setState] = useState<WizardState>(INITIAL_STATE);
   const [notes, setNotes] = useState("");
 
   const [sceneAnalysis, setSceneAnalysis] = useState<WindowSceneAnalysis | null>(null);
@@ -183,17 +177,17 @@ export default function RenderNewV2() {
   const elapsedRef = useRef(0);
   const crmPersistedRef = useRef(false);
 
-  // v8.4 — Persistenza wizard state in sessionStorage:
-  // ogni cambio di state viene salvato per sopravvivere al refresh pagina.
-  // Esclude i campi non-serializzabili (File preview) gestiti separatamente.
+  // v8.5.7 — Rimossa persistenza in sessionStorage (causava pre-selezione
+  // delle scelte del render precedente al nuovo ingresso wizard).
+  // Auto-cleanup al mount per gli utenti che hanno ancora sessionStorage
+  // residuo dalle versioni v8.4-v8.5.6.
   useEffect(() => {
-    if (typeof window === "undefined") return;
     try {
-      sessionStorage.setItem("render-wizard-state", JSON.stringify(state));
+      sessionStorage.removeItem("render-wizard-state");
     } catch {
-      // sessionStorage quota piena o private mode — ignora silenziosamente
+      // Safari private mode / no storage → ignore
     }
-  }, [state]);
+  }, []);
 
   // Removed v8.3.8: l'effect che forzava cerniere=visibili su profili
   // non-compatibili contraddiceva la scelta utente. Le cerniere a scomparsa
@@ -628,7 +622,8 @@ export default function RenderNewV2() {
     setSessionId(null);
     setState(INITIAL_STATE);
     setNotes("");
-    // v8.4 — Pulisci anche la persistenza sessionStorage al reset wizard
+    // v8.5.7 — Cleanup sessionStorage residuo da v8.4 (per utenti che
+    // hanno ancora dati persistiti dalla vecchia versione). Idempotente.
     try {
       sessionStorage.removeItem("render-wizard-state");
     } catch {
