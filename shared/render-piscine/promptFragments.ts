@@ -126,4 +126,9 @@ export const DEFAULT_NEGATIVE_CONSTRAINTS = [
   "do not create a floating, pasted-on or badly merged pool",
   "do not leave traces of removed pools, coping, deck edges or old water features",
   "do not generate a different property or generic outdoor catalog scene",
+  // v8.6.4 — Anti-dimming luminosità source (cross-render)
+  "do not darken the outdoor scene or apply cinematic teal-orange grading",
+  "do not desaturate or mute the natural daylight of the source photo",
+  "do not add dusk or overcast atmosphere when source shows bright daylight",
+  "do not change the time-of-day visible in the source",
 ];

@@ -112,6 +112,11 @@ export const DEFAULT_GARDEN_NEGATIVE_CONSTRAINTS = [
   "do not leave hybrid old/new garden states",
   "do not create a luxury resort scene unless requested",
   "do not stylize, illustrate or generate a different property",
+  // v8.6.4 — Anti-dimming luminosità source (cross-render)
+  "do not darken the outdoor scene or apply cinematic teal-orange grading",
+  "do not desaturate or mute the natural daylight of the source",
+  "do not add dusk or overcast atmosphere when source shows bright daylight",
+  "do not change the time-of-day visible in the source photo",
 ];
 
 export const DEFAULT_GARDEN_QUALITY_DIRECTIVES = [

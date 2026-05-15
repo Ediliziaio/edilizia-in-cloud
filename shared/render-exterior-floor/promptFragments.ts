@@ -109,6 +109,11 @@ export const DEFAULT_EXTERIOR_FLOOR_NEGATIVE_CONSTRAINTS = [
   "smudged material transitions",
   "fake CGI showroom look",
   "stylized or illustrative output",
+  // v8.6.4 — Anti-dimming luminosità source (cross-render)
+  "darkened outdoor scene or cinematic teal-orange grading",
+  "desaturated or muted natural daylight",
+  "dusk or overcast atmosphere when source shows bright daylight",
+  "different time-of-day from source",
 ];
 
 export function bullets(lines: Array<string | null | undefined>): string {
