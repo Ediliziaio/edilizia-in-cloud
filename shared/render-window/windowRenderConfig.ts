@@ -155,7 +155,10 @@ function mapFrameFinish(colorId: string) {
   return {
     mode: "ral" as const,
     name: ral?.nome ?? "Bianco Traffico",
-    ral: ral?.id ?? "9016",
+    // v8.3: id ora ha formato `<code>_<nome>` (es. "1009_grigio_ardesia").
+    // Per il prompt usiamo il `code` numerico Renolit/RAL puro quando esiste.
+    // Fallback "9016" mantiene backward-compat per preventivi storici.
+    ral: ral?.code ?? "9016",
     hex: ral?.hex ?? "#F1F0EA",
     finish: "smooth matte finish",
     woodEffectId: null,
