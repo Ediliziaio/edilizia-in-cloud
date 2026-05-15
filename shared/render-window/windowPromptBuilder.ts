@@ -299,7 +299,8 @@ The NEW window is a COMPLETELY DIFFERENT PHYSICAL OBJECT from the old one. Repla
 - Discontinuity (gap / shadow seam / offset) between cassonetto bottom and window top.
 - Inventing objects not in Image 1: curtains, lamps, sensors, plants, pictures, switches.
 - Pasting reference swatch images as visible scene objects.
-- Pasted-on objects on the window (LED disks, sensors, smoke detectors, decals, logos).`;
+- Pasted-on objects on the window (LED disks, sensors, smoke detectors, decals, logos).
+- ❌ Keeping the source-photo sash count when a SASH COUNT CHANGE is specified (e.g. spec says 2→1 ante: the new window MUST have ONE single full-width glazed panel filling the entire wall opening, NOT two sashes with a central mullion). The wall opening width stays the same; only the internal subdivision changes.`;
 
   blocks.B = `[BLOCK B – EXISTING SCENE INVENTORY]
 Environment: ${normalizedConfig.scene_analysis.environmentType}
@@ -464,6 +465,13 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
       "warped geometry, floating elements, wrong shadows, distorted lines, " +
       "changed perspective, changed crop, changed wall color, changed furniture, " +
       "extra windows or doors, mixed hinge colors, oversized cassonetto, " +
+      // v8.6.5 — Composition change ignorata (sash count mismatch)
+      "keeping 2 sashes when 1 sash is specified, " +
+      "keeping 3 sashes when 2 sashes are specified, " +
+      "keeping 1 sash when 2 sashes are specified, " +
+      "preserving the source photo sash count instead of applying the requested composition change, " +
+      "phantom central mullion remaining when sash count was reduced, " +
+      "phantom additional mullion missing when sash count was increased, " +
       // v8.6.4 — Atmosfera/luminosita' esterna
       "darkened outdoor view, dimmed natural daylight through the new glass, " +
       "outdoor view muted or desaturated compared to source, " +
@@ -485,7 +493,7 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
       "curtains lamps plants pictures sensors invented in the room, " +
       "old paint outline or halo around the new frame, " +
       "phantom shadows of the previous installation",
-    promptVersion: "8.6.4",
+    promptVersion: "8.6.5",
     blocks,
     validation,
     normalizedConfig,

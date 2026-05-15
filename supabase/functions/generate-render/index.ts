@@ -129,6 +129,8 @@ const QA_CATEGORIES = [
   "objects_invented",
   "swatch_pasted_in_scene",
   "cassonetto_window_discontinuity",
+  // v8.6.5 — Composition change ignorata (sash count mismatch)
+  "sash_count_mismatch",
 ] as const;
 type QaCategory = (typeof QA_CATEGORIES)[number];
 
@@ -159,14 +161,20 @@ function buildMultiCriterionQaPrompt(config: WindowRenderConfig): string {
     ? `\nNEW FRAME FINISH SPECIFIED: ${spec.finish.name}${spec.finish.ral ? ` (RAL ${spec.finish.ral})` : ""} — every visible frame surface (front, lateral stiles left+right, top header, bottom sill, central mullion) must show this color.`
     : "";
 
+  // v8.6.5 — Comunica esplicitamente al QA il sash count target se c'e' un
+  // composition change attivo, cosi' puo' fare il check #10 con criterio.
+  const sashCountChange = spec?.compositionChange
+    ? `\nSASH COUNT CHANGE REQUESTED: source photo has ${spec.compositionChange.fromSashCount} sashes, the NEW window must have EXACTLY ${spec.compositionChange.toSashCount} sashes inside the same wall opening width.`
+    : `\nSASH COUNT: source = NEW window = ${spec?.desiredSashCount ?? "?"} sashes (no composition change).`;
+
   return `You are a strict QC inspector for premium Italian window-replacement renders.
 You receive TWO IMAGES:
 - Image 1 = SOURCE PHOTO (old window installed)
 - Image 2 = CANDIDATE RENDER (proposed new window in same room)
 
-Your job: detect failures where the AI did NOT properly replace the old window.${frameFinish}${cassonettoReplace}${motorizedSection}
+Your job: detect failures where the AI did NOT properly replace the old window.${frameFinish}${cassonettoReplace}${sashCountChange}${motorizedSection}
 
-Check these 9 categories systematically. For EACH category, decide pass/fail:
+Check these 10 categories systematically. For EACH category, decide pass/fail:
 
 1. [recolor_instead_of_replace] — Did the AI just recolor the old window, keeping identical geometry, mullion thickness, sash proportions? FAIL if the new window looks like the old one with a color filter applied.
 
@@ -186,6 +194,8 @@ Check these 9 categories systematically. For EACH category, decide pass/fail:
 
 9. [cassonetto_window_discontinuity] — If cassonetto is replaced, is there a visible GAP, OFFSET, dark shadow seam, or color discontinuity between the bottom edge of the cassonetto and the top edge of the window frame? FAIL if they don't form a seamless continuous line (monoblocco standard).
 
+10. [sash_count_mismatch] — Count the sashes (vertical glazed panels separated by mullions) in Image 2. If a SASH COUNT CHANGE was requested (see header above), does the candidate render match the target sash count? FAIL if the candidate keeps the source-photo sash count instead of applying the requested change (e.g. spec says 2→1 but render still shows 2 sashes with central mullion).
+
 Return ONLY this JSON, no prose:
 {
   "pass": boolean,
@@ -194,6 +204,7 @@ Return ONLY this JSON, no prose:
   ]
 }
 Categories MUST be one of: ${QA_CATEGORIES.join(", ")}.
+If all 10 categories pass, return {"pass": true, "issues": []}.
 If all 9 categories pass, return {"pass": true, "issues": []}.
 If even ONE fails, return pass=false plus the issue(s).`;
 }
@@ -225,6 +236,16 @@ function buildCorrectiveFragmentForCategory(
       return "Remove the swatch/product-photo rectangle from the scene. Reference images are invisible inputs — only the edited Image 1 should appear in the output.";
     case "cassonetto_window_discontinuity":
       return "Align the bottom edge of the new cassonetto PERFECTLY with the top edge of the new window frame: zero gap, zero shadow seam, zero offset. They form a single seamless monoblocco unit.";
+    case "sash_count_mismatch": {
+      const cc = config.technical_specification[0]?.compositionChange;
+      if (cc) {
+        if (cc.toSashCount < cc.fromSashCount) {
+          return `REMOVE ${cc.fromSashCount - cc.toSashCount} central vertical mullion(s) from the new window. The new window must have EXACTLY ${cc.toSashCount} sashes (vertical glazed panels), NOT ${cc.fromSashCount}. The wall opening width stays IDENTICAL — only the internal subdivision changes. ${cc.toSashCount === 1 ? "Result: ONE single full-width glass panel filling the entire opening." : `Result: ${cc.toSashCount} equal-width glazed panels.`}`;
+        }
+        return `ADD ${cc.toSashCount - cc.fromSashCount} new vertical mullion(s) to the new window. The new window must have EXACTLY ${cc.toSashCount} sashes (vertical glazed panels), NOT ${cc.fromSashCount}. The wall opening width stays IDENTICAL — only the internal subdivision changes.`;
+      }
+      return "Match the sash count exactly to the specification. Do not keep the source-photo sash count.";
+    }
     default:
       return "";
   }
@@ -880,6 +901,8 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
             cat = "residual_sash_subdivisions";
           } else if (lower.includes("stile") || lower.includes("lateral")) {
             cat = "lateral_stiles_old_color";
+          } else if (lower.includes("sash count") || lower.includes("mullion") || lower.includes("composition")) {
+            cat = "sash_count_mismatch";
           }
           parsedIssues.push({ category: cat, detail: raw });
         } else if (raw && typeof raw === "object") {
