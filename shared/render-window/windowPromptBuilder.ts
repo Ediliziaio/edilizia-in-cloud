@@ -260,9 +260,10 @@ This is "demolish and rebuild" at the window level. NOT a color filter, NOT a pa
 
 ═══ PRESERVE EXACTLY (everything outside the target opening) ═══
 - The room: walls, floor, ceiling, paint color, furniture, decorations, untouched non-target windows/doors.
-- The lighting: direction, intensity, color temperature, shadows.
+- The lighting: direction, intensity, color temperature, shadows, EXACT brightness of the source.
 - The camera: angle, perspective, crop, orientation, image dimensions.
 - The outdoor view through the glass: trees, sky, buildings, neighbors.
+- 🔆 OUTDOOR VIEW LUMINOSITY: the brightness, color temperature, atmosphere and time-of-day of the outdoor scene visible through the new glass MUST match Image 1 EXACTLY. If Image 1 shows bright daylight with green leaves and clear visibility, the new render must show the SAME bright daylight — DO NOT darken, dim, mute, desaturate or apply a cool/teal cinematic filter. The new glass is just clean transparent double-glazing, not a tinted glass. The view through it must read at the SAME luminosity as the source.
 - The wall opening dimensions (the hole in the masonry).
 - Accessories the spec says to keep (e.g. existing curtains, radiator, sill).
 
@@ -463,6 +464,13 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
       "warped geometry, floating elements, wrong shadows, distorted lines, " +
       "changed perspective, changed crop, changed wall color, changed furniture, " +
       "extra windows or doors, mixed hinge colors, oversized cassonetto, " +
+      // v8.6.4 — Atmosfera/luminosita' esterna
+      "darkened outdoor view, dimmed natural daylight through the new glass, " +
+      "outdoor view muted or desaturated compared to source, " +
+      "cinematic teal-orange grading applied to outdoor scene, " +
+      "dusk or overcast atmosphere added when source shows bright daylight, " +
+      "tinted glazing that reduces outdoor luminosity, " +
+      "moody dark-blue tone over the outdoor view that was not in the source, " +
       "floating shutter band above the glazing, shutter rendered in front of the wall, " +
       "old window simply recolored, old handle silhouette preserved, " +
       "lateral stiles in old color while front face is new color, " +
@@ -477,7 +485,7 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
       "curtains lamps plants pictures sensors invented in the room, " +
       "old paint outline or halo around the new frame, " +
       "phantom shadows of the previous installation",
-    promptVersion: "8.6.2",
+    promptVersion: "8.6.4",
     blocks,
     validation,
     normalizedConfig,
