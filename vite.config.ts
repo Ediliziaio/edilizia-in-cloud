@@ -170,7 +170,7 @@ export default defineConfig(() => ({
     // namespaces. Cloudflare Pages SPA fallback has served index.html for JS
     // asset URLs during deploy races; a new assets directory gives every
     // bundle a clean URL.
-    assetsDir: "assets-v3",
+    assetsDir: "assets-v4",
     chunkSizeWarningLimit: 1500,
     // ─────────────────────────────────────────────────────────────
     // modulePreload filtrato (Velocity V3, Sprint 1.A)

@@ -28,11 +28,17 @@
           ]).then(function () {
             var url = new URL(location.href);
             url.searchParams.set('__recovery', Date.now().toString());
+            url.searchParams.set('__fresh', '1');
             location.replace(url.toString());
           }).catch(function () { location.reload(); });
         }
 
         // Increment DEPLOY_KEY whenever a forced SW reset is needed.
+        // v12 (2026-05-15): alcuni browser restavano controllati da un vecchio
+        // SW/cache marketing su app.ediliziaincloud.com/login?__recovery=...
+        // mostrando la landing al posto del login. Bump + controllo DOM sotto
+        // forzano pulizia e reload cache-busting anche se il chunk recovery
+        // viene attivato dopo un deploy.
         // v11 (2026-05-13): forza la pulizia dopo il fix del loop login causato
         // da token Supabase stale in localStorage + vecchi asset/SW cached.
         // v10 (2026-05-09): forza la pulizia dei device/localhost che avevano
@@ -41,7 +47,7 @@
         // /functions/v1/* — quel pattern aveva bloccato il login mobile su
         // iOS Safari ("Accesso in corso..." infinito). Bump forza l'unregister
         // del vecchio SW sui device che hanno ancora la versione bacata.
-        var DEPLOY_KEY = 'sw_reset_v11';
+        var DEPLOY_KEY = 'sw_reset_v12';
         try {
           if (!localStorage.getItem(DEPLOY_KEY) && 'serviceWorker' in navigator) {
             localStorage.setItem(DEPLOY_KEY, '1');
@@ -85,6 +91,42 @@
         window.addEventListener('unhandledrejection', function (e) {
           onError((e && e.reason && e.reason.message) || String((e && e.reason) || ''), null);
         }, true);
+
+        function isAppHost() {
+          return /^app\./i.test(location.hostname) ||
+            location.hostname === 'localhost' ||
+            location.hostname === '127.0.0.1';
+        }
+
+        function isPrivateAppPath() {
+          return /^\/(login|azienda|admin|cliente|campo|tecnico|dipendente|venditore|partner|cambia-password|reset-password)(\/|$)/.test(location.pathname);
+        }
+
+        function bodyLooksLikeMarketingHome() {
+          var text = (document.body && document.body.innerText) || '';
+          return text.indexOf('Richiedi una demo') !== -1 &&
+            text.indexOf('Aumenta margini, utili e guadagni') !== -1 &&
+            text.indexOf('Vedi tutti i moduli') !== -1;
+        }
+
+        function assertAppPathNotMarketing() {
+          if (_recovered) return;
+          if (!isAppHost() || !isPrivateAppPath()) return;
+          if (!bodyLooksLikeMarketingHome()) return;
+          _recovered = '1';
+          sessionStorage.setItem('_sw_rec', '1');
+          nukeAndReload('app-host-marketing-cache');
+        }
+
+        if (document.readyState === 'loading') {
+          window.addEventListener('DOMContentLoaded', function () {
+            setTimeout(assertAppPathNotMarketing, 0);
+            setTimeout(assertAppPathNotMarketing, 1500);
+          }, { once: true });
+        } else {
+          setTimeout(assertAppPathNotMarketing, 0);
+          setTimeout(assertAppPathNotMarketing, 1500);
+        }
       })();
     </script>
     <title>Gestionale Edilizia Cloud | Software per Imprese Edili</title>

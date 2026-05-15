@@ -44,6 +44,9 @@
 /assets-v3/*
   Cache-Control: public, max-age=0, must-revalidate
 
+/assets-v4/*
+  Cache-Control: public, max-age=0, must-revalidate
+
 # Never cache index.html — ensure fresh deploys load immediately
 /index.html
   Cache-Control: no-cache, no-store, must-revalidate
@@ -65,15 +68,19 @@
 # Public marketing and legal canonical pages remain indexable.
 /login
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /admin-login
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /clienti-login
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /lavori-login
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /widget
   X-Robots-Tag: noindex, nofollow
@@ -86,42 +93,55 @@
 
 /reset-password
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /cambia-password
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /admin/*
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /azienda/*
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /cliente/*
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /dipendente/*
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /venditore/*
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /partner/*
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /tecnico/*
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /campo/*
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /portale/*
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /portale-cliente/*
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /app/*
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache, no-store, must-revalidate
 
 /preventivo/*
   X-Robots-Tag: noindex, nofollow
