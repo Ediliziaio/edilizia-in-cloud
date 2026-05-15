@@ -236,7 +236,31 @@ ${bullets(
 - all visible hinges must match the selected hardware finish exactly, with realistic compact top/bottom geometry
 - if a new cassonetto is specified over an existing one, keep its visible width, height, depth and bottom edge very close to the source photo unless explicitly redesigned
 - if the shutter is fully open, keep the curtain hidden inside the cassonetto and do not invent a colored strip above the glazing
-- any visible shutter curtain must stay recessed within its guides behind the frame/glass plane, never floating on the wall or in front of the cassonetto`;
+- any visible shutter curtain must stay recessed within its guides behind the frame/glass plane, never floating on the wall or in front of the cassonetto
+
+[v8.3 — MANDATORY SOURCE-PHOTO CLEANUP — NEGATIVE OBSERVATIONS]
+The source photograph almost always contains legacy artefacts that MUST be removed in the new render:
+- Any vertical metal rod, copper pipe, brass rod or cable running alongside the OLD window (typically the manual shutter pull-rod) — REMOVE it entirely. The new window has no such control.
+- Any pull cord, chain, rope or strap hanging from the OLD cassonetto or wall — REMOVE entirely.
+- Any old manual shutter winder plate (rectangular vertical box on the wall) — REMOVE and patch the wall flush.
+- Any holes in the wall, screw heads, anchors, residual silicone, old paint outlines around the previous window frame — REMOVE and repaint seamlessly.
+- The new window is a clean modern installation: NO trace of the old manual-control system, NO trace of the demolition, NO trace of the old frame footprint.
+
+[v8.3 — HARD BAN: PASTED-ON OBJECTS ON THE WINDOW]
+The new window MUST contain ONLY: frame, sashes, glass, mullion, handle(s), hinges (if visible mode), gaskets.
+ABSOLUTELY FORBIDDEN to add on top of the sashes or glass:
+- round white LED disks, spotlights, ceiling lights ("plafoniere") pasted on the glass
+- circular sensors, smoke detectors, alarm devices
+- citofono/intercom modules
+- any decorative element, sticker, logo, marker that is NOT part of the window assembly
+If a ceiling light or device appears reflected in the source photo, render its REFLECTION on the glass (subtle), do NOT add the device itself as a solid object.
+
+[v8.3 — CASSONETTO PROPORTIONS]
+If a cassonetto is rendered:
+- Its height MUST be proportional to the window: typically 20-30cm for residential windows (1.2-1.6m wide), max 35cm.
+- It must NOT exceed the lateral width of the window frame on either side.
+- It must be flush against the wall above the frame, NOT floating or projecting forward.
+- Its color/material matches the new window frame OR the explicit user choice.`;
 
   if (manualControlZeroToleranceRules.length > 0) {
     blocks.F += `
@@ -288,6 +312,11 @@ ${bullets([
     "Transom remove (if specified): each sash is a SINGLE full-height glazed panel.",
     // ── v8.2 verification ──
     `Total handle count: render EXACTLY the count specified per opening. For 2-sash windows this means ONE handle (not two). For 3-sash windows this means TWO handles (not three, not one). Italian residential standard.`,
+    // ── v8.3 verifications ──
+    "v8.3 — Source-photo cleanup: ZERO vertical rods, copper pipes, brass rods or cables left along the window. ZERO manual cord/chain/rope visible. ZERO old screw holes, old paint outlines, old silicone residue on the wall around the new frame.",
+    "v8.3 — Zero pasted-on objects: NO round disks, NO LED lights, NO sensors, NO decorative elements stuck onto the sashes or glass. Reflections in the glazing are allowed (subtle), solid objects on top of the glass are NOT.",
+    "v8.3 — Cassonetto scale: height ≤ 30cm proportional to window, never extends past the frame laterally, flush against the wall.",
+    "v8.3 — Wall around new frame: seamless plaster + paint. No halo, no patch, no shade difference, no old paint outline from the previous installation.",
   ])}`;
 
   const userPrompt = [
@@ -309,22 +338,57 @@ ${bullets([
     systemPrompt: blocks.A,
     userPrompt,
     negativePrompt:
+      // ─── Stile / qualità generale ───────────────────────────────────────
       "cartoon, illustration, painterly, staged showroom, room redesign, changed perspective, " +
       "changed crop, changed wall color, changed furniture, extra windows, distorted geometry, " +
       "fake CGI, glossy fake plastic, warped lines, floating frame, wrong shadows, mixed hinge colors, " +
-      "oversized cassonetto, visible manual belt on motorized shutter, visible manual cord on motorized shutter, " +
+      "oversized cassonetto, " +
+      // ─── Manual control residui (corda, asta, cinghia) ──────────────────
+      "visible manual belt on motorized shutter, visible manual cord on motorized shutter, " +
       "visible wall winder on motorized shutter, visible belt slot on motorized shutter, " +
       "leftover vertical manual-control trim, floating shutter band above the glass, " +
-      "shutter rendered in front of the wall, two handles on central-handle composition, " +
-      "visible hinges when hidden-hinges mode is selected, " +
-      "central mullion as thick as outer frame on reduced-node profile, " +
-      "horizontal transom present when transom-remove mode is selected, " +
-      "wall left blank where old manual belt winder was previously visible " +
-      "(when motorization is selected the new electric switch plate must replace it), " +
+      "shutter rendered in front of the wall, " +
+      // v8.3 — Asta/corda/catena tapparella manuale orfana (problema render reale)
+      "vertical copper rod beside the window, vertical brass pipe beside the window, " +
+      "vertical metallic rod beside the window frame, leftover manual shutter cord, " +
+      "leftover manual shutter chain, dangling shutter pull cord, " +
+      "any vertical metal rod attached to the window frame, " +
+      "old shutter pulley mechanism still visible, " +
+      // ─── Maniglie ───────────────────────────────────────────────────────
+      "two handles on central-handle composition, " +
       "two handles on a 2-sash window (Italian residential standard mandates ONE handle on the primary sash only), " +
       "three handles on a 3-sash window (mandate two handles total: one on the 2-sash group + one on the single sash), " +
-      "one handle per sash on multi-sash compositions (each group of 2 sashes shares ONE handle on the primary operative sash only)",
-    promptVersion: "8.0.0",
+      "one handle per sash on multi-sash compositions (each group of 2 sashes shares ONE handle on the primary operative sash only), " +
+      // ─── Cerniere ───────────────────────────────────────────────────────
+      "visible hinges when hidden-hinges mode is selected, " +
+      // ─── Nodo / mullion / transom ───────────────────────────────────────
+      "central mullion as thick as outer frame on reduced-node profile, " +
+      "horizontal transom present when transom-remove mode is selected, " +
+      // ─── Bottone elettrico ──────────────────────────────────────────────
+      "wall left blank where old manual belt winder was previously visible " +
+      "(when motorization is selected the new electric switch plate must replace it), " +
+      // ─── v8.3 — Allucinazioni "oggetti pasted-on" sul vetro/anta ────────
+      // Problema reale: il modello a volte incolla luci LED, sensori, dischi
+      // bianchi rotondi sulle ante della finestra. NIENTE deve apparire sui
+      // pannelli vetrati o sul telaio se non i dettagli del serramento stesso.
+      "round white LED disk on the window sash, " +
+      "circular ceiling light pasted on the window glazing, " +
+      "white round sensor on the window frame, " +
+      "smoke detector or alarm device on the window pane, " +
+      "any electronic device drawn on top of the glazing, " +
+      "spotlight or recessed light inside the window panel, " +
+      "decorative sticker or logo on the glass, " +
+      "any object that is NOT part of the standard window assembly stuck onto the sashes, " +
+      // ─── v8.3 — Cassonetto fuori scala ──────────────────────────────────
+      "cassonetto taller than 30cm relative to window height, " +
+      "cassonetto extending past the lateral edges of the window frame, " +
+      "cassonetto floating away from the wall, " +
+      // ─── v8.3 — Misc oggetti accessory NON richiesti ────────────────────
+      "tape or sticker residue around the new window, " +
+      "old paint outline where the previous frame ended, " +
+      "any wiring, conduit, copper pipe, brass rod or cable running on the wall around the window unless explicitly present in the source photo and explicitly NOT marked for removal, " +
+      "phantom shadows of the previous installation",
+    promptVersion: "8.3.0",
     blocks,
     validation,
     normalizedConfig,
