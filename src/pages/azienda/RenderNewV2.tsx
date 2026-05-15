@@ -76,7 +76,11 @@ import { preloadImage } from "@/lib/render/preloadImage";
 import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
 
 const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
-const MAX_POLL_SEC = 180;
+// v8.4.2 — Aumentato 180s → 300s (5 min) per allinearsi al caso peggiore
+// di generate-render con retry corrective (multi-criterion QA). Il polling
+// si stoppa appena status diventa "completed" o "failed" → 300s è solo il
+// safety net per casi davvero estremi (provider degradato + retry + QA).
+const MAX_POLL_SEC = 300;
 const STEP_LABELS = ["Foto", "Analisi", "Aperture", "Infisso", "Finiture", "Accessori", "Render"];
 
 const INITIAL_STATE: WizardState = {
@@ -534,9 +538,23 @@ export default function RenderNewV2() {
 
       startPolling(sessionId);
     } catch (err) {
+      // v8.4.2 — Fallback resiliente: se l'invoke timeoutta (es. il render
+      // sta legittimamente impiegando >240s con QA retry) la edge function
+      // probabilmente continua in background. Attiviamo comunque il polling
+      // su render_sessions: se la function completa, il polling raccoglie
+      // il risultato. Se davvero ha fallito, il polling vedrà status="failed"
+      // o timeoutterà a sua volta (MAX_POLL_SEC = 180s).
+      const message = err instanceof Error ? err.message : String(err);
+      const isTimeoutLike = /timeout|aborted|Failed to send a request/i.test(message);
+      if (isTimeoutLike && sessionId) {
+        console.warn("[render] invoke timed out, falling back to polling");
+        startPolling(sessionId);
+        // Mostra un messaggio non-bloccante invece di error rosso
+        toast.message("Il render sta impiegando più tempo del previsto. Attendi...");
+        return;
+      }
       stopPolling();
       setGenerating(false);
-      const message = err instanceof Error ? err.message : String(err);
       setGenerateError(message);
       toast.error(message);
     }
