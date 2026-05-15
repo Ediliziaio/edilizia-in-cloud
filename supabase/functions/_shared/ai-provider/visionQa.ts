@@ -29,9 +29,16 @@ export interface VisionQaArgs {
   timeoutMs?: number;
 }
 
+/**
+ * Issue ritornata dal vision QA. Può essere una stringa (formato legacy
+ * compatibilità v8.3.6−) o un oggetto strutturato {category, detail}
+ * (formato v8.3.7+ usato dal multi-criterion QA).
+ */
+export type VisionQaIssue = string | { category: string; detail: string };
+
 export interface VisionQaResult {
   pass: boolean;
-  issues: string[];
+  issues: VisionQaIssue[];
   modelUsed: string;
   rawResponse: Record<string, unknown>;
   checked: boolean;
@@ -76,10 +83,24 @@ export async function callVisionQa(
 
       try {
         const parsed = JSON.parse(text) as { pass?: boolean; issues?: unknown };
-        const issues = Array.isArray(parsed.issues)
-          ? parsed.issues.filter(
-            (i): i is string => typeof i === "string" && i.trim().length > 0,
-          )
+        // v8.3.7 — Accetta sia stringhe che oggetti {category, detail}.
+        const issues: VisionQaIssue[] = Array.isArray(parsed.issues)
+          ? parsed.issues
+            .map((i: unknown): VisionQaIssue | null => {
+              if (typeof i === "string" && i.trim().length > 0) return i;
+              if (i && typeof i === "object") {
+                const obj = i as { category?: unknown; detail?: unknown };
+                const category = typeof obj.category === "string"
+                  ? obj.category
+                  : "";
+                const detail = typeof obj.detail === "string" ? obj.detail : "";
+                if (category || detail) {
+                  return { category, detail };
+                }
+              }
+              return null;
+            })
+            .filter((x): x is VisionQaIssue => x !== null)
           : [];
         return {
           pass: parsed.pass !== false,

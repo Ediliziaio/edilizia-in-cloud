@@ -1,4 +1,24 @@
-// shared/render-window/windowPromptBuilder.ts — v8.3.6 (2026-05-15)
+// shared/render-window/windowPromptBuilder.ts — v8.3.7 (2026-05-15)
+// CHANGELOG v8.3.7 (GAP A/B/C/D fix tutti chiusi):
+//   + GAP A: UI cassonetto custom ora usa palette WIZARD_RAL family-grouped
+//     (allineato all'UI tapparella, con label colore selezionato + RAL code)
+//   + GAP B: 8 test unitari v8.3.x aggiunti
+//     (BLOCK A, BLOCK F, BLOCK 0.5 CARDINAL, LEGEND, regression tappCol, regression cassCol, promptVersion)
+//   + GAP C: QA Vision MULTI-CRITERION
+//     - Sostituito buildMotorizedQaPrompt single-check (cinghia) con
+//       buildMultiCriterionQaPrompt 9 categorie:
+//       recolor, old_handle_kept, lateral_stiles_old_color,
+//       manual_shutter_control_visible, residual_sash_subdivisions,
+//       cassonetto_recolored_not_replaced, objects_invented,
+//       swatch_pasted_in_scene, cassonetto_window_discontinuity
+//     - QA ora SEMPRE attiva (non solo se motorized + cinghia)
+//     - buildRetryPrompt produce istruzioni correttive PER OGNI categoria
+//       di issue trovata (non solo cinghia)
+//     - visionQa.ts parser accetta sia stringhe legacy che oggetti
+//       strutturati {category, detail}
+//   + GAP D: salva in render_sessions.meta:
+//     qa_vision_model, qa_issue_categories, qa_issues_count, qa_retried
+//   ↺ promptVersion → "8.3.7"
 // CHANGELOG v8.3.6 (bug fix pipeline color tapparella + RAL label + observability):
 //   🐛 windowRenderConfig.mapShutter: ora riconosce WIZARD_TAPP_COLORS (i 19
 //     colori dedicati tapparella inclusi verde/rosso/blu erano cosmetici —
@@ -645,7 +665,7 @@ Before generating, mentally check: "Am I about to commit any of the 7 failures a
       "cassonetto with embossed wood grain when smooth PVC is specified, " +
       "old cassonetto front cover with visible old screws or hinges, " +
       "sloped or projecting cassonetto front (must be flat flush sheet)",
-    promptVersion: "8.3.6",
+    promptVersion: "8.3.7",
     blocks,
     validation,
     normalizedConfig,

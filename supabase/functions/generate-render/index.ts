@@ -117,56 +117,140 @@ function getMotorizedManualCleanupTargets(config: WindowRenderConfig): Array<{
   });
 }
 
-function buildMotorizedQaPrompt(config: WindowRenderConfig): string {
-  const targets = getMotorizedManualCleanupTargets(config);
-  return `Compare TWO IMAGES.
-Image 1 = SOURCE PHOTO.
-Image 2 = CANDIDATE WINDOW RENDER.
+// v8.3.7 — QA Vision MULTI-CRITERION
+// Categorie controllate (corrispondono ai 7 CARDINAL FAILURE MODES + cinghia):
+const QA_CATEGORIES = [
+  "recolor_instead_of_replace",
+  "old_handle_kept",
+  "lateral_stiles_old_color",
+  "manual_shutter_control_visible",
+  "residual_sash_subdivisions",
+  "cassonetto_recolored_not_replaced",
+  "objects_invented",
+  "swatch_pasted_in_scene",
+  "cassonetto_window_discontinuity",
+] as const;
+type QaCategory = (typeof QA_CATEGORIES)[number];
 
-We selected MOTORIZED roller shutters for these target openings:
-${
-    targets.map((t) => `- Opening ${t.openingLabel}: ${t.placementNotes}`).join(
-      "\n",
-    )
+interface QaIssue {
+  category: QaCategory;
+  detail: string;
+}
+
+interface MultiQaResult {
+  pass: boolean;
+  issues: QaIssue[];
+}
+
+function buildMultiCriterionQaPrompt(config: WindowRenderConfig): string {
+  const spec = config.technical_specification[0];
+  const motorizedTargets = getMotorizedManualCleanupTargets(config);
+  const motorizedSection = motorizedTargets.length > 0
+    ? `\nMOTORIZATION TARGETS (manual control must DISAPPEAR):\n${
+      motorizedTargets.map((t) => `- Opening ${t.openingLabel}: ${t.placementNotes}`).join("\n")
+    }`
+    : "";
+
+  const cassonettoReplace = spec?.cassonetto.replace
+    ? `\nCASSONETTO REPLACEMENT: yes — must be a NEW unit (different model from the old one), not just recolored.`
+    : "";
+
+  const frameFinish = spec
+    ? `\nNEW FRAME FINISH SPECIFIED: ${spec.finish.name}${spec.finish.ral ? ` (RAL ${spec.finish.ral})` : ""} — every visible frame surface (front, lateral stiles left+right, top header, bottom sill, central mullion) must show this color.`
+    : "";
+
+  return `You are a strict QC inspector for premium Italian window-replacement renders.
+You receive TWO IMAGES:
+- Image 1 = SOURCE PHOTO (old window installed)
+- Image 2 = CANDIDATE RENDER (proposed new window in same room)
+
+Your job: detect failures where the AI did NOT properly replace the old window.${frameFinish}${cassonettoReplace}${motorizedSection}
+
+Check these 9 categories systematically. For EACH category, decide pass/fail:
+
+1. [recolor_instead_of_replace] — Did the AI just recolor the old window, keeping identical geometry, mullion thickness, sash proportions? FAIL if the new window looks like the old one with a color filter applied.
+
+2. [old_handle_kept] — Is the handle in Image 2 the SAME model/shape as the handle in Image 1, just repainted? FAIL if so. The handle must be visibly a different model.
+
+3. [lateral_stiles_old_color] — Are the LEFT and RIGHT vertical frame edges (lateral stiles) still in the OLD color (typically white) while the front face is in the new color? FAIL if so. The entire frame perimeter must be in the new color.
+
+4. [manual_shutter_control_visible] — If motorization was specified, do you see any vertical pull cord, belt strap, wall winder box, wall plate, exit slot, or vertical guide rod near the window in Image 2? FAIL if any of these are visible.
+
+5. [residual_sash_subdivisions] — Do you see 4 dark rectangles or muntin segments in the upper portion of the new sashes (residuals of old georgian bars / transoms)? FAIL if so. New sashes are single uninterrupted glass panels.
+
+6. [cassonetto_recolored_not_replaced] — If cassonetto replacement was specified, is the cassonetto in Image 2 visibly the SAME design as Image 1, just repainted? FAIL if so. The new cassonetto must be a clean modern flat PVC monoblock with smooth surface.
+
+7. [objects_invented] — Do you see curtains, drapes, blinds, lamps, sensors, plants, picture frames, switches in Image 2 that are NOT present in Image 1? FAIL if any new objects appear in the room that were not in the source.
+
+8. [swatch_pasted_in_scene] — Do you see a small rectangular color swatch, inset thumbnail of a handle, or any product-photo-like element pasted on the wall or floating in the scene? FAIL if so.
+
+9. [cassonetto_window_discontinuity] — If cassonetto is replaced, is there a visible GAP, OFFSET, dark shadow seam, or color discontinuity between the bottom edge of the cassonetto and the top edge of the window frame? FAIL if they don't form a seamless continuous line (monoblocco standard).
+
+Return ONLY this JSON, no prose:
+{
+  "pass": boolean,
+  "issues": [
+    {"category": "<one of the 9 category keys>", "detail": "<short 1-line description of what you see>"}
+  ]
+}
+Categories MUST be one of: ${QA_CATEGORIES.join(", ")}.
+If all 9 categories pass, return {"pass": true, "issues": []}.
+If even ONE fails, return pass=false plus the issue(s).`;
+}
+
+// Per ogni categoria di issue, costruisce un fragment correttivo mirato.
+function buildCorrectiveFragmentForCategory(
+  category: QaCategory,
+  config: WindowRenderConfig,
+): string {
+  const motorizedTargets = getMotorizedManualCleanupTargets(config);
+  switch (category) {
+    case "recolor_instead_of_replace":
+      return "ERASE the old window entirely. Draw a BRAND NEW physical window with the specified profile, sash composition, mullion thickness, hinge mode and handle model. Do NOT preserve the geometry of the old window — only the wall opening dimensions are kept.";
+    case "old_handle_kept":
+      return "Replace the handle with the new model specified (different shape, mounting plate, finish). The new handle MUST visibly differ from the old handle in Image 1 — different silhouette, different proportions.";
+    case "lateral_stiles_old_color":
+      return "Repaint ALL frame surfaces in the new specified color: left lateral stile, right lateral stile, top header, bottom sill, central mullion. No part of the frame may remain in the old white/original color.";
+    case "manual_shutter_control_visible":
+      return motorizedTargets.length > 0
+        ? `For motorized openings (${motorizedTargets.map((t) => t.openingLabel).join(", ")}): ERASE every vertical cord, belt strap, wall winder box, wall plate, belt exit slot and vertical guide. Repair the wall seamlessly (matching plaster + paint). Install a new flush 80x80mm Vimar-style electric switch at ~110cm from floor.`
+        : "Remove any remaining belt, cord, wall winder or vertical control trim near the window.";
+    case "residual_sash_subdivisions":
+      return "Remove ALL dark rectangles, muntin segments and georgian-bar residuals from the upper portion of the new sashes. Each sash is a SINGLE clear glazed panel from top to bottom.";
+    case "cassonetto_recolored_not_replaced":
+      return "ERASE the old cassonetto entirely. Draw a NEW modern flat slim PVC monoblock unit: smooth surface, integrated hatch, no old wood texture, no rustic plaster, no projecting cornice. Match the specified color exactly.";
+    case "objects_invented":
+      return "Remove ALL room objects that were not in Image 1: curtains, lamps, sensors, plants, frames, switches. The room outside the target opening must be IDENTICAL to Image 1 (same wall paint, same furniture, same accessories).";
+    case "swatch_pasted_in_scene":
+      return "Remove the swatch/product-photo rectangle from the scene. Reference images are invisible inputs — only the edited Image 1 should appear in the output.";
+    case "cassonetto_window_discontinuity":
+      return "Align the bottom edge of the new cassonetto PERFECTLY with the top edge of the new window frame: zero gap, zero shadow seam, zero offset. They form a single seamless monoblocco unit.";
+    default:
+      return "";
   }
-
-Strict compliance rule:
-- If a shutter is motorized, NO manual control can remain visible.
-- Fail if you see any belt, cord, strap, wall winder, wall plate, belt slot, or leftover vertical manual-control trim near the target opening.
-- A visible vertical manual-control assembly on the side wall/reveal means FAIL.
-- Ignore the window hardware itself; evaluate only old shutter manual controls.
-
-Return ONLY JSON:
-{"pass": boolean, "issues": ["short issue 1", "short issue 2"]}`;
 }
 
 function buildRetryPrompt(
   basePrompt: string,
   config: WindowRenderConfig,
-  issues: string[],
+  issues: QaIssue[],
 ): string {
-  const targets = getMotorizedManualCleanupTargets(config);
-  const targetLines = targets.map(
-    (t) =>
-      `- Opening ${t.openingLabel}: remove the entire old manual shutter-control assembly exactly where it appears (${t.placementNotes}).`,
+  if (issues.length === 0) {
+    return basePrompt; // no issues → no retry payload needed
+  }
+  const correctiveLines = issues.map(
+    (i) =>
+      `[${i.category}] ${i.detail}\n  → CORRECTION: ${buildCorrectiveFragmentForCategory(i.category, config)}`,
   );
-  const issueLines = issues.length > 0 ? issues.map((i) => `- ${i}`) : [
-    "- The previous render still showed a legacy manual shutter-control element even though motorization was selected.",
-  ];
 
   return `${basePrompt}
 
-[CRITICAL CORRECTIVE RETRY – MANUAL SHUTTER CONTROL MUST DISAPPEAR]
-The previous attempt is NON-COMPLIANT because a legacy manual shutter-control element is still visible.
+[CRITICAL CORRECTIVE RETRY — PREVIOUS RENDER FAILED QA]
+The previous attempt is NON-COMPLIANT in the following ways. You MUST fix each one. Keep the same exact room, geometry, crop, lighting and image dimensions. Only correct the listed failures.
 
-Observed issues:
-${issueLines.join("\n")}
+${correctiveLines.join("\n\n")}
 
-Mandatory correction:
-${targetLines.join("\n")}
-- Remove any remaining belt, cord, strap, wall winder, wall plate, belt slot or leftover vertical manual-control trim.
-- Repair the adjacent wall/tile finish seamlessly so the old manual system leaves ZERO visible trace.
-- Keep the same exact room, geometry, crop, lighting and window proportions. Only fix the leftover manual-control artifact.`;
+Re-render the new window with all corrections applied. The output must pass all 9 QC categories.`;
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
@@ -524,10 +608,18 @@ Deno.serve(async (req) => {
     let candidate = await generateCandidate(composedPrompt);
     let generationAttempts = 1;
 
-    // ── QA Vision: shutter motorizzata → verifica rimozione cinghia ─────
-    const motorizedTargets = getMotorizedManualCleanupTargets(normalizedConfig);
-    if (motorizedTargets.length > 0) {
-      // Costruisci data URL della foto sorgente per il QA
+    // ── v8.3.7 — QA Vision MULTI-CRITERION ──────────────────────────────
+    // Esegue SEMPRE (non solo se motorizzata) un check su 9 categorie:
+    //   recolor, old handle kept, lateral stiles old color, cinghia,
+    //   residual subdivisions, cassonetto recolored, objects invented,
+    //   swatch pasted, cassonetto discontinuity.
+    // Se anche una categoria fallisce → retry mirato con istruzioni
+    // correttive specifiche per ogni issue.
+    // Graceful: se il vision provider fa errore, il render originale passa
+    // comunque (callVisionQa ritorna {checked: false}).
+    let qaIssuesForLog: QaIssue[] = [];
+    let qaModelUsed: string | null = null;
+    {
       const sourceBuf = await sourceBlob.arrayBuffer();
       const sourceB64 = uint8ToBase64(new Uint8Array(sourceBuf));
       const sourceMime = sourceBlob.type || "image/jpeg";
@@ -535,7 +627,7 @@ Deno.serve(async (req) => {
       const qaResult = await callVisionQa({
         sourceImageDataUrl: `data:${sourceMime};base64,${sourceB64}`,
         candidateImageDataUrl: candidate.imageDataUrl,
-        qaPrompt: buildMotorizedQaPrompt(normalizedConfig),
+        qaPrompt: buildMultiCriterionQaPrompt(normalizedConfig),
         metadata: {
           task_kind: "render_image_qa",
           company_id: session.company_id as string,
@@ -543,19 +635,71 @@ Deno.serve(async (req) => {
         },
       });
 
-      if (qaResult.checked && !qaResult.pass) {
+      qaModelUsed = qaResult.modelUsed ?? null;
+
+      // Parse strutturato delle issues: ogni issue deve avere {category, detail}
+      // ma il vision provider potrebbe ritornare stringhe legacy o variazioni.
+      const parsedIssues: QaIssue[] = [];
+      for (const raw of qaResult.issues) {
+        if (typeof raw === "string") {
+          // Stringa legacy → tenta best-effort detection categoria
+          const lower = raw.toLowerCase();
+          let cat: QaCategory = "recolor_instead_of_replace";
+          if (lower.includes("belt") || lower.includes("cord") || lower.includes("cinghia")) {
+            cat = "manual_shutter_control_visible";
+          } else if (lower.includes("handle") || lower.includes("maniglia")) {
+            cat = "old_handle_kept";
+          } else if (lower.includes("cassonetto")) {
+            cat = "cassonetto_recolored_not_replaced";
+          } else if (lower.includes("curtain") || lower.includes("lamp") || lower.includes("plant")) {
+            cat = "objects_invented";
+          } else if (lower.includes("swatch")) {
+            cat = "swatch_pasted_in_scene";
+          } else if (lower.includes("muntin") || lower.includes("rectangle")) {
+            cat = "residual_sash_subdivisions";
+          } else if (lower.includes("stile") || lower.includes("lateral")) {
+            cat = "lateral_stiles_old_color";
+          }
+          parsedIssues.push({ category: cat, detail: raw });
+        } else if (raw && typeof raw === "object") {
+          const r = raw as { category?: string; detail?: string };
+          const cat = (QA_CATEGORIES as readonly string[]).includes(r.category ?? "")
+            ? (r.category as QaCategory)
+            : "recolor_instead_of_replace";
+          parsedIssues.push({
+            category: cat,
+            detail: r.detail ?? "(no detail)",
+          });
+        }
+      }
+      qaIssuesForLog = parsedIssues;
+
+      if (qaResult.checked && !qaResult.pass && parsedIssues.length > 0) {
         logInfo({
           session_id,
           msg: "qa_failed_retry_corrective",
-          issues: qaResult.issues,
+          qa_model: qaResult.modelUsed,
+          issue_categories: parsedIssues.map((i) => i.category),
+          issues_count: parsedIssues.length,
         });
         composedPrompt = buildRetryPrompt(
           composedPrompt,
           normalizedConfig,
-          qaResult.issues,
+          parsedIssues,
         );
         candidate = await generateCandidate(composedPrompt);
         generationAttempts = 2;
+      } else if (qaResult.checked && qaResult.pass) {
+        logInfo({
+          session_id,
+          msg: "qa_passed_first_attempt",
+          qa_model: qaResult.modelUsed,
+        });
+      } else if (!qaResult.checked) {
+        logWarn({
+          session_id,
+          msg: "qa_skipped_provider_unavailable",
+        });
       }
     }
 
@@ -659,6 +803,15 @@ Deno.serve(async (req) => {
         reference_images_labels: referenceImagesFetched.map((r) =>
           r.label.substring(0, 100)
         ),
+        // v8.3.7 — Observability QA Vision multi-criterion:
+        // model     = quale provider vision ha risposto (Gemini Flash/Claude/GPT-4o-mini)
+        // categories = categorie di failure rilevate al primo tentativo (vuoto = pass)
+        // count     = totale issue rilevate (utile per dashboard %)
+        // retried   = true se generationAttempts > 1 (QA ha forzato retry)
+        qa_vision_model: qaModelUsed,
+        qa_issue_categories: qaIssuesForLog.map((i) => i.category),
+        qa_issues_count: qaIssuesForLog.length,
+        qa_retried: generationAttempts > 1,
       },
     };
 

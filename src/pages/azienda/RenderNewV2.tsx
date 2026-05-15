@@ -1451,21 +1451,45 @@ function StepAccessori({
             )}
 
             {state.cass && state.cassMat === "colore_custom" && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-                {WIZARD_RAL.map((color) => (
-                  <button
-                    key={color.id}
-                    type="button"
-                    onClick={() => setState((current) => ({ ...current, cassCol: color.id }))}
-                    className={cn(
-                      "rounded-2xl border p-3 text-left transition",
-                      state.cassCol === color.id ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
-                    )}
-                  >
-                    <div className="h-12 rounded-xl border" style={{ background: color.hex }} />
-                    <div className="mt-2 text-sm font-semibold">{color.nome}</div>
-                  </button>
-                ))}
+              <div className="rounded-2xl border bg-slate-50 p-4">
+                <div className="mb-3 text-sm font-semibold">Colore cassonetto personalizzato</div>
+                <div className="space-y-3">
+                  {(["bianchi", "grigi", "marroni", "verdi", "blu", "rossi", "premium"] as RalFamily[]).map((family) => {
+                    const colors = getRalsByFamily(family);
+                    if (colors.length === 0) return null;
+                    return (
+                      <div key={family}>
+                        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          {RAL_FAMILY_LABELS[family]}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {colors.map((color) => (
+                            <button
+                              key={color.id}
+                              type="button"
+                              title={color.nome}
+                              onClick={() => setState((current) => ({ ...current, cassCol: color.id }))}
+                              className={cn(
+                                "h-10 w-10 rounded-lg border-2 border-white shadow-sm transition",
+                                state.cassCol === color.id ? "ring-2 ring-orange-500 ring-offset-1" : "hover:ring-1 hover:ring-orange-300",
+                              )}
+                              style={{ background: color.hex }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {state.cassCol && (() => {
+                  const selected = WIZARD_RAL.find((c) => c.id === state.cassCol);
+                  return selected ? (
+                    <div className="mt-3 text-xs text-slate-600">
+                      Selezionato: <strong>{selected.nome}</strong>
+                      {selected.code ? ` (RAL ${selected.code})` : ""}
+                    </div>
+                  ) : null;
+                })()}
               </div>
             )}
 

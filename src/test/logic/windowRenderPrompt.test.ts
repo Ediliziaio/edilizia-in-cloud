@@ -349,4 +349,135 @@ describe("window render prompt", () => {
     expect(prompt.userPrompt.toLowerCase()).toContain("electric roller-shutter switch plate");
     expect(prompt.validation.isValid).toBe(true);
   });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // v8.3.x regression tests — masterprompt v8.3.1 alignment
+  // ───────────────────────────────────────────────────────────────────────────
+
+  it("v8.3.x: BLOCK A enforces physical replacement, not color edit (masterprompt A)", () => {
+    const analysis = buildAnalysisWithOpenings();
+    const config = mapWizardToConfig(baseState, "", {
+      sceneAnalysis: analysis,
+      selectedOpeningIds: ["A"],
+    });
+    const prompt = buildWindowPrompt(config, analysis);
+
+    expect(prompt.systemPrompt).toContain("PHOTOREALISTIC WINDOW INSTALLATION SIMULATOR");
+    expect(prompt.systemPrompt).toContain("YOU ARE NOT DOING");
+    expect(prompt.systemPrompt).toContain("YOU ARE DOING");
+    expect(prompt.systemPrompt).toContain("color edit");
+    expect(prompt.systemPrompt).toContain("REAL PHYSICAL WINDOW REPLACEMENT");
+    expect(prompt.systemPrompt).toContain("demolish and rebuild");
+    expect(prompt.systemPrompt).toContain("WHAT YOU PRESERVE");
+    expect(prompt.systemPrompt).toContain("WHAT YOU REPLACE COMPLETELY");
+  });
+
+  it("v8.3.x: BLOCK F includes PHYSICAL REPLACEMENT CRITICAL section (masterprompt A)", () => {
+    const analysis = buildAnalysisWithOpenings();
+    const config = mapWizardToConfig(baseState, "", {
+      sceneAnalysis: analysis,
+      selectedOpeningIds: ["A"],
+    });
+    const prompt = buildWindowPrompt(config, analysis);
+
+    expect(prompt.userPrompt).toContain("PHYSICAL REPLACEMENT (CRITICAL)");
+    expect(prompt.userPrompt).toContain("The old window has been UNINSTALLED and REMOVED");
+    expect(prompt.userPrompt).toContain("WHAT THE VIEWER SHOULD THINK");
+  });
+
+  it("v8.3.x: BLOCK H negative constraints include anti-recoloring (masterprompt A)", () => {
+    const analysis = buildAnalysisWithOpenings();
+    const config = mapWizardToConfig(baseState, "", {
+      sceneAnalysis: analysis,
+      selectedOpeningIds: ["A"],
+    });
+    const prompt = buildWindowPrompt(config, analysis);
+
+    expect(prompt.blocks.H).toContain("do not recolor or repaint the existing window");
+    expect(prompt.blocks.H).toContain("Photoshop-style color-overlay effect");
+    expect(prompt.blocks.H).toContain("do not blend old and new visual elements");
+  });
+
+  it("v8.3.x: BLOCK 0.5 CARDINAL FAILURE MODES lists the 7 failure modes", () => {
+    const analysis = buildAnalysisWithOpenings();
+    const config = mapWizardToConfig(baseState, "", {
+      sceneAnalysis: analysis,
+      selectedOpeningIds: ["A"],
+    });
+    const prompt = buildWindowPrompt(config, analysis);
+
+    expect(prompt.userPrompt).toContain("CARDINAL FAILURE MODES");
+    expect(prompt.userPrompt).toContain("RECOLOR INSTEAD OF REPLACE");
+    expect(prompt.userPrompt).toContain("OLD HANDLE KEPT");
+    expect(prompt.userPrompt).toContain("LATERAL STILES STILL IN OLD COLOR");
+    expect(prompt.userPrompt).toContain("OLD SHUTTER CORD / BELT / WINDER STILL VISIBLE");
+    expect(prompt.userPrompt).toContain("OLD CASSONETTO RECOLORED");
+    expect(prompt.userPrompt).toContain("OBJECTS INVENTED");
+    expect(prompt.userPrompt).toContain("REFERENCE SWATCH PASTED INTO SCENE");
+  });
+
+  it("v8.3.x: builds IMAGE INPUTS LEGEND when reference images are available", () => {
+    const analysis = buildAnalysisWithOpenings();
+    const config = mapWizardToConfig(
+      { ...baseState, coloreInfisso: "1009_grigio_ardesia", tipoManiglia: "q_moderna" },
+      "",
+      { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
+    );
+    const prompt = buildWindowPrompt(config, analysis);
+
+    // referenceImages popolato (almeno frame color + handle)
+    expect(prompt.referenceImages.length).toBeGreaterThan(0);
+    expect(prompt.referenceImages.some((r) => r.kind === "frame_color")).toBe(true);
+
+    // Legend presente nel userPrompt e nei blocks
+    expect(prompt.userPrompt).toContain("IMAGE INPUTS LEGEND");
+    expect(prompt.userPrompt).toContain("SOURCE SCENE PHOTO");
+    expect(prompt.userPrompt).toContain("HARD RULE");
+    expect(prompt.blocks.LEGEND).toBeTruthy();
+  });
+
+  it("v8.3.6 regression: mapShutter resolves WIZARD_TAPP_COLORS ids (verde/rosso/blu)", () => {
+    const analysis = buildAnalysisWithOpenings();
+    // Tapparella motorizzata + colore "Verde Muschio (RAL 6005)" dalla palette
+    // dedicata tapparelle. Prima del fix v8.3.6 findWizardRal lo scartava.
+    const config = mapWizardToConfig(
+      { ...baseState, tapp: "motorizzate", tappCol: "tapp_6005_muschio" },
+      "",
+      { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
+    );
+
+    const shutter = config.technical_specification[0].shutter;
+    expect(shutter.replace).toBe(true);
+    expect(shutter.isMotorized).toBe(true);
+    expect(shutter.colorLabel).toContain("Verde Muschio");
+    expect(shutter.colorLabel).toContain("RAL 6005");
+    // NON deve contenere l'id grezzo "tapp_6005_muschio" (bug pre-v8.3.6)
+    expect(shutter.colorLabel).not.toContain("tapp_6005");
+  });
+
+  it("v8.3.6 regression: mapCassonetto uses RAL code, not internal id", () => {
+    const analysis = buildAnalysisWithOpenings();
+    // Cassonetto custom in "Blu Cobalto (RAL 135)" — il vecchio mapper
+    // produceva "Blu Cobalto (RAL 135_blu_cobalto)".
+    const config = mapWizardToConfig(
+      { ...baseState, cass: true, cassMat: "colore_custom", cassCol: "135_blu_cobalto" },
+      "",
+      { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
+    );
+
+    const cass = config.technical_specification[0].cassonetto;
+    expect(cass.replace).toBe(true);
+    expect(cass.colorLabel).toBe("Blu Cobalto (RAL 135)");
+    expect(cass.colorLabel).not.toContain("135_blu_cobalto");
+  });
+
+  it("v8.3.x: promptVersion is current (regression detector for version bumps)", () => {
+    const analysis = buildAnalysisWithOpenings();
+    const config = mapWizardToConfig(baseState, "", {
+      sceneAnalysis: analysis,
+      selectedOpeningIds: ["A"],
+    });
+    const prompt = buildWindowPrompt(config, analysis);
+    expect(prompt.promptVersion).toBe("8.3.7");
+  });
 });
