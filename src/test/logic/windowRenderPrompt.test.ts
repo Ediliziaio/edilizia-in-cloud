@@ -282,11 +282,11 @@ describe("window render prompt", () => {
     expect(config.replacement_manifest.removals.some((rule) => rule.code === "remove_horizontal_transom")).toBe(true);
 
     const prompt = buildWindowPrompt(config, analysis);
-    // v8.2: stringhe rinominate per maggiore precisione semantica.
+    // v8.2 → v8.6: la regola "rimuovi traverso" resta nel user prompt
+    // tramite la specifica tecnica dinamica (BLOCK D). Il negative prompt
+    // ora e' asciugato — non duplichiamo regole semantiche gia' coperte
+    // dal user prompt dynamic.
     expect(prompt.userPrompt.toLowerCase()).toContain("remove the horizontal transom");
-    // Pre-v8.2: "horizontal transom kept when removed"
-    // Post-v8.2: "horizontal transom present when transom-remove mode is selected"
-    expect(prompt.negativePrompt.toLowerCase()).toContain("horizontal transom present when transom-remove mode is selected");
   });
 
   it("v8.3.8: hidden hinges are honored on ALL profile families (architectural upsell)", () => {
@@ -361,7 +361,7 @@ describe("window render prompt", () => {
   // v8.3.x regression tests — masterprompt v8.3.1 alignment
   // ───────────────────────────────────────────────────────────────────────────
 
-  it("v8.3.x: BLOCK A enforces physical replacement, not color edit (masterprompt A)", () => {
+  it("v8.6: BLOCK A includes core SIMULATOR identity + demolish-and-rebuild semantics", () => {
     const analysis = buildAnalysisWithOpenings();
     const config = mapWizardToConfig(baseState, "", {
       sceneAnalysis: analysis,
@@ -369,17 +369,16 @@ describe("window render prompt", () => {
     });
     const prompt = buildWindowPrompt(config, analysis);
 
+    // v8.6 ha consolidato il sistema YOU ARE NOT/DOING in narrative piu' compatta.
+    // Le frasi chiave devono restare presenti.
     expect(prompt.systemPrompt).toContain("PHOTOREALISTIC WINDOW INSTALLATION SIMULATOR");
-    expect(prompt.systemPrompt).toContain("YOU ARE NOT DOING");
-    expect(prompt.systemPrompt).toContain("YOU ARE DOING");
-    expect(prompt.systemPrompt).toContain("color edit");
-    expect(prompt.systemPrompt).toContain("REAL PHYSICAL WINDOW REPLACEMENT");
     expect(prompt.systemPrompt).toContain("demolish and rebuild");
-    expect(prompt.systemPrompt).toContain("WHAT YOU PRESERVE");
-    expect(prompt.systemPrompt).toContain("WHAT YOU REPLACE COMPLETELY");
+    expect(prompt.systemPrompt).toContain("PRESERVE EXACTLY");
+    expect(prompt.systemPrompt).toContain("REPLACE COMPLETELY");
+    expect(prompt.systemPrompt).toContain("NOT a color filter");
   });
 
-  it("v8.3.x: BLOCK F includes PHYSICAL REPLACEMENT CRITICAL section (masterprompt A)", () => {
+  it("v8.6: BLOCK A includes ABSOLUTE BANS + Italian residential standard", () => {
     const analysis = buildAnalysisWithOpenings();
     const config = mapWizardToConfig(baseState, "", {
       sceneAnalysis: analysis,
@@ -387,12 +386,16 @@ describe("window render prompt", () => {
     });
     const prompt = buildWindowPrompt(config, analysis);
 
-    expect(prompt.userPrompt).toContain("PHYSICAL REPLACEMENT (CRITICAL)");
-    expect(prompt.userPrompt).toContain("The old window has been UNINSTALLED and REMOVED");
-    expect(prompt.userPrompt).toContain("WHAT THE VIEWER SHOULD THINK");
+    // Le ban critiche (recolor / handle / stiles / cinghia / cassonetto)
+    // sono ora consolidate nella sezione ABSOLUTE BANS del system prompt
+    expect(prompt.systemPrompt).toContain("ABSOLUTE BANS");
+    expect(prompt.systemPrompt).toContain("Recoloring the existing window instead of replacing");
+    expect(prompt.systemPrompt).toContain("Preserving the old handle silhouette");
+    expect(prompt.systemPrompt).toContain("lateral stiles in the old color");
+    expect(prompt.systemPrompt).toContain("Italian residential");
   });
 
-  it("v8.3.x: BLOCK H negative constraints include anti-recoloring (masterprompt A)", () => {
+  it("v8.6: BLOCK F focuses on INSTALLATION REALISM only", () => {
     const analysis = buildAnalysisWithOpenings();
     const config = mapWizardToConfig(baseState, "", {
       sceneAnalysis: analysis,
@@ -400,12 +403,14 @@ describe("window render prompt", () => {
     });
     const prompt = buildWindowPrompt(config, analysis);
 
-    expect(prompt.blocks.H).toContain("do not recolor or repaint the existing window");
-    expect(prompt.blocks.H).toContain("Photoshop-style color-overlay effect");
-    expect(prompt.blocks.H).toContain("do not blend old and new visual elements");
+    expect(prompt.userPrompt).toContain("INSTALLATION REALISM");
+    expect(prompt.userPrompt).toContain("Same room, same angle");
+    // v8.6 — sezioni eliminate (consolidate in BLOCK A):
+    expect(prompt.userPrompt).not.toContain("PHYSICAL REPLACEMENT (CRITICAL)");
+    expect(prompt.userPrompt).not.toContain("CARDINAL FAILURE MODES");
   });
 
-  it("v8.3.x: BLOCK 0.5 CARDINAL FAILURE MODES lists the 7 failure modes", () => {
+  it("v8.6: BLOCK J has lean 8-point pre-output checklist", () => {
     const analysis = buildAnalysisWithOpenings();
     const config = mapWizardToConfig(baseState, "", {
       sceneAnalysis: analysis,
@@ -413,14 +418,10 @@ describe("window render prompt", () => {
     });
     const prompt = buildWindowPrompt(config, analysis);
 
-    expect(prompt.userPrompt).toContain("CARDINAL FAILURE MODES");
-    expect(prompt.userPrompt).toContain("RECOLOR INSTEAD OF REPLACE");
-    expect(prompt.userPrompt).toContain("OLD HANDLE KEPT");
-    expect(prompt.userPrompt).toContain("LATERAL STILES STILL IN OLD COLOR");
-    expect(prompt.userPrompt).toContain("OLD SHUTTER CORD / BELT / WINDER STILL VISIBLE");
-    expect(prompt.userPrompt).toContain("OLD CASSONETTO RECOLORED");
-    expect(prompt.userPrompt).toContain("OBJECTS INVENTED");
-    expect(prompt.userPrompt).toContain("REFERENCE SWATCH PASTED INTO SCENE");
+    expect(prompt.userPrompt).toContain("PRE-OUTPUT CHECKLIST");
+    // I 8 punti sono numerati 1-8 e coprono i 7 fail mode + scope
+    expect(prompt.blocks.J).toMatch(/1\. Scope/);
+    expect(prompt.blocks.J).toMatch(/8\. Scene integrity/);
   });
 
   it("v8.3.x: builds IMAGE INPUTS LEGEND when reference images are available", () => {
@@ -485,6 +486,6 @@ describe("window render prompt", () => {
       selectedOpeningIds: ["A"],
     });
     const prompt = buildWindowPrompt(config, analysis);
-    expect(prompt.promptVersion).toBe("8.5.6");
+    expect(prompt.promptVersion).toBe("8.6.0");
   });
 });
