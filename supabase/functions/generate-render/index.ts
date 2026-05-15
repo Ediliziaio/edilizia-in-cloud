@@ -932,7 +932,67 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
       /^data:image\/\w+;base64,/,
       "",
     );
-    const uint8 = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+    let uint8 = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+
+    // v8.5.6 — Post-process resize: matcha le dimensioni esatte della source.
+    // OpenAI gpt-image-1 con size="auto" sceglie tra 1024x1024/1024x1536/
+    // 1536x1024 — quindi quasi mai uguale al source (es. source 1080x1440
+    // diventa 1024x1536). Il BeforeAfterSlider usa l'aspect ratio source +
+    // object-contain → il render appare "tagliato" o letterbox.
+    // Soluzione: resize cover-crop verso dimensioni source esatte.
+    const targetW = prepared.effective_width ?? 0;
+    const targetH = prepared.effective_height ?? 0;
+    if (targetW > 0 && targetH > 0) {
+      try {
+        // Import dinamico per non bloccare il boot della function se
+        // imagescript non disponibile.
+        const { Image } = await import(
+          "https://deno.land/x/imagescript@1.2.17/mod.ts"
+        );
+        const img = await Image.decode(uint8);
+        const srcW = img.width;
+        const srcH = img.height;
+        const srcRatio = srcW / srcH;
+        const tgtRatio = targetW / targetH;
+
+        if (Math.abs(srcRatio - tgtRatio) < 0.01) {
+          // Ratio identico → resize diretto
+          img.resize(targetW, targetH);
+        } else if (srcRatio > tgtRatio) {
+          // Render piu' largo del target → scala su height, crop laterale
+          const scaledW = Math.round(srcW * targetH / srcH);
+          img.resize(scaledW, targetH);
+          const cropX = Math.round((scaledW - targetW) / 2);
+          img.crop(cropX, 0, targetW, targetH);
+        } else {
+          // Render piu' alto del target → scala su width, crop verticale
+          const scaledH = Math.round(srcH * targetW / srcW);
+          img.resize(targetW, scaledH);
+          const cropY = Math.round((scaledH - targetH) / 2);
+          img.crop(0, cropY, targetW, targetH);
+        }
+        // Cast: imagescript encode ritorna Uint8Array<ArrayBufferLike> ma
+        // l'API Supabase Storage.upload accetta Uint8Array<ArrayBuffer>.
+        // Copia in nuovo buffer per compatibilita' tipi stretti TS 5.x.
+        const encoded = await img.encode();
+        uint8 = new Uint8Array(encoded);
+        logInfo({
+          session_id,
+          msg: "render_resized_to_source",
+          from: `${srcW}x${srcH}`,
+          to: `${targetW}x${targetH}`,
+        });
+      } catch (resizeErr) {
+        // Se imagescript fallisce (es. WASM init), procediamo col bitmap
+        // grezzo da OpenAI. La UI gestira' l'aspect ratio diverso.
+        logWarn({
+          session_id,
+          msg: "render_resize_failed_fallback_raw",
+          error: resizeErr instanceof Error ? resizeErr.message : String(resizeErr),
+        });
+      }
+    }
+
     const resultPath =
       `${session.company_id}/${session_id}/render_${Date.now()}.png`;
 

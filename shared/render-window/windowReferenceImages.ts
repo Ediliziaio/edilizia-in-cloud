@@ -234,7 +234,11 @@ export function collectReferenceImages(
   push(resolveCassonettoRef(spec));
   push(resolveTapparellaColorRef(spec));
 
-  return out.slice(0, 6);
+  // v8.5.6 — Cap ridotto da 6 a 4. Meno reference images = meno input token
+  // = render piu' veloce su OpenAI (osservato 2 min con 6 ref). 4 reference
+  // coprono i casi piu' importanti: frame color, handle, nodo, cassonetto.
+  // Hidden hinges / tapparella color sono usability-nice ma non critici.
+  return out.slice(0, 4);
 }
 
 /**
