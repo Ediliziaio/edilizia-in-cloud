@@ -405,7 +405,7 @@ export default function RenderNewV2() {
 
       const { data: sess, error: pollError } = await supabase
         .from("render_sessions")
-        .select("status, result_urls, error_message")
+        .select("status, result_urls, error_message, processing_started_at")
         .eq("id", sid)
         .single();
 
@@ -436,6 +436,23 @@ export default function RenderNewV2() {
           }
         }
         return;
+      }
+
+      // v8.6.2 — Dead session detection: se processing_started_at e' > 200s fa
+      // e lo status e' ancora "processing", probabilmente l'edge function e'
+      // stata killata silenziosamente dal gateway Supabase (cap 150s + margine).
+      // Forziamo failure invece di lasciare l'utente bloccato a vedere "15%".
+      if (sess?.status === "processing" && sess.processing_started_at) {
+        const startedAt = new Date(sess.processing_started_at).getTime();
+        const ageSec = (Date.now() - startedAt) / 1000;
+        if (ageSec > 200) {
+          stopPolling();
+          setGenerating(false);
+          setGenerateError(
+            `Render bloccato sul server (avviato ${Math.round(ageSec)}s fa, status ancora "processing"). Probabile timeout della edge function. Riprova.`,
+          );
+          return;
+        }
       }
 
       if (sess?.status === "failed") {

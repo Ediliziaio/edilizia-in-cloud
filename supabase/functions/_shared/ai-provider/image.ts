@@ -868,15 +868,24 @@ function withAttemptHistory(
 }
 
 function pickOpenAISize(w?: number, h?: number): string {
-  // v8.5.4 — gpt-image-1 supporta size="auto" che mantiene il rapporto della
-  // foto sorgente automaticamente. Evita il crop osservato sui render OpenAI
-  // (la foto sorgente puo' essere portrait lungo, ma il vecchio mapping
-  // sceglieva 1024x1536 e tagliava). Auto > calcolo manuale.
-  // Fallback ai size discreti solo se model legacy (gpt-image-1.5, dall-e-3).
-  // Anche con size discreto, scegliamo quello piu' vicino al ratio source
-  // per minimizzare il crop.
-  if (!w || !h) return "auto";
-  return "auto";
+  // v8.6.2 — Tornato a calcolo discreto (no "auto").
+  // "size=auto" di gpt-image-1 in alcuni casi causa retry interni del modello
+  // che gonfia il tempo di generazione (osservato ~5 minuti su render
+  // "bloccati al 15%"). I 3 size discreti garantiscono comportamento
+  // deterministico:
+  //   1024x1024 → square
+  //   1024x1536 → portrait
+  //   1536x1024 → landscape
+  // Scegliamo quello con ratio piu' vicino alla source per minimizzare il
+  // crop visivo finale.
+  if (!w || !h) return "1024x1024";
+  const ratio = w / h;
+  // ratio < 0.8 = portrait alto → 1024x1536 (ratio 0.666)
+  // 0.8 <= ratio < 1.25 = quadrato-ish → 1024x1024
+  // ratio >= 1.25 = landscape → 1536x1024 (ratio 1.5)
+  if (ratio < 0.8) return "1024x1536";
+  if (ratio > 1.25) return "1536x1024";
+  return "1024x1024";
 }
 
 function buildOpenAIPrompt(params: ImageEditParams): string {

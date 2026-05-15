@@ -477,7 +477,7 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
       "curtains lamps plants pictures sensors invented in the room, " +
       "old paint outline or halo around the new frame, " +
       "phantom shadows of the previous installation",
-    promptVersion: "8.6.1",
+    promptVersion: "8.6.2",
     blocks,
     validation,
     normalizedConfig,
