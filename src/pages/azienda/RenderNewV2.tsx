@@ -369,21 +369,36 @@ export default function RenderNewV2() {
     }
   }, [companyId, photo, photoPath, sessionId, user]);
 
-  const stopPolling = useCallback(() => {
+  // v8.5.5 — stopPoll ferma SOLO il timeout di polling. Il contatore tick
+  // (elapsedSec) deve continuare a girare durante il polling: era questo
+  // il bug "2% bloccato" — startPolling chiamava stopPolling che fermava
+  // anche il tick → contatore congelato anche se il render era in corso.
+  const stopPoll = useCallback(() => {
     if (pollRef.current) {
       clearTimeout(pollRef.current);
       pollRef.current = null;
     }
+  }, []);
+
+  // stopTick ferma il contatore elapsedSec. Da chiamare quando il render
+  // arriva a stato terminale (completed/failed) o reset esplicito.
+  const stopTick = useCallback(() => {
     if (tickRef.current) {
       clearInterval(tickRef.current);
       tickRef.current = null;
     }
   }, []);
 
+  // Helper "ferma tutto" per usi terminali (success, fail, reset, unmount).
+  const stopPolling = useCallback(() => {
+    stopPoll();
+    stopTick();
+  }, [stopPoll, stopTick]);
+
   const startPolling = useCallback((sid: string) => {
-    // Always cancel any existing poll before starting a new one — guards
-    // against doppio-click "Genera" che produrrebbe due loop concorrenti.
-    stopPolling();
+    // Cancella solo eventuali poll timeout pendenti (evita doppio polling).
+    // NON fermiamo il tick: deve continuare a girare per mostrare l'elapsed.
+    stopPoll();
     let intervalIdx = 0;
 
     const poll = async () => {
