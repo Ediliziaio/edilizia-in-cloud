@@ -156,30 +156,31 @@ export function buildWindowPrompt(
 
   const blocks: Record<string, string> = {};
 
-  blocks.A = `[BLOCK A – MISSION]
-You are a SURGICAL PHOTOREALISTIC IMAGE EDITOR specialized in premium window and door replacement renders.
+  blocks.A = `[BLOCK A – MISSION & IDENTITY]
+You are a SURGICAL PHOTOREALISTIC IMAGE EDITOR with 20+ years of experience in premium window and door replacement renders for the Italian residential market.
+You think like an "esperto serramentista italiano": you know that Italian windows have specific structural standards (numero maniglie, palettone, cerniere a scomparsa, cassonetto monoblocco, tapparelle, scuri/persiane, traverso, etc.) and you respect them.
 Your task is NOT to redesign the room. Your task is to keep the exact same photographed environment and replace ONLY the requested target openings and explicitly requested accessories.
 
-MANDATORY CORE CONSTRAINTS:
-- same room / same house
-- same photograph
-- same camera angle
-- same geometry
-- same perspective
-- same lighting direction
-- same environment
-- same furniture
-- same outdoor view unless optical realism requires only minimal glass-consistent treatment
-- same image orientation and same image dimensions
-- no redesign of the room
+🔴 ABSOLUTE TIER (hard ban — failing this = unusable render):
+- DO NOT change the room, walls, ceiling, floor, furniture, outdoor view (beyond minimal optical reflections), lighting, camera position, image dimensions or orientation.
+- DO NOT add, modify or remove any object that is not explicitly part of the replacement scope.
+- DO NOT invent decorative elements, lights, sensors, stickers, devices, sockets, switches that were not visible in the original photo (UNLESS specifically requested by the replacement spec, e.g. new electric shutter switch).
+- DO NOT leave any artefact from the OLD window in the new render: no leftover cord, no leftover rod, no leftover wiring, no old paint outline, no demolition residue, no hole.
 
-CRITICAL v8 NON-NEGOTIABLES:
-- If REDUCED-NODE is specified, the central mullion MUST be visibly thinner than the outer frame.
-- If CENTRAL-HANDLE is specified, render EXACTLY ONE handle on the central mullion — NOT two.
-- If HIDDEN HINGES is specified, NO visible hinges anywhere on the window.
-- If composition CHANGES sash count (e.g. 3→2 ante), redistribute glazing within the SAME opening width.
-- If shutter is MOTORIZED and old manual belt was visible, REMOVE the belt AND INSTALL an electric switch plate at its location.
-- If TRANSOM REMOVE is specified, produce SINGLE full-height glazed sashes.`;
+🟡 MANDATORY TIER (italian residential standard — must match config):
+- Numero maniglie: F2A = 1 maniglia (mai 2), F3A = 2 maniglie (mai 3), F4A = 2 maniglie (mai 4).
+- Nodo: simmetrico (~110mm), asimmetrico/palettone+palettino (~70mm), maniglia centrale (~30mm slim).
+- Cerniere: visibili (2 per anta, 3 se >2.4m portafinestra) o a scomparsa (0 visibili).
+- Traverso: keep/remove/add esplicito sulla portafinestra.
+- Cassonetto: ≤30cm altezza, flush al muro, mai oltre i lati del frame.
+- Bottone elettrico (se tapparella motorizzata): placca Vimar/Bticino 80x80mm a ~110cm dal pavimento.
+
+🟢 QUALITY TIER (nice to have for premium look):
+- Riflessi vetro coerenti con l'illuminazione e l'ambiente.
+- Gasket lines fra telaio e anta sottili e realistiche.
+- Ambient occlusion locale agli spigoli del frame e delle cerniere.
+- Finitura uniforme su tutte le ferramenta (maniglie+cerniere same color+finish).
+- Vetri double-glazed con leggero edge spacer visibile sui bordi.`;
 
   blocks.B = `[BLOCK B – EXISTING SCENE INVENTORY]
 Environment: ${normalizedConfig.scene_analysis.environmentType}
@@ -319,6 +320,25 @@ ${bullets([
     "v8.3 — Wall around new frame: seamless plaster + paint. No halo, no patch, no shade difference, no old paint outline from the previous installation.",
   ])}`;
 
+  // v8.3 — Few-shot positive examples: descrizioni testuali di "good output"
+  // che aiutano la AI ad ancorarsi al risultato atteso, oltre alle regole negative.
+  blocks.K = `[BLOCK K – POSITIVE EXAMPLES OF EXPECTED OUTPUT]
+The following are textual descriptions of WHAT A GOOD RENDER LOOKS LIKE for typical cases. Use them as anchors.
+
+Example 1 — Finestra F2A nuovo PVC bianco con maniglia laterale:
+"A clean two-sash casement window installed inside the same wall opening. The frame is bright matte white PVC (RAL 9010), perfectly squared. The central mullion is ~100mm wide. ONE handle on the right-hand operative sash at ~110cm from the floor, polished chrome finish. TWO compact European hinges per sash on the left/right vertical stile, same chrome finish. The glass is double-glazed clear with subtle gasket lines. The wall around the new frame is uniformly painted, no halo, no old paint outline. No leftover rods, cords, or accessories from the previous window. The room, the furniture, the outdoor view are IDENTICAL to the source photo."
+
+Example 2 — Finestra F2A maniglia centrale (palettone slim):
+"A two-sash casement window with a SLIM central mullion (~30mm) — the "palettone slim" Italian style. ONE single handle mounted AT THE CENTER on the slim mullion, NOT on the lateral stiles. Two thin compact hinges per sash on the lateral stiles. The mullion is significantly thinner than the outer frame perimeter, almost invisible. Glass dominates the visual field. Clean modern Italian look."
+
+Example 3 — Portafinestra PF2A con cerniere a scomparsa:
+"A door-window with two large sashes. NO visible hinges anywhere on the lateral stiles — the hinge mechanism is completely hidden inside the frame channel. The stiles look perfectly clean and uninterrupted. ONE single handle at ~95cm from the floor on the right sash. The glass extends full-height as a single panel per sash (transom removed). The frame is contemporary slim aluminium, anthracite RAL 7016."
+
+Example 4 — Tapparella motorizzata + bottone elettrico:
+"A motorized roller shutter housed cleanly inside the cassonetto above the window. NO manual belt, NO cord, NO wall winder, NO vertical rod or pipe ANYWHERE near the window. Instead, a SMALL square electric switch plate (80x80mm, Vimar-style, matte white RAL 9010) is installed flush on the wall to the right of the window, centered at ~110cm from floor. The plate has TWO vertical rocker buttons (up triangle ▲, down triangle ▽). The wall around the new switch is uniformly painted, no halo from where the old larger belt winder plate used to be."
+
+These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sent in this prompt's earlier blocks. The examples show what "good" looks like at the macro level.`;
+
   const userPrompt = [
     blocks.B,
     blocks.C,
@@ -329,6 +349,7 @@ ${bullets([
     blocks.H,
     blocks.I,
     blocks.J,
+    blocks.K,
     normalizedConfig.notes ? `[ADDITIONAL USER NOTES]\n${normalizedConfig.notes}` : "",
   ]
     .filter(Boolean)
@@ -388,7 +409,7 @@ ${bullets([
       "old paint outline where the previous frame ended, " +
       "any wiring, conduit, copper pipe, brass rod or cable running on the wall around the window unless explicitly present in the source photo and explicitly NOT marked for removal, " +
       "phantom shadows of the previous installation",
-    promptVersion: "8.3.0",
+    promptVersion: "8.3.1",
     blocks,
     validation,
     normalizedConfig,
