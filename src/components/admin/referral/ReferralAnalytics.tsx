@@ -23,7 +23,7 @@ const COLORS = [
   "hsl(var(--chart-5))",
 ];
 
-export function ReferralAnalytics({ referrers, referralCompanies, payouts, getMonthlyCommission }: Props) {
+export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payouts, getMonthlyCommission }: Props) {
   const [calculating, setCalculating] = useState(false);
 
   const analytics = useMemo(() => {
@@ -75,8 +75,10 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts, getMo
       const { data, error } = await supabase.rpc("calculate_monthly_commissions", { p_month: m, p_year: y });
       if (error) throw error;
       toast.success(`Calcolate ${data} voci di commissione per ${m}/${y}`);
-    } catch (err: any) {
-      toast.error("Errore", { description: err.message });
+    } catch (err: unknown) {
+      toast.error("Errore", {
+        description: err instanceof Error ? err.message : "Calcolo commissioni non riuscito.",
+      });
     } finally {
       setCalculating(false);
     }

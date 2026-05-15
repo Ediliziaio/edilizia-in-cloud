@@ -11,6 +11,7 @@ import type {
   WindowSceneAnalysis,
   WindowSceneOpening,
   WindowTargetSelection,
+  WindowTransomPanelBelowType,
 } from "./types.ts";
 
 const OPENING_TYPES: WindowOpeningType[] = [
@@ -87,7 +88,12 @@ function numberOr(value: unknown, fallback: number): number {
 }
 
 function optionalNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function stringArray(value: unknown, limit = 8): string[] {
@@ -138,6 +144,17 @@ function normalizeBeltPlacement(value: unknown): WindowBeltPlacement {
   return allowed.includes(value as WindowBeltPlacement) ? (value as WindowBeltPlacement) : "unknown";
 }
 
+function normalizeTransomPanelBelowType(value: unknown): WindowTransomPanelBelowType {
+  const allowed: WindowTransomPanelBelowType[] = ["glass", "solid_panel", "louvered", "unknown"];
+  return allowed.includes(value as WindowTransomPanelBelowType) ? (value as WindowTransomPanelBelowType) : "unknown";
+}
+
+function normalizePct(value: unknown): number | null {
+  const number = optionalNumber(value);
+  if (number === null) return null;
+  return Math.max(0, Math.min(100, number));
+}
+
 function inferOrientation(meta?: WindowPhotoMeta | null): WindowImageOrientation {
   return meta?.orientation ?? "unknown";
 }
@@ -159,6 +176,7 @@ function buildOpeningFromLegacy(raw: Record<string, unknown>): WindowSceneOpenin
   const sashCount = numberOr(raw.num_ante_attuale, typeCurrent === "battente_2_ante" ? 2 : 1);
   const hasRoller = booleanOr(raw.presenza_tapparella, booleanOr(raw.presenza_cassonetto, false));
   const hasBelt = stringOr(raw.cinghia_attuale, "").toLowerCase() === "con_cinghia";
+  const canHaveTransom = typeCurrent === "portafinestra";
 
   return {
     id: "A",
@@ -188,6 +206,10 @@ function buildOpeningFromLegacy(raw: Record<string, unknown>): WindowSceneOpenin
     rollerCurtainPositionNotes: hasRoller
       ? "roller curtain not visibly lowered; if present, it is likely hidden inside the box in the source photo"
       : "no visible roller curtain in the source photo",
+    hasHorizontalTransom: canHaveTransom ? booleanOr(raw.has_horizontal_transom ?? raw.hasHorizontalTransom, false) : false,
+    transomPositionPct: canHaveTransom ? normalizePct(raw.transom_position_pct ?? raw.transomPositionPct) : null,
+    transomPanelBelowType: canHaveTransom ? normalizeTransomPanelBelowType(raw.transom_panel_below_type ?? raw.transomPanelBelowType) : "unknown",
+    estimatedHeightCm: optionalNumber(raw.estimated_height_cm ?? raw.estimatedHeightCm ?? raw.altezza_stimata_cm),
     hasPersiane: booleanOr(raw.presenza_persiane, false),
     hasScuri: booleanOr(raw.presenza_scuri, false),
     hasGrates: booleanOr(raw.presenza_inferriata, false),
@@ -220,6 +242,18 @@ function normalizeOpening(rawOpening: Record<string, unknown>, index: number, to
     rawOpening.roller_curtain_state ?? rawOpening.rollerCurtainState,
     hasRollerShutter ? "fully_raised_hidden" : "not_visible",
   );
+  const rawPerceivedElement = rawOpening.perceived_element ?? rawOpening.perceivedElement;
+  const perceivedElement = ["window", "door_window", "sliding_panel", "fixed_light", "unknown"].includes(String(rawPerceivedElement))
+    ? (String(rawPerceivedElement) as WindowSceneOpening["perceivedElement"])
+    : typeCurrent === "portafinestra"
+      ? "door_window"
+      : typeCurrent.includes("scorrevole")
+        ? "sliding_panel"
+        : typeCurrent === "fisso"
+          ? "fixed_light"
+          : "window";
+  const canHaveTransom = perceivedElement === "door_window" || typeCurrent === "portafinestra";
+  const estimatedHeightCm = optionalNumber(rawOpening.estimated_height_cm ?? rawOpening.estimatedHeightCm ?? rawOpening.altezza_stimata_cm);
 
   return {
     id: label,
@@ -228,15 +262,7 @@ function normalizeOpening(rawOpening: Record<string, unknown>, index: number, to
     position,
     approximatePlacement: stringOr(rawOpening.approximate_placement ?? rawOpening.approximatePlacement, inferPlacement(position, index, total)),
     typeCurrent,
-    perceivedElement: ["window", "door_window", "sliding_panel", "fixed_light", "unknown"].includes(String(rawOpening.perceived_element ?? rawOpening.perceivedElement))
-      ? (String(rawOpening.perceived_element ?? rawOpening.perceivedElement) as WindowSceneOpening["perceivedElement"])
-      : typeCurrent === "portafinestra"
-        ? "door_window"
-        : typeCurrent.includes("scorrevole")
-          ? "sliding_panel"
-          : typeCurrent === "fisso"
-            ? "fixed_light"
-            : "window",
+    perceivedElement,
     sashCount,
     materialPerceived: normalizeMaterial(rawOpening.material_perceived ?? rawOpening.materialPerceived ?? rawOpening.materiale_attuale),
     colorPerceived: stringOr(rawOpening.color_perceived ?? rawOpening.colorPerceived ?? rawOpening.colore_attuale, "unknown"),
@@ -285,6 +311,16 @@ function normalizeOpening(rawOpening: Record<string, unknown>, index: number, to
               ? "shutter curtain is fully lowered within the guides"
               : "no visible shutter curtain",
     ),
+    hasHorizontalTransom: canHaveTransom
+      ? booleanOr(rawOpening.has_horizontal_transom ?? rawOpening.hasHorizontalTransom, false)
+      : false,
+    transomPositionPct: canHaveTransom
+      ? normalizePct(rawOpening.transom_position_pct ?? rawOpening.transomPositionPct)
+      : null,
+    transomPanelBelowType: canHaveTransom
+      ? normalizeTransomPanelBelowType(rawOpening.transom_panel_below_type ?? rawOpening.transomPanelBelowType)
+      : "unknown",
+    estimatedHeightCm,
     hasPersiane: booleanOr(rawOpening.has_persiane ?? rawOpening.hasPersiane, false),
     hasScuri: booleanOr(rawOpening.has_scuri ?? rawOpening.hasScuri, false),
     hasGrates: booleanOr(rawOpening.has_grates ?? rawOpening.hasGrates ?? rawOpening.presenza_inferriata, false),

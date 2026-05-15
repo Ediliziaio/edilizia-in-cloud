@@ -1,4 +1,14 @@
-import { APERTURA_DESCRIPTION, DEFAULT_NEGATIVE_CONSTRAINTS, DEFAULT_QUALITY_DIRECTIVES, FRAME_STYLE_DESCRIPTION, HANDLE_FINISH_DESCRIPTION, HANDLE_STYLE_DESCRIPTION, MATERIAL_PHYSICS } from "./promptFragments.ts";
+import {
+  APERTURA_DESCRIPTION,
+  DEFAULT_NEGATIVE_CONSTRAINTS,
+  DEFAULT_QUALITY_DIRECTIVES,
+  FRAME_STYLE_DESCRIPTION,
+  HANDLE_FINISH_DESCRIPTION,
+  HANDLE_STYLE_DESCRIPTION,
+  HIDDEN_HINGE_DESCRIPTION,
+  MATERIAL_PHYSICS,
+  VISIBLE_HINGE_DESCRIPTION_BASE,
+} from "./promptFragments.ts";
 import type { WindowPromptBuildResult, WindowRenderConfig, WindowSceneOpening, WindowTechnicalSpecification } from "./types.ts";
 import { ensureWindowRenderConfig } from "./windowRenderConfig.ts";
 import { validateWindowPromptConfig } from "./windowPromptValidation.ts";
@@ -21,6 +31,10 @@ function describeOpening(opening: WindowSceneOpening): string {
     opening.hasBelt ? `manual control placement: ${opening.beltPlacementNotes}` : "",
     opening.hasRollerShutter ? `roller curtain state: ${opening.rollerCurtainState}` : "",
     opening.hasRollerShutter ? `roller curtain placement: ${opening.rollerCurtainPositionNotes}` : "",
+    opening.estimatedHeightCm ? `estimated height: ${opening.estimatedHeightCm} cm` : "",
+    opening.hasHorizontalTransom
+      ? `horizontal transom detected${opening.transomPositionPct !== null ? ` around ${opening.transomPositionPct}% height` : ""}${opening.transomPanelBelowType !== "unknown" ? `, lower panel type: ${opening.transomPanelBelowType}` : ""}`
+      : "no horizontal transom detected",
     opening.hasPersiane ? "persiane visible" : "",
     opening.hasScuri ? "scuri visible" : "",
     opening.hasGrates ? "grates visible" : "",
@@ -45,10 +59,18 @@ function describeSpecification(spec: WindowTechnicalSpecification): string {
     `Opening family: ${spec.desiredTypeId}, desired sash count: ${spec.desiredSashCount}`,
     `Material: ${MATERIAL_PHYSICS[spec.material] ?? spec.material}`,
     `Profile family: ${spec.profileId}, frame style: ${FRAME_STYLE_DESCRIPTION[spec.frameStyle] ?? spec.frameStyle}`,
-    `Frame visual depth: ${spec.frameDepthLabel}, shape: ${spec.frameShape}, slimness: ${spec.slimnessLabel}`,
+    `Frame visual depth: ${spec.frameDepthLabel}, visible thickness: ${spec.profileVisibleThickness}, shape: ${spec.frameShape}, slimness: ${spec.slimnessLabel}`,
+    spec.thermalBreakVisible ? "Thermal-break geometry must be physically plausible and subtly visible in the aluminum/hybrid profile." : "",
     `Finish: ${finishDescription}`,
     `Handle: ${HANDLE_STYLE_DESCRIPTION[spec.handleStyle] ?? spec.handleStyle} in ${HANDLE_FINISH_DESCRIPTION[spec.handleColorId] ?? spec.handleFinish}`,
-    `Visible hinge rule: exactly ${spec.hingeCountVisible} visible hinge group${spec.hingeCountVisible > 1 ? "s" : ""} on the full opening composition`,
+    spec.centralHandle ? "Central handle: render the handle on the visual centerline of the two-sash composition only." : "",
+    spec.compositionChange ? `Composition change: ${spec.compositionChange.instruction}` : "",
+    spec.transomRule ? `Horizontal transom rule: ${spec.transomRule}` : "",
+    spec.hingeMode === "hidden"
+      ? `Concealed hinge rule: ${HIDDEN_HINGE_DESCRIPTION}. ${spec.hingePlacementRule}`
+      : spec.hingeMode === "none"
+        ? `Hinge rule: ${spec.hingePlacementRule}`
+        : `Visible hinge rule: exactly ${spec.hingesPerSash} hinge groups per operable sash (${spec.hingeCountVisible} total visible groups). ${VISIBLE_HINGE_DESCRIPTION_BASE}. ${spec.hingePlacementRule}`,
     `Hinge style: ${spec.hingeStyle}`,
     `Hinge consistency: ${spec.hingeConsistencyRule}`,
     spec.manualControlCleanupRule ? `Manual shutter-control cleanup: ${spec.manualControlCleanupRule}` : "",
@@ -59,6 +81,7 @@ function describeSpecification(spec: WindowTechnicalSpecification): string {
     spec.shutter.replace
       ? `Shading system: replace with ${spec.shutter.mode === "motorizzate" ? "motorized roller shutter" : "new shutter system"}${spec.shutter.colorLabel ? ` in ${spec.shutter.colorLabel}` : ""}. Visibility state: ${spec.shutter.visibilityState}. Placement rule: ${spec.shutter.placementRule}`
       : "Shading system: keep existing if present",
+    spec.shutter.electricButton?.install ? `Electric command button: ${spec.shutter.electricButton.description}` : "",
     spec.compatibilityNotes.length > 0 ? `Compatibility rules: ${spec.compatibilityNotes.join(" | ")}` : "",
   ];
   return lines.filter(Boolean).join("\n");
@@ -155,6 +178,9 @@ ${bullets(
 - for sliding systems, use coherent sliding overlaps and tracks with no battente hardware
 - for two-sash compositions, keep the hinge logic coherent and do not invent extra hinges or mixed hinge colors
 - all visible hinges must match the selected hardware finish exactly, with realistic compact top/bottom geometry
+- if concealed hinges are selected, do not render any visible side hinge barrels, hinge plates or dark hinge artifacts
+- respect horizontal transom rules exactly: keep, remove or add only as specified by the technical specification
+- if motorization is selected, add only one subtle wall switch in the specified side/height and remove old manual control traces
 - if a new cassonetto is specified over an existing one, keep its visible width, height, depth and bottom edge very close to the source photo unless explicitly redesigned
 - if the shutter is fully open, keep the curtain hidden inside the cassonetto and do not invent a colored strip above the glazing
 - any visible shutter curtain must stay recessed within its guides behind the frame/glass plane, never floating on the wall or in front of the cassonetto`;
@@ -220,8 +246,8 @@ ${bullets([
     systemPrompt: blocks.A,
     userPrompt,
     negativePrompt:
-      "cartoon, illustration, painterly, staged showroom, room redesign, changed perspective, changed crop, changed wall color, changed furniture, extra windows, distorted geometry, fake CGI, glossy fake plastic, warped lines, floating frame, wrong shadows, mixed hinge colors, oversized cassonetto, visible manual belt on motorized shutter, visible manual cord on motorized shutter, visible wall winder on motorized shutter, visible belt slot on motorized shutter, leftover vertical manual-control trim, floating shutter band above the glass, shutter rendered in front of the wall",
-    promptVersion: "7.1.0",
+      "cartoon, illustration, painterly, staged showroom, room redesign, changed perspective, changed crop, changed wall color, changed furniture, extra windows, distorted geometry, fake CGI, glossy fake plastic, warped lines, floating frame, wrong shadows, mixed hinge colors, visible hinges when concealed hinges selected, central handle on non-compatible sash count, horizontal transom kept when removed, extra transom added when not requested, oversized cassonetto, visible manual belt on motorized shutter, visible manual cord on motorized shutter, visible wall winder on motorized shutter, visible belt slot on motorized shutter, missing electric switch for motorized shutter, leftover vertical manual-control trim, floating shutter band above the glass, shutter rendered in front of the wall",
+    promptVersion: "8.0.0",
     blocks,
     validation,
     normalizedConfig,

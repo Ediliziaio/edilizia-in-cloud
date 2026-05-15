@@ -303,11 +303,15 @@ export default function RenderFacciataNew() {
 
         const { data: sess } = await supabase
           .from("render_facciata_sessions")
-          .select("status, result_urls")
+          .select("status, result_urls, error_message")
           .eq("id", sid)
           .single();
 
-        const statusRow = sess as { status: string; result_urls: string[] | null } | null;
+        const statusRow = sess as {
+          status: string;
+          result_urls: string[] | null;
+          error_message?: string | null;
+        } | null;
 
         if (statusRow?.status === "completed" && statusRow.result_urls?.length) {
           stopPolling();
@@ -324,7 +328,7 @@ export default function RenderFacciataNew() {
         if (statusRow?.status === "failed") {
           stopPolling();
           setGenerating(false);
-          toast.error("Render fallito. Ricontrolliamo intervento e vincoli e riproviamo.");
+          toast.error(statusRow.error_message || "Render fallito. Ricontrolliamo intervento e vincoli e riproviamo.");
           setStep(3);
           return;
         }

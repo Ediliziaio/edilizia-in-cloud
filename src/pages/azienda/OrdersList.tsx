@@ -76,6 +76,8 @@ const ORDER_IMPORT_FIELDS: ImportField[] = [
 const PENDING_PAYMENTS_FILTER =
   "and(deposit_amount.gt.0,deposit_paid.eq.false),and(deposit_2_amount.gt.0,deposit_2_paid.eq.false),and(balance_amount.gt.0,balance_paid.eq.false),and(financing_amount.gt.0,financing_paid.eq.false)";
 
+const EMPTY_ORDERS: OrderWithDetails[] = [];
+
 function OrdersListInner() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
@@ -83,7 +85,7 @@ function OrdersListInner() {
   const appaltatoreEnabled = useAppaltatoreModuleEnabled();
   const [showOrderTypeDialog, setShowOrderTypeDialog] = useState(false);
   const queryClient = useQueryClient();
-  const { params: urlFilters, setParam: setURLParam, setParams: setURLParams } = useURLFilters({
+  const { params: urlFilters, setParam: setURLParam } = useURLFilters({
     searchQuery: { key: "q", defaultValue: "" },
     statusFilter: { key: "status", defaultValue: "all" },
     paymentFilter: { key: "payment", defaultValue: "all" },
@@ -339,7 +341,7 @@ function OrdersListInner() {
     gcTime: 15 * 60 * 1000,
   });
 
-  const rawOrders = ordersResult?.orders ?? [];
+  const rawOrders = ordersResult?.orders ?? EMPTY_ORDERS;
   const totalCount = ordersResult?.totalCount ?? 0;
 
   // KPI stats principali: reagiscono solo all'annualità, non ai filtri operativi
@@ -652,33 +654,6 @@ function OrdersListInner() {
   const uniqueSuppliers = useMemo(() => {
     return supplierProfiles.map(s => ({ id: s.id, name: s.name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [supplierProfiles]);
-
-  // Reverse lookup Maps: name → id for O(1) filter matching
-  const spNameToIdMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const sp of salespeopleData) {
-      const p = (sp as any).salesperson;
-      if (p) map.set(`${p.first_name} ${p.last_name}`, p.id);
-    }
-    return map;
-  }, [salespeopleData]);
-  const empNameToIdMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const e of employeeCosts) {
-      const emp = (e as any).employee;
-      if (emp) map.set(`${emp.first_name} ${emp.last_name}`, emp.id);
-    }
-    return map;
-  }, [employeeCosts]);
-  const teamNameToIdMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const t of externalTeamCosts) {
-      const team = (t as any).external_team;
-      if (team) map.set(team.name, team.id);
-    }
-    return map;
-  }, [externalTeamCosts]);
-  const supNameToIdMap = useMemo(() => new Map(supplierProfiles.map(s => [s.name, s.id])), [supplierProfiles]);
 
   // Apply sidebar client-side filters — placed here so salespeopleMap/laborMap/unique* are available
   const orders = useMemo(() => {

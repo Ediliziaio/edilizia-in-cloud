@@ -10,7 +10,7 @@ interface Props {
   getMonthlyCommission: (r: Referrer) => number;
 }
 
-export function ReferralStatCards({ referrers, referralCompanies, payouts, getMonthlyCommission }: Props) {
+export function ReferralStatCards({ referrers, referralCompanies, payouts: _payouts, getMonthlyCommission }: Props) {
   const activeReferrers = referrers.filter((r) => r.is_active).length;
   const totalCompanies = referralCompanies.length;
   const monthlyTotal = referrers.filter(r => r.is_active).reduce((sum, r) => sum + getMonthlyCommission(r), 0);

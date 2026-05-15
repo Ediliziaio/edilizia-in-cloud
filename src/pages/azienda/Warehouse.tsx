@@ -366,7 +366,6 @@ export default function Warehouse() {
     );
   }
 
-  const isInventario = viewMode === "stock" || viewMode === "lotti" || viewMode === "ddt";
   const isWorkflowView = viewMode === "list" || viewMode === "kanban" || viewMode === "calendar";
   const isOrderView = isWorkflowView;
 

@@ -34,6 +34,7 @@ import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import {
   PROFILI_MANIGLIA_CENTRALE_COMPATIBILI,
+  WIZARD_CERNIERE_OPTIONS,
   WIZARD_CASS_MATERIALI,
   WIZARD_HANDLE_TYPES,
   WIZARD_HW_COLORS,
@@ -41,14 +42,18 @@ import {
   WIZARD_PROFILI,
   WIZARD_RAL,
   WIZARD_TAPP_OPTIONS,
+  WIZARD_TRAVERSO_OPTIONS,
   WIZARD_TIPI,
   getColorById,
   mapWizardToConfig,
+  profileSupportsHiddenHinges,
+  type WizardCerniere,
   type WizardHandleType,
   type WizardHw,
   type WizardProfilo,
   type WizardState,
   type WizardTapp,
+  type WizardTraverso,
   type WizardTipo,
 } from "@/modules/render/lib/configMapper";
 import {
@@ -79,6 +84,8 @@ const INITIAL_STATE: WizardState = {
   cassCol: "",
   tapp: "no",
   tappCol: "stesso",
+  traverso: "auto",
+  cerniere: "visibili",
 };
 
 function readImageDimensions(file: File): Promise<WindowPhotoMeta> {
@@ -149,6 +156,12 @@ export default function RenderNewV2() {
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef(0);
   const crmPersistedRef = useRef(false);
+
+  useEffect(() => {
+    if (state.cerniere === "scomparsa" && state.profilo && !profileSupportsHiddenHinges(state.profilo as WizardProfilo)) {
+      setState((current) => current.cerniere === "scomparsa" ? { ...current, cerniere: "visibili" } : current);
+    }
+  }, [state.cerniere, state.profilo]);
 
   useEffect(() => {
     return () => {
@@ -344,11 +357,18 @@ export default function RenderNewV2() {
         return;
       }
 
-      const { data: sess } = await supabase
+      const { data: sess, error: pollError } = await supabase
         .from("render_sessions")
-        .select("status, result_urls")
+        .select("status, result_urls, error_message")
         .eq("id", sid)
         .single();
+
+      if (pollError) {
+        stopPolling();
+        setGenerating(false);
+        setGenerateError(`Non riesco a verificare lo stato del render: ${pollError.message}`);
+        return;
+      }
 
       if (sess?.status === "completed" && sess.result_urls?.length) {
         stopPolling();
@@ -365,28 +385,29 @@ export default function RenderNewV2() {
               { type: "sr-render-completed", sessionId: sid },
               window.location.origin,
             );
-          } catch (e) {
-            console.warn("[render-embed] postMessage failed", e);
+          } catch {
+            // Parent non raggiungibile: il render resta comunque completato nella pagina corrente.
           }
         }
         return;
       }
 
       if (sess?.status === "failed") {
+        const errorMessage = sess.error_message || "Render fallito";
         stopPolling();
         setGenerating(false);
-        setGenerateError("Render fallito");
+        setGenerateError(errorMessage);
         // EMBED MODE: notifica anche in caso di fallimento -> il parent
         // (Dialog StepAccessori) puo' mostrare un banner errore e
         // consentire all'utente di chiudere/riprovare.
         if (isEmbed && typeof window !== "undefined" && window.parent !== window) {
           try {
             window.parent.postMessage(
-              { type: "sr-render-failed", sessionId: sid, error: "Render fallito" },
+              { type: "sr-render-failed", sessionId: sid, error: errorMessage },
               window.location.origin,
             );
-          } catch (e) {
-            console.warn("[render-embed] postMessage failed", e);
+          } catch {
+            // Parent non raggiungibile: l'errore resta visibile nella pagina corrente.
           }
         }
         return;
@@ -424,7 +445,7 @@ export default function RenderNewV2() {
     elapsedRef.current = 0;
     setElapsedSec(0);
 
-    await supabase
+    const { error: updateError } = await supabase
       .from("render_sessions")
       .update({
         config,
@@ -433,6 +454,13 @@ export default function RenderNewV2() {
         error_message: null,
       })
       .eq("id", sessionId);
+
+    if (updateError) {
+      setGenerating(false);
+      setGenerateError(updateError.message);
+      toast.error(`Salvataggio configurazione render fallito: ${updateError.message}`);
+      return;
+    }
 
     tickRef.current = setInterval(() => {
       elapsedRef.current += 1;
@@ -1318,6 +1346,10 @@ function StepAccessori({
   const hasNoVisibleCurtain = targetOpenings.some((opening) =>
     opening.hasRollerShutter && opening.rollerCurtainState !== "partially_lowered" && opening.rollerCurtainState !== "fully_lowered",
   );
+  const isDoorWindow = state.tipo === "PF1A" || state.tipo === "PF2A" || state.tipo === "PF3A";
+  const hasDetectedTransom = targetOpenings.some((opening) => opening.hasHorizontalTransom);
+  const hasCompositionChange = targetOpenings.some((opening) => opening.sashCount !== Number(String(state.tipo).match(/\d/)?.[0] ?? opening.sashCount));
+  const hiddenHingesSupported = profileSupportsHiddenHinges(state.profilo as WizardProfilo);
   const infissoColor = getColorById(state.coloreInfisso);
 
   return (
@@ -1452,6 +1484,62 @@ function StepAccessori({
           </div>
 
           <div className="space-y-3">
+            <SectionTitle>Cerniere</SectionTitle>
+            <div className="grid gap-3 md:grid-cols-2">
+              {WIZARD_CERNIERE_OPTIONS.map((option) => {
+                const disabled = option.id === "scomparsa" && !hiddenHingesSupported;
+                return (
+                  <ChoiceCard
+                    key={option.id}
+                    title={`${option.label}${option.upsell ? " · premium" : ""}`}
+                    desc={disabled ? "Disponibile con alluminio, minimal o legno-alluminio." : option.desc}
+                    selected={state.cerniere === option.id}
+                    disabled={disabled}
+                    onClick={() => {
+                      if (disabled) return;
+                      setState((current) => ({ ...current, cerniere: option.id as WizardCerniere }));
+                    }}
+                  />
+                );
+              })}
+            </div>
+            {state.cerniere === "scomparsa" && hiddenHingesSupported && (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                Il render userà cerniere a scomparsa: lato telaio pulito, senza cilindri o placche visibili.
+              </div>
+            )}
+          </div>
+
+          {isDoorWindow && (
+            <div className="space-y-3">
+              <SectionTitle>Traverso portafinestra</SectionTitle>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {WIZARD_TRAVERSO_OPTIONS.map((option) => (
+                  <ChoiceCard
+                    key={option.id}
+                    title={option.label}
+                    desc={option.desc}
+                    selected={state.traverso === option.id}
+                    onClick={() => setState((current) => ({ ...current, traverso: option.id as WizardTraverso }))}
+                  />
+                ))}
+              </div>
+              {hasDetectedTransom && (
+                <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                  La foto sembra avere un traverso orizzontale: scegli se mantenerlo o pulire la composizione.
+                </div>
+              )}
+            </div>
+          )}
+
+          {hasCompositionChange && (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Hai scelto una composizione diversa dalla foto: il render cambierà solo ante e vetri del serramento,
+              mantenendo foro murario, soglia, pareti e contesto invariati.
+            </div>
+          )}
+
+          <div className="space-y-3">
             <SectionTitle>Note operative per l'AI</SectionTitle>
             <Textarea
               value={notes}
@@ -1555,10 +1643,15 @@ function StepRender({
                         <div className="mt-2 flex flex-wrap gap-2">
                           <MiniBadge text={`maniglia ${spec.handleStyle.replace(/_/g, " ")}`} />
                           <MiniBadge text={`hardware ${spec.handleFinish}`} />
-                          {!spec.desiredOpeningType.includes("scorrevole") && <MiniBadge text="cerniere uniformi come maniglia" />}
+                          {spec.hingeMode === "hidden" && <MiniBadge text="cerniere a scomparsa" />}
+                          {spec.hingeMode === "visible" && <MiniBadge text={`${spec.hingesPerSash} cerniere per anta`} />}
+                          {spec.hingeMode === "visible" && <MiniBadge text="cerniere uniformi come maniglia" />}
+                          {spec.compositionChange && <MiniBadge text="composizione aggiornata" intent="warning" />}
+                          {spec.transomRule && <MiniBadge text={`traverso ${spec.transomMode}`} />}
                           {spec.cassonetto.replace && <MiniBadge text={`cassonetto ${spec.cassonetto.colorLabel ?? ""}`.trim()} />}
                           {spec.cassonetto.replace && <MiniBadge text="ingombro cassonetto come esistente" />}
                           {spec.shutter.replace && <MiniBadge text={spec.shutter.isMotorized ? "tapparella motorizzata" : "tapparella nuova"} />}
+                          {spec.shutter.electricButton?.install && <MiniBadge text="pulsante elettrico coerente" />}
                           {spec.shutter.replace && spec.shutter.visibilityState === "fully_raised_hidden" && <MiniBadge text="tapparella aperta nascosta nel cassonetto" />}
                           {spec.manualControlCleanupRule && <MiniBadge text="rimozione totale comando manuale" intent="warning" />}
                           {spec.reducedNode && <MiniBadge text="profilo ridotto" />}
@@ -1815,20 +1908,27 @@ function ChoiceCard({
   title,
   desc,
   selected,
+  disabled = false,
   onClick,
 }: {
   title: string;
   desc: string;
   selected: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
       className={cn(
         "rounded-2xl border p-4 text-left transition",
-        selected ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+        disabled
+          ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 opacity-70"
+          : selected
+            ? "border-orange-500 bg-orange-50"
+            : "border-border hover:border-orange-300",
       )}
     >
       <div className="text-sm font-semibold">{title}</div>

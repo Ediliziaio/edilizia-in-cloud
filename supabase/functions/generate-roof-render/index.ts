@@ -1,17 +1,14 @@
 // generate-roof-render — Edge Function EiC
-// Render Tetto AI — Multi-Provider (OpenAI / Gemini)
+// Render Tetto AI — Provider unificato OpenRouter + fallback
 // Prompt Engine v2.0 — surgical roof renovation visualization
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
-import { bytesToBase64 } from "../_shared/base64.ts";
+import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
-import {
-  openAIImageEditResultToDataUrl,
-  runOpenAIImageEditWithFallback,
-} from "../_shared/openaiImageEdit.ts";
+import { editImage } from "../_shared/ai-provider/image.ts";
 
 // ── ROOF_PHYSICS ─────────────────────────────────────────────────────────────
 const ROOF_PHYSICS: Record<string, string> = {
@@ -348,15 +345,6 @@ function buildRoofPrompt(session: Record<string, unknown>): {
   };
 }
 
-// ── resolveRenderSize ────────────────────────────────────────────────────────
-function resolveRenderSize(w?: number, h?: number): string {
-  if (!w || !h) return "1024x1024";
-  const ratio = w / h;
-  if (ratio > 1.4) return "1792x1024";
-  if (ratio < 0.7) return "1024x1792";
-  return "1024x1024";
-}
-
 // ── fetchWithTimeout ─────────────────────────────────────────────────────────
 async function fetchWithTimeout(
   url: string,
@@ -372,20 +360,26 @@ async function fetchWithTimeout(
   }
 }
 
-// ── fetchWithRetry ──────────────────────────────────────────────────────────
-async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 2000): Promise<Response> {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const res = await fetch(url, options);
-      if (res.ok || i === retries) return res;
-      // Non-ok but retryable (5xx)
-      if (res.status < 500) return res;
-    } catch (err) {
-      if (i === retries) throw err;
-    }
-    await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string; extension: string } {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
+  if (!match) {
+    throw new Error("Formato immagine provider non valido");
   }
-  throw new Error("fetchWithRetry: all retries exhausted");
+
+  const mimeType = match[1];
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  const extension =
+    mimeType.includes("png") ? "png" :
+    mimeType.includes("webp") ? "webp" :
+    mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" :
+    "png";
+
+  return { bytes, mimeType, extension };
 }
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
@@ -519,6 +513,8 @@ Deno.serve(async (req) => {
     // ── Genera signed URL per foto originale ─────────────────────────────────
     const originalPath = session.original_photo_url as string;
     let imageUrl = originalPath;
+    let effectiveWidth = target_width ?? undefined;
+    let effectiveHeight = target_height ?? undefined;
 
     if (originalPath && !originalPath.startsWith("http")) {
       const prepared = await prepareInputImage({
@@ -529,6 +525,8 @@ Deno.serve(async (req) => {
         hintHeight: target_height ?? null,
       });
       imageUrl = prepared.url;
+      effectiveWidth = prepared.effective_width ?? effectiveWidth;
+      effectiveHeight = prepared.effective_height ?? effectiveHeight;
     }
 
     // ── Build prompt ─────────────────────────────────────────────────────────
@@ -538,125 +536,42 @@ Deno.serve(async (req) => {
     const { systemPrompt, userPrompt, promptVersion, promptPayload } = buildRoofPrompt(sessionLike);
     const finalProviderPrompt = `${systemPrompt}\n\n${userPrompt}`;
 
-    // ── Legge provider config e API key ──────────────────────────────────────
-    const { data: providerConfig } = await supabase
-      .from("render_provider_config")
-      .select("*")
-      .eq("is_default", true)
-      .eq("is_active", true)
-      .single();
-
-    if (!providerConfig) {
-      throw new Error("Nessun provider render attivo. Configurare in Admin > Impostazioni AI > Render.");
-    }
-
-    const platformKeyName = `render_${providerConfig.provider_key}_api_key`;
-    const { data: keyRow } = await supabase
-      .from("platform_settings")
-      .select("value")
-      .eq("key", platformKeyName)
-      .maybeSingle();
-
-    // Fallback: DB → Supabase edge secret (OPENAI_API_KEY, GEMINI_API_KEY, ...)
-    const envName = `${providerConfig.provider_key.toUpperCase()}_API_KEY`;
-    const apiKey =
-      (keyRow as { value: string } | null)?.value?.trim() ||
-      Deno.env.get(envName)?.trim() ||
-      "";
-    if (!apiKey) {
-      throw new Error(
-        `API key mancante per provider '${providerConfig.provider_key}'.` +
-        ` Configurarla in Admin > Impostazioni AI > Render o come Supabase secret ${envName}.`,
-      );
-    }
-
     // ── Chiama il provider AI ────────────────────────────────────────────────
-    let imageData: string | null = null;
-    let modelUsed = String(providerConfig.model || "");
-
-    if (providerConfig.provider_key === "openai") {
-      const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
-      if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
-      const imgBlob = await imgResp.blob();
-      const openaiResult = await runOpenAIImageEditWithFallback({
-        apiKey,
-        prompt: finalProviderPrompt,
-        image: imgBlob,
-        filename: "photo.jpg",
-        size: resolveRenderSize(target_width, target_height),
-        configuredModel: providerConfig.model,
-        fetcher: fetchWithRetry,
-      });
-      modelUsed = openaiResult.modelUsed;
-      if (openaiResult.fallbackErrors.length > 0) {
-        console.warn("[generate-roof-render] OpenAI model fallback:", openaiResult.fallbackErrors.join(" | "));
-      }
-      imageData = await openAIImageEditResultToDataUrl(
-        openaiResult.data,
-        (url, options = {}) => fetchWithTimeout(url, options, 30_000),
-      );
-
-    } else if (providerConfig.provider_key === "gemini") {
-      const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
-      const imgBuffer = await imgResp.arrayBuffer();
-      const imgB64 = bytesToBase64(imgBuffer);
-
-      const geminiBody = {
-        contents: [{
-          parts: [
-            { text: systemPrompt + "\n\n" + userPrompt },
-            { inline_data: { mime_type: "image/jpeg", data: imgB64 } },
-          ],
-        }],
-        generationConfig: {
-          responseModalities: ["IMAGE", "TEXT"],
-          temperature: 0.65,
-        },
-      };
-
-      const geminiUrl = `${providerConfig.api_endpoint}/${providerConfig.model}:generateContent?key=${apiKey}`;
-      const resp = await fetchWithRetry(
-        geminiUrl,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(geminiBody),
-        },
-      );
-
-      if (!resp.ok) {
-        const err = await resp.text();
-        throw new Error(`Gemini error ${resp.status}: ${err.substring(0, 300)}`);
-      }
-
-      const gemData = await resp.json();
-      const parts = gemData.candidates?.[0]?.content?.parts ?? [];
-      for (const part of parts) {
-        if (part.inlineData?.mimeType?.startsWith("image/")) {
-          imageData = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          break;
-        }
-      }
-
-    } else {
-      throw new Error(
-        `Provider '${providerConfig.provider_key}' non supportato. Selezionare OpenAI o Gemini.`,
-      );
-    }
-
-    if (!imageData) {
-      throw new Error("Nessuna immagine ricevuta dal provider AI");
-    }
+    const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
+    if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
+    const imgBlob = await imgResp.blob();
+    const providerResult = await editImage({
+      prompt: finalProviderPrompt,
+      sourceImageBlob: imgBlob,
+      effectiveWidth,
+      effectiveHeight,
+      openaiQuality: "medium",
+      timeoutMs: 180_000,
+      metadata: {
+        task_kind: "render_image_edit",
+        company_id: session.company_id as string,
+        session_id,
+      },
+    });
+    const providerKey = providerResult.providerUsed === "openrouter" ? "openrouter_image" : "openai";
+    const modelUsed = providerResult.modelUsed;
+    const providerRawResponse = {
+      ...providerResult.rawResponse,
+      _provider_used: providerResult.providerUsed,
+      _model_used: modelUsed,
+      _cost_usd: providerResult.costUsd ?? null,
+      _cost_is_estimated: providerResult.costIsEstimated,
+      _latency_ms: providerResult.latencyMs,
+    };
 
     // ── Upload risultato su Storage ──────────────────────────────────────────
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-    const uint8 = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-    const resultPath = `${session.company_id}/${session_id}/render_tetto_${Date.now()}.png`;
+    const uploadPayload = dataUrlToBytes(providerResult.imageDataUrl);
+    const resultPath = `${session.company_id}/${session_id}/render_tetto_${Date.now()}.${uploadPayload.extension}`;
 
     const { error: uploadErr } = await supabase.storage
       .from("tetto-results")
-      .upload(resultPath, uint8, {
-        contentType: "image/png",
+      .upload(resultPath, uploadPayload.bytes, {
+        contentType: uploadPayload.mimeType,
         upsert: true,
       });
 
@@ -671,8 +586,22 @@ Deno.serve(async (req) => {
     const resultUrl = publicUrlData.publicUrl;
 
     // ── Aggiorna render_tetto_sessions: completed ────────────────────────────
-    const costReal = providerConfig.cost_real_per_render ?? 0.04;
-    const costBilled = providerConfig.cost_billed_per_render ?? 0.10;
+    const capture = await captureRealCost({
+      supabase,
+      providerKey,
+      model: modelUsed,
+      rawResponse: providerRawResponse,
+      legacyFallbackEur: Number(providerRawResponse._cost_usd ?? 0) > 0
+        ? Number(providerRawResponse._cost_usd) * 0.92
+        : 0.039,
+    });
+    const { data: providerConfig } = await supabase
+      .from("render_provider_config")
+      .select("id, cost_billed_per_render, renders_generated")
+      .eq("provider_key", providerKey)
+      .maybeSingle();
+    const costReal = capture.cost_eur;
+    const costBilled = Number(providerConfig?.cost_billed_per_render ?? 0.10);
 
     await supabase
       .from("render_tetto_sessions")
@@ -682,29 +611,35 @@ Deno.serve(async (req) => {
         prompt_used: userPrompt,
         prompt_version: promptVersion,
         prompt_char_count: finalProviderPrompt.length,
-        provider_key: providerConfig.provider_key,
+        provider_key: providerKey,
         cost_real: costReal,
         cost_billed: costBilled,
         config_snapshot: {
           ...rawConfig,
           roof_render_payload: promptPayload,
           provider_model_used: modelUsed,
+          provider_attempts: providerResult.attempts,
         },
         processing_completed_at: new Date().toISOString(),
       })
       .eq("id", session_id);
 
     // ── Incrementa contatore provider ────────────────────────────────────────
-    await supabase
-      .from("render_provider_config")
-      .update({ renders_generated: (providerConfig.renders_generated ?? 0) + 1 })
-      .eq("id", providerConfig.id);
+    if (providerConfig?.id) {
+      await supabase
+        .from("render_provider_config")
+        .update({ renders_generated: Number(providerConfig.renders_generated ?? 0) + 1 })
+        .eq("id", providerConfig.id);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         session_id,
         result_url: resultUrl,
+        provider: providerKey,
+        model: modelUsed,
+        attempts: providerResult.attempts,
         prompt_version: promptVersion,
         prompt_char_count: finalProviderPrompt.length,
       }),

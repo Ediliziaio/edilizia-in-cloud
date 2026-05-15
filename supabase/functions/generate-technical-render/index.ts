@@ -6,12 +6,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
-import { bytesToBase64 } from "../_shared/base64.ts";
-import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
-import {
-  openAIImageEditResultToDataUrl,
-  runOpenAIImageEditWithFallback,
-} from "../_shared/openaiImageEdit.ts";
+import { captureRealCost } from "../_shared/renderCost.ts";
+import { prepareInputImage } from "../_shared/renderImage.ts";
+import { editImage } from "../_shared/ai-provider/image.ts";
 import { buildInteriorDoorPrompt } from "../../../shared/render-interior-door/interiorDoorPromptBuilder.ts";
 import { buildSecurityDoorPrompt } from "../../../shared/render-security-door/securityDoorPromptBuilder.ts";
 
@@ -238,17 +235,28 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
   }
 }
 
-async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 2000): Promise<Response> {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const res = await fetch(url, options);
-      if (res.ok || i === retries || res.status < 500) return res;
-    } catch (err) {
-      if (i === retries) throw err;
-    }
-    await new Promise((resolve) => setTimeout(resolve, delayMs * (i + 1)));
+function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string; extension: string } {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
+  if (!match) {
+    throw new Error("Formato immagine provider non valido");
   }
-  throw new Error("fetchWithRetry: all retries exhausted");
+
+  const mimeType = match[1];
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  const extension = mimeType.includes("png")
+    ? "png"
+    : mimeType.includes("webp")
+      ? "webp"
+      : mimeType.includes("jpeg") || mimeType.includes("jpg")
+        ? "jpg"
+        : "png";
+
+  return { bytes, mimeType, extension };
 }
 
 function looksLikeStructuredDoorConfig(config: Record<string, unknown>): boolean {
@@ -507,88 +515,59 @@ Deno.serve(async (req) => {
       throw new Error(`Prompt tecnico non valido: ${missing}`);
     }
 
-    const { data: providerConfig } = await supabase
-      .from("render_provider_config")
-      .select("*")
-      .eq("is_default", true)
-      .eq("is_active", true)
-      .single();
+	    const imgResp = await fetchWithTimeout(prepared.url, {}, 30_000);
+	    if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
+	    const imgBlob = await imgResp.blob();
+	    const providerResult = await editImage({
+	      prompt: finalPrompt,
+	      sourceImageBlob: imgBlob,
+	      effectiveWidth: prepared.effective_width ?? target_width ?? undefined,
+	      effectiveHeight: prepared.effective_height ?? target_height ?? undefined,
+	      openaiQuality: "medium",
+	      timeoutMs: 180_000,
+	      metadata: {
+	        task_kind: "render_image_edit",
+	        company_id: session.company_id as string,
+	        session_id,
+	      },
+	    });
+	    const providerKey = providerResult.providerUsed === "openrouter" ? "openrouter_image" : "openai";
+	    const modelUsed = providerResult.modelUsed;
+	    const providerRawResponse = {
+	      ...providerResult.rawResponse,
+	      _provider_used: providerResult.providerUsed,
+	      _model_used: modelUsed,
+	      _cost_usd: providerResult.costUsd ?? null,
+	      _cost_is_estimated: providerResult.costIsEstimated,
+	      _latency_ms: providerResult.latencyMs,
+	    };
 
-    if (!providerConfig) throw new Error("Nessun provider render attivo. Configurare in Admin > Impostazioni AI > Render.");
+	    const uploadPayload = dataUrlToBytes(providerResult.imageDataUrl);
+	    const resultPath = `${session.company_id}/${moduleType}/${session_id}/render_${moduleType}_${Date.now()}.${uploadPayload.extension}`;
+	    const { error: uploadErr } = await supabase.storage.from("render-results").upload(resultPath, uploadPayload.bytes, {
+	      contentType: uploadPayload.mimeType,
+	      upsert: true,
+	    });
+	    if (uploadErr) throw new Error(`Errore upload risultato: ${uploadErr.message}`);
 
-    const platformKeyName = `render_${providerConfig.provider_key}_api_key`;
-    const { data: keyRow } = await supabase.from("platform_settings").select("value").eq("key", platformKeyName).maybeSingle();
-    const envName = `${String(providerConfig.provider_key).toUpperCase()}_API_KEY`;
-    const apiKey = (keyRow as { value: string } | null)?.value?.trim() || Deno.env.get(envName)?.trim() || "";
-    if (!apiKey) throw new Error(`API key mancante per provider '${providerConfig.provider_key}'.`);
-
-    let imageData: string | null = null;
-    let modelUsed = String(providerConfig.model || "");
-
-    if (providerConfig.provider_key === "openai") {
-      const imgResp = await fetchWithTimeout(prepared.url, {}, 30_000);
-      if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
-      const imgBlob = await imgResp.blob();
-      const openaiResult = await runOpenAIImageEditWithFallback({
-        apiKey,
-        prompt: finalPrompt,
-        image: imgBlob,
-        filename: "photo.jpg",
-        size: pickProviderSize(prepared.effective_width, prepared.effective_height, "openai") ?? "1024x1024",
-        configuredModel: providerConfig.model,
-        fetcher: fetchWithRetry,
-      });
-      modelUsed = openaiResult.modelUsed;
-      if (openaiResult.fallbackErrors.length > 0) {
-        console.warn("[generate-technical-render] OpenAI model fallback:", openaiResult.fallbackErrors.join(" | "));
-      }
-      imageData = await openAIImageEditResultToDataUrl(
-        openaiResult.data,
-        (url, options = {}) => fetchWithTimeout(url, options, 30_000),
-      );
-    } else if (providerConfig.provider_key === "gemini") {
-      const imgResp = await fetchWithTimeout(prepared.url, {}, 30_000);
-      if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
-      const imgBuffer = await imgResp.arrayBuffer();
-      const imgB64 = bytesToBase64(imgBuffer);
-      const geminiBody = {
-        contents: [{ parts: [{ text: finalPrompt }, { inline_data: { mime_type: "image/jpeg", data: imgB64 } }] }],
-        generationConfig: { responseModalities: ["IMAGE", "TEXT"], temperature: 0.48 },
-      };
-      const geminiUrl = `${providerConfig.api_endpoint}/${providerConfig.model}:generateContent?key=${apiKey}`;
-      const resp = await fetchWithRetry(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(geminiBody),
-      });
-      if (!resp.ok) throw new Error(`Gemini error ${resp.status}: ${(await resp.text()).substring(0, 300)}`);
-      const gemData = await resp.json();
-      const parts = gemData.candidates?.[0]?.content?.parts ?? [];
-      for (const part of parts) {
-        if (part.inlineData?.mimeType?.startsWith("image/")) {
-          imageData = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          break;
-        }
-      }
-    } else {
-      throw new Error(`Provider '${providerConfig.provider_key}' non supportato. Selezionare OpenAI o Gemini.`);
-    }
-
-    if (!imageData) throw new Error("Nessuna immagine ricevuta dal provider AI");
-
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-    const uint8 = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-    const resultPath = `${session.company_id}/${moduleType}/${session_id}/render_${moduleType}_${Date.now()}.png`;
-    const { error: uploadErr } = await supabase.storage.from("render-results").upload(resultPath, uint8, {
-      contentType: "image/png",
-      upsert: true,
-    });
-    if (uploadErr) throw new Error(`Errore upload risultato: ${uploadErr.message}`);
-
-    const { data: publicUrlData } = supabase.storage.from("render-results").getPublicUrl(resultPath);
-    const resultUrl = publicUrlData.publicUrl;
-    const costReal = providerConfig.cost_real_per_render ?? 0.04;
-    const costBilled = providerConfig.cost_billed_per_render ?? 0.10;
+	    const { data: publicUrlData } = supabase.storage.from("render-results").getPublicUrl(resultPath);
+	    const resultUrl = publicUrlData.publicUrl;
+	    const capture = await captureRealCost({
+	      supabase,
+	      providerKey,
+	      model: modelUsed,
+	      rawResponse: providerRawResponse,
+	      legacyFallbackEur: Number(providerRawResponse._cost_usd ?? 0) > 0
+	        ? Number(providerRawResponse._cost_usd) * 0.92
+	        : 0.039,
+	    });
+	    const { data: providerConfig } = await supabase
+	      .from("render_provider_config")
+	      .select("id, cost_billed_per_render, renders_generated")
+	      .eq("provider_key", providerKey)
+	      .maybeSingle();
+	    const costReal = capture.cost_eur;
+	    const costBilled = Number(providerConfig?.cost_billed_per_render ?? 0.10);
 
     await supabase
       .from("render_technical_sessions")
@@ -598,34 +577,40 @@ Deno.serve(async (req) => {
         prompt_used: userPrompt,
         prompt_version: promptVersion,
         prompt_char_count: finalPrompt.length,
-        provider_key: providerConfig.provider_key,
-        cost_real: costReal,
-        cost_billed: costBilled,
+	        provider_key: providerKey,
+	        cost_real: costReal,
+	        cost_billed: costBilled,
         scene_analysis: promptPayload.scene_analysis,
         target_map: promptPayload.target_map,
         replacement_manifest: promptPayload.replacement_manifest,
         validation_result: promptPayload.validation,
         config_snapshot: {
           ...rawConfig,
-          technical_render_payload: promptPayload,
-          input_image_meta: prepared.meta,
-          provider_model_used: modelUsed,
-        },
+	          technical_render_payload: promptPayload,
+	          input_image_meta: prepared.meta,
+	          provider_model_used: modelUsed,
+	          provider_attempts: providerResult.attempts,
+	        },
         processing_completed_at: new Date().toISOString(),
       })
       .eq("id", session_id);
 
-    await supabase
-      .from("render_provider_config")
-      .update({ renders_generated: (providerConfig.renders_generated ?? 0) + 1 })
-      .eq("id", providerConfig.id);
+	    if (providerConfig?.id) {
+	      await supabase
+	        .from("render_provider_config")
+	        .update({ renders_generated: Number(providerConfig.renders_generated ?? 0) + 1 })
+	        .eq("id", providerConfig.id);
+	    }
 
     return jsonResponse({
       success: true,
       session_id,
       result_url: resultUrl,
-      result_urls: [resultUrl],
-      prompt_version: promptVersion,
+	      result_urls: [resultUrl],
+	      provider: providerKey,
+	      model: modelUsed,
+	      attempts: providerResult.attempts,
+	      prompt_version: promptVersion,
       prompt_char_count: finalPrompt.length,
     });
     })().catch(async (jobErr: unknown) => {

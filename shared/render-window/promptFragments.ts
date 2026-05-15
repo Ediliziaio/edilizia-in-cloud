@@ -49,6 +49,33 @@ export const HANDLE_FINISH_DESCRIPTION: Record<string, string> = {
   titanio: "titanium anodized finish with cool refined metallic depth",
 };
 
+export const HIDDEN_HINGE_DESCRIPTION =
+  "concealed hinge system: no external side hinge barrels, no visible hinge plates, clean continuous frame edge with only realistic shadow gaps";
+
+export const VISIBLE_HINGE_DESCRIPTION_BASE =
+  "visible compact European hinge barrels aligned on the outer stile, same finish as the handle, physically mounted and not floating";
+
+export const ELECTRIC_BUTTON_DESCRIPTION_BASE =
+  "standard wall switch for motorized roller shutter, mounted on the same side where the old manual belt/winder was removed, aligned with existing room switches";
+
+export const TRANSOM_KEEP_DESCRIPTION =
+  "keep the existing horizontal transom exactly where it appears in the source photo, with consistent frame thickness and correct glass/panel division";
+
+export const TRANSOM_REMOVE_DESCRIPTION =
+  "remove the horizontal transom and convert the target into one clean continuous glazed composition, without changing the external wall opening";
+
+export const TRANSOM_ADD_DESCRIPTION =
+  "add a realistic horizontal transom at a plausible height for a tall door-window composition, matching the selected profile thickness";
+
+export function buildElectricButtonFragment(sideLabel: string, style = "bianco_standard") {
+  const styleLabel = style === "nero_opaco"
+    ? "matte black switch"
+    : style === "match_room_switches"
+      ? "switch matching the existing room switches"
+      : "standard white switch";
+  return `${ELECTRIC_BUTTON_DESCRIPTION_BASE}; render a ${styleLabel} ${sideLabel}, around 110 cm from finished floor, subtle and proportionate.`;
+}
+
 export const CASSONETTO_DESCRIPTION: Record<string, string> = {
   pvc_tradizionale: "traditional PVC roller box with residential proportions above the opening",
   pvc_slim: "slimmer PVC roller box with reduced visible height",
@@ -88,6 +115,11 @@ export const DEFAULT_NEGATIVE_CONSTRAINTS = [
   "do not leave any manual belt, belt slot or wall winder visible if a motorized shutter is selected",
   "do not leave any manual cord, strap, vertical pull element or leftover manual-control trim visible if a motorized shutter is selected",
   "do not render mixed hinge colors or inconsistent hinge shapes",
+  "do not render visible side hinges when concealed hinges are selected",
+  "do not invent a central handle on one-sash or three-sash compositions",
+  "do not keep a horizontal transom if the target rule explicitly removes it",
+  "do not add a horizontal transom if the target rule explicitly keeps a clean full-height glass composition",
+  "do not leave a manual belt without adding a coherent electric wall switch when motorization is selected",
   "do not oversize the cassonetto compared to the original visible envelope",
   "do not render a floating colored shutter band above the glazing when the shutter should be fully open and hidden",
 ];

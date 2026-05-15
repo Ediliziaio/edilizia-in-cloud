@@ -17,6 +17,8 @@ const baseState: WizardState = {
   coloreInfisso: "9016",
   tipoManiglia: "classica_dritta",
   coloreHw: "cromo",
+  traverso: "auto",
+  cerniere: "visibili",
   cass: false,
   cassMat: "stesso_colore",
   cassCol: "",

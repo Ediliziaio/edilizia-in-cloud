@@ -312,11 +312,15 @@ export default function RenderPersianeNew() {
 
         const { data: sess } = await supabase
           .from("render_persiane_sessions")
-          .select("status, result_urls")
+          .select("status, result_urls, error_message")
           .eq("id", sid)
           .single();
 
-        const statusRow = sess as { status: string; result_urls: string[] | null } | null;
+        const statusRow = sess as {
+          status: string;
+          result_urls: string[] | null;
+          error_message?: string | null;
+        } | null;
 
         if (statusRow?.status === "completed" && statusRow.result_urls?.length) {
           stopPolling();
@@ -333,7 +337,7 @@ export default function RenderPersianeNew() {
         if (statusRow?.status === "failed") {
           stopPolling();
           setGenerating(false);
-          toast.error("Render fallito. Controlliamo configurazione e prompt e riproviamo.");
+          toast.error(statusRow.error_message || "Render fallito. Controlliamo configurazione e prompt e riproviamo.");
           setStep(3);
           return;
         }

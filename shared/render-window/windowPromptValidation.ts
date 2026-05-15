@@ -21,10 +21,17 @@ export function validateWindowPromptConfig(config: WindowRenderConfig): WindowPr
   }
 
   const missingHardwareConsistency = config.technical_specification.some(
-    (spec) => !spec.hingeConsistencyRule || !spec.hingeStyle,
+    (spec) => spec.hingeMode !== "none" && (!spec.hingeConsistencyRule || !spec.hingeStyle || !spec.hingePlacementRule),
   );
   if (missingHardwareConsistency) {
     missingBusinessRules.push("hinge finish/style consistency must be explicit");
+  }
+
+  const visibleHingesMissingCount = config.technical_specification.some(
+    (spec) => spec.hingeMode === "visible" && (!spec.hingesPerSash || spec.hingeCountVisible <= 0),
+  );
+  if (visibleHingesMissingCount) {
+    missingBusinessRules.push("visible hinge mode must define hinges per sash and total visible hinge count");
   }
 
   const missingCassonettoEnvelopeRule = config.technical_specification.some(
@@ -69,6 +76,22 @@ export function validateWindowPromptConfig(config: WindowRenderConfig): WindowPr
     if (!hasRemovalRule) {
       missingBusinessRules.push("motorized shutter must remove manual belt and wall winder");
     }
+
+    const missingElectricButton = config.technical_specification.some((spec) => {
+      const opening = config.scene_analysis.openings.find((item) => item.id === spec.openingId);
+      return Boolean(opening?.hasBelt) && spec.shutter.isMotorized && !spec.shutter.electricButton?.install;
+    });
+    if (missingElectricButton) {
+      missingBusinessRules.push("motorized shutter must add a coherent electric command button after manual belt removal");
+    }
+  }
+
+  const missingTransomRule = config.technical_specification.some((spec) => {
+    const opening = config.scene_analysis.openings.find((item) => item.id === spec.openingId);
+    return Boolean(opening?.hasHorizontalTransom) && spec.desiredOpeningType === "portafinestra" && !spec.transomRule;
+  });
+  if (missingTransomRule) {
+    missingBusinessRules.push("detected horizontal transom must have an explicit keep/remove/add rule");
   }
 
   const hasUntouchedRule =

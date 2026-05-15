@@ -1,8 +1,10 @@
 import type {
   WizardCassMat,
+  WizardCerniere,
   WizardHw,
   WizardProfilo,
   WizardTapp,
+  WizardTraverso,
   WizardTipo,
 } from "./catalog.ts";
 
@@ -67,6 +69,8 @@ export type WindowRollerCurtainState =
   | "fully_lowered"
   | "not_visible"
   | "unknown";
+export type WindowTransomPanelBelowType = "glass" | "solid_panel" | "louvered" | "unknown";
+export type WindowHingeMode = "visible" | "hidden" | "none";
 
 export interface WindowPhotoMeta {
   width: number;
@@ -96,6 +100,10 @@ export interface WindowSceneOpening {
   rollerControlType: WindowRollerControlType;
   rollerCurtainState: WindowRollerCurtainState;
   rollerCurtainPositionNotes: string;
+  hasHorizontalTransom: boolean;
+  transomPositionPct: number | null;
+  transomPanelBelowType: WindowTransomPanelBelowType;
+  estimatedHeightCm: number | null;
   hasPersiane: boolean;
   hasScuri: boolean;
   hasGrates: boolean;
@@ -175,13 +183,15 @@ export interface WindowTechnicalSpecification {
   desiredTypeId: WizardTipo;
   desiredOpeningType: WindowOpeningType;
   desiredSashCount: number;
-  desiredElement: "window" | "door_window" | "sliding_panel";
+  desiredElement: "window" | "door_window" | "sliding_panel" | "fixed_light";
   material: Exclude<WindowMaterial, "unknown">;
   profileId: WizardProfilo;
   frameStyle: string;
   frameDepthLabel: string;
   frameShape: string;
   slimnessLabel: string;
+  profileVisibleThickness: string;
+  thermalBreakVisible: boolean;
   finish: WindowFrameFinish;
   handleStyle: string;
   handleColorId: WizardHw;
@@ -189,10 +199,22 @@ export interface WindowTechnicalSpecification {
   hingeFinish: string;
   hingeStyle: string;
   hingeConsistencyRule: string;
+  hingeChoice: WizardCerniere;
+  hingeMode: WindowHingeMode;
+  hingesPerSash: 0 | 2 | 3;
+  hingePlacementRule: string;
   manualControlCleanupRule: string | null;
   reducedNode: boolean;
   centralHandle: boolean;
   hingeCountVisible: number;
+  transomMode: WizardTraverso;
+  transomRule: string | null;
+  compositionChange: null | {
+    from: string;
+    to: string;
+    reason: string;
+    instruction: string;
+  };
   glassSpec: string;
   cassonetto: {
     replace: boolean;
@@ -210,6 +232,13 @@ export interface WindowTechnicalSpecification {
     isMotorized: boolean;
     visibilityState: WindowRollerCurtainState | "match_existing";
     placementRule: string;
+    electricButton?: {
+      install: boolean;
+      side: "left" | "right" | "same_as_old_belt" | "unknown";
+      heightFromFloor: string;
+      style: "bianco_standard" | "nero_opaco" | "match_room_switches";
+      description: string;
+    };
   };
   compatibilityNotes: string[];
 }

@@ -1,32 +1,16 @@
 // generate-room-render — Edge Function EiC
-// Render Stanza (Room/Interiors) AI — Multi-Provider (OpenAI / Gemini)
+// Render Stanza (Room/Interiors) AI — Provider unificato OpenRouter + fallback
 // Prompt Engine stanza-v1.0.0
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
-import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
-import { bytesToBase64 } from "../_shared/base64.ts";
-import { runOpenAIImageEditWithFallback } from "../_shared/openaiImageEdit.ts";
+import { captureRealCost } from "../_shared/renderCost.ts";
+import { prepareInputImage } from "../_shared/renderImage.ts";
+import { editImage } from "../_shared/ai-provider/image.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
 import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
-
-// ── fetchWithRetry ──────────────────────────────────────────────────────────
-async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 2000): Promise<Response> {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const res = await fetch(url, options);
-      if (res.ok || i === retries) return res;
-      // Non-ok but retryable (5xx)
-      if (res.status < 500) return res;
-    } catch (err) {
-      if (i === retries) throw err;
-    }
-    await new Promise(r => setTimeout(r, delayMs * (i + 1)));
-  }
-  throw new Error("fetchWithRetry: all retries exhausted");
-}
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 const corsHeaders = {
@@ -61,6 +45,40 @@ function runInBackground(promise: Promise<unknown>) {
   promise.catch((err) => {
     console.error("[generate-room-render] background fallback error:", err);
   });
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 120_000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string; extension: string } {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
+  if (!match) {
+    throw new Error("Formato immagine provider non valido");
+  }
+
+  const mimeType = match[1];
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  const extension = mimeType.includes("png")
+    ? "png"
+    : mimeType.includes("webp")
+      ? "webp"
+      : mimeType.includes("jpeg") || mimeType.includes("jpg")
+        ? "jpg"
+        : "png";
+
+  return { bytes, mimeType, extension };
 }
 
 Deno.serve(async (req: Request) => {
@@ -138,39 +156,14 @@ Deno.serve(async (req: Request) => {
     }
     creditDeducted = true;
 
-    // Get default provider
-    const { data: provider } = await supabase
-      .from("render_provider_config")
-      .select("*")
-      .eq("is_active", true)
-      .eq("is_default", true)
-      .single();
-    if (!provider) throw new Error("No active render provider configured");
-
-    // Get API key from platform_settings (schema: key TEXT PK, value TEXT NOT NULL)
-    // Fallback chain: DB → Supabase edge secret (OPENAI_API_KEY / GEMINI_API_KEY).
-    const platformKeyName = `render_${provider.provider_key}_api_key`;
-    const { data: keyRow } = await supabase
-      .from("platform_settings")
-      .select("value")
-      .eq("key", platformKeyName)
-      .maybeSingle();
-    const envName = `${provider.provider_key.toUpperCase()}_API_KEY`;
-    const apiKey =
-      (keyRow as { value: string } | null)?.value?.trim() ||
-      Deno.env.get(envName)?.trim() ||
-      "";
-    if (!apiKey) throw new Error(`API key not configured for ${provider.provider_key}. Configurarla in Admin > Impostazioni AI > Render o come Supabase secret ${envName}.`);
-
-    // Update session status
-    await supabase
-      .from("render_stanza_sessions")
-      .update({
-        status: "processing",
-        processing_started_at: new Date().toISOString(),
-        provider_key: provider.provider_key,
-      })
-      .eq("id", session_id);
+	    // Update session status
+	    await supabase
+	      .from("render_stanza_sessions")
+	      .update({
+	        status: "processing",
+	        processing_started_at: new Date().toISOString(),
+	      })
+	      .eq("id", session_id);
 
     const renderJob = (async () => {
     const prepared = await prepareInputImage({
@@ -224,164 +217,102 @@ Deno.serve(async (req: Request) => {
       })
       .eq("id", session_id);
 
-    // ── Call provider ────────────────────────────────────────────────────────
-    let resultImageUrl: string | null = null;
-    let modelUsed = provider.model || "";
+	    // ── Call provider unificato ──────────────────────────────────────────────
+	    const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
+	    if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
+	    const imgBlob = await imgResp.blob();
+	    const providerResult = await editImage({
+	      prompt: fullPrompt,
+	      sourceImageBlob: imgBlob,
+	      effectiveWidth: prepared.effective_width ?? target_width ?? undefined,
+	      effectiveHeight: prepared.effective_height ?? target_height ?? undefined,
+	      openaiQuality: "medium",
+	      timeoutMs: 180_000,
+	      metadata: {
+	        task_kind: "render_image_edit",
+	        company_id: companyId as string,
+	        session_id,
+	      },
+	    });
+	    const providerKey = providerResult.providerUsed === "openrouter" ? "openrouter_image" : "openai";
+	    const modelUsed = providerResult.modelUsed;
+	    const providerRawResponse = {
+	      ...providerResult.rawResponse,
+	      _provider_used: providerResult.providerUsed,
+	      _model_used: modelUsed,
+	      _cost_usd: providerResult.costUsd ?? null,
+	      _cost_is_estimated: providerResult.costIsEstimated,
+	      _latency_ms: providerResult.latencyMs,
+	    };
+	    const uploadPayload = dataUrlToBytes(providerResult.imageDataUrl);
+	    const resultPath = `${companyId}/${session_id}_result.${uploadPayload.extension}`;
+	    const { error: uploadErr } = await supabase.storage
+	      .from("stanza-results")
+	      .upload(resultPath, uploadPayload.bytes, { contentType: uploadPayload.mimeType, upsert: true });
+	    if (uploadErr) throw new Error(`Upload result failed: ${uploadErr.message}`);
 
-    if (provider.provider_key === "openai") {
-      const imgResp = await fetch(imageUrl);
-      if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
-      const imgBlob = await imgResp.blob();
-      const size = pickProviderSize(prepared.effective_width, prepared.effective_height, "openai") ?? "1024x1024";
-      const openaiResult = await runOpenAIImageEditWithFallback({
-        apiKey,
-        prompt: fullPrompt,
-        image: imgBlob,
-        filename: "room.png",
-        size,
-        quality: provider.quality || "high",
-        configuredModel: provider.model || "gpt-image-1",
-        fetcher: fetchWithRetry,
-      });
-      modelUsed = openaiResult.modelUsed;
-      if (openaiResult.fallbackErrors.length > 0) {
-        console.warn("generate-room-render OpenAI model fallback:", openaiResult.fallbackErrors.join(" | "));
-      }
-      const openaiData = openaiResult.data as { data?: Array<{ b64_json?: string; url?: string }> };
-
-      // Handle both b64_json and url response formats
-      if (openaiData.data?.[0]?.b64_json) {
-        // Upload base64 to storage
-        const b64 = openaiData.data[0].b64_json;
-        const binaryStr = atob(b64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-        const resultPath = `${companyId}/${session_id}_result.png`;
-        const { error: uploadErr } = await supabase.storage
-          .from("stanza-results")
-          .upload(resultPath, bytes, { contentType: "image/png", upsert: true });
-        if (uploadErr) throw new Error(`Upload result failed: ${uploadErr.message}`);
-
-        const { data: publicUrl } = supabase.storage
-          .from("stanza-results")
-          .getPublicUrl(resultPath);
-        resultImageUrl = publicUrl.publicUrl;
-      } else if (openaiData.data?.[0]?.url) {
-        // Download and re-upload
-        const dlResp = await fetch(openaiData.data[0].url);
-        const dlBlob = await dlResp.blob();
-        const resultPath = `${companyId}/${session_id}_result.png`;
-        const { error: uploadErr } = await supabase.storage
-          .from("stanza-results")
-          .upload(resultPath, dlBlob, { contentType: "image/png", upsert: true });
-        if (uploadErr) throw new Error(`Upload result failed: ${uploadErr.message}`);
-
-        const { data: publicUrl } = supabase.storage
-          .from("stanza-results")
-          .getPublicUrl(resultPath);
-        resultImageUrl = publicUrl.publicUrl;
-      }
-    } else if (provider.provider_key === "gemini") {
-      // Google Gemini Imagen
-      const imgResp = await fetch(imageUrl);
-      const imgBlob = await imgResp.blob();
-      const imgArrayBuffer = await imgBlob.arrayBuffer();
-      const imgBase64 = bytesToBase64(imgArrayBuffer);
-
-      const geminiResp = await fetchWithRetry(
-        `https://generativelanguage.googleapis.com/v1beta/models/${provider.model || "gemini-2.0-flash-exp"}:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: fullPrompt },
-                {
-                  inlineData: {
-                    mimeType: imgBlob.type || "image/jpeg",
-                    data: imgBase64,
-                  },
-                },
-              ],
-            }],
-            generationConfig: {
-              responseModalities: ["IMAGE", "TEXT"],
-              temperature: 0.35,
-            },
-          }),
-        }
-      );
-
-      if (!geminiResp.ok) {
-        const errBody = await geminiResp.text();
-        throw new Error(`Gemini API error: ${geminiResp.status} ${errBody}`);
-      }
-
-      const geminiData = await geminiResp.json();
-      const parts = geminiData.candidates?.[0]?.content?.parts ?? [];
-      const imagePart = parts.find((p: { inlineData?: { mimeType: string; data: string } }) => p.inlineData?.mimeType?.startsWith("image/"));
-
-      if (imagePart?.inlineData?.data) {
-        const b64 = imagePart.inlineData.data;
-        const binaryStr = atob(b64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-        const mimeType = imagePart.inlineData.mimeType || "image/png";
-        const ext = mimeType.includes("jpeg") ? "jpg" : "png";
-        const resultPath = `${companyId}/${session_id}_result.${ext}`;
-        const { error: uploadErr } = await supabase.storage
-          .from("stanza-results")
-          .upload(resultPath, bytes, { contentType: mimeType, upsert: true });
-        if (uploadErr) throw new Error(`Upload result failed: ${uploadErr.message}`);
-
-        const { data: publicUrl } = supabase.storage
-          .from("stanza-results")
-          .getPublicUrl(resultPath);
-        resultImageUrl = publicUrl.publicUrl;
-      }
-    }
-
-    if (!resultImageUrl) {
-      throw new Error("No image generated by provider");
-    }
+	    const { data: publicUrl } = supabase.storage
+	      .from("stanza-results")
+	      .getPublicUrl(resultPath);
+	    const resultImageUrl = publicUrl.publicUrl;
+	    const capture = await captureRealCost({
+	      supabase,
+	      providerKey,
+	      model: modelUsed,
+	      rawResponse: providerRawResponse,
+	      legacyFallbackEur: Number(providerRawResponse._cost_usd ?? 0) > 0
+	        ? Number(providerRawResponse._cost_usd) * 0.92
+	        : 0.039,
+	    });
+	    const { data: providerConfig } = await supabase
+	      .from("render_provider_config")
+	      .select("id, cost_billed_per_render, renders_generated")
+	      .eq("provider_key", providerKey)
+	      .maybeSingle();
+	    const costReal = capture.cost_eur;
+	    const costBilled = Number(providerConfig?.cost_billed_per_render ?? 0.10);
 
     // ── Update session as completed ──────────────────────────────────────────
     await supabase
       .from("render_stanza_sessions")
       .update({
-        status: "completed",
-        result_urls: [resultImageUrl],
-        processing_completed_at: new Date().toISOString(),
-        cost_real: provider.cost_real_per_render,
-        cost_billed: provider.cost_billed_per_render,
-        config_snapshot: {
-          ...(session.config_snapshot || {}),
-          provider_model_used: modelUsed,
-        },
-      })
-      .eq("id", session_id);
+	        status: "completed",
+	        result_urls: [resultImageUrl],
+	        processing_completed_at: new Date().toISOString(),
+	        provider_key: providerKey,
+	        cost_real: costReal,
+	        cost_billed: costBilled,
+	        config_snapshot: {
+	          ...normalizedConfig,
+	          prompt_validation: validation,
+	          input_image_meta: prepared.meta,
+	          provider_model_used: modelUsed,
+	          provider_attempts: providerResult.attempts,
+	        },
+	      })
+	      .eq("id", session_id);
 
     // Credit già dedotto pre-flight via deductRenderCreditSafe (atomico + audit).
     // NON chiamare decrement_render_credits qui: causerebbe doppio addebito.
 
     // Update provider stats
-    await supabase
-      .from("render_provider_config")
-      .update({ renders_generated: (provider.renders_generated || 0) + 1 })
-      .eq("id", provider.id);
+	    if (providerConfig?.id) {
+	      await supabase
+	        .from("render_provider_config")
+	        .update({ renders_generated: Number(providerConfig.renders_generated ?? 0) + 1 })
+	        .eq("id", providerConfig.id);
+	    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        session_id,
-        result_url: resultImageUrl,
-        result_urls: [resultImageUrl],
-      }),
+	        session_id,
+	        result_url: resultImageUrl,
+	        result_urls: [resultImageUrl],
+	        provider: providerKey,
+	        model: modelUsed,
+	        attempts: providerResult.attempts,
+	      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
     })().catch(async (jobErr: unknown) => {

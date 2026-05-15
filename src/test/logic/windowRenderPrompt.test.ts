@@ -16,6 +16,8 @@ const baseState: WizardState = {
   cassCol: "",
   tapp: "no",
   tappCol: "stesso",
+  traverso: "auto",
+  cerniere: "visibili",
 };
 
 function buildAnalysisWithOpenings() {
@@ -56,6 +58,10 @@ function buildAnalysisWithOpenings() {
         roller_control_type: "manual_belt",
         roller_curtain_state: "fully_raised_hidden",
         roller_curtain_position_notes: "shutter curtain not visibly lowered; it is hidden inside the cassonetto",
+        has_horizontal_transom: false,
+        transom_position_pct: null,
+        transom_panel_below_type: "unknown",
+        estimated_height_cm: 150,
         has_persiane: false,
         has_scuri: false,
         has_grates: false,
@@ -86,6 +92,10 @@ function buildAnalysisWithOpenings() {
         has_belt: false,
         has_belt_box: false,
         roller_control_type: "none",
+        has_horizontal_transom: false,
+        transom_position_pct: null,
+        transom_panel_below_type: "unknown",
+        estimated_height_cm: 150,
         has_persiane: false,
         has_scuri: false,
         has_grates: false,
@@ -234,5 +244,94 @@ describe("window render prompt", () => {
     expect(prompt.userPrompt).toContain("walnut wood-effect laminate with dark brown tone and visible longitudinal grain");
     expect(prompt.userPrompt).toContain("square modern handle");
     expect(prompt.userPrompt).toContain("brushed stainless steel");
+  });
+
+  it("removes a horizontal transom on a portafinestra when the user selects vetro unico", () => {
+    const analysis = normalizeWindowSceneAnalysis({
+      openings: [{
+        id: "A",
+        type_current: "portafinestra",
+        perceived_element: "door_window",
+        sash_count: 2,
+        has_horizontal_transom: true,
+        transom_position_pct: 42,
+        transom_panel_below_type: "glass",
+        estimated_height_cm: 235,
+        has_cassonetto: false,
+        has_roller_shutter: false,
+        has_belt: false,
+        has_belt_box: false,
+      }],
+    });
+
+    const config = mapWizardToConfig(
+      { ...baseState, tipo: "PF2A", profilo: "alluminio", traverso: "rimuovi" },
+      "",
+      { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
+    );
+
+    expect(config.technical_specification[0].transomRule?.toLowerCase()).toContain("remove");
+    expect(config.replacement_manifest.removals.some((rule) => rule.code === "remove_horizontal_transom")).toBe(true);
+
+    const prompt = buildWindowPrompt(config, analysis);
+    expect(prompt.userPrompt.toLowerCase()).toContain("remove the existing horizontal transom");
+    expect(prompt.negativePrompt.toLowerCase()).toContain("horizontal transom kept when removed");
+  });
+
+  it("supports hidden hinges only on compatible profile families", () => {
+    const analysis = buildAnalysisWithOpenings();
+    const compatibleConfig = mapWizardToConfig(
+      { ...baseState, profilo: "minimal", cerniere: "scomparsa" },
+      "",
+      { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
+    );
+    expect(compatibleConfig.technical_specification[0].hingeMode).toBe("hidden");
+
+    const incompatibleConfig = mapWizardToConfig(
+      { ...baseState, profilo: "pvc", cerniere: "scomparsa" },
+      "",
+      { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
+    );
+    expect(incompatibleConfig.technical_specification[0].hingeMode).toBe("visible");
+  });
+
+  it("uses three hinges per sash for tall portefinestre", () => {
+    const analysis = normalizeWindowSceneAnalysis({
+      openings: [{
+        id: "A",
+        type_current: "portafinestra",
+        perceived_element: "door_window",
+        sash_count: 2,
+        estimated_height_cm: 245,
+        has_cassonetto: false,
+        has_roller_shutter: false,
+        has_belt: false,
+        has_belt_box: false,
+      }],
+    });
+
+    const config = mapWizardToConfig(
+      { ...baseState, tipo: "PF2A", profilo: "alluminio" },
+      "",
+      { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
+    );
+
+    expect(config.technical_specification[0].hingesPerSash).toBe(3);
+    expect(config.technical_specification[0].hingeCountVisible).toBe(6);
+    expect((config.nuovo_infisso.cerniere as { num_per_anta: number }).num_per_anta).toBe(3);
+  });
+
+  it("adds an electric wall switch when a motorized shutter replaces a manual belt", () => {
+    const analysis = buildAnalysisWithOpenings();
+    const config = mapWizardToConfig(
+      { ...baseState, tapp: "motorizzate" },
+      "",
+      { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
+    );
+
+    expect(config.technical_specification[0].shutter.electricButton?.install).toBe(true);
+    const prompt = buildWindowPrompt(config, analysis);
+    expect(prompt.userPrompt.toLowerCase()).toContain("electric command button");
+    expect(prompt.validation.isValid).toBe(true);
   });
 });

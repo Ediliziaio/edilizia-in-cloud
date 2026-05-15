@@ -209,11 +209,15 @@ export default function RenderPavimentoNew() {
 
       const { data: sess } = await supabase
         .from("render_pavimento_sessions")
-        .select("status, result_urls")
+        .select("status, result_urls, error_message")
         .eq("id", sid)
         .single();
 
-      const s = sess as { status: string; result_urls: string[] | null } | null;
+      const s = sess as {
+        status: string;
+        result_urls: string[] | null;
+        error_message?: string | null;
+      } | null;
 
       if (s?.status === "completed" && s.result_urls?.length) {
         if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
@@ -229,7 +233,7 @@ export default function RenderPavimentoNew() {
       if (s?.status === "failed") {
         if (dotsIntervalRef.current) clearInterval(dotsIntervalRef.current);
         setGenerating(false);
-        toast.error("Render fallito. Riprova.");
+        toast.error(s.error_message || "Render fallito. Riprova.");
         setStep(2);
         return;
       }

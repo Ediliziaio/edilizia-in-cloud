@@ -75,7 +75,7 @@ function ModuleConstellation() {
         }}
       />
       <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {modulePositions.map((node, index) => (
+        {modulePositions.map((node) => (
           <line
             key={`${node.x}-${node.y}`}
             className="module-orbit-line"

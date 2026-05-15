@@ -75,6 +75,12 @@ function tapparellaLabel(spec: WindowTechnicalSpecification): string | null {
   ].filter(Boolean).join(" - ");
 }
 
+function hingeLabel(spec: WindowTechnicalSpecification): string {
+  if (spec.hingeMode === "none") return "Nessuna cerniera laterale visibile";
+  if (spec.hingeMode === "hidden") return "Cerniere a scomparsa, senza elementi laterali visibili";
+  return `${spec.hingesPerSash} per anta, finitura ${spec.hingeFinish}`;
+}
+
 function specDisplayItems(spec: WindowTechnicalSpecification) {
   return [
     { label: "Tipologia", value: formatPublicValue(spec.desiredOpeningType) },
@@ -89,7 +95,7 @@ function specDisplayItems(spec: WindowTechnicalSpecification) {
     },
     { label: "Profilo", value: `${formatPublicLabel(spec.profileId)} - ${spec.slimnessLabel}` },
     { label: "Maniglia", value: `${formatPublicLabel(spec.handleStyle)} - ${spec.handleFinish}` },
-    { label: "Cerniere", value: `${spec.hingeFinish}, ${spec.hingeCountVisible} visibili` },
+    { label: "Cerniere", value: hingeLabel(spec) },
     { label: "Cassonetto", value: cassonettoLabel(spec) },
     { label: "Tapparella/oscurante", value: tapparellaLabel(spec) },
     { label: "Vetro", value: spec.glassSpec },

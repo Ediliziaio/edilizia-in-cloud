@@ -1,16 +1,15 @@
 // generate-shutter-render — Edge Function EiC
-// Render Persiane AI — Multi-Provider (OpenAI / Gemini)
+// Render Persiane AI — Provider unificato OpenRouter + fallback
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
-import { pickProviderSize, prepareInputImage } from "../_shared/renderImage.ts";
-import {
-  openAIImageEditResultToDataUrl,
-  runOpenAIImageEditWithFallback,
-} from "../_shared/openaiImageEdit.ts";
+import { captureRealCost } from "../_shared/renderCost.ts";
+import { prepareInputImage } from "../_shared/renderImage.ts";
+import { editImage } from "../_shared/ai-provider/image.ts";
+import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildPersianePrompt } from "../../../shared/render-persiane/persianePromptBuilder.ts";
 import { normalizePersianeSceneAnalysis } from "../../../shared/render-persiane/persianeSceneAnalysis.ts";
 import type { PersianePhotoMeta } from "../../../shared/render-persiane/types.ts";
@@ -21,14 +20,6 @@ const CORS = {
 };
 
 const JSON_HEADERS = { ...CORS, "Content-Type": "application/json" };
-
-type RenderProviderConfig = {
-  provider_key: string;
-  model: string;
-  api_endpoint: string;
-  cost_real_per_render?: number | null;
-  cost_billed_per_render?: number | null;
-};
 
 type PersianeSessionRow = {
   id: string;
@@ -55,75 +46,6 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timer);
   }
-}
-
-async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  retries = 2,
-  delayMs = 2000,
-  timeoutMs = 120_000,
-): Promise<Response> {
-  for (let i = 0; i <= retries; i += 1) {
-    try {
-      const res = await fetchWithTimeout(url, options, timeoutMs);
-      if (res.ok || i === retries) return res;
-      if (res.status < 500) return res;
-    } catch (err) {
-      if (i === retries) throw err;
-    }
-    await new Promise((resolve) => setTimeout(resolve, delayMs * (i + 1)));
-  }
-  throw new Error("fetchWithRetry: all retries exhausted");
-}
-
-async function getProviderApiKey(
-  supabase: any,
-  providerKey: string,
-): Promise<string> {
-  const { data: keyRow } = await supabase
-    .from("platform_settings")
-    .select("value")
-    .eq("key", `render_${providerKey}_api_key`)
-    .maybeSingle();
-
-  const envCandidates = providerKey === "gemini"
-    ? ["RENDER_GEMINI_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_API_KEY"]
-    : [`${providerKey.toUpperCase()}_API_KEY`];
-
-  for (const envName of envCandidates) {
-    const value = Deno.env.get(envName)?.trim();
-    if (value) return value;
-  }
-
-  return (keyRow as { value?: string } | null)?.value?.trim() || "";
-}
-
-async function loadRenderProviderWithKey(
-  supabase: any,
-): Promise<{ providerConfig: RenderProviderConfig; apiKey: string }> {
-  const { data: providerConfig } = await supabase
-    .from("render_provider_config")
-    .select("*")
-    .eq("is_default", true)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!providerConfig) {
-    throw new Error("Nessun provider render attivo. Configurare in Admin > Impostazioni AI > Render.");
-  }
-
-  const apiKey = await getProviderApiKey(supabase, providerConfig.provider_key);
-  if (!apiKey) {
-    throw new Error(
-      `API key mancante per provider '${providerConfig.provider_key}'. Configurarla in Admin > Impostazioni AI > Render.`,
-    );
-  }
-
-  return {
-    providerConfig: providerConfig as RenderProviderConfig,
-    apiKey,
-  };
 }
 
 async function downloadImageAsInlineData(imageUrl: string): Promise<{
@@ -205,40 +127,33 @@ function orientationFromDimensions(width: number, height: number): PersianePhoto
   return width > height ? "landscape" : "portrait";
 }
 
-function extractTextParts(payload: Record<string, unknown>): string {
-  const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
-  const first = candidates[0];
-  const content = first && typeof first === "object" ? (first as Record<string, unknown>).content : null;
-  const parts = content && typeof content === "object" && Array.isArray((content as Record<string, unknown>).parts)
-    ? ((content as Record<string, unknown>).parts as Array<Record<string, unknown>>)
-    : [];
-
-  return parts
-    .map((part) => (typeof part.text === "string" ? part.text : ""))
-    .filter(Boolean)
-    .join("\n");
-}
-
-function extractFirstJsonObject(rawText: string): Record<string, unknown> | null {
-  const start = rawText.indexOf("{");
-  const end = rawText.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) return null;
-  try {
-    return JSON.parse(rawText.slice(start, end + 1)) as Record<string, unknown>;
-  } catch {
-    return null;
+function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string; extension: string } {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
+  if (!match) {
+    throw new Error("Formato immagine provider non valido");
   }
+
+  const mimeType = match[1];
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  const extension =
+    mimeType.includes("png") ? "png" :
+    mimeType.includes("webp") ? "webp" :
+    mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" :
+    "png";
+
+  return { bytes, mimeType, extension };
 }
 
 async function runPersianeAnalysis(params: {
-  supabase: any;
   imageUrl: string;
+  companyId: string | null;
+  sessionId: string | null;
 }): Promise<Record<string, unknown>> {
-  const geminiApiKey = await getProviderApiKey(params.supabase, "gemini");
-  if (!geminiApiKey) {
-    throw new Error("Gemini API key non configurata per l'analisi persiane.");
-  }
-
   const { mimeType, base64, bytes } = await downloadImageAsInlineData(params.imageUrl);
   const dimensions = detectImageDimensions(bytes);
   const photoMeta: PersianePhotoMeta | null = dimensions
@@ -311,44 +226,25 @@ Important rules:
 - If only one opening should obviously be the primary target, mention it in "primary_target_hint".
 - Return ONLY raw JSON. No markdown.`;
 
-  const geminiBody = {
-    contents: [{
-      parts: [
-        { text: analyzePrompt },
-        { inline_data: { mime_type: mimeType, data: base64 } },
-      ],
-    }],
-    generationConfig: {
-      temperature: 0.2,
-      maxOutputTokens: 1600,
+  const analysisResult = await analyzeScene({
+    systemPrompt:
+      "You are a senior architectural facade and shutter visual analyst. Return only grounded JSON.",
+    userPrompt: analyzePrompt,
+    imageDataUrl: `data:${mimeType};base64,${base64}`,
+    metadata: {
+      task_kind: "render_scene_analysis",
+      company_id: params.companyId,
+      session_id: params.sessionId,
     },
-  };
+    maxOutputTokens: 1600,
+    timeoutMs: 90_000,
+  });
 
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
-  const resp = await fetchWithRetry(
-    geminiUrl,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(geminiBody),
-    },
-    2,
-    1500,
-    60_000,
-  );
-
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`Analisi AI persiane fallita (${resp.status}): ${errText.substring(0, 300)}`);
-  }
-
-  const geminiData = await resp.json() as Record<string, unknown>;
-  const rawText = extractTextParts(geminiData);
-  const analysis = normalizePersianeSceneAnalysis(extractFirstJsonObject(rawText), photoMeta) as unknown as Record<string, unknown>;
+  const analysis = normalizePersianeSceneAnalysis(analysisResult.parsed, photoMeta) as unknown as Record<string, unknown>;
   return analysis;
 }
 
-async function loadSession(supabase: any, sessionId: string): Promise<PersianeSessionRow | null> {
+async function loadSession(supabase: SupabaseClient, sessionId: string): Promise<PersianeSessionRow | null> {
   const { data, error } = await supabase
     .from("render_persiane_sessions")
     .select("id, company_id, original_photo_url, config, status, result_urls")
@@ -423,11 +319,15 @@ Deno.serve(async (req) => {
         }
       }
 
-      const analysis = await runPersianeAnalysis({ supabase, imageUrl: analysisImageUrl });
+      const analysis = await runPersianeAnalysis({
+        imageUrl: analysisImageUrl,
+        companyId: session_id ? (await loadSession(supabase, session_id))?.company_id ?? null : null,
+        sessionId: session_id ?? null,
+      });
       return jsonResponse({
         success: true,
         analisi_persiane: analysis,
-        provider: "gemini",
+        provider: "openrouter",
       });
     }
 
@@ -509,8 +409,6 @@ Deno.serve(async (req) => {
     }
     creditDeducted = true;
 
-    const { providerConfig, apiKey } = await loadRenderProviderWithKey(supabase);
-
     const originalPath = session.original_photo_url;
     if (!originalPath) {
       throw new Error("Foto originale della sessione mancante");
@@ -556,88 +454,50 @@ Deno.serve(async (req) => {
       .update({
         status: "processing",
         processing_started_at: new Date().toISOString(),
-        provider_key: providerConfig.provider_key,
+        provider_key: "openrouter_image",
         config: promptResult.normalizedConfig,
       })
       .eq("id", session_id);
 
-    let imageData: string | null = null;
-    let modelUsed = String(providerConfig.model || "");
+    const imageBlob = new Blob([
+      originalImage.bytes.buffer.slice(
+        originalImage.bytes.byteOffset,
+        originalImage.bytes.byteOffset + originalImage.bytes.byteLength,
+      ) as ArrayBuffer,
+    ], { type: originalImage.mimeType || "image/jpeg" });
 
-    if (providerConfig.provider_key === "openai") {
-      const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
-      if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
-      const imgBlob = await imgResp.blob();
-      const openaiResult = await runOpenAIImageEditWithFallback({
-        apiKey,
-        prompt: combinedPrompt,
-        image: imgBlob,
-        filename: "photo.jpg",
-        size: pickProviderSize(sourceDimensions?.width, sourceDimensions?.height, "openai") ?? "1024x1024",
-        configuredModel: providerConfig.model,
-        fetcher: fetchWithRetry,
-      });
-      modelUsed = openaiResult.modelUsed;
-      if (openaiResult.fallbackErrors.length > 0) {
-        console.warn("[generate-shutter-render] OpenAI model fallback:", openaiResult.fallbackErrors.join(" | "));
-      }
-      imageData = await openAIImageEditResultToDataUrl(
-        openaiResult.data,
-        (url, options = {}) => fetchWithTimeout(url, options, 30_000),
-      );
-    } else if (providerConfig.provider_key === "gemini") {
-      const geminiBody = {
-        contents: [{
-          parts: [
-            { text: combinedPrompt },
-            { inline_data: { mime_type: originalImage.mimeType, data: originalImage.base64 } },
-          ],
-        }],
-        generationConfig: {
-          responseModalities: ["IMAGE", "TEXT"],
-          temperature: 0.8,
-        },
-      };
+    const providerResult = await editImage({
+      prompt: combinedPrompt,
+      sourceImageBlob: imageBlob,
+      effectiveWidth: sourceDimensions?.width,
+      effectiveHeight: sourceDimensions?.height,
+      openaiQuality: "medium",
+      timeoutMs: 180_000,
+      metadata: {
+        task_kind: "render_image_edit",
+        company_id: session.company_id,
+        session_id,
+      },
+    });
 
-      const geminiUrl = `${providerConfig.api_endpoint}/${providerConfig.model}:generateContent?key=${apiKey}`;
-      const resp = await fetchWithRetry(
-        geminiUrl,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(geminiBody),
-        },
-      );
+    const providerKey = providerResult.providerUsed === "openrouter" ? "openrouter_image" : "openai";
+    const modelUsed = providerResult.modelUsed;
+    const providerRawResponse = {
+      ...providerResult.rawResponse,
+      _provider_used: providerResult.providerUsed,
+      _model_used: modelUsed,
+      _cost_usd: providerResult.costUsd ?? null,
+      _cost_is_estimated: providerResult.costIsEstimated,
+      _latency_ms: providerResult.latencyMs,
+    };
 
-      if (!resp.ok) {
-        const err = await resp.text();
-        throw new Error(`Gemini error ${resp.status}: ${err.substring(0, 300)}`);
-      }
-
-      const gemData = await resp.json();
-      const parts = gemData.candidates?.[0]?.content?.parts ?? [];
-      for (const part of parts) {
-        if (part.inlineData?.mimeType?.startsWith("image/")) {
-          imageData = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          break;
-        }
-      }
-    } else {
-      throw new Error(`Provider '${providerConfig.provider_key}' non supportato.`);
-    }
-
-    if (!imageData) {
-      throw new Error("Nessuna immagine ricevuta dal provider AI");
-    }
-
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-    const uint8 = Uint8Array.from(atob(base64Data), (char) => char.charCodeAt(0));
-    const resultPath = `${session.company_id}/${session_id}/render_persiane_${Date.now()}.png`;
+    const uploadPayload = dataUrlToBytes(providerResult.imageDataUrl);
+    const resultPath = `${session.company_id}/${session_id}/render_persiane_${Date.now()}.${uploadPayload.extension}`;
 
     const { error: uploadErr } = await supabase.storage
       .from("persiane-results")
-      .upload(resultPath, uint8, {
-        contentType: "image/png",
+      .upload(resultPath, uploadPayload.bytes, {
+        contentType: uploadPayload.mimeType,
         upsert: true,
       });
 
@@ -650,6 +510,22 @@ Deno.serve(async (req) => {
       .getPublicUrl(resultPath);
 
     const resultUrl = publicUrlData.publicUrl;
+    const capture = await captureRealCost({
+      supabase,
+      providerKey,
+      model: modelUsed,
+      rawResponse: providerRawResponse,
+      legacyFallbackEur: Number(providerRawResponse._cost_usd ?? 0) > 0
+        ? Number(providerRawResponse._cost_usd) * 0.92
+        : 0.039,
+    });
+    const { data: billingConfig } = await supabase
+      .from("render_provider_config")
+      .select("id, cost_billed_per_render, renders_generated")
+      .eq("provider_key", providerKey)
+      .maybeSingle();
+    const costBilled = Number(billingConfig?.cost_billed_per_render ?? 0.10);
+
     await supabase
       .from("render_persiane_sessions")
       .update({
@@ -658,19 +534,29 @@ Deno.serve(async (req) => {
         result_urls: [resultUrl],
         prompt_used: combinedPrompt.substring(0, 10000),
         prompt_version: promptResult.promptVersion,
-        provider_key: providerConfig.provider_key,
+        provider_key: providerKey,
         model_used: modelUsed,
-        cost_real: providerConfig.cost_real_per_render ?? 0.04,
-        cost_billed: providerConfig.cost_billed_per_render ?? 0.10,
+        cost_real: capture.cost_eur,
+        cost_billed: costBilled,
         processing_completed_at: new Date().toISOString(),
       })
       .eq("id", session_id);
+
+    if (billingConfig?.id) {
+      await supabase
+        .from("render_provider_config")
+        .update({ renders_generated: Number(billingConfig.renders_generated ?? 0) + 1 })
+        .eq("id", billingConfig.id);
+    }
 
     return jsonResponse({
       success: true,
       result_url: resultUrl,
       result_urls: [resultUrl],
       session_id,
+      provider: providerKey,
+      model: modelUsed,
+      attempts: providerResult.attempts,
     });
   } catch (err) {
     if (err instanceof Response) return err;

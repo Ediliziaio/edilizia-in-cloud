@@ -7,12 +7,15 @@ import {
   getWizardHardwareMeta,
   getWizardHandleTypeMeta,
   getWizardTapparellaMeta,
+  profileSupportsHiddenHinges,
   type WizardCassMat,
+  type WizardCerniere,
   type WizardHandleType,
   type WizardHw,
   type WizardProfilo,
   type WizardState,
   type WizardTapp,
+  type WizardTraverso,
   type WizardTipo,
 } from "./catalog.ts";
 import type {
@@ -25,6 +28,7 @@ import type {
 } from "./types.ts";
 import { normalizeWindowSceneAnalysis, createWindowTargetSelection } from "./windowSceneAnalysis.ts";
 import { buildWindowReplacementManifest } from "./windowReplacementRules.ts";
+import { buildElectricButtonFragment } from "./promptFragments.ts";
 
 export interface WindowRenderBuildOptions {
   notes?: string;
@@ -58,31 +62,39 @@ function mapProfiloToMateriale(profilo: WizardProfilo): {
   profilo_dim: string;
   profilo_forma: string;
   slimness: string;
+  profileVisibleThickness: string;
+  thermalBreakVisible: boolean;
 } {
   switch (profilo) {
     case "pvc":
       return {
         materiale: "pvc",
         stile_telaio: "europeo_classico",
-        profilo_dim: "70mm",
+        profilo_dim: "70-82mm",
         profilo_forma: "europeo",
         slimness: "balanced residential sightline",
+        profileVisibleThickness: "standard PVC renovation sightline, visibly thicker than aluminum",
+        thermalBreakVisible: false,
       };
     case "alluminio":
       return {
         materiale: "alluminio",
         stile_telaio: "europeo_classico",
-        profilo_dim: "70mm",
+        profilo_dim: "65-75mm",
         profilo_forma: "squadrato",
         slimness: "slim architectural sightline",
+        profileVisibleThickness: "slimmer aluminum sightline with crisp thermal-break geometry",
+        thermalBreakVisible: true,
       };
     case "minimal":
       return {
         materiale: "alluminio",
         stile_telaio: "minimal_squadrato",
-        profilo_dim: "70mm",
+        profilo_dim: "minimal 45-60mm visual node",
         profilo_forma: "squadrato",
         slimness: "very slim minimal sightline",
+        profileVisibleThickness: "very slim minimal sightline, maximum apparent glass area",
+        thermalBreakVisible: true,
       };
     case "legno":
       return {
@@ -91,6 +103,8 @@ function mapProfiloToMateriale(profilo: WizardProfilo): {
         profilo_dim: "82mm",
         profilo_forma: "arrotondato",
         slimness: "warmer traditional sightline",
+        profileVisibleThickness: "warm timber profile with slightly more visual mass",
+        thermalBreakVisible: false,
       };
     case "legno_alluminio":
       return {
@@ -99,6 +113,8 @@ function mapProfiloToMateriale(profilo: WizardProfilo): {
         profilo_dim: "82mm",
         profilo_forma: "europeo",
         slimness: "premium hybrid sightline",
+        profileVisibleThickness: "hybrid wood-aluminum profile with premium but not ultra-minimal sightline",
+        thermalBreakVisible: true,
       };
   }
 }
@@ -255,6 +271,143 @@ function mapTapparella(
   };
 }
 
+function isDoorWindowType(tipo: WizardTipo | ""): boolean {
+  return tipo === "PF1A" || tipo === "PF2A" || tipo === "PF3A";
+}
+
+function resolveHingeChoice(state: WizardState, openingType: WindowOpeningType): {
+  choice: WizardCerniere;
+  mode: WindowTechnicalSpecification["hingeMode"];
+} {
+  if (openingType.includes("scorrevole")) return { choice: "visibili", mode: "none" };
+  if (state.cerniere === "scomparsa" && profileSupportsHiddenHinges(state.profilo as WizardProfilo)) {
+    return { choice: "scomparsa", mode: "hidden" };
+  }
+  return { choice: "visibili", mode: "visible" };
+}
+
+function computeHingesPerSash(
+  opening: WindowSceneAnalysis["openings"][number],
+  openingType: WindowOpeningType,
+  hingeMode: WindowTechnicalSpecification["hingeMode"],
+): 0 | 2 | 3 {
+  if (hingeMode !== "visible" || openingType.includes("scorrevole")) return 0;
+  const estimatedHeight = opening.estimatedHeightCm ?? (opening.perceivedElement === "door_window" ? 220 : 150);
+  return openingType === "portafinestra" && estimatedHeight > 220 ? 3 : 2;
+}
+
+function buildHingePlacementRule(
+  spec: {
+    hingeMode: WindowTechnicalSpecification["hingeMode"];
+    hingesPerSash: 0 | 2 | 3;
+    openingLabel: string;
+    handleFinish: string;
+    desiredSashCount: number;
+  },
+): string {
+  if (spec.hingeMode === "none") {
+    return `Opening ${spec.openingLabel}: no side hinges; sliding/fixed geometry must stay clean.`;
+  }
+  if (spec.hingeMode === "hidden") {
+    return `Opening ${spec.openingLabel}: use concealed hinges only; do not render external hinge barrels or plates on the side frame.`;
+  }
+  return `Opening ${spec.openingLabel}: render ${spec.hingesPerSash} visible compact hinges per operable sash on the outer stile, aligned vertically and finished in ${spec.handleFinish}; do not show random extra hinges.`;
+}
+
+function buildCompositionChange(
+  opening: WindowSceneAnalysis["openings"][number],
+  desiredOpeningType: WindowOpeningType,
+  desiredSashCount: number,
+): WindowTechnicalSpecification["compositionChange"] {
+  const from = `${opening.typeCurrent} / ${opening.sashCount} ante`;
+  const to = `${desiredOpeningType} / ${desiredSashCount} ante`;
+  if (opening.typeCurrent === desiredOpeningType && opening.sashCount === desiredSashCount) return null;
+  return {
+    from,
+    to,
+    reason: "Il commerciale ha scelto una nuova composizione nel wizard.",
+    instruction: `Adatta solo la geometria interna del serramento da ${from} a ${to}; il foro murario, soglia, spallette e proporzioni esterne devono restare quelli della foto.`,
+  };
+}
+
+function buildTransomRule(
+  state: WizardState,
+  opening: WindowSceneAnalysis["openings"][number],
+  desiredOpeningType: WindowOpeningType,
+): { mode: WizardTraverso; rule: string | null } {
+  const mode: WizardTraverso = isDoorWindowType(state.tipo) ? state.traverso : "auto";
+  const hasTransom = opening.hasHorizontalTransom;
+  const position = opening.transomPositionPct !== null ? ` at about ${opening.transomPositionPct}% of the opening height` : "";
+  const panel = opening.transomPanelBelowType !== "unknown" ? ` with ${opening.transomPanelBelowType.replace(/_/g, " ")} below` : "";
+
+  if (desiredOpeningType !== "portafinestra") {
+    return { mode, rule: null };
+  }
+
+  if (mode === "mantieni") {
+    return {
+      mode,
+      rule: hasTransom
+        ? `Keep the existing horizontal transom${position}${panel}; match the selected frame thickness and keep it physically aligned.`
+        : "If no transom is visible, do not invent one; maintain a clean door-window composition.",
+    };
+  }
+
+  if (mode === "rimuovi") {
+    return {
+      mode,
+      rule: hasTransom
+        ? `Remove the existing horizontal transom${position}; create a clean full-height glazed door-window composition without changing the wall opening.`
+        : "Keep the new door-window as a clean full-height glazed composition with no added horizontal transom.",
+    };
+  }
+
+  if (mode === "aggiungi") {
+    return {
+      mode,
+      rule: "Add one realistic horizontal transom at a plausible height only inside the new door-window frame; do not alter the masonry opening.",
+    };
+  }
+
+  if (hasTransom) {
+    return {
+      mode,
+      rule: `Auto decision: preserve the visible existing transom${position}${panel} unless it conflicts with the selected sash count; if removed, leave no visual scar.`,
+    };
+  }
+
+  return { mode, rule: null };
+}
+
+function buildElectricButton(
+  opening: WindowSceneAnalysis["openings"][number],
+  isMotorized: boolean,
+  hardwareId: WizardHw,
+): WindowTechnicalSpecification["shutter"]["electricButton"] {
+  if (!isMotorized) return undefined;
+  const side = opening.beltPlacement === "left_wall" || opening.beltPlacement === "left_reveal"
+    ? "left"
+    : opening.beltPlacement === "right_wall" || opening.beltPlacement === "right_reveal"
+      ? "right"
+      : opening.hasBelt
+        ? "same_as_old_belt"
+        : "unknown";
+  const style = hardwareId === "nero_opaco" ? "nero_opaco" : "bianco_standard";
+  const sideLabel = side === "left"
+    ? "on the left side of the opening"
+    : side === "right"
+      ? "on the right side of the opening"
+      : "near the most plausible existing switch/control side";
+
+  return {
+    install: true,
+    side,
+    heightFromFloor: "circa 110 cm dal pavimento finito",
+    style,
+    description: buildElectricButtonFragment(sideLabel, style),
+  };
+}
+
 function ensureSentence(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return trimmed;
@@ -351,7 +504,22 @@ function buildTechnicalSpecifications(
       : profilo.stile_telaio;
 
   const targetOpenings = sceneAnalysis.openings.filter((opening) => selectedOpeningIds.includes(opening.id));
-  const technicalSpecifications = targetOpenings.map((opening) => ({
+  const technicalSpecifications = targetOpenings.map((opening) => {
+    const hinge = resolveHingeChoice(state, base.apertura);
+    const hingesPerSash = computeHingesPerSash(opening, base.apertura, hinge.mode);
+    const hingePlacementRule = buildHingePlacementRule({
+      hingeMode: hinge.mode,
+      hingesPerSash,
+      openingLabel: opening.label,
+      handleFinish: hardware.handleFinish,
+      desiredSashCount: base.num_ante,
+    });
+    const transom = buildTransomRule(state, opening, base.apertura);
+    const compositionChange = buildCompositionChange(opening, base.apertura, base.num_ante);
+    const electricButton = buildElectricButton(opening, tapparella.isMotorized, state.coloreHw);
+    const hingeCountVisible = hinge.mode === "visible" ? base.num_ante * hingesPerSash : 0;
+
+    return {
     openingId: opening.id,
     openingLabel: opening.label,
     desiredTypeId: state.tipo as WizardTipo,
@@ -364,21 +532,34 @@ function buildTechnicalSpecifications(
     frameDepthLabel: profilo.profilo_dim,
     frameShape: profilo.profilo_forma,
     slimnessLabel: profilo.slimness,
+    profileVisibleThickness: profilo.profileVisibleThickness,
+    thermalBreakVisible: profilo.thermalBreakVisible,
     finish,
     handleStyle: hardware.handleStyle,
     handleColorId: hardware.handleColorId as WizardHw,
     handleFinish: hardware.handleFinish,
     hingeFinish: hardware.hingeFinish,
-    hingeStyle: base.apertura.includes("scorrevole")
+    hingeStyle: hinge.mode === "none"
       ? "no visible side hinges because the system is sliding"
-      : "compact european residential hinges aligned on the outer stiles with realistic proportions",
-    hingeConsistencyRule: base.apertura.includes("scorrevole")
+      : hinge.mode === "hidden"
+        ? "concealed hinge system with no visible hinge barrels or side plates"
+        : "compact european residential hinges aligned on the outer stiles with realistic proportions",
+    hingeConsistencyRule: hinge.mode === "none"
       ? "Do not render any side hinges or battente hinge geometry on a sliding system."
-      : `All visible hinges on opening ${opening.label} must have the exact same ${hardware.handleFinish} finish as the handle, with identical top/bottom geometry and no mixed black/dark hinge parts.`,
+      : hinge.mode === "hidden"
+        ? `Use concealed hinges on opening ${opening.label}: no visible external hinge cylinders, no side plates, no mismatched hardware.`
+        : `All visible hinges on opening ${opening.label} must have the exact same ${hardware.handleFinish} finish as the handle, with identical geometry and no mixed black/dark hinge parts.`,
+    hingeChoice: hinge.choice,
+    hingeMode: hinge.mode,
+    hingesPerSash,
+    hingePlacementRule,
     manualControlCleanupRule: buildManualControlCleanupRule(opening, tapparella.isMotorized),
     reducedNode: stileTelaio.includes("nodo_ridotto") || state.profilo === "minimal",
-    centralHandle: state.manigliaCentrale,
-    hingeCountVisible: base.apertura === "battente_2_ante" || (base.apertura === "portafinestra" && base.num_ante === 2) ? 2 : Math.max(2, base.num_ante * 2),
+    centralHandle: state.manigliaCentrale && base.num_ante === 2,
+    hingeCountVisible,
+    transomMode: transom.mode,
+    transomRule: transom.rule,
+    compositionChange,
     glassSpec: "double glazed clear low-iron glass with realistic gasket lines",
     cassonetto: {
       replace: cassonetto.replace,
@@ -394,6 +575,7 @@ function buildTechnicalSpecifications(
       colorMode: tapparella.colorMode,
       colorLabel: tapparella.colorLabel,
       isMotorized: tapparella.isMotorized,
+      electricButton,
       ...buildShutterVisibilityRule(opening, tapparella.replace),
     },
     compatibilityNotes: [
@@ -401,7 +583,13 @@ function buildTechnicalSpecifications(
       opening.radiatorNearby ? "Preserve nearby radiator and its spacing relationship with the opening." : null,
       opening.hasGrates ? "Keep existing grates unless explicitly stated otherwise." : null,
       opening.hasPersiane ? "Keep existing external shutters unless explicitly stated otherwise." : null,
+      opening.hasHorizontalTransom ? "Detected horizontal transom: follow the traverso rule explicitly." : null,
+      opening.estimatedHeightCm ? `Estimated opening height: ${opening.estimatedHeightCm} cm.` : null,
       buildManualControlCleanupRule(opening, tapparella.isMotorized),
+      electricButton?.install ? `Install motorized shutter wall switch: ${electricButton.description}` : null,
+      transom.rule,
+      hingePlacementRule,
+      compositionChange?.instruction,
       tapparella.replace && opening.rollerCurtainState !== "partially_lowered" && opening.rollerCurtainState !== "fully_lowered"
         ? "If the source photo does not show a lowered shutter curtain, keep the new shutter fully open with slats hidden in the cassonetto; do not invent a colored strip above the glazing."
         : null,
@@ -414,7 +602,13 @@ function buildTechnicalSpecifications(
       base.apertura.includes("scorrevole") ? "Use sliding geometry only; do not invent battente hinges." : null,
       state.profilo === "minimal" ? "Use slimmer sightlines and a wider perceived glazed area." : null,
     ].filter((item): item is string => Boolean(item)),
-  }));
+    };
+  });
+
+  const maxVisibleHingesPerSash = technicalSpecifications.reduce<0 | 2 | 3>((max, spec) => {
+    if (spec.hingeMode !== "visible") return max;
+    return spec.hingesPerSash > max ? spec.hingesPerSash : max;
+  }, 0);
 
   const nuovoInfisso = {
     materiale: profilo.materiale,
@@ -438,10 +632,12 @@ function buildTechnicalSpecifications(
     vetro: { tipo: "trasparente", prompt_fragment: "double glazed clear glass" },
     ferramenta: hardware.hardwarePayload,
     cerniere: {
-      tipo: "europea",
+      tipo: state.cerniere === "scomparsa" && profileSupportsHiddenHinges(state.profilo as WizardProfilo) ? "scomparsa" : "europea",
       colore: hardware.cerniereColor,
-      num_per_anta: base.apertura === "battente_2_ante" || (base.apertura === "portafinestra" && base.num_ante === 2) ? 1 : 2,
+      num_per_anta: maxVisibleHingesPerSash,
     },
+    traverso: state.traverso,
+    cerniere_wizard: state.cerniere,
     sostituzione: {
       infissi: true,
       cassonetto: cassonetto.replace,
@@ -498,6 +694,8 @@ function normalizeLegacyWindowConfig(
     frameDepthLabel: stringOrFallback((ni.profilo as Record<string, unknown> | undefined)?.dimensione, "70mm"),
     frameShape: stringOrFallback((ni.profilo as Record<string, unknown> | undefined)?.forma, "europeo"),
     slimnessLabel: "balanced residential sightline",
+    profileVisibleThickness: "legacy config: keep physically plausible residential sightline",
+    thermalBreakVisible: material === "alluminio" || material === "legno_alluminio",
     finish: {
       mode: finishMode,
       name: finishMode === "legno" ? stringOrFallback(wood.name, "wood-effect") : stringOrFallback(color.nome, "Bianco Traffico"),
@@ -513,10 +711,19 @@ function normalizeLegacyWindowConfig(
     hingeFinish: stringOrFallback(cerniere.colore, "argento"),
     hingeStyle: "compact european residential hinges aligned on the outer stiles with realistic proportions",
     hingeConsistencyRule: "All visible hinges must match the selected handle finish exactly, with no mixed-color hinge parts.",
+    hingeChoice: "visibili",
+    hingeMode: String(rawConfig.apertura_default ?? sceneAnalysis.legacy.tipo_apertura).includes("scorrevole") ? "none" : "visible",
+    hingesPerSash: String(rawConfig.apertura_default ?? sceneAnalysis.legacy.tipo_apertura).includes("scorrevole") ? 0 : 2,
+    hingePlacementRule: String(rawConfig.apertura_default ?? sceneAnalysis.legacy.tipo_apertura).includes("scorrevole")
+      ? "No side hinges on sliding legacy configuration."
+      : "Render 2 visible compact hinges per operable sash, aligned and matching the handle finish.",
     manualControlCleanupRule: null,
     reducedNode: String(ni.stile_telaio).includes("nodo_ridotto"),
     centralHandle: String(ni.stile_telaio) === "nodo_ridotto_maniglia_centrale",
     hingeCountVisible: Number(ni.num_ante ?? 2) === 2 ? 2 : Math.max(2, Number(ni.num_ante ?? 2) * Number(cerniere.num_per_anta ?? 2)),
+    transomMode: "auto",
+    transomRule: null,
+    compositionChange: null,
     glassSpec: stringOrFallback((ni.vetro as Record<string, unknown> | undefined)?.prompt_fragment, "double glazed clear glass"),
     cassonetto: {
       replace: booleanOrLegacy((ni.sostituzione as Record<string, unknown> | undefined)?.cassonetto),
@@ -534,6 +741,15 @@ function normalizeLegacyWindowConfig(
       isMotorized: tapparella.cinghia === "senza_cinghia",
       visibilityState: "match_existing",
       placementRule: "Keep the shutter curtain recessed within the guides and behind the frame/glass plane, or hidden in the box if not visibly lowered in the source photo.",
+      electricButton: tapparella.cinghia === "senza_cinghia"
+        ? {
+            install: true,
+            side: "unknown",
+            heightFromFloor: "circa 110 cm dal pavimento finito",
+            style: "bianco_standard",
+            description: buildElectricButtonFragment("near the most plausible existing switch/control side"),
+          }
+        : undefined,
     },
     compatibilityNotes: [],
   }));
@@ -646,23 +862,47 @@ export function ensureWindowRenderConfig(
         opening ?? sceneAnalysis.openings[0],
         replaceShutter,
       );
+      const desiredOpeningType = spec.desiredOpeningType ?? normalized.apertura_default;
+      const hingeMode = spec.hingeMode ?? (desiredOpeningType.includes("scorrevole") ? "none" : "visible");
+      const hingesPerSash = spec.hingesPerSash ?? (hingeMode === "visible" ? 2 : 0);
+      const electricButton = spec.shutter?.electricButton ?? (
+        spec.shutter?.isMotorized
+          ? buildElectricButton(opening ?? sceneAnalysis.openings[0], true, spec.handleColorId ?? "cromo")
+          : undefined
+      );
 
       return {
         ...spec,
+        desiredOpeningType,
+        profileVisibleThickness: spec.profileVisibleThickness ?? "physically plausible residential sightline",
+        thermalBreakVisible: spec.thermalBreakVisible ?? (spec.material === "alluminio" || spec.material === "legno_alluminio"),
         hingeStyle: spec.hingeStyle ?? (
-          spec.desiredOpeningType.includes("scorrevole")
+          desiredOpeningType.includes("scorrevole")
             ? "no visible side hinges because the system is sliding"
             : "compact european residential hinges aligned on the outer stiles with realistic proportions"
         ),
         hingeConsistencyRule: spec.hingeConsistencyRule ?? (
-          spec.desiredOpeningType.includes("scorrevole")
+          desiredOpeningType.includes("scorrevole")
             ? "Do not render any side hinges or battente hinge geometry on a sliding system."
             : `All visible hinges on opening ${spec.openingLabel} must have the exact same ${spec.handleFinish} finish as the handle, with identical top/bottom geometry and no mixed black/dark hinge parts.`
         ),
+        hingeChoice: spec.hingeChoice ?? "visibili",
+        hingeMode,
+        hingesPerSash,
+        hingePlacementRule: spec.hingePlacementRule ?? buildHingePlacementRule({
+          hingeMode,
+          hingesPerSash,
+          openingLabel: spec.openingLabel,
+          handleFinish: spec.handleFinish,
+          desiredSashCount: spec.desiredSashCount,
+        }),
         manualControlCleanupRule: spec.manualControlCleanupRule ?? buildManualControlCleanupRule(
           opening ?? sceneAnalysis.openings[0],
           Boolean(spec.shutter?.isMotorized),
         ),
+        transomMode: spec.transomMode ?? "auto",
+        transomRule: spec.transomRule ?? null,
+        compositionChange: spec.compositionChange ?? null,
         cassonetto: {
           ...spec.cassonetto,
           dimensionRule: spec.cassonetto?.dimensionRule ?? buildCassonettoDimensionRule(
@@ -674,6 +914,7 @@ export function ensureWindowRenderConfig(
           ...spec.shutter,
           visibilityState: spec.shutter?.visibilityState ?? shutterRules.visibilityState,
           placementRule: spec.shutter?.placementRule ?? shutterRules.placementRule,
+          electricButton,
         },
       };
     });

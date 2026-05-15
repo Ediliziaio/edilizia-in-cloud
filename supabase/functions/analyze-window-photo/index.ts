@@ -54,6 +54,10 @@ If only one opening is visible, still use opening id "A".
       "roller_control_type": one of: "manual_belt"|"motorized"|"chain"|"crank"|"none"|"unknown",
       "roller_curtain_state": one of: "fully_raised_hidden"|"top_recessed_band"|"partially_lowered"|"fully_lowered"|"not_visible"|"unknown",
       "roller_curtain_position_notes": string,
+      "has_horizontal_transom": boolean,
+      "transom_position_pct": number or null,
+      "transom_panel_below_type": one of: "glass"|"solid_panel"|"louvered"|"unknown",
+      "estimated_height_cm": number or null,
       "has_persiane": boolean,
       "has_scuri": boolean,
       "has_grates": boolean,
@@ -92,6 +96,11 @@ Important analysis notes:
 - If only a small recessed top band is visible, use "top_recessed_band".
 - Detect manual belt and wall winder carefully: if visible, set both "has_belt" and "has_belt_box" consistently.
 - If a manual belt/winder is visible, localize it precisely with "belt_placement" and "belt_placement_notes" (for example right_wall, left_reveal, etc.). Treat a vertical manual control on the wall beside the window as a manual belt system.
+- Detect horizontal transoms only when clearly present, especially on portefinestre / door_window. Do not invent a transom on standard windows.
+- For "has_horizontal_transom", set true only when a real horizontal frame bar divides the upper/lower glazed or panel area.
+- "transom_position_pct" is the approximate vertical position from top=0 to bottom=100. Use null if uncertain.
+- "transom_panel_below_type" describes the area below the transom: "glass", "solid_panel", "louvered" or "unknown".
+- Estimate "estimated_height_cm" when possible. Door-window/portafinestra can be around 210-250 cm; normal windows around 120-170 cm. Use null if uncertain.
 
 Respond with ONLY the JSON object. No extra text.`;
 

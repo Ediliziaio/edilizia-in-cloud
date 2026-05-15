@@ -68,9 +68,10 @@ export default function PainPointsSection() {
         </div>
 
         <p
-          className={`text-center text-gray-500 mt-12 text-base italic transition-all duration-700 delay-[900ms] ${
+          className={`text-center text-gray-500 mt-12 text-base italic transition-all duration-700 ${
             isVisible ? "opacity-100" : "opacity-0"
           }`}
+          style={{ transitionDelay: isVisible ? "900ms" : "0ms" }}
         >
           Non è colpa tua. L'edilizia è uno dei settori più complessi d'Italia.
           <br />

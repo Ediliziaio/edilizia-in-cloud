@@ -24,6 +24,12 @@ export const PROFILI_MANIGLIA_CENTRALE_COMPATIBILI = [
   "legno_alluminio",
 ] as const;
 
+export const PROFILI_CERNIERE_NASCOSTE_COMPATIBILI = [
+  "alluminio",
+  "minimal",
+  "legno_alluminio",
+] as const;
+
 export const WIZARD_RAL = [
   { id: "9016", nome: "Bianco Traffico", hex: "#F1F0EA" },
   { id: "9010", nome: "Bianco Puro", hex: "#F7F5E8" },
@@ -143,12 +149,52 @@ export const WIZARD_TAPP_OPTIONS = [
   { id: "nuove", label: "Nuove + colore", desc: "Sostituisci la tapparella con nuovo colore/finitura.", icon: "🎨" },
 ] as const;
 
+export const WIZARD_TRAVERSO_OPTIONS = [
+  {
+    id: "auto",
+    label: "Automatico",
+    desc: "Mantiene o rimuove il traverso solo quando la foto lo richiede.",
+    badge: "Consigliato",
+  },
+  {
+    id: "mantieni",
+    label: "Mantieni traverso",
+    desc: "Conserva il traverso orizzontale esistente, utile su portefinestre alte.",
+  },
+  {
+    id: "rimuovi",
+    label: "Vetro unico",
+    desc: "Rimuove il traverso e pulisce la composizione, se tecnicamente plausibile.",
+  },
+  {
+    id: "aggiungi",
+    label: "Aggiungi traverso",
+    desc: "Aggiunge un traverso coerente quando vuoi riprendere una scansione classica.",
+  },
+] as const;
+
+export const WIZARD_CERNIERE_OPTIONS = [
+  {
+    id: "visibili",
+    label: "Cerniere visibili",
+    desc: "Cerniere coordinate alla maniglia, leggibili e coerenti con un serramento standard.",
+  },
+  {
+    id: "scomparsa",
+    label: "Cerniere a scomparsa",
+    desc: "Look più pulito: nessuna cerniera laterale visibile quando il profilo lo permette.",
+    upsell: true,
+  },
+] as const;
+
 export type WizardTipo = (typeof WIZARD_TIPI)[number]["id"];
 export type WizardProfilo = (typeof WIZARD_PROFILI)[number]["id"];
 export type WizardHw = (typeof WIZARD_HW_COLORS)[number]["id"];
 export type WizardHandleType = (typeof WIZARD_HANDLE_TYPES)[number]["id"];
 export type WizardCassMat = (typeof WIZARD_CASS_MATERIALI)[number]["id"];
 export type WizardTapp = (typeof WIZARD_TAPP_OPTIONS)[number]["id"];
+export type WizardTraverso = (typeof WIZARD_TRAVERSO_OPTIONS)[number]["id"];
+export type WizardCerniere = (typeof WIZARD_CERNIERE_OPTIONS)[number]["id"];
 
 export interface WizardState {
   tipo: WizardTipo | "";
@@ -162,6 +208,8 @@ export interface WizardState {
   cassCol: string;
   tapp: WizardTapp;
   tappCol: string;
+  traverso: WizardTraverso;
+  cerniere: WizardCerniere;
 }
 
 export function findWizardRal(id: string) {
@@ -198,4 +246,16 @@ export function getWizardCassonettoMeta(cass: WizardCassMat) {
 
 export function getWizardTapparellaMeta(tapp: WizardTapp) {
   return WIZARD_TAPP_OPTIONS.find((item) => item.id === tapp) ?? WIZARD_TAPP_OPTIONS[0];
+}
+
+export function getWizardTraversoMeta(traverso: WizardTraverso) {
+  return WIZARD_TRAVERSO_OPTIONS.find((item) => item.id === traverso) ?? WIZARD_TRAVERSO_OPTIONS[0];
+}
+
+export function getWizardCerniereMeta(cerniere: WizardCerniere) {
+  return WIZARD_CERNIERE_OPTIONS.find((item) => item.id === cerniere) ?? WIZARD_CERNIERE_OPTIONS[0];
+}
+
+export function profileSupportsHiddenHinges(profilo: WizardProfilo | "") {
+  return (PROFILI_CERNIERE_NASCOSTE_COMPATIBILI as readonly string[]).includes(profilo);
 }

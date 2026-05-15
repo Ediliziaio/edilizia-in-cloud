@@ -49,6 +49,17 @@ function buildMotorizationRemovalRule(opening: WindowSceneOpening, spec: WindowT
   };
 }
 
+function buildTransomRule(opening: WindowSceneOpening, spec: WindowTechnicalSpecification): WindowRemovalRule | null {
+  if (!spec.transomRule || spec.transomMode !== "rimuovi" || !opening.hasHorizontalTransom) return null;
+  return {
+    code: "remove_horizontal_transom",
+    openingIds: [opening.id],
+    summary: `Remove the existing horizontal transom on opening ${opening.label} and convert the new frame into the selected clean composition.`,
+    repairInstruction: "Keep the external masonry opening unchanged; only rebuild the internal sash/glass division so the removed transom leaves no visible scar.",
+    preserveInstruction: "Preserve sill, reveals, wall finish and outdoor view.",
+  };
+}
+
 function buildSlidingCleanupRule(opening: WindowSceneOpening, spec: WindowTechnicalSpecification): WindowRemovalRule | null {
   if (!spec.desiredOpeningType.includes("scorrevole")) return null;
   return {
@@ -99,6 +110,7 @@ export function buildWindowReplacementManifest(config: Pick<
 
     maybePushRule(rules, buildFrameCleanupRule(opening, spec));
     maybePushRule(rules, buildMotorizationRemovalRule(opening, spec));
+    maybePushRule(rules, buildTransomRule(opening, spec));
     maybePushRule(rules, buildSlidingCleanupRule(opening, spec));
     maybePushRule(rules, buildCassonettoReplacementRule(opening, spec));
 
@@ -137,8 +149,22 @@ export function buildWindowReplacementManifest(config: Pick<
     if (spec.shutter.replace) {
       lines.push(spec.shutter.placementRule);
     }
+    if (spec.shutter.electricButton?.install) {
+      lines.push(`Install motorized shutter wall switch for opening ${spec.openingLabel}: ${spec.shutter.electricButton.description}`);
+    }
     if (spec.reducedNode) {
       lines.push(`Use reduced-node sightlines on opening ${spec.openingLabel} to maximize visible glass.`);
+    }
+    if (spec.compositionChange) {
+      lines.push(spec.compositionChange.instruction);
+    }
+    if (spec.transomRule) {
+      lines.push(spec.transomRule);
+    }
+    if (spec.hingeMode === "hidden") {
+      lines.push(`Use concealed hinges on opening ${spec.openingLabel}; no visible external side hinge barrels or plates.`);
+    } else if (spec.hingeMode === "visible") {
+      lines.push(spec.hingePlacementRule);
     }
     return lines;
   });
