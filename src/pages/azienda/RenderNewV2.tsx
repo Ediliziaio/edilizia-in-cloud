@@ -142,7 +142,20 @@ export default function RenderNewV2() {
   const [photoMeta, setPhotoMeta] = useState<WindowPhotoMeta | null>(null);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [state, setState] = useState<WizardState>(INITIAL_STATE);
+  // v8.4 — persistenza wizard state in sessionStorage:
+  // refresh durante il wizard non perde piu' le scelte (tipo/profilo/colori).
+  // Solo la foto File non e' serializzabile e va ricaricata se l'utente
+  // refresha (preview/photoPath possono essere ricreati da photoPath).
+  const [state, setState] = useState<WizardState>(() => {
+    if (typeof window === "undefined") return INITIAL_STATE;
+    try {
+      const saved = sessionStorage.getItem("render-wizard-state");
+      if (saved) return { ...INITIAL_STATE, ...JSON.parse(saved) };
+    } catch {
+      // sessionStorage non disponibile (Safari private mode) o JSON corrotto
+    }
+    return INITIAL_STATE;
+  });
   const [notes, setNotes] = useState("");
 
   const [sceneAnalysis, setSceneAnalysis] = useState<WindowSceneAnalysis | null>(null);
@@ -166,11 +179,22 @@ export default function RenderNewV2() {
   const elapsedRef = useRef(0);
   const crmPersistedRef = useRef(false);
 
+  // v8.4 — Persistenza wizard state in sessionStorage:
+  // ogni cambio di state viene salvato per sopravvivere al refresh pagina.
+  // Esclude i campi non-serializzabili (File preview) gestiti separatamente.
   useEffect(() => {
-    if (state.cerniere === "scomparsa" && state.profilo && !profileSupportsHiddenHinges(state.profilo as WizardProfilo)) {
-      setState((current) => current.cerniere === "scomparsa" ? { ...current, cerniere: "visibili" } : current);
+    if (typeof window === "undefined") return;
+    try {
+      sessionStorage.setItem("render-wizard-state", JSON.stringify(state));
+    } catch {
+      // sessionStorage quota piena o private mode — ignora silenziosamente
     }
-  }, [state.cerniere, state.profilo]);
+  }, [state]);
+
+  // Removed v8.3.8: l'effect che forzava cerniere=visibili su profili
+  // non-compatibili contraddiceva la scelta utente. Le cerniere a scomparsa
+  // sono ora liberamente selezionabili (premium architectural upsell) e
+  // l'UI mostra un caveat informativo invece di sovrascrivere lo state.
 
   useEffect(() => {
     return () => {
@@ -565,6 +589,12 @@ export default function RenderNewV2() {
     setSessionId(null);
     setState(INITIAL_STATE);
     setNotes("");
+    // v8.4 — Pulisci anche la persistenza sessionStorage al reset wizard
+    try {
+      sessionStorage.removeItem("render-wizard-state");
+    } catch {
+      // sessionStorage non disponibile, ignora
+    }
     setSceneAnalysis(null);
     setSelectedOpeningIds([]);
     setAnalysisLoading(false);
@@ -706,6 +736,11 @@ export default function RenderNewV2() {
             onBack={goBack}
             onNext={goNext}
             nextDisabled={!canGoNextFromStep(2)}
+            onRetry={() => {
+              if (photoPath && sessionId) {
+                void startWindowAnalysis(photoPath, sessionId);
+              }
+            }}
           />
         )}
 
@@ -902,6 +937,7 @@ function StepAnalysis({
   onBack,
   onNext,
   nextDisabled,
+  onRetry,
 }: {
   analysis: WindowSceneAnalysis | null;
   loading: boolean;
@@ -909,6 +945,7 @@ function StepAnalysis({
   onBack: () => void;
   onNext: () => void;
   nextDisabled: boolean;
+  onRetry?: () => void;
 }) {
   const openings = analysis?.openings ?? [];
   return (
@@ -997,7 +1034,30 @@ function StepAnalysis({
                 ))}
               </div>
             </div>
-          ) : null}
+          ) : error ? (
+            // v8.4 — Empty/error state con CTA esplicita: niente piu' schermata
+            // vuota quando l'analisi fallisce senza fallback.
+            <div className="mt-6 rounded-2xl border border-red-300 bg-red-50 p-6 text-center">
+              <div className="text-base font-semibold text-red-900">Analisi non riuscita</div>
+              <div className="mt-2 text-sm text-red-800">
+                Non siamo riusciti a leggere la scena. {error}
+              </div>
+              <div className="mt-4 flex justify-center gap-2">
+                {onRetry && (
+                  <Button onClick={onRetry} variant="default" className="gap-2">
+                    Riprova analisi
+                  </Button>
+                )}
+                <Button onClick={onBack} variant="outline">
+                  Cambia foto
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-6 rounded-2xl border border-dashed bg-slate-50 p-8 text-center text-sm text-muted-foreground">
+              In attesa di una foto da analizzare. Torna al primo step per caricarla.
+            </div>
+          )}
         </CardContent>
       </Card>
 
