@@ -27,10 +27,15 @@ export const IMAGE_MODEL_GEMINI_DIRECT =
   Deno.env.get("RENDER_GEMINI_MODEL")?.trim() ||
   "gemini-2.5-flash-image";
 export const IMAGE_MODEL_PRIMARY = "google/gemini-2.5-flash-image";
+// FIX 2026-05-15: il default era `openai/gpt-image-1.5` che NON esiste nel
+// catalog OpenRouter (verificato via debug-ai-providers endpoint).
+// I modelli OpenAI image disponibili oggi su OpenRouter sono:
+// openai/gpt-5-image, openai/gpt-5-image-mini, openai/gpt-5.4-image-2.
+// Usiamo gpt-5-image come default stabile (markup standard).
 export const IMAGE_MODEL_OPENROUTER_OPENAI =
   Deno.env.get("OPENROUTER_OPENAI_IMAGE_MODEL")?.trim() ||
   Deno.env.get("RENDER_OPENROUTER_OPENAI_IMAGE_MODEL")?.trim() ||
-  "openai/gpt-image-1.5";
+  "openai/gpt-5-image";
 export const IMAGE_MODEL_OPENAI_DIRECT =
   Deno.env.get("OPENAI_IMAGE_MODEL")?.trim() ||
   Deno.env.get("RENDER_OPENAI_IMAGE_MODEL")?.trim() ||
