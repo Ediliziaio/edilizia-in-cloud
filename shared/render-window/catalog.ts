@@ -113,7 +113,7 @@ export const WIZARD_NODO_OPTIONS = [
     label: "Nodo simmetrico (classico)",
     desc: "Ante uguali, doppio montante centrale (~110 mm). Soluzione standard residenziale.",
     icon: "◧◨",
-    referenceImage: "Profilo-PVC-2ante-Nodo-Simmetrico-Effetto-Legno.avif",
+    referenceImage: "Profilo-PVC-2ante-Nodo-Simmetrico-Effetto-Legno.jpeg",
   },
   {
     id: "asimmetrico",
@@ -129,7 +129,7 @@ export const WIZARD_NODO_OPTIONS = [
     desc: "Variante asimmetrica con UNA SOLA maniglia montata sul palettone al centro. Solo per finestre a 2 ante.",
     icon: "◯",
     upsell: true,
-    referenceImage: "Profilo-PVC-2ante-Maniglia-Centrale-Bianco.avif",
+    referenceImage: "Profilo-PVC-2ante-Maniglia-Centrale-Bianco.jpeg",
   },
 ] as const;
 

@@ -711,9 +711,24 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           return null;
         }
         const blob = await resp.blob();
+        const mime = blob.type || "image/webp";
+        // v8.6.3 — Skip mimetype NON supportati da OpenAI/OpenRouter.
+        // OpenAI Images API accetta SOLO image/jpeg, image/png, image/webp.
+        // AVIF, HEIC, TIFF etc. causano 400 "unsupported_file_mimetype"
+        // su image[N] → fallimento intera catena render.
+        const SUPPORTED_MIMETYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+        if (!SUPPORTED_MIMETYPES.includes(mime.toLowerCase())) {
+          logWarn({
+            session_id,
+            msg: "reference_image_skipped_unsupported_mimetype",
+            url: ref.url,
+            mime,
+            label: ref.label,
+          });
+          return null;
+        }
         const buf = await blob.arrayBuffer();
         const b64 = uint8ToBase64(new Uint8Array(buf));
-        const mime = blob.type || "image/webp";
         return { label: ref.label, dataUrl: `data:${mime};base64,${b64}` };
       } catch (e) {
         logWarn({
