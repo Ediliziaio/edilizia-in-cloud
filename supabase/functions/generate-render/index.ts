@@ -271,6 +271,7 @@ Deno.serve(async (req) => {
       blocks,
       validation,
       normalizedConfig,
+      referenceImages: referenceImageDescriptors,
     } = buildWindowPrompt(
       rawConfig,
       (session as Record<string, unknown>).foto_analisi || {},
@@ -405,6 +406,60 @@ Deno.serve(async (req) => {
     }
     const sourceBlob = await imgResp.blob();
 
+    // ── v8.3.3 — Fetch reference photos (mazzetta, maniglia, profilo) ────
+    // Le passiamo INSIEME alla sorgente al modello multi-image così l'AI
+    // ha ancore visive forti sul colore/modello target. Fetch in parallelo
+    // con timeout 8s ciascuna: se una fallisce, la skipiamo silenziosamente.
+    const fetchReferenceImage = async (
+      ref: { url: string; label: string; filename: string },
+    ): Promise<{ label: string; dataUrl: string } | null> => {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 8000);
+        const resp = await fetch(ref.url, { signal: ctrl.signal });
+        clearTimeout(t);
+        if (!resp.ok) {
+          logWarn({
+            session_id,
+            msg: "reference_image_fetch_failed",
+            url: ref.url,
+            status: resp.status,
+          });
+          return null;
+        }
+        const blob = await resp.blob();
+        const buf = await blob.arrayBuffer();
+        const b64 = uint8ToBase64(new Uint8Array(buf));
+        const mime = blob.type || "image/webp";
+        return { label: ref.label, dataUrl: `data:${mime};base64,${b64}` };
+      } catch (e) {
+        logWarn({
+          session_id,
+          msg: "reference_image_fetch_error",
+          url: ref.url,
+          error: (e as Error).message?.substring(0, 200),
+        });
+        return null;
+      }
+    };
+
+    const referenceImagesFetched: Array<{ label: string; dataUrl: string }> =
+      referenceImageDescriptors && referenceImageDescriptors.length > 0
+        ? (await Promise.all(
+          referenceImageDescriptors.map(fetchReferenceImage),
+        )).filter(
+          (x): x is { label: string; dataUrl: string } => x !== null,
+        )
+        : [];
+
+    logInfo({
+      session_id,
+      msg: "reference_images_ready",
+      requested: referenceImageDescriptors?.length ?? 0,
+      fetched: referenceImagesFetched.length,
+      labels: referenceImagesFetched.map((r) => r.label.substring(0, 80)),
+    });
+
     // ── Genera candidate render ──────────────────────────────────────────
     const appendProviderAttempts = (
       attempts: ImageProviderAttempt[],
@@ -431,6 +486,9 @@ Deno.serve(async (req) => {
         const result = await editImage({
           prompt: promptText,
           sourceImageBlob: sourceBlob,
+          referenceImages: referenceImagesFetched.length > 0
+            ? referenceImagesFetched
+            : undefined,
           effectiveWidth: prepared.effective_width ?? undefined,
           effectiveHeight: prepared.effective_height ?? undefined,
           negativePrompt,

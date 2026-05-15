@@ -357,4 +357,13 @@ export interface WindowPromptBuildResult {
   blocks: Record<string, string>;
   validation: WindowPromptValidationResult;
   normalizedConfig: WindowRenderConfig;
+  /** v8.3.3 — Lista delle foto reference da passare INSIEME alla sorgente.
+   *  L'edge function fetcha ciascun URL e lo invia come immagine inline al
+   *  modello image-edit (Gemini multi-image / OpenRouter multi-content). */
+  referenceImages: Array<{
+    kind: string;
+    label: string;
+    filename: string;
+    url: string;
+  }>;
 }

@@ -1,4 +1,12 @@
-// shared/render-window/windowPromptBuilder.ts — v8.3.2 (2026-05-15)
+// shared/render-window/windowPromptBuilder.ts — v8.3.3 (2026-05-15)
+// CHANGELOG v8.3.3:
+//   + MULTI-IMAGE INPUT: ora il builder costruisce ANCHE la lista delle foto
+//     reference (colore frame, maniglia, nodo, cassonetto, cerniere) che vanno
+//     passate al modello image-edit INSIEME alla sorgente.
+//   + BLOCK LEGEND in cima al user prompt: enumera ogni immagine e spiega cosa
+//     rappresenta. Vincola l'AI a usare le reference come autorità per colore /
+//     modello, non la finestra vecchia visibile in Image 1.
+//   ↺ promptVersion → "8.3.3"
 // CHANGELOG v8.3.2:
 //   + 🔴 FORCE FULL REPLACEMENT, NOT RECOLOR (BLOCK A + BLOCK F)
 //   + NO RESIDUAL SASH SUBDIVISIONS (4 dark rectangles ban)
@@ -35,6 +43,11 @@ import type {
 } from "./types.ts";
 import { ensureWindowRenderConfig } from "./windowRenderConfig.ts";
 import { validateWindowPromptConfig } from "./windowPromptValidation.ts";
+import {
+  buildReferenceImageLegend,
+  collectReferenceImages,
+  type RenderReferenceImage,
+} from "./windowReferenceImages.ts";
 
 function bullets(lines: string[]): string {
   return lines.filter((line) => line.trim().length > 0).map((line) => `- ${line}`).join("\n");
@@ -152,6 +165,10 @@ export function buildWindowPrompt(
   );
 
   const validation = validateWindowPromptConfig(normalizedConfig);
+  const referenceImages: RenderReferenceImage[] = collectReferenceImages(
+    normalizedConfig,
+  );
+  const referenceLegend = buildReferenceImageLegend(referenceImages);
 
   const untouchedOpenings = normalizedConfig.scene_analysis.openings.filter((opening) =>
     normalizedConfig.target_selection.preservedOpeningIds.includes(opening.id),
@@ -377,7 +394,12 @@ Example 4 — Tapparella motorizzata + bottone elettrico:
 
 These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sent in this prompt's earlier blocks. The examples show what "good" looks like at the macro level.`;
 
+  if (referenceLegend) {
+    blocks.LEGEND = referenceLegend;
+  }
+
   const userPrompt = [
+    referenceLegend, // v8.3.3 — IMAGE INPUTS LEGEND comes FIRST, before everything
     blocks.B,
     blocks.C,
     blocks.D,
@@ -396,6 +418,12 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
   return {
     systemPrompt: blocks.A,
     userPrompt,
+    referenceImages: referenceImages.map((r) => ({
+      kind: r.kind,
+      label: r.label,
+      filename: r.filename,
+      url: r.url,
+    })),
     negativePrompt:
       // ─── Stile / qualità generale ───────────────────────────────────────
       "cartoon, illustration, painterly, staged showroom, room redesign, changed perspective, " +
@@ -469,7 +497,7 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
       "offset or misalignment between cassonetto and window — they must be a seamless monoblocco unit, " +
       "discontinuous line between cassonetto and frame, " +
       "old window frame visible underneath the new color coat",
-    promptVersion: "8.3.2",
+    promptVersion: "8.3.3",
     blocks,
     validation,
     normalizedConfig,

@@ -54,12 +54,28 @@ export interface ImageProviderAttempt {
   status?: number;
 }
 
+/**
+ * Foto reference passata INSIEME alla sorgente al modello multi-image.
+ * Gemini Nano Banana e GPT-5 Image accettano N immagini per turno: la prima è
+ * la "scena", le successive sono ancore visive per colore/modello/finitura.
+ */
+export interface ImageReferenceInput {
+  /** Label semantica (es. "FRAME COLOR TARGET — Grigio Ardesia (RAL 1009)"). */
+  label: string;
+  /** Immagine in data URL base64 (es. "data:image/webp;base64,..."). */
+  dataUrl: string;
+}
+
 export interface ImageEditParams {
   /** Prompt completo (system+user concatenato dal chiamante). */
   prompt: string;
   /** Foto sorgente in Blob (preferito) o data URL base64. */
   sourceImageBlob?: Blob;
   sourceImageDataUrl?: string;
+  /** v8.3.3 — Foto reference da passare DOPO la sorgente al modello.
+   *  L'ordine deve corrispondere alla legenda inclusa nel prompt
+   *  ("Image 2 = …, Image 3 = …"). Max ~6 per non saturare il context. */
+  referenceImages?: ImageReferenceInput[];
   /** Hint dimensioni dell'input — usato solo da eventuali provider fallback. */
   effectiveWidth?: number;
   effectiveHeight?: number;
@@ -304,14 +320,28 @@ async function callGeminiImage(
     ? `${args.params.prompt}\n\n[NEGATIVE]\n${args.params.negativePrompt}`
     : args.params.prompt;
 
+  // v8.3.3 — Multi-image input: Gemini accetta nativamente N inline_data parts
+  // dopo il testo. Costruisce un array [text, source, ref1, ref2, ...].
+  const parts: Array<Record<string, unknown>> = [
+    { text: fullPrompt },
+    { inline_data: { mime_type: mime, data: base64 } },
+  ];
+  if (args.params.referenceImages && args.params.referenceImages.length > 0) {
+    for (const ref of args.params.referenceImages) {
+      try {
+        const { mime: refMime, base64: refB64 } = splitDataUrl(ref.dataUrl);
+        parts.push({ inline_data: { mime_type: refMime, data: refB64 } });
+      } catch {
+        // Skip reference malformato senza far fallire la chiamata.
+      }
+    }
+  }
+
   const body = {
     contents: [
       {
         role: "user",
-        parts: [
-          { text: fullPrompt },
-          { inline_data: { mime_type: mime, data: base64 } },
-        ],
+        parts,
       },
     ],
     generationConfig: {
@@ -465,15 +495,26 @@ async function callOpenRouterImage(
     ? `${args.params.prompt}\n\n[NEGATIVE]\n${args.params.negativePrompt}`
     : args.params.prompt;
 
+  // v8.3.3 — Multi-image input via OpenRouter content array
+  const contentParts: Array<Record<string, unknown>> = [
+    { type: "text", text: fullPrompt },
+    { type: "image_url", image_url: { url: sourceDataUrl } },
+  ];
+  if (args.params.referenceImages && args.params.referenceImages.length > 0) {
+    for (const ref of args.params.referenceImages) {
+      contentParts.push({
+        type: "image_url",
+        image_url: { url: ref.dataUrl },
+      });
+    }
+  }
+
   const body = {
     model: args.model,
     messages: [
       {
         role: "user",
-        content: [
-          { type: "text", text: fullPrompt },
-          { type: "image_url", image_url: { url: sourceDataUrl } },
-        ],
+        content: contentParts,
       },
     ],
     modalities: ["image", "text"],
@@ -665,6 +706,30 @@ async function callOpenAIImage(
       form.append("model", args.model);
       form.append("prompt", buildOpenAIPrompt(args.params));
       form.append("image[]", sourceBlob, "photo.jpg");
+      // v8.3.3 — Multi-image: aggiunge le reference images come ulteriori
+      // entries `image[]`. La legenda nel prompt spiega cosa è ognuna.
+      if (args.params.referenceImages && args.params.referenceImages.length > 0) {
+        let refIndex = 0;
+        for (const ref of args.params.referenceImages) {
+          try {
+            const match = ref.dataUrl.match(
+              /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/,
+            );
+            if (!match) continue;
+            const refMime = match[1];
+            const refBytes = Uint8Array.from(
+              atob(match[2]),
+              (c) => c.charCodeAt(0),
+            );
+            const refBlob = new Blob([refBytes], { type: refMime });
+            const ext = refMime.split("/")[1] ?? "png";
+            form.append("image[]", refBlob, `ref_${refIndex}.${ext}`);
+            refIndex++;
+          } catch {
+            // Skip ref malformato
+          }
+        }
+      }
       form.append("n", "1");
       form.append("size", size);
       form.append("quality", quality);

@@ -43,9 +43,12 @@ function getReferencesBaseUrl(): string {
   if (typeof (globalThis as any).Deno !== "undefined") {
     const envUrl = (globalThis as any).Deno.env.get("RENDER_REFERENCES_BASE_URL");
     if (envUrl) return envUrl;
+    const siteUrl = (globalThis as any).Deno.env.get("SITE_URL");
+    if (siteUrl) return `${siteUrl.replace(/\/+$/, "")}/render-references`;
+    // Default produzione: dominio Cloudflare Pages dell'app.
+    return "https://app.ediliziaincloud.it/render-references";
   }
-  // Default: serve da Cloudflare Pages CDN (stessa origin del sito).
-  // Per le edge functions Deno: fallback al deployment URL principale.
+  // Default frontend: serve da Cloudflare Pages CDN (stessa origin del sito).
   return "/render-references";
 }
 
