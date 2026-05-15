@@ -134,14 +134,15 @@ function getProviderOrder(): ProviderStep[] {
     { provider: "openrouter", model: IMAGE_MODEL_OPENROUTER_OPENAI, call: callOpenRouterImage },
     { provider: "openai_direct", model: IMAGE_MODEL_OPENAI_DIRECT, call: callOpenAIImage },
   ];
-  // v8.4.1 — Con openai_first, mettiamo OpenRouter OpenAI come Tier 1 invece
-  // di OpenAI direct. Motivo: OpenAI direct usa /v1/images/edits che e' lento
-  // e talvolta restituisce 404 sui nomi modello (es. gpt-image-1.5). OpenRouter
-  // ha gateway piu' affidabile e supporta openai/gpt-5-image stabilmente.
-  // OpenAI direct resta come last-resort.
+  // v8.5.3 — Con openai_first, OpenAI direct (/v1/images/edits) è Tier 1.
+  // Cliente segnala che OpenRouter OpenAI talvolta stalla (richiesta pending
+  // a tempo indefinito, 2% per 60s senza progresso). OpenAI direct con
+  // gpt-image-1 (fixato v8.4.1, niente piu' 404 da gpt-image-1.5) e' piu'
+  // diretto: API ufficiale OpenAI senza gateway intermedio.
+  // OpenRouter OpenAI scivola al Tier 2 come fallback.
   const openaiFirst: ProviderStep[] = [
-    { provider: "openrouter", model: IMAGE_MODEL_OPENROUTER_OPENAI, call: callOpenRouterImage },
     { provider: "openai_direct", model: IMAGE_MODEL_OPENAI_DIRECT, call: callOpenAIImage },
+    { provider: "openrouter", model: IMAGE_MODEL_OPENROUTER_OPENAI, call: callOpenRouterImage },
     { provider: "gemini_direct", model: IMAGE_MODEL_GEMINI_DIRECT, call: callGeminiImage },
     { provider: "openrouter", model: IMAGE_MODEL_PRIMARY, call: callOpenRouterImage },
   ];
@@ -867,11 +868,15 @@ function withAttemptHistory(
 }
 
 function pickOpenAISize(w?: number, h?: number): string {
-  if (!w || !h) return "1024x1024";
-  const ratio = w / h;
-  if (ratio > 1.3) return "1536x1024";
-  if (ratio < 0.77) return "1024x1536";
-  return "1024x1024";
+  // v8.5.4 — gpt-image-1 supporta size="auto" che mantiene il rapporto della
+  // foto sorgente automaticamente. Evita il crop osservato sui render OpenAI
+  // (la foto sorgente puo' essere portrait lungo, ma il vecchio mapping
+  // sceglieva 1024x1536 e tagliava). Auto > calcolo manuale.
+  // Fallback ai size discreti solo se model legacy (gpt-image-1.5, dall-e-3).
+  // Anche con size discreto, scegliamo quello piu' vicino al ratio source
+  // per minimizzare il crop.
+  if (!w || !h) return "auto";
+  return "auto";
 }
 
 function buildOpenAIPrompt(params: ImageEditParams): string {

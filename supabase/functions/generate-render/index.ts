@@ -254,12 +254,15 @@ Re-render the new window with all corrections applied. The output must pass all 
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
-// v8.4.3 — Budget tempo totale edge function (Supabase Edge cap = 150s free).
-// Riserviamo 130s al lavoro, 20s di margine per upload + DB updates.
-const TOTAL_BUDGET_MS = 130_000;
+// v8.5.4 — Budget tempo totale edge function (Supabase Edge cap = 150s free).
+// Riserviamo 140s al lavoro, 10s di margine per upload + DB updates.
+// Aumentato da 130s grazie al background pattern v8.5 (il client non aspetta).
+const TOTAL_BUDGET_MS = 140_000;
 // Se elapsed > QA_RETRY_BUDGET_MS, saltiamo il retry corrective (consegniamo
 // il primo render anche se imperfetto). L'utente può rigenerare se vuole.
-const QA_RETRY_BUDGET_MS = 90_000;
+// Aumentato 90s → 100s: lascia spazio al retry se OpenAI primo tentativo
+// e' veloce (~30-40s).
+const QA_RETRY_BUDGET_MS = 100_000;
 
 Deno.serve(async (req) => {
   const requestStartMs = Date.now();
@@ -772,11 +775,13 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           effectiveWidth: prepared.effective_width ?? undefined,
           effectiveHeight: prepared.effective_height ?? undefined,
           negativePrompt,
-          // v8.4.3 — Timeout per-provider 180s → 75s.
-          // Supabase Edge Function ha cap 150s (free tier). Con 180s un singolo
-          // provider lento può consumare TUTTO il budget. Con 75s, se Tier 1
-          // non risponde, fallback rapido a Tier 2 entro 30-60s extra.
-          timeoutMs: 75_000,
+          // v8.5.4 — Timeout per-provider 75s → 90s.
+          // OpenAI direct (gpt-image-1, quality medium) impiega legittimamente
+          // 60-80s per render complessi con 4-6 reference images. 75s era
+          // troppo stretto: tagliava render in corso. Con 90s OpenAI ha
+          // margine + fallback rapido a Tier 2 se davvero blocca.
+          // Compatibile con budget edge function 150s grazie a background work.
+          timeoutMs: 90_000,
           metadata: {
             task_kind: "render_image_edit",
             company_id: session.company_id as string,
