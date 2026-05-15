@@ -36,10 +36,15 @@ export const IMAGE_MODEL_OPENROUTER_OPENAI =
   Deno.env.get("OPENROUTER_OPENAI_IMAGE_MODEL")?.trim() ||
   Deno.env.get("RENDER_OPENROUTER_OPENAI_IMAGE_MODEL")?.trim() ||
   "openai/gpt-5-image";
+// FIX 2026-05-15 v8.4.1: il default era "gpt-image-1.5" che è un nome
+// inesistente sul portale OpenAI Images API. Il modello corretto è
+// "gpt-image-1" (no .5). gpt-image-1.5 era una stima del successor che
+// non è mai stato rilasciato con quel nome. Con OPENAI_IMAGE_MODEL env
+// si può sovrascrivere per usare modelli futuri (es. gpt-image-2).
 export const IMAGE_MODEL_OPENAI_DIRECT =
   Deno.env.get("OPENAI_IMAGE_MODEL")?.trim() ||
   Deno.env.get("RENDER_OPENAI_IMAGE_MODEL")?.trim() ||
-  "gpt-image-1.5";
+  "gpt-image-1";
 
 export type ImageProvider = "gemini_direct" | "openrouter" | "openai_direct";
 
@@ -129,9 +134,14 @@ function getProviderOrder(): ProviderStep[] {
     { provider: "openrouter", model: IMAGE_MODEL_OPENROUTER_OPENAI, call: callOpenRouterImage },
     { provider: "openai_direct", model: IMAGE_MODEL_OPENAI_DIRECT, call: callOpenAIImage },
   ];
+  // v8.4.1 — Con openai_first, mettiamo OpenRouter OpenAI come Tier 1 invece
+  // di OpenAI direct. Motivo: OpenAI direct usa /v1/images/edits che e' lento
+  // e talvolta restituisce 404 sui nomi modello (es. gpt-image-1.5). OpenRouter
+  // ha gateway piu' affidabile e supporta openai/gpt-5-image stabilmente.
+  // OpenAI direct resta come last-resort.
   const openaiFirst: ProviderStep[] = [
-    { provider: "openai_direct", model: IMAGE_MODEL_OPENAI_DIRECT, call: callOpenAIImage },
     { provider: "openrouter", model: IMAGE_MODEL_OPENROUTER_OPENAI, call: callOpenRouterImage },
+    { provider: "openai_direct", model: IMAGE_MODEL_OPENAI_DIRECT, call: callOpenAIImage },
     { provider: "gemini_direct", model: IMAGE_MODEL_GEMINI_DIRECT, call: callGeminiImage },
     { provider: "openrouter", model: IMAGE_MODEL_PRIMARY, call: callOpenRouterImage },
   ];
