@@ -650,6 +650,15 @@ Deno.serve(async (req) => {
         generation_attempts: generationAttempts,
         provider_used: candidate.providerUsed,
         provider_key: providerKey,
+        // v8.3.6 — Observability multi-image pipeline:
+        // requested = quante reference dovevamo passare al modello
+        // fetched  = quante sono state effettivamente scaricate da Cloudflare
+        // labels   = label semantiche delle reference inviate (debug)
+        reference_images_requested: referenceImageDescriptors?.length ?? 0,
+        reference_images_fetched: referenceImagesFetched.length,
+        reference_images_labels: referenceImagesFetched.map((r) =>
+          r.label.substring(0, 100)
+        ),
       },
     };
 

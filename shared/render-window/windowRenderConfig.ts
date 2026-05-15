@@ -10,6 +10,7 @@
 
 import {
   findWizardRal,
+  findWizardTappColor,
   findWizardWood,
   getWizardCassonettoMeta,
   getWizardHardwareMeta,
@@ -220,7 +221,9 @@ function mapCassonetto(state: WizardState, finish: ReturnType<typeof mapFrameFin
   } else if (state.cassMat === "colore_custom") {
     const custom = findWizardRal(state.cassCol);
     colorMode = "ral";
-    colorLabel = custom ? `${custom.nome} (RAL ${custom.id})` : null;
+    colorLabel = custom
+      ? `${custom.nome}${custom.code ? ` (RAL ${custom.code})` : ""}`
+      : null;
   } else {
     colorLabel = finish.mode === "legno"
       ? `${finish.name} wood-effect`
@@ -246,10 +249,17 @@ function mapTapparella(state: WizardState, finish: ReturnType<typeof mapFrameFin
     };
   }
   const meta = getWizardTapparellaMeta(state.tapp);
-  const custom = state.tappCol !== "stesso" ? findWizardRal(state.tappCol) : null;
+  // v8.3.6 — fix: tappCol può puntare a WIZARD_TAPP_COLORS (palette dedicata
+  // tapparelle, 19 colori inclusi verde/rosso/blu) o a WIZARD_RAL (per
+  // backward-compat con sessioni v8.3.4 che salvavano qui un id RAL).
+  const custom = state.tappCol !== "stesso"
+    ? findWizardTappColor(state.tappCol) ?? findWizardRal(state.tappCol)
+    : null;
   const colorMode: "ral" | "legno" = custom ? "ral" : finish.mode;
+  // Fix v8.3.6: usa il `code` RAL (es. "1009"), non l'`id` interno
+  // (es. "1009_grigio_ardesia") — il prompt deve vedere "RAL 1009".
   const colorLabel = custom
-    ? `${custom.nome} (RAL ${custom.id})`
+    ? `${custom.nome}${custom.code ? ` (RAL ${custom.code})` : ""}`
     : finish.mode === "legno"
       ? `${finish.name} wood-effect`
       : `${finish.name}${finish.ral ? ` (RAL ${finish.ral})` : ""}`;

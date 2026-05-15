@@ -1,4 +1,15 @@
-// shared/render-window/windowPromptBuilder.ts — v8.3.5 (2026-05-15)
+// shared/render-window/windowPromptBuilder.ts — v8.3.6 (2026-05-15)
+// CHANGELOG v8.3.6 (bug fix pipeline color tapparella + RAL label + observability):
+//   🐛 windowRenderConfig.mapShutter: ora riconosce WIZARD_TAPP_COLORS (i 19
+//     colori dedicati tapparella inclusi verde/rosso/blu erano cosmetici —
+//     findWizardRal non li trovava → tapparella usciva col colore frame)
+//   🐛 windowRenderConfig: mapCassonetto + mapShutter usavano custom.id come
+//     codice RAL (es. "1009_grigio_ardesia") invece di custom.code ("1009")
+//     → il prompt riceveva "(RAL 1009_grigio_ardesia)" che è nonsense.
+//     Adesso usano custom.code con fallback a stringa vuota se assente.
+//   + generate-render: salva meta.reference_images_requested/fetched/labels
+//     in render_sessions per osservabilità multi-image pipeline (audit GAP D)
+//   ↺ promptVersion → "8.3.6"
 // CHANGELOG v8.3.5 (allinea al masterprompt v8.3.1 + cleanup):
 //   ↺ BLOCK A riscritto in stile "PHOTOREALISTIC WINDOW INSTALLATION SIMULATOR"
 //     con sezioni esplicite "YOU ARE NOT DOING / YOU ARE DOING / PRESERVE /
@@ -634,7 +645,7 @@ Before generating, mentally check: "Am I about to commit any of the 7 failures a
       "cassonetto with embossed wood grain when smooth PVC is specified, " +
       "old cassonetto front cover with visible old screws or hinges, " +
       "sloped or projecting cassonetto front (must be flat flush sheet)",
-    promptVersion: "8.3.5",
+    promptVersion: "8.3.6",
     blocks,
     validation,
     normalizedConfig,
