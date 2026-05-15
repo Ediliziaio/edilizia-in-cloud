@@ -6,16 +6,12 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const SUPABASE_REST_TIMEOUT_MS = 25_000;
-// v8.4.2 — Aumentato 90s → 240s (4 min) perché la edge function
-// generate-render (Render AI Infissi) può legittimamente impiegare:
-//   fetch reference images (~5s) + image generation Tier 1 (30-60s) +
-//   QA Vision multi-criterion (5-10s) + eventuale retry corrective (30-60s) +
-//   upload Storage + DB updates. Caso peggiore ~140s.
-// Il 90s precedente causava "Failed to send a request to the Edge Function"
-// in tutti i render che entravano in retry (multi-criterion QA o fallback
-// provider). Pattern corretto futuro: background work via EdgeRuntime.waitUntil
-// + polling, ma serve refactor della edge function — ticket separato.
-const SUPABASE_FUNCTION_TIMEOUT_MS = 240_000;
+// v8.5 — Edge function generate-render ora risponde 202 in 2-3s e prosegue
+// in background (EdgeRuntime.waitUntil). 60s e' abbondante per la parte
+// sync (auth + validation + deduct credit + idempotency check + mark
+// processing). Il render finale arriva via polling su render_sessions —
+// nessun timeout long-running piu' sul client.
+const SUPABASE_FUNCTION_TIMEOUT_MS = 60_000;
 
 // Sicurezza: le variabili d'ambiente sono obbligatorie — nessun fallback hardcoded
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {

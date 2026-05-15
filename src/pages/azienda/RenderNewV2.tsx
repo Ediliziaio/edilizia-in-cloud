@@ -526,6 +526,10 @@ export default function RenderNewV2() {
         );
       }
 
+      // v8.5 — Backward compatible response handling:
+      //   data.result_url       → vecchio path sincrono (legacy edge function)
+      //   data.status="processing" → nuovo 202 background: parti col polling
+      //   nessuno dei due       → fallback prudenziale al polling
       if (data?.result_url) {
         stopPolling();
         await preloadImage(data.result_url as string);
@@ -536,6 +540,8 @@ export default function RenderNewV2() {
         return;
       }
 
+      // 202 Accepted o response senza result: il render gira in background,
+      // affidiamoci al polling su render_sessions.
       startPolling(sessionId);
     } catch (err) {
       // v8.4.2 — Fallback resiliente: se l'invoke timeoutta (es. il render

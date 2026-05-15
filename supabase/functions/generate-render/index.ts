@@ -480,8 +480,194 @@ Deno.serve(async (req) => {
         .eq("id", session_id);
     }
 
-    // ── Prepara immagine input ───────────────────────────────────────────
-    const originalPath = session.original_photo_url as string;
+    // ─────────────────────────────────────────────────────────────────────
+    // v8.5 — BACKGROUND WORK PATTERN
+    // Da qui in poi tutto il lavoro long-running (fetch reference images,
+    // image generation, QA Vision, upload Storage, DB update finale) gira
+    // in background via EdgeRuntime.waitUntil(). La function risponde 202
+    // Accepted SUBITO al client (~2-3s totali) col session_id. Il frontend
+    // userà SOLO polling su render_sessions per il risultato finale.
+    //
+    // Vantaggi:
+    //   - Elimina il timeout 90s client / 150s server: il browser non
+    //     aspetta piu' la fine del render
+    //   - "Failed to send a request" non puo' piu' verificarsi per timeout
+    //   - Se l'utente chiude il browser, il render continua e quando torna
+    //     il polling lo trova fatto
+    //
+    // Trade-off: gli errori del background work non possono fare throw
+    // (la response e' gia' partita). Vanno salvati in render_sessions con
+    // status="failed" + error_message + refund credito.
+    // ─────────────────────────────────────────────────────────────────────
+
+    const backgroundWork = async (): Promise<void> => {
+      try {
+        await processRenderBackground({
+          supabase,
+          session,
+          session_id: session_id!,
+          user,
+          normalizedConfig,
+          blocks,
+          promptVersion,
+          composedPrompt: originalPrompt,
+          systemPrompt,
+          userPrompt,
+          negativePrompt,
+          referenceImageDescriptors: referenceImageDescriptors ?? [],
+          target_width,
+          target_height,
+          revenueEur,
+          purchaseId,
+          requestStartMs,
+        });
+      } catch (bgErr) {
+        const msg = bgErr instanceof Error ? bgErr.message : String(bgErr);
+        logError({
+          session_id,
+          msg: "background_render_failed",
+          error: msg,
+        });
+        // Refund credito + marca session failed (in DB, niente response)
+        if (refundableCompanyId && refundableSessionId) {
+          try {
+            await refundRenderCreditSafe(supabase, {
+              companyId: refundableCompanyId,
+              sessionId: refundableSessionId,
+              userId: user.id,
+              reasonMeta: {
+                vertical: "infissi",
+                edge_fn: "generate-render",
+                error: msg.substring(0, 500),
+                background_failure: true,
+              },
+              logTag: "generate-render-bg",
+            });
+          } catch (refundErr) {
+            logError({
+              session_id,
+              msg: "refund_failed_background",
+              error: String(refundErr),
+            });
+          }
+        }
+        try {
+          await supabase
+            .from("render_sessions")
+            .update({
+              status: "failed",
+              error_message: msg.substring(0, 500),
+              processing_completed_at: new Date().toISOString(),
+            })
+            .eq("id", session_id!);
+        } catch (updateErr) {
+          logError({
+            session_id,
+            msg: "background_failed_session_update_error",
+            error: String(updateErr),
+          });
+        }
+      }
+    };
+
+    // Spawn background work. EdgeRuntime.waitUntil tiene la function viva
+    // fino al completamento (o al cap 150s del runtime) senza bloccare la
+    // response al client.
+    // deno-lint-ignore no-explicit-any
+    const edgeRuntime = (globalThis as any).EdgeRuntime;
+    if (edgeRuntime && typeof edgeRuntime.waitUntil === "function") {
+      edgeRuntime.waitUntil(backgroundWork());
+    } else {
+      // Fallback: se EdgeRuntime non disponibile (dev locale Deno standalone)
+      // lo lanciamo fire-and-forget. In produzione Supabase usa il primo path.
+      void backgroundWork();
+    }
+
+    logInfo({
+      session_id,
+      msg: "background_render_spawned",
+      elapsed_sync_ms: elapsed(),
+    });
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        session_id,
+        status: "processing",
+        prompt_version: promptVersion,
+        message: "Render in elaborazione. Usa il polling su render_sessions per il risultato.",
+      }),
+      {
+        status: 202,
+        headers: { ...CORS, "Content-Type": "application/json" },
+      },
+    );
+  } catch (err: unknown) {
+    return handleSyncError({
+      err,
+      supabase,
+      user,
+      refundableSessionId,
+      refundableCompanyId,
+      creditDeducted,
+      providerChain,
+    });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v8.5 — Background render work (originalmente inline nell'handler).
+// Tutto qui dentro gira in EdgeRuntime.waitUntil quindi NON tira eccezioni
+// al client. Errori salvati in render_sessions.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface BackgroundRenderArgs {
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  // deno-lint-ignore no-explicit-any
+  session: any;
+  session_id: string;
+  user: { id: string };
+  normalizedConfig: WindowRenderConfig;
+  blocks: Record<string, string>;
+  promptVersion: string;
+  composedPrompt: string;
+  systemPrompt: string;
+  userPrompt: string;
+  negativePrompt: string;
+  // deno-lint-ignore no-explicit-any
+  referenceImageDescriptors: any[];
+  target_width?: number;
+  target_height?: number;
+  revenueEur: number;
+  purchaseId: string | null | undefined;
+  requestStartMs: number;
+}
+
+async function processRenderBackground(args: BackgroundRenderArgs): Promise<void> {
+  const {
+    supabase,
+    session,
+    session_id,
+    user,
+    normalizedConfig,
+    blocks,
+    promptVersion,
+    target_width,
+    target_height,
+    revenueEur,
+    purchaseId,
+    requestStartMs,
+  } = args;
+  let composedPrompt = args.composedPrompt;
+  const { negativePrompt, referenceImageDescriptors } = args;
+
+  const elapsed = () => Date.now() - requestStartMs;
+
+  const providerChain: Array<Record<string, unknown>> = [];
+
+  // ── Prepara immagine input ───────────────────────────────────────────
+  const originalPath = session.original_photo_url as string;
     const prepared = await prepareInputImage({
       supabase,
       bucket: "render-originals",
@@ -618,7 +804,8 @@ Deno.serve(async (req) => {
       }
     };
 
-    let composedPrompt = originalPrompt;
+    // v8.5 — composedPrompt e' gia' inizializzato dall'argomento all'inizio
+    // di processRenderBackground (let composedPrompt = args.composedPrompt).
     let candidate = await generateCandidate(composedPrompt);
     let generationAttempts = 1;
 
@@ -899,88 +1086,106 @@ Deno.serve(async (req) => {
       cost_real_eur: costReal,
     });
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        session_id,
-        result_url: resultUrl,
-        provider: candidate.providerUsed,
-        model: candidate.modelUsed,
-        attempts: generationAttempts,
-        cost_billed: costBilled,
-        prompt_version: promptVersion,
-        prompt_char_count: composedPrompt.length,
-      }),
-      { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
-    );
-  } catch (err: unknown) {
-    if (err instanceof Response) return err;
-    const msg = err instanceof Error ? err.message : String(err);
-    logError({
-      session_id: refundableSessionId,
-      msg: "render_failed",
-      error: msg,
+    // v8.5 — Background work: niente piu' return Response qui.
+    // Il risultato e' gia' salvato in render_sessions; il client lo prende
+    // via polling. Logging finale per audit.
+    logInfo({
+      session_id,
+      msg: "background_render_completed",
+      provider: candidate.providerUsed,
+      model: candidate.modelUsed,
+      attempts: generationAttempts,
+      total_ms: elapsed(),
     });
+  // Chiusura processRenderBackground (refactor v8.5)
+}
 
-    if (creditDeducted && refundableCompanyId && refundableSessionId) {
-      try {
-        await refundRenderCreditSafe(supabase, {
-          companyId: refundableCompanyId,
-          sessionId: refundableSessionId,
-          userId: user.id,
-          reasonMeta: {
-            vertical: "infissi",
-            edge_fn: "generate-render",
-            error: msg.substring(0, 500),
-          },
-          logTag: "generate-render",
-        });
-        logInfo({ session_id: refundableSessionId, msg: "credit_refunded_ok" });
-      } catch (refundErr) {
-        logError({
-          session_id: refundableSessionId,
-          msg: "refund_failed",
-          error: String(refundErr),
-        });
-      }
+// ─────────────────────────────────────────────────────────────────────────────
+// v8.5 — Handler errori sync (auth, validation, deduct, idempotency).
+// Solo gli errori che bloccano l'avvio del background work arrivano qui.
+// Gli errori del background work sono gestiti dentro processRenderBackground
+// e salvati direttamente in render_sessions.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface SyncErrorArgs {
+  err: unknown;
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  user: { id: string };
+  refundableSessionId: string | null;
+  refundableCompanyId: string | null;
+  creditDeducted: boolean;
+  providerChain: Array<Record<string, unknown>>;
+}
+
+async function handleSyncError(args: SyncErrorArgs): Promise<Response> {
+  const { err, supabase, user, refundableSessionId, refundableCompanyId, creditDeducted, providerChain } = args;
+  if (err instanceof Response) return err;
+  const msg = err instanceof Error ? err.message : String(err);
+  logError({
+    session_id: refundableSessionId,
+    msg: "render_sync_failed",
+    error: msg,
+  });
+
+  if (creditDeducted && refundableCompanyId && refundableSessionId) {
+    try {
+      await refundRenderCreditSafe(supabase, {
+        companyId: refundableCompanyId,
+        sessionId: refundableSessionId,
+        userId: user.id,
+        reasonMeta: {
+          vertical: "infissi",
+          edge_fn: "generate-render",
+          error: msg.substring(0, 500),
+        },
+        logTag: "generate-render",
+      });
+      logInfo({ session_id: refundableSessionId, msg: "credit_refunded_ok" });
+    } catch (refundErr) {
+      logError({
+        session_id: refundableSessionId,
+        msg: "refund_failed",
+        error: String(refundErr),
+      });
     }
+  }
 
-    if (refundableSessionId) {
-      try {
-        const failedUpdate = await supabase
+  if (refundableSessionId) {
+    try {
+      const failedUpdate = await supabase
+        .from("render_sessions")
+        .update({
+          status: "failed",
+          error_message: msg,
+          provider_chain_used: providerChain,
+        })
+        .eq("id", refundableSessionId);
+      if (failedUpdate.error) {
+        logWarn({
+          session_id: refundableSessionId,
+          msg: "failed_update_extended_columns_failed_fallback",
+          error: failedUpdate.error.message,
+        });
+        await supabase
           .from("render_sessions")
           .update({
             status: "failed",
             error_message: msg,
-            provider_chain_used: providerChain,
           })
           .eq("id", refundableSessionId);
-        if (failedUpdate.error) {
-          logWarn({
-            session_id: refundableSessionId,
-            msg: "failed_update_extended_columns_failed_fallback",
-            error: failedUpdate.error.message,
-          });
-          await supabase
-            .from("render_sessions")
-            .update({
-              status: "failed",
-              error_message: msg,
-            })
-            .eq("id", refundableSessionId);
-        }
-      } catch (updateErr) {
-        logError({
-          session_id: refundableSessionId,
-          msg: "session_update_failed",
-          error: String(updateErr),
-        });
       }
+    } catch (updateErr) {
+      logError({
+        session_id: refundableSessionId,
+        msg: "session_update_failed",
+        error: String(updateErr),
+      });
     }
-
-    return new Response(
-      JSON.stringify({ error: "render_failed", message: msg }),
-      { status: 500, headers: { ...CORS, "Content-Type": "application/json" } },
-    );
   }
-});
+
+  return new Response(
+    JSON.stringify({ error: "render_failed", message: msg }),
+    { status: 500, headers: { ...CORS, "Content-Type": "application/json" } },
+  );
+}
