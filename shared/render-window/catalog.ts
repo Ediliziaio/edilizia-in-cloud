@@ -246,11 +246,20 @@ export const WIZARD_LEGNO = [
     id: "macore",
     code: "1006",
     nome: "Macore",
-    hex: "#5C1F18",
-    grad: "linear-gradient(135deg,#7A2A1F,#4A1810)",
-    grain: "rgba(40,12,8,0.36)",
-    accent: "rgba(180,70,50,0.18)",
-    fragment: "macore wood-effect laminate with deep red-brown intense tone and horizontal grain bands",
+    hex: "#4A1612",
+    grad: "linear-gradient(135deg,#6A1F18,#3A0E0A)",
+    grain: "rgba(30,8,5,0.42)",
+    accent: "rgba(150,50,35,0.20)",
+    // v8.6.1 — Fragment rinforzato: macore reale e' un legno tropicale africano
+    // DENSO e SCURO, tono mogano-sangue molto piu' profondo del ciliegio.
+    // Il render precedente lo faceva troppo chiaro (sembrava noce medio).
+    fragment:
+      "MACORE wood-effect laminate (Italian PVC code 1006): DEEP DARK red-brown " +
+      "mahogany-blood tone, MUCH DARKER than cherry or walnut. Color is intense " +
+      "burgundy-mahogany with low brightness — closer to a dried-blood / wenge-red " +
+      "than to a warm honey tone. Visible horizontal ribbon-grain bands with subtle " +
+      "interlocked figure. Surface is matte satin. NOT a light brown, NOT a honey " +
+      "color, NOT a ciliegio — this is a PREMIUM DARK exotic-wood finish.",
     referenceImage: "1006-Macore-Finitura-classica-PVC.webp",
   },
   {

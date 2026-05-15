@@ -89,6 +89,7 @@ import {
   APERTURA_DESCRIPTION,
   DEFAULT_NEGATIVE_CONSTRAINTS,
   DEFAULT_QUALITY_DIRECTIVES,
+  FRAME_CORNER_CONSTRUCTION,
   FRAME_STYLE_DESCRIPTION,
   HANDLE_FINISH_DESCRIPTION,
   HANDLE_STYLE_DESCRIPTION,
@@ -167,6 +168,12 @@ function describeSpecification(
     headerLine,
     `Opening family: ${spec.desiredTypeId}, desired sash count: ${spec.desiredSashCount}`,
     `Material: ${MATERIAL_PHYSICS[spec.material] ?? spec.material}`,
+    // v8.6.1 — Corner construction CONDIZIONALE al materiale: PVC = saldatura
+    // V-perfect mitred 45°, Legno = mortise & tenon L-joint, Alu = butt joint 90°.
+    // Eliminates the bug "PVC con effetto legno con angoli a L stile carpenteria".
+    FRAME_CORNER_CONSTRUCTION[spec.material]
+      ? `🔨 ${FRAME_CORNER_CONSTRUCTION[spec.material]}`
+      : "",
     `Profile visible thickness: ${spec.profileVisibleThickness}`,
     spec.thermalBreakVisible
       ? "Thermal break MUST be visible as a thin (1-2mm) dark horizontal line at mid-depth of the frame and central mullion."
@@ -274,7 +281,7 @@ The NEW window is a COMPLETELY DIFFERENT PHYSICAL OBJECT from the old one. Repla
 - Nodo: simmetrico ~110mm | asimmetrico ~70mm | maniglia centrale ~30mm.
 - Visible hinges: 2 per sash residential, 3 per sash if portafinestra >2.4m.
 - Cassonetto: ≤30cm tall, flush against wall, never wider than frame.
-- PVC frame corners: mitred 45° V-perfect welded — no screws, no brackets.
+- Frame corner construction: depends on material — PVC=mitred 45° V-perfect welded, Legno=L-shaped mortise & tenon carpentry joint, Alluminio=90° butt with hidden corner cleat (specified per-opening in BLOCK D).
 
 ═══ MULTI-IMAGE INPUT ═══
 - Image 1 = SOURCE SCENE PHOTO. The room you must preserve. The OLD window inside is the target to REPLACE, not the goal.
@@ -345,7 +352,7 @@ The new window must look like a real photo of a real installation, not CGI:
 - Glazing reflections coherent with the photographed room lighting and the outdoor view.
 - Correct shadow casting + local ambient occlusion around frame edges, handle, hinges, cassonetto.
 - Physically plausible materials: PVC has subtle micro-texture, aluminium has thermal-break line, wood has visible grain.
-- PVC frame corners: clean mitred 45° join with hairline diagonal weld bead (Trocal/Veka/Internorm V-perfect standard). No screws, no metal brackets.
+- Frame corner construction follows the per-material rule specified in BLOCK D (PVC welded mitre, Legno mortise & tenon, Alu butt-joint). Do NOT apply PVC welding to a Legno frame, do NOT apply carpentry joinery to a PVC frame.
 - For 2-sash compositions: 2 hinges per sash (top + bottom on the hinged stile), matching the handle finish exactly.
 - If shutter is fully raised: keep curtain hidden inside cassonetto, no colored band floating above the glazing.
 - Lived-in home stays lived-in: do not sanitize or restage the space.
@@ -470,7 +477,7 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
       "curtains lamps plants pictures sensors invented in the room, " +
       "old paint outline or halo around the new frame, " +
       "phantom shadows of the previous installation",
-    promptVersion: "8.6.0",
+    promptVersion: "8.6.1",
     blocks,
     validation,
     normalizedConfig,

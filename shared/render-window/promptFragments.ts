@@ -43,6 +43,49 @@ export const MATERIAL_PHYSICS: Record<string, string> = {
     "crisp geometry, premium industrial detailing.",
 };
 
+// v8.6.1 — Geometria angoli telaio condizionale al materiale.
+// Differenza CRITICA tra PVC (saldato termicamente) e Legno (incollato/giuntato).
+// Cliente ha segnalato: il render PVC effetto-legno faceva un angolo a L
+// stile carpenteria (mortise & tenon) invece di una saldatura mitred 45°.
+export const FRAME_CORNER_CONSTRUCTION: Record<string, string> = {
+  pvc:
+    "Frame corner construction: CLEAN MITRED 45° JOINS at the 4 outer corners and " +
+    "the sash corners — THIS IS PVC, THERMALLY WELDED (Trocal/Veka/Internorm V-perfect " +
+    "standard). A hairline diagonal weld bead is visible along the mitre. " +
+    "NO visible screws, NO metal brackets, NO carpentry mortise-and-tenon joints, " +
+    "NO L-shaped butt joint typical of wood/aluminium. The corner is a CONTINUOUS " +
+    "MITRED PVC surface — the diagonal line goes from inside corner to outside corner.",
+  alluminio:
+    "Frame corner construction: 90° BUTT JOINTS at the 4 outer corners and the sash " +
+    "corners — THIS IS EXTRUDED ALUMINIUM, mechanically joined with a hidden corner " +
+    "cleat (squadretta interna). The vertical and horizontal profiles meet at a clean " +
+    "right angle. A very fine hairline gap may be visible at the join. NO visible " +
+    "screws on the outer face, NO mitred 45° diagonal line (that's PVC).",
+  alluminio_slim:
+    "Frame corner construction: PRECISION 90° BUTT JOINTS with hidden mechanical " +
+    "corner cleats. The vertical and horizontal aluminium profiles meet at a hairline " +
+    "right angle, machined to micron precision. Premium architectural detail. " +
+    "NO mitred diagonal line (that's PVC welding), NO visible fasteners.",
+  legno:
+    "Frame corner construction: TRADITIONAL CARPENTRY MORTISE-AND-TENON JOINT at " +
+    "the 4 outer corners — THIS IS SOLID TIMBER. The vertical stile and horizontal " +
+    "rail interlock with a wood-on-wood joint. A clean L-shaped seam is visible " +
+    "where the rail enters the stile. NO mitred 45° diagonal weld line (that's PVC). " +
+    "NO visible nails or screws on the outer face. The wood grain continues smoothly " +
+    "around the joint, slightly stained where the rail and stile meet.",
+  legno_alluminio:
+    "Frame corner construction: WOOD SIDE (interior) shows traditional mortise-and-tenon " +
+    "L-shaped joint with grain continuity. ALUMINIUM CLADDING (exterior) shows precision " +
+    "90° butt joint with hidden corner cleat. Hybrid material, hybrid corner detail.",
+  acciaio_corten:
+    "Frame corner construction: visible welded mitred 45° corners, real steel weld bead " +
+    "(thicker and more pronounced than PVC), patinated rust surface continuing through " +
+    "the weld zone. Industrial detail.",
+  acciaio_minimale:
+    "Frame corner construction: precision mitred 45° welded joints, hairline weld bead, " +
+    "matte black powder-coated surface continuous through the corner. Architect-grade.",
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // APERTURE: invariato (descrizioni tipologie già OK)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -200,7 +243,15 @@ export const ELECTRIC_BUTTON_DESCRIPTION_BASE =
   "The viewer must NOT be able to tell that something else was previously there. " +
   "" +
   "Style/color override rules: if the photographed room has other visible wall switches, " +
-  "MATCH their brand-look (plate shape, plate frame style, button shape) for visual consistency.";
+  "MATCH their brand-look (plate shape, plate frame style, button shape) for visual consistency. " +
+  "" +
+  "v8.6.1 — VISIBILITY REQUIREMENT: the new electric switch plate MUST be RENDERED " +
+  "INSIDE THE VISIBLE FRAME of the source photograph. If the photo crop is tight on " +
+  "the window and the old belt was near the right edge, render the new switch as close " +
+  "to the frame as possible (5-15cm from the window jamb) so it remains visible in the " +
+  "final crop. Do NOT place the switch outside the photographed frame. If the source " +
+  "photo crop is too tight to fit the switch beside the window, render it directly on " +
+  "the visible wall reveal (the jamb depth) so it remains in frame.";
 
 export function buildElectricButtonFragment(style: "bianco_standard" | "nero_opaco" | "match_room_switches"): string {
   switch (style) {
