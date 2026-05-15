@@ -485,6 +485,6 @@ describe("window render prompt", () => {
       selectedOpeningIds: ["A"],
     });
     const prompt = buildWindowPrompt(config, analysis);
-    expect(prompt.promptVersion).toBe("8.5.0");
+    expect(prompt.promptVersion).toBe("8.5.2");
   });
 });

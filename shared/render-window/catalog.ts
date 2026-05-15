@@ -45,8 +45,12 @@ function getReferencesBaseUrl(): string {
     if (envUrl) return envUrl;
     const siteUrl = (globalThis as any).Deno.env.get("SITE_URL");
     if (siteUrl) return `${siteUrl.replace(/\/+$/, "")}/render-references`;
-    // Default produzione: dominio Cloudflare Pages dell'app.
-    return "https://app.ediliziaincloud.it/render-references";
+    // v8.5.2 FIX BUG CRITICO: il default era "app.ediliziaincloud.it" che
+    // NON RISOLVE via DNS → fetch reference images falliva silenziosamente
+    // → Gemini riceveva 0 reference photos → si comportava da "recolor"
+    // invece di "replace" (problema osservato in produzione su renderv8.5).
+    // Default produzione corretto: dominio Cloudflare Pages reale del deploy.
+    return "https://edilizia-in-cloud.pages.dev/render-references";
   }
   // Default frontend: serve da Cloudflare Pages CDN (stessa origin del sito).
   return "/render-references";
