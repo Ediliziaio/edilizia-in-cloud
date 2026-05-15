@@ -43,9 +43,13 @@ import {
   WIZARD_TAPP_OPTIONS,
   WIZARD_TRAVERSO_OPTIONS,
   WIZARD_TIPI,
+  RAL_FAMILY_LABELS,
   getColorById,
+  getRalsByFamily,
+  getReferenceImageUrl,
   mapWizardToConfig,
   profileSupportsHiddenHinges,
+  type RalFamily,
   type WizardCerniere,
   type WizardHandleType,
   type WizardHw,
@@ -83,8 +87,10 @@ const INITIAL_STATE: WizardState = {
   cassCol: "",
   tapp: "no",
   tappCol: "stesso",
+  // v8.x — nuovi controlli wizard
   traverso: "auto",
   cerniere: "visibili",
+  nodo: "simmetrico",
 };
 
 function readImageDimensions(file: File): Promise<WindowPhotoMeta> {
@@ -1189,7 +1195,7 @@ function StepFiniture({
   nextDisabled: boolean;
 }) {
   const [tab, setTab] = useState<"ral" | "legno">("ral");
-  const colorList = tab === "ral" ? WIZARD_RAL : WIZARD_LEGNO;
+  // v8.3 — colorList rimosso: la griglia colori ora usa getRalsByFamily / WIZARD_LEGNO direttamente.
   const handleOptions = useMemo(
     () => state.tipo === "SCORR"
       ? WIZARD_HANDLE_TYPES.filter((item) => item.id === "alzante")
@@ -1239,57 +1245,91 @@ function StepFiniture({
 
             {tab === "legno" && (
               <div className="mb-3 rounded-2xl border border-orange-200 bg-orange-50/70 p-3 text-sm text-slate-700">
-                Le anteprime simulano venatura, temperatura e profondità del legno per aiutare la scelta. Nel prompt
-                il render usa anche la descrizione materica del colore selezionato, non solo il nome commerciale.
+                Le anteprime sono foto reali dei campioni del fornitore. Il render AI usa
+                anche la descrizione materica del colore (venatura, finitura, tono caldo/freddo)
+                non solo il nome commerciale.
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-              {colorList.map((color) => (
-                <button
-                  key={color.id}
-                  type="button"
-                  onClick={() => setState((current) => ({ ...current, coloreInfisso: color.id }))}
-                  className={cn(
-                    "rounded-2xl border p-3 text-left transition",
-                    state.coloreInfisso === color.id ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
-                  )}
-                >
-                  <div
-                    className="h-16 rounded-xl border shadow-sm"
-                    style={getFrameFinishPreviewStyle(color)}
-                  />
-                  <div className="mt-2 text-sm font-semibold">{color.nome}</div>
-                  {"fragment" in color && (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Venatura e tono coerenti con {color.nome.toLowerCase()}.
+            {/* v8.3 — Mazzetta colori RAL raggruppata per famiglia, con foto reali */}
+            {tab === "ral" ? (
+              <div className="space-y-4">
+                {(["bianchi", "grigi", "marroni", "blu", "rossi", "premium"] as const).map((family) => {
+                  const colors = getRalsByFamily(family as RalFamily);
+                  if (!colors.length) return null;
+                  return (
+                    <div key={family}>
+                      <div className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        {RAL_FAMILY_LABELS[family as RalFamily]}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+                        {colors.map((c) => (
+                          <ColorSwatch
+                            key={c.id}
+                            color={c}
+                            selected={state.coloreInfisso === c.id}
+                            onClick={() => setState((current) => ({ ...current, coloreInfisso: c.id }))}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  )}
-                </button>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+                {WIZARD_LEGNO.map((c) => (
+                  <ColorSwatch
+                    key={c.id}
+                    color={c}
+                    selected={state.coloreInfisso === c.id}
+                    onClick={() => setState((current) => ({ ...current, coloreInfisso: c.id }))}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
             <SectionTitle>Tipologia maniglia</SectionTitle>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {handleOptions.map((handleType) => (
-                <button
-                  key={handleType.id}
-                  type="button"
-                  onClick={() => setState((current) => ({ ...current, tipoManiglia: handleType.id as WizardHandleType }))}
-                  className={cn(
-                    "rounded-2xl border p-3 text-left transition",
-                    state.tipoManiglia === handleType.id ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
-                  )}
-                >
-                  <div className="mb-3 flex h-16 items-center justify-center rounded-xl border bg-white">
-                    <HandlePreview kind={handleType.family} finish={WIZARD_HW_COLORS.find((item) => item.id === state.coloreHw)?.hex ?? "#C0C0C0"} />
-                  </div>
-                  <div className="text-sm font-semibold">{handleType.label}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">{handleType.desc}</div>
-                </button>
-              ))}
+              {handleOptions.map((handleType) => {
+                // v8.3 — foto reale della maniglia se disponibile, altrimenti SVG fallback.
+                const opt = handleType as typeof handleType & { referenceImage?: string | null };
+                const previewUrl = opt.referenceImage ? getReferenceImageUrl(opt.referenceImage) : null;
+                const selected = state.tipoManiglia === handleType.id;
+                return (
+                  <button
+                    key={handleType.id}
+                    type="button"
+                    onClick={() => setState((current) => ({ ...current, tipoManiglia: handleType.id as WizardHandleType }))}
+                    className={cn(
+                      "rounded-2xl border-2 p-3 text-left transition flex gap-3",
+                      selected ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
+                    )}
+                  >
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-50 border">
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt={handleType.label}
+                          loading="lazy"
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <HandlePreview kind={handleType.family} finish={WIZARD_HW_COLORS.find((item) => item.id === state.coloreHw)?.hex ?? "#C0C0C0"} />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold">{handleType.label}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{handleType.desc}</div>
+                      {!previewUrl && (
+                        <div className="mt-1 text-[10px] italic text-amber-600">Anteprima generica</div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -1825,6 +1865,75 @@ function MetricCard({ label, value }: { label: string; value: string }) {
       <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
       <div className="mt-2 text-lg font-semibold capitalize">{value}</div>
     </div>
+  );
+}
+
+// v8.3 — Card colore con foto reference reale.
+// Fallback al gradient CSS se la foto non c'è o non carica (no UI rotta).
+function ColorSwatch({
+  color,
+  selected,
+  onClick,
+}: {
+  color: {
+    id: string;
+    nome: string;
+    hex: string;
+    referenceImage?: string | null;
+    code?: string | null;
+    family?: string;
+    touch?: string;
+    upsell?: boolean;
+  };
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const previewUrl = color.referenceImage ? getReferenceImageUrl(color.referenceImage) : null;
+  const [imgError, setImgError] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group relative overflow-hidden rounded-2xl border-2 transition-all text-left",
+        selected
+          ? "border-orange-500 ring-2 ring-orange-200"
+          : "border-border hover:border-orange-300",
+      )}
+      title={color.nome}
+    >
+      <div className="aspect-square w-full overflow-hidden bg-slate-100">
+        {previewUrl && !imgError ? (
+          <img
+            src={previewUrl}
+            alt={color.nome}
+            loading="lazy"
+            onError={() => setImgError(true)}
+            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+          />
+        ) : (
+          <div className="h-full w-full" style={getFrameFinishPreviewStyle(color)} />
+        )}
+      </div>
+      <div className="bg-white px-2 py-1.5">
+        <div className="flex items-center gap-1">
+          {color.code && (
+            <span className="text-[10px] font-mono text-muted-foreground">{color.code}</span>
+          )}
+          {color.upsell && (
+            <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[8px] font-bold text-white">
+              TOUCH
+            </span>
+          )}
+        </div>
+        <div className="truncate text-xs font-semibold">{color.nome}</div>
+      </div>
+      {selected && (
+        <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white shadow">
+          <CheckCircle2 className="h-4 w-4" />
+        </div>
+      )}
+    </button>
   );
 }
 
