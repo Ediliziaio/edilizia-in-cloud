@@ -187,14 +187,19 @@ function useGsapSection() {
           stagger: 0.12,
         });
 
-        gsap.to("[data-ai-float]", {
-          y: -10,
-          duration: 2.4,
-          repeat: -1,
-          yoyo: true,
-          ease: "sine.inOut",
-          stagger: 0.18,
-        });
+        // Skip se nessun target nel DOM (altrimenti GSAP logga warning a
+        // ogni mount). data-ai-float è opzionale nel template — se non
+        // c'è, salta semplicemente l'animazione.
+        if (document.querySelectorAll("[data-ai-float]").length > 0) {
+          gsap.to("[data-ai-float]", {
+            y: -10,
+            duration: 2.4,
+            repeat: -1,
+            yoyo: true,
+            ease: "sine.inOut",
+            stagger: 0.18,
+          });
+        }
 
         gsap.fromTo(
           "[data-ai-scan]",
