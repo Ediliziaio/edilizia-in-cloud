@@ -7,6 +7,7 @@
 // non di generazione. L'errore viene riportato nel body.
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { editImage } from "../_shared/ai-provider/image.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -280,11 +281,60 @@ async function testOpenAI(): Promise<ProviderTest> {
   }
 }
 
+// Real end-to-end test: chiama editImage() come fa il preventivatore reale.
+// Restituisce providerUsed, attempts, attemptHistory completi.
+async function testFullEditImage() {
+  // Crea Blob da una TINY png (1×1 trasparente). Il test serve a verificare
+  // il PATH del codice, non la qualità del render.
+  const binStr = atob(TINY_PNG_B64);
+  const bytes = new Uint8Array(binStr.length);
+  for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+  const blob = new Blob([bytes], { type: "image/png" });
+  try {
+    const result = await editImage({
+      prompt: "Replace the existing frame with a modern PVC window. Keep the same wall opening, sill and surrounding geometry.",
+      sourceImageBlob: blob,
+      effectiveWidth: 1,
+      effectiveHeight: 1,
+      timeoutMs: 60_000,
+      metadata: {
+        task_kind: "debug_e2e_test",
+        company_id: null,
+        session_id: "debug-e2e",
+      },
+    });
+    return {
+      ok: true,
+      providerUsed: result.providerUsed,
+      modelUsed: result.modelUsed,
+      attempts: result.attempts,
+      attemptHistory: result.attemptHistory,
+      latencyMs: result.latencyMs,
+      imageBytes: result.imageDataUrl.length,
+    };
+  } catch (e) {
+    const err = e as { message?: string; attemptHistory?: unknown };
+    return {
+      ok: false,
+      error: err.message ?? String(e),
+      attemptHistory: err.attemptHistory ?? null,
+    };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
   const url = new URL(req.url);
+  // Modalità "full": testa l'editImage() reale del path produzione.
+  if (url.searchParams.get("mode") === "full") {
+    const result = await testFullEditImage();
+    return new Response(JSON.stringify(result, null, 2), {
+      status: 200,
+      headers: { ...corsHeaders, "content-type": "application/json" },
+    });
+  }
   // Token guard minimo: pass header `x-debug-token` per evitare endpoint pubblico
   const expected = Deno.env.get("DEBUG_TOKEN");
   const given = req.headers.get("x-debug-token");
