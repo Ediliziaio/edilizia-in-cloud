@@ -488,18 +488,29 @@ async function callOpenRouterImage(
     const startMs = Date.now();
 
     try {
+      // FIX 2026-05-15: gli HTTP header devono essere ByteString ASCII-puri.
+      // Il vecchio `${appName} — Render AI` conteneva un em dash (U+2014)
+      // che fa esplodere `fetch()` con
+      //   "Failed to construct 'Request': 'headers' is not a valid ByteString"
+      // Tutti i Tier 2/3 OpenRouter fallivano per questo (verificato via
+      // provider_chain_used in render_sessions). Sanifichiamo TUTTI gli
+      // header values stripping non-ASCII.
+      const asciiOnly = (s: string) =>
+        // eslint-disable-next-line no-control-regex
+        s.replace(/[^\x20-\x7E]/g, "-").trim();
+      const safeHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": asciiOnly(siteUrl),
+        "X-Title": asciiOnly(`${appName} - Render AI`),
+        "X-OR-Task-Kind": asciiOnly(args.params.metadata.task_kind),
+      };
+      if (args.params.metadata.company_id) {
+        safeHeaders["X-OR-Company"] = asciiOnly(args.params.metadata.company_id);
+      }
       const resp = await fetch(OPENROUTER_ENDPOINT, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          "HTTP-Referer": siteUrl,
-          "X-Title": `${appName} — Render AI`,
-          "X-OR-Task-Kind": args.params.metadata.task_kind,
-          ...(args.params.metadata.company_id
-            ? { "X-OR-Company": args.params.metadata.company_id }
-            : {}),
-        },
+        headers: safeHeaders,
         body: JSON.stringify(body),
         signal: controller.signal,
       });
