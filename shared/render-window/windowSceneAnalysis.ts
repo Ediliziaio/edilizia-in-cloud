@@ -11,7 +11,7 @@ import type {
   WindowSceneAnalysis,
   WindowSceneOpening,
   WindowTargetSelection,
-  WindowTransomPanelBelowType,
+  WindowTransomPanelBelow,
 } from "./types.ts";
 
 const OPENING_TYPES: WindowOpeningType[] = [
@@ -144,9 +144,9 @@ function normalizeBeltPlacement(value: unknown): WindowBeltPlacement {
   return allowed.includes(value as WindowBeltPlacement) ? (value as WindowBeltPlacement) : "unknown";
 }
 
-function normalizeTransomPanelBelowType(value: unknown): WindowTransomPanelBelowType {
-  const allowed: WindowTransomPanelBelowType[] = ["glass", "solid_panel", "louvered", "unknown"];
-  return allowed.includes(value as WindowTransomPanelBelowType) ? (value as WindowTransomPanelBelowType) : "unknown";
+function normalizeTransomPanelBelowType(value: unknown): WindowTransomPanelBelow {
+  const allowed: WindowTransomPanelBelow[] = ["glass", "solid_panel", "louvered", "unknown"];
+  return allowed.includes(value as WindowTransomPanelBelow) ? (value as WindowTransomPanelBelow) : "unknown";
 }
 
 function normalizePct(value: unknown): number | null {
