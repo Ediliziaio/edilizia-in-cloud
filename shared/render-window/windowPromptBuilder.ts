@@ -1,4 +1,15 @@
-// shared/render-window/windowPromptBuilder.ts — v8.3.3 (2026-05-15)
+// shared/render-window/windowPromptBuilder.ts — v8.3.4 (2026-05-15)
+// CHANGELOG v8.3.4:
+//   + BLOCK 0.5 CARDINAL FAILURE MODES — recap brutale dei 7 fallimenti
+//     osservati in produzione, posizionato IMMEDIATAMENTE dopo la legend
+//     così il modello non può saltarlo
+//   + BLOCK F: regole "V-perfect welded corners" (saldatura PVC mitred)
+//   + BLOCK F: regole "Cassonetto monoblocco standard" (PVC smooth flat)
+//   + Reference legend rafforzata: "swatch != scene element", "do NOT paste",
+//     "handle MUST replicate reference, not old silhouette"
+//   + Negative prompt: 16 nuovi pattern (curtains invented, swatch pasted,
+//     vertical cord on motorized, screwed butt-joint corners, etc.)
+//   ↺ promptVersion → "8.3.4"
 // CHANGELOG v8.3.3:
 //   + MULTI-IMAGE INPUT: ora il builder costruisce ANCHE la lista delle foto
 //     reference (colore frame, maniglia, nodo, cassonetto, cerniere) che vanno
@@ -192,6 +203,9 @@ Your task is NOT to redesign the room. Your task is to keep the exact same photo
 - 🔴 DO NOT recolor the existing window. ERASE the old window entirely and DRAW a brand-new window with the new specified geometry, new handles, new hinges, new mullion. The output must be a NEW PHYSICAL OBJECT, not the old window with a color filter. ALL parts must be replaced including LATERAL stiles (left + right vertical frame edges) — they MUST take the new color, NEVER remain in the original old color.
 - 🔴 DO NOT keep residual dark sub-rectangles, leftover muntins or georgian-bar segments in the upper portion of the new sashes. The new sashes are single uninterrupted glass panels (unless georgian bars / transom are explicitly configured).
 - 🔴 DO NOT recolor the existing cassonetto when replacement is specified — ERASE the old cassonetto and draw a NEW modern flat slim unit with seamless monoblocco continuity (zero gap) to the top of the new window frame.
+- 🔴 IF MOTORIZATION IS SPECIFIED for the shutter, the OLD manual control system MUST be COMPLETELY ERASED: vertical pull cord, belt strap, wall winder box, wall plate, exit slot, vertical guide rod, any visible cord hanging beside the window. The wall behind it is repainted seamlessly. A new modern electric switch plate replaces it at the same height. ZERO trace of the old manual system anywhere in the render.
+- 🔴 DO NOT invent objects: do NOT add curtains, drapes, blinds, lamps, sensors, pictures, plants, decorative items that were NOT visible in the source photo. The room outside the target opening stays IDENTICAL.
+- 🔴 The reference images (Image 2, Image 3, …) are SWATCHES / PRODUCT REFERENCES — they are INVISIBLE INPUTS. NEVER render them as visible objects in the output: no swatch rectangle pasted on the wall, no inset thumbnail of the handle in the corner, nothing. The final output is one single edited version of Image 1.
 
 🟡 MANDATORY TIER (italian residential standard — must match config):
 - Numero maniglie: F2A = 1 maniglia (mai 2), F3A = 2 maniglie (mai 3), F4A = 2 maniglie (mai 4).
@@ -303,6 +317,21 @@ A frequent failure: the AI keeps the 4 dark sub-rectangles in the upper portion 
 - The new sashes are SINGLE clear glazed panels (or whatever sash count is explicitly specified). No phantom horizontal mid-bars. No phantom upper "panel zones". No phantom dark rectangles in the upper third of the sash.
 - If the configuration does NOT explicitly request a transom (mantieni traverso) or georgian bars, the sash MUST be a single uninterrupted glass panel from top of sash to bottom of sash.
 
+[v8.3.4 — 🔴 PVC WELDED FRAME CORNERS — V-PERFECT STANDARD]
+Italian/German residential PVC windows (Trocal, Veka, Internorm, Schüco LivIng, Kömmerling) are manufactured with MITRED welded corners. The corners of the new frame MUST show:
+- A clean MITRED 45° join at each of the 4 outer corners and at the 4 sash corners (= 16 visible mitre joins total for a 2-sash window).
+- A subtle thin diagonal weld bead line ("V-perfect" welding) visible along the mitre at close inspection. It is a hairline mark, NOT a thick black line, NOT a screwed butt-joint.
+- NO visible screws, NO visible metal brackets at the corners. The corner is a flush continuous PVC surface.
+- The same color as the rest of the frame surface. The mitre line is darker by only 5-10% — it should look professional, not amateur.
+
+[v8.3.4 — 🔴 CASSONETTO MONOBLOCCO STANDARD]
+If cassonetto replacement is specified, the new cassonetto is a modern Italian "monoblocco" unit:
+- Material: smooth flat PVC sheet (not embossed wood texture, not rustic plaster).
+- Shape: shallow rectangular box, depth ~120-160mm, NO sloped front, NO projecting cornice, NO decorative moldings.
+- Surface: uniform matte or satin finish, same color as the new window frame OR explicit cassonetto color choice.
+- Hatch: integrated front inspection cover, optionally with a thin discrete shadow line indicating the hatch perimeter. NO old wooden flap, NO visible screws, NO old metal hinges.
+- Continuity: the bottom edge of the cassonetto contacts the top edge of the new window frame with ZERO gap and ZERO shadow seam — they look like one integrated unit milled together.
+
 [v8.3.2 — 🔴 CASSONETTO REPLACEMENT vs RECOLOR]
 When the configuration says "replace cassonetto":
 - DO NOT just repaint the existing cassonetto. ERASE the old cassonetto and draw a NEW cassonetto with a NEW design.
@@ -373,6 +402,13 @@ ${bullets([
     "v8.3.2 — No residual sash sub-rectangles: NO 4 dark rectangles in the upper portion of the sashes (leftover muntins/georgian bars). Sashes are single uninterrupted glass panels unless transom/georgian bars are explicitly specified.",
     "v8.3.2 — Cassonetto replacement: if replacement is specified, the new cassonetto is a NEW unit (modern flat slim design), NOT the old cassonetto recolored. NO rustic wood texture, NO old plaster, NO sloped projecting front.",
     "v8.3.2 — Monoblocco continuity: the bottom edge of the new cassonetto aligns PERFECTLY with the top edge of the new window frame, creating a seamless continuous line — NO gap, NO offset, NO shadow seam between them.",
+    // ── v8.3.4 verifications ──
+    "v8.3.4 — V-perfect welded corners: the 4 outer corners and the sash corners show clean mitred 45° joins with a hairline diagonal weld bead. NO visible screws, NO metal brackets at the corners.",
+    "v8.3.4 — Cassonetto monoblocco PVC standard: smooth flat PVC sheet (not embossed wood texture), shallow rectangular box, no projecting cornice, no visible old hinges/screws on the inspection hatch.",
+    "v8.3.4 — Cordicella tapparella: if motorization is specified, ZERO vertical cord/cable hanging beside the window. Verify against the source photo: every cord/belt/rope visible in Image 1 has been ERASED in the output.",
+    "v8.3.4 — Handle replicated from reference: if a handle reference image was provided, the new handle MATCHES that reference's shape/mounting/finish. It does NOT preserve the silhouette of the OLD handle from Image 1.",
+    "v8.3.4 — No invented objects: the room outside the target opening is IDENTICAL to Image 1. No new curtains, lamps, sensors, pictures, plants, switches that were not in Image 1.",
+    "v8.3.4 — Reference swatches invisible: NO sample swatch rectangle pasted in the scene. NO inset product photo of the handle in a corner. The output is a single edited version of Image 1.",
   ])}`;
 
   // v8.3 — Few-shot positive examples: descrizioni testuali di "good output"
@@ -398,8 +434,32 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
     blocks.LEGEND = referenceLegend;
   }
 
+  // v8.3.4 — CARDINAL FAILURE MODES — short, brutal recap of the 7 most common
+  // failure modes observed in production with Gemini Nano Banana. Placed
+  // IMMEDIATELY after the legend so it cannot be skipped by the model.
+  blocks.CARDINAL = `[BLOCK 0.5 — 🔴 CARDINAL FAILURE MODES — DO NOT DO ANY OF THESE]
+
+Production has observed the following failure modes repeatedly. Each one alone makes the render UNUSABLE for a real Italian window-replacement quote. AVOID ALL OF THEM:
+
+1. ❌ RECOLOR INSTEAD OF REPLACE — the old window is still there, just repainted in the new color. The output looks like a photoshop hue-shift on the old window. THIS IS WRONG. The old window MUST be erased and a brand-new physically-different window drawn in its place.
+
+2. ❌ OLD HANDLE KEPT — the handle visible in Image 1 (old window) is preserved or only recolored. THIS IS WRONG. The new handle must REPLICATE the model shown in the HANDLE REFERENCE image (if provided): different shape, different mounting plate, different proportions than the old one.
+
+3. ❌ LATERAL STILES STILL IN OLD COLOR — only the front face of the frame takes the new color, while the left/right vertical stiles remain in the old original color (typically white). THIS IS WRONG. The entire frame perimeter (all 4 sides + central mullion) must be in the new specified color.
+
+4. ❌ OLD SHUTTER CORD / BELT / WINDER STILL VISIBLE when motorization is specified. If the config says "tapparella motorizzata" then the old manual control system (vertical cord, belt strap, wall winder box, wall plate, exit slot, vertical guide rod) MUST be COMPLETELY ERASED from the scene. The wall behind it must be cleanly repainted to match the surrounding wall. A new modern electric switch plate must be installed in its place. ZERO trace of the old manual system.
+
+5. ❌ OLD CASSONETTO RECOLORED — the cassonetto is the same old design just painted the new color. THIS IS WRONG. If cassonetto replacement is specified, the new cassonetto is a brand-new modern flat slim PVC monoblock unit, with a clean smooth surface and integrated inspection hatch. The bottom edge connects SEAMLESSLY to the top edge of the new window (zero gap, zero shadow seam — Italian "monoblocco" standard).
+
+6. ❌ OBJECTS INVENTED — adding curtains, drapes, blinds, lamps, sensors, picture frames, plants, decals, stickers, switches that were NOT visible in Image 1. THE SCENE MUST STAY IDENTICAL outside the target opening. Do NOT hallucinate new room accessories. If curtains exist in Image 1, keep them exactly as they are. If they don't exist in Image 1, DO NOT add them.
+
+7. ❌ REFERENCE SWATCH PASTED INTO SCENE — copying the swatch image (Image 2, 3, …) as a small rectangular object inside the rendered room. The swatches are invisible inputs, not scene elements. The final render contains ONLY the edited version of Image 1.
+
+Before generating, mentally check: "Am I about to commit any of the 7 failures above?" If yes, REGENERATE the output without that failure.`;
+
   const userPrompt = [
     referenceLegend, // v8.3.3 — IMAGE INPUTS LEGEND comes FIRST, before everything
+    blocks.CARDINAL, // v8.3.4 — CARDINAL FAILURE MODES recap, second
     blocks.B,
     blocks.C,
     blocks.D,
@@ -496,8 +556,30 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
       "horizontal shadow seam separating cassonetto from window frame, " +
       "offset or misalignment between cassonetto and window — they must be a seamless monoblocco unit, " +
       "discontinuous line between cassonetto and frame, " +
-      "old window frame visible underneath the new color coat",
-    promptVersion: "8.3.3",
+      "old window frame visible underneath the new color coat, " +
+      // ─── v8.3.4 — Oggetti inventati + swatch ────────────────────────────
+      "curtains added to the scene that were not in the source photo, " +
+      "drapes invented near the window, " +
+      "blinds invented near the window, " +
+      "lamps, sensors, picture frames, plants, decals added to the room, " +
+      "any new room accessory not present in the source photo Image 1, " +
+      "swatch sample rectangle pasted on the wall inside the rendered scene, " +
+      "reference image (Image 2, 3, 4, ...) appearing as a visible object in the output, " +
+      "small colored rectangle floating in the scene representing a swatch, " +
+      "small product photo of a handle floating as an inset in the corner of the render, " +
+      // ─── v8.3.4 — Cordicella tapparella su motorizzata ──────────────────
+      "vertical pull cord hanging beside the motorized window, " +
+      "thin vertical cable beside the window when motorization is specified, " +
+      "leftover roller-shutter cord even though motorization is required, " +
+      "old wall winder plate or belt slot still visible on motorized installation, " +
+      // ─── v8.3.4 — Saldature PVC e cassonetto monoblocco ────────────────
+      "screwed butt-joint corners on PVC frame (must be mitred V-perfect welded), " +
+      "visible screws at PVC frame corners, " +
+      "rustic wood-texture cassonetto when a modern PVC monoblocco unit is specified, " +
+      "cassonetto with embossed wood grain when smooth PVC is specified, " +
+      "old cassonetto front cover with visible old screws or hinges, " +
+      "sloped or projecting cassonetto front (must be flat flush sheet)",
+    promptVersion: "8.3.4",
     blocks,
     validation,
     normalizedConfig,

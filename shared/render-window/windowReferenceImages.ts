@@ -263,13 +263,22 @@ export function buildReferenceImageLegend(
   refs.forEach((r, i) => {
     lines.push(
       `🎨 IMAGE ${i + 2} = ${r.label}. ` +
-        `This image is the AUTHORITATIVE visual reference for the corresponding element of the NEW window. ` +
-        `Match the color tone, finish, texture, shape and proportions shown in THIS image — not what you see in Image 1.`,
+        `This image is a SWATCH / PRODUCT REFERENCE — it is NOT a scene element. ` +
+        `Extract its visual properties (color tone, finish texture, shape, proportions, hardware design) ` +
+        `and APPLY them to the corresponding element of the NEW window inside the scene of Image 1. ` +
+        `Do NOT paste, copy, or place this swatch image anywhere in the final output. ` +
+        `Do NOT render a small swatch-like rectangle on the wall. The swatch is a TARGET, not an object.`,
     );
   });
   lines.push("");
   lines.push(
-    "🔴 HARD RULE: when in doubt about a color or material of the NEW window, take the answer from the REFERENCE images (2, 3, …), NEVER from the OLD window visible in Image 1.",
+    "🔴 HARD RULE 1: when in doubt about a color or material of the NEW window, take the answer from the REFERENCE images (2, 3, …), NEVER from the OLD window visible in Image 1.",
+  );
+  lines.push(
+    "🔴 HARD RULE 2: the reference images (2, 3, …) MUST NOT appear in the final render. They are invisible inputs. The final render is a single edited version of Image 1 with the new window installed.",
+  );
+  lines.push(
+    "🔴 HARD RULE 3: the HANDLE in the final render MUST replicate the EXACT model shown in the HANDLE REFERENCE image (if provided): same shape, same mounting style, same finish. It MUST NOT keep the silhouette/model of the OLD handle visible in Image 1.",
   );
   return lines.join("\n");
 }
