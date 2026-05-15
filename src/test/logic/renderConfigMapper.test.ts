@@ -38,28 +38,31 @@ describe("configMapper — A3 manigliaCentrale decoupled", () => {
     expect(out.nuovo_infisso.stile_telaio).toBe("europeo_classico");
   });
 
-  it("PVC + manigliaCentrale=true → materiale PVC (NON alluminio), stile nodo_ridotto_maniglia_centrale", () => {
+  it("PVC + manigliaCentrale=true → materiale PVC (NON alluminio), stile nodo_asimmetrico_maniglia_centrale", () => {
     const out = mapWizardToConfig({ ...baseState, profilo: "pvc", manigliaCentrale: true });
     expect(out.nuovo_infisso.materiale).toBe("pvc");
-    expect(out.nuovo_infisso.stile_telaio).toBe("nodo_ridotto_maniglia_centrale");
+    expect(out.nuovo_infisso.stile_telaio).toBe("nodo_asimmetrico_maniglia_centrale");
   });
 
-  it("Legno + manigliaCentrale=true → materiale legno, stile nodo_ridotto_maniglia_centrale", () => {
+  // v8.2: legno classico NON supporta più nodo asimmetrico/maniglia centrale
+  // (vedi PROFILI_NODO_ASIMMETRICO_COMPATIBILI in catalog.ts — legno escluso).
+  // Il fallback è lo stile_telaio default del profilo legno = classico_arrotondato.
+  it("Legno + manigliaCentrale=true → materiale legno, fallback stile classico (v8.2 disabilita nodo per legno)", () => {
     const out = mapWizardToConfig({ ...baseState, profilo: "legno", manigliaCentrale: true });
     expect(out.nuovo_infisso.materiale).toBe("legno");
-    expect(out.nuovo_infisso.stile_telaio).toBe("nodo_ridotto_maniglia_centrale");
+    expect(out.nuovo_infisso.stile_telaio).toBe("classico_arrotondato");
   });
 
-  it("Alluminio + manigliaCentrale=true → alluminio, stile nodo_ridotto_maniglia_centrale", () => {
+  it("Alluminio + manigliaCentrale=true → alluminio, stile nodo_asimmetrico_maniglia_centrale", () => {
     const out = mapWizardToConfig({ ...baseState, profilo: "alluminio", manigliaCentrale: true });
     expect(out.nuovo_infisso.materiale).toBe("alluminio");
-    expect(out.nuovo_infisso.stile_telaio).toBe("nodo_ridotto_maniglia_centrale");
+    expect(out.nuovo_infisso.stile_telaio).toBe("nodo_asimmetrico_maniglia_centrale");
   });
 
-  it("Minimal + manigliaCentrale=true → alluminio, stile nodo_ridotto_maniglia_centrale (override di minimal_squadrato)", () => {
+  it("Minimal + manigliaCentrale=true → alluminio, stile nodo_asimmetrico_maniglia_centrale (override di minimal_squadrato)", () => {
     const out = mapWizardToConfig({ ...baseState, profilo: "minimal", manigliaCentrale: true });
     expect(out.nuovo_infisso.materiale).toBe("alluminio");
-    expect(out.nuovo_infisso.stile_telaio).toBe("nodo_ridotto_maniglia_centrale");
+    expect(out.nuovo_infisso.stile_telaio).toBe("nodo_asimmetrico_maniglia_centrale");
   });
 
   it("PROFILI_MANIGLIA_CENTRALE_COMPATIBILI contiene solo id presenti in WIZARD_PROFILI", () => {

@@ -139,12 +139,17 @@ describe("window render prompt", () => {
     expect(config.replacement_manifest.removals.some((rule) => rule.code === "remove_manual_belt_system")).toBe(true);
 
     const prompt = buildWindowPrompt(config, analysis);
+    // v8.2: nuove stringhe più dettagliate per evitare ambiguità con AI.
     expect(prompt.userPrompt.toLowerCase()).toContain("manual belt visible");
-    expect(prompt.userPrompt.toLowerCase()).toContain("repair the surrounding wall seamlessly");
+    // Wall repair: prima era "repair the surrounding wall seamlessly" — il pack v8.2
+    // dettaglia con "seamlessly plastered/stuccoed flush" + "repainted with EXACT same paint color".
+    expect(prompt.userPrompt.toLowerCase()).toContain("seamlessly plastered/stuccoed flush".toLowerCase());
     expect(prompt.userPrompt.toLowerCase()).toContain("hidden inside the cassonetto");
     expect(prompt.userPrompt.toLowerCase()).toContain("do not invent a colored strip above the glazing");
     expect(prompt.userPrompt.toLowerCase()).toContain("right wall beside the opening");
-    expect(prompt.userPrompt.toLowerCase()).toContain("zero manual-control traces remain visible");
+    // v8.2: "zero manual-control traces" rimosso, sostituito da
+    // "no visible trace of the previous installation" (semantica equivalente).
+    expect(prompt.userPrompt.toLowerCase()).toContain("no visible trace of the previous installation");
   });
 
   it("builds a coherent PVC anthracite two-sash specification", () => {
@@ -274,8 +279,11 @@ describe("window render prompt", () => {
     expect(config.replacement_manifest.removals.some((rule) => rule.code === "remove_horizontal_transom")).toBe(true);
 
     const prompt = buildWindowPrompt(config, analysis);
-    expect(prompt.userPrompt.toLowerCase()).toContain("remove the existing horizontal transom");
-    expect(prompt.negativePrompt.toLowerCase()).toContain("horizontal transom kept when removed");
+    // v8.2: stringhe rinominate per maggiore precisione semantica.
+    expect(prompt.userPrompt.toLowerCase()).toContain("remove the horizontal transom");
+    // Pre-v8.2: "horizontal transom kept when removed"
+    // Post-v8.2: "horizontal transom present when transom-remove mode is selected"
+    expect(prompt.negativePrompt.toLowerCase()).toContain("horizontal transom present when transom-remove mode is selected");
   });
 
   it("supports hidden hinges only on compatible profile families", () => {
@@ -318,7 +326,9 @@ describe("window render prompt", () => {
 
     expect(config.technical_specification[0].hingesPerSash).toBe(3);
     expect(config.technical_specification[0].hingeCountVisible).toBe(6);
-    expect((config.nuovo_infisso.cerniere as { num_per_anta: number }).num_per_anta).toBe(3);
+    // v8.2: il pack centralizza il count su technical_specification (source of truth).
+    // Il campo legacy `nuovo_infisso.cerniere.num_per_anta` è stato rimosso —
+    // il prompt builder legge tutto da technical_specification ora.
   });
 
   it("adds an electric wall switch when a motorized shutter replaces a manual belt", () => {
@@ -331,7 +341,9 @@ describe("window render prompt", () => {
 
     expect(config.technical_specification[0].shutter.electricButton?.install).toBe(true);
     const prompt = buildWindowPrompt(config, analysis);
-    expect(prompt.userPrompt.toLowerCase()).toContain("electric command button");
+    // v8.2: "electric command button" rinominato in "electric roller-shutter switch plate"
+    // (terminologia Italian standard Vimar/Bticino). Test allineato.
+    expect(prompt.userPrompt.toLowerCase()).toContain("electric roller-shutter switch plate");
     expect(prompt.validation.isValid).toBe(true);
   });
 });

@@ -1,3 +1,16 @@
+// shared/render-window/windowPromptBuilder.ts — v8 (2026-05-14)
+// CHANGELOG v8:
+//   ↺ describeSpecification: nuove regole esplicite per
+//      - composition change (3→2 ante)
+//      - central handle (una sola maniglia sul nodo)
+//      - reduced node (mullion centrale sottile)
+//      - hidden hinges (no visible hinges)
+//      - transom (mantieni/rimuovi/aggiungi)
+//      - profile thickness numerica (PVC 80mm vs ALU 55mm)
+//      - thermal break visibile
+//   + Nuovo block BLOCK_D2_HINGES dedicato alle cerniere
+//   ↺ promptVersion → "8.0.0"
+
 import {
   APERTURA_DESCRIPTION,
   DEFAULT_NEGATIVE_CONSTRAINTS,
@@ -7,9 +20,13 @@ import {
   HANDLE_STYLE_DESCRIPTION,
   HIDDEN_HINGE_DESCRIPTION,
   MATERIAL_PHYSICS,
-  VISIBLE_HINGE_DESCRIPTION_BASE,
 } from "./promptFragments.ts";
-import type { WindowPromptBuildResult, WindowRenderConfig, WindowSceneOpening, WindowTechnicalSpecification } from "./types.ts";
+import type {
+  WindowPromptBuildResult,
+  WindowRenderConfig,
+  WindowSceneOpening,
+  WindowTechnicalSpecification,
+} from "./types.ts";
 import { ensureWindowRenderConfig } from "./windowRenderConfig.ts";
 import { validateWindowPromptConfig } from "./windowPromptValidation.ts";
 
@@ -31,16 +48,16 @@ function describeOpening(opening: WindowSceneOpening): string {
     opening.hasBelt ? `manual control placement: ${opening.beltPlacementNotes}` : "",
     opening.hasRollerShutter ? `roller curtain state: ${opening.rollerCurtainState}` : "",
     opening.hasRollerShutter ? `roller curtain placement: ${opening.rollerCurtainPositionNotes}` : "",
-    opening.estimatedHeightCm ? `estimated height: ${opening.estimatedHeightCm} cm` : "",
-    opening.hasHorizontalTransom
-      ? `horizontal transom detected${opening.transomPositionPct !== null ? ` around ${opening.transomPositionPct}% height` : ""}${opening.transomPanelBelowType !== "unknown" ? `, lower panel type: ${opening.transomPanelBelowType}` : ""}`
-      : "no horizontal transom detected",
     opening.hasPersiane ? "persiane visible" : "",
     opening.hasScuri ? "scuri visible" : "",
     opening.hasGrates ? "grates visible" : "",
     opening.hasCurtains ? "curtains near opening" : "",
     opening.radiatorNearby ? "radiator close to opening" : "",
     opening.hasSill ? "sill visible" : "",
+    // v8 — traverso
+    opening.hasHorizontalTransom
+      ? `horizontal transom visible at ~${opening.transomPositionPct ?? 50}% height (panel below: ${opening.transomPanelBelowType ?? "unknown"})`
+      : "",
     opening.surroundingElements.length > 0 ? `surrounding elements: ${opening.surroundingElements.join(", ")}` : "",
     opening.lightNotes ? `light: ${opening.lightNotes}` : "",
     opening.reflectionNotes ? `reflections: ${opening.reflectionNotes}` : "",
@@ -49,30 +66,57 @@ function describeOpening(opening: WindowSceneOpening): string {
   return parts.filter(Boolean).join("; ");
 }
 
-function describeSpecification(spec: WindowTechnicalSpecification): string {
+function describeSpecification(
+  spec: WindowTechnicalSpecification,
+  scene: WindowRenderConfig["scene_analysis"],
+): string {
+  const opening = scene.openings.find((o) => o.id === spec.openingId);
+  const compositionChange = spec.compositionChange;
+
   const finishDescription = spec.finish.mode === "legno"
     ? `${spec.finish.name} wood-effect finish with visible grain${spec.finish.promptFragment ? `, specifically: ${spec.finish.promptFragment}` : ""}`
     : `${spec.finish.name}${spec.finish.ral ? ` (RAL ${spec.finish.ral})` : ""}, ${spec.finish.finish}`;
 
+  // ── v8 — Composition change line (PRIMA di tutto, è critica) ───────────
+  const headerLine = compositionChange
+    ? `[CRITICAL ARCHITECTURAL CHANGE FOR OPENING ${spec.openingLabel}] ` +
+      `The source photo shows ${compositionChange.fromSashCount} sashes but the NEW window MUST have ` +
+      `EXACTLY ${compositionChange.toSashCount} sashes. ${compositionChange.instruction}`
+    : `Target opening ${spec.openingLabel}: ${APERTURA_DESCRIPTION[spec.desiredOpeningType] ?? spec.desiredOpeningType}`;
+
   const lines = [
-    `Target opening ${spec.openingLabel}: ${APERTURA_DESCRIPTION[spec.desiredOpeningType] ?? spec.desiredOpeningType}`,
+    headerLine,
     `Opening family: ${spec.desiredTypeId}, desired sash count: ${spec.desiredSashCount}`,
     `Material: ${MATERIAL_PHYSICS[spec.material] ?? spec.material}`,
+    `Profile visible thickness: ${spec.profileVisibleThickness}`,
+    spec.thermalBreakVisible
+      ? "Thermal break MUST be visible as a thin (1-2mm) dark horizontal line at mid-depth of the frame and central mullion."
+      : "",
     `Profile family: ${spec.profileId}, frame style: ${FRAME_STYLE_DESCRIPTION[spec.frameStyle] ?? spec.frameStyle}`,
-    `Frame visual depth: ${spec.frameDepthLabel}, visible thickness: ${spec.profileVisibleThickness}, shape: ${spec.frameShape}, slimness: ${spec.slimnessLabel}`,
-    spec.thermalBreakVisible ? "Thermal-break geometry must be physically plausible and subtly visible in the aluminum/hybrid profile." : "",
+    `Frame visual depth: ${spec.frameDepthLabel}, shape: ${spec.frameShape}, slimness: ${spec.slimnessLabel}`,
+    // ── v8 — Reduced node EXPLICIT
+    spec.reducedNode
+      ? "REDUCED-NODE RULE: the central vertical mullion between sashes MUST be visibly thinner than the outer frame perimeter. Glass surface area MUST clearly increase compared to a standard PVC residential window. The visual difference must be obvious."
+      : "",
+    // ── v8 — Central handle EXPLICIT
+    spec.centralHandle
+      ? `CENTRAL-HANDLE RULE for opening ${spec.openingLabel}: render EXACTLY ONE handle on the entire window, mounted at the geometric vertical center of the meeting stiles between the two sashes. The handle is on the central vertical mullion itself, NOT on either sash. The central mullion is dramatically reduced (~30mm) to accommodate this single handle. Each sash has its own internal locking but NO secondary visible handle. DO NOT render a second handle.`
+      : "",
     `Finish: ${finishDescription}`,
     `Handle: ${HANDLE_STYLE_DESCRIPTION[spec.handleStyle] ?? spec.handleStyle} in ${HANDLE_FINISH_DESCRIPTION[spec.handleColorId] ?? spec.handleFinish}`,
-    spec.centralHandle ? "Central handle: render the handle on the visual centerline of the two-sash composition only." : "",
-    spec.compositionChange ? `Composition change: ${spec.compositionChange.instruction}` : "",
-    spec.transomRule ? `Horizontal transom rule: ${spec.transomRule}` : "",
+    // ── v8.2 — REGOLA CRITICA numero maniglie (Italian residential standard)
+    `MANDATORY HANDLE COUNT for opening ${spec.openingLabel}: render EXACTLY ${spec.handleCountVisible} handle${spec.handleCountVisible === 1 ? "" : "s"} total on this opening — NO MORE, NO LESS.`,
+    `Handle placement rule: ${spec.handlePlacementRule}`,
+    // ── v8 — Hinge mode EXPLICIT
     spec.hingeMode === "hidden"
-      ? `Concealed hinge rule: ${HIDDEN_HINGE_DESCRIPTION}. ${spec.hingePlacementRule}`
+      ? `HIDDEN-HINGE RULE for opening ${spec.openingLabel}: ${HIDDEN_HINGE_DESCRIPTION}`
       : spec.hingeMode === "none"
-        ? `Hinge rule: ${spec.hingePlacementRule}`
-        : `Visible hinge rule: exactly ${spec.hingesPerSash} hinge groups per operable sash (${spec.hingeCountVisible} total visible groups). ${VISIBLE_HINGE_DESCRIPTION_BASE}. ${spec.hingePlacementRule}`,
-    `Hinge style: ${spec.hingeStyle}`,
-    `Hinge consistency: ${spec.hingeConsistencyRule}`,
+        ? `NO-HINGES RULE for opening ${spec.openingLabel}: this is a sliding or fixed system. NO visible side hinges anywhere.`
+        : `Visible hinge rule: ${spec.hingePlacementRule}`,
+    spec.hingeMode === "visible" ? `Hinge style: ${spec.hingeStyle}` : "",
+    spec.hingeMode === "visible" ? `Hinge consistency: ${spec.hingeConsistencyRule}` : "",
+    // ── v8 — Transom rule (solo per portafinestre)
+    spec.transomRule ? `Horizontal transom: ${spec.transomRule}` : "",
     spec.manualControlCleanupRule ? `Manual shutter-control cleanup: ${spec.manualControlCleanupRule}` : "",
     `Glass: ${spec.glassSpec}`,
     spec.cassonetto.replace
@@ -81,9 +125,13 @@ function describeSpecification(spec: WindowTechnicalSpecification): string {
     spec.shutter.replace
       ? `Shading system: replace with ${spec.shutter.mode === "motorizzate" ? "motorized roller shutter" : "new shutter system"}${spec.shutter.colorLabel ? ` in ${spec.shutter.colorLabel}` : ""}. Visibility state: ${spec.shutter.visibilityState}. Placement rule: ${spec.shutter.placementRule}`
       : "Shading system: keep existing if present",
-    spec.shutter.electricButton?.install ? `Electric command button: ${spec.shutter.electricButton.description}` : "",
+    // ── v8 — Electric button rule (quando motorizzata + cinghia rimossa)
+    spec.shutter.electricButton?.install
+      ? `ELECTRIC SHUTTER SWITCH for opening ${spec.openingLabel}: ${spec.shutter.electricButton.description}`
+      : "",
     spec.compatibilityNotes.length > 0 ? `Compatibility rules: ${spec.compatibilityNotes.join(" | ")}` : "",
   ];
+
   return lines.filter(Boolean).join("\n");
 }
 
@@ -123,7 +171,15 @@ MANDATORY CORE CONSTRAINTS:
 - same furniture
 - same outdoor view unless optical realism requires only minimal glass-consistent treatment
 - same image orientation and same image dimensions
-- no redesign of the room`;
+- no redesign of the room
+
+CRITICAL v8 NON-NEGOTIABLES:
+- If REDUCED-NODE is specified, the central mullion MUST be visibly thinner than the outer frame.
+- If CENTRAL-HANDLE is specified, render EXACTLY ONE handle on the central mullion — NOT two.
+- If HIDDEN HINGES is specified, NO visible hinges anywhere on the window.
+- If composition CHANGES sash count (e.g. 3→2 ante), redistribute glazing within the SAME opening width.
+- If shutter is MOTORIZED and old manual belt was visible, REMOVE the belt AND INSTALL an electric switch plate at its location.
+- If TRANSOM REMOVE is specified, produce SINGLE full-height glazed sashes.`;
 
   blocks.B = `[BLOCK B – EXISTING SCENE INVENTORY]
 Environment: ${normalizedConfig.scene_analysis.environmentType}
@@ -153,7 +209,7 @@ Critical keep/preserve directives:
 ${bullets(normalizedConfig.replacement_manifest.keepExactly)}`;
 
   blocks.D = `[BLOCK D – NEW WINDOW SPECIFICATION]
-${normalizedConfig.technical_specification.map(describeSpecification).join("\n\n")}`;
+${normalizedConfig.technical_specification.map((spec) => describeSpecification(spec, normalizedConfig.scene_analysis)).join("\n\n")}`;
 
   blocks.E = `[BLOCK E – REMOVAL RULES]
 ${bullets(
@@ -178,9 +234,6 @@ ${bullets(
 - for sliding systems, use coherent sliding overlaps and tracks with no battente hardware
 - for two-sash compositions, keep the hinge logic coherent and do not invent extra hinges or mixed hinge colors
 - all visible hinges must match the selected hardware finish exactly, with realistic compact top/bottom geometry
-- if concealed hinges are selected, do not render any visible side hinge barrels, hinge plates or dark hinge artifacts
-- respect horizontal transom rules exactly: keep, remove or add only as specified by the technical specification
-- if motorization is selected, add only one subtle wall switch in the specified side/height and remove old manual control traces
 - if a new cassonetto is specified over an existing one, keep its visible width, height, depth and bottom edge very close to the source photo unless explicitly redesigned
 - if the shutter is fully open, keep the curtain hidden inside the cassonetto and do not invent a colored strip above the glazing
 - any visible shutter curtain must stay recessed within its guides behind the frame/glass plane, never floating on the wall or in front of the cassonetto`;
@@ -188,7 +241,8 @@ ${bullets(
   if (manualControlZeroToleranceRules.length > 0) {
     blocks.F += `
 - ZERO tolerance for leftover manual shutter controls on motorized targets: no belt, no cord, no strap, no wall winder, no wall plate, no belt slot and no residual vertical manual-control trim
-- remove the old manual-control assembly from the exact photographed side/location and reconstruct the adjacent wall/tile finish seamlessly so the removal is invisible`;
+- remove the old manual-control assembly from the exact photographed side/location AND install a new electric switch plate at the same location
+- the new electric switch must look professionally installed: flush with wall, centered vertically at ~110cm from floor, aligned with other room switches if present`;
   }
 
   blocks.G = `[BLOCK G – SURROUNDINGS INTEGRITY]
@@ -225,6 +279,15 @@ ${bullets([
     "The room, furniture, walls, floor, curtains, radiators and outdoor view remain identical.",
     "No accessory incompatible with the new configuration is left behind.",
     "The output still looks like the same source photograph after a real installation.",
+    // ── v8 verifications ──
+    "Central handle composition (if specified): exactly ONE handle on the central mullion, NOT two.",
+    "Hidden hinges (if specified): the hinged stile is clean, NO visible hinge knuckles anywhere.",
+    "Reduced node (if specified): the central mullion is visibly thinner than the outer frame perimeter.",
+    "Composition change (if specified): the new sash count matches the specification, with mullions added/removed accordingly within the SAME opening width.",
+    "Electric switch (if motorized + cinghia removal): a flush rectangular switch plate is visibly installed where the old winder was, at ~110cm from floor.",
+    "Transom remove (if specified): each sash is a SINGLE full-height glazed panel.",
+    // ── v8.2 verification ──
+    `Total handle count: render EXACTLY the count specified per opening. For 2-sash windows this means ONE handle (not two). For 3-sash windows this means TWO handles (not three, not one). Italian residential standard.`,
   ])}`;
 
   const userPrompt = [
@@ -246,7 +309,21 @@ ${bullets([
     systemPrompt: blocks.A,
     userPrompt,
     negativePrompt:
-      "cartoon, illustration, painterly, staged showroom, room redesign, changed perspective, changed crop, changed wall color, changed furniture, extra windows, distorted geometry, fake CGI, glossy fake plastic, warped lines, floating frame, wrong shadows, mixed hinge colors, visible hinges when concealed hinges selected, central handle on non-compatible sash count, horizontal transom kept when removed, extra transom added when not requested, oversized cassonetto, visible manual belt on motorized shutter, visible manual cord on motorized shutter, visible wall winder on motorized shutter, visible belt slot on motorized shutter, missing electric switch for motorized shutter, leftover vertical manual-control trim, floating shutter band above the glass, shutter rendered in front of the wall",
+      "cartoon, illustration, painterly, staged showroom, room redesign, changed perspective, " +
+      "changed crop, changed wall color, changed furniture, extra windows, distorted geometry, " +
+      "fake CGI, glossy fake plastic, warped lines, floating frame, wrong shadows, mixed hinge colors, " +
+      "oversized cassonetto, visible manual belt on motorized shutter, visible manual cord on motorized shutter, " +
+      "visible wall winder on motorized shutter, visible belt slot on motorized shutter, " +
+      "leftover vertical manual-control trim, floating shutter band above the glass, " +
+      "shutter rendered in front of the wall, two handles on central-handle composition, " +
+      "visible hinges when hidden-hinges mode is selected, " +
+      "central mullion as thick as outer frame on reduced-node profile, " +
+      "horizontal transom present when transom-remove mode is selected, " +
+      "wall left blank where old manual belt winder was previously visible " +
+      "(when motorization is selected the new electric switch plate must replace it), " +
+      "two handles on a 2-sash window (Italian residential standard mandates ONE handle on the primary sash only), " +
+      "three handles on a 3-sash window (mandate two handles total: one on the 2-sash group + one on the single sash), " +
+      "one handle per sash on multi-sash compositions (each group of 2 sashes shares ONE handle on the primary operative sash only)",
     promptVersion: "8.0.0",
     blocks,
     validation,
