@@ -1,4 +1,10 @@
-// shared/render-window/windowPromptBuilder.ts — v8 (2026-05-14)
+// shared/render-window/windowPromptBuilder.ts — v8.3.2 (2026-05-15)
+// CHANGELOG v8.3.2:
+//   + 🔴 FORCE FULL REPLACEMENT, NOT RECOLOR (BLOCK A + BLOCK F)
+//   + NO RESIDUAL SASH SUBDIVISIONS (4 dark rectangles ban)
+//   + CASSONETTO REPLACEMENT vs RECOLOR (monoblocco continuity)
+//   + Negative prompt: 18 nuovi pattern anti-recolor / residui
+//   + BLOCK J: 6 verifications v8.3.2
 // CHANGELOG v8:
 //   ↺ describeSpecification: nuove regole esplicite per
 //      - composition change (3→2 ante)
@@ -166,6 +172,9 @@ Your task is NOT to redesign the room. Your task is to keep the exact same photo
 - DO NOT add, modify or remove any object that is not explicitly part of the replacement scope.
 - DO NOT invent decorative elements, lights, sensors, stickers, devices, sockets, switches that were not visible in the original photo (UNLESS specifically requested by the replacement spec, e.g. new electric shutter switch).
 - DO NOT leave any artefact from the OLD window in the new render: no leftover cord, no leftover rod, no leftover wiring, no old paint outline, no demolition residue, no hole.
+- 🔴 DO NOT recolor the existing window. ERASE the old window entirely and DRAW a brand-new window with the new specified geometry, new handles, new hinges, new mullion. The output must be a NEW PHYSICAL OBJECT, not the old window with a color filter. ALL parts must be replaced including LATERAL stiles (left + right vertical frame edges) — they MUST take the new color, NEVER remain in the original old color.
+- 🔴 DO NOT keep residual dark sub-rectangles, leftover muntins or georgian-bar segments in the upper portion of the new sashes. The new sashes are single uninterrupted glass panels (unless georgian bars / transom are explicitly configured).
+- 🔴 DO NOT recolor the existing cassonetto when replacement is specified — ERASE the old cassonetto and draw a NEW modern flat slim unit with seamless monoblocco continuity (zero gap) to the top of the new window frame.
 
 🟡 MANDATORY TIER (italian residential standard — must match config):
 - Numero maniglie: F2A = 1 maniglia (mai 2), F3A = 2 maniglie (mai 3), F4A = 2 maniglie (mai 4).
@@ -261,7 +270,29 @@ If a cassonetto is rendered:
 - Its height MUST be proportional to the window: typically 20-30cm for residential windows (1.2-1.6m wide), max 35cm.
 - It must NOT exceed the lateral width of the window frame on either side.
 - It must be flush against the wall above the frame, NOT floating or projecting forward.
-- Its color/material matches the new window frame OR the explicit user choice.`;
+- Its color/material matches the new window frame OR the explicit user choice.
+
+[v8.3.2 — 🔴 FORCE FULL REPLACEMENT, NOT RECOLOR — HIGHEST PRIORITY]
+This is THE most common failure mode of the AI: producing a "recolored old window" instead of a brand-new window. ABSOLUTELY FORBIDDEN behaviors:
+- DO NOT take the existing window from the source photo and simply repaint/recolor it. The OLD window must be ERASED and a COMPLETELY NEW window must be drawn in its place from scratch.
+- The new window is a DIFFERENT PHYSICAL OBJECT with different geometry, different hardware, different proportions — not the old window with a color filter applied.
+- Replace ALL parts of the window: outer frame perimeter (top header, bottom sill, LEFT lateral stile, RIGHT lateral stile), central mullion, every sash, every glass pane, every gasket, every visible hinge, every handle.
+- The LATERAL stiles (left + right vertical frame edges) MUST take the new specified color/finish. It is FORBIDDEN to leave them in the ORIGINAL old color (typically white) while only the front face is recolored. The lateral stiles are NOT a separate object — they are part of the new frame.
+- The HANDLE is a BRAND NEW model: different shape, different size, different finish than the original handle visible in the source photo. NEVER keep the old handle. NEVER just recolor the old handle.
+- If the source photo has a sub-divided sash pattern (e.g. 4 small rectangular black/dark panels at the top of each sash from old leaded glass, georgian bars, or fanlights), those subdivisions MUST be REMOVED. The new sashes are full-height clear glazed panels unless georgian bars are explicitly specified in the configuration. NO residual black rectangles, NO dark trapped sub-panels, NO leftover muntins on the upper portion of the sashes.
+
+[v8.3.2 — 🔴 NO RESIDUAL SASH SUBDIVISIONS]
+A frequent failure: the AI keeps the 4 dark sub-rectangles in the upper portion of the old window sashes (residuals of old muntins/transoms/georgian bars) and just paints them the new color. THIS IS FORBIDDEN.
+- The new sashes are SINGLE clear glazed panels (or whatever sash count is explicitly specified). No phantom horizontal mid-bars. No phantom upper "panel zones". No phantom dark rectangles in the upper third of the sash.
+- If the configuration does NOT explicitly request a transom (mantieni traverso) or georgian bars, the sash MUST be a single uninterrupted glass panel from top of sash to bottom of sash.
+
+[v8.3.2 — 🔴 CASSONETTO REPLACEMENT vs RECOLOR]
+When the configuration says "replace cassonetto":
+- DO NOT just repaint the existing cassonetto. ERASE the old cassonetto and draw a NEW cassonetto with a NEW design.
+- The new cassonetto must look like a MODERN clean monoblock unit: smooth surface, integrated inspection cover (no visible old screws, no old wood texture, no old plaster patches).
+- MONOBLOCCO CONTINUITY: the bottom edge of the new cassonetto MUST align PERFECTLY with the top edge of the new window frame, creating a SEAMLESS CONTINUOUS LINE. There must be NO gap, NO offset, NO shadow line, NO dark seam between cassonetto bottom and window top. They look like a single integrated unit (Italian "monoblocco" standard).
+- The cassonetto color/finish exactly matches the new window frame (or the explicit cassetonetto color choice if different).
+- If the OLD cassonetto in the source photo had a different design (rustic wood, old plaster, sloped, projecting forward), the NEW cassonetto replaces it COMPLETELY with a modern flat slim PVC or aluminium unit.`;
 
   if (manualControlZeroToleranceRules.length > 0) {
     blocks.F += `
@@ -318,6 +349,13 @@ ${bullets([
     "v8.3 — Zero pasted-on objects: NO round disks, NO LED lights, NO sensors, NO decorative elements stuck onto the sashes or glass. Reflections in the glazing are allowed (subtle), solid objects on top of the glass are NOT.",
     "v8.3 — Cassonetto scale: height ≤ 30cm proportional to window, never extends past the frame laterally, flush against the wall.",
     "v8.3 — Wall around new frame: seamless plaster + paint. No halo, no patch, no shade difference, no old paint outline from the previous installation.",
+    // ── v8.3.2 verifications (anti-recolor) ──
+    "v8.3.2 — Full replacement check: the new window is a COMPLETELY NEW object, NOT the old window recolored. ALL parts replaced including LATERAL stiles, top header, bottom sill, central mullion, sashes, glass, handle, hinges, gaskets.",
+    "v8.3.2 — Lateral stiles take the new color: the left and right vertical frame edges MUST be in the new specified color/finish, never left in the old original color (e.g. white).",
+    "v8.3.2 — Handle replaced: the handle is a BRAND NEW model with different shape/size/finish than the source-photo handle. NEVER reuse the old handle silhouette.",
+    "v8.3.2 — No residual sash sub-rectangles: NO 4 dark rectangles in the upper portion of the sashes (leftover muntins/georgian bars). Sashes are single uninterrupted glass panels unless transom/georgian bars are explicitly specified.",
+    "v8.3.2 — Cassonetto replacement: if replacement is specified, the new cassonetto is a NEW unit (modern flat slim design), NOT the old cassonetto recolored. NO rustic wood texture, NO old plaster, NO sloped projecting front.",
+    "v8.3.2 — Monoblocco continuity: the bottom edge of the new cassonetto aligns PERFECTLY with the top edge of the new window frame, creating a seamless continuous line — NO gap, NO offset, NO shadow seam between them.",
   ])}`;
 
   // v8.3 — Few-shot positive examples: descrizioni testuali di "good output"
@@ -408,8 +446,30 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
       "tape or sticker residue around the new window, " +
       "old paint outline where the previous frame ended, " +
       "any wiring, conduit, copper pipe, brass rod or cable running on the wall around the window unless explicitly present in the source photo and explicitly NOT marked for removal, " +
-      "phantom shadows of the previous installation",
-    promptVersion: "8.3.1",
+      "phantom shadows of the previous installation, " +
+      // ─── v8.3.2 — Anti-recolor / replacement vs repaint ─────────────────
+      "old window simply recolored instead of replaced, " +
+      "old window repainted with new color while keeping original geometry, " +
+      "old handle kept and only repainted, " +
+      "original handle silhouette preserved from source photo, " +
+      "lateral frame stiles still in original old color (typically white) while front face is new color, " +
+      "left vertical stile in white while front frame is colored, " +
+      "right vertical stile in white while front frame is colored, " +
+      "asymmetric color application where only one face of the frame is the new color, " +
+      "4 black rectangles on upper portion of window sashes (residual muntins from old window), " +
+      "dark rectangular sub-panels in upper third of new sashes, " +
+      "leftover georgian bars or transom segments in upper sash area, " +
+      "phantom horizontal mid-bar inside the sash glazing, " +
+      "old window subdivisions visible through the new color paint, " +
+      "old cassonetto kept and only recolored, " +
+      "rustic wood-textured cassonetto when modern PVC cassonetto is specified, " +
+      "old plaster cassonetto with new color paint applied, " +
+      "visible gap between cassonetto bottom edge and window top edge, " +
+      "horizontal shadow seam separating cassonetto from window frame, " +
+      "offset or misalignment between cassonetto and window — they must be a seamless monoblocco unit, " +
+      "discontinuous line between cassonetto and frame, " +
+      "old window frame visible underneath the new color coat",
+    promptVersion: "8.3.2",
     blocks,
     validation,
     normalizedConfig,

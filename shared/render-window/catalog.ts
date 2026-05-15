@@ -172,12 +172,34 @@ export const WIZARD_RAL = [
     family: "blu", referenceImage: "135-Blu-Cobalto-Finitura-classica-PVC.webp" },
   { id: "220_blu_acciaio", code: "220", nome: "Blu Acciaio", hex: "#2E4A6B",
     family: "blu", referenceImage: "220-Blu-Acciaio-Finitura-classica-PVC.webp" },
+  { id: "5010_blu_genziana", code: "5010", nome: "Blu Genziana (RAL 5010)", hex: "#0E294B",
+    family: "blu", referenceImage: null },
+  { id: "5003_blu_zaffiro", code: "5003", nome: "Blu Zaffiro (RAL 5003)", hex: "#1B2D44",
+    family: "blu", referenceImage: null },
+  { id: "5014_blu_colomba", code: "5014", nome: "Blu Colomba (RAL 5014)", hex: "#637D96",
+    family: "blu", referenceImage: null },
 
   // ── Rossi ──
   { id: "136_rosso_rubino", code: "136", nome: "Rosso Rubino", hex: "#7A1F2C",
     family: "rossi", referenceImage: "136-Rosso-Rubino-Finitura-classica-PVC.webp" },
   { id: "137_rosso_vino", code: "137", nome: "Rosso Vino", hex: "#5E2028",
     family: "rossi", referenceImage: "137-Rosso-Vino-Finitura-classica-PVC.webp" },
+  { id: "3003_rosso_rubino_ral", code: "3003", nome: "Rosso Rubino (RAL 3003)", hex: "#9B111E",
+    family: "rossi", referenceImage: null },
+  { id: "3005_rosso_vino_ral", code: "3005", nome: "Rosso Vino (RAL 3005)", hex: "#5E2129",
+    family: "rossi", referenceImage: null },
+  { id: "3011_rosso_marrone", code: "3011", nome: "Rosso Marrone (RAL 3011)", hex: "#781F19",
+    family: "rossi", referenceImage: null },
+
+  // ── Verdi ──
+  { id: "6005_verde_muschio", code: "6005", nome: "Verde Muschio (RAL 6005)", hex: "#114232",
+    family: "verdi", referenceImage: null },
+  { id: "6009_verde_abete", code: "6009", nome: "Verde Abete (RAL 6009)", hex: "#27352A",
+    family: "verdi", referenceImage: null },
+  { id: "6021_verde_pallido", code: "6021", nome: "Verde Pallido (RAL 6021)", hex: "#89A86B",
+    family: "verdi", referenceImage: null },
+  { id: "6029_verde_menta", code: "6029", nome: "Verde Menta (RAL 6029)", hex: "#20603D",
+    family: "verdi", referenceImage: null },
 
   // ── Touch Premium (effetto goffrato / strutturato) ──
   { id: "1301_feinstruktur_nero", code: "1301", nome: "Feinstruktur Nero (Touch goffrato)", hex: "#1C1C1C",
@@ -442,6 +464,54 @@ export const WIZARD_TAPP_OPTIONS = [
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MAZZETTA COLORI TAPPARELLE — v8.3.2
+// Palette dedicata al selettore tapparella: copre i colori più comuni nel
+// listino italiano (bianco/grigio/marrone) + verdi, rossi, blu su richiesta.
+// Ogni id corrisponde a un colore: può sovrapporsi con WIZARD_RAL (per fast
+// lookup) ma sono presenti anche RAL specifici per tapparelle (RAL 8017
+// marrone cioccolato, RAL 7016 antracite, RAL 6005 verde muschio, ecc).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const WIZARD_TAPP_COLORS = [
+  // ── Bianchi/Crema ──
+  { id: "tapp_9010_bianco", code: "9010", nome: "Bianco Puro (RAL 9010)", hex: "#F7F7F4", family: "bianchi" as const },
+  { id: "tapp_9001_crema", code: "9001", nome: "Bianco Crema (RAL 9001)", hex: "#EAE6CA", family: "bianchi" as const },
+  { id: "tapp_1013_avorio", code: "1013", nome: "Bianco Avorio (RAL 1013)", hex: "#E3D9C6", family: "bianchi" as const },
+  // ── Grigi ──
+  { id: "tapp_7035_grigio_chiaro", code: "7035", nome: "Grigio Chiaro (RAL 7035)", hex: "#C7CAC9", family: "grigi" as const },
+  { id: "tapp_7016_antracite", code: "7016", nome: "Grigio Antracite (RAL 7016)", hex: "#383E42", family: "grigi" as const },
+  { id: "tapp_9006_argento", code: "9006", nome: "Argento Metallizzato (RAL 9006)", hex: "#A5A5A5", family: "grigi" as const },
+  // ── Marroni ──
+  { id: "tapp_8017_cioccolato", code: "8017", nome: "Marrone Cioccolato (RAL 8017)", hex: "#45322E", family: "marroni" as const },
+  { id: "tapp_8014_seppia", code: "8014", nome: "Marrone Seppia (RAL 8014)", hex: "#4A3328", family: "marroni" as const },
+  { id: "tapp_8003_argilla", code: "8003", nome: "Marrone Argilla (RAL 8003)", hex: "#7E4B26", family: "marroni" as const },
+  // ── Verdi ──
+  { id: "tapp_6005_muschio", code: "6005", nome: "Verde Muschio (RAL 6005)", hex: "#114232", family: "verdi" as const },
+  { id: "tapp_6009_abete", code: "6009", nome: "Verde Abete (RAL 6009)", hex: "#27352A", family: "verdi" as const },
+  { id: "tapp_6021_pallido", code: "6021", nome: "Verde Pallido (RAL 6021)", hex: "#89A86B", family: "verdi" as const },
+  // ── Rossi ──
+  { id: "tapp_3003_rubino", code: "3003", nome: "Rosso Rubino (RAL 3003)", hex: "#9B111E", family: "rossi" as const },
+  { id: "tapp_3005_vino", code: "3005", nome: "Rosso Vino (RAL 3005)", hex: "#5E2129", family: "rossi" as const },
+  { id: "tapp_3011_marrone", code: "3011", nome: "Rosso Marrone (RAL 3011)", hex: "#781F19", family: "rossi" as const },
+  // ── Blu ──
+  { id: "tapp_5010_genziana", code: "5010", nome: "Blu Genziana (RAL 5010)", hex: "#0E294B", family: "blu" as const },
+  { id: "tapp_5003_zaffiro", code: "5003", nome: "Blu Zaffiro (RAL 5003)", hex: "#1B2D44", family: "blu" as const },
+  { id: "tapp_5014_colomba", code: "5014", nome: "Blu Colomba (RAL 5014)", hex: "#637D96", family: "blu" as const },
+  // ── Nero ──
+  { id: "tapp_9005_nero", code: "9005", nome: "Nero Intenso (RAL 9005)", hex: "#0A0A0A", family: "premium" as const },
+] as const;
+
+export type WizardTappColor = (typeof WIZARD_TAPP_COLORS)[number]["id"];
+
+export function findWizardTappColor(id: string) {
+  return WIZARD_TAPP_COLORS.find((c) => c.id === id) ?? null;
+}
+
+export function getTappColorsByFamily(family: RalFamily): typeof WIZARD_TAPP_COLORS[number][] {
+  return WIZARD_TAPP_COLORS.filter((c) => c.family === family);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TRAVERSO PORTAFINESTRA — v8
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -549,7 +619,7 @@ export function findWizardWood(id: string) {
 }
 
 export function getWizardColorById(id: string) {
-  return findWizardRal(id) ?? findWizardWood(id) ?? null;
+  return findWizardRal(id) ?? findWizardWood(id) ?? findWizardTappColor(id) ?? null;
 }
 
 /** Restituisce la preview URL Supabase Storage del colore selezionato.
@@ -608,7 +678,7 @@ export function profileSupportsAsymmetricNode(profilo: WizardProfilo | ""): bool
 // Famiglie colori per raggruppamento UI (in tab/sezioni nel wizard)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type RalFamily = "bianchi" | "grigi" | "marroni" | "blu" | "rossi" | "premium";
+export type RalFamily = "bianchi" | "grigi" | "marroni" | "blu" | "rossi" | "verdi" | "premium";
 
 export function getRalsByFamily(family: RalFamily): typeof WIZARD_RAL[number][] {
   return WIZARD_RAL.filter((c) => c.family === family);
@@ -620,5 +690,6 @@ export const RAL_FAMILY_LABELS: Record<RalFamily, string> = {
   marroni: "Marroni",
   blu: "Blu",
   rossi: "Rossi",
+  verdi: "Verdi",
   premium: "Touch premium",
 };

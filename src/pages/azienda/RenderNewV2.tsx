@@ -41,11 +41,13 @@ import {
   WIZARD_PROFILI,
   WIZARD_RAL,
   WIZARD_TAPP_OPTIONS,
+  WIZARD_TAPP_COLORS,
   WIZARD_TRAVERSO_OPTIONS,
   WIZARD_TIPI,
   RAL_FAMILY_LABELS,
   getColorById,
   getRalsByFamily,
+  getTappColorsByFamily,
   getReferenceImageUrl,
   mapWizardToConfig,
   profileSupportsHiddenHinges,
@@ -1482,7 +1484,7 @@ function StepAccessori({
             {(state.tapp === "motorizzate" || state.tapp === "nuove") && (
               <div className="rounded-2xl border bg-slate-50 p-4">
                 <div className="mb-3 text-sm font-semibold">Colore tapparella</div>
-                <div className="flex flex-wrap gap-2">
+                <div className="mb-4">
                   <button
                     type="button"
                     onClick={() => setState((current) => ({ ...current, tappCol: "stesso" }))}
@@ -1493,20 +1495,44 @@ function StepAccessori({
                   >
                     Stesso colore infisso
                   </button>
-                  {WIZARD_RAL.slice(0, 8).map((color) => (
-                    <button
-                      key={color.id}
-                      type="button"
-                      title={color.nome}
-                      onClick={() => setState((current) => ({ ...current, tappCol: color.id }))}
-                      className={cn(
-                        "h-9 w-9 rounded-lg border transition",
-                        state.tappCol === color.id ? "ring-2 ring-orange-500 ring-offset-1" : "hover:ring-1 hover:ring-orange-300",
-                      )}
-                      style={{ background: color.hex }}
-                    />
-                  ))}
                 </div>
+                <div className="space-y-3">
+                  {(["bianchi", "grigi", "marroni", "verdi", "blu", "rossi", "premium"] as RalFamily[]).map((family) => {
+                    const colors = getTappColorsByFamily(family);
+                    if (colors.length === 0) return null;
+                    return (
+                      <div key={family}>
+                        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          {RAL_FAMILY_LABELS[family]}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {colors.map((color) => (
+                            <button
+                              key={color.id}
+                              type="button"
+                              title={color.nome}
+                              onClick={() => setState((current) => ({ ...current, tappCol: color.id }))}
+                              className={cn(
+                                "h-10 w-10 rounded-lg border-2 border-white shadow-sm transition",
+                                state.tappCol === color.id ? "ring-2 ring-orange-500 ring-offset-1" : "hover:ring-1 hover:ring-orange-300",
+                              )}
+                              style={{ background: color.hex }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {state.tappCol && state.tappCol !== "stesso" && (() => {
+                  const selected = WIZARD_TAPP_COLORS.find((c) => c.id === state.tappCol)
+                    ?? WIZARD_RAL.find((c) => c.id === state.tappCol);
+                  return selected ? (
+                    <div className="mt-3 text-xs text-slate-600">
+                      Selezionato: <strong>{selected.nome}</strong>
+                    </div>
+                  ) : null;
+                })()}
               </div>
             )}
 
