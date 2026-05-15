@@ -32,13 +32,13 @@ import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
 import { RenderCreditGate } from "@/components/render/RenderCreditGate";
 import { RenderResultRefinementPanel } from "@/components/render/RenderResultRefinementPanel";
 import {
-  PROFILI_MANIGLIA_CENTRALE_COMPATIBILI,
   WIZARD_CERNIERE_OPTIONS,
   WIZARD_CASS_MATERIALI,
   WIZARD_HANDLE_TYPES,
   WIZARD_HW_COLORS,
   WIZARD_LEGNO,
   WIZARD_PROFILI,
+  WIZARD_NODO_OPTIONS,
   WIZARD_RAL,
   WIZARD_TAPP_OPTIONS,
   WIZARD_TAPP_COLORS,
@@ -48,6 +48,7 @@ import {
   getColorById,
   getRalsByFamily,
   getTappColorsByFamily,
+  profileSupportsAsymmetricNode,
   getReferenceImageUrl,
   mapWizardToConfig,
   profileSupportsHiddenHinges,
@@ -55,6 +56,7 @@ import {
   type WizardCerniere,
   type WizardHandleType,
   type WizardHw,
+  type WizardNodo,
   type WizardProfilo,
   type WizardState,
   type WizardTapp,
@@ -1156,24 +1158,31 @@ function StepInfisso({
             </div>
           </div>
 
-          {state.profilo && PROFILI_MANIGLIA_CENTRALE_COMPATIBILI.includes(state.profilo as WizardProfilo) && (
-            <button
-              type="button"
-              aria-pressed={state.manigliaCentrale}
-              onClick={() => setState((current) => ({ ...current, manigliaCentrale: !current.manigliaCentrale }))}
-              className={cn(
-                "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition",
-                state.manigliaCentrale ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
-              )}
-            >
-              <SelectionMark checked={state.manigliaCentrale} />
-              <div>
-                <div className="font-semibold">Nodo ridotto con maniglia centrale</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  Riduce l'impatto visivo del profilo e centra la maniglia sulla composizione dell'anta principale.
-                </div>
+          {state.profilo && (state.tipo === "F2A" || state.tipo === "PF2A") && (
+            <div className="space-y-2">
+              <SectionTitle>Configurazione nodo centrale (solo 2 ante)</SectionTitle>
+              <div className="grid gap-3 md:grid-cols-3">
+                {WIZARD_NODO_OPTIONS.map((option) => {
+                  const supportsAsymmetric = profileSupportsAsymmetricNode(state.profilo as WizardProfilo);
+                  const disabled = option.id !== "simmetrico" && !supportsAsymmetric;
+                  return (
+                    <ChoiceCard
+                      key={option.id}
+                      title={`${option.label}${option.upsell ? " · premium" : ""}`}
+                      desc={disabled ? "Disponibile su alluminio, minimal o legno-alluminio." : option.desc}
+                      selected={state.nodo === option.id}
+                      disabled={disabled}
+                      onClick={() => setState((current) => ({
+                        ...current,
+                        nodo: option.id as WizardNodo,
+                        // backward-compat: tiene allineato il vecchio flag
+                        manigliaCentrale: option.id === "maniglia_centrale",
+                      }))}
+                    />
+                  );
+                })}
               </div>
-            </button>
+            </div>
           )}
         </CardContent>
       </Card>

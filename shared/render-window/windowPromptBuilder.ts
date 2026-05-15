@@ -1,4 +1,14 @@
-// shared/render-window/windowPromptBuilder.ts — v8.3.4 (2026-05-15)
+// shared/render-window/windowPromptBuilder.ts — v8.3.5 (2026-05-15)
+// CHANGELOG v8.3.5 (allinea al masterprompt v8.3.1 + cleanup):
+//   ↺ BLOCK A riscritto in stile "PHOTOREALISTIC WINDOW INSTALLATION SIMULATOR"
+//     con sezioni esplicite "YOU ARE NOT DOING / YOU ARE DOING / PRESERVE /
+//     REPLACE / demolish and rebuild" — fraseggio del masterprompt v8.3.1
+//   + BLOCK F: nuova sezione "PHYSICAL REPLACEMENT (CRITICAL)" all'inizio
+//   + BLOCK F: nuova sezione "WHAT THE VIEWER SHOULD THINK" come closure
+//   + promptFragments.ts: 9 nuovi negative constraints v8.3.1
+//     (do not recolor, do not preserve old mullion, Photoshop color-overlay,
+//     blend old/new, ecc.) ora in DEFAULT_NEGATIVE_CONSTRAINTS
+//   ↺ promptVersion → "8.3.5"
 // CHANGELOG v8.3.4:
 //   + BLOCK 0.5 CARDINAL FAILURE MODES — recap brutale dei 7 fallimenti
 //     osservati in produzione, posizionato IMMEDIATAMENTE dopo la legend
@@ -191,9 +201,42 @@ export function buildWindowPrompt(
   const blocks: Record<string, string> = {};
 
   blocks.A = `[BLOCK A – MISSION & IDENTITY]
-You are a SURGICAL PHOTOREALISTIC IMAGE EDITOR with 20+ years of experience in premium window and door replacement renders for the Italian residential market.
-You think like an "esperto serramentista italiano": you know that Italian windows have specific structural standards (numero maniglie, palettone, cerniere a scomparsa, cassonetto monoblocco, tapparelle, scuri/persiane, traverso, etc.) and you respect them.
-Your task is NOT to redesign the room. Your task is to keep the exact same photographed environment and replace ONLY the requested target openings and explicitly requested accessories.
+You are a PHOTOREALISTIC WINDOW INSTALLATION SIMULATOR with 20+ years of experience in premium Italian residential window and door replacement renders. You think like an "esperto serramentista italiano".
+
+YOU ARE NOT DOING:
+- a color edit
+- a paint job
+- a filter / restyling
+- a re-coloring of the existing window
+- a texture swap on the existing frame
+
+YOU ARE DOING:
+- a REAL PHYSICAL WINDOW REPLACEMENT, as if a window-installer crew arrived on site, uninstalled the old window completely (frame, sashes, glass, hinges, handle, cassonetto, shutter, manual belt — EVERYTHING), and installed a BRAND NEW different window according to the specification.
+
+WHAT THE OLD WINDOW LOOKED LIKE IS NOT THE STARTING POINT FOR THE NEW WINDOW. The new window is a COMPLETELY DIFFERENT PHYSICAL OBJECT with:
+- different frame profile (material, thickness, shape, sightline numbers)
+- different sash composition (count, asymmetry, mullions)
+- different hinges (count, position, finish, or hidden)
+- different handle (model, finish, count, position — may be on a sash or on the palettone)
+- different cassonetto (material, color, geometry — or removed entirely)
+- different shutter mechanism (motorized + electric switch, or kept, or removed)
+- different transom configuration on portafinestre (kept, removed, or added)
+
+WHAT YOU PRESERVE (NEVER REPLACE):
+- the wall opening (the hole in the masonry) — same exact width and height as the source photo
+- the room (walls, floor, ceiling, paint color, furniture, decoration)
+- the lighting (direction, intensity, color temperature, shadows)
+- the camera angle, perspective, crop, image orientation, image dimensions
+- the outdoor view through the glass (trees, sky, buildings, neighbors)
+- non-target openings if any (other windows, doors that are not part of this job)
+- any accessory the SPECIFICATION explicitly says to keep (e.g. curtains, radiator, sill)
+
+WHAT YOU REPLACE COMPLETELY (NEVER PRESERVE):
+- the entire window assembly inside the wall opening (frame, sashes, glass panes, hinges, handles, gaskets, locking points)
+- when specified, the cassonetto and its shutter system
+- when motorization is selected and belt was visible, the manual belt assembly — replaced by clean wall + new electric switch
+
+This is "demolish and rebuild" at the window level, not "repaint" the existing one.
 
 🔴 ABSOLUTE TIER (hard ban — failing this = unusable render):
 - DO NOT change the room, walls, ceiling, floor, furniture, outdoor view (beyond minimal optical reflections), lighting, camera position, image dimensions or orientation.
@@ -264,6 +307,15 @@ ${bullets(
   )}`;
 
   blocks.F = `[BLOCK F – PHOTOREALISTIC INSTALLATION RULES]
+
+PHYSICAL REPLACEMENT (CRITICAL):
+- The old window has been UNINSTALLED and REMOVED from the wall opening before you render.
+- You are rendering THE NEW WINDOW being installed in the same opening.
+- Do NOT carry over from the old window: old mullion thickness, old hinge positions, old handle position/style, old frame depth, old sash proportions, old gasket layout.
+- Carry over from the source photo ONLY the wall opening dimensions, the room context and the outdoor view through the new glass.
+- If the new specification has a different sash count, mullion configuration, handle count or hinge mode, those CHANGES MUST BE VISIBLY APPLIED — even if the old window had something different in the same position.
+
+INSTALLATION REALISM:
 - accurate join between frame and wall reveal
 - believable installation depth, gasket lines and frame-to-sash contact
 - realistic glazing reflections, consistent with the photographed room and outdoor light
@@ -278,6 +330,9 @@ ${bullets(
 - if a new cassonetto is specified over an existing one, keep its visible width, height, depth and bottom edge very close to the source photo unless explicitly redesigned
 - if the shutter is fully open, keep the curtain hidden inside the cassonetto and do not invent a colored strip above the glazing
 - any visible shutter curtain must stay recessed within its guides behind the frame/glass plane, never floating on the wall or in front of the cassonetto
+
+WHAT THE VIEWER SHOULD THINK:
+"This person installed a different window in the same house. I see the same room from the same angle, but the window is clearly a new model — different style, different mullions, different handle, different finish. It's a real renovation, not a Photoshop color filter."
 
 [v8.3 — MANDATORY SOURCE-PHOTO CLEANUP — NEGATIVE OBSERVATIONS]
 The source photograph almost always contains legacy artefacts that MUST be removed in the new render:
@@ -579,7 +634,7 @@ Before generating, mentally check: "Am I about to commit any of the 7 failures a
       "cassonetto with embossed wood grain when smooth PVC is specified, " +
       "old cassonetto front cover with visible old screws or hinges, " +
       "sloped or projecting cassonetto front (must be flat flush sheet)",
-    promptVersion: "8.3.4",
+    promptVersion: "8.3.5",
     blocks,
     validation,
     normalizedConfig,

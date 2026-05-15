@@ -294,4 +294,14 @@ export const DEFAULT_NEGATIVE_CONSTRAINTS = [
   "do not render THREE handles on a 3-sash window — exactly TWO handles total: ONE on the 2-sash group + ONE on the single sash",
   "do not render FOUR handles on a 4-sash window — exactly TWO handles total: ONE per 2-sash group",
   "do not render one handle per sash on multi-sash compositions — sashes are grouped, only the primary sash of each group shows a handle",
+  // ── v8.3.1 — Physical replacement (NOT color edit) ──
+  "do not recolor or repaint the existing window — UNINSTALL it completely and INSTALL a new different one",
+  "do not preserve the old mullion thickness when a new profile (PVC/alluminio/minimal/legno) is specified — the new profile has its own thickness",
+  "do not preserve the old handle position when the specification requires central handle on the palettone — the new handle is at the center, not on the side",
+  "do not preserve the old hinge positions or finishes — the new hinges match the new specification (count, position, finish, or hidden)",
+  "do not keep the old cassonetto material/color when a new cassonetto is specified — replace the entire box, not just paint it",
+  "do not keep the existing manual belt assembly when motorized is specified — it must be physically removed AND the wall repaired AND the new electric switch installed",
+  "do not show the old horizontal transom when transom-remove is specified — the new portafinestra has single full-height sashes per anta",
+  "do not produce a Photoshop-style color-overlay effect — this is a physical renovation, not a digital recolor",
+  "do not blend old and new visual elements — the new window must look like a coherent new product, not a hybrid",
 ];
