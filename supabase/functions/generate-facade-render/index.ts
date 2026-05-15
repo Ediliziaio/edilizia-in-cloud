@@ -312,7 +312,11 @@ async function renderWithProvider(params: {
     effectiveWidth: params.width,
     effectiveHeight: params.height,
     openaiQuality: "medium",
-    timeoutMs: 180_000,
+    // v8.5 — Per-provider timeout 180s → 75s. Supabase Edge Function cap = 150s.
+    // Con 180s un singolo provider lento blocca tutto il budget e la function
+    // viene killata dal gateway. Con 75s, fallback rapido al provider successivo.
+    // Allineato a generate-render/infissi v8.4.3.
+    timeoutMs: 75_000,
     metadata: {
       task_kind: "render_image_edit",
       company_id: params.companyId,

@@ -543,7 +543,10 @@ Deno.serve(async (req) => {
       effectiveWidth: sourceDimensions?.width,
       effectiveHeight: sourceDimensions?.height,
       openaiQuality: "medium",
-      timeoutMs: 180_000,
+      // v8.5 — Per-provider timeout 180s → 75s. Allineato a generate-render
+      // v8.4.3: con 180s un singolo provider lento esauriva il budget 150s
+      // dell'edge function. Con 75s, fallback rapido al provider successivo.
+      timeoutMs: 75_000,
       metadata: {
         task_kind: "render_image_edit",
         company_id: session.company_id,

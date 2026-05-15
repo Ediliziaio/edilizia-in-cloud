@@ -234,9 +234,12 @@ async function testOpenRouter(model: string, tierLabel: string): Promise<Provide
 }
 
 async function testOpenAI(): Promise<ProviderTest> {
+  // Allineato a _shared/ai-provider/image.ts v8.4.1: il modello reale e'
+  // "gpt-image-1" (no .5). gpt-image-1.5 era un nome ipotetico mai esistito
+  // sul portale OpenAI Images API → causava 404 sui debug check.
   const model = Deno.env.get("OPENAI_IMAGE_MODEL")?.trim() ||
     Deno.env.get("RENDER_OPENAI_IMAGE_MODEL")?.trim() ||
-    "gpt-image-1.5";
+    "gpt-image-1";
   const endpoint = "https://api.openai.com/v1/models";
   const key = Deno.env.get("OPENAI_API_KEY")?.trim();
   if (!key) {
@@ -348,9 +351,12 @@ Deno.serve(async (req) => {
     testGemini(),
     testOpenRouter("google/gemini-2.5-flash-image", "gemini"),
     testOpenRouter(
+      // Allineato a _shared/ai-provider/image.ts: default OpenRouter OpenAI
+      // image model e' "openai/gpt-5-image". Il vecchio "openai/gpt-image-1.5"
+      // non e' mai esistito nel catalog OpenRouter.
       Deno.env.get("OPENROUTER_OPENAI_IMAGE_MODEL")?.trim() ||
         Deno.env.get("RENDER_OPENROUTER_OPENAI_IMAGE_MODEL")?.trim() ||
-        "openai/gpt-image-1.5",
+        "openai/gpt-5-image",
       "openai",
     ),
     testOpenAI(),
@@ -368,7 +374,7 @@ Deno.serve(async (req) => {
     },
     discovery: {
       // Aiuta a trovare il nome corretto del modello image OpenRouter
-      // (es. il default 'openai/gpt-image-1.5' potrebbe essere stato rinominato)
+      // (es. il default 'openai/gpt-5-image' potrebbe essere stato rinominato)
       openrouter_openai_image_models: openrouterOpenaiModels.filter(
         (m) => m.includes("image") || m.includes("dall"),
       ),
