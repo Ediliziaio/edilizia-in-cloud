@@ -289,7 +289,10 @@ describe("window render prompt", () => {
     expect(prompt.negativePrompt.toLowerCase()).toContain("horizontal transom present when transom-remove mode is selected");
   });
 
-  it("supports hidden hinges only on compatible profile families", () => {
+  it("v8.3.8: hidden hinges are honored on ALL profile families (architectural upsell)", () => {
+    // Pre-v8.3.8 fallback su "visible" se profilo non-compatibile.
+    // v8.3.8: forza sempre "hidden" se richiesto, anche su PVC/legno.
+    // Il cliente può vendere PVC con cerniere a scomparsa come upsell.
     const analysis = buildAnalysisWithOpenings();
     const compatibleConfig = mapWizardToConfig(
       { ...baseState, profilo: "minimal", cerniere: "scomparsa" },
@@ -298,12 +301,16 @@ describe("window render prompt", () => {
     );
     expect(compatibleConfig.technical_specification[0].hingeMode).toBe("hidden");
 
-    const incompatibleConfig = mapWizardToConfig(
+    const pvcWithHiddenConfig = mapWizardToConfig(
       { ...baseState, profilo: "pvc", cerniere: "scomparsa" },
       "",
       { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
     );
-    expect(incompatibleConfig.technical_specification[0].hingeMode).toBe("visible");
+    expect(pvcWithHiddenConfig.technical_specification[0].hingeMode).toBe("hidden");
+    // La regola placement deve menzionare il caveat architectural upsell
+    expect(pvcWithHiddenConfig.technical_specification[0].hingePlacementRule).toContain(
+      "premium architectural upsell",
+    );
   });
 
   it("uses three hinges per sash for tall portefinestre", () => {
@@ -478,6 +485,6 @@ describe("window render prompt", () => {
       selectedOpeningIds: ["A"],
     });
     const prompt = buildWindowPrompt(config, analysis);
-    expect(prompt.promptVersion).toBe("8.3.7");
+    expect(prompt.promptVersion).toBe("8.3.8");
   });
 });

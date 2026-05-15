@@ -108,7 +108,38 @@ export interface ImageEditResult {
 }
 
 /**
- * Edit foto con fallback Gemini diretto → OpenRouter Gemini → OpenRouter OpenAI → OpenAI diretto.
+ * v8.3.8 — Ordine provider configurabile via env `RENDER_PROVIDER_FIRST`:
+ *   - "gemini" (default)  → Gemini direct → OpenRouter Gemini → OpenRouter OpenAI → OpenAI direct
+ *   - "openai"            → OpenAI direct → OpenRouter OpenAI → Gemini direct → OpenRouter Gemini
+ *
+ * Set su Supabase Dashboard senza redeploy. Cambia istantaneamente
+ * il provider Tier 1 — utile per A/B test qualità render.
+ */
+type ProviderStep = {
+  provider: ImageProvider;
+  model: string;
+  call: (args: ProviderCallArgs) => Promise<ProviderCallResult>;
+};
+
+function getProviderOrder(): ProviderStep[] {
+  const first = Deno.env.get("RENDER_PROVIDER_FIRST")?.trim().toLowerCase();
+  const geminiFirst: ProviderStep[] = [
+    { provider: "gemini_direct", model: IMAGE_MODEL_GEMINI_DIRECT, call: callGeminiImage },
+    { provider: "openrouter", model: IMAGE_MODEL_PRIMARY, call: callOpenRouterImage },
+    { provider: "openrouter", model: IMAGE_MODEL_OPENROUTER_OPENAI, call: callOpenRouterImage },
+    { provider: "openai_direct", model: IMAGE_MODEL_OPENAI_DIRECT, call: callOpenAIImage },
+  ];
+  const openaiFirst: ProviderStep[] = [
+    { provider: "openai_direct", model: IMAGE_MODEL_OPENAI_DIRECT, call: callOpenAIImage },
+    { provider: "openrouter", model: IMAGE_MODEL_OPENROUTER_OPENAI, call: callOpenRouterImage },
+    { provider: "gemini_direct", model: IMAGE_MODEL_GEMINI_DIRECT, call: callGeminiImage },
+    { provider: "openrouter", model: IMAGE_MODEL_PRIMARY, call: callOpenRouterImage },
+  ];
+  return first === "openai" ? openaiFirst : geminiFirst;
+}
+
+/**
+ * Edit foto con fallback chain configurabile via env RENDER_PROVIDER_FIRST.
  * Throw aggregato se TUTTI i modelli falliscono.
  */
 export async function editImage(
@@ -117,156 +148,43 @@ export async function editImage(
   const errors: Array<{ model: string; error: string }> = [];
   const attemptHistory: ImageProviderAttempt[] = [];
 
-  // ── 1) Gemini Nano Banana diretto ───────────────────────────────────────
-  try {
-    const result = await callGeminiImage({
-      model: IMAGE_MODEL_GEMINI_DIRECT,
-      params: args,
-    });
-    attemptHistory.push({
-      model: IMAGE_MODEL_GEMINI_DIRECT,
-      provider: "gemini_direct",
-      ok: true,
-      tier: 1,
-      latencyMs: result.latencyMs,
-    });
-    return {
-      ...result,
-      attempts: 1,
-      providerUsed: "gemini_direct",
-      attemptHistory,
-    };
-  } catch (e) {
-    const err = e as AIProviderError;
-    errors.push({ model: IMAGE_MODEL_GEMINI_DIRECT, error: err.message });
-    attemptHistory.push({
-      model: IMAGE_MODEL_GEMINI_DIRECT,
-      provider: "gemini_direct",
-      ok: false,
-      tier: 1,
-      error: err.message.substring(0, 500),
-      code: err.code,
-      status: err.provider_status,
-    });
-    logImageError({
-      session_id: args.metadata.session_id,
-      model: IMAGE_MODEL_GEMINI_DIRECT,
-      msg: err.message,
-    });
-  }
-
-  // ── 2) Gemini Nano Banana via OpenRouter ────────────────────────────────
-  try {
-    const result = await callOpenRouterImage({
-      model: IMAGE_MODEL_PRIMARY,
-      params: args,
-    });
-    attemptHistory.push({
-      model: IMAGE_MODEL_PRIMARY,
-      provider: "openrouter",
-      ok: true,
-      tier: 2,
-      latencyMs: result.latencyMs,
-    });
-    return {
-      ...result,
-      attempts: 2,
-      providerUsed: "openrouter",
-      attemptHistory,
-    };
-  } catch (e) {
-    const err = e as AIProviderError;
-    errors.push({ model: IMAGE_MODEL_PRIMARY, error: err.message });
-    attemptHistory.push({
-      model: IMAGE_MODEL_PRIMARY,
-      provider: "openrouter",
-      ok: false,
-      tier: 2,
-      error: err.message.substring(0, 500),
-      code: err.code,
-      status: err.provider_status,
-    });
-    logImageError({
-      session_id: args.metadata.session_id,
-      model: IMAGE_MODEL_PRIMARY,
-      msg: err.message,
-    });
-  }
-
-  // ── 3) OpenAI image via OpenRouter ─────────────────────────────────────
-  try {
-    const result = await callOpenRouterImage({
-      model: IMAGE_MODEL_OPENROUTER_OPENAI,
-      params: args,
-    });
-    attemptHistory.push({
-      model: IMAGE_MODEL_OPENROUTER_OPENAI,
-      provider: "openrouter",
-      ok: true,
-      tier: 3,
-      latencyMs: result.latencyMs,
-    });
-    return {
-      ...result,
-      attempts: 3,
-      providerUsed: "openrouter",
-      attemptHistory,
-    };
-  } catch (e) {
-    const err = e as AIProviderError;
-    errors.push({ model: IMAGE_MODEL_OPENROUTER_OPENAI, error: err.message });
-    attemptHistory.push({
-      model: IMAGE_MODEL_OPENROUTER_OPENAI,
-      provider: "openrouter",
-      ok: false,
-      tier: 3,
-      error: err.message.substring(0, 500),
-      code: err.code,
-      status: err.provider_status,
-    });
-    logImageError({
-      session_id: args.metadata.session_id,
-      model: IMAGE_MODEL_OPENROUTER_OPENAI,
-      msg: err.message,
-    });
-  }
-
-  // ── 4) Last resort: OpenAI diretto ─────────────────────────────────────
-  try {
-    const result = await callOpenAIImage({
-      model: IMAGE_MODEL_OPENAI_DIRECT,
-      params: args,
-    });
-    attemptHistory.push({
-      model: IMAGE_MODEL_OPENAI_DIRECT,
-      provider: "openai_direct",
-      ok: true,
-      tier: 4,
-      latencyMs: result.latencyMs,
-    });
-    return {
-      ...result,
-      attempts: 4,
-      providerUsed: "openai_direct",
-      attemptHistory,
-    };
-  } catch (e) {
-    const err = e as AIProviderError;
-    errors.push({ model: IMAGE_MODEL_OPENAI_DIRECT, error: err.message });
-    attemptHistory.push({
-      model: IMAGE_MODEL_OPENAI_DIRECT,
-      provider: "openai_direct",
-      ok: false,
-      tier: 4,
-      error: err.message.substring(0, 500),
-      code: err.code,
-      status: err.provider_status,
-    });
-    logImageError({
-      session_id: args.metadata.session_id,
-      model: IMAGE_MODEL_OPENAI_DIRECT,
-      msg: err.message,
-    });
+  const steps = getProviderOrder();
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    const tier = i + 1;
+    try {
+      const result = await step.call({ model: step.model, params: args });
+      attemptHistory.push({
+        model: step.model,
+        provider: step.provider,
+        ok: true,
+        tier,
+        latencyMs: result.latencyMs,
+      });
+      return {
+        ...result,
+        attempts: tier,
+        providerUsed: step.provider,
+        attemptHistory,
+      };
+    } catch (e) {
+      const err = e as AIProviderError;
+      errors.push({ model: step.model, error: err.message });
+      attemptHistory.push({
+        model: step.model,
+        provider: step.provider,
+        ok: false,
+        tier,
+        error: err.message.substring(0, 500),
+        code: err.code,
+        status: err.provider_status,
+      });
+      logImageError({
+        session_id: args.metadata.session_id,
+        model: step.model,
+        msg: err.message,
+      });
+    }
   }
 
   throw withAttemptHistory(

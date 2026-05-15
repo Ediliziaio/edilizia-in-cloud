@@ -1,4 +1,12 @@
-// shared/render-window/windowPromptBuilder.ts — v8.3.7 (2026-05-15)
+// shared/render-window/windowPromptBuilder.ts — v8.3.8 (2026-05-15)
+// CHANGELOG v8.3.8 (cliente feedback iterativo):
+//   + UI cerniere scomparsa: ora selezionabile su TUTTI i profili
+//     (non più disabled su PVC/legno). computeHingeSpec forza hidden anche
+//     se profilo non-standard, aggiungendo nota architectural upsell.
+//   + image.ts editImage: ordine provider configurabile via env
+//     RENDER_PROVIDER_FIRST = "gemini" (default) | "openai".
+//     Permette A/B test qualità senza redeploy.
+//   ↺ promptVersion → "8.3.8"
 // CHANGELOG v8.3.7 (GAP A/B/C/D fix tutti chiusi):
 //   + GAP A: UI cassonetto custom ora usa palette WIZARD_RAL family-grouped
 //     (allineato all'UI tapparella, con label colore selezionato + RAL code)
@@ -665,7 +673,7 @@ Before generating, mentally check: "Am I about to commit any of the 7 failures a
       "cassonetto with embossed wood grain when smooth PVC is specified, " +
       "old cassonetto front cover with visible old screws or hinges, " +
       "sloped or projecting cassonetto front (must be flat flush sheet)",
-    promptVersion: "8.3.7",
+    promptVersion: "8.3.8",
     blocks,
     validation,
     normalizedConfig,

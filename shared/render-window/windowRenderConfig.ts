@@ -517,11 +517,20 @@ function computeHingeSpec(args: {
     };
   }
 
-  // Cerniere a scomparsa richieste E profilo compatibile
+  // v8.3.8 — Cerniere a scomparsa: ora forzate SEMPRE se richieste, anche su
+  // profili tradizionalmente non-compatibili (PVC, legno). Il cliente potrebbe
+  // voler vendere un PVC con cerniere a scomparsa come upsell architettonico.
+  // La compatibilità fisica resta verificabile separatamente via
+  // profileSupportsHiddenHinges() per pricing/disclaimer, ma il render le
+  // produce comunque su richiesta esplicita.
   const hiddenRequested = cerniereChoice === "scomparsa";
   const hiddenSupported = profileSupportsHiddenHinges(profileId);
 
-  if (hiddenRequested && hiddenSupported) {
+  if (hiddenRequested) {
+    const compatibilityNote = hiddenSupported
+      ? ""
+      : " (Note: this profile family typically uses visible hinges in the residential market; " +
+        "render them hidden anyway as explicitly requested by the user — premium architectural upsell.)";
     return {
       hingeMode: "hidden",
       hingesPerSash: 0,
@@ -529,7 +538,7 @@ function computeHingeSpec(args: {
       hingePlacementRule:
         "HIDDEN HINGES: NO visible hinge knuckles, caps, or cylinders on the hinged side stile. " +
         "The sash side appears clean and continuous. The hinge mechanism is fully concealed inside " +
-        "the frame profile when the window is closed.",
+        "the frame profile when the window is closed." + compatibilityNote,
       hingeConsistencyRule:
         "Maintain pixel-clean side stiles. Do not render any decorative hinge elements.",
       hingeStyle: "hidden (concealed inside the frame, no visible hardware)",

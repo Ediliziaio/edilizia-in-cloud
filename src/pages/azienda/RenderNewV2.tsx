@@ -1587,26 +1587,27 @@ function StepAccessori({
           <div className="space-y-3">
             <SectionTitle>Cerniere</SectionTitle>
             <div className="grid gap-3 md:grid-cols-2">
-              {WIZARD_CERNIERE_OPTIONS.map((option) => {
-                const disabled = option.id === "scomparsa" && !hiddenHingesSupported;
-                return (
-                  <ChoiceCard
-                    key={option.id}
-                    title={`${option.label}${option.upsell ? " · premium" : ""}`}
-                    desc={disabled ? "Disponibile con alluminio, minimal o legno-alluminio." : option.desc}
-                    selected={state.cerniere === option.id}
-                    disabled={disabled}
-                    onClick={() => {
-                      if (disabled) return;
-                      setState((current) => ({ ...current, cerniere: option.id as WizardCerniere }));
-                    }}
-                  />
-                );
-              })}
+              {WIZARD_CERNIERE_OPTIONS.map((option) => (
+                <ChoiceCard
+                  key={option.id}
+                  title={`${option.label}${option.upsell ? " · premium" : ""}`}
+                  desc={option.desc}
+                  selected={state.cerniere === option.id}
+                  onClick={() =>
+                    setState((current) => ({ ...current, cerniere: option.id as WizardCerniere }))
+                  }
+                />
+              ))}
             </div>
-            {state.cerniere === "scomparsa" && hiddenHingesSupported && (
+            {state.cerniere === "scomparsa" && (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                 Il render userà cerniere a scomparsa: lato telaio pulito, senza cilindri o placche visibili.
+                {!hiddenHingesSupported && (
+                  <span className="mt-1 block text-xs text-emerald-800">
+                    Nota tecnica: su profili PVC/legno classici le cerniere a scomparsa
+                    sono un upsell architettonico — il render le forzerà comunque come da richiesta.
+                  </span>
+                )}
               </div>
             )}
           </div>
