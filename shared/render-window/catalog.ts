@@ -1,3 +1,11 @@
+// shared/render-window/catalog.ts — v8 (2026-05-14)
+// CHANGELOG v8:
+//   + WIZARD_TRAVERSO_OPTIONS (auto | mantieni | rimuovi | aggiungi)
+//   + WIZARD_CERNIERE_OPTIONS (visibili | scomparsa)
+//   + WizardState.traverso + WizardState.cerniere
+//   + Profili compatibili con cerniere a scomparsa
+//   + Nuovo profilo "alluminio_minimal_premium" come variante upsell
+
 export const WIZARD_TIPI = [
   { id: "F1A", label: "Finestra 1 anta", shortLabel: "F1A", desc: "Finestra battente a un'anta, vano standard." },
   { id: "F2A", label: "Finestra 2 ante", shortLabel: "F2A", desc: "Finestra battente a due ante, configurazione più comune." },
@@ -9,25 +17,74 @@ export const WIZARD_TIPI = [
 ] as const;
 
 export const WIZARD_PROFILI = [
-  { id: "pvc", label: "PVC", desc: "Profilo isolante classico 70-82 mm, adatto a sostituzione residenziale." },
-  { id: "alluminio", label: "Alluminio", desc: "Estruso contemporaneo, proporzioni più snelle e lineari." },
-  { id: "minimal", label: "Minimal", desc: "Nodo ridotto e sightline sottile, look premium." },
-  { id: "legno", label: "Legno", desc: "Resa calda e tradizionale con profilo più materico." },
-  { id: "legno_alluminio", label: "Legno-Alluminio", desc: "Legno interno e protezione alluminio esterna." },
+  { id: "pvc", label: "PVC", desc: "Profilo isolante classico 70-80 mm, adatto a sostituzione residenziale." },
+  { id: "alluminio", label: "Alluminio", desc: "Estruso 55 mm, proporzioni più snelle, thermal break a vista." },
+  { id: "minimal", label: "Alluminio Minimal", desc: "Profilo architettonico ultra-sottile 45 mm con sightline minimale (look premium, non da confondere con nodo ridotto)." },
+  { id: "legno", label: "Legno", desc: "Resa calda e tradizionale con profilo 82 mm più materico." },
+  { id: "legno_alluminio", label: "Legno-Alluminio", desc: "Legno interno 82 mm + protezione alluminio esterna." },
 ] as const;
 
-export const PROFILI_MANIGLIA_CENTRALE_COMPATIBILI = [
+// ─────────────────────────────────────────────────────────────────────────────
+// v8.1 — NODO (configurazione delle ante centrali)
+// In edilizia italiana il "nodo" è il punto di incontro tra due ante.
+// Tre configurazioni standard:
+//   - simmetrico:   2 ante uguali con doppio montante centrale (~110 mm visibili)
+//   - asimmetrico:  anta principale + anta secondaria con palettone che copre
+//                   il bordo. Il nodo visibile è ridotto (~70-80 mm).
+//                   Questa è la configurazione comunemente detta "nodo ridotto".
+//   - maniglia_centrale: variante asimmetrica dove la maniglia è montata sul
+//                   palettone al centro, anziché lateralmente sull'anta principale.
+//                   Solo per finestre/portefinestre a 2 ante.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const WIZARD_NODO_OPTIONS = [
+  {
+    id: "simmetrico",
+    label: "Nodo simmetrico (classico)",
+    desc: "Ante uguali, doppio montante centrale spesso (~110 mm). Soluzione standard residenziale.",
+    icon: "◧◨",
+  },
+  {
+    id: "asimmetrico",
+    label: "Nodo asimmetrico (ridotto)",
+    desc: "Anta principale + anta secondaria con palettone. Nodo centrale visibilmente più sottile (~70 mm). Più vetro, look pulito.",
+    icon: "▎▌",
+    upsell: true,
+  },
+  {
+    id: "maniglia_centrale",
+    label: "Maniglia centrale",
+    desc: "Variante asimmetrica con UNA SOLA maniglia montata sul palettone al centro. Solo per finestre/portefinestre a 2 ante.",
+    icon: "◯",
+    upsell: true,
+  },
+] as const;
+
+/** Profili compatibili con nodo asimmetrico / maniglia centrale.
+ *  Tutti i profili moderni supportano l'asimmetrico. Il legno classico
+ *  spesso resta su simmetrico per fedeltà al disegno tradizionale. */
+export const PROFILI_NODO_ASIMMETRICO_COMPATIBILI = [
   "pvc",
   "alluminio",
   "minimal",
-  "legno",
   "legno_alluminio",
+  // "legno",  // attivare solo se vuoi proporre il nodo ridotto anche su legno classico
 ] as const;
 
+/** @deprecated v8.1 — usa PROFILI_NODO_ASIMMETRICO_COMPATIBILI + WizardState.nodo === "maniglia_centrale". */
+export const PROFILI_MANIGLIA_CENTRALE_COMPATIBILI = PROFILI_NODO_ASIMMETRICO_COMPATIBILI;
+
+/** v8 — Profili compatibili con cerniere a scomparsa.
+ *  Tipicamente solo profili di gamma media-alta supportano le cerniere nascoste
+ *  (richiede telai più rigidi e geometrie precise). Il PVC base entry-level
+ *  NORMALMENTE non le supporta. Se vuoi attivarle anche su PVC base, aggiungi
+ *  "pvc" qui (occhio: serve PVC top di gamma 80mm+). */
 export const PROFILI_CERNIERE_NASCOSTE_COMPATIBILI = [
   "alluminio",
   "minimal",
   "legno_alluminio",
+  // "pvc",     // attivare solo per PVC premium 80mm+
+  // "legno",   // legno classico tende ad avere cerniere a vista decorative
 ] as const;
 
 export const WIZARD_RAL = [
@@ -65,11 +122,11 @@ export const WIZARD_LEGNO = [
   {
     id: "bianco_frassino",
     nome: "Bianco Frassino",
-    hex: "#E8DCC8",
-    grad: "linear-gradient(135deg,#F0E6D2,#D4C5A9)",
-    grain: "rgba(128,115,93,0.22)",
-    accent: "rgba(255,255,255,0.24)",
-    fragment: "white ash wood-effect laminate with pale cream tone and subtle silver-grey grain",
+    hex: "#ECEAE2",
+    grad: "linear-gradient(135deg,#F1EFE7,#DAD6CB)",
+    grain: "rgba(165,158,148,0.28)",
+    accent: "rgba(255,255,255,0.32)",
+    fragment: "white ash wood-effect Touch finish (embossed/brushed): warm bright off-white tone close to RAL 9010, with vertical fine ash grain visible as soft pale-grey embossed lines. Subtle 3D textured surface, not flat plastic. Wood grain is dense, mostly straight, lightly variegated. Reference: 'bianco frassino' colore commerciale standard.",
   },
   {
     id: "ciliegio",
@@ -145,47 +202,56 @@ export const WIZARD_CASS_MATERIALI = [
 
 export const WIZARD_TAPP_OPTIONS = [
   { id: "no", label: "Mantieni attuali", desc: "Lascia invariato il sistema oscurante esistente.", icon: "—" },
-  { id: "motorizzate", label: "Motorizzata", desc: "Nuova tapparella motorizzata con rimozione automatismi manuali.", icon: "⚡" },
+  { id: "motorizzate", label: "Motorizzata", desc: "Nuova tapparella motorizzata. Rimuovo la cinghia manuale e installo il bottone elettrico al suo posto.", icon: "⚡" },
   { id: "nuove", label: "Nuove + colore", desc: "Sostituisci la tapparella con nuovo colore/finitura.", icon: "🎨" },
 ] as const;
+
+// ── v8 NEW ─────────────────────────────────────────────────────────────────
 
 export const WIZARD_TRAVERSO_OPTIONS = [
   {
     id: "auto",
     label: "Automatico",
-    desc: "Mantiene o rimuove il traverso solo quando la foto lo richiede.",
-    badge: "Consigliato",
+    desc: "Se nella foto c'è un traverso, lo mantengo. Altrimenti, anta intera completamente vetrata.",
+    icon: "✨",
   },
   {
     id: "mantieni",
     label: "Mantieni traverso",
-    desc: "Conserva il traverso orizzontale esistente, utile su portefinestre alte.",
+    desc: "Mantengo il montante orizzontale a metà altezza (vetro sopra + vetro/pannello sotto).",
+    icon: "═",
   },
   {
     id: "rimuovi",
-    label: "Vetro unico",
-    desc: "Rimuove il traverso e pulisce la composizione, se tecnicamente plausibile.",
+    label: "Rimuovi traverso",
+    desc: "Anta intera completamente vetrata, senza divisori orizzontali. Look pulito e contemporaneo.",
+    icon: "▭",
   },
   {
     id: "aggiungi",
     label: "Aggiungi traverso",
-    desc: "Aggiunge un traverso coerente quando vuoi riprendere una scansione classica.",
+    desc: "Aggiungo un traverso orizzontale a metà altezza (look classico stile francese).",
+    icon: "╋",
   },
 ] as const;
 
 export const WIZARD_CERNIERE_OPTIONS = [
   {
     id: "visibili",
-    label: "Cerniere visibili",
-    desc: "Cerniere coordinate alla maniglia, leggibili e coerenti con un serramento standard.",
+    label: "Cerniere a vista",
+    desc: "Cerniere classiche visibili sul lato dell'anta. Soluzione standard, costo contenuto.",
+    icon: "◖",
   },
   {
     id: "scomparsa",
     label: "Cerniere a scomparsa",
-    desc: "Look più pulito: nessuna cerniera laterale visibile quando il profilo lo permette.",
+    desc: "Cerniere completamente nascoste nel telaio. L'anta sembra fluttuare contro il telaio quando chiusa. Look premium architettonico.",
+    icon: "▢",
     upsell: true,
   },
 ] as const;
+
+// ── Type exports ──────────────────────────────────────────────────────────
 
 export type WizardTipo = (typeof WIZARD_TIPI)[number]["id"];
 export type WizardProfilo = (typeof WIZARD_PROFILI)[number]["id"];
@@ -195,10 +261,13 @@ export type WizardCassMat = (typeof WIZARD_CASS_MATERIALI)[number]["id"];
 export type WizardTapp = (typeof WIZARD_TAPP_OPTIONS)[number]["id"];
 export type WizardTraverso = (typeof WIZARD_TRAVERSO_OPTIONS)[number]["id"];
 export type WizardCerniere = (typeof WIZARD_CERNIERE_OPTIONS)[number]["id"];
+/** v8.1 — Nodo (configurazione ante centrali). */
+export type WizardNodo = (typeof WIZARD_NODO_OPTIONS)[number]["id"];
 
 export interface WizardState {
   tipo: WizardTipo | "";
   profilo: WizardProfilo | "";
+  /** @deprecated v8.1 — usa `nodo: "maniglia_centrale"` invece. Manteniamo per backward-compat UI. */
   manigliaCentrale: boolean;
   coloreInfisso: string;
   tipoManiglia: WizardHandleType;
@@ -208,9 +277,20 @@ export interface WizardState {
   cassCol: string;
   tapp: WizardTapp;
   tappCol: string;
+
+  // ── v8 ───────────────────────────────────────────────────────────────
   traverso: WizardTraverso;
   cerniere: WizardCerniere;
+
+  // ── v8.1 ─────────────────────────────────────────────────────────────
+  /** Configurazione del nodo centrale (solo per 2 ante).
+   *  - "simmetrico"        → 2 ante uguali, doppio montante (default tradizionale)
+   *  - "asimmetrico"       → palettone + palettino, nodo ridotto (~70 mm)
+   *  - "maniglia_centrale" → asimmetrico + maniglia singola sul palettone */
+  nodo: WizardNodo;
 }
+
+// ── Helpers (existing + v8) ───────────────────────────────────────────────
 
 export function findWizardRal(id: string) {
   return WIZARD_RAL.find((item) => item.id === id) ?? null;
@@ -248,14 +328,27 @@ export function getWizardTapparellaMeta(tapp: WizardTapp) {
   return WIZARD_TAPP_OPTIONS.find((item) => item.id === tapp) ?? WIZARD_TAPP_OPTIONS[0];
 }
 
+/** v8 — Helper traverso */
 export function getWizardTraversoMeta(traverso: WizardTraverso) {
   return WIZARD_TRAVERSO_OPTIONS.find((item) => item.id === traverso) ?? WIZARD_TRAVERSO_OPTIONS[0];
 }
 
+/** v8 — Helper cerniere */
 export function getWizardCerniereMeta(cerniere: WizardCerniere) {
   return WIZARD_CERNIERE_OPTIONS.find((item) => item.id === cerniere) ?? WIZARD_CERNIERE_OPTIONS[0];
 }
 
-export function profileSupportsHiddenHinges(profilo: WizardProfilo | "") {
-  return (PROFILI_CERNIERE_NASCOSTE_COMPATIBILI as readonly string[]).includes(profilo);
+/** v8 — Verifica se il profilo selezionato supporta cerniere a scomparsa. */
+export function profileSupportsHiddenHinges(profilo: WizardProfilo | ""): boolean {
+  return PROFILI_CERNIERE_NASCOSTE_COMPATIBILI.includes(profilo as never);
+}
+
+/** v8.1 — Helper nodo */
+export function getWizardNodoMeta(nodo: WizardNodo) {
+  return WIZARD_NODO_OPTIONS.find((item) => item.id === nodo) ?? WIZARD_NODO_OPTIONS[0];
+}
+
+/** v8.1 — Verifica se il profilo selezionato supporta nodo asimmetrico / maniglia centrale. */
+export function profileSupportsAsymmetricNode(profilo: WizardProfilo | ""): boolean {
+  return PROFILI_NODO_ASIMMETRICO_COMPATIBILI.includes(profilo as never);
 }

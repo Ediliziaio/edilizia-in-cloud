@@ -1,10 +1,19 @@
+// shared/render-window/types.ts — v8 (2026-05-14)
+// CHANGELOG v8:
+//   + WindowHingeMode (visible | hidden | none)
+//   + WindowTransomMode (auto | keep | remove | add)
+//   + WindowSceneOpening.hasHorizontalTransom + transomPositionPct + transomPanelBelowType
+//   + WindowTechnicalSpecification.hingeMode + hingesPerSash + hingePlacementRule
+//   + WindowTechnicalSpecification.transomRule
+//   + WindowTechnicalSpecification.compositionChange
+//   + WindowTechnicalSpecification.profileVisibleThickness + thermalBreakVisible
+//   + WindowTechnicalSpecification.shutter.electricButton
+
 import type {
   WizardCassMat,
-  WizardCerniere,
   WizardHw,
   WizardProfilo,
   WizardTapp,
-  WizardTraverso,
   WizardTipo,
 } from "./catalog.ts";
 
@@ -55,6 +64,7 @@ export type WindowOpeningPosition =
 export type WindowViewMode = "interior" | "exterior" | "mixed" | "unknown";
 export type WindowImageOrientation = "portrait" | "landscape" | "square" | "unknown";
 export type WindowRollerControlType = "manual_belt" | "motorized" | "chain" | "crank" | "none" | "unknown";
+
 export type WindowBeltPlacement =
   | "left_wall"
   | "right_wall"
@@ -62,6 +72,7 @@ export type WindowBeltPlacement =
   | "right_reveal"
   | "center"
   | "unknown";
+
 export type WindowRollerCurtainState =
   | "fully_raised_hidden"
   | "top_recessed_band"
@@ -69,8 +80,15 @@ export type WindowRollerCurtainState =
   | "fully_lowered"
   | "not_visible"
   | "unknown";
-export type WindowTransomPanelBelowType = "glass" | "solid_panel" | "louvered" | "unknown";
+
+/** v8 — Modalità cerniere richiesta dall'utente */
 export type WindowHingeMode = "visible" | "hidden" | "none";
+
+/** v8 — Modalità traverso richiesta dall'utente */
+export type WindowTransomMode = "auto" | "keep" | "remove" | "add";
+
+/** v8 — Panel sotto traverso (rilevato dalla scena) */
+export type WindowTransomPanelBelow = "glass" | "solid_panel" | "louvered" | "unknown";
 
 export interface WindowPhotoMeta {
   width: number;
@@ -100,10 +118,6 @@ export interface WindowSceneOpening {
   rollerControlType: WindowRollerControlType;
   rollerCurtainState: WindowRollerCurtainState;
   rollerCurtainPositionNotes: string;
-  hasHorizontalTransom: boolean;
-  transomPositionPct: number | null;
-  transomPanelBelowType: WindowTransomPanelBelowType;
-  estimatedHeightCm: number | null;
   hasPersiane: boolean;
   hasScuri: boolean;
   hasGrates: boolean;
@@ -118,6 +132,16 @@ export interface WindowSceneOpening {
   geometryNotes: string;
   outdoorViewNotes: string;
   preserveNotes: string;
+
+  // ── v8 ─────────────────────────────────────────────────────────────────
+  /** Se la portafinestra mostra un montante orizzontale a metà altezza. */
+  hasHorizontalTransom?: boolean;
+  /** Altezza del traverso in % della finestra (0=basso, 100=top). 50 = mezzo. */
+  transomPositionPct?: number | null;
+  /** Cosa c'è sotto il traverso (pannello cieco, vetro, etc.). */
+  transomPanelBelowType?: WindowTransomPanelBelow;
+  /** Altezza stimata in centimetri (per decidere se servono 2 o 3 cerniere). */
+  estimatedHeightCm?: number | null;
 }
 
 export interface WindowSceneAnalysis {
@@ -155,26 +179,16 @@ export interface WindowSceneAnalysis {
     larghezza_stimata_cm: number | null;
     altezza_stimata_cm: number | null;
     note_analisi: string;
-    cinghia_attuale?: "con_cinghia" | "senza_cinghia" | "unknown";
+    cinghia_attuale: "con_cinghia" | "senza_cinghia" | "unknown";
   };
 }
 
 export interface WindowTargetSelection {
-  mode: "single" | "multiple" | "all";
+  mode: "all" | "single" | "multiple";
   selectedOpeningIds: string[];
   preservedOpeningIds: string[];
   primaryOpeningId: string | null;
   targetLabels: string[];
-}
-
-export interface WindowFrameFinish {
-  mode: "ral" | "legno";
-  name: string;
-  ral: string | null;
-  hex: string | null;
-  finish: string;
-  woodEffectId: string | null;
-  promptFragment: string | null;
 }
 
 export interface WindowTechnicalSpecification {
@@ -190,32 +204,64 @@ export interface WindowTechnicalSpecification {
   frameDepthLabel: string;
   frameShape: string;
   slimnessLabel: string;
+
+  // ── v8 ─────────────────────────────────────────────────────────────────
+  /** Spessore visibile del profilo (es. "45-55mm outer, 50mm central mullion"). */
   profileVisibleThickness: string;
+  /** Thermal break visibile come stripe scura (true per alluminio premium). */
   thermalBreakVisible: boolean;
-  finish: WindowFrameFinish;
+  /** Cambio architettura (composizione ante) richiesto dall'utente. */
+  compositionChange: null | {
+    fromSashCount: number;
+    toSashCount: number;
+    instruction: string;
+  };
+  /** Regola traverso per portafinestre. null se non applicabile. */
+  transomRule: string | null;
+  /** Modalità cerniere richiesta. */
+  hingeMode: WindowHingeMode;
+  /** Numero cerniere per anta. 0 quando hingeMode != "visible". */
+  hingesPerSash: 0 | 2 | 3;
+
+  finish: {
+    mode: "ral" | "legno";
+    name: string;
+    ral: string | null;
+    hex: string | null;
+    finish: string;
+    woodEffectId: string | null;
+    promptFragment: string | null;
+  };
+
   handleStyle: string;
   handleColorId: WizardHw;
   handleFinish: string;
+  /** v8.2 — Numero totale di maniglie visibili nella composizione.
+   *  Regola universale italiana:
+   *    F2A/PF2A = 1 (mai 2)
+   *    F3A/PF3A = 2 (gruppo 2+1)
+   *    F1A/PF1A = 1
+   *    fisso = 0
+   *    scorrevole = 1 per gruppo mobile */
+  handleCountVisible: number;
+  /** v8.2 — Regola posizionamento maniglie esplicita per il prompt builder. */
+  handlePlacementRule: string;
+
   hingeFinish: string;
   hingeStyle: string;
   hingeConsistencyRule: string;
-  hingeChoice: WizardCerniere;
-  hingeMode: WindowHingeMode;
-  hingesPerSash: 0 | 2 | 3;
+  /** v8 — Regola posizionamento cerniere (numero + posizione precise). */
   hingePlacementRule: string;
+
   manualControlCleanupRule: string | null;
   reducedNode: boolean;
   centralHandle: boolean;
+  /** @deprecated v8 — usa hingePlacementRule per la regola visiva.
+   *  Lasciato per backward-compat. Calcolato come hingesPerSash * desiredSashCount. */
   hingeCountVisible: number;
-  transomMode: WizardTraverso;
-  transomRule: string | null;
-  compositionChange: null | {
-    from: string;
-    to: string;
-    reason: string;
-    instruction: string;
-  };
+
   glassSpec: string;
+
   cassonetto: {
     replace: boolean;
     materialId: WizardCassMat | null;
@@ -224,22 +270,31 @@ export interface WindowTechnicalSpecification {
     colorLabel: string | null;
     dimensionRule: string;
   };
+
   shutter: {
     mode: WizardTapp;
     replace: boolean;
     colorMode: "ral" | "legno" | null;
     colorLabel: string | null;
     isMotorized: boolean;
-    visibilityState: WindowRollerCurtainState | "match_existing";
+    visibilityState:
+      | "match_existing"
+      | "fully_raised_hidden"
+      | "top_recessed_band"
+      | "partially_lowered"
+      | "fully_lowered";
     placementRule: string;
+
+    /** v8 — Bottone elettrico tapparella. */
     electricButton?: {
       install: boolean;
-      side: "left" | "right" | "same_as_old_belt" | "unknown";
+      side: "left" | "right" | "same_as_old_belt";
       heightFromFloor: string;
       style: "bianco_standard" | "nero_opaco" | "match_room_switches";
       description: string;
     };
   };
+
   compatibilityNotes: string[];
 }
 
@@ -251,26 +306,22 @@ export interface WindowRemovalRule {
   preserveInstruction?: string;
 }
 
-export interface WindowReplacementManifestOpening {
-  openingId: string;
-  openingLabel: string;
-  currentType: WindowOpeningType;
-  targetType: WindowOpeningType;
-  action: "replace";
-  summary: string;
-}
-
-export interface WindowUntouchedOpening {
-  openingId: string;
-  openingLabel: string;
-  currentType: WindowOpeningType;
-  action: "preserve";
-  summary: string;
-}
-
 export interface WindowReplacementManifest {
-  targetOpenings: WindowReplacementManifestOpening[];
-  untouchedOpenings: WindowUntouchedOpening[];
+  targetOpenings: Array<{
+    openingId: string;
+    openingLabel: string;
+    currentType: WindowOpeningType;
+    targetType: WindowOpeningType;
+    action: "replace" | "preserve";
+    summary: string;
+  }>;
+  untouchedOpenings: Array<{
+    openingId: string;
+    openingLabel: string;
+    currentType: WindowOpeningType;
+    action: "preserve";
+    summary: string;
+  }>;
   additions: string[];
   removals: WindowRemovalRule[];
   keepExactly: string[];
@@ -292,6 +343,12 @@ export interface WindowRenderConfig {
   nuovo_infisso: Record<string, unknown>;
 }
 
+export interface WindowPromptValidationResult {
+  isValid: boolean;
+  missingSections: string[];
+  missingBusinessRules: string[];
+}
+
 export interface WindowPromptBuildResult {
   systemPrompt: string;
   userPrompt: string;
@@ -300,10 +357,4 @@ export interface WindowPromptBuildResult {
   blocks: Record<string, string>;
   validation: WindowPromptValidationResult;
   normalizedConfig: WindowRenderConfig;
-}
-
-export interface WindowPromptValidationResult {
-  isValid: boolean;
-  missingSections: string[];
-  missingBusinessRules: string[];
 }
