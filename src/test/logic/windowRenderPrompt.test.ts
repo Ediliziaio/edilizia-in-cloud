@@ -152,19 +152,22 @@ describe("window render prompt", () => {
     expect(prompt.userPrompt.toLowerCase()).toContain("no visible trace of the previous installation");
   });
 
-  it("builds a coherent PVC anthracite two-sash specification", () => {
+  it("builds a coherent PVC dark grey two-sash specification (v8.3 catalog)", () => {
+    // v8.3 — la mazzetta colori RAL pura ("7016 = Grigio Antracite") è stata
+    // sostituita da una mazzetta PVC reale del fornitore italiano. Usiamo
+    // "1009_grigio_ardesia" che è il corrispettivo più scuro del nuovo catalog.
     const analysis = buildAnalysisWithOpenings();
     const config = mapWizardToConfig(
-      { ...baseState, tipo: "F2A", profilo: "pvc", coloreInfisso: "7016" },
+      { ...baseState, tipo: "F2A", profilo: "pvc", coloreInfisso: "1009_grigio_ardesia" },
       "",
       { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
     );
 
     expect(config.nuovo_infisso.materiale).toBe("pvc");
-    expect(config.technical_specification[0].finish.name).toBe("Grigio Antracite");
+    expect(config.technical_specification[0].finish.name).toBe("Grigio Ardesia");
 
     const prompt = buildWindowPrompt(config, analysis);
-    expect(prompt.userPrompt).toContain("Grigio Antracite (RAL 7016)");
+    expect(prompt.userPrompt).toContain("Grigio Ardesia (RAL 1009)");
     expect(prompt.userPrompt).toContain("double-leaf casement window");
   });
 
