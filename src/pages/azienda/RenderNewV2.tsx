@@ -26,7 +26,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
@@ -1055,6 +1054,7 @@ function StepTargeting({
                 <button
                   key={opening.id}
                   type="button"
+                  aria-pressed={checked}
                   onClick={() => toggle(opening.id)}
                   className={cn(
                     "rounded-2xl border p-4 text-left transition",
@@ -1062,7 +1062,7 @@ function StepTargeting({
                   )}
                 >
                   <div className="flex items-start gap-3">
-                    <Checkbox checked={checked} className="mt-1" />
+                    <SelectionMark checked={checked} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <div className="font-semibold">
@@ -1151,13 +1151,14 @@ function StepInfisso({
           {state.profilo && PROFILI_MANIGLIA_CENTRALE_COMPATIBILI.includes(state.profilo as WizardProfilo) && (
             <button
               type="button"
+              aria-pressed={state.manigliaCentrale}
               onClick={() => setState((current) => ({ ...current, manigliaCentrale: !current.manigliaCentrale }))}
               className={cn(
                 "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition",
                 state.manigliaCentrale ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
               )}
             >
-              <Checkbox checked={state.manigliaCentrale} className="mt-1" />
+              <SelectionMark checked={state.manigliaCentrale} />
               <div>
                 <div className="font-semibold">Nodo ridotto con maniglia centrale</div>
                 <div className="mt-1 text-sm text-muted-foreground">
@@ -1368,13 +1369,14 @@ function StepAccessori({
             <SectionTitle>Cassonetto</SectionTitle>
             <button
               type="button"
+              aria-pressed={state.cass}
               onClick={() => setState((current) => ({ ...current, cass: !current.cass }))}
               className={cn(
                 "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition",
                 state.cass ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
               )}
             >
-              <Checkbox checked={state.cass} className="mt-1" />
+              <SelectionMark checked={state.cass} />
               <div>
                 <div className="font-semibold">Sostituisci il cassonetto</div>
                 <div className="mt-1 text-sm text-muted-foreground">
@@ -1902,6 +1904,20 @@ function HandlePreview({ kind, finish }: { kind: string; finish: string }) {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <div className="text-sm font-semibold">{children}</div>;
+}
+
+function SelectionMark({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition",
+        checked ? "border-orange-500 bg-orange-500 text-white" : "border-slate-300 bg-white text-transparent",
+      )}
+    >
+      <CheckCircle2 className="h-3.5 w-3.5" />
+    </span>
+  );
 }
 
 function ChoiceCard({

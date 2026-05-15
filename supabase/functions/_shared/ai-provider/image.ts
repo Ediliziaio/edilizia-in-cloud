@@ -1,29 +1,53 @@
 // _shared/ai-provider/image.ts
-// Image generation/edit via Gemini 2.5 Flash Image Preview ("Nano Banana") con
-// fallback OpenAI gpt-image-1.5 (e gpt-image-1 come ultimo livello).
+// Image generation/edit via Gemini 2.5 Flash Image ("Nano Banana") con
+// fallback OpenRouter e OpenAI diretto.
 //
 // Compagno di openrouter.ts: stesso stile, stessi headers, stessa retry policy.
 // Tutti i render AI (infissi, bagno, facciata, pavimento, etc.) passano qui.
 //
 // Routing:
-//   1) Gemini 2.5 Flash Image Preview via OpenRouter (Nano Banana)
-//   2) Fallback: OpenAI gpt-image-1.5 (modello corrente 2026)
-//   3) Last resort: OpenAI gpt-image-1 (legacy ma stabile)
+//   1) Gemini 2.5 Flash Image via Google Gemini API diretto
+//   2) Fallback: Gemini 2.5 Flash Image via OpenRouter
+//   3) Fallback: OpenAI image via OpenRouter
+//   4) Last resort: OpenAI image diretto
 //
 // DALL-E 2/3 NON sono mai presenti nella chain. Sono deprecati.
 
 import { type AIProviderError, makeAIError } from "./types.ts";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+const GEMINI_API_ENDPOINT =
+  "https://generativelanguage.googleapis.com/v1beta/models";
 const OPENAI_IMAGES_EDIT_ENDPOINT = "https://api.openai.com/v1/images/edits";
 const DEFAULT_TIMEOUT_MS = 180_000;
 const DEFAULT_RETRIES = 2;
 
+export const IMAGE_MODEL_GEMINI_DIRECT =
+  Deno.env.get("GEMINI_IMAGE_MODEL")?.trim() ||
+  Deno.env.get("RENDER_GEMINI_MODEL")?.trim() ||
+  "gemini-2.5-flash-image";
 export const IMAGE_MODEL_PRIMARY = "google/gemini-2.5-flash-image";
-export const IMAGE_MODEL_FALLBACK_1 = "openai/gpt-image-1.5";
-export const IMAGE_MODEL_FALLBACK_2 = "openai/gpt-image-1";
+export const IMAGE_MODEL_OPENROUTER_OPENAI =
+  Deno.env.get("OPENROUTER_OPENAI_IMAGE_MODEL")?.trim() ||
+  Deno.env.get("RENDER_OPENROUTER_OPENAI_IMAGE_MODEL")?.trim() ||
+  "openai/gpt-image-1.5";
+export const IMAGE_MODEL_OPENAI_DIRECT =
+  Deno.env.get("OPENAI_IMAGE_MODEL")?.trim() ||
+  Deno.env.get("RENDER_OPENAI_IMAGE_MODEL")?.trim() ||
+  "gpt-image-1.5";
 
-export type ImageProvider = "openrouter" | "openai_direct";
+export type ImageProvider = "gemini_direct" | "openrouter" | "openai_direct";
+
+export interface ImageProviderAttempt {
+  model: string;
+  provider: ImageProvider;
+  ok: boolean;
+  tier: number;
+  latencyMs?: number;
+  error?: string;
+  code?: string;
+  status?: number;
+}
 
 export interface ImageEditParams {
   /** Prompt completo (system+user concatenato dal chiamante). */
@@ -31,10 +55,10 @@ export interface ImageEditParams {
   /** Foto sorgente in Blob (preferito) o data URL base64. */
   sourceImageBlob?: Blob;
   sourceImageDataUrl?: string;
-  /** Hint dimensioni dell'input — usato per scegliere size OpenAI. */
+  /** Hint dimensioni dell'input — usato solo da eventuali provider fallback. */
   effectiveWidth?: number;
   effectiveHeight?: number;
-  /** OpenAI quality tier — default "medium" (€0.042/img su 1024). */
+  /** OpenAI quality tier — usato sui fallback OpenAI. */
   openaiQuality?: "low" | "medium" | "high";
   /** Negative prompt opzionale — su Gemini viene incluso nel prompt. */
   negativePrompt?: string;
@@ -54,6 +78,8 @@ export interface ImageEditResult {
   modelUsed: string;
   providerUsed: ImageProvider;
   attempts: number;
+  /** Storico completo dei provider provati, inclusi i fallback falliti. */
+  attemptHistory: ImageProviderAttempt[];
   rawResponse: Record<string, unknown>;
   costUsd?: number;
   costIsEstimated: boolean;
@@ -61,29 +87,84 @@ export interface ImageEditResult {
 }
 
 /**
- * Edit foto con fallback Gemini → OpenAI.
+ * Edit foto con fallback Gemini diretto → OpenRouter Gemini → OpenRouter OpenAI → OpenAI diretto.
  * Throw aggregato se TUTTI i modelli falliscono.
  */
 export async function editImage(
   args: ImageEditParams,
 ): Promise<ImageEditResult> {
   const errors: Array<{ model: string; error: string }> = [];
+  const attemptHistory: ImageProviderAttempt[] = [];
 
-  // ── 1) Gemini Nano Banana via OpenRouter ────────────────────────────────
+  // ── 1) Gemini Nano Banana diretto ───────────────────────────────────────
+  try {
+    const result = await callGeminiImage({
+      model: IMAGE_MODEL_GEMINI_DIRECT,
+      params: args,
+    });
+    attemptHistory.push({
+      model: IMAGE_MODEL_GEMINI_DIRECT,
+      provider: "gemini_direct",
+      ok: true,
+      tier: 1,
+      latencyMs: result.latencyMs,
+    });
+    return {
+      ...result,
+      attempts: 1,
+      providerUsed: "gemini_direct",
+      attemptHistory,
+    };
+  } catch (e) {
+    const err = e as AIProviderError;
+    errors.push({ model: IMAGE_MODEL_GEMINI_DIRECT, error: err.message });
+    attemptHistory.push({
+      model: IMAGE_MODEL_GEMINI_DIRECT,
+      provider: "gemini_direct",
+      ok: false,
+      tier: 1,
+      error: err.message.substring(0, 500),
+      code: err.code,
+      status: err.provider_status,
+    });
+    logImageError({
+      session_id: args.metadata.session_id,
+      model: IMAGE_MODEL_GEMINI_DIRECT,
+      msg: err.message,
+    });
+  }
+
+  // ── 2) Gemini Nano Banana via OpenRouter ────────────────────────────────
   try {
     const result = await callOpenRouterImage({
       model: IMAGE_MODEL_PRIMARY,
       params: args,
     });
-    return { ...result, attempts: 1, providerUsed: "openrouter" };
+    attemptHistory.push({
+      model: IMAGE_MODEL_PRIMARY,
+      provider: "openrouter",
+      ok: true,
+      tier: 2,
+      latencyMs: result.latencyMs,
+    });
+    return {
+      ...result,
+      attempts: 2,
+      providerUsed: "openrouter",
+      attemptHistory,
+    };
   } catch (e) {
     const err = e as AIProviderError;
     errors.push({ model: IMAGE_MODEL_PRIMARY, error: err.message });
-    if (err.code === "invalid_api_key") {
-      // OpenRouter key rotta — non ha senso provare il fallback OpenAI
-      // se la chain è configurata per passare ENTRAMBI via OpenRouter.
-      // Procediamo comunque su OpenAI diretto (separate API key).
-    }
+    attemptHistory.push({
+      model: IMAGE_MODEL_PRIMARY,
+      provider: "openrouter",
+      ok: false,
+      tier: 2,
+      error: err.message.substring(0, 500),
+      code: err.code,
+      status: err.provider_status,
+    });
     logImageError({
       session_id: args.metadata.session_id,
       model: IMAGE_MODEL_PRIMARY,
@@ -91,48 +172,93 @@ export async function editImage(
     });
   }
 
-  // ── 2) Fallback OpenAI gpt-image-1.5 (diretto, non OpenRouter) ──────────
+  // ── 3) OpenAI image via OpenRouter ─────────────────────────────────────
   try {
-    const result = await callOpenAIImage({
-      model: "gpt-image-1.5",
+    const result = await callOpenRouterImage({
+      model: IMAGE_MODEL_OPENROUTER_OPENAI,
       params: args,
     });
-    return { ...result, attempts: 2, providerUsed: "openai_direct" };
+    attemptHistory.push({
+      model: IMAGE_MODEL_OPENROUTER_OPENAI,
+      provider: "openrouter",
+      ok: true,
+      tier: 3,
+      latencyMs: result.latencyMs,
+    });
+    return {
+      ...result,
+      attempts: 3,
+      providerUsed: "openrouter",
+      attemptHistory,
+    };
   } catch (e) {
     const err = e as AIProviderError;
-    errors.push({ model: "gpt-image-1.5", error: err.message });
+    errors.push({ model: IMAGE_MODEL_OPENROUTER_OPENAI, error: err.message });
+    attemptHistory.push({
+      model: IMAGE_MODEL_OPENROUTER_OPENAI,
+      provider: "openrouter",
+      ok: false,
+      tier: 3,
+      error: err.message.substring(0, 500),
+      code: err.code,
+      status: err.provider_status,
+    });
     logImageError({
       session_id: args.metadata.session_id,
-      model: "gpt-image-1.5",
+      model: IMAGE_MODEL_OPENROUTER_OPENAI,
       msg: err.message,
     });
   }
 
-  // ── 3) Last resort: OpenAI gpt-image-1 (legacy) ─────────────────────────
+  // ── 4) Last resort: OpenAI diretto ─────────────────────────────────────
   try {
     const result = await callOpenAIImage({
-      model: "gpt-image-1",
+      model: IMAGE_MODEL_OPENAI_DIRECT,
       params: args,
     });
-    return { ...result, attempts: 3, providerUsed: "openai_direct" };
+    attemptHistory.push({
+      model: IMAGE_MODEL_OPENAI_DIRECT,
+      provider: "openai_direct",
+      ok: true,
+      tier: 4,
+      latencyMs: result.latencyMs,
+    });
+    return {
+      ...result,
+      attempts: 4,
+      providerUsed: "openai_direct",
+      attemptHistory,
+    };
   } catch (e) {
     const err = e as AIProviderError;
-    errors.push({ model: "gpt-image-1", error: err.message });
+    errors.push({ model: IMAGE_MODEL_OPENAI_DIRECT, error: err.message });
+    attemptHistory.push({
+      model: IMAGE_MODEL_OPENAI_DIRECT,
+      provider: "openai_direct",
+      ok: false,
+      tier: 4,
+      error: err.message.substring(0, 500),
+      code: err.code,
+      status: err.provider_status,
+    });
     logImageError({
       session_id: args.metadata.session_id,
-      model: "gpt-image-1",
+      model: IMAGE_MODEL_OPENAI_DIRECT,
       msg: err.message,
     });
   }
 
-  throw makeAIError(
-    "unknown",
-    `Image edit failed on all providers: ${
-      errors
-        .map((e) => `[${e.model}] ${e.error}`)
-        .join(" | ")
-    }`,
-    false,
+  throw withAttemptHistory(
+    makeAIError(
+      "unknown",
+      `Image edit failed on all providers: ${
+        errors
+          .map((e) => `[${e.model}] ${e.error}`)
+          .join(" | ")
+      }`,
+      false,
+    ),
+    attemptHistory,
   );
 }
 
@@ -152,6 +278,162 @@ interface ProviderCallResult {
   costUsd?: number;
   costIsEstimated: boolean;
   latencyMs: number;
+}
+
+async function callGeminiImage(
+  args: ProviderCallArgs,
+): Promise<ProviderCallResult> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw makeAIError(
+      "invalid_api_key",
+      "GEMINI_API_KEY non configurata nei Supabase secrets",
+      false,
+    );
+  }
+
+  const timeoutMs = args.params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const sourceDataUrl = await ensureSourceDataUrl(args.params);
+  const { mime, base64 } = splitDataUrl(sourceDataUrl);
+  const fullPrompt = args.params.negativePrompt
+    ? `${args.params.prompt}\n\n[NEGATIVE]\n${args.params.negativePrompt}`
+    : args.params.prompt;
+
+  const body = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: fullPrompt },
+          { inline_data: { mime_type: mime, data: base64 } },
+        ],
+      },
+    ],
+    generationConfig: {
+      responseModalities: ["Image"],
+    },
+  };
+
+  const backoff = [1500, 4000];
+  let lastErr: AIProviderError | null = null;
+
+  for (let attempt = 0; attempt <= DEFAULT_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const startMs = Date.now();
+
+    try {
+      const resp = await fetch(
+        `${GEMINI_API_ENDPOINT}/${args.model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        },
+      );
+      clearTimeout(timer);
+      const latencyMs = Date.now() - startMs;
+
+      if (resp.status === 429) {
+        const txt = await safeRead(resp);
+        lastErr = makeAIError("rate_limit", `Gemini 429: ${txt}`, true, 429);
+        if (attempt < DEFAULT_RETRIES) {
+          await sleep(backoff[attempt] ?? 4000);
+          continue;
+        }
+        throw lastErr;
+      }
+
+      if (resp.status >= 500) {
+        const txt = await safeRead(resp);
+        lastErr = makeAIError(
+          "unknown",
+          `Gemini ${resp.status}: ${txt}`,
+          true,
+          resp.status,
+        );
+        if (attempt < DEFAULT_RETRIES) {
+          await sleep(backoff[attempt] ?? 4000);
+          continue;
+        }
+        throw lastErr;
+      }
+
+      if (resp.status === 401 || resp.status === 403) {
+        throw makeAIError(
+          "invalid_api_key",
+          `Gemini ${resp.status}`,
+          false,
+          resp.status,
+        );
+      }
+
+      if (resp.status === 404) {
+        throw makeAIError(
+          "model_not_found",
+          `Gemini model not available: ${args.model}`,
+          false,
+          404,
+        );
+      }
+
+      if (!resp.ok) {
+        const txt = await safeRead(resp);
+        throw makeAIError(
+          "unknown",
+          `Gemini ${resp.status}: ${txt.substring(0, 300)}`,
+          false,
+          resp.status,
+        );
+      }
+
+      const json = (await resp.json()) as Record<string, unknown>;
+      const imageDataUrl = extractGeminiImage(json);
+      if (!imageDataUrl) {
+        throw makeAIError("unknown", "Gemini: no image in response", false);
+      }
+
+      return {
+        imageDataUrl,
+        modelUsed: args.model,
+        rawResponse: json,
+        costUsd: undefined,
+        costIsEstimated: true,
+        latencyMs,
+      };
+    } catch (e) {
+      clearTimeout(timer);
+      const err = e as AIProviderError;
+      if (err?.code) {
+        if (!err.retryable || attempt >= DEFAULT_RETRIES) throw err;
+        lastErr = err;
+        await sleep(backoff[attempt] ?? 4000);
+        continue;
+      }
+      const asError = e as Error;
+      if (asError.name === "AbortError") {
+        lastErr = makeAIError("timeout", `Timeout dopo ${timeoutMs}ms`, true);
+        if (attempt < DEFAULT_RETRIES) {
+          await sleep(backoff[attempt] ?? 4000);
+          continue;
+        }
+        throw lastErr;
+      }
+      lastErr = makeAIError("unknown", String(asError.message ?? e), true);
+      if (attempt < DEFAULT_RETRIES) {
+        await sleep(backoff[attempt] ?? 4000);
+        continue;
+      }
+      throw lastErr;
+    }
+  }
+
+  throw lastErr ??
+    makeAIError("unknown", "Errore image edit Gemini dopo retry", false);
 }
 
 async function callOpenRouterImage(
@@ -529,6 +811,50 @@ function extractOpenRouterImage(json: Record<string, unknown>): string | null {
   }
 
   return null;
+}
+
+function extractGeminiImage(json: Record<string, unknown>): string | null {
+  const candidates = (json.candidates as Array<Record<string, unknown>>) ?? [];
+  const content = (candidates[0]?.content as Record<string, unknown>) ?? {};
+  const parts = (content.parts as Array<Record<string, unknown>>) ?? [];
+
+  for (const part of parts) {
+    const inlineData =
+      (part.inlineData as Record<string, unknown> | undefined) ??
+        (part.inline_data as Record<string, unknown> | undefined);
+    const data = inlineData?.data;
+    const mime = inlineData?.mimeType ?? inlineData?.mime_type ?? "image/png";
+    if (typeof data === "string" && data.length > 0) {
+      return data.startsWith("data:image/")
+        ? data
+        : `data:${mime};base64,${data}`;
+    }
+  }
+
+  return null;
+}
+
+function getGeminiApiKey(): string {
+  return Deno.env.get("GEMINI_API_KEY")?.trim() ||
+    Deno.env.get("GOOGLE_API_KEY")?.trim() ||
+    Deno.env.get("GOOGLE_GENERATIVE_AI_API_KEY")?.trim() ||
+    Deno.env.get("RENDER_GEMINI_API_KEY")?.trim() ||
+    "";
+}
+
+function splitDataUrl(dataUrl: string): { mime: string; base64: string } {
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) {
+    throw makeAIError("unknown", "Invalid source image data URL", false);
+  }
+  return { mime: match[1], base64: match[2] };
+}
+
+function withAttemptHistory(
+  error: AIProviderError,
+  attemptHistory: ImageProviderAttempt[],
+): AIProviderError & { attemptHistory: ImageProviderAttempt[] } {
+  return Object.assign(error, { attemptHistory });
 }
 
 function pickOpenAISize(w?: number, h?: number): string {

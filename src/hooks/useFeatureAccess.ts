@@ -2,6 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { withClientTimeout } from "@/lib/query-timeout";
+import { queryKeys } from "@/lib/queryKeys";
+
+const FEATURE_ACCESS_TIMEOUT_MS = 20_000;
 
 /**
  * Hook unificato per il gating delle feature.
@@ -40,6 +43,39 @@ export interface FeatureAccess {
   refetch: () => void;
 }
 
+// Shape della riga ritornata da RPC `resolve_company_feature` lato DB.
+// Se la feature è sconosciuta la RPC ritorna comunque una riga con
+// `is_enabled=false, source='default'` → fail-closed.
+interface ResolveRow {
+  is_enabled: boolean;
+  source: "override" | "plan_default" | "plan" | "default";
+  limit_value: number | null;
+  price_override: number | null;
+  expires_at: string | null;
+}
+
+interface ResolvedFeatureRow extends ResolveRow {
+  feature_key: string;
+}
+
+const normalizeSource = (source: string | null | undefined): ResolveRow["source"] => {
+  if (source === "override" || source === "plan_default" || source === "plan") {
+    return source;
+  }
+  return "default";
+};
+
+const normalizeResolvedFeatureRow = (row: ResolvedFeatureRow | undefined): ResolveRow | null => {
+  if (!row) return null;
+  return {
+    is_enabled: Boolean(row.is_enabled),
+    source: normalizeSource(row.source),
+    limit_value: row.limit_value ?? null,
+    price_override: row.price_override ?? null,
+    expires_at: row.expires_at ?? null,
+  };
+};
+
 export function useFeatureAccess(
   featureKey: string,
   companyIdOverride?: string,
@@ -70,16 +106,36 @@ export function useFeatureAccess(
     !!impersonatedCompanyId &&
     !!impersonationToken;
 
-  // Shape della riga ritornata da RPC `resolve_company_feature` lato DB.
-  // Se la feature è sconosciuta la RPC ritorna comunque una riga con
-  // `is_enabled=false, source='default'` → fail-closed.
-  interface ResolveRow {
-    is_enabled: boolean;
-    source: "override" | "plan_default" | "plan" | "default";
-    limit_value: number | null;
-    price_override: number | null;
-    expires_at: string | null;
-  }
+  // La sidebar usa già `resolve_company_features`; sottoscriverci alla stessa
+  // query evita una seconda verifica fragile al primo mount della route. Se il
+  // resolver bulk ha già risposto, il guard può decidere subito senza mostrare
+  // falsi timeout; se non ha dati, resta il fallback fail-closed sulla RPC
+  // singola sotto.
+  const {
+    data: resolvedFeatures = [],
+    isLoading: resolvedFeaturesLoading,
+    isFetching: resolvedFeaturesFetching,
+    isError: resolvedFeaturesError,
+    error: resolvedFeaturesErrorObj,
+    refetch: refetchResolvedFeatures,
+  } = useQuery<ResolvedFeatureRow[], Error>({
+    queryKey: queryKeys.featureFlags.companyResolved(companyId),
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase.rpc("resolve_company_features", {
+        p_company_id: companyId,
+      });
+      if (error) throw error;
+      return (data ?? []) as ResolvedFeatureRow[];
+    },
+    enabled: !!companyId && !bypass,
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+
+  const resolvedFeature = normalizeResolvedFeatureRow(
+    resolvedFeatures.find((row) => row.feature_key === featureKey),
+  );
 
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery<ResolveRow | null, Error>({
     queryKey: ["feature-access", companyId, featureKey],
@@ -96,6 +152,7 @@ export function useFeatureAccess(
           } as never,
         ),
         `Verifica accesso ${featureKey}`,
+        FEATURE_ACCESS_TIMEOUT_MS,
       );
       if (error) throw error;
       // La RPC ritorna SETOF RECORD → client normalizza ad array o singolo.
@@ -104,8 +161,12 @@ export function useFeatureAccess(
         : ((data as ResolveRow | null) ?? null);
       return row;
     },
-    enabled: !!companyId && !!featureKey && !bypass,
+    enabled: !!companyId && !!featureKey && !bypass && !resolvedFeature,
     staleTime: 60 * 1000, // 1 min — override cambiano raramente ma bisogna reagire veloce
+    retry: (failureCount, queryError) => {
+      const isTransient = /timeout|network|fetch/i.test(queryError.message);
+      return isTransient && failureCount < 1;
+    },
   });
 
   if (bypass) {
@@ -123,16 +184,23 @@ export function useFeatureAccess(
     };
   }
 
+  const effectiveData = resolvedFeature ?? data ?? null;
+  const effectiveError = error?.message ?? resolvedFeaturesErrorObj?.message ?? null;
+  const effectiveIsError = !effectiveData && (isError || resolvedFeaturesError);
+
   return {
-    isEnabled: Boolean(data?.is_enabled),
-    source: (data?.source as FeatureAccess["source"]) ?? "default",
-    limit: data?.limit_value ?? null,
-    priceOverride: data?.price_override ?? null,
-    expiresAt: data?.expires_at ?? null,
-    isLoading: authLoading || isLoading,
-    isError,
-    isFetching,
-    errorMessage: error?.message ?? null,
-    refetch: () => { void refetch(); },
+    isEnabled: Boolean(effectiveData?.is_enabled),
+    source: (effectiveData?.source as FeatureAccess["source"]) ?? "default",
+    limit: effectiveData?.limit_value ?? null,
+    priceOverride: effectiveData?.price_override ?? null,
+    expiresAt: effectiveData?.expires_at ?? null,
+    isLoading: authLoading || (!effectiveData && (resolvedFeaturesLoading || isLoading)),
+    isError: effectiveIsError,
+    isFetching: resolvedFeaturesFetching || isFetching,
+    errorMessage: effectiveIsError ? effectiveError : null,
+    refetch: () => {
+      void refetchResolvedFeatures();
+      void refetch();
+    },
   };
 }

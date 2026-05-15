@@ -1,10 +1,16 @@
 // generate-shutter-render — Edge Function EiC
 // Render Persiane AI — Provider unificato OpenRouter + fallback
 
-import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import {
+  deductRenderCreditSafe,
+  refundRenderCreditSafe,
+} from "../_shared/renderCreditDeduct.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
@@ -16,7 +22,8 @@ import type { PersianePhotoMeta } from "../../../shared/render-persiane/types.ts
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 const JSON_HEADERS = { ...CORS, "Content-Type": "application/json" };
@@ -58,7 +65,9 @@ async function downloadImageAsInlineData(imageUrl: string): Promise<{
     throw new Error(`Impossibile scaricare l'immagine (${imgResp.status})`);
   }
 
-  const mimeType = (imgResp.headers.get("content-type") || "image/jpeg").split(";")[0] || "image/jpeg";
+  const mimeType =
+    (imgResp.headers.get("content-type") || "image/jpeg").split(";")[0] ||
+    "image/jpeg";
   const imgBuffer = await imgResp.arrayBuffer();
 
   if (imgBuffer.byteLength === 0) {
@@ -79,10 +88,15 @@ function readUint32BE(bytes: Uint8Array, offset: number): number {
   ) >>> 0;
 }
 
-function detectImageDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+function detectImageDimensions(
+  bytes: Uint8Array,
+): { width: number; height: number } | null {
   if (bytes.length < 16) return null;
 
-  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+  if (
+    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
     if (bytes.length < 24) return null;
     return { width: readUint32BE(bytes, 16), height: readUint32BE(bytes, 20) };
   }
@@ -102,8 +116,7 @@ function detectImageDimensions(bytes: Uint8Array): { width: number; height: numb
       const length = (bytes[offset] << 8) | bytes[offset + 1];
       if (length < 2 || offset + length > bytes.length) break;
 
-      const isSofMarker =
-        (marker >= 0xc0 && marker <= 0xc3) ||
+      const isSofMarker = (marker >= 0xc0 && marker <= 0xc3) ||
         (marker >= 0xc5 && marker <= 0xc7) ||
         (marker >= 0xc9 && marker <= 0xcb) ||
         (marker >= 0xcd && marker <= 0xcf);
@@ -122,13 +135,20 @@ function detectImageDimensions(bytes: Uint8Array): { width: number; height: numb
   return null;
 }
 
-function orientationFromDimensions(width: number, height: number): PersianePhotoMeta["orientation"] {
+function orientationFromDimensions(
+  width: number,
+  height: number,
+): PersianePhotoMeta["orientation"] {
   if (width === height) return "square";
   return width > height ? "landscape" : "portrait";
 }
 
-function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string; extension: string } {
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
+function dataUrlToBytes(
+  dataUrl: string,
+): { bytes: Uint8Array; mimeType: string; extension: string } {
+  const match = dataUrl.match(
+    /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/,
+  );
   if (!match) {
     throw new Error("Formato immagine provider non valido");
   }
@@ -140,11 +160,13 @@ function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string;
     bytes[i] = binary.charCodeAt(i);
   }
 
-  const extension =
-    mimeType.includes("png") ? "png" :
-    mimeType.includes("webp") ? "webp" :
-    mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" :
-    "png";
+  const extension = mimeType.includes("png")
+    ? "png"
+    : mimeType.includes("webp")
+    ? "webp"
+    : mimeType.includes("jpeg") || mimeType.includes("jpg")
+    ? "jpg"
+    : "png";
 
   return { bytes, mimeType, extension };
 }
@@ -154,17 +176,23 @@ async function runPersianeAnalysis(params: {
   companyId: string | null;
   sessionId: string | null;
 }): Promise<Record<string, unknown>> {
-  const { mimeType, base64, bytes } = await downloadImageAsInlineData(params.imageUrl);
+  const { mimeType, base64, bytes } = await downloadImageAsInlineData(
+    params.imageUrl,
+  );
   const dimensions = detectImageDimensions(bytes);
   const photoMeta: PersianePhotoMeta | null = dimensions
     ? {
-        width: dimensions.width,
-        height: dimensions.height,
-        orientation: orientationFromDimensions(dimensions.width, dimensions.height),
-      }
+      width: dimensions.width,
+      height: dimensions.height,
+      orientation: orientationFromDimensions(
+        dimensions.width,
+        dimensions.height,
+      ),
+    }
     : null;
 
-  const analyzePrompt = `You are an expert architectural facade and shutter analyzer.
+  const analyzePrompt =
+    `You are an expert architectural facade and shutter analyzer.
 Analyze the provided facade/window photo and return ONLY a valid JSON object.
 
 Return this exact schema:
@@ -240,11 +268,17 @@ Important rules:
     timeoutMs: 90_000,
   });
 
-  const analysis = normalizePersianeSceneAnalysis(analysisResult.parsed, photoMeta) as unknown as Record<string, unknown>;
+  const analysis = normalizePersianeSceneAnalysis(
+    analysisResult.parsed,
+    photoMeta,
+  ) as unknown as Record<string, unknown>;
   return analysis;
 }
 
-async function loadSession(supabase: SupabaseClient, sessionId: string): Promise<PersianeSessionRow | null> {
+async function loadSession(
+  supabase: SupabaseClient,
+  sessionId: string,
+): Promise<PersianeSessionRow | null> {
   const { data, error } = await supabase
     .from("render_persiane_sessions")
     .select("id, company_id, original_photo_url, config, status, result_urls")
@@ -293,18 +327,31 @@ Deno.serve(async (req) => {
 
     if (action === "analyze") {
       if (!image_url) {
-        return jsonResponse({ error: "validation_error", message: "image_url is required for analyze" }, 400);
+        return jsonResponse({
+          error: "validation_error",
+          message: "image_url is required for analyze",
+        }, 400);
       }
 
       let analysisImageUrl = image_url;
       if (session_id) {
         const session = await loadSession(supabase, session_id);
         if (!session) {
-          return jsonResponse({ error: "not_found", message: "Sessione non trovata" }, 404);
+          return jsonResponse({
+            error: "not_found",
+            message: "Sessione non trovata",
+          }, 404);
         }
-        const allowed = await canAccessCompany(supabase, user.id, session.company_id);
+        const allowed = await canAccessCompany(
+          supabase,
+          user.id,
+          session.company_id,
+        );
         if (!allowed) {
-          return jsonResponse({ error: "forbidden", message: "Accesso negato alla sessione render persiane" }, 403);
+          return jsonResponse({
+            error: "forbidden",
+            message: "Accesso negato alla sessione render persiane",
+          }, 403);
         }
 
         if (session.original_photo_url) {
@@ -321,7 +368,9 @@ Deno.serve(async (req) => {
 
       const analysis = await runPersianeAnalysis({
         imageUrl: analysisImageUrl,
-        companyId: session_id ? (await loadSession(supabase, session_id))?.company_id ?? null : null,
+        companyId: session_id
+          ? (await loadSession(supabase, session_id))?.company_id ?? null
+          : null,
         sessionId: session_id ?? null,
       });
       return jsonResponse({
@@ -332,18 +381,31 @@ Deno.serve(async (req) => {
     }
 
     if (!session_id) {
-      return jsonResponse({ error: "validation_error", message: "session_id is required" }, 400);
+      return jsonResponse({
+        error: "validation_error",
+        message: "session_id is required",
+      }, 400);
     }
 
     const session = await loadSession(supabase, session_id);
     if (!session) {
-      return jsonResponse({ error: "not_found", message: "Sessione non trovata" }, 404);
+      return jsonResponse({
+        error: "not_found",
+        message: "Sessione non trovata",
+      }, 404);
     }
     refundableCompanyId = session.company_id;
 
-    const allowed = await canAccessCompany(supabase, user.id, session.company_id);
+    const allowed = await canAccessCompany(
+      supabase,
+      user.id,
+      session.company_id,
+    );
     if (!allowed) {
-      return jsonResponse({ error: "forbidden", message: "Accesso negato alla sessione render persiane" }, 403);
+      return jsonResponse({
+        error: "forbidden",
+        message: "Accesso negato alla sessione render persiane",
+      }, 403);
     }
 
     if (session.status === "processing") {
@@ -355,7 +417,10 @@ Deno.serve(async (req) => {
       }, 202);
     }
 
-    if (session.status === "completed" && Array.isArray(session.result_urls) && session.result_urls.length > 0) {
+    if (
+      session.status === "completed" && Array.isArray(session.result_urls) &&
+      session.result_urls.length > 0
+    ) {
       return jsonResponse({
         success: true,
         result_url: session.result_urls[0],
@@ -405,7 +470,10 @@ Deno.serve(async (req) => {
           processing_completed_at: new Date().toISOString(),
         })
         .eq("id", session_id);
-      return jsonResponse({ error: "insufficient_credits", message: "Crediti render insufficienti" }, 402);
+      return jsonResponse({
+        error: "insufficient_credits",
+        message: "Crediti render insufficienti",
+      }, 402);
     }
     creditDeducted = true;
 
@@ -431,10 +499,13 @@ Deno.serve(async (req) => {
 
     const photoMeta: PersianePhotoMeta | null = sourceDimensions
       ? {
-          width: sourceDimensions.width,
-          height: sourceDimensions.height,
-          orientation: orientationFromDimensions(sourceDimensions.width, sourceDimensions.height),
-        }
+        width: sourceDimensions.width,
+        height: sourceDimensions.height,
+        orientation: orientationFromDimensions(
+          sourceDimensions.width,
+          sourceDimensions.height,
+        ),
+      }
       : null;
 
     const promptResult = buildPersianePrompt(
@@ -480,7 +551,11 @@ Deno.serve(async (req) => {
       },
     });
 
-    const providerKey = providerResult.providerUsed === "openrouter" ? "openrouter_image" : "openai";
+    const providerKey = providerResult.providerUsed === "gemini_direct"
+      ? "gemini"
+      : providerResult.providerUsed === "openrouter"
+      ? "openrouter_image"
+      : "openai";
     const modelUsed = providerResult.modelUsed;
     const providerRawResponse = {
       ...providerResult.rawResponse,
@@ -492,7 +567,8 @@ Deno.serve(async (req) => {
     };
 
     const uploadPayload = dataUrlToBytes(providerResult.imageDataUrl);
-    const resultPath = `${session.company_id}/${session_id}/render_persiane_${Date.now()}.${uploadPayload.extension}`;
+    const resultPath =
+      `${session.company_id}/${session_id}/render_persiane_${Date.now()}.${uploadPayload.extension}`;
 
     const { error: uploadErr } = await supabase.storage
       .from("persiane-results")
@@ -545,7 +621,9 @@ Deno.serve(async (req) => {
     if (billingConfig?.id) {
       await supabase
         .from("render_provider_config")
-        .update({ renders_generated: Number(billingConfig.renders_generated ?? 0) + 1 })
+        .update({
+          renders_generated: Number(billingConfig.renders_generated ?? 0) + 1,
+        })
         .eq("id", billingConfig.id);
     }
 
@@ -560,7 +638,9 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     if (err instanceof Response) return err;
-    const message = err instanceof Error ? err.message : "Errore interno sconosciuto";
+    const message = err instanceof Error
+      ? err.message
+      : "Errore interno sconosciuto";
     console.error("[generate-shutter-render] error:", message);
 
     try {
@@ -570,7 +650,11 @@ Deno.serve(async (req) => {
             companyId: refundableCompanyId,
             sessionId: requestSessionId,
             userId: user.id,
-            reasonMeta: { vertical: "persiane", edge_fn: "generate-shutter-render", error: message.substring(0, 500) },
+            reasonMeta: {
+              vertical: "persiane",
+              edge_fn: "generate-shutter-render",
+              error: message.substring(0, 500),
+            },
             logTag: "generate-shutter-render",
           });
         }

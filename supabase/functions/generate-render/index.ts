@@ -14,7 +14,7 @@
 //   ✓ provider_chain_used tracking
 //
 // Routing:
-//   image edit  → Gemini Nano Banana → OpenAI gpt-image-1.5 → gpt-image-1
+//   image edit  → Gemini diretto → OpenRouter Gemini
 //   QA vision   → Gemini Flash → Claude Haiku → GPT-4o mini
 //
 // NON modifica la pipeline di prompt engineering in shared/render-window/.
@@ -28,7 +28,10 @@ import {
   deductRenderCreditSafe,
   refundRenderCreditSafe,
 } from "../_shared/renderCreditDeduct.ts";
-import { editImage } from "../_shared/ai-provider/image.ts";
+import {
+  editImage,
+  type ImageProviderAttempt,
+} from "../_shared/ai-provider/image.ts";
 import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
 import { buildWindowPrompt } from "../../../shared/render-window/windowPromptBuilder.ts";
 import type { WindowRenderConfig } from "../../../shared/render-window/types.ts";
@@ -186,6 +189,9 @@ Deno.serve(async (req) => {
     error?: string;
     provider?: string;
     provider_attempts?: number;
+    tier?: number;
+    code?: string;
+    status?: number;
   }> = [];
 
   try {
@@ -400,29 +406,60 @@ Deno.serve(async (req) => {
     const sourceBlob = await imgResp.blob();
 
     // ── Genera candidate render ──────────────────────────────────────────
+    const appendProviderAttempts = (
+      attempts: ImageProviderAttempt[],
+      providerAttempts: number,
+    ) => {
+      attempts.forEach((attempt) => {
+        providerChain.push({
+          model: attempt.model,
+          attempt: providerChain.length + 1,
+          ok: attempt.ok,
+          latency_ms: attempt.latencyMs,
+          error: attempt.error,
+          provider: attempt.provider,
+          provider_attempts: providerAttempts,
+          tier: attempt.tier,
+          code: attempt.code,
+          status: attempt.status,
+        });
+      });
+    };
+
     const generateCandidate = async (promptText: string) => {
-      const result = await editImage({
-        prompt: promptText,
-        sourceImageBlob: sourceBlob,
-        effectiveWidth: prepared.effective_width ?? undefined,
-        effectiveHeight: prepared.effective_height ?? undefined,
-        negativePrompt,
-        timeoutMs: 180_000,
-        metadata: {
-          task_kind: "render_image_edit",
-          company_id: session.company_id as string,
-          session_id,
-        },
-      });
-      providerChain.push({
-        model: result.modelUsed,
-        attempt: providerChain.length + 1,
-        ok: true,
-        latency_ms: result.latencyMs,
-        provider: result.providerUsed,
-        provider_attempts: result.attempts,
-      });
-      return result;
+      try {
+        const result = await editImage({
+          prompt: promptText,
+          sourceImageBlob: sourceBlob,
+          effectiveWidth: prepared.effective_width ?? undefined,
+          effectiveHeight: prepared.effective_height ?? undefined,
+          negativePrompt,
+          timeoutMs: 180_000,
+          metadata: {
+            task_kind: "render_image_edit",
+            company_id: session.company_id as string,
+            session_id,
+          },
+        });
+        const attempts = result.attemptHistory?.length
+          ? result.attemptHistory
+          : [{
+            model: result.modelUsed,
+            provider: result.providerUsed,
+            ok: true,
+            tier: result.attempts,
+            latencyMs: result.latencyMs,
+          }];
+        appendProviderAttempts(attempts, result.attempts);
+        return result;
+      } catch (err) {
+        const attempts = (err as { attemptHistory?: ImageProviderAttempt[] })
+          .attemptHistory;
+        if (attempts?.length) {
+          appendProviderAttempts(attempts, attempts.length);
+        }
+        throw err;
+      }
     };
 
     let composedPrompt = originalPrompt;
@@ -487,7 +524,9 @@ Deno.serve(async (req) => {
     const resultUrl = publicUrlData.publicUrl;
 
     // ── Capture costo reale ──────────────────────────────────────────────
-    const providerKey = candidate.providerUsed === "openrouter"
+    const providerKey = candidate.providerUsed === "gemini_direct"
+      ? "gemini"
+      : candidate.providerUsed === "openrouter"
       ? "openrouter_image"
       : "openai";
     const providerRawResponse = {

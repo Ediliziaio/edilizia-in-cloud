@@ -4,7 +4,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import {
+  deductRenderCreditSafe,
+  refundRenderCreditSafe,
+} from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
@@ -15,7 +18,8 @@ import type { FloorPhotoMeta } from "../../../shared/render-floor/types.ts";
 // ── CORS ──────────────────────────────────────────────────────────────────────
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -37,7 +41,9 @@ async function downloadImageAsInlineData(imageUrl: string): Promise<{
   if (!imgResp.ok) {
     throw new Error(`Impossibile scaricare l'immagine (${imgResp.status})`);
   }
-  const mimeType = (imgResp.headers.get("content-type") || "image/jpeg").split(";")[0] || "image/jpeg";
+  const mimeType =
+    (imgResp.headers.get("content-type") || "image/jpeg").split(";")[0] ||
+    "image/jpeg";
   const imgBuffer = await imgResp.arrayBuffer();
   if (imgBuffer.byteLength === 0) {
     throw new Error("L'immagine originale risulta vuota");
@@ -54,7 +60,9 @@ function dataUrlToBytes(dataUrl: string): {
   mimeType: string;
   extension: string;
 } {
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
+  const match = dataUrl.match(
+    /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/,
+  );
   if (!match) {
     throw new Error("Formato immagine provider non valido");
   }
@@ -66,11 +74,13 @@ function dataUrlToBytes(dataUrl: string): {
     bytes[i] = binary.charCodeAt(i);
   }
 
-  const extension =
-    mimeType.includes("png") ? "png" :
-    mimeType.includes("webp") ? "webp" :
-    mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" :
-    "png";
+  const extension = mimeType.includes("png")
+    ? "png"
+    : mimeType.includes("webp")
+    ? "webp"
+    : mimeType.includes("jpeg") || mimeType.includes("jpg")
+    ? "jpg"
+    : "png";
 
   return { bytes, mimeType, extension };
 }
@@ -79,7 +89,7 @@ function dataUrlToBytes(dataUrl: string): {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeoutMs = 120_000
+  timeoutMs = 120_000,
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -97,7 +107,7 @@ Deno.serve(async (req) => {
 
   let supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   let user = { id: "" };
   let refundableSessionId: string | null = null;
@@ -111,7 +121,16 @@ Deno.serve(async (req) => {
 
     // ── Parse request ───────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
-    const { action, session_id, config, image_url, target_width, target_height, analysis, photo_meta } = body as {
+    const {
+      action,
+      session_id,
+      config,
+      image_url,
+      target_width,
+      target_height,
+      analysis,
+      photo_meta,
+    } = body as {
       action?: string;
       session_id?: string;
       config?: Record<string, unknown>;
@@ -128,40 +147,66 @@ Deno.serve(async (req) => {
     if (action === "analyze") {
       if (!image_url) {
         return new Response(
-          JSON.stringify({ error: "validation_error", message: "image_url is required for analyze" }),
-          { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
+          JSON.stringify({
+            error: "validation_error",
+            message: "image_url is required for analyze",
+          }),
+          {
+            status: 400,
+            headers: { ...CORS, "Content-Type": "application/json" },
+          },
         );
       }
       let analysisCompanyId: string | null = null;
       if (session_id) {
-        const { data: sessionForAnalysis, error: sessionForAnalysisErr } = await supabase
-          .from("render_pavimento_sessions")
-          .select("id, company_id")
-          .eq("id", session_id)
-          .maybeSingle();
+        const { data: sessionForAnalysis, error: sessionForAnalysisErr } =
+          await supabase
+            .from("render_pavimento_sessions")
+            .select("id, company_id")
+            .eq("id", session_id)
+            .maybeSingle();
         if (sessionForAnalysisErr || !sessionForAnalysis) {
           return new Response(
-            JSON.stringify({ error: "not_found", message: "Sessione non trovata" }),
-            { status: 404, headers: { ...CORS, "Content-Type": "application/json" } }
+            JSON.stringify({
+              error: "not_found",
+              message: "Sessione non trovata",
+            }),
+            {
+              status: 404,
+              headers: { ...CORS, "Content-Type": "application/json" },
+            },
           );
         }
         analysisCompanyId = sessionForAnalysis.company_id as string;
-        const allowed = await canAccessCompany(supabase, user.id, analysisCompanyId);
+        const allowed = await canAccessCompany(
+          supabase,
+          user.id,
+          analysisCompanyId,
+        );
         if (!allowed) {
           return new Response(
-            JSON.stringify({ error: "forbidden", message: "Accesso negato alla sessione render pavimento" }),
-            { status: 403, headers: { ...CORS, "Content-Type": "application/json" } }
+            JSON.stringify({
+              error: "forbidden",
+              message: "Accesso negato alla sessione render pavimento",
+            }),
+            {
+              status: 403,
+              headers: { ...CORS, "Content-Type": "application/json" },
+            },
           );
         }
       }
 
       // Download image
       const imgResp = await fetchWithTimeout(image_url, {}, 30_000);
-      const mimeType = (imgResp.headers.get("content-type") || "image/jpeg").split(";")[0] || "image/jpeg";
+      const mimeType =
+        (imgResp.headers.get("content-type") || "image/jpeg").split(";")[0] ||
+        "image/jpeg";
       const imgBuffer = await imgResp.arrayBuffer();
       const imgB64 = arrayBufferToBase64(imgBuffer);
 
-      const analyzePrompt = `Analyze this interior photograph for a surgical floor replacement workflow. Return ONLY compact JSON with these fields:
+      const analyzePrompt =
+        `Analyze this interior photograph for a surgical floor replacement workflow. Return ONLY compact JSON with these fields:
 {
   "tipo_stanza": "room type",
   "pavimento_attuale": "current floor material",
@@ -207,8 +252,16 @@ Use short values. Do not describe a renovation.`;
       }
 
       return new Response(
-        JSON.stringify({ success: true, analisi, provider: "openrouter", model: analysisResult.modelUsed }),
-        { status: 200, headers: { ...CORS, "Content-Type": "application/json" } }
+        JSON.stringify({
+          success: true,
+          analisi,
+          provider: "openrouter",
+          model: analysisResult.modelUsed,
+        }),
+        {
+          status: 200,
+          headers: { ...CORS, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -217,8 +270,14 @@ Use short values. Do not describe a renovation.`;
     // ══════════════════════════════════════════════════════════════════════
     if (!session_id) {
       return new Response(
-        JSON.stringify({ error: "validation_error", message: "session_id is required" }),
-        { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
+        JSON.stringify({
+          error: "validation_error",
+          message: "session_id is required",
+        }),
+        {
+          status: 400,
+          headers: { ...CORS, "Content-Type": "application/json" },
+        },
       );
     }
     refundableSessionId = session_id;
@@ -233,7 +292,10 @@ Use short values. Do not describe a renovation.`;
     if (sessionErr || !session) {
       return new Response(
         JSON.stringify({ error: "not_found", message: "Sessione non trovata" }),
-        { status: 404, headers: { ...CORS, "Content-Type": "application/json" } }
+        {
+          status: 404,
+          headers: { ...CORS, "Content-Type": "application/json" },
+        },
       );
     }
     refundableCompanyId = session.company_id as string;
@@ -246,24 +308,36 @@ Use short values. Do not describe a renovation.`;
     );
     if (!allowed) {
       return new Response(
-        JSON.stringify({ error: "forbidden", message: "Accesso negato alla sessione render pavimento" }),
-        { status: 403, headers: { ...CORS, "Content-Type": "application/json" } }
+        JSON.stringify({
+          error: "forbidden",
+          message: "Accesso negato alla sessione render pavimento",
+        }),
+        {
+          status: 403,
+          headers: { ...CORS, "Content-Type": "application/json" },
+        },
       );
     }
 
     // ── Deduct credits (v3 → v2 → v1 fallback + audit ledger) ────────────
     const deductResult = await deductRenderCreditSafe(supabase, {
-      companyId:  session.company_id as string,
-      sessionId:  session_id,
-      userId:     user.id,
+      companyId: session.company_id as string,
+      sessionId: session_id,
+      userId: user.id,
       reasonMeta: { vertical: "pavimento", edge_fn: "generate-floor-render" },
-      logTag:     "generate-floor-render",
+      logTag: "generate-floor-render",
     });
 
     if (deductResult.status === "insufficient") {
       return new Response(
-        JSON.stringify({ error: "insufficient_credits", message: "Crediti render insufficienti" }),
-        { status: 402, headers: { ...CORS, "Content-Type": "application/json" } }
+        JSON.stringify({
+          error: "insufficient_credits",
+          message: "Crediti render insufficienti",
+        }),
+        {
+          status: 402,
+          headers: { ...CORS, "Content-Type": "application/json" },
+        },
       );
     }
     creditDeducted = true;
@@ -271,7 +345,10 @@ Use short values. Do not describe a renovation.`;
     // ── Update session: processing ──────────────────────────────────────
     await supabase
       .from("render_pavimento_sessions")
-      .update({ status: "processing", processing_started_at: new Date().toISOString() })
+      .update({
+        status: "processing",
+        processing_started_at: new Date().toISOString(),
+      })
       .eq("id", session_id);
 
     const originalPath = session.original_photo_url as string;
@@ -291,7 +368,8 @@ Use short values. Do not describe a renovation.`;
 
     // ── Build prompt ────────────────────────────────────────────────────
     const activeConfig = (config || session.config) as Record<string, unknown>;
-    const activeAnalysis = analysis || (session.analisi_pavimento as Record<string, unknown> | null) || null;
+    const activeAnalysis = analysis ||
+      (session.analisi_pavimento as Record<string, unknown> | null) || null;
     const effectiveWidth = prepared.effective_width ?? undefined;
     const effectiveHeight = prepared.effective_height ?? undefined;
     const activePhotoMeta: FloorPhotoMeta = photo_meta ?? {
@@ -300,8 +378,8 @@ Use short values. Do not describe a renovation.`;
       orientation: (effectiveWidth ?? 0) > (effectiveHeight ?? 0)
         ? "landscape"
         : (effectiveWidth ?? 0) < (effectiveHeight ?? 0)
-          ? "portrait"
-          : "square",
+        ? "portrait"
+        : "square",
     };
 
     const {
@@ -334,7 +412,8 @@ Use short values. Do not describe a renovation.`;
       },
     });
     const uploadPayload = dataUrlToBytes(renderResult.imageDataUrl);
-    const resultPath = `${session.company_id}/${session_id}/render_${Date.now()}.${uploadPayload.extension}`;
+    const resultPath =
+      `${session.company_id}/${session_id}/render_${Date.now()}.${uploadPayload.extension}`;
 
     const { error: uploadErr } = await supabase.storage
       .from("pavimento-results")
@@ -352,7 +431,11 @@ Use short values. Do not describe a renovation.`;
       .getPublicUrl(resultPath);
 
     const resultUrl = publicUrlData.publicUrl;
-    const providerKey = renderResult.providerUsed === "openrouter" ? "openrouter_image" : "openai";
+    const providerKey = renderResult.providerUsed === "gemini_direct"
+      ? "gemini"
+      : renderResult.providerUsed === "openrouter"
+      ? "openrouter_image"
+      : "openai";
     const modelUsed = renderResult.modelUsed;
     const providerRawResponse = {
       ...renderResult.rawResponse,
@@ -367,7 +450,9 @@ Use short values. Do not describe a renovation.`;
       providerKey,
       model: modelUsed,
       rawResponse: providerRawResponse,
-      legacyFallbackEur: renderResult.costUsd ? renderResult.costUsd * 0.92 : 0.039,
+      legacyFallbackEur: renderResult.costUsd
+        ? renderResult.costUsd * 0.92
+        : 0.039,
     });
     const costReal = capture.cost_eur;
     const { data: providerConfig } = await supabase
@@ -399,7 +484,9 @@ Use short values. Do not describe a renovation.`;
     if (providerConfig?.id) {
       await supabase
         .from("render_provider_config")
-        .update({ renders_generated: Number(providerConfig.renders_generated ?? 0) + 1 })
+        .update({
+          renders_generated: Number(providerConfig.renders_generated ?? 0) + 1,
+        })
         .eq("id", providerConfig.id);
     }
 
@@ -415,9 +502,8 @@ Use short values. Do not describe a renovation.`;
         prompt_version: promptVersion,
         prompt_validation: validation,
       }),
-      { status: 200, headers: { ...CORS, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
     );
-
   } catch (err: unknown) {
     if (err instanceof Response) return err;
     const msg = err instanceof Error ? err.message : String(err);
@@ -432,7 +518,11 @@ Use short values. Do not describe a renovation.`;
             companyId: refundableCompanyId,
             sessionId: refundableSessionId,
             userId: user.id,
-            reasonMeta: { vertical: "pavimento", edge_fn: "generate-floor-render", error: msg.substring(0, 500) },
+            reasonMeta: {
+              vertical: "pavimento",
+              edge_fn: "generate-floor-render",
+              error: msg.substring(0, 500),
+            },
             logTag: "generate-floor-render",
           });
         }
@@ -449,7 +539,7 @@ Use short values. Do not describe a renovation.`;
 
     return new Response(
       JSON.stringify({ error: "internal_error", message: msg }),
-      { status: 500, headers: { ...CORS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CORS, "Content-Type": "application/json" } },
     );
   }
 });

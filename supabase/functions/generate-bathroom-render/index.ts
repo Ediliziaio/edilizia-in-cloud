@@ -1,10 +1,16 @@
 // generate-bathroom-render — Edge Function EiC
 // Render Bagno AI — pipeline unificata via OpenRouter + fallback OpenAI.
 
-import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import {
+  deductRenderCreditSafe,
+  refundRenderCreditSafe,
+} from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
@@ -15,7 +21,8 @@ import type { BathroomPhotoMeta } from "../../../shared/render-bathroom/types.ts
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 const JSON_HEADERS = { ...CORS, "Content-Type": "application/json" };
@@ -54,14 +61,24 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-declare const EdgeRuntime: { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
+declare const EdgeRuntime:
+  | { waitUntil?: (promise: Promise<unknown>) => void }
+  | undefined;
 
 function acceptedRenderResponse(sessionId: string): Response {
-  return jsonResponse({ success: true, accepted: true, session_id: sessionId, status: "processing" }, 202);
+  return jsonResponse({
+    success: true,
+    accepted: true,
+    session_id: sessionId,
+    status: "processing",
+  }, 202);
 }
 
 function runInBackground(promise: Promise<unknown>) {
-  if (typeof EdgeRuntime !== "undefined" && typeof EdgeRuntime?.waitUntil === "function") {
+  if (
+    typeof EdgeRuntime !== "undefined" &&
+    typeof EdgeRuntime?.waitUntil === "function"
+  ) {
     EdgeRuntime.waitUntil(promise);
     return;
   }
@@ -88,7 +105,9 @@ function dataUrlToBytes(dataUrl: string): {
   mimeType: string;
   extension: string;
 } {
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
+  const match = dataUrl.match(
+    /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/,
+  );
   if (!match) {
     throw new Error("Formato immagine provider non valido");
   }
@@ -100,11 +119,13 @@ function dataUrlToBytes(dataUrl: string): {
     bytes[i] = binary.charCodeAt(i);
   }
 
-  const extension =
-    mimeType.includes("png") ? "png" :
-    mimeType.includes("webp") ? "webp" :
-    mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" :
-    "png";
+  const extension = mimeType.includes("png")
+    ? "png"
+    : mimeType.includes("webp")
+    ? "webp"
+    : mimeType.includes("jpeg") || mimeType.includes("jpg")
+    ? "jpg"
+    : "png";
 
   return { bytes, mimeType, extension };
 }
@@ -119,7 +140,9 @@ async function downloadImageAsInlineData(imageUrl: string): Promise<{
     throw new Error(`Impossibile scaricare l'immagine (${imgResp.status})`);
   }
 
-  const mimeType = (imgResp.headers.get("content-type") || "image/jpeg").split(";")[0] || "image/jpeg";
+  const mimeType =
+    (imgResp.headers.get("content-type") || "image/jpeg").split(";")[0] ||
+    "image/jpeg";
   const imgBuffer = await imgResp.arrayBuffer();
 
   if (imgBuffer.byteLength === 0) {
@@ -142,7 +165,9 @@ function readUint32BE(bytes: Uint8Array, offset: number): number {
   ) >>> 0;
 }
 
-function detectImageDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+function detectImageDimensions(
+  bytes: Uint8Array,
+): { width: number; height: number } | null {
   if (bytes.length < 16) return null;
 
   // PNG
@@ -178,8 +203,7 @@ function detectImageDimensions(bytes: Uint8Array): { width: number; height: numb
       const length = (bytes[offset] << 8) | bytes[offset + 1];
       if (length < 2 || offset + length > bytes.length) break;
 
-      const isSofMarker =
-        (marker >= 0xc0 && marker <= 0xc3) ||
+      const isSofMarker = (marker >= 0xc0 && marker <= 0xc3) ||
         (marker >= 0xc5 && marker <= 0xc7) ||
         (marker >= 0xc9 && marker <= 0xcb) ||
         (marker >= 0xcd && marker <= 0xcf);
@@ -229,7 +253,10 @@ function detectImageDimensions(bytes: Uint8Array): { width: number; height: numb
   return null;
 }
 
-function orientationFromDimensions(width: number, height: number): "portrait" | "landscape" | "square" {
+function orientationFromDimensions(
+  width: number,
+  height: number,
+): "portrait" | "landscape" | "square" {
   if (width === height) return "square";
   return width > height ? "landscape" : "portrait";
 }
@@ -240,9 +267,18 @@ function describeFormatMismatch(
 ): string | null {
   if (!expected || !actual) return null;
 
-  const expectedOrientation = orientationFromDimensions(expected.width, expected.height);
-  const actualOrientation = orientationFromDimensions(actual.width, actual.height);
-  if (expectedOrientation !== actualOrientation && expectedOrientation !== "square") {
+  const expectedOrientation = orientationFromDimensions(
+    expected.width,
+    expected.height,
+  );
+  const actualOrientation = orientationFromDimensions(
+    actual.width,
+    actual.height,
+  );
+  if (
+    expectedOrientation !== actualOrientation &&
+    expectedOrientation !== "square"
+  ) {
     return `orientation mismatch (${expectedOrientation} expected, got ${actualOrientation})`;
   }
 
@@ -262,7 +298,9 @@ async function loadBathroomSession(
 ): Promise<BathroomSessionRow | null> {
   const { data: session } = await supabase
     .from("render_bagno_sessions")
-    .select("id, company_id, stato, foto_originale_path, configurazione, analisi_bagno, tipo_intervento, render_result_url, provider_key, prompt_version")
+    .select(
+      "id, company_id, stato, foto_originale_path, configurazione, analisi_bagno, tipo_intervento, render_result_url, provider_key, prompt_version",
+    )
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -285,7 +323,11 @@ async function runBathroomAnalysis(params: {
     }
     companyId = session.company_id;
 
-    const allowed = await canAccessCompany(supabase, userId, session.company_id);
+    const allowed = await canAccessCompany(
+      supabase,
+      userId,
+      session.company_id,
+    );
     if (!allowed) {
       throw new Error("Accesso negato alla sessione render bagno");
     }
@@ -300,13 +342,17 @@ async function runBathroomAnalysis(params: {
   const dimensions = detectImageDimensions(bytes);
   const photoMeta: BathroomPhotoMeta | null = dimensions
     ? {
-        width: dimensions.width,
-        height: dimensions.height,
-        orientation: orientationFromDimensions(dimensions.width, dimensions.height),
-      }
+      width: dimensions.width,
+      height: dimensions.height,
+      orientation: orientationFromDimensions(
+        dimensions.width,
+        dimensions.height,
+      ),
+    }
     : null;
 
-  const analyzePrompt = `Analyze this bathroom photo and return ONLY one raw JSON object.
+  const analyzePrompt =
+    `Analyze this bathroom photo and return ONLY one raw JSON object.
 
 Required schema:
 {
@@ -422,7 +468,10 @@ Rules:
     maxOutputTokens: 1200,
     timeoutMs: 90_000,
   });
-  const analysis = normalizeBathroomSceneAnalysis(analysisResult.parsed, photoMeta) as unknown as Record<string, unknown>;
+  const analysis = normalizeBathroomSceneAnalysis(
+    analysisResult.parsed,
+    photoMeta,
+  ) as unknown as Record<string, unknown>;
 
   if (sessionId) {
     await supabase
@@ -474,7 +523,10 @@ Deno.serve(async (req) => {
     if (action === "analyze") {
       if (!image_url) {
         return jsonResponse(
-          { error: "validation_error", message: "image_url is required for analyze" },
+          {
+            error: "validation_error",
+            message: "image_url is required for analyze",
+          },
           400,
         );
       }
@@ -526,10 +578,17 @@ Deno.serve(async (req) => {
     }
     refundableCompanyId = session.company_id;
 
-    const allowed = await canAccessCompany(supabase, user.id, session.company_id);
+    const allowed = await canAccessCompany(
+      supabase,
+      user.id,
+      session.company_id,
+    );
     if (!allowed) {
       return jsonResponse(
-        { error: "forbidden", message: "Accesso negato alla sessione render bagno" },
+        {
+          error: "forbidden",
+          message: "Accesso negato alla sessione render bagno",
+        },
         403,
       );
     }
@@ -558,7 +617,10 @@ Deno.serve(async (req) => {
 
     if (deductResult.status === "insufficient") {
       return jsonResponse(
-        { error: "insufficient_credits", message: "Crediti render insufficienti" },
+        {
+          error: "insufficient_credits",
+          message: "Crediti render insufficienti",
+        },
         402,
       );
     }
@@ -574,161 +636,177 @@ Deno.serve(async (req) => {
       .eq("id", session_id);
 
     const renderJob = (async () => {
-    const originalPath = session.foto_originale_path;
-    if (!originalPath) {
-      throw new Error("Foto originale della sessione mancante");
-    }
+      const originalPath = session.foto_originale_path;
+      if (!originalPath) {
+        throw new Error("Foto originale della sessione mancante");
+      }
 
-    const prepared = await prepareInputImage({
-      supabase,
-      bucket: "bagno-originals",
-      originalPath,
-      hintWidth: target_width,
-      hintHeight: target_height,
-    });
-
-    const originalImage = await downloadImageAsInlineData(prepared.url);
-    const sourceDimensions =
-      Number.isFinite(Number(target_width)) && Number.isFinite(Number(target_height)) &&
-      Number(target_width) > 0 && Number(target_height) > 0
-        ? {
-            width: prepared.effective_width ?? Number(target_width),
-            height: prepared.effective_height ?? Number(target_height),
-          }
-        : detectImageDimensions(originalImage.bytes);
-
-    const photoMetaForPrompt: BathroomPhotoMeta | null = sourceDimensions
-      ? {
-          width: sourceDimensions.width,
-          height: sourceDimensions.height,
-          orientation: orientationFromDimensions(sourceDimensions.width, sourceDimensions.height),
-        }
-      : null;
-
-    const { systemPrompt, userPrompt, promptVersion } = buildBathroomPrompt(
-      (session.configurazione || {}) as Record<string, unknown>,
-      session.analisi_bagno || {},
-      photoMetaForPrompt,
-    );
-
-    const sourceImageBlob = new Blob([
-      originalImage.bytes.buffer.slice(
-        originalImage.bytes.byteOffset,
-        originalImage.bytes.byteOffset + originalImage.bytes.byteLength,
-      ) as ArrayBuffer,
-    ], {
-      type: originalImage.mimeType || "image/jpeg",
-    });
-    const generateCandidate = (prompt: string) =>
-      editImage({
-        prompt,
-        sourceImageBlob,
-        effectiveWidth: sourceDimensions?.width ?? undefined,
-        effectiveHeight: sourceDimensions?.height ?? undefined,
-        openaiQuality: "medium",
-        timeoutMs: 180_000,
-        metadata: {
-          task_kind: "render_image_edit",
-          company_id: session.company_id,
-          session_id,
-        },
+      const prepared = await prepareInputImage({
+        supabase,
+        bucket: "bagno-originals",
+        originalPath,
+        hintWidth: target_width,
+        hintHeight: target_height,
       });
 
-    let composedPrompt = `${systemPrompt}\n\n${userPrompt}`;
-    let renderResult = await generateCandidate(composedPrompt);
-    let generationAttempts = 1;
+      const originalImage = await downloadImageAsInlineData(prepared.url);
+      const sourceDimensions = Number.isFinite(Number(target_width)) &&
+          Number.isFinite(Number(target_height)) &&
+          Number(target_width) > 0 && Number(target_height) > 0
+        ? {
+          width: prepared.effective_width ?? Number(target_width),
+          height: prepared.effective_height ?? Number(target_height),
+        }
+        : detectImageDimensions(originalImage.bytes);
 
-    let uploadPayload = dataUrlToBytes(renderResult.imageDataUrl);
-    const firstAttemptDimensions = detectImageDimensions(uploadPayload.bytes);
-    const firstMismatch = describeFormatMismatch(sourceDimensions ?? null, firstAttemptDimensions);
+      const photoMetaForPrompt: BathroomPhotoMeta | null = sourceDimensions
+        ? {
+          width: sourceDimensions.width,
+          height: sourceDimensions.height,
+          orientation: orientationFromDimensions(
+            sourceDimensions.width,
+            sourceDimensions.height,
+          ),
+        }
+        : null;
 
-    if (firstMismatch) {
-      composedPrompt = `${composedPrompt}
+      const { systemPrompt, userPrompt, promptVersion } = buildBathroomPrompt(
+        (session.configurazione || {}) as Record<string, unknown>,
+        session.analisi_bagno || {},
+        photoMetaForPrompt,
+      );
+
+      const sourceImageBlob = new Blob([
+        originalImage.bytes.buffer.slice(
+          originalImage.bytes.byteOffset,
+          originalImage.bytes.byteOffset + originalImage.bytes.byteLength,
+        ) as ArrayBuffer,
+      ], {
+        type: originalImage.mimeType || "image/jpeg",
+      });
+      const generateCandidate = (prompt: string) =>
+        editImage({
+          prompt,
+          sourceImageBlob,
+          effectiveWidth: sourceDimensions?.width ?? undefined,
+          effectiveHeight: sourceDimensions?.height ?? undefined,
+          openaiQuality: "medium",
+          timeoutMs: 180_000,
+          metadata: {
+            task_kind: "render_image_edit",
+            company_id: session.company_id,
+            session_id,
+          },
+        });
+
+      let composedPrompt = `${systemPrompt}\n\n${userPrompt}`;
+      let renderResult = await generateCandidate(composedPrompt);
+      let generationAttempts = 1;
+
+      let uploadPayload = dataUrlToBytes(renderResult.imageDataUrl);
+      const firstAttemptDimensions = detectImageDimensions(uploadPayload.bytes);
+      const firstMismatch = describeFormatMismatch(
+        sourceDimensions ?? null,
+        firstAttemptDimensions,
+      );
+
+      if (firstMismatch) {
+        composedPrompt = `${composedPrompt}
 
 [FORMAT CORRECTION]
 The previous attempt was not acceptable because of ${firstMismatch}.
 Regenerate the image keeping EXACT same orientation, framing, crop, visible room size, and apparent camera distance as the source photo.
 The bathroom must occupy the same image area as the source. No zooming out, no zooming in, no padding, no crop change.`;
-      renderResult = await generateCandidate(composedPrompt);
-      generationAttempts = 2;
-      uploadPayload = dataUrlToBytes(renderResult.imageDataUrl);
-    }
+        renderResult = await generateCandidate(composedPrompt);
+        generationAttempts = 2;
+        uploadPayload = dataUrlToBytes(renderResult.imageDataUrl);
+      }
 
-    const resultPath = `${session.company_id}/${session_id}/render_bagno_${Date.now()}.${uploadPayload.extension}`;
+      const resultPath =
+        `${session.company_id}/${session_id}/render_bagno_${Date.now()}.${uploadPayload.extension}`;
 
-    const { error: uploadErr } = await supabase.storage
-      .from("bagno-results")
-      .upload(resultPath, uploadPayload.bytes, {
-        contentType: uploadPayload.mimeType,
-        upsert: true,
+      const { error: uploadErr } = await supabase.storage
+        .from("bagno-results")
+        .upload(resultPath, uploadPayload.bytes, {
+          contentType: uploadPayload.mimeType,
+          upsert: true,
+        });
+
+      if (uploadErr) {
+        throw new Error(`Upload risultato fallito: ${uploadErr.message}`);
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("bagno-results")
+        .getPublicUrl(resultPath);
+
+      const resultUrl = publicUrlData.publicUrl;
+      const providerKey = renderResult.providerUsed === "gemini_direct"
+        ? "gemini"
+        : renderResult.providerUsed === "openrouter"
+        ? "openrouter_image"
+        : "openai";
+      const modelUsed = renderResult.modelUsed;
+      const providerRawResponse = {
+        ...renderResult.rawResponse,
+        _provider_used: renderResult.providerUsed,
+        _model_used: renderResult.modelUsed,
+        _cost_usd: renderResult.costUsd ?? null,
+        _cost_is_estimated: renderResult.costIsEstimated,
+        _latency_ms: renderResult.latencyMs,
+      };
+      const capture = await captureRealCost({
+        supabase,
+        providerKey,
+        model: modelUsed,
+        rawResponse: providerRawResponse,
+        legacyFallbackEur: renderResult.costUsd
+          ? renderResult.costUsd * 0.92
+          : 0.039,
       });
-
-    if (uploadErr) {
-      throw new Error(`Upload risultato fallito: ${uploadErr.message}`);
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from("bagno-results")
-      .getPublicUrl(resultPath);
-
-    const resultUrl = publicUrlData.publicUrl;
-    const providerKey = renderResult.providerUsed === "openrouter" ? "openrouter_image" : "openai";
-    const modelUsed = renderResult.modelUsed;
-    const providerRawResponse = {
-      ...renderResult.rawResponse,
-      _provider_used: renderResult.providerUsed,
-      _model_used: renderResult.modelUsed,
-      _cost_usd: renderResult.costUsd ?? null,
-      _cost_is_estimated: renderResult.costIsEstimated,
-      _latency_ms: renderResult.latencyMs,
-    };
-    const capture = await captureRealCost({
-      supabase,
-      providerKey,
-      model: modelUsed,
-      rawResponse: providerRawResponse,
-      legacyFallbackEur: renderResult.costUsd ? renderResult.costUsd * 0.92 : 0.039,
-    });
-    const costReal = capture.cost_eur * generationAttempts;
-    const { data: providerConfig } = await supabase
-      .from("render_provider_config")
-      .select("id, cost_billed_per_render, renders_generated")
-      .eq("provider_key", providerKey)
-      .maybeSingle();
-    const costBilled = Number(providerConfig?.cost_billed_per_render ?? 0.10);
-
-    await supabase
-      .from("render_bagno_sessions")
-      .update({
-        stato: "completato",
-        render_result_path: resultPath,
-        render_result_url: resultUrl,
-        prompt_usato: composedPrompt,
-        prompt_version: promptVersion,
-        provider_key: providerKey,
-        model_used: modelUsed,
-        cost_real: costReal,
-        cost_billed: costBilled,
-        processing_completed_at: new Date().toISOString(),
-      })
-      .eq("id", session_id);
-
-    if (providerConfig?.id) {
-      await supabase
+      const costReal = capture.cost_eur * generationAttempts;
+      const { data: providerConfig } = await supabase
         .from("render_provider_config")
-        .update({ renders_generated: Number(providerConfig.renders_generated ?? 0) + 1 })
-        .eq("id", providerConfig.id);
-    }
+        .select("id, cost_billed_per_render, renders_generated")
+        .eq("provider_key", providerKey)
+        .maybeSingle();
+      const costBilled = Number(providerConfig?.cost_billed_per_render ?? 0.10);
 
-    return jsonResponse({
-      success: true,
-      session_id,
-      result_url: resultUrl,
-      provider: providerKey,
-      model: modelUsed,
-      attempts: generationAttempts,
-      prompt_version: promptVersion,
-    });
+      await supabase
+        .from("render_bagno_sessions")
+        .update({
+          stato: "completato",
+          render_result_path: resultPath,
+          render_result_url: resultUrl,
+          prompt_usato: composedPrompt,
+          prompt_version: promptVersion,
+          provider_key: providerKey,
+          model_used: modelUsed,
+          cost_real: costReal,
+          cost_billed: costBilled,
+          processing_completed_at: new Date().toISOString(),
+        })
+        .eq("id", session_id);
+
+      if (providerConfig?.id) {
+        await supabase
+          .from("render_provider_config")
+          .update({
+            renders_generated: Number(providerConfig.renders_generated ?? 0) +
+              1,
+          })
+          .eq("id", providerConfig.id);
+      }
+
+      return jsonResponse({
+        success: true,
+        session_id,
+        result_url: resultUrl,
+        provider: providerKey,
+        model: modelUsed,
+        attempts: generationAttempts,
+        prompt_version: promptVersion,
+      });
     })().catch(async (jobErr: unknown) => {
       const message = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("[generate-bathroom-render] background error:", message);
@@ -736,7 +814,11 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
         companyId: session.company_id,
         sessionId: session_id,
         userId: user.id,
-        reasonMeta: { vertical: "bagno", edge_fn: "generate-bathroom-render", error: message.substring(0, 500) },
+        reasonMeta: {
+          vertical: "bagno",
+          edge_fn: "generate-bathroom-render",
+          error: message.substring(0, 500),
+        },
         logTag: "generate-bathroom-render",
       });
       await supabase
@@ -765,7 +847,11 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
             companyId: refundableCompanyId,
             sessionId: refundableSessionId,
             userId: user.id,
-            reasonMeta: { vertical: "bagno", edge_fn: "generate-bathroom-render", error: message.substring(0, 500) },
+            reasonMeta: {
+              vertical: "bagno",
+              edge_fn: "generate-bathroom-render",
+              error: message.substring(0, 500),
+            },
             logTag: "generate-bathroom-render",
           });
         }

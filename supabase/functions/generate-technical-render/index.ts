@@ -5,7 +5,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import {
+  deductRenderCreditSafe,
+  refundRenderCreditSafe,
+} from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
@@ -29,19 +32,28 @@ const MODULE_IDS: TechnicalModuleId[] = [
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
-declare const EdgeRuntime: { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
+declare const EdgeRuntime:
+  | { waitUntil?: (promise: Promise<unknown>) => void }
+  | undefined;
 
 function runInBackground(promise: Promise<unknown>) {
-  if (typeof EdgeRuntime !== "undefined" && typeof EdgeRuntime?.waitUntil === "function") {
+  if (
+    typeof EdgeRuntime !== "undefined" &&
+    typeof EdgeRuntime?.waitUntil === "function"
+  ) {
     EdgeRuntime.waitUntil(promise);
     return;
   }
 
   promise.catch((err) => {
-    console.error("[generate-technical-render] background fallback error:", err);
+    console.error(
+      "[generate-technical-render] background fallback error:",
+      err,
+    );
   });
 }
 
@@ -65,7 +77,8 @@ const MODULE_RULES: Record<TechnicalModuleId, {
 }> = {
   ristrutturazioni: {
     label: "Renovation orchestration",
-    mission: "surgical photorealistic renovation orchestration of only the visible and compatible systems in the same photographed scene",
+    mission:
+      "surgical photorealistic renovation orchestration of only the visible and compatible systems in the same photographed scene",
     sceneInventory: [
       "classify the photo first: bathroom, room, kitchen-room, facade, roof, outdoor or mixed compatible scene",
       "do not combine domains that cannot coexist in this single photo",
@@ -94,7 +107,8 @@ const MODULE_RULES: Record<TechnicalModuleId, {
   },
   "pavimenti-esterni": {
     label: "Exterior flooring",
-    mission: "surgical photorealistic exterior flooring replacement on the same photographed property",
+    mission:
+      "surgical photorealistic exterior flooring replacement on the same photographed property",
     sceneInventory: [
       "read patio, terrace, path, driveway, pool edge, steps, thresholds, lawn, deck, facade and visible level changes",
       "identify current paving pattern, joints, borders, wear, slope impression and drainage cues",
@@ -123,7 +137,8 @@ const MODULE_RULES: Record<TechnicalModuleId, {
   },
   giardini: {
     label: "Garden redesign",
-    mission: "surgical photorealistic garden redesign on the same photographed property",
+    mission:
+      "surgical photorealistic garden redesign on the same photographed property",
     sceneInventory: [
       "read lawn, existing beds, hedges, trees, paths, hardscape, pool/pergola if present, fences, walls, furniture and view corridors",
       "preserve house, facade, non-target hardscape, pool/pergola, important trees, sky and neighboring context",
@@ -152,7 +167,8 @@ const MODULE_RULES: Record<TechnicalModuleId, {
   },
   "porte-blindate": {
     label: "Security door replacement",
-    mission: "surgical photorealistic security door replacement on the same photographed entrance",
+    mission:
+      "surgical photorealistic security door replacement on the same photographed entrance",
     sceneInventory: [
       "read entrance side, target opening, existing door, frame/casing, wall, floor, skirting, threshold, adjacent switches/intercom/furniture and light",
       "preserve surrounding walls, floor, skirting, corridor/facade context and all non-target fixtures",
@@ -181,7 +197,8 @@ const MODULE_RULES: Record<TechnicalModuleId, {
   },
   "porte-interne": {
     label: "Interior door replacement",
-    mission: "surgical photorealistic interior door replacement on the same photographed room/interior",
+    mission:
+      "surgical photorealistic interior door replacement on the same photographed room/interior",
     sceneInventory: [
       "read room type, target doorway, existing door, wall, floor, skirting, ceiling, nearby furniture, switches, radiators and light",
       "preserve surrounding walls, floor, skirting, ceiling, non-target furniture and adjacent visible room",
@@ -222,10 +239,15 @@ function text(value: unknown, fallback = ""): string {
 }
 
 function bullets(lines: Array<string | null | undefined>): string {
-  return lines.filter((line): line is string => Boolean(line && line.trim())).map((line) => `- ${line}`).join("\n");
+  return lines.filter((line): line is string => Boolean(line && line.trim()))
+    .map((line) => `- ${line}`).join("\n");
 }
 
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 120_000): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs = 120_000,
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -235,8 +257,12 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
   }
 }
 
-function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string; extension: string } {
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
+function dataUrlToBytes(
+  dataUrl: string,
+): { bytes: Uint8Array; mimeType: string; extension: string } {
+  const match = dataUrl.match(
+    /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/,
+  );
   if (!match) {
     throw new Error("Formato immagine provider non valido");
   }
@@ -251,20 +277,22 @@ function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string;
   const extension = mimeType.includes("png")
     ? "png"
     : mimeType.includes("webp")
-      ? "webp"
-      : mimeType.includes("jpeg") || mimeType.includes("jpg")
-        ? "jpg"
-        : "png";
+    ? "webp"
+    : mimeType.includes("jpeg") || mimeType.includes("jpg")
+    ? "jpg"
+    : "png";
 
   return { bytes, mimeType, extension };
 }
 
-function looksLikeStructuredDoorConfig(config: Record<string, unknown>): boolean {
+function looksLikeStructuredDoorConfig(
+  config: Record<string, unknown>,
+): boolean {
   const interventi = (config as { interventi?: unknown }).interventi;
   const apertura = (config as { apertura?: unknown }).apertura;
-  return Array.isArray(interventi) && interventi.length > 0
-    && typeof apertura === "object" && apertura !== null
-    && typeof (config as { door_type?: unknown }).door_type === "string";
+  return Array.isArray(interventi) && interventi.length > 0 &&
+    typeof apertura === "object" && apertura !== null &&
+    typeof (config as { door_type?: unknown }).door_type === "string";
 }
 
 function buildRichDoorPrompt(
@@ -272,7 +300,13 @@ function buildRichDoorPrompt(
   config: Record<string, unknown>,
 ) {
   const rawAnalysis = (config as { scene_analysis?: unknown }).scene_analysis;
-  const photoMeta = (config as { photo_meta?: { width?: number; height?: number; orientation?: "portrait" | "landscape" | "square" | "unknown" } }).photo_meta ?? null;
+  const photoMeta = (config as {
+    photo_meta?: {
+      width?: number;
+      height?: number;
+      orientation?: "portrait" | "landscape" | "square" | "unknown";
+    };
+  }).photo_meta ?? null;
   if (moduleType === "porte-interne") {
     const built = buildInteriorDoorPrompt(config, rawAnalysis, photoMeta);
     return {
@@ -288,8 +322,12 @@ function buildRichDoorPrompt(
           is_valid: built.validation.isValid,
           warnings: built.validation.warnings,
           errors: [
-            ...built.validation.missingSections.map((section) => `Missing section: ${section}`),
-            ...built.validation.missingBusinessRules.map((rule) => `Missing rule: ${rule}`),
+            ...built.validation.missingSections.map((section) =>
+              `Missing section: ${section}`
+            ),
+            ...built.validation.missingBusinessRules.map((rule) =>
+              `Missing rule: ${rule}`
+            ),
           ],
           required_blocks: Object.keys(built.blocks),
           missing_blocks: [] as string[],
@@ -312,8 +350,12 @@ function buildRichDoorPrompt(
         is_valid: built.validation.isValid,
         warnings: built.validation.warnings,
         errors: [
-          ...built.validation.missingSections.map((section) => `Missing section: ${section}`),
-          ...built.validation.missingBusinessRules.map((rule) => `Missing rule: ${rule}`),
+          ...built.validation.missingSections.map((section) =>
+            `Missing section: ${section}`
+          ),
+          ...built.validation.missingBusinessRules.map((rule) =>
+            `Missing rule: ${rule}`
+          ),
         ],
         required_blocks: Object.keys(built.blocks),
         missing_blocks: [] as string[],
@@ -328,16 +370,37 @@ function buildTechnicalPrompt(args: {
   config: Record<string, unknown>;
 }) {
   const { moduleType, config } = args;
-  if ((moduleType === "porte-interne" || moduleType === "porte-blindate") && looksLikeStructuredDoorConfig(config)) {
+  if (
+    (moduleType === "porte-interne" || moduleType === "porte-blindate") &&
+    looksLikeStructuredDoorConfig(config)
+  ) {
     return buildRichDoorPrompt(moduleType, config);
   }
   const rules = MODULE_RULES[moduleType];
-  const interventionPreset = text(config.interventionPreset, "technical_render");
-  const targetArea = text(config.targetArea, "visible target area in the uploaded photo");
-  const materialOrSystem = text(config.materialOrSystem, "selected technical system");
-  const colorAndFinish = text(config.colorAndFinish, "selected color and finish");
-  const technicalDetails = text(config.technicalDetails, "follow all selected technical details");
-  const preserveNotes = text(config.preserveNotes, "preserve all non-target elements");
+  const interventionPreset = text(
+    config.interventionPreset,
+    "technical_render",
+  );
+  const targetArea = text(
+    config.targetArea,
+    "visible target area in the uploaded photo",
+  );
+  const materialOrSystem = text(
+    config.materialOrSystem,
+    "selected technical system",
+  );
+  const colorAndFinish = text(
+    config.colorAndFinish,
+    "selected color and finish",
+  );
+  const technicalDetails = text(
+    config.technicalDetails,
+    "follow all selected technical details",
+  );
+  const preserveNotes = text(
+    config.preserveNotes,
+    "preserve all non-target elements",
+  );
   const intensity = text(config.intensity, "media");
 
   const sceneAnalysis = {
@@ -360,30 +423,55 @@ function buildTechnicalPrompt(args: {
     color_and_finish: colorAndFinish,
     intensity,
     additions: ["add only selected visible systems/details"],
-    removals: ["remove incompatible old elements and ghost traces only when the selected intervention requires replacement"],
+    removals: [
+      "remove incompatible old elements and ghost traces only when the selected intervention requires replacement",
+    ],
     replacements: [`apply ${materialOrSystem} to ${targetArea}`],
-    preserve_exactly: preserveNotes.split(",").map((item) => item.trim()).filter(Boolean),
+    preserve_exactly: preserveNotes.split(",").map((item) => item.trim())
+      .filter(Boolean),
     technical_details: technicalDetails,
   };
 
   const blocks: Record<string, string> = {
     A: `[BLOCK A - MISSION]\nYou are a professional image-editing renderer for ${rules.mission}. Mandatory: same property/room, same camera angle, same perspective, same image dimensions, same photographed context, no artistic reinterpretation and no different-scene generation.`,
-    B: `[BLOCK B - EXISTING SCENE INVENTORY]\nInfer the photographed scene carefully before editing.\n${bullets(rules.sceneInventory)}`,
-    C: `[BLOCK C - TARGET MAP]\nTarget area: ${targetArea}\n${bullets(rules.targetMap)}`,
-    D: `[BLOCK D - BUILDABILITY / COMPATIBILITY ENVELOPE]\n${bullets(rules.buildability)}\nSelected intensity: ${intensity}`,
+    B: `[BLOCK B - EXISTING SCENE INVENTORY]\nInfer the photographed scene carefully before editing.\n${
+      bullets(rules.sceneInventory)
+    }`,
+    C: `[BLOCK C - TARGET MAP]\nTarget area: ${targetArea}\n${
+      bullets(rules.targetMap)
+    }`,
+    D: `[BLOCK D - BUILDABILITY / COMPATIBILITY ENVELOPE]\n${
+      bullets(rules.buildability)
+    }\nSelected intensity: ${intensity}`,
     E: `[BLOCK E - REPLACEMENT MANIFEST]\nPreset/action: ${interventionPreset}\nSystem/material: ${materialOrSystem}\nColor/finish: ${colorAndFinish}\nTechnical details: ${technicalDetails}\nPreserve exactly: ${preserveNotes}`,
     F: `[BLOCK F - TECHNICAL SPECIFICATION]\n${bullets(rules.specification)}`,
     G: `[BLOCK G - INTEGRATION AND RESTORATION RULES]\nAll new elements must be physically integrated into the original scene. Rebuild junctions, edges, contact shadows and surface continuity cleanly. Remove incompatible old traces completely. Do not leave hybrid old/new states.`,
     H: `[BLOCK H - PROPERTY / ROOM INTEGRITY]\nPreserve non-target architecture, openings, surrounding surfaces, furniture/objects, sky/context where visible, crop, perspective, proportions and lighting direction. ${preserveNotes}`,
     I: `[BLOCK I - PHOTOREALISM RULES]\nRealistic materials, realistic scale, contact occlusion, shadows, reflections and installation details. Avoid pasted overlays, warped geometry, fake CGI showroom look and decorative inventions unrelated to the selected intervention.`,
-    J: `[BLOCK J - NEGATIVE CONSTRAINTS]\n${bullets(rules.negative)}\n- do not show prompt text or technical notes in the image\n- do not alter non-target systems\n- do not invent unrelated luxury staging or extra products`,
+    J: `[BLOCK J - NEGATIVE CONSTRAINTS]\n${
+      bullets(rules.negative)
+    }\n- do not show prompt text or technical notes in the image\n- do not alter non-target systems\n- do not invent unrelated luxury staging or extra products`,
     K: `[BLOCK K - QUALITY BAR]\nProfessional commercial renovation visualization, high-trust same-scene realism, selected system clearly recognizable, technically plausible and suitable for sales/preventivi.`,
   };
 
   const userPrompt = Object.values(blocks).slice(1).join("\n\n");
   const finalPrompt = `${blocks.A}\n\n${userPrompt}`;
-  const requiredBlocks = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"] as const;
-  const missingBlocks = requiredBlocks.filter((key) => !blocks[key]?.includes(`[BLOCK ${key}`));
+  const requiredBlocks = [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+  ] as const;
+  const missingBlocks = requiredBlocks.filter((key) =>
+    !blocks[key]?.includes(`[BLOCK ${key}`)
+  );
   const validation = {
     is_valid: missingBlocks.length === 0,
     warnings: [] as string[],
@@ -410,7 +498,10 @@ function buildTechnicalPrompt(args: {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
-  let supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  let supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
   let currentSessionId: string | null = null;
   let refundableCompanyId: string | null = null;
   let requestUserId: string | null = null;
@@ -433,7 +524,10 @@ Deno.serve(async (req) => {
     currentSessionId = session_id ?? null;
 
     if (!session_id) {
-      return jsonResponse({ error: "validation_error", message: "session_id is required" }, 400);
+      return jsonResponse({
+        error: "validation_error",
+        message: "session_id is required",
+      }, 400);
     }
 
     const { data: session, error: sessionErr } = await supabase
@@ -443,22 +537,37 @@ Deno.serve(async (req) => {
       .single();
 
     if (sessionErr || !session) {
-      return jsonResponse({ error: "not_found", message: "Sessione render non trovata" }, 404);
+      return jsonResponse({
+        error: "not_found",
+        message: "Sessione render non trovata",
+      }, 404);
     }
     refundableCompanyId = session.company_id as string;
 
     const moduleType = session.module_type as TechnicalModuleId;
     refundableVertical = moduleType;
     if (!MODULE_IDS.includes(moduleType)) {
-      return jsonResponse({ error: "validation_error", message: "Modulo render tecnico non supportato" }, 400);
+      return jsonResponse({
+        error: "validation_error",
+        message: "Modulo render tecnico non supportato",
+      }, 400);
     }
 
-    const allowed = await canAccessCompany(supabase, userId, session.company_id as string);
+    const allowed = await canAccessCompany(
+      supabase,
+      userId,
+      session.company_id as string,
+    );
     if (!allowed) {
-      return jsonResponse({ error: "forbidden", message: "Accesso negato alla sessione render" }, 403);
+      return jsonResponse({
+        error: "forbidden",
+        message: "Accesso negato alla sessione render",
+      }, 403);
     }
 
-    const existingResults = Array.isArray(session.result_urls) ? session.result_urls : [];
+    const existingResults = Array.isArray(session.result_urls)
+      ? session.result_urls
+      : [];
     if (session.status === "completed" && existingResults.length) {
       return jsonResponse({
         success: true,
@@ -476,143 +585,176 @@ Deno.serve(async (req) => {
       companyId: session.company_id as string,
       sessionId: session_id,
       userId,
-      reasonMeta: { vertical: moduleType, edge_fn: "generate-technical-render" },
+      reasonMeta: {
+        vertical: moduleType,
+        edge_fn: "generate-technical-render",
+      },
       logTag: "generate-technical-render",
     });
 
     if (deductResult.status === "insufficient") {
-      return jsonResponse({ error: "insufficient_credits", message: "Crediti render insufficienti" }, 402);
+      return jsonResponse({
+        error: "insufficient_credits",
+        message: "Crediti render insufficienti",
+      }, 402);
     }
     creditDeducted = true;
 
     await supabase
       .from("render_technical_sessions")
-      .update({ status: "processing", processing_started_at: new Date().toISOString(), error_message: null })
-      .eq("id", session_id);
-
-    const renderJob = (async () => {
-    const originalPath = session.original_photo_url as string;
-    if (!originalPath) throw new Error("Foto originale mancante");
-
-    const prepared = await prepareInputImage({
-      supabase,
-      bucket: "render-originals",
-      originalPath,
-      hintWidth: target_width ?? null,
-      hintHeight: target_height ?? null,
-    });
-
-    const rawConfig = (config || (session.config as Record<string, unknown>) || {}) as Record<string, unknown>;
-    const { finalPrompt, userPrompt, promptVersion, promptPayload } = buildTechnicalPrompt({ moduleType, config: rawConfig });
-
-    if (!promptPayload.validation.is_valid) {
-      const missing = promptPayload.validation.errors?.join(", ") || "blocchi obbligatori mancanti";
-      console.error("[generate-technical-render] prompt validation failed:", {
-        moduleType,
-        session_id,
-        missing_blocks: promptPayload.validation.missing_blocks,
-      });
-      throw new Error(`Prompt tecnico non valido: ${missing}`);
-    }
-
-	    const imgResp = await fetchWithTimeout(prepared.url, {}, 30_000);
-	    if (!imgResp.ok) throw new Error(`Impossibile leggere la foto originale (${imgResp.status})`);
-	    const imgBlob = await imgResp.blob();
-	    const providerResult = await editImage({
-	      prompt: finalPrompt,
-	      sourceImageBlob: imgBlob,
-	      effectiveWidth: prepared.effective_width ?? target_width ?? undefined,
-	      effectiveHeight: prepared.effective_height ?? target_height ?? undefined,
-	      openaiQuality: "medium",
-	      timeoutMs: 180_000,
-	      metadata: {
-	        task_kind: "render_image_edit",
-	        company_id: session.company_id as string,
-	        session_id,
-	      },
-	    });
-	    const providerKey = providerResult.providerUsed === "openrouter" ? "openrouter_image" : "openai";
-	    const modelUsed = providerResult.modelUsed;
-	    const providerRawResponse = {
-	      ...providerResult.rawResponse,
-	      _provider_used: providerResult.providerUsed,
-	      _model_used: modelUsed,
-	      _cost_usd: providerResult.costUsd ?? null,
-	      _cost_is_estimated: providerResult.costIsEstimated,
-	      _latency_ms: providerResult.latencyMs,
-	    };
-
-	    const uploadPayload = dataUrlToBytes(providerResult.imageDataUrl);
-	    const resultPath = `${session.company_id}/${moduleType}/${session_id}/render_${moduleType}_${Date.now()}.${uploadPayload.extension}`;
-	    const { error: uploadErr } = await supabase.storage.from("render-results").upload(resultPath, uploadPayload.bytes, {
-	      contentType: uploadPayload.mimeType,
-	      upsert: true,
-	    });
-	    if (uploadErr) throw new Error(`Errore upload risultato: ${uploadErr.message}`);
-
-	    const { data: publicUrlData } = supabase.storage.from("render-results").getPublicUrl(resultPath);
-	    const resultUrl = publicUrlData.publicUrl;
-	    const capture = await captureRealCost({
-	      supabase,
-	      providerKey,
-	      model: modelUsed,
-	      rawResponse: providerRawResponse,
-	      legacyFallbackEur: Number(providerRawResponse._cost_usd ?? 0) > 0
-	        ? Number(providerRawResponse._cost_usd) * 0.92
-	        : 0.039,
-	    });
-	    const { data: providerConfig } = await supabase
-	      .from("render_provider_config")
-	      .select("id, cost_billed_per_render, renders_generated")
-	      .eq("provider_key", providerKey)
-	      .maybeSingle();
-	    const costReal = capture.cost_eur;
-	    const costBilled = Number(providerConfig?.cost_billed_per_render ?? 0.10);
-
-    await supabase
-      .from("render_technical_sessions")
       .update({
-        status: "completed",
-        result_urls: [resultUrl],
-        prompt_used: userPrompt,
-        prompt_version: promptVersion,
-        prompt_char_count: finalPrompt.length,
-	        provider_key: providerKey,
-	        cost_real: costReal,
-	        cost_billed: costBilled,
-        scene_analysis: promptPayload.scene_analysis,
-        target_map: promptPayload.target_map,
-        replacement_manifest: promptPayload.replacement_manifest,
-        validation_result: promptPayload.validation,
-        config_snapshot: {
-          ...rawConfig,
-	          technical_render_payload: promptPayload,
-	          input_image_meta: prepared.meta,
-	          provider_model_used: modelUsed,
-	          provider_attempts: providerResult.attempts,
-	        },
-        processing_completed_at: new Date().toISOString(),
+        status: "processing",
+        processing_started_at: new Date().toISOString(),
+        error_message: null,
       })
       .eq("id", session_id);
 
-	    if (providerConfig?.id) {
-	      await supabase
-	        .from("render_provider_config")
-	        .update({ renders_generated: Number(providerConfig.renders_generated ?? 0) + 1 })
-	        .eq("id", providerConfig.id);
-	    }
+    const renderJob = (async () => {
+      const originalPath = session.original_photo_url as string;
+      if (!originalPath) throw new Error("Foto originale mancante");
 
-    return jsonResponse({
-      success: true,
-      session_id,
-      result_url: resultUrl,
-	      result_urls: [resultUrl],
-	      provider: providerKey,
-	      model: modelUsed,
-	      attempts: providerResult.attempts,
-	      prompt_version: promptVersion,
-      prompt_char_count: finalPrompt.length,
-    });
+      const prepared = await prepareInputImage({
+        supabase,
+        bucket: "render-originals",
+        originalPath,
+        hintWidth: target_width ?? null,
+        hintHeight: target_height ?? null,
+      });
+
+      const rawConfig =
+        (config || (session.config as Record<string, unknown>) || {}) as Record<
+          string,
+          unknown
+        >;
+      const { finalPrompt, userPrompt, promptVersion, promptPayload } =
+        buildTechnicalPrompt({ moduleType, config: rawConfig });
+
+      if (!promptPayload.validation.is_valid) {
+        const missing = promptPayload.validation.errors?.join(", ") ||
+          "blocchi obbligatori mancanti";
+        console.error("[generate-technical-render] prompt validation failed:", {
+          moduleType,
+          session_id,
+          missing_blocks: promptPayload.validation.missing_blocks,
+        });
+        throw new Error(`Prompt tecnico non valido: ${missing}`);
+      }
+
+      const imgResp = await fetchWithTimeout(prepared.url, {}, 30_000);
+      if (!imgResp.ok) {
+        throw new Error(
+          `Impossibile leggere la foto originale (${imgResp.status})`,
+        );
+      }
+      const imgBlob = await imgResp.blob();
+      const providerResult = await editImage({
+        prompt: finalPrompt,
+        sourceImageBlob: imgBlob,
+        effectiveWidth: prepared.effective_width ?? target_width ?? undefined,
+        effectiveHeight: prepared.effective_height ?? target_height ??
+          undefined,
+        openaiQuality: "medium",
+        timeoutMs: 180_000,
+        metadata: {
+          task_kind: "render_image_edit",
+          company_id: session.company_id as string,
+          session_id,
+        },
+      });
+      const providerKey = providerResult.providerUsed === "gemini_direct"
+        ? "gemini"
+        : providerResult.providerUsed === "openrouter"
+        ? "openrouter_image"
+        : "openai";
+      const modelUsed = providerResult.modelUsed;
+      const providerRawResponse = {
+        ...providerResult.rawResponse,
+        _provider_used: providerResult.providerUsed,
+        _model_used: modelUsed,
+        _cost_usd: providerResult.costUsd ?? null,
+        _cost_is_estimated: providerResult.costIsEstimated,
+        _latency_ms: providerResult.latencyMs,
+      };
+
+      const uploadPayload = dataUrlToBytes(providerResult.imageDataUrl);
+      const resultPath =
+        `${session.company_id}/${moduleType}/${session_id}/render_${moduleType}_${Date.now()}.${uploadPayload.extension}`;
+      const { error: uploadErr } = await supabase.storage.from("render-results")
+        .upload(resultPath, uploadPayload.bytes, {
+          contentType: uploadPayload.mimeType,
+          upsert: true,
+        });
+      if (uploadErr) {
+        throw new Error(`Errore upload risultato: ${uploadErr.message}`);
+      }
+
+      const { data: publicUrlData } = supabase.storage.from("render-results")
+        .getPublicUrl(resultPath);
+      const resultUrl = publicUrlData.publicUrl;
+      const capture = await captureRealCost({
+        supabase,
+        providerKey,
+        model: modelUsed,
+        rawResponse: providerRawResponse,
+        legacyFallbackEur: Number(providerRawResponse._cost_usd ?? 0) > 0
+          ? Number(providerRawResponse._cost_usd) * 0.92
+          : 0.039,
+      });
+      const { data: providerConfig } = await supabase
+        .from("render_provider_config")
+        .select("id, cost_billed_per_render, renders_generated")
+        .eq("provider_key", providerKey)
+        .maybeSingle();
+      const costReal = capture.cost_eur;
+      const costBilled = Number(providerConfig?.cost_billed_per_render ?? 0.10);
+
+      await supabase
+        .from("render_technical_sessions")
+        .update({
+          status: "completed",
+          result_urls: [resultUrl],
+          prompt_used: userPrompt,
+          prompt_version: promptVersion,
+          prompt_char_count: finalPrompt.length,
+          provider_key: providerKey,
+          cost_real: costReal,
+          cost_billed: costBilled,
+          scene_analysis: promptPayload.scene_analysis,
+          target_map: promptPayload.target_map,
+          replacement_manifest: promptPayload.replacement_manifest,
+          validation_result: promptPayload.validation,
+          config_snapshot: {
+            ...rawConfig,
+            technical_render_payload: promptPayload,
+            input_image_meta: prepared.meta,
+            provider_model_used: modelUsed,
+            provider_attempts: providerResult.attempts,
+          },
+          processing_completed_at: new Date().toISOString(),
+        })
+        .eq("id", session_id);
+
+      if (providerConfig?.id) {
+        await supabase
+          .from("render_provider_config")
+          .update({
+            renders_generated: Number(providerConfig.renders_generated ?? 0) +
+              1,
+          })
+          .eq("id", providerConfig.id);
+      }
+
+      return jsonResponse({
+        success: true,
+        session_id,
+        result_url: resultUrl,
+        result_urls: [resultUrl],
+        provider: providerKey,
+        model: modelUsed,
+        attempts: providerResult.attempts,
+        prompt_version: promptVersion,
+        prompt_char_count: finalPrompt.length,
+      });
     })().catch(async (jobErr: unknown) => {
       const msg = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("[generate-technical-render] background error:", msg);
@@ -620,12 +762,20 @@ Deno.serve(async (req) => {
         companyId: session.company_id as string,
         sessionId: session_id,
         userId,
-        reasonMeta: { vertical: moduleType, edge_fn: "generate-technical-render", error: msg.substring(0, 500) },
+        reasonMeta: {
+          vertical: moduleType,
+          edge_fn: "generate-technical-render",
+          error: msg.substring(0, 500),
+        },
         logTag: "generate-technical-render",
       });
       await supabase
         .from("render_technical_sessions")
-        .update({ status: "failed", error_message: msg, processing_completed_at: new Date().toISOString() })
+        .update({
+          status: "failed",
+          error_message: msg,
+          processing_completed_at: new Date().toISOString(),
+        })
         .eq("id", session_id);
     });
 
@@ -641,13 +791,21 @@ Deno.serve(async (req) => {
           companyId: refundableCompanyId,
           sessionId: currentSessionId,
           userId: requestUserId,
-          reasonMeta: { vertical: refundableVertical, edge_fn: "generate-technical-render", error: msg.substring(0, 500) },
+          reasonMeta: {
+            vertical: refundableVertical,
+            edge_fn: "generate-technical-render",
+            error: msg.substring(0, 500),
+          },
           logTag: "generate-technical-render",
         });
       }
       await supabase
         .from("render_technical_sessions")
-        .update({ status: "failed", error_message: msg, processing_completed_at: new Date().toISOString() })
+        .update({
+          status: "failed",
+          error_message: msg,
+          processing_completed_at: new Date().toISOString(),
+        })
         .eq("id", currentSessionId);
     }
     return jsonResponse({ error: "render_failed", message: msg }, 500);

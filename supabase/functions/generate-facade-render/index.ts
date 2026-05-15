@@ -1,7 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
+import {
+  deductRenderCreditSafe,
+  refundRenderCreditSafe,
+} from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
@@ -13,7 +16,8 @@ import type { FacciataPhotoMeta } from "../../../shared/render-facciata/types.ts
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 const JSON_HEADERS = { ...CORS, "Content-Type": "application/json" };
@@ -61,9 +65,13 @@ async function downloadImageAsInlineData(imageUrl: string): Promise<{
 }> {
   const imageResponse = await fetchWithTimeout(imageUrl, {}, 30_000);
   if (!imageResponse.ok) {
-    throw new Error(`Impossibile scaricare l'immagine (${imageResponse.status})`);
+    throw new Error(
+      `Impossibile scaricare l'immagine (${imageResponse.status})`,
+    );
   }
-  const mimeType = (imageResponse.headers.get("content-type") || "image/jpeg").split(";")[0] || "image/jpeg";
+  const mimeType =
+    (imageResponse.headers.get("content-type") || "image/jpeg").split(";")[0] ||
+    "image/jpeg";
   const imageBuffer = await imageResponse.arrayBuffer();
   if (imageBuffer.byteLength === 0) {
     throw new Error("L'immagine originale risulta vuota");
@@ -84,10 +92,15 @@ function readUint32BE(bytes: Uint8Array, offset: number): number {
   ) >>> 0;
 }
 
-function detectImageDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+function detectImageDimensions(
+  bytes: Uint8Array,
+): { width: number; height: number } | null {
   if (bytes.length < 16) return null;
 
-  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+  if (
+    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
     if (bytes.length < 24) return null;
     return { width: readUint32BE(bytes, 16), height: readUint32BE(bytes, 20) };
   }
@@ -107,8 +120,7 @@ function detectImageDimensions(bytes: Uint8Array): { width: number; height: numb
       const length = (bytes[offset] << 8) | bytes[offset + 1];
       if (length < 2 || offset + length > bytes.length) break;
 
-      const isSofMarker =
-        (marker >= 0xc0 && marker <= 0xc3) ||
+      const isSofMarker = (marker >= 0xc0 && marker <= 0xc3) ||
         (marker >= 0xc5 && marker <= 0xc7) ||
         (marker >= 0xc9 && marker <= 0xcb) ||
         (marker >= 0xcd && marker <= 0xcf);
@@ -127,13 +139,20 @@ function detectImageDimensions(bytes: Uint8Array): { width: number; height: numb
   return null;
 }
 
-function orientationFromDimensions(width: number, height: number): FacciataPhotoMeta["orientation"] {
+function orientationFromDimensions(
+  width: number,
+  height: number,
+): FacciataPhotoMeta["orientation"] {
   if (width === height) return "square";
   return width > height ? "landscape" : "portrait";
 }
 
-function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string; extension: string } {
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
+function dataUrlToBytes(
+  dataUrl: string,
+): { bytes: Uint8Array; mimeType: string; extension: string } {
+  const match = dataUrl.match(
+    /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/,
+  );
   if (!match) {
     throw new Error("Formato immagine provider non valido");
   }
@@ -145,11 +164,13 @@ function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string;
     bytes[i] = binary.charCodeAt(i);
   }
 
-  const extension =
-    mimeType.includes("png") ? "png" :
-    mimeType.includes("webp") ? "webp" :
-    mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" :
-    "png";
+  const extension = mimeType.includes("png")
+    ? "png"
+    : mimeType.includes("webp")
+    ? "webp"
+    : mimeType.includes("jpeg") || mimeType.includes("jpg")
+    ? "jpg"
+    : "png";
 
   return { bytes, mimeType, extension };
 }
@@ -159,17 +180,23 @@ async function runFacadeAnalysis(params: {
   companyId: string | null;
   sessionId: string | null;
 }): Promise<Record<string, unknown>> {
-  const { mimeType, base64, bytes } = await downloadImageAsInlineData(params.imageUrl);
+  const { mimeType, base64, bytes } = await downloadImageAsInlineData(
+    params.imageUrl,
+  );
   const dimensions = detectImageDimensions(bytes);
   const photoMeta: FacciataPhotoMeta | null = dimensions
     ? {
-        width: dimensions.width,
-        height: dimensions.height,
-        orientation: orientationFromDimensions(dimensions.width, dimensions.height),
-      }
+      width: dimensions.width,
+      height: dimensions.height,
+      orientation: orientationFromDimensions(
+        dimensions.width,
+        dimensions.height,
+      ),
+    }
     : null;
 
-  const analyzePrompt = `You are an expert architectural facade renovation analyzer.
+  const analyzePrompt =
+    `You are an expert architectural facade renovation analyzer.
 Analyze the provided building facade photo and return ONLY a valid JSON object.
 
 Return this exact schema:
@@ -250,7 +277,10 @@ Do not include markdown. Do not include explanations outside the JSON.`;
     timeoutMs: 90_000,
   });
 
-  return normalizeFacciataSceneAnalysis(analysisResult.parsed, photoMeta) as unknown as Record<string, unknown>;
+  return normalizeFacciataSceneAnalysis(
+    analysisResult.parsed,
+    photoMeta,
+  ) as unknown as Record<string, unknown>;
 }
 
 async function renderWithProvider(params: {
@@ -260,7 +290,15 @@ async function renderWithProvider(params: {
   height?: number;
   companyId: string;
   sessionId: string;
-}): Promise<{ imageData: string; providerRawResponse: Record<string, unknown>; modelUsed: string; providerKey: string; attempts: number }> {
+}): Promise<
+  {
+    imageData: string;
+    providerRawResponse: Record<string, unknown>;
+    modelUsed: string;
+    providerKey: string;
+    attempts: number;
+  }
+> {
   const originalImage = await downloadImageAsInlineData(params.preparedUrl);
   const imageBlob = new Blob([
     originalImage.bytes.buffer.slice(
@@ -281,7 +319,11 @@ async function renderWithProvider(params: {
       session_id: params.sessionId,
     },
   });
-  const providerKey = result.providerUsed === "openrouter" ? "openrouter_image" : "openai";
+  const providerKey = result.providerUsed === "gemini_direct"
+    ? "gemini"
+    : result.providerUsed === "openrouter"
+    ? "openrouter_image"
+    : "openai";
   return {
     imageData: result.imageDataUrl,
     providerRawResponse: {
@@ -335,7 +377,10 @@ Deno.serve(async (req) => {
 
     requestSessionId = session_id ?? null;
     if (!requestSessionId) {
-      return jsonResponse({ error: "validation_error", message: "session_id is required" }, 400);
+      return jsonResponse({
+        error: "validation_error",
+        message: "session_id is required",
+      }, 400);
     }
 
     const { data: session, error: sessionErr } = await supabase
@@ -345,28 +390,46 @@ Deno.serve(async (req) => {
       .single();
 
     if (sessionErr || !session) {
-      return jsonResponse({ error: "not_found", message: "Sessione non trovata" }, 404);
+      return jsonResponse({
+        error: "not_found",
+        message: "Sessione non trovata",
+      }, 404);
     }
 
-    const typedSession = session as FacciataSessionRow & Record<string, unknown>;
+    const typedSession = session as
+      & FacciataSessionRow
+      & Record<string, unknown>;
     refundableCompanyId = typedSession.company_id;
 
-    const allowed = await canAccessCompany(supabase, userId, typedSession.company_id);
+    const allowed = await canAccessCompany(
+      supabase,
+      userId,
+      typedSession.company_id,
+    );
     if (!allowed) {
-      return jsonResponse({ error: "forbidden", message: "Accesso negato alla sessione render facciata" }, 403);
+      return jsonResponse({
+        error: "forbidden",
+        message: "Accesso negato alla sessione render facciata",
+      }, 403);
     }
 
     if (action === "analyze") {
       const signedUrl = typeof image_url === "string" && image_url
         ? image_url
         : await (async () => {
-            if (!typedSession.original_photo_url) throw new Error("Foto originale della sessione mancante");
-            const { data, error } = await supabase.storage
-              .from("facciata-originals")
-              .createSignedUrl(typedSession.original_photo_url, 600);
-            if (error || !data?.signedUrl) throw new Error("Impossibile creare signed URL per la foto originale");
-            return data.signedUrl;
-          })();
+          if (!typedSession.original_photo_url) {
+            throw new Error("Foto originale della sessione mancante");
+          }
+          const { data, error } = await supabase.storage
+            .from("facciata-originals")
+            .createSignedUrl(typedSession.original_photo_url, 600);
+          if (error || !data?.signedUrl) {
+            throw new Error(
+              "Impossibile creare signed URL per la foto originale",
+            );
+          }
+          return data.signedUrl;
+        })();
 
       const analisi = await runFacadeAnalysis({
         imageUrl: signedUrl,
@@ -395,13 +458,19 @@ Deno.serve(async (req) => {
     });
 
     if (deductResult.status === "insufficient") {
-      return jsonResponse({ error: "insufficient_credits", message: "Crediti render insufficienti" }, 402);
+      return jsonResponse({
+        error: "insufficient_credits",
+        message: "Crediti render insufficienti",
+      }, 402);
     }
     creditDeducted = true;
 
     await supabase
       .from("render_facciata_sessions")
-      .update({ status: "processing", processing_started_at: new Date().toISOString() })
+      .update({
+        status: "processing",
+        processing_started_at: new Date().toISOString(),
+      })
       .eq("id", requestSessionId);
 
     if (!typedSession.original_photo_url) {
@@ -419,42 +488,53 @@ Deno.serve(async (req) => {
     const dimensions = target_width && target_height
       ? { width: target_width, height: target_height }
       : prepared.effective_width && prepared.effective_height
-        ? { width: prepared.effective_width, height: prepared.effective_height }
-        : null;
+      ? { width: prepared.effective_width, height: prepared.effective_height }
+      : null;
 
     const photoMeta: FacciataPhotoMeta | null = dimensions
       ? {
-          width: dimensions.width,
-          height: dimensions.height,
-          orientation: orientationFromDimensions(dimensions.width, dimensions.height),
-        }
+        width: dimensions.width,
+        height: dimensions.height,
+        orientation: orientationFromDimensions(
+          dimensions.width,
+          dimensions.height,
+        ),
+      }
       : null;
 
     const normalizedConfig = buildFacciataRenderConfig(
       (config ?? typedSession.config ?? {}) as never,
       {
-        sceneAnalysis: config?.scene_analysis ?? typedSession.foto_analisi ?? null,
+        sceneAnalysis: config?.scene_analysis ?? typedSession.foto_analisi ??
+          null,
         photoMeta,
-        notes: typeof config?.notes === "string" ? config.notes : typeof config?.note_libere === "string" ? config.note_libere : "",
+        notes: typeof config?.notes === "string"
+          ? config.notes
+          : typeof config?.note_libere === "string"
+          ? config.note_libere
+          : "",
       },
     );
 
-    const { systemPrompt, userPrompt, promptVersion, blocks } = buildFacciataPrompt(
-      normalizedConfig as unknown as Record<string, unknown>,
-    );
+    const { systemPrompt, userPrompt, promptVersion, blocks } =
+      buildFacciataPrompt(
+        normalizedConfig as unknown as Record<string, unknown>,
+      );
 
     const prompt = `${systemPrompt}\n\n${userPrompt}`;
-    const { imageData, providerRawResponse, modelUsed, providerKey, attempts } = await renderWithProvider({
-      prompt,
-      preparedUrl: prepared.url,
-      width: prepared.effective_width ?? undefined,
-      height: prepared.effective_height ?? undefined,
-      companyId: typedSession.company_id,
-      sessionId: requestSessionId,
-    });
+    const { imageData, providerRawResponse, modelUsed, providerKey, attempts } =
+      await renderWithProvider({
+        prompt,
+        preparedUrl: prepared.url,
+        width: prepared.effective_width ?? undefined,
+        height: prepared.effective_height ?? undefined,
+        companyId: typedSession.company_id,
+        sessionId: requestSessionId,
+      });
 
     const uploadPayload = dataUrlToBytes(imageData);
-    const resultPath = `${typedSession.company_id}/${requestSessionId}/render_${Date.now()}.${uploadPayload.extension}`;
+    const resultPath =
+      `${typedSession.company_id}/${requestSessionId}/render_${Date.now()}.${uploadPayload.extension}`;
 
     const { error: uploadError } = await supabase.storage
       .from("facciata-results")
@@ -512,7 +592,9 @@ Deno.serve(async (req) => {
     if (providerConfig?.id) {
       await supabase
         .from("render_provider_config")
-        .update({ renders_generated: Number(providerConfig.renders_generated ?? 0) + 1 })
+        .update({
+          renders_generated: Number(providerConfig.renders_generated ?? 0) + 1,
+        })
         .eq("id", providerConfig.id);
     }
 
@@ -538,7 +620,11 @@ Deno.serve(async (req) => {
             companyId: refundableCompanyId,
             sessionId: requestSessionId,
             userId: requestUserId,
-            reasonMeta: { vertical: "facciata", edge_fn: "generate-facade-render", error: message.substring(0, 500) },
+            reasonMeta: {
+              vertical: "facciata",
+              edge_fn: "generate-facade-render",
+              error: message.substring(0, 500),
+            },
             logTag: "generate-facade-render",
           });
         }
