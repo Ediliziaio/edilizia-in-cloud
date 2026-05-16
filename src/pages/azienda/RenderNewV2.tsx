@@ -1360,7 +1360,7 @@ function StepInfisso({
                     <ChoiceCard
                       key={option.id}
                       title={`${option.label}${option.upsell ? " · premium" : ""}`}
-                      desc={disabled ? "Disponibile su alluminio, minimal o legno-alluminio." : option.desc}
+                      desc={disabled ? "Disponibile su PVC, alluminio, minimal o legno-alluminio." : option.desc}
                       selected={state.nodo === option.id}
                       disabled={disabled}
                       onClick={() => setState((current) => ({

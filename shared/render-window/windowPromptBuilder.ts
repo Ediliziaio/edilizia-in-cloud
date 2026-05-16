@@ -455,16 +455,24 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
   //    (~110mm doppio montante) anche quando spec.reducedNode=true.
   //    Promosso a PRIMARY TASK con descrizione visuale esplicita.
   if (primarySpec?.centralHandle) {
+    const profileId = primarySpec.profileId.toLowerCase();
+    const isAluMinimal = profileId === "minimal" || profileId === "alluminio";
+    const slimRange = isAluMinimal ? "~30-40mm" : "~50-60mm";
     priorityLines.push(
-      "▶ CENTRAL HANDLE (palettone slim): the central vertical mullion MUST be DRAMATICALLY SLIM (~30-40mm wide, NOT 110mm) " +
-        "with ONE single handle mounted at its geometric center. Glass area dominates ~85% of the visual field. " +
-        "This is NOT a classic doubled mullion — it is a slim palettone with central handle (Italian Schüco LivIng / Internorm style).",
+      `▶ CENTRAL HANDLE (palettone slim): the central vertical mullion MUST be DRAMATICALLY SLIM (${slimRange} wide, NOT 110mm) ` +
+        "with ONE single handle mounted at its geometric center. Glass area dominates the visual field. " +
+        "This is NOT a classic doubled mullion — it is a slim palettone with central handle. " +
+        "This composition is valid for PVC, aluminum and minimal/legno-aluminum frames alike (NOT only aluminum).",
     );
   } else if (primarySpec?.reducedNode) {
+    const profileId = primarySpec.profileId.toLowerCase();
+    const isAluMinimal = profileId === "minimal" || profileId === "alluminio";
+    const slimRange = isAluMinimal ? "~50mm" : "~70mm";
     priorityLines.push(
-      "▶ ASYMMETRIC REDUCED NODE (palettone+palettino): the central vertical meeting point MUST be a SLIM SINGLE STILE (~70mm wide, NOT a doubled 110mm mullion). " +
+      `▶ ASYMMETRIC REDUCED NODE (palettone+palettino): the central vertical meeting point MUST be a SLIM SINGLE STILE (${slimRange} wide, NOT a doubled 110mm mullion). ` +
         "The primary sash is visibly WIDER than the secondary sash. The palettone covers the palettino. Glass area increases vs symmetric profile. " +
-        "Do NOT render the classic balanced doubled mullion — render a thin asymmetric meeting stile.",
+        "Do NOT render the classic balanced doubled mullion — render a thin asymmetric meeting stile. " +
+        "This slim asymmetric node is valid for PVC, aluminum and minimal/legno-aluminum frames alike (NOT only aluminum).",
     );
   }
 
