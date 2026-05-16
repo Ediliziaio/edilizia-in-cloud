@@ -386,7 +386,7 @@ export const WIZARD_LEGNO = [
     grain: "rgba(120,90,55,0.22)",
     accent: "rgba(240,210,170,0.18)",
     fragment: "light oak wood-effect laminate with honey-blond tone and visible straight grain, residential warm look",
-    referenceImage: null,
+    referenceImage: "17-Quercia-Chiara-Finitura-classica-PVC.webp",
   },
   {
     id: "quercia_rustica",
@@ -397,7 +397,7 @@ export const WIZARD_LEGNO = [
     grain: "rgba(80,52,28,0.30)",
     accent: "rgba(180,130,80,0.18)",
     fragment: "rustic oak wood-effect laminate with rough knotted grain, warm brown tone, rustic mountain-house look",
-    referenceImage: null,
+    referenceImage: "15-Quercia-Rustica-Finitura-classica-PVC.webp",
   },
   {
     id: "abete_montano",
@@ -408,7 +408,7 @@ export const WIZARD_LEGNO = [
     grain: "rgba(70,45,22,0.30)",
     accent: "rgba(170,125,80,0.18)",
     fragment: "mountain fir wood-effect laminate with deep grain pattern and warm brown tone, alpine residential style",
-    referenceImage: null,
+    referenceImage: "85-Abete-Montano-Finitura-classica-PVC.webp",
   },
   {
     id: "noce_spazzolato",
@@ -421,7 +421,7 @@ export const WIZARD_LEGNO = [
     fragment: "brushed walnut Touch finish: dark warm brown tone with strong embossed grain texture, premium architectural look",
     touch: "spazzolato",
     upsell: true,
-    referenceImage: null,
+    referenceImage: "549-Noce-Spazzolato-Finitura-Touch-effetto-spazzolato.webp",
   },
   {
     id: "rovere_medio",
@@ -434,7 +434,7 @@ export const WIZARD_LEGNO = [
     fragment: "medium brushed oak Touch finish: warm-medium brown tone with strong embossed straight grain, premium look",
     touch: "spazzolato",
     upsell: true,
-    referenceImage: null,
+    referenceImage: "544-Rovere-Spazzolato-Medio-Finitura-Touch-effetto-spazzolato.webp",
   },
   // ── Touch Premium (effetto spazzolato 3D) ──
   {
