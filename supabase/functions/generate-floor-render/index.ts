@@ -434,9 +434,7 @@ Use short values. Do not describe a renovation.`;
       .getPublicUrl(resultPath);
 
     const resultUrl = publicUrlData.publicUrl;
-    const providerKey = renderResult.providerUsed === "gemini_direct"
-      ? "gemini"
-      : renderResult.providerUsed === "openrouter"
+    const providerKey = renderResult.providerUsed === "openrouter"
       ? "openrouter_image"
       : "openai";
     const modelUsed = renderResult.modelUsed;
