@@ -133,9 +133,33 @@ Most Italian residential portefinestre are BATTENTE (3 ante battenti is common).
   has sash_count=3 + has_horizontal_transom=true.
 - transom_position_pct: vertical position from top=0 to bottom=100.
 
+═══ CASSONETTO DETECTION (CRITICAL — v8.6.27) ═══
+
+has_cassonetto detection has high false-positive rate. Be CONSERVATIVE.
+
+ONLY set has_cassonetto=true if you can clearly identify ALL THREE of these visual cues:
+1. A distinct horizontal BOX or HOUSING above the window frame, projecting OUT from the wall plane (not flush with the wall).
+2. The box has a DIFFERENT material/color/texture than the surrounding wall (typically PVC, wood, or aluminum, NOT painted wall).
+3. The box width matches the window opening width (not a generic wall feature like a curtain rod, valance, decorative trim, or ceiling moulding).
+
+If ANY of these is missing or uncertain, set has_cassonetto=false.
+
+DO NOT confuse with:
+- Window header / lintel (structural wall element above frame) → has_cassonetto=false
+- Decorative cornice or crown moulding → has_cassonetto=false
+- Curtain rod or valance → has_cassonetto=false
+- Shadow band from overhanging element → has_cassonetto=false
+- Painted accent strip on wall → has_cassonetto=false
+
+When in doubt, has_cassonetto=false. False negatives are recoverable (user can request to add one in wizard). False positives cause the AI render to INVENT a cassonetto that doesn't exist, breaking the photo realism.
+
+═══ ROLLER SHUTTER DETECTION ═══
+
+has_roller_shutter: only true if you see actual roller shutter slats (the curtain), either fully lowered, partially lowered, or visibly stored in the cassonetto with the slats peeking out. If you only see the cassonetto box (no slats visible), set the roller curtain state to "fully_raised_hidden" but only set has_roller_shutter=true if you ALSO confirmed has_cassonetto=true with the criteria above.
+
 ═══ OTHER NOTES ═══
 
-- If a cassonetto/roller box is visible, describe its apparent envelope/proportions in "cassonetto_geometry_notes".
+- If a cassonetto is visible (meeting all criteria above), describe its apparent envelope/proportions in "cassonetto_geometry_notes".
 - If the roller shutter curtain is not visibly lowered, use "fully_raised_hidden" or "not_visible" instead of inventing a visible band.
 - If only a small recessed top band is visible, use "top_recessed_band".
 - Detect manual belt and wall winder carefully: if visible, set both "has_belt" and "has_belt_box" consistently.

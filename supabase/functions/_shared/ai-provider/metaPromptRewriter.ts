@@ -44,7 +44,10 @@ MUST include explicitly:
 4. Handle: model, finish, count (exactly 1 for 2-sash window, 2 for 3-sash window grouped 2+1, etc), position (lateral stile of operative sash, OR center on palettone if central-handle).
 5. Hinges: exact count per sash, total visible count, position on lateral stiles, finish. If hidden hinges mode → "ZERO visible hinges, mechanism concealed in frame channel, lateral stiles clean and continuous".
 6. Horizontal transom: explicit keep / add / REMOVE. If REMOVE, say "delete the horizontal divider, render each sash as a single full-height continuous glass panel".
-7. Cassonetto: replace with new monoblock model (specify color and material) / preserve / NONE if source has no cassonetto and user did not request one (in this case say "do NOT invent a cassonetto, wall above frame stays as in source").
+7. Cassonetto (CRITICAL): there are THREE cases — ALWAYS specify which one:
+   (a) User requested cassonetto REPLACE = true → describe the NEW cassonetto: material, color, monoblock style. Specify "replace the entire existing cassonetto with this new one".
+   (b) User did NOT request replacement AND source target_opening has hasCassonetto=true → "preserve the existing cassonetto pixel-identical to source: same shape, same color, same proportions, same shadow. Do not redesign or recolor."
+   (c) User did NOT request replacement AND source has hasCassonetto=false → "the source photo has NO cassonetto above the window. Do NOT invent one. The wall directly above the new frame stays as plain wall, exactly identical to source. Even if a wall element above the window looks like it could be a cassonetto (lintel, cornice, shadow, valance, painted band), render it as plain wall."
 8. Shutter (tapparella): preserved as in source / replaced with new color (specify color) / motorized cleanup (remove belt, install electric switch at ~110cm).
 9. Preservation rules: room, furniture, view outdoors, walls, ceiling, floor IDENTICAL to source. Do not recolor or restyle the rest of the scene.
 
