@@ -163,14 +163,9 @@ export const WIZARD_RAL = [
     family: "grigi", referenceImage: "20-Grigio-Argento-Finitura-classica-PVC.webp" },
   { id: "1009_grigio_ardesia", code: "1009", nome: "Grigio Ardesia", hex: "#54585A",
     family: "grigi", referenceImage: "1009-Grigio-Ardesia-Finitura-classica-PVC.webp" },
-  // ── Marroni / effetti legno pellicolato classico ──
-  // v8.6.12 — Shogun AF/AD spostati da "grigi" a "marroni": la foto reference
-  // mostra una pellicolatura wood-effect chiara/scura marrone, NON un grigio
-  // (l'hex precedente era sbagliato — non rifletteva l'immagine reale).
-  { id: "242_shogun_af", code: "242", nome: "Shogun AF", hex: "#A86E3B",
-    family: "marroni", referenceImage: "242-Shogun-AF-Finitura-classica-PVC.webp" },
-  { id: "243_shogun_ad", code: "243", nome: "Shogun AD", hex: "#6B4226",
-    family: "marroni", referenceImage: "243-Shogun-AD-Finitura-classica-PVC.webp" },
+  // ── Marroni scuri pellicolati (no texture legno pronunciata) ──
+  // v8.6.15 — Shogun AF/AD spostati definitivamente in WIZARD_LEGNO perché
+  // sono PELLICOLATURE WOOD-EFFECT, non semplici colori marroni piatti.
   { id: "13_testa_di_moro", code: "13", nome: "Testa di Moro", hex: "#3E2A1A",
     family: "marroni", referenceImage: "13-Testa-di-Moro-Finitura-classica-PVC.webp" },
   { id: "130_marrone_nero", code: "130", nome: "Marrone Nero", hex: "#2A1810",
@@ -356,6 +351,30 @@ export const WIZARD_LEGNO = [
     accent: "rgba(230,190,140,0.18)",
     fragment: "oregon pine wood-effect laminate with golden-brown tone and elegant straight grain",
     referenceImage: "22-Oregon-Finitura-classica-PVC.webp",
+  },
+  // v8.6.15 — Shogun spostato da WIZARD_RAL marroni a WIZARD_LEGNO perché
+  // sono pellicolature wood-effect (la foto reference mostra venature legno).
+  {
+    id: "shogun_af",
+    code: "242",
+    nome: "Shogun AF",
+    hex: "#A86E3B",
+    grad: "linear-gradient(135deg,#B97D45,#8A5828)",
+    grain: "rgba(100,60,28,0.30)",
+    accent: "rgba(210,150,90,0.18)",
+    fragment: "Shogun AF wood-effect laminate: warm medium-brown tone with ribbon-grain pattern, premium Italian PVC pellicolato finish",
+    referenceImage: "242-Shogun-AF-Finitura-classica-PVC.webp",
+  },
+  {
+    id: "shogun_ad",
+    code: "243",
+    nome: "Shogun AD",
+    hex: "#6B4226",
+    grad: "linear-gradient(135deg,#825030,#4A2E1A)",
+    grain: "rgba(60,35,16,0.36)",
+    accent: "rgba(170,110,65,0.18)",
+    fragment: "Shogun AD wood-effect laminate: deep dark brown tone with rich ribbon-grain, premium Italian PVC pellicolato finish",
+    referenceImage: "243-Shogun-AD-Finitura-classica-PVC.webp",
   },
   // v8.6.14 — Estensioni effetti legno Serbaplast (referenceImage null = swatch CSS)
   {
