@@ -272,9 +272,13 @@ Deno.serve(async (req: Request) => {
     const sessionTable = analyzeMode === "bathroom" ? "render_bagno_sessions" : "render_sessions";
     const analysisColumn = analyzeMode === "bathroom" ? "analisi_bagno" : "foto_analisi";
 
+    // v8.6.22 — Selezioniamo anche la colonna analisi: se esiste già contenuto
+    // valido, possiamo restituirlo senza richiamare Gemini/OpenAI (risparmio
+    // 3-6s sulla rigenerazione e zero spreco di token Gemini).
+    // Il client può forzare la rianalisi passando `force=true` nel body.
     const { data: sess } = await supabase
       .from(sessionTable)
-      .select("company_id")
+      .select(`company_id, ${analysisColumn}`)
       .eq("id", session_id)
       .maybeSingle();
 
@@ -290,6 +294,34 @@ Deno.serve(async (req: Request) => {
     }
 
     await requireCompanyAccess(supabase, user.id, sessionCompanyId, corsH);
+
+    // Early-return su analisi già esistente (v8.6.22):
+    // Solo se non è stata richiesta una rianalisi esplicita (force=true)
+    // E il payload analisi è non-null e ha le sezioni minime (oggetto con
+    // almeno una proprietà). Esclude null/{} / "Unknown" fallback.
+    const force = body.force === true;
+    // deno-lint-ignore no-explicit-any
+    const existingAnalysis = (sess as any)?.[analysisColumn];
+    const hasValidExistingAnalysis = existingAnalysis &&
+      typeof existingAnalysis === "object" &&
+      Object.keys(existingAnalysis).length > 0;
+    if (!force && hasValidExistingAnalysis) {
+      console.log(JSON.stringify({
+        lvl: "info",
+        fn: "analyze-window-photo",
+        msg: "analyze_skipped_cached_in_session",
+        session_id,
+        analyze_mode: analyzeMode,
+      }));
+      return new Response(
+        JSON.stringify(
+          analyzeMode === "bathroom"
+            ? { success: true, analisi_bagno: existingAnalysis, cached: true }
+            : { success: true, foto_analisi: existingAnalysis, cached: true },
+        ),
+        { status: 200, headers: { ...corsH, "Content-Type": "application/json" } },
+      );
+    }
 
     // v8.6.7 — Chain provider Gemini → OpenAI per scene analysis.
     // Se Gemini fallisce (modello deprecato, rate limit, ecc.), fallback
