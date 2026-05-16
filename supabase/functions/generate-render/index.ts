@@ -145,6 +145,11 @@ const QA_CATEGORIES = [
   "cassonetto_window_discontinuity",
   // v8.6.5 — Composition change ignorata (sash count mismatch)
   "sash_count_mismatch",
+  // v8.6.25 — Bug reali segnalati: trasversi non rimossi, cassonetto inventato,
+  // cerniere in numero sbagliato.
+  "transom_not_removed",
+  "cassonetto_invented_when_source_had_none",
+  "hinge_count_wrong",
 ] as const;
 type QaCategory = (typeof QA_CATEGORIES)[number];
 
@@ -181,12 +186,37 @@ function buildMultiCriterionQaPrompt(config: WindowRenderConfig): string {
     ? `\nSASH COUNT CHANGE REQUESTED: source photo has ${spec.compositionChange.fromSashCount} sashes, the NEW window must have EXACTLY ${spec.compositionChange.toSashCount} sashes inside the same wall opening width.`
     : `\nSASH COUNT: source = NEW window = ${spec?.desiredSashCount ?? "?"} sashes (no composition change).`;
 
+  // v8.6.25 — Context per check #11/#12/#13
+  const transomMustBeRemoved = typeof spec?.transomRule === "string" &&
+    spec.transomRule.toUpperCase().includes("REMOVE");
+  const transomContext = transomMustBeRemoved
+    ? `\nTRANSOM REMOVAL REQUESTED: the user explicitly asked to REMOVE the horizontal transom. New sashes MUST be single full-height continuous glass panels with NO horizontal divider at mid-height.`
+    : "";
+
+  // Source cassonetto presence: estraibile dalla scene_analysis se disponibile
+  const targetedOpening = spec
+    ? config.scene_analysis.openings.find((o) => o.id === spec.openingId)
+    : undefined;
+  const sourceHadNoCassonetto = targetedOpening && !targetedOpening.hasCassonetto;
+  const userDidNotRequestCassonetto = spec && !spec.cassonetto.replace;
+  const cassonettoForbidden = sourceHadNoCassonetto && userDidNotRequestCassonetto;
+  const cassonettoContext = cassonettoForbidden
+    ? `\nNO CASSONETTO: the source photo has NO cassonetto and the user did NOT request to add one. The NEW render MUST also have NO cassonetto / roller shutter housing above the window. The wall above the frame must remain wall, exactly as Image 1.`
+    : "";
+
+  // Hinge count target
+  const hingeCountTarget = spec && spec.hingeMode !== "hidden" && spec.hingesPerSash > 0
+    ? `\nHINGE COUNT TARGET: exactly ${spec.hingesPerSash} hinge${spec.hingesPerSash > 1 ? "s" : ""} per sash × ${spec.desiredSashCount} sashes = ${spec.hingesPerSash * spec.desiredSashCount} total visible hinges across the window.`
+    : spec?.hingeMode === "hidden"
+    ? `\nHIDDEN HINGES MODE: ZERO visible hinges expected — the hinge mechanism is concealed inside the frame channel.`
+    : "";
+
   return `You are a strict QC inspector for premium Italian window-replacement renders.
 You receive TWO IMAGES:
 - Image 1 = SOURCE PHOTO (old window installed)
 - Image 2 = CANDIDATE RENDER (proposed new window in same room)
 
-Your job: detect failures where the AI did NOT properly replace the old window.${frameFinish}${cassonettoReplace}${sashCountChange}${motorizedSection}
+Your job: detect failures where the AI did NOT properly replace the old window.${frameFinish}${cassonettoReplace}${sashCountChange}${transomContext}${cassonettoContext}${hingeCountTarget}${motorizedSection}
 
 Check these ${QA_CATEGORIES.length} categories systematically. For EACH category, decide pass/fail:
 
@@ -209,6 +239,12 @@ Check these ${QA_CATEGORIES.length} categories systematically. For EACH category
 9. [cassonetto_window_discontinuity] — If cassonetto is replaced, is there a visible GAP, OFFSET, dark shadow seam, or color discontinuity between the bottom edge of the cassonetto and the top edge of the window frame? FAIL if they don't form a seamless continuous line (monoblocco standard).
 
 10. [sash_count_mismatch] — Count the sashes (vertical glazed panels separated by mullions) in Image 2. If a SASH COUNT CHANGE was requested (see header above), does the candidate render match the target sash count? FAIL if the candidate keeps the source-photo sash count instead of applying the requested change (e.g. spec says 2→1 but render still shows 2 sashes with central mullion).
+
+11. [transom_not_removed] — Only check this if TRANSOM REMOVAL REQUESTED is in the header above. Does Image 2 still show the horizontal transom dividing each sash into upper and lower glass sections? FAIL if the transom is still visible (any horizontal frame bar at mid-height of the sashes). The transom must be completely gone, replaced by continuous full-height glass.
+
+12. [cassonetto_invented_when_source_had_none] — Only check this if NO CASSONETTO is in the header above. Does Image 2 show a cassonetto / roller shutter housing box / horizontal colored band above the window frame that was NOT present in Image 1? FAIL if the AI added one when source had none and user didn't request it.
+
+13. [hinge_count_wrong] — Only check this if HINGE COUNT TARGET is in the header. Count the visible hinges in Image 2 across all sashes. FAIL if the count differs from the target (e.g. target=2 per sash × 2 sashes = 4 total, but render shows 6). For HIDDEN HINGES MODE, FAIL if any visible hinge appears on the frame.
 
 Return ONLY this JSON, no prose:
 {
@@ -258,6 +294,21 @@ function buildCorrectiveFragmentForCategory(
         return `ADD ${cc.toSashCount - cc.fromSashCount} new vertical mullion(s) to the new window. The new window must have EXACTLY ${cc.toSashCount} sashes (vertical glazed panels), NOT ${cc.fromSashCount}. The wall opening width stays IDENTICAL — only the internal subdivision changes.`;
       }
       return "Match the sash count exactly to the specification. Do not keep the source-photo sash count.";
+    }
+    case "transom_not_removed":
+      return "REMOVE the horizontal transom that is still visible in the new render. Each sash must be a SINGLE FULL-HEIGHT continuous glazed panel from top rail to bottom rail. Replace the area where the transom was with clear glass. NO horizontal frame bar at mid-height, NO seam, NO divider.";
+    case "cassonetto_invented_when_source_had_none":
+      return "REMOVE the cassonetto / roller shutter housing / horizontal colored band that you added above the window. The source photo has NO cassonetto and the user did NOT request one. The wall directly above the new window frame must remain plain wall (same paint color and texture as Image 1).";
+    case "hinge_count_wrong": {
+      const s = config.technical_specification[0];
+      if (s) {
+        if (s.hingeMode === "hidden") {
+          return "REMOVE all visible hinges from the new window. HIDDEN HINGES mode is specified — the hinge mechanism is concealed inside the frame channel. The lateral stiles must look clean and uninterrupted, with no metal hinge knuckles, no screws, no compact hinge visible anywhere on the frame perimeter.";
+        }
+        const total = s.hingesPerSash * s.desiredSashCount;
+        return `Render EXACTLY ${s.hingesPerSash} hinge${s.hingesPerSash > 1 ? "s" : ""} per sash, for a total of ${total} visible hinge${total > 1 ? "s" : ""} across the entire window. Remove any extra hinges in the current render. Hinges go on the lateral stiles only, with consistent vertical spacing and same finish.`;
+      }
+      return "Match the hinge count exactly to the specification. Remove extra hinges.";
     }
     default:
       return "";
@@ -966,13 +1017,25 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     const riskFactors = normalizedConfig.technical_specification.some((s) => {
       const transomRequiresRemoval = typeof s.transomRule === "string" &&
         s.transomRule.toUpperCase().includes("REMOVE");
+      // v8.6.25 — anche il caso "source NO cassonetto + utente NON aggiunge"
+      // è ad alto rischio di invenzione: forza QA per pescarlo.
+      const targetedOpening = normalizedConfig.scene_analysis.openings.find(
+        (o) => o.id === s.openingId,
+      );
+      const cassonettoInventionRisk = targetedOpening &&
+        !targetedOpening.hasCassonetto &&
+        !s.cassonetto.replace;
+      // v8.6.25 — cerniere nascoste = alto rischio modello le renderizza visibili
+      const hiddenHingeRisk = s.hingeMode === "hidden";
       return Boolean(
         s.compositionChange ||
           s.shutter.isMotorized ||
           s.cassonetto.replace ||
           s.centralHandle ||
           s.reducedNode ||
-          transomRequiresRemoval,
+          transomRequiresRemoval ||
+          cassonettoInventionRisk ||
+          hiddenHingeRisk,
       );
     });
     const shouldRunQa = qaForceOn || riskFactors;

@@ -478,6 +478,61 @@ ${bullets([
     }
   }
 
+  // 4. Transom REMOVE (v8.6.25) — bug reale segnalato dall'utente:
+  //    Quando state.traverso="remove", la regola sta in BLOCK D (sepolta in
+  //    fondo al prompt) e i modelli OpenAI/Gemini la ignorano sistematicamente,
+  //    consegnando portafinestre con traverso orizzontale ancora visibile.
+  //    Promosso a PRIMARY TASK in cima.
+  const transomMustBeRemoved = typeof primarySpec?.transomRule === "string" &&
+    primarySpec.transomRule.toUpperCase().includes("REMOVE");
+  if (transomMustBeRemoved) {
+    priorityLines.push(
+      `▶ TRANSOM REMOVAL (traverso rimosso): the source door-window has a horizontal transom dividing each sash into upper+lower glass sections. ` +
+        `In the NEW render, the horizontal transom MUST BE COMPLETELY REMOVED. ` +
+        `Each sash MUST become a SINGLE FULL-HEIGHT continuous glazed panel from top rail to bottom rail, ` +
+        `with NO horizontal divider, NO frame bar at mid-height, NO seam where the transom used to be. ` +
+        `If you see the transom in the source photo, DELETE it in the render — do not preserve it.`,
+    );
+  }
+
+  // 5. NO CASSONETTO INVENTION (v8.6.25) — bug reale segnalato dall'utente:
+  //    Quando la foto sorgente NON ha cassonetto E l'utente NON ha richiesto
+  //    di aggiungerne uno, il modello a volte ne inventa uno (banda colorata
+  //    in alto al telaio). Lo blocchiamo esplicitamente.
+  const targetedOpeningId = primarySpec?.openingId;
+  const targetedOpening = normalizedConfig.scene_analysis.openings.find(
+    (o) => o.id === targetedOpeningId,
+  );
+  const sourceHasNoCassonetto = targetedOpening && !targetedOpening.hasCassonetto;
+  const userDidNotRequestCassonetto = primarySpec && !primarySpec.cassonetto.replace;
+  if (sourceHasNoCassonetto && userDidNotRequestCassonetto) {
+    priorityLines.push(
+      `▶ NO CASSONETTO INVENTION: the source photo has NO cassonetto (no roller shutter housing box) above the window. ` +
+        `The user did NOT request to add one. The NEW render MUST also have NO cassonetto. ` +
+        `Do NOT invent a horizontal colored band, box, or housing above the window frame. ` +
+        `The wall directly above the new frame must remain wall (same color/texture as source), exactly as in Image 1.`,
+    );
+  }
+
+  // 6. EXACT HINGE COUNT (v8.6.25) — bug reale segnalato dall'utente:
+  //    Il modello renderizza 3+ cerniere per anta invece delle 2 specificate.
+  //    Il numero esatto (hingesPerSash × sashes) deve essere assoluto.
+  if (primarySpec && primarySpec.hingeMode !== "hidden" && primarySpec.hingesPerSash > 0) {
+    const total = primarySpec.hingesPerSash * primarySpec.desiredSashCount;
+    priorityLines.push(
+      `▶ EXACT HINGE COUNT: render EXACTLY ${primarySpec.hingesPerSash} hinge${primarySpec.hingesPerSash > 1 ? "s" : ""} per sash, ` +
+        `total of ${total} hinge${total > 1 ? "s" : ""} visible across the entire window. ` +
+        `Do NOT add extra hinges. Do NOT render 3 hinges per sash when 2 are specified. ` +
+        `Hinges are positioned on the LATERAL STILES (left vertical edge of left sash, right vertical edge of right sash for an outward-opening 2-sash window). ` +
+        `Same finish, same model, same vertical spacing for all visible hinges.`,
+    );
+  } else if (primarySpec?.hingeMode === "hidden") {
+    priorityLines.push(
+      `▶ HIDDEN HINGES: render ZERO visible hinges. The hinge mechanism is completely concealed inside the frame channel. ` +
+        `The lateral stiles MUST appear clean, continuous, uninterrupted — no metal hinge knuckles, no screws, no compact hinges visible anywhere on the frame perimeter.`,
+    );
+  }
+
   let priorityOverride = "";
   if (priorityLines.length > 0) {
     priorityOverride = `[🚨 PRIMARY TASKS — READ FIRST, EXECUTE BEFORE EVERYTHING ELSE 🚨]
@@ -528,7 +583,7 @@ These tasks have ABSOLUTE PRIORITY over everything else (color matching, handle 
       "changed perspective, changed crop, changed wall color, changed furniture, " +
       "darkened outdoor view, cinematic teal-orange grading, tinted glazing reducing daylight, " +
       "moody dark-blue tone over the outdoor view, dusk atmosphere over a bright daylight scene",
-    promptVersion: "8.6.24",
+    promptVersion: "8.6.25",
     blocks,
     validation,
     normalizedConfig,
