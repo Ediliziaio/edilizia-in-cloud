@@ -313,7 +313,12 @@ Deno.serve(async (req: Request) => {
       },
     };
 
-    const geminiModel = "gemini-2.5-flash-preview-04-17";
+    // v8.6.6 — Aggiornato modello: "gemini-2.5-flash-preview-04-17" era un
+    // preview deprecato e ora ritorna 404 (verificato: API v1beta NOT_FOUND).
+    // Sostituito con "gemini-2.5-flash" stable, supporta vision + JSON output.
+    // Override via env GEMINI_ANALYZE_MODEL per testing modelli futuri.
+    const geminiModel = Deno.env.get("GEMINI_ANALYZE_MODEL")?.trim() ||
+      "gemini-2.5-flash";
     const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`;
 
     const gemController = new AbortController();
