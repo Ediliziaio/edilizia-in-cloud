@@ -34,22 +34,30 @@
  * `RENDER_REFERENCES_BASE_URL` (edge functions) per supportare CDN alternativi
  * o Supabase Storage in setup multi-tenant futuri.
  */
+// v8.6.18 — Type-safe cross-runtime detection. Sostituiti i 5 cast `as any`
+// con type guards che soddisfano TypeScript strict E ESLint no-explicit-any.
+type ViteImportMeta = { env?: { VITE_RENDER_REFERENCES_BASE_URL?: string } };
+type DenoGlobal = { Deno?: { env: { get: (key: string) => string | undefined } } };
+
 function getReferencesBaseUrl(): string {
   // Frontend (Vite)
-  if (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_RENDER_REFERENCES_BASE_URL) {
-    return (import.meta as any).env.VITE_RENDER_REFERENCES_BASE_URL;
+  const meta = (typeof import.meta !== "undefined" ? import.meta : undefined) as
+    | (ImportMeta & ViteImportMeta)
+    | undefined;
+  if (meta?.env?.VITE_RENDER_REFERENCES_BASE_URL) {
+    return meta.env.VITE_RENDER_REFERENCES_BASE_URL;
   }
   // Edge function (Deno)
-  if (typeof (globalThis as any).Deno !== "undefined") {
-    const envUrl = (globalThis as any).Deno.env.get("RENDER_REFERENCES_BASE_URL");
+  const deno = (globalThis as unknown as DenoGlobal).Deno;
+  if (deno) {
+    const envUrl = deno.env.get("RENDER_REFERENCES_BASE_URL");
     if (envUrl) return envUrl;
-    const siteUrl = (globalThis as any).Deno.env.get("SITE_URL");
+    const siteUrl = deno.env.get("SITE_URL");
     if (siteUrl) return `${siteUrl.replace(/\/+$/, "")}/render-references`;
     // v8.5.2 FIX BUG CRITICO: il default era "app.ediliziaincloud.it" che
     // NON RISOLVE via DNS → fetch reference images falliva silenziosamente
     // → Gemini riceveva 0 reference photos → si comportava da "recolor"
-    // invece di "replace" (problema osservato in produzione su renderv8.5).
-    // Default produzione corretto: dominio Cloudflare Pages reale del deploy.
+    // invece di "replace". Default produzione: dominio Cloudflare Pages reale.
     return "https://edilizia-in-cloud.pages.dev/render-references";
   }
   // Default frontend: serve da Cloudflare Pages CDN (stessa origin del sito).
