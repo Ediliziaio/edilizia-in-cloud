@@ -33,6 +33,7 @@ import {
   type ImageProviderAttempt,
 } from "../_shared/ai-provider/image.ts";
 import { callVisionQa } from "../_shared/ai-provider/visionQa.ts";
+import { rewriteToMetaPrompt } from "../_shared/ai-provider/metaPromptRewriter.ts";
 import { buildWindowPrompt } from "../../../shared/render-window/windowPromptBuilder.ts";
 import type { WindowRenderConfig } from "../../../shared/render-window/types.ts";
 
@@ -788,6 +789,66 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
   const { negativePrompt, referenceImageDescriptors } = args;
 
   const elapsed = () => Date.now() - requestStartMs;
+
+  // ── v8.6.26 — META-PROMPT REWRITER (experimental, env flag) ──────────
+  // Quando env RENDER_PROMPT_MODE="meta", riscrive il prompt block-based
+  // (~25KB) in una prosa naturale ~2-3KB via Gemini Flash. Razionale:
+  // i modelli immagine processano meglio prose breve che blocchi rigidi.
+  // Se il rewriter fallisce o la prosa omette key tokens → fallback al
+  // block-based originale (composedPrompt args.composedPrompt).
+  const promptMode = Deno.env.get("RENDER_PROMPT_MODE")?.trim().toLowerCase();
+  if (promptMode === "meta") {
+    try {
+      const metaResult = await rewriteToMetaPrompt({
+        config: args.normalizedConfig,
+        metadata: {
+          task_kind: "render_prompt_rewrite",
+          company_id: session.company_id as string,
+          session_id: args.session_id,
+        },
+      });
+      if (metaResult) {
+        // Sostituisci il block-based userPrompt con la prosa, mantenendo
+        // systemPrompt (identità modello) e negativePrompt (anti-pattern).
+        composedPrompt = [
+          args.systemPrompt,
+          metaResult.userPrompt,
+          `[NEGATIVE CONSTRAINTS]\n${negativePrompt}`,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+        logInfo({
+          session_id: args.session_id,
+          msg: "prompt_mode_meta_active",
+          rewriter_model: metaResult.modelUsed,
+          rewriter_latency_ms: metaResult.latencyMs,
+          prose_length: metaResult.userPrompt.length,
+          original_blocks_length: args.composedPrompt.length,
+          delta_pct: Math.round(
+            ((args.composedPrompt.length - composedPrompt.length) / args.composedPrompt.length) * 100,
+          ),
+        });
+      } else {
+        logWarn({
+          session_id: args.session_id,
+          msg: "prompt_mode_meta_fallback_to_blocks",
+          reason: "rewriter_returned_null",
+        });
+      }
+    } catch (e) {
+      logWarn({
+        session_id: args.session_id,
+        msg: "prompt_mode_meta_exception_fallback_to_blocks",
+        error: (e as Error).message?.substring(0, 200),
+      });
+    }
+  } else {
+    logInfo({
+      session_id: args.session_id,
+      msg: "prompt_mode_blocks_active",
+      env_RENDER_PROMPT_MODE: promptMode ?? "(not set)",
+    });
+  }
 
   const providerChain: Array<Record<string, unknown>> = [];
 
