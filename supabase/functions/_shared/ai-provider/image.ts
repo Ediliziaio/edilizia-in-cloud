@@ -1,32 +1,19 @@
 // _shared/ai-provider/image.ts
-// Image generation/edit via Gemini 2.5 Flash Image ("Nano Banana") con
-// fallback OpenRouter e OpenAI diretto.
+// Image generation/edit via OpenAI gpt-image-1 (direct + OpenRouter fallback).
+//
+// v8.6.32 — GEMINI ELIMINATO definitivamente (richiesta utente).
+// Catena: OpenAI direct → OpenRouter OpenAI.
 //
 // Compagno di openrouter.ts: stesso stile, stessi headers, stessa retry policy.
 // Tutti i render AI (infissi, bagno, facciata, pavimento, etc.) passano qui.
-//
-// Routing:
-//   1) Gemini 2.5 Flash Image via Google Gemini API diretto
-//   2) Fallback: Gemini 2.5 Flash Image via OpenRouter
-//   3) Fallback: OpenAI image via OpenRouter
-//   4) Last resort: OpenAI image diretto
-//
-// DALL-E 2/3 NON sono mai presenti nella chain. Sono deprecati.
 
 import { type AIProviderError, makeAIError } from "./types.ts";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-const GEMINI_API_ENDPOINT =
-  "https://generativelanguage.googleapis.com/v1beta/models";
 const OPENAI_IMAGES_EDIT_ENDPOINT = "https://api.openai.com/v1/images/edits";
 const DEFAULT_TIMEOUT_MS = 180_000;
 const DEFAULT_RETRIES = 2;
 
-export const IMAGE_MODEL_GEMINI_DIRECT =
-  Deno.env.get("GEMINI_IMAGE_MODEL")?.trim() ||
-  Deno.env.get("RENDER_GEMINI_MODEL")?.trim() ||
-  "gemini-2.5-flash-image";
-export const IMAGE_MODEL_PRIMARY = "google/gemini-2.5-flash-image";
 // FIX 2026-05-15: il default era `openai/gpt-image-1.5` che NON esiste nel
 // catalog OpenRouter (verificato via debug-ai-providers endpoint).
 // I modelli OpenAI image disponibili oggi su OpenRouter sono:
@@ -46,7 +33,7 @@ export const IMAGE_MODEL_OPENAI_DIRECT =
   Deno.env.get("RENDER_OPENAI_IMAGE_MODEL")?.trim() ||
   "gpt-image-1";
 
-export type ImageProvider = "gemini_direct" | "openrouter" | "openai_direct";
+export type ImageProvider = "openrouter" | "openai_direct";
 
 export interface ImageProviderAttempt {
   model: string;
@@ -113,18 +100,9 @@ export interface ImageEditResult {
 }
 
 /**
- * v8.6.24 — Ordine provider FISSO:
- *   Tier 1: OpenAI direct (gpt-image-1)         — qualità top sui micro-dettagli
- *   Tier 2: Gemini direct (gemini-2.5-flash)    — fallback rapido + economico
- *   Tier 3: OpenRouter Gemini                   — emergency 1 (resilienza)
- *   Tier 4: OpenRouter OpenAI                   — emergency 2 (può stallare → ultimo)
- *
- * Scelta strategica: il cliente B2B paga la qualità render — OpenAI ha resa
- * più precisa su sash count change, palettone slim, nodo asimmetrico, ecc.
- * Gemini come Tier 2 economico se OpenAI rate-limit o down.
- * OpenRouter come paracadute finale (raramente chiamato, ~0.1%).
- *
- * Env RENDER_PROVIDER_FIRST rimosso v8.6.24 (chain fissa).
+ * v8.6.32 — Ordine provider FISSO (Gemini eliminato per richiesta utente):
+ *   Tier 1: OpenAI direct (gpt-image-1)         — primary
+ *   Tier 2: OpenRouter OpenAI (gpt-5-image)     — fallback
  */
 type ProviderStep = {
   provider: ImageProvider;
@@ -137,16 +115,12 @@ function getProviderOrder(): ProviderStep[] {
     lvl: "info",
     fn: "ai-provider/image",
     msg: "provider_chain_resolved",
-    chain: "openai_first_v8.6.24",
+    chain: "openai_only_v8.6.32",
     tier1: "openai_direct (gpt-image-1)",
-    tier2: "gemini_direct (gemini-2.5-flash-image)",
-    tier3: "openrouter (gemini)",
-    tier4: "openrouter (openai)",
+    tier2: "openrouter (openai gpt-5-image)",
   }));
   return [
     { provider: "openai_direct", model: IMAGE_MODEL_OPENAI_DIRECT, call: callOpenAIImage },
-    { provider: "gemini_direct", model: IMAGE_MODEL_GEMINI_DIRECT, call: callGeminiImage },
-    { provider: "openrouter", model: IMAGE_MODEL_PRIMARY, call: callOpenRouterImage },
     { provider: "openrouter", model: IMAGE_MODEL_OPENROUTER_OPENAI, call: callOpenRouterImage },
   ];
 }
@@ -232,175 +206,7 @@ interface ProviderCallResult {
   latencyMs: number;
 }
 
-async function callGeminiImage(
-  args: ProviderCallArgs,
-): Promise<ProviderCallResult> {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw makeAIError(
-      "invalid_api_key",
-      "GEMINI_API_KEY non configurata nei Supabase secrets",
-      false,
-    );
-  }
-
-  const timeoutMs = args.params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const sourceDataUrl = await ensureSourceDataUrl(args.params);
-  const { mime, base64 } = splitDataUrl(sourceDataUrl);
-  const fullPrompt = args.params.negativePrompt
-    ? `${args.params.prompt}\n\n[NEGATIVE]\n${args.params.negativePrompt}`
-    : args.params.prompt;
-
-  // v8.3.3 — Multi-image input: Gemini accetta nativamente N inline_data parts
-  // dopo il testo. Costruisce un array [text, source, ref1, ref2, ...].
-  const parts: Array<Record<string, unknown>> = [
-    { text: fullPrompt },
-    { inline_data: { mime_type: mime, data: base64 } },
-  ];
-  if (args.params.referenceImages && args.params.referenceImages.length > 0) {
-    for (const ref of args.params.referenceImages) {
-      try {
-        const { mime: refMime, base64: refB64 } = splitDataUrl(ref.dataUrl);
-        parts.push({ inline_data: { mime_type: refMime, data: refB64 } });
-      } catch {
-        // Skip reference malformato senza far fallire la chiamata.
-      }
-    }
-  }
-
-  const body = {
-    contents: [
-      {
-        role: "user",
-        parts,
-      },
-    ],
-    generationConfig: {
-      responseModalities: ["Image"],
-    },
-  };
-
-  const backoff = [1500, 4000];
-  let lastErr: AIProviderError | null = null;
-
-  for (let attempt = 0; attempt <= DEFAULT_RETRIES; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const startMs = Date.now();
-
-    try {
-      const resp = await fetch(
-        `${GEMINI_API_ENDPOINT}/${args.model}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        },
-      );
-      clearTimeout(timer);
-      const latencyMs = Date.now() - startMs;
-
-      if (resp.status === 429) {
-        const txt = await safeRead(resp);
-        lastErr = makeAIError("rate_limit", `Gemini 429: ${txt}`, true, 429);
-        if (attempt < DEFAULT_RETRIES) {
-          await sleep(backoff[attempt] ?? 4000);
-          continue;
-        }
-        throw lastErr;
-      }
-
-      if (resp.status >= 500) {
-        const txt = await safeRead(resp);
-        lastErr = makeAIError(
-          "unknown",
-          `Gemini ${resp.status}: ${txt}`,
-          true,
-          resp.status,
-        );
-        if (attempt < DEFAULT_RETRIES) {
-          await sleep(backoff[attempt] ?? 4000);
-          continue;
-        }
-        throw lastErr;
-      }
-
-      if (resp.status === 401 || resp.status === 403) {
-        throw makeAIError(
-          "invalid_api_key",
-          `Gemini ${resp.status}`,
-          false,
-          resp.status,
-        );
-      }
-
-      if (resp.status === 404) {
-        throw makeAIError(
-          "model_not_found",
-          `Gemini model not available: ${args.model}`,
-          false,
-          404,
-        );
-      }
-
-      if (!resp.ok) {
-        const txt = await safeRead(resp);
-        throw makeAIError(
-          "unknown",
-          `Gemini ${resp.status}: ${txt.substring(0, 300)}`,
-          false,
-          resp.status,
-        );
-      }
-
-      const json = (await resp.json()) as Record<string, unknown>;
-      const imageDataUrl = extractGeminiImage(json);
-      if (!imageDataUrl) {
-        throw makeAIError("unknown", "Gemini: no image in response", false);
-      }
-
-      return {
-        imageDataUrl,
-        modelUsed: args.model,
-        rawResponse: json,
-        costUsd: undefined,
-        costIsEstimated: true,
-        latencyMs,
-      };
-    } catch (e) {
-      clearTimeout(timer);
-      const err = e as AIProviderError;
-      if (err?.code) {
-        if (!err.retryable || attempt >= DEFAULT_RETRIES) throw err;
-        lastErr = err;
-        await sleep(backoff[attempt] ?? 4000);
-        continue;
-      }
-      const asError = e as Error;
-      if (asError.name === "AbortError") {
-        lastErr = makeAIError("timeout", `Timeout dopo ${timeoutMs}ms`, true);
-        if (attempt < DEFAULT_RETRIES) {
-          await sleep(backoff[attempt] ?? 4000);
-          continue;
-        }
-        throw lastErr;
-      }
-      lastErr = makeAIError("unknown", String(asError.message ?? e), true);
-      if (attempt < DEFAULT_RETRIES) {
-        await sleep(backoff[attempt] ?? 4000);
-        continue;
-      }
-      throw lastErr;
-    }
-  }
-
-  throw lastErr ??
-    makeAIError("unknown", "Errore image edit Gemini dopo retry", false);
-}
+// v8.6.32 — callGeminiImage REMOSSO (Gemini eliminato dal sistema).
 
 async function callOpenRouterImage(
   args: ProviderCallArgs,
@@ -825,34 +631,7 @@ function extractOpenRouterImage(json: Record<string, unknown>): string | null {
   return null;
 }
 
-function extractGeminiImage(json: Record<string, unknown>): string | null {
-  const candidates = (json.candidates as Array<Record<string, unknown>>) ?? [];
-  const content = (candidates[0]?.content as Record<string, unknown>) ?? {};
-  const parts = (content.parts as Array<Record<string, unknown>>) ?? [];
-
-  for (const part of parts) {
-    const inlineData =
-      (part.inlineData as Record<string, unknown> | undefined) ??
-        (part.inline_data as Record<string, unknown> | undefined);
-    const data = inlineData?.data;
-    const mime = inlineData?.mimeType ?? inlineData?.mime_type ?? "image/png";
-    if (typeof data === "string" && data.length > 0) {
-      return data.startsWith("data:image/")
-        ? data
-        : `data:${mime};base64,${data}`;
-    }
-  }
-
-  return null;
-}
-
-function getGeminiApiKey(): string {
-  return Deno.env.get("GEMINI_API_KEY")?.trim() ||
-    Deno.env.get("GOOGLE_API_KEY")?.trim() ||
-    Deno.env.get("GOOGLE_GENERATIVE_AI_API_KEY")?.trim() ||
-    Deno.env.get("RENDER_GEMINI_API_KEY")?.trim() ||
-    "";
-}
+// v8.6.32 — extractGeminiImage e getGeminiApiKey rimossi (Gemini eliminato).
 
 function splitDataUrl(dataUrl: string): { mime: string; base64: string } {
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);

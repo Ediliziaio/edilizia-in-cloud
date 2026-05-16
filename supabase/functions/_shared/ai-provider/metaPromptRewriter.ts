@@ -26,9 +26,10 @@
 import { callOpenRouter } from "./openrouter.ts";
 import type { ChatMessage } from "./types.ts";
 
+// v8.6.32 — Gemini eliminato. Solo OpenAI via OpenRouter.
 const REWRITER_MODELS_CHAIN = [
-  "google/gemini-2.5-flash",
   "openai/gpt-4o-mini",
+  "openai/gpt-4o",
 ];
 
 const SYSTEM_PROMPT = `You are a technical copywriter for Italian photorealistic window-replacement AI renders.

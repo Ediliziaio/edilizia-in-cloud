@@ -1150,9 +1150,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     const resultUrl = publicUrlData.publicUrl;
 
     // ── Capture costo reale ──────────────────────────────────────────────
-    const providerKey = candidate.providerUsed === "gemini_direct"
-      ? "gemini"
-      : candidate.providerUsed === "openrouter"
+    const providerKey = candidate.providerUsed === "openrouter"
       ? "openrouter_image"
       : "openai";
     const providerRawResponse = {

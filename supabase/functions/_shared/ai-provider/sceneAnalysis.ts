@@ -6,10 +6,11 @@ import { callOpenRouter } from "./openrouter.ts";
 import { makeAIError } from "./types.ts";
 import type { ChatMessage } from "./types.ts";
 
+// v8.6.32 — Gemini eliminato. Chain: Claude Haiku + OpenAI Vision.
 const SCENE_MODELS_CHAIN = [
-  "google/gemini-2.5-flash",
   "anthropic/claude-haiku-4.5",
   "openai/gpt-4o-mini",
+  "openai/gpt-4o",
 ];
 
 export interface SceneAnalysisArgs {

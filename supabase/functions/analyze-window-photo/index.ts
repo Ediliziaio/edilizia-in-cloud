@@ -1,6 +1,7 @@
 // analyze-window-photo — Edge Function EiC
-// Analizza foto finestre con Gemini 2.5 Flash
+// Analizza foto finestre con OpenAI Vision (gpt-4o-mini default)
 // Restituisce FotoAnalisi JSON per il wizard RenderNew
+// v8.6.32 — Gemini eliminato.
 
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -366,26 +367,14 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // v8.6.7 — Chain provider Gemini → OpenAI per scene analysis.
-    // Se Gemini fallisce (modello deprecato, rate limit, ecc.), fallback
-    // automatico a OpenAI Vision. L'utente NON deve essere bloccato
-    // dall'analisi fallback "Unknown".
-    let geminiApiKey = Deno.env.get("GEMINI_API_KEY") ?? "";
-    if (!geminiApiKey) {
-      const { data: setting } = await supabase
-        .from("platform_settings")
-        .select("value")
-        .eq("key", "render_gemini_api_key")
-        .single();
-      geminiApiKey = setting?.value ?? "";
-    }
+    // v8.6.32 — Gemini eliminato. Solo OpenAI Vision per scene analysis.
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY")?.trim() ?? "";
 
-    if (!geminiApiKey && !openaiApiKey) {
+    if (!openaiApiKey) {
       return new Response(
         JSON.stringify({
           error: "config_error",
-          message: "Né Gemini né OpenAI API key configurate. Configurare almeno una in Admin > Impostazioni AI > Render.",
+          message: "OPENAI_API_KEY non configurata. Configurare in Admin > Impostazioni AI > Render.",
         }),
         { status: 503, headers: { ...corsH, "Content-Type": "application/json" } }
       );
@@ -413,75 +402,22 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── Vision provider chain: Gemini → OpenAI ─────────────────────────────
+    // v8.6.32 — Solo OpenAI Vision (Gemini eliminato).
     const promptText = analyzeMode === "bathroom"
       ? `${BATHROOM_SYSTEM_PROMPT}\n\n${BATHROOM_USER_PROMPT}`
       : `${SYSTEM_PROMPT}\n\n${USER_PROMPT}`;
 
-    const geminiModel = Deno.env.get("GEMINI_ANALYZE_MODEL")?.trim() ||
-      "gemini-2.5-flash";
     const openaiModel = Deno.env.get("OPENAI_ANALYZE_MODEL")?.trim() ||
       "gpt-4o-mini";
 
     let rawText = "";
     let inputTokens = 0;
     let outputTokens = 0;
-    let providerUsed: "gemini" | "openai" = "gemini";
-    let modelUsed = geminiModel;
+    const providerUsed: "openai" = "openai";
+    let modelUsed = openaiModel;
     const providerErrors: string[] = [];
 
-    // ── Provider 1: Gemini ─────────────────────────────────────────────────
-    if (geminiApiKey) {
-      const gemController = new AbortController();
-      const gemTimeout = setTimeout(() => gemController.abort(), 60_000);
-      try {
-        const gemResp = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { text: promptText },
-                  { inline_data: { mime_type: mimeType, data: imgB64 } },
-                ],
-              }],
-              generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
-            }),
-            signal: gemController.signal,
-          },
-        );
-        clearTimeout(gemTimeout);
-        if (!gemResp.ok) {
-          const errText = await gemResp.text();
-          throw new Error(`Gemini ${gemResp.status}: ${errText.substring(0, 200)}`);
-        }
-        const gemData = await gemResp.json();
-        rawText = gemData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-        inputTokens = Number(gemData.usageMetadata?.promptTokenCount ?? 0);
-        outputTokens = Number(gemData.usageMetadata?.candidatesTokenCount ?? 0);
-        if (!rawText.trim()) throw new Error("Gemini ritorna response vuota");
-        providerUsed = "gemini";
-        modelUsed = geminiModel;
-      } catch (err) {
-        clearTimeout(gemTimeout);
-        const msg = err instanceof Error ? err.message : String(err);
-        providerErrors.push(`gemini: ${msg}`);
-        console.warn(JSON.stringify({
-          lvl: "warn",
-          fn: "analyze-window-photo",
-          msg: "gemini_failed_trying_openai_fallback",
-          error: msg.substring(0, 300),
-        }));
-        rawText = "";
-      }
-    } else {
-      providerErrors.push("gemini: no API key configured");
-    }
-
-    // ── Provider 2: OpenAI fallback (se Gemini ha fallito) ─────────────────
-    if (!rawText && openaiApiKey) {
+    if (openaiApiKey) {
       const openaiController = new AbortController();
       const openaiTimeout = setTimeout(() => openaiController.abort(), 60_000);
       try {
@@ -522,12 +458,11 @@ Deno.serve(async (req: Request) => {
         inputTokens = Number(openaiData.usage?.prompt_tokens ?? 0);
         outputTokens = Number(openaiData.usage?.completion_tokens ?? 0);
         if (!rawText.trim()) throw new Error("OpenAI ritorna response vuota");
-        providerUsed = "openai";
         modelUsed = openaiModel;
         console.log(JSON.stringify({
           lvl: "info",
           fn: "analyze-window-photo",
-          msg: "openai_fallback_success",
+          msg: "openai_vision_success",
           tokens_in: inputTokens,
           tokens_out: outputTokens,
         }));
@@ -536,11 +471,9 @@ Deno.serve(async (req: Request) => {
         const msg = err instanceof Error ? err.message : String(err);
         providerErrors.push(`openai: ${msg}`);
       }
-    } else if (!rawText && !openaiApiKey) {
-      providerErrors.push("openai: no API key configured (fallback unavailable)");
     }
 
-    // ── Se entrambi i provider sono falliti ────────────────────────────────
+    // ── Se il provider è fallito ────────────────────────────────
     if (!rawText) {
       return new Response(
         JSON.stringify({

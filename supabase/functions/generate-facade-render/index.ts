@@ -323,9 +323,7 @@ async function renderWithProvider(params: {
       session_id: params.sessionId,
     },
   });
-  const providerKey = result.providerUsed === "gemini_direct"
-    ? "gemini"
-    : result.providerUsed === "openrouter"
+  const providerKey = result.providerUsed === "openrouter"
     ? "openrouter_image"
     : "openai";
   return {

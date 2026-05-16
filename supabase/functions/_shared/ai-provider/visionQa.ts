@@ -11,10 +11,11 @@
 import { callOpenRouter } from "./openrouter.ts";
 import type { ChatMessage } from "./types.ts";
 
+// v8.6.32 — Gemini eliminato. Chain: Claude Haiku + GPT-4o-mini.
 const VISION_MODELS_CHAIN = [
-  "google/gemini-2.5-flash",
   "anthropic/claude-haiku-4.5",
   "openai/gpt-4o-mini",
+  "openai/gpt-4o",
 ];
 
 export interface VisionQaArgs {

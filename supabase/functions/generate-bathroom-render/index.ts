@@ -741,9 +741,7 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
         .getPublicUrl(resultPath);
 
       const resultUrl = publicUrlData.publicUrl;
-      const providerKey = renderResult.providerUsed === "gemini_direct"
-        ? "gemini"
-        : renderResult.providerUsed === "openrouter"
+      const providerKey = renderResult.providerUsed === "openrouter"
         ? "openrouter_image"
         : "openai";
       const modelUsed = renderResult.modelUsed;

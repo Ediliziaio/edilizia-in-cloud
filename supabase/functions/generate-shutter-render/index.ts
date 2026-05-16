@@ -554,9 +554,7 @@ Deno.serve(async (req) => {
       },
     });
 
-    const providerKey = providerResult.providerUsed === "gemini_direct"
-      ? "gemini"
-      : providerResult.providerUsed === "openrouter"
+    const providerKey = providerResult.providerUsed === "openrouter"
       ? "openrouter_image"
       : "openai";
     const modelUsed = providerResult.modelUsed;
