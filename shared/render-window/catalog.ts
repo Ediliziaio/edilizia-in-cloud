@@ -210,6 +210,44 @@ export const WIZARD_RAL = [
   { id: "6029_verde_menta", code: "6029", nome: "Verde Menta (RAL 6029)", hex: "#20603D",
     family: "verdi", referenceImage: null },
 
+  // v8.6.14 — Espansione catalogo Serbaplast: colori finitura classica più richiesti.
+  // Foto reference non ancora disponibili (referenceImage: null) — UI mostra swatch CSS.
+  // ── Bianchi/Avori aggiuntivi ──
+  { id: "21_bianco_pellicolato", code: "21", nome: "Bianco Pellicolato", hex: "#F5F2EB",
+    family: "bianchi", referenceImage: null },
+  { id: "1004_avorio", code: "1004", nome: "Avorio", hex: "#E8DCC0",
+    family: "bianchi", referenceImage: null },
+  { id: "131_bianco_papiro", code: "131", nome: "Bianco Papiro", hex: "#EFEAD8",
+    family: "bianchi", referenceImage: null },
+  // ── Grigi aggiuntivi (essenziali) ──
+  { id: "86_grigio_antracite", code: "86", nome: "Grigio Antracite", hex: "#3C4248",
+    family: "grigi", referenceImage: null },
+  { id: "88_grigio_agata", code: "88", nome: "Grigio Agata", hex: "#828A8C",
+    family: "grigi", referenceImage: null },
+  { id: "133_grigio_luce", code: "133", nome: "Grigio Luce", hex: "#B5B8B5",
+    family: "grigi", referenceImage: null },
+  { id: "227_grigio_basalto", code: "227", nome: "Grigio Basalto", hex: "#4A4D52",
+    family: "grigi", referenceImage: null },
+  { id: "514_grigio_quarzo", code: "514", nome: "Grigio Quarzo", hex: "#7C7E7E",
+    family: "grigi", referenceImage: null },
+  // ── Marroni / Effetti legno classici aggiuntivi ──
+  { id: "228_winchester", code: "228", nome: "Winchester", hex: "#5A3825",
+    family: "marroni", referenceImage: null },
+  { id: "221_siena_rosso", code: "221", nome: "Siena Rosso", hex: "#7A2A14",
+    family: "marroni", referenceImage: null },
+  { id: "226_siena_noce", code: "226", nome: "Siena Noce", hex: "#5C3B22",
+    family: "marroni", referenceImage: null },
+  // ── Blu aggiuntivo ──
+  { id: "132_blu_brillante", code: "132", nome: "Blu Brillante", hex: "#1E4D7B",
+    family: "blu", referenceImage: null },
+  // ── Premium / Touch Feinstruktur goffrati (espansi) ──
+  { id: "1300_feinstruktur_antracite", code: "1300", nome: "Feinstruktur Grigio Antracite (Touch goffrato)",
+    hex: "#383E42", family: "premium", touch: "goffrato", upsell: true, referenceImage: null },
+  { id: "1302_feinstruktur_ardesia", code: "1302", nome: "Feinstruktur Grigio Ardesia (Touch goffrato)",
+    hex: "#5A5E63", family: "premium", touch: "goffrato", upsell: true, referenceImage: null },
+  { id: "1307_feinstruktur_bianco", code: "1307", nome: "Feinstruktur Bianco (Touch goffrato)",
+    hex: "#EFEDE5", family: "premium", touch: "goffrato", upsell: true, referenceImage: null },
+
   // ── Touch Premium (effetto goffrato / strutturato) ──
   { id: "1301_feinstruktur_nero", code: "1301", nome: "Feinstruktur Nero (Touch goffrato)", hex: "#1C1C1C",
     family: "premium", touch: "goffrato", upsell: true,
@@ -319,6 +357,66 @@ export const WIZARD_LEGNO = [
     fragment: "oregon pine wood-effect laminate with golden-brown tone and elegant straight grain",
     referenceImage: "22-Oregon-Finitura-classica-PVC.webp",
   },
+  // v8.6.14 — Estensioni effetti legno Serbaplast (referenceImage null = swatch CSS)
+  {
+    id: "quercia_chiara",
+    code: "17",
+    nome: "Quercia Chiara",
+    hex: "#C4A47A",
+    grad: "linear-gradient(135deg,#D4B58A,#A88560)",
+    grain: "rgba(120,90,55,0.22)",
+    accent: "rgba(240,210,170,0.18)",
+    fragment: "light oak wood-effect laminate with honey-blond tone and visible straight grain, residential warm look",
+    referenceImage: null,
+  },
+  {
+    id: "quercia_rustica",
+    code: "15",
+    nome: "Quercia Rustica",
+    hex: "#8B6840",
+    grad: "linear-gradient(135deg,#A07D52,#6A4F30)",
+    grain: "rgba(80,52,28,0.30)",
+    accent: "rgba(180,130,80,0.18)",
+    fragment: "rustic oak wood-effect laminate with rough knotted grain, warm brown tone, rustic mountain-house look",
+    referenceImage: null,
+  },
+  {
+    id: "abete_montano",
+    code: "85",
+    nome: "Abete Montano",
+    hex: "#7A5A3A",
+    grad: "linear-gradient(135deg,#8A6A48,#5C422A)",
+    grain: "rgba(70,45,22,0.30)",
+    accent: "rgba(170,125,80,0.18)",
+    fragment: "mountain fir wood-effect laminate with deep grain pattern and warm brown tone, alpine residential style",
+    referenceImage: null,
+  },
+  {
+    id: "noce_spazzolato",
+    code: "549",
+    nome: "Noce Spazzolato (Touch)",
+    hex: "#5C3A1F",
+    grad: "linear-gradient(135deg,#7A4F2C,#3E2410)",
+    grain: "rgba(50,28,12,0.36)",
+    accent: "rgba(180,120,75,0.20)",
+    fragment: "brushed walnut Touch finish: dark warm brown tone with strong embossed grain texture, premium architectural look",
+    touch: "spazzolato",
+    upsell: true,
+    referenceImage: null,
+  },
+  {
+    id: "rovere_medio",
+    code: "544",
+    nome: "Rovere Spazzolato Medio (Touch)",
+    hex: "#A38458",
+    grad: "linear-gradient(135deg,#B89868,#867050)",
+    grain: "rgba(95,72,42,0.30)",
+    accent: "rgba(220,180,130,0.20)",
+    fragment: "medium brushed oak Touch finish: warm-medium brown tone with strong embossed straight grain, premium look",
+    touch: "spazzolato",
+    upsell: true,
+    referenceImage: null,
+  },
   // ── Touch Premium (effetto spazzolato 3D) ──
   {
     id: "bianco_frassino",
@@ -378,14 +476,14 @@ export const WIZARD_HW_COLORS = [
 // MODELLI MANIGLIE — con foto reali
 // ─────────────────────────────────────────────────────────────────────────────
 
+// v8.6.14 — Catalogo maniglie aggiornato su richiesta cliente:
+// RIMOSSE:  classica_dritta (Standard dritta) — design troppo generico,
+//           con_rosetta (Con rosetta) — non comune nel mercato infissi,
+//           pomolo (Pomolo / pull) — scelta atipica per finestre.
+// AGGIUNTE: curva_morbida (alluminio satinato con curva tonda),
+//           hoppe_ergo (Hoppe Atlanta ergonomic alluminio),
+//           cremonese (cremonese verticale alta, nera opaca, anta-ribalta).
 export const WIZARD_HANDLE_TYPES = [
-  {
-    id: "classica_dritta",
-    label: "Standard dritta",
-    desc: "La maniglia più neutra e residenziale, asta dritta.",
-    family: "lineare",
-    referenceImage: null,  // serve foto specifica — mancante nel lotto attuale
-  },
   {
     id: "q_moderna",
     label: "Squadrata",
@@ -395,24 +493,31 @@ export const WIZARD_HANDLE_TYPES = [
   },
   {
     id: "toulon",
-    label: "Ergonomica",
-    desc: "Curva morbida, premium e confortevole.",
+    label: "Ergonomica Toulon",
+    desc: "Curva morbida premium, confortevole, finitura inox spazzolata.",
     family: "curva",
     referenceImage: "Maniglia-Ergonomica-Inox-Spazzolato-Toulon.jpeg",
   },
   {
-    id: "con_rosetta",
-    label: "Con rosetta",
-    desc: "Leva con rosetta visibile, più classica.",
-    family: "rosetta",
-    referenceImage: null,
+    id: "curva_morbida",
+    label: "Curva morbida",
+    desc: "Profilo curvo morbido con base ovale. Look classico-moderno alluminio satinato.",
+    family: "curva",
+    referenceImage: "Maniglia-Curva-Morbida-Alluminio-Satinato.webp",
   },
   {
-    id: "pomolo",
-    label: "Pomolo / pull",
-    desc: "Scelta decorativa o da contesto speciale.",
-    family: "pomolo",
-    referenceImage: null,
+    id: "hoppe_ergo",
+    label: "Hoppe Ergonomica",
+    desc: "Maniglia ergonomica scolpita Hoppe in alluminio satinato. Premium, presa naturale.",
+    family: "curva",
+    referenceImage: "Maniglia-Ergonomica-Hoppe-Atlanta-Inox.webp",
+  },
+  {
+    id: "cremonese",
+    label: "Cremonese verticale",
+    desc: "Maniglia cremonese alta verticale, nera opaca. Per anta-ribalta e portefinestre.",
+    family: "cremonese",
+    referenceImage: "Maniglia-Cremonese-Alta-Verticale-Nero-Opaco.webp",
   },
   {
     id: "alzante",

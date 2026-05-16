@@ -9,7 +9,7 @@ const baseState: WizardState = {
   profilo: "pvc",
   manigliaCentrale: false,
   coloreInfisso: "7016",
-  tipoManiglia: "classica_dritta",
+  tipoManiglia: "q_moderna",
   coloreHw: "cromo",
   cass: false,
   cassMat: "stesso_colore",

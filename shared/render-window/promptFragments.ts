@@ -162,12 +162,14 @@ export const FRAME_STYLE_DESCRIPTION: Record<string, string> = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const HANDLE_STYLE_DESCRIPTION: Record<string, string> = {
-  classica_dritta: "straight architectural lever handle with clean residential proportions",
-  toulon: "curved ergonomic lever handle with softer premium silhouette",
-  q_moderna: "square modern handle with minimal rectilinear profile",
-  con_rosetta: "lever handle with visible rosette/backplate detail",
-  pomolo: "compact knob/pull hardware",
+  // v8.6.14 — catalogo maniglie aggiornato
+  q_moderna: "square modern handle with minimal rectilinear profile, technical architectural look",
+  toulon: "curved ergonomic lever handle (Toulon style) with softer premium silhouette, inox spazzolato",
+  curva_morbida: "soft curved lever handle on oval base, classic-modern aluminium satin finish",
+  hoppe_ergo: "Hoppe Atlanta-style sculpted ergonomic lever handle, premium aluminium satin, natural grip curve",
+  cremonese: "tall vertical cremonese-style handle (full-height lever, ~30-40cm), typical of tilt-turn and lift-slide systems",
   alzante: "lift-and-slide handle with deeper grip and heavier mechanism body",
+  dk_vasistas: "cylindrical DK Vasistas handle for tilt-turn (Dreh-Kipp) windows",
   nessuna: "no visible handle because the target opening is fixed",
 };
 

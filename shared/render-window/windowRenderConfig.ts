@@ -173,7 +173,7 @@ function mapHardware(hwId: WizardHw, handleTypeId: WizardHandleType, openingType
   const resolvedHandleStyle = openingType.includes("scorrevole")
     ? "alzante"
     : handleTypeId === "alzante"
-      ? "classica_dritta"
+      ? "q_moderna" // v8.6.14 — fallback se utente sceglie alzante ma non è scorrevole
       : handleMeta.id;
   return {
     handleStyle: resolvedHandleStyle,
@@ -1012,7 +1012,7 @@ function normalizeLegacyWindowConfig(
     profilo: "pvc",
     manigliaCentrale: false,
     coloreInfisso: "9016",
-    tipoManiglia: "classica_dritta",
+    tipoManiglia: "q_moderna", // v8.6.14 — default aggiornato (classica_dritta rimossa)
     coloreHw: "cromo",
     cass: false,
     cassMat: "stesso_colore",

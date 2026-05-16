@@ -88,7 +88,7 @@ const INITIAL_STATE: WizardState = {
   profilo: "",
   manigliaCentrale: false,
   coloreInfisso: "",
-  tipoManiglia: "classica_dritta",
+  tipoManiglia: "q_moderna",
   coloreHw: "cromo",
   cass: false,
   cassMat: "stesso_colore",
@@ -1347,7 +1347,7 @@ function StepFiniture({
     if (!handleOptions.some((item) => item.id === state.tipoManiglia)) {
       setState((current) => ({
         ...current,
-        tipoManiglia: (handleOptions[0]?.id ?? "classica_dritta") as WizardHandleType,
+        tipoManiglia: (handleOptions[0]?.id ?? "q_moderna") as WizardHandleType,
       }));
     }
   }, [handleOptions, setState, state.tipoManiglia]);
@@ -2169,8 +2169,8 @@ function getFrameFinishPreviewStyle(color: { hex: string; grad?: string; grain?:
 function getRecommendedHandleForProfile(profilo: string): string | null {
   switch (profilo) {
     case "pvc":
-      // PVC residenziale: maniglia neutra classica
-      return "classica_dritta";
+      // PVC residenziale: curva morbida, look classico-moderno coerente
+      return "curva_morbida";
     case "alluminio":
     case "minimal":
       // Alluminio/minimal: look architettonico, maniglia tecnica
