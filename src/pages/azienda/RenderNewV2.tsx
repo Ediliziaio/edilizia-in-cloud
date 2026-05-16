@@ -1184,7 +1184,20 @@ function StepAnalysis({
                         <Badge variant="outline">{opening.sashCount} ante</Badge>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {opening.hasCassonetto && <MiniBadge text="cassonetto" />}
+                        {opening.hasCassonetto && (
+                          <MiniBadge
+                            text={`cassonetto${
+                              opening.cassonettoStyle === "internal_monoblocco"
+                                ? " (monoblocco a scomparsa)"
+                                : opening.cassonettoStyle === "external_box"
+                                  ? " (scatola esterna)"
+                                  : opening.cassonettoStyle === "absent"
+                                    ? " (nessuno)"
+                                    : ""
+                            }`}
+                            intent={opening.cassonettoStyle === "internal_monoblocco" ? "info" : undefined}
+                          />
+                        )}
                         {opening.hasRollerShutter && <MiniBadge text="tapparella" />}
                         {opening.hasBelt && <MiniBadge text="cinghia visibile" intent="warning" />}
                         {opening.hasCurtains && <MiniBadge text="tende" />}
@@ -1366,7 +1379,18 @@ function StepTargeting({
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {opening.hasBelt && <MiniBadge text="cinghia da gestire" intent="warning" />}
-                        {opening.hasCassonetto && <MiniBadge text="cassonetto" />}
+                        {opening.hasCassonetto && (
+                          <MiniBadge
+                            text={`cassonetto${
+                              opening.cassonettoStyle === "internal_monoblocco"
+                                ? " (monoblocco)"
+                                : opening.cassonettoStyle === "external_box"
+                                  ? " (scatola)"
+                                  : ""
+                            }`}
+                            intent={opening.cassonettoStyle === "internal_monoblocco" ? "info" : undefined}
+                          />
+                        )}
                         {opening.hasCurtains && <MiniBadge text="tende" />}
                         {opening.radiatorNearby && <MiniBadge text="radiatore vicino" />}
                       </div>
