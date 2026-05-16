@@ -90,17 +90,57 @@ If only one opening is visible, still use opening id "A".
   "note_analisi": string
 }
 
-Important analysis notes:
+═══ CRITICAL CLASSIFICATION RULES — READ CAREFULLY ═══
+
+[1] HOW TO COUNT SASHES (sash_count)
+Count the VERTICAL GLAZED PANELS separated by VERTICAL MULLIONS in the frame.
+- 1 single vertical pane = 1 anta
+- 2 vertical panes separated by 1 central mullion = 2 ante
+- 3 vertical panes separated by 2 mullions = 3 ante
+- 4 vertical panes separated by 3 mullions = 4 ante
+Count ONLY vertical subdivisions for the sash count. A horizontal transom does
+NOT add to sash_count (it adds a transom, see point [4]).
+
+[2] HOW TO DISTINGUISH BATTENTE vs SCORREVOLE vs PORTAFINESTRA
+- BATTENTE (casement): vertical panes hinged on the lateral stiles. You can see
+  hinges on the left or right edge of each pane. Each pane has compact European
+  hinges (2 per sash typically). The pane opens INWARD or OUTWARD on a hinge.
+- SCORREVOLE (sliding): panes slide horizontally on visible tracks at top and
+  bottom of the frame. NO hinges visible on lateral stiles. Often one pane
+  visibly overlaps the other (offset depth).
+- PORTAFINESTRA (door-window / french door): a BATTENTE/SCORREVOLE that extends
+  to the floor (no sill/parapet break). Estimated height ≥ 200cm. Usually has
+  a railing/balcony outside. Use "portafinestra" for type_current AND set
+  perceived_element="door_window".
+
+IMPORTANT: when in doubt between battente and scorrevole, check for HINGES on
+the lateral stiles. Hinges visible = battente. Smooth stiles + tracks = scorrevole.
+Most Italian residential portefinestre are BATTENTE (3 ante battenti is common).
+
+[3] EXAMPLES (use these as reference)
+- 1 vertical pane + hinges left + height 150cm + sill → "battente_1_anta", sash_count=1
+- 2 vertical panes + central mullion + hinges on outer stiles + height 150cm
+  → "battente_2_ante", sash_count=2
+- 3 vertical panes + 2 mullions + hinges on outer stiles + height 230cm + railing
+  → "portafinestra", perceived_element="door_window", sash_count=3
+- 2 vertical panes + visible bottom track + no hinges + smooth stiles
+  → "scorrevole", sash_count=2
+
+[4] TRANSOMS
+- has_horizontal_transom=true ONLY when a REAL horizontal frame bar divides
+  upper/lower glazed area (typical on tall portefinestre).
+- A transom does NOT change sash_count. A portafinestra 3 ante with transom
+  has sash_count=3 + has_horizontal_transom=true.
+- transom_position_pct: vertical position from top=0 to bottom=100.
+
+═══ OTHER NOTES ═══
+
 - If a cassonetto/roller box is visible, describe its apparent envelope/proportions in "cassonetto_geometry_notes".
 - If the roller shutter curtain is not visibly lowered, use "fully_raised_hidden" or "not_visible" instead of inventing a visible band.
 - If only a small recessed top band is visible, use "top_recessed_band".
 - Detect manual belt and wall winder carefully: if visible, set both "has_belt" and "has_belt_box" consistently.
 - If a manual belt/winder is visible, localize it precisely with "belt_placement" and "belt_placement_notes" (for example right_wall, left_reveal, etc.). Treat a vertical manual control on the wall beside the window as a manual belt system.
-- Detect horizontal transoms only when clearly present, especially on portefinestre / door_window. Do not invent a transom on standard windows.
-- For "has_horizontal_transom", set true only when a real horizontal frame bar divides the upper/lower glazed or panel area.
-- "transom_position_pct" is the approximate vertical position from top=0 to bottom=100. Use null if uncertain.
-- "transom_panel_below_type" describes the area below the transom: "glass", "solid_panel", "louvered" or "unknown".
-- Estimate "estimated_height_cm" when possible. Door-window/portafinestra can be around 210-250 cm; normal windows around 120-170 cm. Use null if uncertain.
+- Estimate "estimated_height_cm" when possible. Portafinestra ≈ 210-250 cm; finestra normale ≈ 120-170 cm. Use null if uncertain.
 
 Respond with ONLY the JSON object. No extra text.`;
 
