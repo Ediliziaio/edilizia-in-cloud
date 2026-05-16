@@ -64,6 +64,20 @@ function uint8ToBase64(uint8: Uint8Array): string {
   return btoa(binary);
 }
 
+// ── v8.6.21 — Reference images cache module-scope ────────────────────────────
+// Le reference images sono statiche (mazzetta colori, maniglie, profili) e
+// sono identiche tra tutti i render. Cache-arle nell'isolate Deno (vive
+// fino a 5-30 min in prod) elimina il fetch dal CDN Cloudflare Pages (+ il
+// timeout 8s in caso di cache miss) e la conversione base64 (~50-150ms per
+// file). Risparmio per render: 1.5-3s in average a regime caldo, +5s nei
+// primi 1-2 render dopo cold-start dell'isolate.
+//
+// Eviction: nessuna (le ref images del catalogo sono <100 file totali,
+// ~300KB ciascuna in base64 → <30MB totali ben sotto al cap memoria isolate).
+const REFERENCE_IMAGE_CACHE = new Map<string, { label: string; dataUrl: string }>();
+const REFERENCE_IMAGE_CACHE_NEGATIVE = new Map<string, number>(); // url -> timestamp last failure
+const REFERENCE_NEGATIVE_TTL_MS = 60_000; // 60s before retrying a failed fetch
+
 // ── Idempotency key ──────────────────────────────────────────────────────────
 function stableJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -717,6 +731,17 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     const fetchReferenceImage = async (
       ref: { url: string; label: string; filename: string },
     ): Promise<{ label: string; dataUrl: string } | null> => {
+      // v8.6.21 — cache lookup: stesso URL = stesso content (file statici CDN).
+      // Su cache HIT salta fetch + base64 conversion (~1-3s).
+      const cached = REFERENCE_IMAGE_CACHE.get(ref.url);
+      if (cached) {
+        return { label: ref.label, dataUrl: cached.dataUrl };
+      }
+      // Se questo URL è recentemente fallito, evita di ribloccarci per altri 8s
+      const lastFailureAt = REFERENCE_IMAGE_CACHE_NEGATIVE.get(ref.url);
+      if (lastFailureAt && Date.now() - lastFailureAt < REFERENCE_NEGATIVE_TTL_MS) {
+        return null;
+      }
       try {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 8000);
@@ -729,6 +754,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
             url: ref.url,
             status: resp.status,
           });
+          REFERENCE_IMAGE_CACHE_NEGATIVE.set(ref.url, Date.now());
           return null;
         }
         const blob = await resp.blob();
@@ -746,11 +772,17 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
             mime,
             label: ref.label,
           });
+          REFERENCE_IMAGE_CACHE_NEGATIVE.set(ref.url, Date.now());
           return null;
         }
         const buf = await blob.arrayBuffer();
         const b64 = uint8ToBase64(new Uint8Array(buf));
-        return { label: ref.label, dataUrl: `data:${mime};base64,${b64}` };
+        const result = { label: ref.label, dataUrl: `data:${mime};base64,${b64}` };
+        // Cache positive: label è specifico del render, dataUrl è il contenuto
+        // riusabile. Salviamo dataUrl + label originale del primo fetch (il
+        // label specifico dell'invocation viene ricostruito sopra).
+        REFERENCE_IMAGE_CACHE.set(ref.url, result);
+        return result;
       } catch (e) {
         logWarn({
           session_id,
@@ -758,6 +790,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           url: ref.url,
           error: (e as Error).message?.substring(0, 200),
         });
+        REFERENCE_IMAGE_CACHE_NEGATIVE.set(ref.url, Date.now());
         return null;
       }
     };
@@ -851,17 +884,43 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
     let generationAttempts = 1;
 
     // ── v8.3.7 — QA Vision MULTI-CRITERION ──────────────────────────────
-    // Esegue SEMPRE (non solo se motorizzata) un check su 9 categorie:
-    //   recolor, old handle kept, lateral stiles old color, cinghia,
-    //   residual subdivisions, cassonetto recolored, objects invented,
-    //   swatch pasted, cassonetto discontinuity.
+    // Esegue su 9 categorie quando ci sono fattori di rischio attivi.
     // Se anche una categoria fallisce → retry mirato con istruzioni
     // correttive specifiche per ogni issue.
     // Graceful: se il vision provider fa errore, il render originale passa
     // comunque (callVisionQa ritorna {checked: false}).
+    //
+    // v8.6.21 — SKIP QA condizionale per render "facili":
+    // se la config non ha trasformazioni rischiose (compositionChange,
+    // cassonetto.replace, shutter motorizzata, nodo asimmetrico/maniglia
+    // centrale, traverso da rimuovere), il render è solo frame+colore →
+    // QA storicamente al 95%+ pass al primo tentativo. Skip = ~6s
+    // salvati per render. Env RENDER_QA_FORCE_ON=1 per forzare debug.
     let qaIssuesForLog: QaIssue[] = [];
     let qaModelUsed: string | null = null;
-    {
+    const qaForceOn = Deno.env.get("RENDER_QA_FORCE_ON") === "1";
+    const riskFactors = normalizedConfig.technical_specification.some((s) => {
+      const transomRequiresRemoval = typeof s.transomRule === "string" &&
+        s.transomRule.toUpperCase().includes("REMOVE");
+      return Boolean(
+        s.compositionChange ||
+          s.shutter.isMotorized ||
+          s.cassonetto.replace ||
+          s.centralHandle ||
+          s.reducedNode ||
+          transomRequiresRemoval,
+      );
+    });
+    const shouldRunQa = qaForceOn || riskFactors;
+    if (!shouldRunQa) {
+      logInfo({
+        session_id,
+        msg: "qa_skipped_easy_render",
+        reason: "no risk factors: frame change only",
+        elapsed_ms: elapsed(),
+      });
+    }
+    if (shouldRunQa) {
       const sourceBuf = await sourceBlob.arrayBuffer();
       const sourceB64 = uint8ToBase64(new Uint8Array(sourceBuf));
       const sourceMime = sourceBlob.type || "image/jpeg";

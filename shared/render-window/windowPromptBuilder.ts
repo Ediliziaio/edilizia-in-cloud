@@ -400,24 +400,11 @@ ${bullets([
     "8. Scene integrity: no objects invented (curtains/lamps/plants/switches that weren't in Image 1). No reference swatches pasted as scene elements.",
   ])}`;
 
-  // v8.3 — Few-shot positive examples: descrizioni testuali di "good output"
-  // che aiutano la AI ad ancorarsi al risultato atteso, oltre alle regole negative.
-  blocks.K = `[BLOCK K – POSITIVE EXAMPLES OF EXPECTED OUTPUT]
-The following are textual descriptions of WHAT A GOOD RENDER LOOKS LIKE for typical cases. Use them as anchors.
-
-Example 1 — Finestra F2A nuovo PVC bianco con maniglia laterale:
-"A clean two-sash casement window installed inside the same wall opening. The frame is bright matte white PVC (RAL 9010), perfectly squared. The central mullion is ~100mm wide. ONE handle on the right-hand operative sash at ~110cm from the floor, polished chrome finish. TWO compact European hinges per sash on the left/right vertical stile, same chrome finish. The glass is double-glazed clear with subtle gasket lines. The wall around the new frame is uniformly painted, no halo, no old paint outline. No leftover rods, cords, or accessories from the previous window. The room, the furniture, the outdoor view are IDENTICAL to the source photo."
-
-Example 2 — Finestra F2A maniglia centrale (palettone slim):
-"A two-sash casement window with a SLIM central mullion (~30mm) — the "palettone slim" Italian style. ONE single handle mounted AT THE CENTER on the slim mullion, NOT on the lateral stiles. Two thin compact hinges per sash on the lateral stiles. The mullion is significantly thinner than the outer frame perimeter, almost invisible. Glass dominates the visual field. Clean modern Italian look."
-
-Example 3 — Portafinestra PF2A con cerniere a scomparsa:
-"A door-window with two large sashes. NO visible hinges anywhere on the lateral stiles — the hinge mechanism is completely hidden inside the frame channel. The stiles look perfectly clean and uninterrupted. ONE single handle at ~95cm from the floor on the right sash. The glass extends full-height as a single panel per sash (transom removed). The frame is contemporary slim aluminium, anthracite RAL 7016."
-
-Example 4 — Tapparella motorizzata + bottone elettrico:
-"A motorized roller shutter housed cleanly inside the cassonetto above the window. NO manual belt, NO cord, NO wall winder, NO vertical rod or pipe ANYWHERE near the window. Instead, a SMALL square electric switch plate (80x80mm, Vimar-style, matte white RAL 9010) is installed flush on the wall to the right of the window, centered at ~110cm from floor. The plate has TWO vertical rocker buttons (up triangle ▲, down triangle ▽). The wall around the new switch is uniformly painted, no halo from where the old larger belt winder plate used to be."
-
-These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sent in this prompt's earlier blocks. The examples show what "good" looks like at the macro level.`;
+  // v8.6.21 — BLOCK K (few-shot positive examples ~2.6KB) RIMOSSO.
+  // Audit performance: con 4 reference images allegate al prompt, gli esempi
+  // testuali sono ridondanti. Le immagini di riferimento sono ancore visive
+  // molto più forti di 4 paragrafi descrittivi. Risparmio: ~2.6KB di prompt
+  // = ~1-2s di latency Gemini + meglio adesione al prompt sotto i 8KB totali.
 
   if (referenceLegend) {
     blocks.LEGEND = referenceLegend;
@@ -514,7 +501,7 @@ These tasks have ABSOLUTE PRIORITY over everything else (color matching, handle 
     blocks.H,
     blocks.I,
     blocks.J,
-    blocks.K,
+    // v8.6.21 — blocks.K rimosso (few-shot examples ridondanti vs reference images)
     normalizedConfig.notes ? `[ADDITIONAL USER NOTES]\n${normalizedConfig.notes}` : "",
   ]
     .filter(Boolean)
@@ -529,45 +516,19 @@ These tasks have ABSOLUTE PRIORITY over everything else (color matching, handle 
       filename: r.filename,
       url: r.url,
     })),
-    // v8.6 — Negative prompt LEAN: solo pattern STILISTICI univoci.
-    // Le regole semantiche (recolor, lateral stiles, handle, cinghia, cassonetto,
-    // oggetti inventati, swatch) sono gia' in BLOCK A. Qui solo cio' che il
-    // modello tende a fare per default e che il prompt user-side non copre.
+    // v8.6.21 — Negative prompt LEAN ULTRA: solo pattern STILISTICI univoci.
+    // Le regole semantiche (recolor, lateral stiles, sash count, cinghia,
+    // cassonetto, oggetti inventati, swatch, ecc.) sono già in BLOCK H
+    // (DEFAULT_NEGATIVE_CONSTRAINTS, 42 voci) — duplicarle qui era spreco
+    // di token e di latency. Riduzione: ~3KB -> ~700 char.
     negativePrompt:
       "cartoon, illustration, painterly, fake CGI, glossy fake plastic, " +
       "staged showroom look, AI interior restyling, beautified beyond photographic realism, " +
       "warped geometry, floating elements, wrong shadows, distorted lines, " +
       "changed perspective, changed crop, changed wall color, changed furniture, " +
-      "extra windows or doors, mixed hinge colors, oversized cassonetto, " +
-      // v8.6.5 — Composition change ignorata (sash count mismatch)
-      "keeping 2 sashes when 1 sash is specified, " +
-      "keeping 3 sashes when 2 sashes are specified, " +
-      "keeping 1 sash when 2 sashes are specified, " +
-      "preserving the source photo sash count instead of applying the requested composition change, " +
-      "phantom central mullion remaining when sash count was reduced, " +
-      "phantom additional mullion missing when sash count was increased, " +
-      // v8.6.4 — Atmosfera/luminosita' esterna
-      "darkened outdoor view, dimmed natural daylight through the new glass, " +
-      "outdoor view muted or desaturated compared to source, " +
-      "cinematic teal-orange grading applied to outdoor scene, " +
-      "dusk or overcast atmosphere added when source shows bright daylight, " +
-      "tinted glazing that reduces outdoor luminosity, " +
-      "moody dark-blue tone over the outdoor view that was not in the source, " +
-      "floating shutter band above the glazing, shutter rendered in front of the wall, " +
-      "old window simply recolored, old handle silhouette preserved, " +
-      "lateral stiles in old color while front face is new color, " +
-      "residual dark rectangles in upper sashes from old muntins, " +
-      "manual belt cord winder rod or wall-plate visible on motorized installation, " +
-      "old cassonetto recolored, visible gap or shadow seam between cassonetto and window top, " +
-      "rustic wood-textured cassonetto when modern PVC unit is specified, " +
-      "screwed butt-joint corners on PVC frame, visible screws at frame corners, " +
-      "round LED disk or sensor or smoke detector pasted on window sash or glazing, " +
-      "decorative sticker or logo on glass, electronic device drawn on top of glazing, " +
-      "swatch sample rectangle or product reference pasted inside the rendered scene, " +
-      "curtains lamps plants pictures sensors invented in the room, " +
-      "old paint outline or halo around the new frame, " +
-      "phantom shadows of the previous installation",
-    promptVersion: "8.6.19",
+      "darkened outdoor view, cinematic teal-orange grading, tinted glazing reducing daylight, " +
+      "moody dark-blue tone over the outdoor view, dusk atmosphere over a bright daylight scene",
+    promptVersion: "8.6.21",
     blocks,
     validation,
     normalizedConfig,

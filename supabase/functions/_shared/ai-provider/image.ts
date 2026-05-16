@@ -128,6 +128,17 @@ type ProviderStep = {
 
 function getProviderOrder(): ProviderStep[] {
   const first = Deno.env.get("RENDER_PROVIDER_FIRST")?.trim().toLowerCase();
+  // v8.6.21 — Log esplicito per audit: il default Gemini-first è ~25s più
+  // veloce di OpenAI-first e ~6x più economico. Se in produzione qualcuno
+  // ha settato RENDER_PROVIDER_FIRST=openai, questo log lo evidenzia.
+  if (first === "openai") {
+    console.warn(JSON.stringify({
+      lvl: "warn",
+      fn: "ai-provider/image",
+      msg: "render_provider_first_set_to_openai",
+      hint: "OpenAI Tier 1 has only 5 IPM rate limit and ~25s slower per render than Gemini. Consider unsetting RENDER_PROVIDER_FIRST env var to use Gemini-first default.",
+    }));
+  }
   const geminiFirst: ProviderStep[] = [
     { provider: "gemini_direct", model: IMAGE_MODEL_GEMINI_DIRECT, call: callGeminiImage },
     { provider: "openrouter", model: IMAGE_MODEL_PRIMARY, call: callOpenRouterImage },
