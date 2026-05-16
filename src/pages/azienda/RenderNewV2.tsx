@@ -1432,29 +1432,51 @@ function StepFiniture({
 
           <div>
             <SectionTitle>Tipologia maniglia</SectionTitle>
+            {/* v8.6.13 — Warning UX se DK Vasistas selezionata su tipo non
+                anta-ribalta. La DK e' specifica per finestre Dreh-Kipp,
+                potrebbe non essere appropriata per un battente puro. */}
+            {state.tipoManiglia === "dk_vasistas" && state.tipo !== "" &&
+              !["F1A", "F2A"].includes(state.tipo) && (
+              <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+                ⚠️ La maniglia <strong>DK Vasistas</strong> è cilindrica
+                e tipica delle finestre <em>anta-ribalta</em> (Dreh-Kipp).
+                Verifica che il serramento target sia anta-ribalta;
+                per battente puro o portafinestra usa una maniglia standard.
+              </div>
+            )}
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {handleOptions.map((handleType) => {
                 // v8.3 — foto reale della maniglia se disponibile, altrimenti SVG fallback.
                 const opt = handleType as typeof handleType & { referenceImage?: string | null };
                 const previewUrl = opt.referenceImage ? getReferenceImageUrl(opt.referenceImage) : null;
                 const selected = state.tipoManiglia === handleType.id;
+                // v8.6.13 — Badge "Consigliata" se match con profilo selezionato
+                const recommended = getRecommendedHandleForProfile(state.profilo) === handleType.id;
                 return (
                   <button
                     key={handleType.id}
                     type="button"
                     onClick={() => setState((current) => ({ ...current, tipoManiglia: handleType.id as WizardHandleType }))}
                     className={cn(
-                      "rounded-2xl border-2 p-3 text-left transition flex gap-3",
+                      "relative rounded-2xl border-2 p-3 text-left transition flex gap-3",
                       selected ? "border-orange-500 bg-orange-50" : "border-border hover:border-orange-300",
                     )}
                   >
+                    {recommended && !selected && (
+                      <div className="absolute -top-2 -right-2 z-10 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                        Consigliata
+                      </div>
+                    )}
                     <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-50 border">
                       {previewUrl ? (
                         <img
                           src={previewUrl}
                           alt={handleType.label}
                           loading="lazy"
-                          className="h-full w-full object-contain"
+                          className="h-full w-full object-contain transition-[filter] duration-200"
+                          // v8.6.13 — Live preview combinata: applica filter
+                          // dinamico in base alla finitura hardware selezionata.
+                          style={{ filter: getHardwareFinishFilter(state.coloreHw) }}
                         />
                       ) : (
                         <HandlePreview kind={handleType.family} finish={WIZARD_HW_COLORS.find((item) => item.id === state.coloreHw)?.hex ?? "#C0C0C0"} />
@@ -2140,6 +2162,48 @@ function getFrameFinishPreviewStyle(color: { hex: string; grad?: string; grain?:
   }
 
   return { background: color.hex } as const;
+}
+
+// v8.6.13 — Helper UX: maniglia consigliata in base al profilo selezionato.
+// Match estetico tipico del mercato italiano residenziale/architettonico.
+function getRecommendedHandleForProfile(profilo: string): string | null {
+  switch (profilo) {
+    case "pvc":
+      // PVC residenziale: maniglia neutra classica
+      return "classica_dritta";
+    case "alluminio":
+    case "minimal":
+      // Alluminio/minimal: look architettonico, maniglia tecnica
+      return "q_moderna";
+    case "legno":
+    case "legno_alluminio":
+      // Legno: ergonomica con curva morbida, più caldo
+      return "toulon";
+    default:
+      return null;
+  }
+}
+
+// v8.6.13 — Helper UX: simula la finitura selezionata applicando CSS filter
+// alle foto delle maniglie (che sono fotografate tutte in inox spazzolato).
+// Live preview: l'utente vede istantaneamente come apparirebbe la maniglia
+// Squadrata in Oro PVD vs Nero Opaco vs Bronzo, ecc.
+function getHardwareFinishFilter(coloreHwId: string): string {
+  switch (coloreHwId) {
+    case "nero_opaco":
+      return "brightness(0.25) contrast(1.4) saturate(0)";
+    case "oro":
+      return "sepia(1) hue-rotate(-10deg) saturate(2.5) brightness(1.05)";
+    case "bronzo":
+      return "sepia(0.85) hue-rotate(-15deg) saturate(1.4) brightness(0.78) contrast(1.05)";
+    case "cromo":
+      return "brightness(1.12) contrast(1.08) saturate(0.7)";
+    case "titanio":
+      return "brightness(0.82) saturate(0.35) hue-rotate(180deg)";
+    case "inox":
+    default:
+      return "none"; // la foto sorgente È inox spazzolato
+  }
 }
 
 function HandlePreview({ kind, finish }: { kind: string; finish: string }) {
