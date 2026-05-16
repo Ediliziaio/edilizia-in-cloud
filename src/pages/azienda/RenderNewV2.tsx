@@ -1011,10 +1011,28 @@ function StepAnalysis({
                 Leggiamo la scena per capire aperture visibili, accessori esistenti e punti da preservare.
               </p>
             </div>
-            <Badge className="gap-1 bg-slate-900 text-white hover:bg-slate-900">
-              <ScanSearch className="h-3.5 w-3.5" />
-              Scene analysis
-            </Badge>
+            <div className="flex items-center gap-2">
+              {/* v8.6.11 — Pulsante "Rianalizza" sempre disponibile.
+                  Utile se la classificazione AI e' sbagliata (es. detecta
+                  "scorrevole 2 ante" su una portafinestra battente 3 ante).
+                  Re-invoca l'edge function analyze-window-photo che
+                  sovrascrive foto_analisi nel DB. */}
+              {analysis && !loading && onRetry && (
+                <Button
+                  onClick={onRetry}
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 text-xs"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Rianalizza
+                </Button>
+              )}
+              <Badge className="gap-1 bg-slate-900 text-white hover:bg-slate-900">
+                <ScanSearch className="h-3.5 w-3.5" />
+                Scene analysis
+              </Badge>
+            </div>
           </div>
 
           {loading ? (
