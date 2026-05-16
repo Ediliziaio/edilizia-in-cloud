@@ -113,12 +113,18 @@ export interface ImageEditResult {
 }
 
 /**
- * v8.3.8 — Ordine provider configurabile via env `RENDER_PROVIDER_FIRST`:
- *   - "gemini" (default)  → Gemini direct → OpenRouter Gemini → OpenRouter OpenAI → OpenAI direct
- *   - "openai"            → OpenAI direct → OpenRouter OpenAI → Gemini direct → OpenRouter Gemini
+ * v8.6.24 — Ordine provider FISSO:
+ *   Tier 1: OpenAI direct (gpt-image-1)         — qualità top sui micro-dettagli
+ *   Tier 2: Gemini direct (gemini-2.5-flash)    — fallback rapido + economico
+ *   Tier 3: OpenRouter Gemini                   — emergency 1 (resilienza)
+ *   Tier 4: OpenRouter OpenAI                   — emergency 2 (può stallare → ultimo)
  *
- * Set su Supabase Dashboard senza redeploy. Cambia istantaneamente
- * il provider Tier 1 — utile per A/B test qualità render.
+ * Scelta strategica: il cliente B2B paga la qualità render — OpenAI ha resa
+ * più precisa su sash count change, palettone slim, nodo asimmetrico, ecc.
+ * Gemini come Tier 2 economico se OpenAI rate-limit o down.
+ * OpenRouter come paracadute finale (raramente chiamato, ~0.1%).
+ *
+ * Env RENDER_PROVIDER_FIRST rimosso v8.6.24 (chain fissa).
  */
 type ProviderStep = {
   provider: ImageProvider;
@@ -127,37 +133,22 @@ type ProviderStep = {
 };
 
 function getProviderOrder(): ProviderStep[] {
-  const first = Deno.env.get("RENDER_PROVIDER_FIRST")?.trim().toLowerCase();
-  // v8.6.21 — Log esplicito per audit: il default Gemini-first è ~25s più
-  // veloce di OpenAI-first e ~6x più economico. Se in produzione qualcuno
-  // ha settato RENDER_PROVIDER_FIRST=openai, questo log lo evidenzia.
-  if (first === "openai") {
-    console.warn(JSON.stringify({
-      lvl: "warn",
-      fn: "ai-provider/image",
-      msg: "render_provider_first_set_to_openai",
-      hint: "OpenAI Tier 1 has only 5 IPM rate limit and ~25s slower per render than Gemini. Consider unsetting RENDER_PROVIDER_FIRST env var to use Gemini-first default.",
-    }));
-  }
-  const geminiFirst: ProviderStep[] = [
+  console.log(JSON.stringify({
+    lvl: "info",
+    fn: "ai-provider/image",
+    msg: "provider_chain_resolved",
+    chain: "openai_first_v8.6.24",
+    tier1: "openai_direct (gpt-image-1)",
+    tier2: "gemini_direct (gemini-2.5-flash-image)",
+    tier3: "openrouter (gemini)",
+    tier4: "openrouter (openai)",
+  }));
+  return [
+    { provider: "openai_direct", model: IMAGE_MODEL_OPENAI_DIRECT, call: callOpenAIImage },
     { provider: "gemini_direct", model: IMAGE_MODEL_GEMINI_DIRECT, call: callGeminiImage },
     { provider: "openrouter", model: IMAGE_MODEL_PRIMARY, call: callOpenRouterImage },
     { provider: "openrouter", model: IMAGE_MODEL_OPENROUTER_OPENAI, call: callOpenRouterImage },
-    { provider: "openai_direct", model: IMAGE_MODEL_OPENAI_DIRECT, call: callOpenAIImage },
   ];
-  // v8.5.3 — Con openai_first, OpenAI direct (/v1/images/edits) è Tier 1.
-  // Cliente segnala che OpenRouter OpenAI talvolta stalla (richiesta pending
-  // a tempo indefinito, 2% per 60s senza progresso). OpenAI direct con
-  // gpt-image-1 (fixato v8.4.1, niente piu' 404 da gpt-image-1.5) e' piu'
-  // diretto: API ufficiale OpenAI senza gateway intermedio.
-  // OpenRouter OpenAI scivola al Tier 2 come fallback.
-  const openaiFirst: ProviderStep[] = [
-    { provider: "openai_direct", model: IMAGE_MODEL_OPENAI_DIRECT, call: callOpenAIImage },
-    { provider: "openrouter", model: IMAGE_MODEL_OPENROUTER_OPENAI, call: callOpenRouterImage },
-    { provider: "gemini_direct", model: IMAGE_MODEL_GEMINI_DIRECT, call: callGeminiImage },
-    { provider: "openrouter", model: IMAGE_MODEL_PRIMARY, call: callOpenRouterImage },
-  ];
-  return first === "openai" ? openaiFirst : geminiFirst;
 }
 
 /**
