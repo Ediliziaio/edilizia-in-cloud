@@ -251,9 +251,11 @@ Deno.serve(async (req: Request) => {
 
     await requireCompanyAccess(supabase, user.id, sessionCompanyId, corsH);
 
-    // ── Recupera Gemini API key da platform_settings ─────────────────────────
+    // v8.6.7 — Chain provider Gemini → OpenAI per scene analysis.
+    // Se Gemini fallisce (modello deprecato, rate limit, ecc.), fallback
+    // automatico a OpenAI Vision. L'utente NON deve essere bloccato
+    // dall'analisi fallback "Unknown".
     let geminiApiKey = Deno.env.get("GEMINI_API_KEY") ?? "";
-
     if (!geminiApiKey) {
       const { data: setting } = await supabase
         .from("platform_settings")
@@ -262,12 +264,13 @@ Deno.serve(async (req: Request) => {
         .single();
       geminiApiKey = setting?.value ?? "";
     }
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY")?.trim() ?? "";
 
-    if (!geminiApiKey) {
+    if (!geminiApiKey && !openaiApiKey) {
       return new Response(
         JSON.stringify({
           error: "config_error",
-          message: "Gemini API key non configurata. Configurarla in Admin > Impostazioni AI > Render.",
+          message: "Né Gemini né OpenAI API key configurate. Configurare almeno una in Admin > Impostazioni AI > Render.",
         }),
         { status: 503, headers: { ...corsH, "Content-Type": "application/json" } }
       );
@@ -295,81 +298,163 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── Chiama Gemini 2.5 Flash ─────────────────────────────────────────────
-    const geminiBody = {
-      contents: [{
-        parts: [
-          {
-            text: analyzeMode === "bathroom"
-              ? `${BATHROOM_SYSTEM_PROMPT}\n\n${BATHROOM_USER_PROMPT}`
-              : `${SYSTEM_PROMPT}\n\n${USER_PROMPT}`,
-          },
-          { inline_data: { mime_type: mimeType, data: imgB64 } },
-        ],
-      }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 1024,
-      },
-    };
+    // ── Vision provider chain: Gemini → OpenAI ─────────────────────────────
+    const promptText = analyzeMode === "bathroom"
+      ? `${BATHROOM_SYSTEM_PROMPT}\n\n${BATHROOM_USER_PROMPT}`
+      : `${SYSTEM_PROMPT}\n\n${USER_PROMPT}`;
 
-    // v8.6.6 — Aggiornato modello: "gemini-2.5-flash-preview-04-17" era un
-    // preview deprecato e ora ritorna 404 (verificato: API v1beta NOT_FOUND).
-    // Sostituito con "gemini-2.5-flash" stable, supporta vision + JSON output.
-    // Override via env GEMINI_ANALYZE_MODEL per testing modelli futuri.
     const geminiModel = Deno.env.get("GEMINI_ANALYZE_MODEL")?.trim() ||
       "gemini-2.5-flash";
-    const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`;
-
-    const gemController = new AbortController();
-    const gemTimeout = setTimeout(() => gemController.abort(), 60_000);
+    const openaiModel = Deno.env.get("OPENAI_ANALYZE_MODEL")?.trim() ||
+      "gpt-4o-mini";
 
     let rawText = "";
     let inputTokens = 0;
     let outputTokens = 0;
-    try {
-      const gemResp = await fetch(geminiEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(geminiBody),
-        signal: gemController.signal,
-      });
-      clearTimeout(gemTimeout);
+    let providerUsed: "gemini" | "openai" = "gemini";
+    let modelUsed = geminiModel;
+    const providerErrors: string[] = [];
 
-      if (!gemResp.ok) {
-        const errText = await gemResp.text();
-        throw new Error(`Gemini error ${gemResp.status}: ${errText.substring(0, 300)}`);
+    // ── Provider 1: Gemini ─────────────────────────────────────────────────
+    if (geminiApiKey) {
+      const gemController = new AbortController();
+      const gemTimeout = setTimeout(() => gemController.abort(), 60_000);
+      try {
+        const gemResp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: promptText },
+                  { inline_data: { mime_type: mimeType, data: imgB64 } },
+                ],
+              }],
+              generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
+            }),
+            signal: gemController.signal,
+          },
+        );
+        clearTimeout(gemTimeout);
+        if (!gemResp.ok) {
+          const errText = await gemResp.text();
+          throw new Error(`Gemini ${gemResp.status}: ${errText.substring(0, 200)}`);
+        }
+        const gemData = await gemResp.json();
+        rawText = gemData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+        inputTokens = Number(gemData.usageMetadata?.promptTokenCount ?? 0);
+        outputTokens = Number(gemData.usageMetadata?.candidatesTokenCount ?? 0);
+        if (!rawText.trim()) throw new Error("Gemini ritorna response vuota");
+        providerUsed = "gemini";
+        modelUsed = geminiModel;
+      } catch (err) {
+        clearTimeout(gemTimeout);
+        const msg = err instanceof Error ? err.message : String(err);
+        providerErrors.push(`gemini: ${msg}`);
+        console.warn(JSON.stringify({
+          lvl: "warn",
+          fn: "analyze-window-photo",
+          msg: "gemini_failed_trying_openai_fallback",
+          error: msg.substring(0, 300),
+        }));
+        rawText = "";
       }
+    } else {
+      providerErrors.push("gemini: no API key configured");
+    }
 
-      const gemData = await gemResp.json();
-      rawText = gemData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-      inputTokens = Number(gemData.usageMetadata?.promptTokenCount ?? 0);
-      outputTokens = Number(gemData.usageMetadata?.candidatesTokenCount ?? 0);
-      await chargeDirectAiCall({
-        supabase,
-        idempotencyKey: `render_photo_analysis_${sessionCompanyId}_${user.id}_${session_id}_${analyzeMode}`,
-        companyId: sessionCompanyId,
-        userId: user.id,
-        taskKey: analyzeMode === "bathroom" ? "render_bathroom_photo_analysis" : "render_window_photo_analysis",
-        tierKey: "t2_vision",
-        modelUsed: geminiModel,
-        tokensIn: inputTokens,
-        tokensOut: outputTokens,
-        costRealUsd: estimateTokenCostUsd({
-          provider: "gemini",
-          inputTokens,
-          outputTokens,
-          fallbackCostUsd: 0.002,
-        }),
-        metadata: { session_id, mode: analyzeMode },
-      });
-    } catch (err) {
-      clearTimeout(gemTimeout);
+    // ── Provider 2: OpenAI fallback (se Gemini ha fallito) ─────────────────
+    if (!rawText && openaiApiKey) {
+      const openaiController = new AbortController();
+      const openaiTimeout = setTimeout(() => openaiController.abort(), 60_000);
+      try {
+        const openaiResp = await fetch(
+          "https://api.openai.com/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${openaiApiKey}`,
+            },
+            body: JSON.stringify({
+              model: openaiModel,
+              messages: [{
+                role: "user",
+                content: [
+                  { type: "text", text: promptText },
+                  {
+                    type: "image_url",
+                    image_url: { url: `data:${mimeType};base64,${imgB64}` },
+                  },
+                ],
+              }],
+              temperature: 0.1,
+              max_tokens: 1024,
+              response_format: { type: "json_object" },
+            }),
+            signal: openaiController.signal,
+          },
+        );
+        clearTimeout(openaiTimeout);
+        if (!openaiResp.ok) {
+          const errText = await openaiResp.text();
+          throw new Error(`OpenAI ${openaiResp.status}: ${errText.substring(0, 200)}`);
+        }
+        const openaiData = await openaiResp.json();
+        rawText = openaiData.choices?.[0]?.message?.content ?? "";
+        inputTokens = Number(openaiData.usage?.prompt_tokens ?? 0);
+        outputTokens = Number(openaiData.usage?.completion_tokens ?? 0);
+        if (!rawText.trim()) throw new Error("OpenAI ritorna response vuota");
+        providerUsed = "openai";
+        modelUsed = openaiModel;
+        console.log(JSON.stringify({
+          lvl: "info",
+          fn: "analyze-window-photo",
+          msg: "openai_fallback_success",
+          tokens_in: inputTokens,
+          tokens_out: outputTokens,
+        }));
+      } catch (err) {
+        clearTimeout(openaiTimeout);
+        const msg = err instanceof Error ? err.message : String(err);
+        providerErrors.push(`openai: ${msg}`);
+      }
+    } else if (!rawText && !openaiApiKey) {
+      providerErrors.push("openai: no API key configured (fallback unavailable)");
+    }
+
+    // ── Se entrambi i provider sono falliti ────────────────────────────────
+    if (!rawText) {
       return new Response(
-        JSON.stringify({ error: "ai_error", message: `Analisi AI fallita: ${String(err)}` }),
+        JSON.stringify({
+          error: "ai_error",
+          message: `Analisi AI fallita su tutti i provider: ${providerErrors.join(" | ")}`,
+        }),
         { status: 502, headers: { ...corsH, "Content-Type": "application/json" } }
       );
     }
+
+    // ── Charge billing per provider usato ──────────────────────────────────
+    await chargeDirectAiCall({
+      supabase,
+      idempotencyKey: `render_photo_analysis_${sessionCompanyId}_${user.id}_${session_id}_${analyzeMode}`,
+      companyId: sessionCompanyId,
+      userId: user.id,
+      taskKey: analyzeMode === "bathroom" ? "render_bathroom_photo_analysis" : "render_window_photo_analysis",
+      tierKey: "t2_vision",
+      modelUsed,
+      tokensIn: inputTokens,
+      tokensOut: outputTokens,
+      costRealUsd: estimateTokenCostUsd({
+        provider: providerUsed,
+        inputTokens,
+        outputTokens,
+        fallbackCostUsd: 0.002,
+      }),
+      metadata: { session_id, mode: analyzeMode, provider_used: providerUsed },
+    });
 
     // ── Parse JSON dalla risposta ───────────────────────────────────────────
     let fotoAnalisi: Record<string, unknown> = {};
