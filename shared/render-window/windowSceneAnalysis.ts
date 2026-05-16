@@ -273,6 +273,21 @@ function normalizeOpening(rawOpening: Record<string, unknown>, index: number, to
     cassonettoType: booleanOr(rawOpening.has_cassonetto ?? rawOpening.hasCassonetto, false)
       ? stringOr(rawOpening.cassonetto_type ?? rawOpening.cassonettoType, "roller box")
       : null,
+    cassonettoStyle: (() => {
+      const raw = String(rawOpening.cassonetto_style ?? rawOpening.cassonettoStyle ?? "").toLowerCase().trim();
+      if (raw === "external_box" || raw === "internal_monoblocco" || raw === "absent") return raw;
+      // Auto-derive da legacy fields se l'analizzatore non lo ha specificato.
+      const hasCass = booleanOr(rawOpening.has_cassonetto ?? rawOpening.hasCassonetto, false);
+      const hasShutter = booleanOr(
+        rawOpening.has_roller_shutter ?? rawOpening.hasRollerShutter ?? rawOpening.presenza_tapparella,
+        false,
+      );
+      if (!hasCass && !hasShutter) return "absent" as const;
+      // Se ha shutter ma non c'è evidenza di box esterno → assumiamo monoblocco
+      // (l'errore di default è external_box, che è il peggior fallimento).
+      if (hasShutter && !hasCass) return "internal_monoblocco" as const;
+      return "unknown" as const;
+    })(),
     hasRollerShutter,
     hasBelt,
     hasBeltBox,

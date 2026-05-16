@@ -110,6 +110,15 @@ export interface WindowSceneOpening {
   condition: "buone" | "usurato" | "danneggiato" | "fatiscente" | "unknown";
   hasCassonetto: boolean;
   cassonettoType: string | null;
+  /**
+   * v8.6.28 — Stile cassonetto (critical per evitare invenzione di box
+   * sporgenti quando il cassonetto è monoblocco a scomparsa).
+   * - "external_box": scatola sporgente sopra il telaio (PVC/legno/alluminio visibile)
+   * - "internal_monoblocco": cassonetto incassato nel muro, dall'interno si vedono solo le lamelle della tapparella
+   * - "absent": nessun cassonetto, nessuna tapparella
+   * - "unknown": detection incerta (default)
+   */
+  cassonettoStyle?: "external_box" | "internal_monoblocco" | "absent" | "unknown";
   hasRollerShutter: boolean;
   hasBelt: boolean;
   hasBeltBox: boolean;

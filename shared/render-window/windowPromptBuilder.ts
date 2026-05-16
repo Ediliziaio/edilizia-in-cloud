@@ -495,42 +495,48 @@ ${bullets([
     );
   }
 
-  // 5. CASSONETTO STRICTLY FROM SOURCE (v8.6.27) — bug reale ricorrente:
-  //    Il modello inventa un cassonetto anche quando il source non ne ha,
-  //    perché o (a) la scene analysis ha falsamente rilevato hasCassonetto=true
-  //    o (b) il modello "abituato" alle finestre con cassonetto ne aggiunge
-  //    uno per default.
-  //
-  //    Regola universale: quando NON c'è replace cassonetto richiesto,
-  //    il render deve copiare ESATTAMENTE la zona sopra la finestra dal
-  //    source. Pixel-identical. Se source ha cassonetto → keep. Se source
-  //    NON ha cassonetto → niente cassonetto nel render.
+  // 5. CASSONETTO STYLE — basato su scene analysis v8.6.28
+  //    Le portafinestre italiane hanno 3 configurazioni cassonetto:
+  //    - external_box: scatola sporgente sopra il telaio (tipica vecchie installazioni)
+  //    - internal_monoblocco: cassonetto incassato nel muro, solo lamelle tapparella visibili (tipico modern)
+  //    - absent: niente cassonetto, niente tapparella
+  //    Il modello AI per default renderizza external_box (è quello che ha visto di più
+  //    in training). Dobbiamo dire esplicitamente quale stile preservare.
   const targetedOpeningId = primarySpec?.openingId;
   const targetedOpening = normalizedConfig.scene_analysis.openings.find(
     (o) => o.id === targetedOpeningId,
   );
   const userDidNotRequestCassonetto = primarySpec && !primarySpec.cassonetto.replace;
-  const sourceHasNoCassonetto = targetedOpening && !targetedOpening.hasCassonetto;
-  if (userDidNotRequestCassonetto && sourceHasNoCassonetto) {
-    // Caso A: scene analyzer dice no cassonetto + utente non lo replace
-    // → divieto esplicito di inventarlo.
+  const cassStyle = targetedOpening?.cassonettoStyle ?? "unknown";
+
+  if (userDidNotRequestCassonetto && cassStyle === "absent") {
     priorityLines.push(
-      `▶ NO CASSONETTO INVENTION: the source photo has NO cassonetto (no roller shutter housing box) above the window. ` +
-        `The user did NOT request to add one. The NEW render MUST also have NO cassonetto. ` +
-        `Do NOT invent a horizontal colored band, box, or housing above the window frame. ` +
+      `▶ NO CASSONETTO: the source photo has NO cassonetto and NO roller shutter. ` +
+        `The NEW render MUST also have NO cassonetto, NO shutter slats, NO horizontal band above or inside the window opening. ` +
         `The wall directly above the new frame must remain plain wall (same color/texture as source), pixel-identical to Image 1. ` +
         `Even if a wall element (lintel, cornice, shadow, valance, painted band) above the window LOOKS like it could be a cassonetto, DO NOT interpret it as one. Render it exactly as wall.`,
     );
+  } else if (userDidNotRequestCassonetto && cassStyle === "internal_monoblocco") {
+    priorityLines.push(
+      `▶ INTERNAL MONOBLOCCO CASSONETTO (incassato/a scomparsa): the source has a recessed cassonetto built INTO the wall — there is NO external box projecting from the wall above the window frame. ` +
+        `From inside the room you only see the roller shutter slats as a horizontal striped band at the top of each glazed sash (visible inside the window opening, NOT above the frame). ` +
+        `The NEW render MUST preserve this monoblocco style EXACTLY: ` +
+        `(a) NO external box above the window frame — the wall above the frame is plain wall, pixel-identical to Image 1; ` +
+        `(b) Keep the roller shutter slats visible at the same position they appear in the source (typically as a striped/dotted band at the top of each sash, behind the upper glass area); ` +
+        `(c) Do NOT invent a wood/PVC/aluminum box outside the wall plane — that is wrong for monoblocco style.`,
+    );
+  } else if (userDidNotRequestCassonetto && cassStyle === "external_box") {
+    priorityLines.push(
+      `▶ EXTERNAL BOX CASSONETTO PIXEL-IDENTICAL: the source shows an external cassonetto box projecting above the window frame. ` +
+        `The user did NOT request replacement. Reproduce that exact same box in the render — same shape, same material, same color, same proportions. ` +
+        `Do NOT redesign, recolor, or stylize.`,
+    );
   } else if (userDidNotRequestCassonetto) {
-    // Caso B: utente non chiede replace, scene analyzer dice c'è cassonetto.
-    // → preserve PIXEL-IDENTICAL. Se l'analyzer ha sbagliato a rilevare un
-    // cassonetto inesistente, questa regola almeno evita di farlo "diverso"
-    // dall'inesistente (l'AI riproduce solo ciò che vede nel source).
+    // unknown / fallback
     priorityLines.push(
       `▶ CASSONETTO PIXEL-IDENTICAL FROM SOURCE: the user did NOT request cassonetto replacement. ` +
-        `Whatever is shown above the window frame in Image 1 (the source) MUST be reproduced EXACTLY in the render: same shape, same color, same proportions, same shadow. ` +
-        `Do NOT redesign, recolor, or stylize the cassonetto/area-above-frame. ` +
-        `If the source shows plain wall above the frame, the render shows plain wall. If the source shows a specific cassonetto, the render shows that same cassonetto unchanged.`,
+        `Whatever is shown above and inside the upper area of the window in Image 1 (cassonetto, shutter slats, or just plain wall) MUST be reproduced EXACTLY in the render. ` +
+        `Do NOT redesign, recolor, or invent any architectural element above the frame.`,
     );
   }
 
@@ -603,7 +609,7 @@ These tasks have ABSOLUTE PRIORITY over everything else (color matching, handle 
       "changed perspective, changed crop, changed wall color, changed furniture, " +
       "darkened outdoor view, cinematic teal-orange grading, tinted glazing reducing daylight, " +
       "moody dark-blue tone over the outdoor view, dusk atmosphere over a bright daylight scene",
-    promptVersion: "8.6.27",
+    promptVersion: "8.6.28",
     blocks,
     validation,
     normalizedConfig,

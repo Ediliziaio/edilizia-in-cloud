@@ -46,6 +46,7 @@ If only one opening is visible, still use opening id "A".
       "condition": one of: "buone"|"usurato"|"danneggiato"|"fatiscente"|"unknown",
       "has_cassonetto": boolean,
       "cassonetto_type": string or null,
+      "cassonetto_style": one of: "external_box"|"internal_monoblocco"|"absent"|"unknown",
       "has_roller_shutter": boolean,
       "has_belt": boolean,
       "has_belt_box": boolean,
@@ -133,29 +134,42 @@ Most Italian residential portefinestre are BATTENTE (3 ante battenti is common).
   has sash_count=3 + has_horizontal_transom=true.
 - transom_position_pct: vertical position from top=0 to bottom=100.
 
-═══ CASSONETTO DETECTION (CRITICAL — v8.6.27) ═══
+═══ CASSONETTO DETECTION (CRITICAL — v8.6.28) ═══
 
-has_cassonetto detection has high false-positive rate. Be CONSERVATIVE.
+Italian portafinestre have THREE possible cassonetto configurations. Choose ONE precisely:
 
-ONLY set has_cassonetto=true if you can clearly identify ALL THREE of these visual cues:
-1. A distinct horizontal BOX or HOUSING above the window frame, projecting OUT from the wall plane (not flush with the wall).
-2. The box has a DIFFERENT material/color/texture than the surrounding wall (typically PVC, wood, or aluminum, NOT painted wall).
-3. The box width matches the window opening width (not a generic wall feature like a curtain rod, valance, decorative trim, or ceiling moulding).
+CASE A — "external_box":
+  Set has_cassonetto=true AND cassonetto_style="external_box" ONLY if you clearly see:
+  1. A distinct horizontal BOX above the window frame, projecting OUT from the wall plane.
+  2. Different material/color/texture than the wall (PVC, wood, aluminum, NOT painted wall).
+  3. Width matches the window opening width.
 
-If ANY of these is missing or uncertain, set has_cassonetto=false.
+CASE B — "internal_monoblocco" (the most common in modern Italian housing):
+  Set has_cassonetto=true AND cassonetto_style="internal_monoblocco" if:
+  - You see roller shutter slats stored INSIDE the window opening (typically as a horizontal band at the top of each sash, visible through the glass or just below the inner frame head), AND
+  - You do NOT see any external box projecting from the wall above the frame.
+  This means the cassonetto exists but is RECESSED INSIDE THE WALL (incassato/monoblocco). The slats are visible from inside the room as a striped band at the top of each glazed sash.
+
+CASE C — "absent":
+  Set has_cassonetto=false AND cassonetto_style="absent" if:
+  - No roller shutter slats visible anywhere.
+  - No box above the frame.
+  - The wall above the frame is plain wall (paint, plaster, lintel, cornice — none of these is a cassonetto).
+
+If uncertain between cases, prefer "internal_monoblocco" if roller shutter slats are visible somewhere, else "absent". NEVER default to "external_box" when uncertain — false external_box is the worst failure mode (causes AI to invent a projecting box that breaks photo realism).
 
 DO NOT confuse with:
-- Window header / lintel (structural wall element above frame) → has_cassonetto=false
-- Decorative cornice or crown moulding → has_cassonetto=false
-- Curtain rod or valance → has_cassonetto=false
-- Shadow band from overhanging element → has_cassonetto=false
-- Painted accent strip on wall → has_cassonetto=false
-
-When in doubt, has_cassonetto=false. False negatives are recoverable (user can request to add one in wizard). False positives cause the AI render to INVENT a cassonetto that doesn't exist, breaking the photo realism.
+- Window header / lintel (structural wall element above frame) → "absent" if no slats, "internal_monoblocco" if slats visible
+- Decorative cornice or crown moulding → "absent"
+- Curtain rod or valance → "absent"
+- Shadow band from overhanging element → "absent"
+- Painted accent strip on wall → "absent"
 
 ═══ ROLLER SHUTTER DETECTION ═══
 
-has_roller_shutter: only true if you see actual roller shutter slats (the curtain), either fully lowered, partially lowered, or visibly stored in the cassonetto with the slats peeking out. If you only see the cassonetto box (no slats visible), set the roller curtain state to "fully_raised_hidden" but only set has_roller_shutter=true if you ALSO confirmed has_cassonetto=true with the criteria above.
+has_roller_shutter: true if you see actual roller shutter slats (the curtain) ANYWHERE — either fully lowered, partially lowered, or as a "stored" striped band at the top of the sash interior (typical of internal_monoblocco). The slats are recognizable by their horizontal striped/dotted pattern.
+
+If has_roller_shutter=true, the cassonetto MUST exist somewhere — choose external_box if you see a projecting box, or internal_monoblocco if shutters are visible but no external box.
 
 ═══ OTHER NOTES ═══
 
