@@ -483,7 +483,7 @@ export default function RenderNewV2() {
     };
 
     poll();
-  }, [companyId, queryClient, stopPolling, isEmbed]);
+  }, [companyId, queryClient, stopPolling, stopPoll, isEmbed]);
 
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId || generating) return;

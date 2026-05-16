@@ -148,9 +148,7 @@ function describeOpening(opening: WindowSceneOpening): string {
 
 function describeSpecification(
   spec: WindowTechnicalSpecification,
-  scene: WindowRenderConfig["scene_analysis"],
 ): string {
-  const opening = scene.openings.find((o) => o.id === spec.openingId);
   const compositionChange = spec.compositionChange;
 
   const finishDescription = spec.finish.mode === "legno"
@@ -330,7 +328,7 @@ Critical keep/preserve directives:
 ${bullets(normalizedConfig.replacement_manifest.keepExactly)}`;
 
   blocks.D = `[BLOCK D – NEW WINDOW SPECIFICATION]
-${normalizedConfig.technical_specification.map((spec) => describeSpecification(spec, normalizedConfig.scene_analysis)).join("\n\n")}`;
+${normalizedConfig.technical_specification.map((spec) => describeSpecification(spec)).join("\n\n")}`;
 
   blocks.E = `[BLOCK E – REMOVAL RULES]
 ${bullets(
