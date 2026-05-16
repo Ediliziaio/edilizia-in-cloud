@@ -132,25 +132,22 @@ function getMotorizedManualCleanupTargets(config: WindowRenderConfig): Array<{
   });
 }
 
-// v8.3.7 — QA Vision MULTI-CRITERION
-// Categorie controllate (corrispondono ai 7 CARDINAL FAILURE MODES + cinghia):
+// v8.6.29 — QA Vision SEMPLIFICATA da 13 categorie a 3 holistic.
+// Razionale: con meta-prompt rewriter come path unico, la maggior parte
+// dei vecchi failure mode (recolor, old handle, stiles, transom, hinge
+// count, cassonetto invention) sono catturati a monte dal prompt corretto.
+// QA serve solo come safety net su 3 categorie macro che il modello
+// image può ancora sbagliare:
+//   - composition_mismatch: la finestra renderizzata non matcha la spec
+//     (sash count, profilo, colore, cassonetto style, transom)
+//   - scene_corruption: la scena fuori dalla finestra è stata modificata
+//     (oggetti inventati, view alterata, parete ripinta, swatch pasted)
+//   - residual_old_window: l'AI ha "recolorato" invece di sostituire
+//     (mantenuta geometria vecchia + handle vecchio + cinghia visibile)
 const QA_CATEGORIES = [
-  "recolor_instead_of_replace",
-  "old_handle_kept",
-  "lateral_stiles_old_color",
-  "manual_shutter_control_visible",
-  "residual_sash_subdivisions",
-  "cassonetto_recolored_not_replaced",
-  "objects_invented",
-  "swatch_pasted_in_scene",
-  "cassonetto_window_discontinuity",
-  // v8.6.5 — Composition change ignorata (sash count mismatch)
-  "sash_count_mismatch",
-  // v8.6.25 — Bug reali segnalati: trasversi non rimossi, cassonetto inventato,
-  // cerniere in numero sbagliato.
-  "transom_not_removed",
-  "cassonetto_invented_when_source_had_none",
-  "hinge_count_wrong",
+  "composition_mismatch",
+  "scene_corruption",
+  "residual_old_window",
 ] as const;
 type QaCategory = (typeof QA_CATEGORIES)[number];
 
@@ -166,151 +163,64 @@ interface MultiQaResult {
 
 function buildMultiCriterionQaPrompt(config: WindowRenderConfig): string {
   const spec = config.technical_specification[0];
-  const motorizedTargets = getMotorizedManualCleanupTargets(config);
-  const motorizedSection = motorizedTargets.length > 0
-    ? `\nMOTORIZATION TARGETS (manual control must DISAPPEAR):\n${
-      motorizedTargets.map((t) => `- Opening ${t.openingLabel}: ${t.placementNotes}`).join("\n")
-    }`
-    : "";
-
-  const cassonettoReplace = spec?.cassonetto.replace
-    ? `\nCASSONETTO REPLACEMENT: yes — must be a NEW unit (different model from the old one), not just recolored.`
-    : "";
-
-  const frameFinish = spec
-    ? `\nNEW FRAME FINISH SPECIFIED: ${spec.finish.name}${spec.finish.ral ? ` (RAL ${spec.finish.ral})` : ""} — every visible frame surface (front, lateral stiles left+right, top header, bottom sill, central mullion) must show this color.`
-    : "";
-
-  // v8.6.5 — Comunica esplicitamente al QA il sash count target se c'e' un
-  // composition change attivo, cosi' puo' fare il check #10 con criterio.
-  const sashCountChange = spec?.compositionChange
-    ? `\nSASH COUNT CHANGE REQUESTED: source photo has ${spec.compositionChange.fromSashCount} sashes, the NEW window must have EXACTLY ${spec.compositionChange.toSashCount} sashes inside the same wall opening width.`
-    : `\nSASH COUNT: source = NEW window = ${spec?.desiredSashCount ?? "?"} sashes (no composition change).`;
-
-  // v8.6.25 — Context per check #11/#12/#13
+  const finish = spec
+    ? `${spec.finish.name}${spec.finish.ral ? ` RAL ${spec.finish.ral}` : ""}`
+    : "(unspecified)";
+  const sashCount = spec?.compositionChange
+    ? `${spec.compositionChange.toSashCount} (composition change from ${spec.compositionChange.fromSashCount})`
+    : `${spec?.desiredSashCount ?? "?"}`;
   const transomMustBeRemoved = typeof spec?.transomRule === "string" &&
     spec.transomRule.toUpperCase().includes("REMOVE");
-  const transomContext = transomMustBeRemoved
-    ? `\nTRANSOM REMOVAL REQUESTED: the user explicitly asked to REMOVE the horizontal transom. New sashes MUST be single full-height continuous glass panels with NO horizontal divider at mid-height.`
-    : "";
-
-  // Source cassonetto presence: estraibile dalla scene_analysis se disponibile
   const targetedOpening = spec
     ? config.scene_analysis.openings.find((o) => o.id === spec.openingId)
     : undefined;
-  const sourceHadNoCassonetto = targetedOpening && !targetedOpening.hasCassonetto;
-  const userDidNotRequestCassonetto = spec && !spec.cassonetto.replace;
-  const cassonettoForbidden = sourceHadNoCassonetto && userDidNotRequestCassonetto;
-  const cassonettoContext = cassonettoForbidden
-    ? `\nNO CASSONETTO: the source photo has NO cassonetto and the user did NOT request to add one. The NEW render MUST also have NO cassonetto / roller shutter housing above the window. The wall above the frame must remain wall, exactly as Image 1.`
-    : "";
+  const cassStyle = targetedOpening?.cassonettoStyle ?? "unknown";
 
-  // Hinge count target
-  const hingeCountTarget = spec && spec.hingeMode !== "hidden" && spec.hingesPerSash > 0
-    ? `\nHINGE COUNT TARGET: exactly ${spec.hingesPerSash} hinge${spec.hingesPerSash > 1 ? "s" : ""} per sash × ${spec.desiredSashCount} sashes = ${spec.hingesPerSash * spec.desiredSashCount} total visible hinges across the window.`
-    : spec?.hingeMode === "hidden"
-    ? `\nHIDDEN HINGES MODE: ZERO visible hinges expected — the hinge mechanism is concealed inside the frame channel.`
-    : "";
-
-  return `You are a strict QC inspector for premium Italian window-replacement renders.
+  return `You are a holistic QC inspector for Italian window-replacement renders.
 You receive TWO IMAGES:
-- Image 1 = SOURCE PHOTO (old window installed)
+- Image 1 = SOURCE PHOTO (existing window)
 - Image 2 = CANDIDATE RENDER (proposed new window in same room)
 
-Your job: detect failures where the AI did NOT properly replace the old window.${frameFinish}${cassonettoReplace}${sashCountChange}${transomContext}${cassonettoContext}${hingeCountTarget}${motorizedSection}
+EXPECTED CHANGES (per user config):
+- Target opening: ${spec?.openingId ?? "?"} (other openings unchanged)
+- New frame: ${spec?.material ?? "?"} · ${finish}
+- Sash count target: ${sashCount}
+- Transom: ${transomMustBeRemoved ? "MUST be REMOVED (full-height glass)" : "preserve as source"}
+- Cassonetto style in source: ${cassStyle}${spec?.cassonetto.replace ? " · user requested REPLACE" : " · preserve as source"}
+- Shutter: ${spec?.shutter.replace ? `replace${spec.shutter.colorLabel ? ` (color: ${spec.shutter.colorLabel})` : ""}` : "preserve as source"}${spec?.shutter.isMotorized ? " · motorized (no manual belt should appear)" : ""}
 
-Check these ${QA_CATEGORIES.length} categories systematically. For EACH category, decide pass/fail:
+Check ONLY these 3 holistic categories:
 
-1. [recolor_instead_of_replace] — Did the AI just recolor the old window, keeping identical geometry, mullion thickness, sash proportions? FAIL if the new window looks like the old one with a color filter applied.
+1. [composition_mismatch] — Does the rendered window match the spec? Verify: sash count, profile material/color, cassonetto style (no invented box if source had none / monoblocco preserved if source has recessed monoblocco), transom (removed if requested), hinge count reasonable for the profile, handle position. FAIL only on clear discrepancies, not minor finish variations.
 
-2. [old_handle_kept] — Is the handle in Image 2 the SAME model/shape as the handle in Image 1, just repainted? FAIL if so. The handle must be visibly a different model.
+2. [scene_corruption] — Are room/walls/floor/ceiling/outdoor-view/furniture in Image 2 identical to Image 1? Did the AI invent objects (curtains, lamps, plants, sensors), recolor walls, alter the outdoor view, or paste swatch rectangles/product thumbnails into the scene? FAIL if anything outside the target window opening was modified.
 
-3. [lateral_stiles_old_color] — Are the LEFT and RIGHT vertical frame edges (lateral stiles) still in the OLD color (typically white) while the front face is in the new color? FAIL if so. The entire frame perimeter must be in the new color.
-
-4. [manual_shutter_control_visible] — If motorization was specified, do you see any vertical pull cord, belt strap, wall winder box, wall plate, exit slot, or vertical guide rod near the window in Image 2? FAIL if any of these are visible.
-
-5. [residual_sash_subdivisions] — Do you see 4 dark rectangles or muntin segments in the upper portion of the new sashes (residuals of old georgian bars / transoms)? FAIL if so. New sashes are single uninterrupted glass panels.
-
-6. [cassonetto_recolored_not_replaced] — If cassonetto replacement was specified, is the cassonetto in Image 2 visibly the SAME design as Image 1, just repainted? FAIL if so. The new cassonetto must be a clean modern flat PVC monoblock with smooth surface.
-
-7. [objects_invented] — Do you see curtains, drapes, blinds, lamps, sensors, plants, picture frames, switches in Image 2 that are NOT present in Image 1? FAIL if any new objects appear in the room that were not in the source.
-
-8. [swatch_pasted_in_scene] — Do you see a small rectangular color swatch, inset thumbnail of a handle, or any product-photo-like element pasted on the wall or floating in the scene? FAIL if so.
-
-9. [cassonetto_window_discontinuity] — If cassonetto is replaced, is there a visible GAP, OFFSET, dark shadow seam, or color discontinuity between the bottom edge of the cassonetto and the top edge of the window frame? FAIL if they don't form a seamless continuous line (monoblocco standard).
-
-10. [sash_count_mismatch] — Count the sashes (vertical glazed panels separated by mullions) in Image 2. If a SASH COUNT CHANGE was requested (see header above), does the candidate render match the target sash count? FAIL if the candidate keeps the source-photo sash count instead of applying the requested change (e.g. spec says 2→1 but render still shows 2 sashes with central mullion).
-
-11. [transom_not_removed] — Only check this if TRANSOM REMOVAL REQUESTED is in the header above. Does Image 2 still show the horizontal transom dividing each sash into upper and lower glass sections? FAIL if the transom is still visible (any horizontal frame bar at mid-height of the sashes). The transom must be completely gone, replaced by continuous full-height glass.
-
-12. [cassonetto_invented_when_source_had_none] — Only check this if NO CASSONETTO is in the header above. Does Image 2 show a cassonetto / roller shutter housing box / horizontal colored band above the window frame that was NOT present in Image 1? FAIL if the AI added one when source had none and user didn't request it.
-
-13. [hinge_count_wrong] — Only check this if HINGE COUNT TARGET is in the header. Count the visible hinges in Image 2 across all sashes. FAIL if the count differs from the target (e.g. target=2 per sash × 2 sashes = 4 total, but render shows 6). For HIDDEN HINGES MODE, FAIL if any visible hinge appears on the frame.
+3. [residual_old_window] — Did the AI just RECOLOR the old window keeping the same geometry, old handle, old mullion thickness, old hinges, or leave residual artifacts like dark rectangles from old transoms / manual belt straps when motorization specified? FAIL if the new window is recognizably the old one with a color filter.
 
 Return ONLY this JSON, no prose:
 {
   "pass": boolean,
   "issues": [
-    {"category": "<one of the ${QA_CATEGORIES.length} category keys>", "detail": "<short 1-line description of what you see>"}
+    {"category": "<one of the ${QA_CATEGORIES.length} keys>", "detail": "<1-line description>"}
   ]
 }
 Categories MUST be one of: ${QA_CATEGORIES.join(", ")}.
 If all ${QA_CATEGORIES.length} categories pass, return {"pass": true, "issues": []}.
-If even ONE fails, return pass=false plus the issue(s).`;
+Be LENIENT: this is a sanity check, not a pixel-perfect inspection. Pass if the render is broadly acceptable.`;
 }
 
-// Per ogni categoria di issue, costruisce un fragment correttivo mirato.
+// v8.6.29 — Corrective fragments semplificati: 3 categorie holistic.
 function buildCorrectiveFragmentForCategory(
   category: QaCategory,
-  config: WindowRenderConfig,
+  _config: WindowRenderConfig,
 ): string {
-  const motorizedTargets = getMotorizedManualCleanupTargets(config);
   switch (category) {
-    case "recolor_instead_of_replace":
-      return "ERASE the old window entirely. Draw a BRAND NEW physical window with the specified profile, sash composition, mullion thickness, hinge mode and handle model. Do NOT preserve the geometry of the old window — only the wall opening dimensions are kept.";
-    case "old_handle_kept":
-      return "Replace the handle with the new model specified (different shape, mounting plate, finish). The new handle MUST visibly differ from the old handle in Image 1 — different silhouette, different proportions.";
-    case "lateral_stiles_old_color":
-      return "Repaint ALL frame surfaces in the new specified color: left lateral stile, right lateral stile, top header, bottom sill, central mullion. No part of the frame may remain in the old white/original color.";
-    case "manual_shutter_control_visible":
-      return motorizedTargets.length > 0
-        ? `For motorized openings (${motorizedTargets.map((t) => t.openingLabel).join(", ")}): ERASE every vertical cord, belt strap, wall winder box, wall plate, belt exit slot and vertical guide. Repair the wall seamlessly (matching plaster + paint). Install a new flush 80x80mm Vimar-style electric switch at ~110cm from floor.`
-        : "Remove any remaining belt, cord, wall winder or vertical control trim near the window.";
-    case "residual_sash_subdivisions":
-      return "Remove ALL dark rectangles, muntin segments and georgian-bar residuals from the upper portion of the new sashes. Each sash is a SINGLE clear glazed panel from top to bottom.";
-    case "cassonetto_recolored_not_replaced":
-      return "ERASE the old cassonetto entirely. Draw a NEW modern flat slim PVC monoblock unit: smooth surface, integrated hatch, no old wood texture, no rustic plaster, no projecting cornice. Match the specified color exactly.";
-    case "objects_invented":
-      return "Remove ALL room objects that were not in Image 1: curtains, lamps, sensors, plants, frames, switches. The room outside the target opening must be IDENTICAL to Image 1 (same wall paint, same furniture, same accessories).";
-    case "swatch_pasted_in_scene":
-      return "Remove the swatch/product-photo rectangle from the scene. Reference images are invisible inputs — only the edited Image 1 should appear in the output.";
-    case "cassonetto_window_discontinuity":
-      return "Align the bottom edge of the new cassonetto PERFECTLY with the top edge of the new window frame: zero gap, zero shadow seam, zero offset. They form a single seamless monoblocco unit.";
-    case "sash_count_mismatch": {
-      const cc = config.technical_specification[0]?.compositionChange;
-      if (cc) {
-        if (cc.toSashCount < cc.fromSashCount) {
-          return `REMOVE ${cc.fromSashCount - cc.toSashCount} central vertical mullion(s) from the new window. The new window must have EXACTLY ${cc.toSashCount} sashes (vertical glazed panels), NOT ${cc.fromSashCount}. The wall opening width stays IDENTICAL — only the internal subdivision changes. ${cc.toSashCount === 1 ? "Result: ONE single full-width glass panel filling the entire opening." : `Result: ${cc.toSashCount} equal-width glazed panels.`}`;
-        }
-        return `ADD ${cc.toSashCount - cc.fromSashCount} new vertical mullion(s) to the new window. The new window must have EXACTLY ${cc.toSashCount} sashes (vertical glazed panels), NOT ${cc.fromSashCount}. The wall opening width stays IDENTICAL — only the internal subdivision changes.`;
-      }
-      return "Match the sash count exactly to the specification. Do not keep the source-photo sash count.";
-    }
-    case "transom_not_removed":
-      return "REMOVE the horizontal transom that is still visible in the new render. Each sash must be a SINGLE FULL-HEIGHT continuous glazed panel from top rail to bottom rail. Replace the area where the transom was with clear glass. NO horizontal frame bar at mid-height, NO seam, NO divider.";
-    case "cassonetto_invented_when_source_had_none":
-      return "REMOVE the cassonetto / roller shutter housing / horizontal colored band that you added above the window. The source photo has NO cassonetto and the user did NOT request one. The wall directly above the new window frame must remain plain wall (same paint color and texture as Image 1).";
-    case "hinge_count_wrong": {
-      const s = config.technical_specification[0];
-      if (s) {
-        if (s.hingeMode === "hidden") {
-          return "REMOVE all visible hinges from the new window. HIDDEN HINGES mode is specified — the hinge mechanism is concealed inside the frame channel. The lateral stiles must look clean and uninterrupted, with no metal hinge knuckles, no screws, no compact hinge visible anywhere on the frame perimeter.";
-        }
-        const total = s.hingesPerSash * s.desiredSashCount;
-        return `Render EXACTLY ${s.hingesPerSash} hinge${s.hingesPerSash > 1 ? "s" : ""} per sash, for a total of ${total} visible hinge${total > 1 ? "s" : ""} across the entire window. Remove any extra hinges in the current render. Hinges go on the lateral stiles only, with consistent vertical spacing and same finish.`;
-      }
-      return "Match the hinge count exactly to the specification. Remove extra hinges.";
-    }
+    case "composition_mismatch":
+      return "Re-render strictly following the original specification (sash count, profile, color, cassonetto style, transom, hinges, handle position). Do NOT deviate from the user's choices.";
+    case "scene_corruption":
+      return "Preserve the room, furniture, walls, ceiling, floor, and outdoor view IDENTICAL to the source photo. Do NOT invent objects (curtains, lamps, plants, sensors), do NOT recolor walls, do NOT alter the outdoor view, do NOT paste swatch rectangles or product thumbnails into the scene. The only changes allowed are inside the target window opening.";
+    case "residual_old_window":
+      return "ERASE the old window entirely. Draw a BRAND NEW physical window: different geometry, different mullion thickness, new handle (different shape from the old one), new hinges, frame color in ALL surfaces (front + lateral stiles + top + bottom + mullion). Remove any residual muntin segments, georgian bars, or manual belt/cord/winder. This is a physical replacement, not a color filter.";
     default:
       return "";
   }
@@ -790,63 +700,56 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
 
   const elapsed = () => Date.now() - requestStartMs;
 
-  // ── v8.6.26 — META-PROMPT REWRITER (experimental, env flag) ──────────
-  // Quando env RENDER_PROMPT_MODE="meta", riscrive il prompt block-based
-  // (~25KB) in una prosa naturale ~2-3KB via Gemini Flash. Razionale:
-  // i modelli immagine processano meglio prose breve che blocchi rigidi.
-  // Se il rewriter fallisce o la prosa omette key tokens → fallback al
-  // block-based originale (composedPrompt args.composedPrompt).
-  const promptMode = Deno.env.get("RENDER_PROMPT_MODE")?.trim().toLowerCase();
-  if (promptMode === "meta") {
-    try {
-      const metaResult = await rewriteToMetaPrompt({
-        config: args.normalizedConfig,
-        metadata: {
-          task_kind: "render_prompt_rewrite",
-          company_id: session.company_id as string,
-          session_id: args.session_id,
-        },
+  // ── v8.6.29 — META-PROMPT è ora il PATH UNICO (no env, no flag) ──────
+  // La storia: block-based prompt aveva accumulato 25KB di regole +
+  // 6 PRIORITY OVERRIDE + 13 categorie QA. Ogni nuova regola CONFONDEVA
+  // di più il modello image (gpt-image-1 / Gemini) addestrato su prosa
+  // breve, non su blocchi strutturati. Stesso pattern usato da OpenAI
+  // per DALL-E: GPT-4 riscrive in prosa, DALL-E rende.
+  //
+  // Strategia: Gemini Flash rewriter genera 300-500 parole di prosa
+  // naturale dalla config strutturata. Il system prompt del rewriter è
+  // il single source of truth per TUTTE le regole (cassonetto trichotomy,
+  // sash count change, nodo asimmetrico, hinges, transom, ecc).
+  //
+  // Se il rewriter fallisce su entrambi i modelli della chain, fallback
+  // al block-based originale (composedPrompt). Safety net mantenuto.
+  try {
+    const metaResult = await rewriteToMetaPrompt({
+      config: args.normalizedConfig,
+      metadata: {
+        task_kind: "render_prompt_rewrite",
+        company_id: session.company_id as string,
+        session_id: args.session_id,
+      },
+    });
+    if (metaResult) {
+      // Prompt minimal: identity + prosa rewriter + 1 line negative.
+      composedPrompt = [
+        "You are an expert photorealistic Italian window-replacement render artist. Edit the source photo as instructed below. Output a clean photograph-quality result.",
+        metaResult.userPrompt,
+        "Avoid: cartoon, painterly, fake CGI, AI restyling, warped geometry, swatch rectangles, invented objects.",
+      ].join("\n\n");
+      logInfo({
+        session_id: args.session_id,
+        msg: "meta_prompt_active",
+        rewriter_model: metaResult.modelUsed,
+        rewriter_latency_ms: metaResult.latencyMs,
+        prose_length: metaResult.userPrompt.length,
+        final_prompt_length: composedPrompt.length,
       });
-      if (metaResult) {
-        // Sostituisci il block-based userPrompt con la prosa, mantenendo
-        // systemPrompt (identità modello) e negativePrompt (anti-pattern).
-        composedPrompt = [
-          args.systemPrompt,
-          metaResult.userPrompt,
-          `[NEGATIVE CONSTRAINTS]\n${negativePrompt}`,
-        ]
-          .filter(Boolean)
-          .join("\n\n");
-        logInfo({
-          session_id: args.session_id,
-          msg: "prompt_mode_meta_active",
-          rewriter_model: metaResult.modelUsed,
-          rewriter_latency_ms: metaResult.latencyMs,
-          prose_length: metaResult.userPrompt.length,
-          original_blocks_length: args.composedPrompt.length,
-          delta_pct: Math.round(
-            ((args.composedPrompt.length - composedPrompt.length) / args.composedPrompt.length) * 100,
-          ),
-        });
-      } else {
-        logWarn({
-          session_id: args.session_id,
-          msg: "prompt_mode_meta_fallback_to_blocks",
-          reason: "rewriter_returned_null",
-        });
-      }
-    } catch (e) {
+    } else {
       logWarn({
         session_id: args.session_id,
-        msg: "prompt_mode_meta_exception_fallback_to_blocks",
-        error: (e as Error).message?.substring(0, 200),
+        msg: "meta_prompt_fallback_to_legacy_blocks",
+        reason: "rewriter_chain_failed_all_models",
       });
     }
-  } else {
-    logInfo({
+  } catch (e) {
+    logWarn({
       session_id: args.session_id,
-      msg: "prompt_mode_blocks_active",
-      env_RENDER_PROMPT_MODE: promptMode ?? "(not set)",
+      msg: "meta_prompt_exception_fallback_to_legacy_blocks",
+      error: (e as Error).message?.substring(0, 200),
     });
   }
 
@@ -1124,37 +1027,17 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
 
       qaModelUsed = qaResult.modelUsed ?? null;
 
-      // Parse strutturato delle issues: ogni issue deve avere {category, detail}
-      // ma il vision provider potrebbe ritornare stringhe legacy o variazioni.
+      // v8.6.29 — Parse semplificato (3 categorie holistic, no string legacy).
       const parsedIssues: QaIssue[] = [];
       for (const raw of qaResult.issues) {
         if (typeof raw === "string") {
-          // Stringa legacy → tenta best-effort detection categoria
-          const lower = raw.toLowerCase();
-          let cat: QaCategory = "recolor_instead_of_replace";
-          if (lower.includes("belt") || lower.includes("cord") || lower.includes("cinghia")) {
-            cat = "manual_shutter_control_visible";
-          } else if (lower.includes("handle") || lower.includes("maniglia")) {
-            cat = "old_handle_kept";
-          } else if (lower.includes("cassonetto")) {
-            cat = "cassonetto_recolored_not_replaced";
-          } else if (lower.includes("curtain") || lower.includes("lamp") || lower.includes("plant")) {
-            cat = "objects_invented";
-          } else if (lower.includes("swatch")) {
-            cat = "swatch_pasted_in_scene";
-          } else if (lower.includes("muntin") || lower.includes("rectangle")) {
-            cat = "residual_sash_subdivisions";
-          } else if (lower.includes("stile") || lower.includes("lateral")) {
-            cat = "lateral_stiles_old_color";
-          } else if (lower.includes("sash count") || lower.includes("mullion") || lower.includes("composition")) {
-            cat = "sash_count_mismatch";
-          }
-          parsedIssues.push({ category: cat, detail: raw });
+          // Stringa free-text → assegniamo categoria di default residual_old_window.
+          parsedIssues.push({ category: "residual_old_window", detail: raw });
         } else if (raw && typeof raw === "object") {
           const r = raw as { category?: string; detail?: string };
           const cat = (QA_CATEGORIES as readonly string[]).includes(r.category ?? "")
             ? (r.category as QaCategory)
-            : "recolor_instead_of_replace";
+            : "composition_mismatch";
           parsedIssues.push({
             category: cat,
             detail: r.detail ?? "(no detail)",

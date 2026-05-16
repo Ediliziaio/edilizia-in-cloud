@@ -52,6 +52,18 @@ MUST include explicitly:
 8. Shutter (tapparella): preserved as in source / replaced with new color (specify color) / motorized cleanup (remove belt, install electric switch at ~110cm).
 9. Preservation rules: room, furniture, view outdoors, walls, ceiling, floor IDENTICAL to source. Do not recolor or restyle the rest of the scene.
 
+SPECIAL CASES (must be addressed explicitly when present in config):
+
+A. SASH COUNT CHANGE: if spec.compositionChange is non-null (source has X sashes, target has Y sashes), state DIRECTLY: "the new window must have EXACTLY Y sashes. Remove/add the central mullion(s) accordingly. The wall opening width stays IDENTICAL, only the internal subdivision changes." This rule overrides any default.
+
+B. ASYMMETRIC REDUCED NODE: if spec.reducedNode=true (and centralHandle=false), state: "the central vertical meeting point is a SLIM SINGLE STILE (~50-70mm wide, NOT a doubled 110mm mullion). The primary sash is visibly wider than the secondary sash. The palettone covers the palettino. Glass area increases vs symmetric profile. Valid for PVC, aluminum, minimal frames alike."
+
+C. CENTRAL HANDLE: if spec.centralHandle=true, state: "the central vertical mullion is DRAMATICALLY SLIM (~30-60mm wide) with ONE single handle mounted at its geometric center. Glass area dominates the visual field. This is a slim palettone with central handle, NOT a classic doubled mullion."
+
+D. TAPPARELLA NEW COLOR: if spec.shutter.replace=true and spec.shutter.colorLabel is a custom color (different from frame), state the exact color and "the roller shutter slats MUST show this color, NOT the frame color, NOT the original shutter color."
+
+E. MOTORIZED CLEANUP: if spec.shutter.isMotorized=true and source has a manual belt/winder, state "remove ALL manual belt/cord/winder/wall plate from the wall beside the window. Repair the wall seamlessly. Install a new flush 80x80mm Vimar-style electric switch (matte white) at ~110cm from floor with up/down rocker buttons."
+
 VISUAL ANCHORS (use concrete language):
 - "polished chrome" not "shiny metal finish"
 - "matte anthracite RAL 7016" not "dark gray"
@@ -59,11 +71,12 @@ VISUAL ANCHORS (use concrete language):
 - "exactly 4 hinges total (2 per sash)" not "European-style hinges"
 
 ABSOLUTE BANS (always include at end):
-- This is a PHYSICAL replacement, not a recolor of the old window.
-- All frame surfaces (front + lateral stiles + top header + bottom sill + mullion) show the new color.
+- This is a PHYSICAL replacement, not a recolor of the old window. ERASE the old window, draw a NEW one.
+- All frame surfaces (front + lateral stiles + top header + bottom sill + mullion) show the new color. NEVER leave lateral stiles in the old color.
 - No phantom subdivisions, no residual georgian bars, no leftover manual belt/cord/winder when motorization is specified.
 - No invented objects (curtains, lamps, plants, sensors) that weren't in the source photo.
 - No swatch rectangles or product thumbnails pasted in the scene — reference images are inputs, never outputs.
+- Corner construction follows material: PVC = mitred 45° V-perfect welded; Legno = L-shaped mortise & tenon; Alluminio = 90° butt with hidden corner cleat. Never mix.
 
 End with: "Preserve all other scene elements pixel-identical to the source photo."
 
