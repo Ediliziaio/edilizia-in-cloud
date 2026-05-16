@@ -433,27 +433,65 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
   const compositionChangeSpecs = normalizedConfig.technical_specification
     .filter((s) => s.compositionChange)
     .map((s) => s.compositionChange!);
-  let priorityOverride = "";
+  const primarySpec = normalizedConfig.technical_specification[0];
+  const priorityLines: string[] = [];
+
+  // 1. Sash count change (v8.6.9)
   if (compositionChangeSpecs.length > 0) {
-    const c = compositionChangeSpecs[0]; // primo (caso piu' comune: 1 opening)
+    const c = compositionChangeSpecs[0];
     const verb = c.toSashCount < c.fromSashCount ? "REMOVE" : "ADD";
     const diff = Math.abs(c.fromSashCount - c.toSashCount);
     const resultDesc = c.toSashCount === 1
       ? "ONE single full-width glass panel filling the entire opening (no mullion, no division)"
       : `${c.toSashCount} equal-width glass panels separated by ${c.toSashCount - 1} vertical mullion(s)`;
-    priorityOverride = `[🚨 PRIMARY TASK — READ THIS FIRST 🚨]
+    priorityLines.push(
+      `▶ SASH COUNT: source has ${c.fromSashCount} sashes, NEW window MUST have EXACTLY ${c.toSashCount} sashes. ` +
+        `${verb} ${diff} vertical mullion${diff > 1 ? "s" : ""}. Result: ${resultDesc}.`,
+    );
+  }
 
-The source photo shows a window with ${c.fromSashCount} sashes.
-The NEW window MUST have EXACTLY ${c.toSashCount} sashes.
+  // 2. Nodo asimmetrico / Maniglia centrale (v8.6.19) — bug reale:
+  //    OpenAI/Gemini tendono a renderizzare un nodo simmetrico classico
+  //    (~110mm doppio montante) anche quando spec.reducedNode=true.
+  //    Promosso a PRIMARY TASK con descrizione visuale esplicita.
+  if (primarySpec?.centralHandle) {
+    priorityLines.push(
+      "▶ CENTRAL HANDLE (palettone slim): the central vertical mullion MUST be DRAMATICALLY SLIM (~30-40mm wide, NOT 110mm) " +
+        "with ONE single handle mounted at its geometric center. Glass area dominates ~85% of the visual field. " +
+        "This is NOT a classic doubled mullion — it is a slim palettone with central handle (Italian Schüco LivIng / Internorm style).",
+    );
+  } else if (primarySpec?.reducedNode) {
+    priorityLines.push(
+      "▶ ASYMMETRIC REDUCED NODE (palettone+palettino): the central vertical meeting point MUST be a SLIM SINGLE STILE (~70mm wide, NOT a doubled 110mm mullion). " +
+        "The primary sash is visibly WIDER than the secondary sash. The palettone covers the palettino. Glass area increases vs symmetric profile. " +
+        "Do NOT render the classic balanced doubled mullion — render a thin asymmetric meeting stile.",
+    );
+  }
 
-ACTION: ${verb} ${diff} vertical mullion${diff > 1 ? "s" : ""} from the source window structure.
-RESULT: ${resultDesc}.
+  // 3. Tapparella nuovo colore (v8.6.19) — bug reale: il modello spesso
+  //    mantiene il colore originale tapparella o usa il colore frame come
+  //    default invece di applicare il colore specifico richiesto.
+  if (primarySpec?.shutter.replace && primarySpec.shutter.colorLabel) {
+    const isCustomColor = !primarySpec.shutter.colorLabel.toLowerCase().includes("wood-effect") &&
+      !primarySpec.shutter.colorLabel.toLowerCase().includes(primarySpec.finish.name.toLowerCase());
+    if (isCustomColor) {
+      priorityLines.push(
+        `▶ TAPPARELLA NEW COLOR: the roller shutter slats MUST be rendered in "${primarySpec.shutter.colorLabel}". ` +
+          `This is a DIFFERENT color from the frame. Do NOT default to the frame color or the original shutter color. ` +
+          `If shutter slats are visible (top recessed band or partially lowered), they MUST show this specific color.`,
+      );
+    }
+  }
 
-The wall opening WIDTH stays IDENTICAL. Only the internal subdivision changes.
-You are transforming a ${c.fromSashCount}-sash window into a ${c.toSashCount}-sash window inside the same hole in the wall.
+  let priorityOverride = "";
+  if (priorityLines.length > 0) {
+    priorityOverride = `[🚨 PRIMARY TASKS — READ FIRST, EXECUTE BEFORE EVERYTHING ELSE 🚨]
 
-This is the #1 priority of this render. Everything else (color, handle, cassonetto) is secondary.
-If you fail this, the render is unusable regardless of other quality.`;
+The following structural/visual changes are NON-NEGOTIABLE. Models tend to ignore them when buried in long prompts, so they are stated FIRST and BRIEF:
+
+${priorityLines.join("\n\n")}
+
+These tasks have ABSOLUTE PRIORITY over everything else (color matching, handle finish, cassonetto styling, lighting realism). If you fail any of them, the render is unusable for the customer regardless of other quality.`;
   }
 
   const userPrompt = [
@@ -521,7 +559,7 @@ If you fail this, the render is unusable regardless of other quality.`;
       "curtains lamps plants pictures sensors invented in the room, " +
       "old paint outline or halo around the new frame, " +
       "phantom shadows of the previous installation",
-    promptVersion: "8.6.5",
+    promptVersion: "8.6.19",
     blocks,
     validation,
     normalizedConfig,

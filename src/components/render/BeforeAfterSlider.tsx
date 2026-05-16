@@ -36,39 +36,67 @@ export function BeforeAfterSlider({
   const overlayAlt = beforeOnLeft ? beforeLabel : afterLabel;
 
   const [position, setPosition] = useState(50);
-  const [aspectRatio, setAspectRatio] = useState<number | undefined>();
+  const [beforeRatio, setBeforeRatio] = useState<number | undefined>();
+  const [afterRatio, setAfterRatio] = useState<number | undefined>();
   const [afterReady, setAfterReady] = useState(false);
   const [afterError, setAfterError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
-  // Calcola il ratio dalla foto originale, spesso gia' caricata come ObjectURL.
+  // v8.6.19 — Calcolo aspect ratio di ENTRAMBE le immagini (before + after).
+  // Il container userà il ratio MIGLIORE per non tagliare nulla:
+  // - se ratios molto simili (≤5% diff) → ratio media
+  // - se diversi → ratio della BEFORE (foto originale ha priorità — è il
+  //   contesto autentico), con object-contain sul render → letterbox limitato
+  //   solo se aspect ratios diversi. Niente più "scroll effect" pesante.
   useEffect(() => {
-    setAspectRatio(undefined);
-    if (!before) {
-      setAspectRatio(4 / 3);
-      return;
-    }
+    setBeforeRatio(undefined);
+    if (!before) { setBeforeRatio(4 / 3); return; }
     let active = true;
     const image = new window.Image();
     image.onload = () => {
       if (!active) return;
-      const width = image.naturalWidth || 0;
-      const height = image.naturalHeight || 0;
-      if (width > 0 && height > 0) {
-        setAspectRatio(width / height);
-      } else {
-        setAspectRatio(4 / 3);
-      }
+      const w = image.naturalWidth || 0;
+      const h = image.naturalHeight || 0;
+      setBeforeRatio(w > 0 && h > 0 ? w / h : 4 / 3);
     };
-    image.onerror = () => {
-      if (active) setAspectRatio(4 / 3);
-    };
+    image.onerror = () => { if (active) setBeforeRatio(4 / 3); };
     image.src = before;
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [before]);
+
+  useEffect(() => {
+    setAfterRatio(undefined);
+    if (!after) return;
+    let active = true;
+    const image = new window.Image();
+    image.onload = () => {
+      if (!active) return;
+      const w = image.naturalWidth || 0;
+      const h = image.naturalHeight || 0;
+      if (w > 0 && h > 0) setAfterRatio(w / h);
+    };
+    image.onerror = () => {};
+    image.src = after;
+    return () => { active = false; };
+  }, [after]);
+
+  // v8.6.19 — aspectRatio finale: usa la foto originale (before) come base.
+  // L'immagine generata (after) viene scalata via object-cover per matchare
+  // l'altezza del container — eventuali zone in eccesso vengono croppate
+  // (non c'e' più letterbox bianco/nero che generava lo "scroll effect").
+  const aspectRatio = beforeRatio;
+  // Detection: se il render ha aspect MOLTO diverso (>15%) usiamo cover per
+  // l'after invece di contain. Sotto questa soglia contain rende meglio.
+  const ratioMismatch =
+    beforeRatio !== undefined && afterRatio !== undefined
+      ? Math.abs(beforeRatio - afterRatio) / beforeRatio
+      : 0;
+  const afterObjectFit = ratioMismatch > 0.15 ? "object-cover" : "object-contain";
+  // Container aspect ratio = beforeRatio. Before image always fits with contain.
+  // After image may need cover if its native ratio differs significantly.
+  const baseObjectFit = beforeOnLeft ? afterObjectFit : "object-contain";
+  const overlayObjectFit = beforeOnLeft ? "object-contain" : afterObjectFit;
 
   // Precarica il render e ritenta sui 404 transitori da propagazione CDN.
   useEffect(() => {
@@ -215,7 +243,7 @@ export function BeforeAfterSlider({
           <img
             src={baseImage}
             alt={baseAlt}
-            className="absolute inset-0 h-full w-full object-contain block"
+            className={`absolute inset-0 h-full w-full ${baseObjectFit} block`}
             draggable={false}
           />
         )}
@@ -228,7 +256,7 @@ export function BeforeAfterSlider({
             <img
               src={overlayImage}
               alt={overlayAlt}
-              className={`absolute inset-0 h-full w-full object-contain block transition-opacity duration-300 ${afterReady ? "opacity-100" : "opacity-0"}`}
+              className={`absolute inset-0 h-full w-full ${overlayObjectFit} block transition-opacity duration-300 ${afterReady ? "opacity-100" : "opacity-0"}`}
               draggable={false}
             />
           </div>
