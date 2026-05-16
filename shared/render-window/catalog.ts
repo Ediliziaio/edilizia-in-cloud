@@ -163,12 +163,14 @@ export const WIZARD_RAL = [
     family: "grigi", referenceImage: "20-Grigio-Argento-Finitura-classica-PVC.webp" },
   { id: "1009_grigio_ardesia", code: "1009", nome: "Grigio Ardesia", hex: "#54585A",
     family: "grigi", referenceImage: "1009-Grigio-Ardesia-Finitura-classica-PVC.webp" },
-  { id: "242_shogun_af", code: "242", nome: "Shogun AF", hex: "#5C5E5C",
-    family: "grigi", referenceImage: "242-Shogun-AF-Finitura-classica-PVC.webp" },
-  { id: "243_shogun_ad", code: "243", nome: "Shogun AD", hex: "#3A3C3A",
-    family: "grigi", referenceImage: "243-Shogun-AD-Finitura-classica-PVC.webp" },
-
-  // ── Marroni / scuri ──
+  // ── Marroni / effetti legno pellicolato classico ──
+  // v8.6.12 — Shogun AF/AD spostati da "grigi" a "marroni": la foto reference
+  // mostra una pellicolatura wood-effect chiara/scura marrone, NON un grigio
+  // (l'hex precedente era sbagliato — non rifletteva l'immagine reale).
+  { id: "242_shogun_af", code: "242", nome: "Shogun AF", hex: "#A86E3B",
+    family: "marroni", referenceImage: "242-Shogun-AF-Finitura-classica-PVC.webp" },
+  { id: "243_shogun_ad", code: "243", nome: "Shogun AD", hex: "#6B4226",
+    family: "marroni", referenceImage: "243-Shogun-AD-Finitura-classica-PVC.webp" },
   { id: "13_testa_di_moro", code: "13", nome: "Testa di Moro", hex: "#3E2A1A",
     family: "marroni", referenceImage: "13-Testa-di-Moro-Finitura-classica-PVC.webp" },
   { id: "130_marrone_nero", code: "130", nome: "Marrone Nero", hex: "#2A1810",
