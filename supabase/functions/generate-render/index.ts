@@ -730,6 +730,29 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
         metaResult.userPrompt,
         "Avoid: cartoon, painterly, fake CGI, AI restyling, warped geometry, swatch rectangles, invented objects.",
       ].join("\n\n");
+
+      // v8.6.30 — OBSERVABILITY: salva prosa rewriter + prompt finale subito
+      // in render_sessions (anche se l'image gen poi fallisce). Senza questo,
+      // è impossibile debuggare cosa è stato realmente mandato al modello.
+      try {
+        await supabase
+          .from("render_sessions")
+          .update({
+            prompt_used: composedPrompt,
+            prompt_char_count: composedPrompt.length,
+          })
+          .eq("id", args.session_id);
+      } catch (saveErr) {
+        // non bloccare il render se il save fallisce, ma logga
+        logWarn({
+          session_id: args.session_id,
+          msg: "meta_prompt_save_to_db_failed",
+          error: (saveErr as Error).message?.substring(0, 200),
+        });
+      }
+
+      // v8.6.30 — LOG la prosa intera (truncated a 4000 char) così è ispezionabile
+      // direttamente in Supabase Edge Function Logs senza dover query il DB.
       logInfo({
         session_id: args.session_id,
         msg: "meta_prompt_active",
@@ -737,6 +760,10 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
         rewriter_latency_ms: metaResult.latencyMs,
         prose_length: metaResult.userPrompt.length,
         final_prompt_length: composedPrompt.length,
+        // Prose intera (truncated solo se enorme)
+        rewriter_prose: metaResult.userPrompt.length > 4000
+          ? metaResult.userPrompt.substring(0, 4000) + "...[truncated]"
+          : metaResult.userPrompt,
       });
     } else {
       logWarn({
