@@ -194,6 +194,17 @@ export default function RenderNewV2() {
   // sono ora liberamente selezionabili (premium architectural upsell) e
   // l'UI mostra un caveat informativo invece di sovrascrivere lo state.
 
+  // v8.6.20 — Cleanup objectURL quando photoPreview cambia.
+  // I timer NON vanno chiusi qui (era un bug: se photoPreview cambia per
+  // qualunque motivo durante un render, il contatore elapsedSec si
+  // congelava e il bar appariva bloccato per minuti).
+  useEffect(() => {
+    return () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
+
+  // Cleanup timer SOLO su unmount finale del componente.
   useEffect(() => {
     return () => {
       if (pollRef.current) {
@@ -204,9 +215,8 @@ export default function RenderNewV2() {
         clearInterval(tickRef.current);
         tickRef.current = null;
       }
-      if (photoPreview) URL.revokeObjectURL(photoPreview);
     };
-  }, [photoPreview]);
+  }, []);
 
   const renderPreview = useMemo<WindowRenderConfig | null>(() => {
     if (!sceneAnalysis || !state.tipo || !state.profilo || !state.coloreInfisso) return null;
@@ -438,18 +448,19 @@ export default function RenderNewV2() {
         return;
       }
 
-      // v8.6.2 — Dead session detection: se processing_started_at e' > 200s fa
-      // e lo status e' ancora "processing", probabilmente l'edge function e'
-      // stata killata silenziosamente dal gateway Supabase (cap 150s + margine).
-      // Forziamo failure invece di lasciare l'utente bloccato a vedere "15%".
+      // v8.6.20 — Dead session detection: se processing_started_at e' > 170s
+      // (era 200s) e lo status e' ancora "processing", l'edge function e'
+      // stata killata silenziosamente dal gateway Supabase (cap 150s + 20s
+      // margine). Soglia ridotta per dare feedback all'utente prima dei
+      // 3 minuti percepiti come "bloccato".
       if (sess?.status === "processing" && sess.processing_started_at) {
         const startedAt = new Date(sess.processing_started_at).getTime();
         const ageSec = (Date.now() - startedAt) / 1000;
-        if (ageSec > 200) {
+        if (ageSec > 170) {
           stopPolling();
           setGenerating(false);
           setGenerateError(
-            `Render bloccato sul server (avviato ${Math.round(ageSec)}s fa, status ancora "processing"). Probabile timeout della edge function. Riprova.`,
+            `Render interrotto sul server dopo ${Math.round(ageSec)}s (timeout 150s edge function Supabase). Riprova: di solito al secondo tentativo va a buon fine.`,
           );
           return;
         }
