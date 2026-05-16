@@ -423,12 +423,42 @@ These examples are GUIDANCE, not commands. Follow the SPECIFIC configuration sen
     blocks.LEGEND = referenceLegend;
   }
 
-  // v8.6 — BLOCK 0.5 CARDINAL FAILURE MODES rimosso. Le sue 7 regole sono
-  // state assorbite in BLOCK A "ABSOLUTE BANS" senza duplicazione.
-  // Una regola, una volta, chiara.
+  // v8.6.9 — PRIORITY OVERRIDE per Sash Count Change.
+  // Quando l'utente chiede una trasformazione strutturale (es. 2 ante → 1 anta),
+  // OpenAI gpt-image-1 e Gemini tendono a preservare la geometria della source
+  // e ignorare le 32KB di prompt sottostanti. Soluzione: promuovere LA
+  // TRASFORMAZIONE come PRIMARY TASK in cima ASSOLUTA al prompt, prima di
+  // qualsiasi altra istruzione, con linguaggio ultra-diretto stile ChatGPT
+  // base ("transform 2 sashes into 1 single panel"). Brevità = priorità.
+  const compositionChangeSpecs = normalizedConfig.technical_specification
+    .filter((s) => s.compositionChange)
+    .map((s) => s.compositionChange!);
+  let priorityOverride = "";
+  if (compositionChangeSpecs.length > 0) {
+    const c = compositionChangeSpecs[0]; // primo (caso piu' comune: 1 opening)
+    const verb = c.toSashCount < c.fromSashCount ? "REMOVE" : "ADD";
+    const diff = Math.abs(c.fromSashCount - c.toSashCount);
+    const resultDesc = c.toSashCount === 1
+      ? "ONE single full-width glass panel filling the entire opening (no mullion, no division)"
+      : `${c.toSashCount} equal-width glass panels separated by ${c.toSashCount - 1} vertical mullion(s)`;
+    priorityOverride = `[🚨 PRIMARY TASK — READ THIS FIRST 🚨]
+
+The source photo shows a window with ${c.fromSashCount} sashes.
+The NEW window MUST have EXACTLY ${c.toSashCount} sashes.
+
+ACTION: ${verb} ${diff} vertical mullion${diff > 1 ? "s" : ""} from the source window structure.
+RESULT: ${resultDesc}.
+
+The wall opening WIDTH stays IDENTICAL. Only the internal subdivision changes.
+You are transforming a ${c.fromSashCount}-sash window into a ${c.toSashCount}-sash window inside the same hole in the wall.
+
+This is the #1 priority of this render. Everything else (color, handle, cassonetto) is secondary.
+If you fail this, the render is unusable regardless of other quality.`;
+  }
 
   const userPrompt = [
-    referenceLegend, // v8.3.3 — IMAGE INPUTS LEGEND comes FIRST, before everything
+    priorityOverride, // v8.6.9 — Sash count change override (top abs)
+    referenceLegend, // v8.3.3 — IMAGE INPUTS LEGEND
     blocks.B,
     blocks.C,
     blocks.D,

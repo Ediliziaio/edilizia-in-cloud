@@ -226,17 +226,26 @@ export function collectReferenceImages(
   const spec = config.technical_specification[0];
   if (!spec) return out;
 
+  // v8.6.9 — Quando c'e' una composition change (sash count cambia), riduciamo
+  // drasticamente le reference images. Motivo: le foto profilo/cassonetto/nodo
+  // mostrano strutture con N-sashes — il modello image-edit le interpreta come
+  // "preserve this structure" e tende a replicare il source sash count. Per
+  // forzare la trasformazione 2→1 (o simili), passiamo SOLO frame color +
+  // handle (neutre, non strutturali). Niente node/cassonetto/hidden_hinges
+  // che mostrerebbero strutture multi-sash.
+  const hasCompositionChange = spec.compositionChange != null;
+
   push(resolveFrameColorRef(spec));
   push(resolveHandleRef(spec));
-  push(resolveNodeProfileRef(spec));
-  push(resolveHiddenHingesRef(spec));
-  push(resolveCassonettoRef(spec));
-  push(resolveTapparellaColorRef(spec));
+  if (!hasCompositionChange) {
+    push(resolveNodeProfileRef(spec));
+    push(resolveHiddenHingesRef(spec));
+    push(resolveCassonettoRef(spec));
+    push(resolveTapparellaColorRef(spec));
+  }
 
-  // v8.5.6 — Cap ridotto da 6 a 4. Meno reference images = meno input token
-  // = render piu' veloce su OpenAI (osservato 2 min con 6 ref). 4 reference
-  // coprono i casi piu' importanti: frame color, handle, nodo, cassonetto.
-  // Hidden hinges / tapparella color sono usability-nice ma non critici.
+  // v8.5.6 — Cap 4 reference per velocità OpenAI.
+  // v8.6.9 — Con composition change, naturalmente diventa max 2 (color+handle).
   return out.slice(0, 4);
 }
 
