@@ -457,6 +457,43 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── v8.6.23 — In-flight lock check (race condition guard) ────────────
+    // Se l'utente fa doppio click su "Genera" o se due tab parallele
+    // invocano la stessa session_id, vogliamo evitare:
+    //  - doppio deduct credito (anche se deduct_render_credit_v3 ha FOR
+    //    UPDATE, il refund è gestito su catena diversa)
+    //  - doppio background work che genera 2 PNG e race su result_urls
+    //  - doppio costo provider AI
+    //
+    // Logica: se la sessione è già in stato "processing" e processing_started_at
+    // è recente (< 170s, stessa soglia dead-detection client), rifiutiamo
+    // questa invocation con 409 Conflict. Il client può continuare a fare
+    // polling/realtime sulla sessione esistente.
+    // Soglia 170s = se più vecchia, è dead (edge function killata) e
+    // l'utente può ri-tentare legittimamente.
+    if (session.status === "processing" && session.processing_started_at) {
+      const ageSec = (Date.now() - new Date(session.processing_started_at as string).getTime()) / 1000;
+      if (ageSec < 170) {
+        logInfo({
+          session_id,
+          msg: "render_already_in_flight",
+          age_sec: Math.round(ageSec),
+        });
+        return new Response(
+          JSON.stringify({
+            error: "already_in_flight",
+            message: `Render già in corso per questa sessione (avviato ${Math.round(ageSec)}s fa). Attendere il risultato o riprovare tra qualche secondo.`,
+            session_id,
+            status: "processing",
+          }),
+          {
+            status: 409,
+            headers: { ...CORS, "Content-Type": "application/json" },
+          },
+        );
+      }
+    }
+
     // ── Deduct crediti ────────────────────────────────────────────────────
     const deductResult = await deductRenderCreditSafe(supabase, {
       companyId: session.company_id as string,

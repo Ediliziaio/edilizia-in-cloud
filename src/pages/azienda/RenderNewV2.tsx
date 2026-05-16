@@ -75,11 +75,12 @@ import type { WindowPhotoMeta, WindowRenderConfig, WindowSceneAnalysis } from "@
 import { preloadImage } from "@/lib/render/preloadImage";
 import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
 
-const POLL_INTERVALS = [3000, 5000, 8000, 12000, 15000];
-// v8.4.2 — Aumentato 180s → 300s (5 min) per allinearsi al caso peggiore
-// di generate-render con retry corrective (multi-criterion QA). Il polling
-// si stoppa appena status diventa "completed" o "failed" → 300s è solo il
-// safety net per casi davvero estremi (provider degradato + retry + QA).
+// v8.6.23 — Polling come SAFETY NET dietro al canale Realtime.
+// La Realtime subscription riceve l'evento UPDATE row push istantaneo dal DB
+// (latenza <500ms). Il polling è il paracadute se il websocket cade
+// (rete instabile, sleep computer, quota Realtime), con intervalli più lenti
+// per ridurre carico DB: ~30s costanti. MAX 300s di safety net.
+const POLL_INTERVAL_MS = 30_000;
 const MAX_POLL_SEC = 300;
 const STEP_LABELS = ["Foto", "Analisi", "Aperture", "Infisso", "Finiture", "Accessori", "Render"];
 
@@ -176,6 +177,10 @@ export default function RenderNewV2() {
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef(0);
   const crmPersistedRef = useRef(false);
+  // v8.6.23 — Realtime channel: notifica istantanea su UPDATE render_sessions
+  // invece di polling 3-15s. Il channel è opaco al type checker quindi
+  // usiamo Awaited<ReturnType<...>> non disponibile facilmente → ref unknown.
+  const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // v8.5.7 — Rimossa persistenza in sessionStorage (causava pre-selezione
   // delle scelte del render precedente al nuovo ingresso wizard).
@@ -214,6 +219,15 @@ export default function RenderNewV2() {
       if (tickRef.current) {
         clearInterval(tickRef.current);
         tickRef.current = null;
+      }
+      // v8.6.23 — Cleanup Realtime channel su unmount
+      if (realtimeChannelRef.current) {
+        try {
+          void supabase.removeChannel(realtimeChannelRef.current);
+        } catch {
+          // ignore
+        }
+        realtimeChannelRef.current = null;
       }
     };
   }, []);
@@ -393,18 +407,131 @@ export default function RenderNewV2() {
     }
   }, []);
 
-  // Helper "ferma tutto" per usi terminali (success, fail, reset, unmount).
+  // v8.6.23 — Stop completo: timer + tick + realtime channel.
   const stopPolling = useCallback(() => {
     stopPoll();
     stopTick();
+    if (realtimeChannelRef.current) {
+      try {
+        void supabase.removeChannel(realtimeChannelRef.current);
+      } catch {
+        // ignore
+      }
+      realtimeChannelRef.current = null;
+    }
   }, [stopPoll, stopTick]);
 
-  const startPolling = useCallback((sid: string) => {
-    // Cancella solo eventuali poll timeout pendenti (evita doppio polling).
-    // NON fermiamo il tick: deve continuare a girare per mostrare l'elapsed.
-    stopPoll();
-    let intervalIdx = 0;
+  // v8.6.23 — Process unified delle righe render_sessions: gestisce
+  // completed/failed/processing/dead-session in un punto solo.
+  // Chiamata sia dal polling fallback che dalla Realtime subscription.
+  // Ritorna true se ha raggiunto stato terminale (caller deve fermarsi).
+  const handleSessionRow = useCallback(async (
+    sid: string,
+    sess: {
+      status?: string | null;
+      result_urls?: string[] | null;
+      error_message?: string | null;
+      processing_started_at?: string | null;
+    } | null,
+  ): Promise<boolean> => {
+    if (sess?.status === "completed" && sess.result_urls?.length) {
+      stopPolling();
+      await preloadImage(sess.result_urls[0]);
+      setResultUrl(sess.result_urls[0]);
+      setGenerating(false);
+      queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["render-gallery", companyId] });
+      if (isEmbed && typeof window !== "undefined" && window.parent !== window) {
+        try {
+          window.parent.postMessage(
+            { type: "sr-render-completed", sessionId: sid },
+            window.location.origin,
+          );
+        } catch {
+          // ignore
+        }
+      }
+      return true;
+    }
 
+    // Dead session detection (immutato da v8.6.20).
+    if (sess?.status === "processing" && sess.processing_started_at) {
+      const startedAt = new Date(sess.processing_started_at).getTime();
+      const ageSec = (Date.now() - startedAt) / 1000;
+      if (ageSec > 170) {
+        stopPolling();
+        setGenerating(false);
+        setGenerateError(
+          `Render interrotto sul server dopo ${Math.round(ageSec)}s (timeout 150s edge function Supabase). Riprova: di solito al secondo tentativo va a buon fine.`,
+        );
+        return true;
+      }
+    }
+
+    if (sess?.status === "failed") {
+      const errorMessage = sess.error_message || "Render fallito";
+      stopPolling();
+      setGenerating(false);
+      setGenerateError(errorMessage);
+      if (isEmbed && typeof window !== "undefined" && window.parent !== window) {
+        try {
+          window.parent.postMessage(
+            { type: "sr-render-failed", sessionId: sid, error: errorMessage },
+            window.location.origin,
+          );
+        } catch {
+          // ignore
+        }
+      }
+      return true;
+    }
+
+    return false;
+  }, [companyId, queryClient, stopPolling, isEmbed]);
+
+  const startPolling = useCallback((sid: string) => {
+    // Cancella solo eventuali poll timeout pendenti.
+    stopPoll();
+
+    // v8.6.23 — Realtime subscription: il DB ci spinge l'UPDATE
+    // direttamente, latenza <500ms invece dei 0-15s del polling.
+    // Cleanup di un eventuale channel precedente prima di sottoscrivere.
+    if (realtimeChannelRef.current) {
+      try {
+        void supabase.removeChannel(realtimeChannelRef.current);
+      } catch {
+        // ignore
+      }
+      realtimeChannelRef.current = null;
+    }
+    const channel = supabase
+      .channel(`render-session-${sid}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "render_sessions",
+          filter: `id=eq.${sid}`,
+        },
+        (payload) => {
+          const sess = payload.new as {
+            status?: string | null;
+            result_urls?: string[] | null;
+            error_message?: string | null;
+            processing_started_at?: string | null;
+          };
+          void handleSessionRow(sid, sess);
+        },
+      )
+      .subscribe();
+    realtimeChannelRef.current = channel;
+
+    // v8.6.23 — Polling come SAFETY NET dietro al Realtime.
+    // Intervallo lento (30s costanti) — il Realtime è il path primario.
+    // Il polling cattura: (a) la prima query immediata in caso il render
+    // sia già completato prima del subscribe; (b) WebSocket caduto;
+    // (c) dead-session detection con processing_started_at vecchio.
     const poll = async () => {
       if (elapsedRef.current >= MAX_POLL_SEC) {
         stopPolling();
@@ -420,81 +547,23 @@ export default function RenderNewV2() {
         .single();
 
       if (pollError) {
-        stopPolling();
-        setGenerating(false);
-        setGenerateError(`Non riesco a verificare lo stato del render: ${pollError.message}`);
+        // Non killare la sessione su singolo errore di rete: lascia che il
+        // Realtime continui. Riprova al prossimo intervallo.
+        pollRef.current = setTimeout(poll, POLL_INTERVAL_MS);
         return;
       }
 
-      if (sess?.status === "completed" && sess.result_urls?.length) {
-        stopPolling();
-        await preloadImage(sess.result_urls[0]);
-        setResultUrl(sess.result_urls[0]);
-        setGenerating(false);
-        queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
-        queryClient.invalidateQueries({ queryKey: ["render-gallery", companyId] });
-        // EMBED MODE: notifica il parent (Dialog StepAccessori) che il
-        // render e' pronto. Il parent chiude il dialog e auto-importa.
-        if (isEmbed && typeof window !== "undefined" && window.parent !== window) {
-          try {
-            window.parent.postMessage(
-              { type: "sr-render-completed", sessionId: sid },
-              window.location.origin,
-            );
-          } catch {
-            // Parent non raggiungibile: il render resta comunque completato nella pagina corrente.
-          }
-        }
-        return;
-      }
+      const terminal = await handleSessionRow(sid, sess);
+      if (terminal) return;
 
-      // v8.6.20 — Dead session detection: se processing_started_at e' > 170s
-      // (era 200s) e lo status e' ancora "processing", l'edge function e'
-      // stata killata silenziosamente dal gateway Supabase (cap 150s + 20s
-      // margine). Soglia ridotta per dare feedback all'utente prima dei
-      // 3 minuti percepiti come "bloccato".
-      if (sess?.status === "processing" && sess.processing_started_at) {
-        const startedAt = new Date(sess.processing_started_at).getTime();
-        const ageSec = (Date.now() - startedAt) / 1000;
-        if (ageSec > 170) {
-          stopPolling();
-          setGenerating(false);
-          setGenerateError(
-            `Render interrotto sul server dopo ${Math.round(ageSec)}s (timeout 150s edge function Supabase). Riprova: di solito al secondo tentativo va a buon fine.`,
-          );
-          return;
-        }
-      }
-
-      if (sess?.status === "failed") {
-        const errorMessage = sess.error_message || "Render fallito";
-        stopPolling();
-        setGenerating(false);
-        setGenerateError(errorMessage);
-        // EMBED MODE: notifica anche in caso di fallimento -> il parent
-        // (Dialog StepAccessori) puo' mostrare un banner errore e
-        // consentire all'utente di chiudere/riprovare.
-        if (isEmbed && typeof window !== "undefined" && window.parent !== window) {
-          try {
-            window.parent.postMessage(
-              { type: "sr-render-failed", sessionId: sid, error: errorMessage },
-              window.location.origin,
-            );
-          } catch {
-            // Parent non raggiungibile: l'errore resta visibile nella pagina corrente.
-          }
-        }
-        return;
-      }
-
-      pollRef.current = setTimeout(
-        poll,
-        POLL_INTERVALS[Math.min(intervalIdx++, POLL_INTERVALS.length - 1)],
-      );
+      pollRef.current = setTimeout(poll, POLL_INTERVAL_MS);
     };
 
-    poll();
-  }, [companyId, queryClient, stopPolling, stopPoll, isEmbed]);
+    // Primo tick subito (~50ms): cattura il caso in cui il render è già
+    // completed (es. retry di una sessione che era stata completata
+    // qualche secondo prima del subscribe).
+    pollRef.current = setTimeout(poll, 50);
+  }, [stopPoll, stopPolling, handleSessionRow]);
 
   const startRender = useCallback(async () => {
     if (!sessionId || !companyId || generating) return;
@@ -552,6 +621,16 @@ export default function RenderNewV2() {
         },
         headers,
       });
+
+      // v8.6.23 — In-flight guard: se la edge function risponde 409
+      // already_in_flight, significa che esiste già un background work
+      // attivo sulla stessa session (es. doppio click utente). Non è un
+      // errore: agganciamoci alla sessione esistente via Realtime/polling
+      // invece di mostrare errore.
+      if (data?.error === "already_in_flight") {
+        startPolling(sessionId);
+        return;
+      }
 
       if (error || data?.error) {
         throw new Error(

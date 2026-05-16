@@ -528,7 +528,7 @@ These tasks have ABSOLUTE PRIORITY over everything else (color matching, handle 
       "changed perspective, changed crop, changed wall color, changed furniture, " +
       "darkened outdoor view, cinematic teal-orange grading, tinted glazing reducing daylight, " +
       "moody dark-blue tone over the outdoor view, dusk atmosphere over a bright daylight scene",
-    promptVersion: "8.6.22",
+    promptVersion: "8.6.23",
     blocks,
     validation,
     normalizedConfig,
