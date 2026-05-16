@@ -792,6 +792,8 @@ export default function RenderNewV2() {
                 void startWindowAnalysis(photoPath, sessionId);
               }
             }}
+            transomChoice={state.traverso}
+            onTransomChange={(v) => setState((current) => ({ ...current, traverso: v }))}
           />
         )}
 
@@ -989,6 +991,8 @@ function StepAnalysis({
   onNext,
   nextDisabled,
   onRetry,
+  transomChoice,
+  onTransomChange,
 }: {
   analysis: WindowSceneAnalysis | null;
   loading: boolean;
@@ -997,6 +1001,9 @@ function StepAnalysis({
   onNext: () => void;
   nextDisabled: boolean;
   onRetry?: () => void;
+  // v8.6.17 — Decisione traverso inline (se rilevato in foto)
+  transomChoice?: WizardTraverso;
+  onTransomChange?: (v: WizardTraverso) => void;
 }) {
   const openings = analysis?.openings ?? [];
   return (
@@ -1094,10 +1101,65 @@ function StepAnalysis({
                         {opening.radiatorNearby && <MiniBadge text="radiatore vicino" />}
                         {opening.hasSill && <MiniBadge text="davanzale" />}
                         {opening.hasGrates && <MiniBadge text="grate" />}
+                        {opening.hasHorizontalTransom && (
+                          <MiniBadge text="traverso orizzontale" intent="info" />
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {opening.materialPerceived} · {opening.colorPerceived}
                       </div>
+
+                      {/* v8.6.17 — Decisione TRAVERSO inline.
+                          Se rilevato un traverso orizzontale, l'utente sceglie
+                          subito qui (vs scrollare fino a Step 6 Accessori).
+                          La scelta si propaga a state.traverso → BLOCK D
+                          transomRule nel prompt finale. */}
+                      {opening.hasHorizontalTransom && transomChoice && onTransomChange && (
+                        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                          <div className="text-xs font-semibold text-blue-900">
+                            ⚙️ Hai rilevato un <strong>traverso orizzontale</strong>. Cosa fare?
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={transomChoice === "mantieni" ? "default" : "outline"}
+                              onClick={() => onTransomChange("mantieni")}
+                              className="text-xs h-8"
+                            >
+                              ✓ Mantieni traverso
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={transomChoice === "rimuovi" ? "default" : "outline"}
+                              onClick={() => onTransomChange("rimuovi")}
+                              className="text-xs h-8"
+                            >
+                              ✗ Rimuovi (vetro unico)
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={transomChoice === "auto" ? "default" : "outline"}
+                              onClick={() => onTransomChange("auto")}
+                              className="text-xs h-8"
+                            >
+                              Decido dopo
+                            </Button>
+                          </div>
+                          {transomChoice === "rimuovi" && (
+                            <div className="mt-2 text-[11px] text-blue-800">
+                              Il nuovo serramento avrà <strong>ante a tutta altezza</strong> con vetro unico — look contemporaneo.
+                            </div>
+                          )}
+                          {transomChoice === "mantieni" && (
+                            <div className="mt-2 text-[11px] text-blue-800">
+                              Il traverso verrà preservato nel render (look classico).
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -2320,13 +2382,15 @@ function MiniBadge({
   intent = "neutral",
 }: {
   text: string;
-  intent?: "neutral" | "warning";
+  intent?: "neutral" | "warning" | "info";
 }) {
   return (
     <span
       className={cn(
         "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-        intent === "warning" ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-700",
+        intent === "warning" && "bg-orange-100 text-orange-700",
+        intent === "info" && "bg-blue-100 text-blue-700",
+        intent === "neutral" && "bg-slate-100 text-slate-700",
       )}
     >
       {text}
