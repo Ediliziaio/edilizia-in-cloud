@@ -26,6 +26,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { RenderCrmLinker } from "@/components/render/RenderCrmLinker";
@@ -322,6 +328,41 @@ export default function RenderNewV2() {
       setAnalysisLoading(false);
     }
   }, [photoMeta]);
+
+  // v8.6.31 — Override manuale cassonettoStyle: l'utente può correggere
+  // l'analyzer se ha mis-classificato (es. ha detto "internal_monoblocco"
+  // ma c'è una scatola esterna). Aggiorna sceneAnalysis locale + persist
+  // in render_sessions.foto_analisi.
+  const overrideOpeningCassonettoStyle = useCallback(async (
+    openingId: string,
+    newStyle: "external_box" | "internal_monoblocco" | "absent",
+  ) => {
+    if (!sceneAnalysis || !sessionId) return;
+    const nextAnalysis: WindowSceneAnalysis = {
+      ...sceneAnalysis,
+      openings: sceneAnalysis.openings.map((o) =>
+        o.id === openingId
+          ? {
+              ...o,
+              cassonettoStyle: newStyle,
+              hasCassonetto: newStyle !== "absent",
+              // Quando "absent" forziamo anche hasRollerShutter false coerentemente
+              hasRollerShutter: newStyle === "absent" ? false : o.hasRollerShutter,
+            }
+          : o,
+      ),
+    };
+    setSceneAnalysis(nextAnalysis);
+    // Persist su DB (non blocking)
+    try {
+      await supabase
+        .from("render_sessions")
+        .update({ foto_analisi: nextAnalysis })
+        .eq("id", sessionId);
+    } catch (err) {
+      console.warn("Override cassonettoStyle persist failed:", err);
+    }
+  }, [sceneAnalysis, sessionId]);
 
   const uploadAndCreateSession = useCallback(async (): Promise<{ sid: string; path: string } | null> => {
     if (!user) {
@@ -1184,20 +1225,60 @@ function StepAnalysis({
                         <Badge variant="outline">{opening.sashCount} ante</Badge>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {opening.hasCassonetto && (
-                          <MiniBadge
-                            text={`cassonetto${
-                              opening.cassonettoStyle === "internal_monoblocco"
-                                ? " (monoblocco a scomparsa)"
-                                : opening.cassonettoStyle === "external_box"
-                                  ? " (scatola esterna)"
-                                  : opening.cassonettoStyle === "absent"
-                                    ? " (nessuno)"
-                                    : ""
-                            }`}
-                            intent={opening.cassonettoStyle === "internal_monoblocco" ? "info" : undefined}
-                          />
-                        )}
+                        {/* v8.6.31 — cassonetto override: click sul badge per cambiare lo stile rilevato. */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition hover:bg-muted/60",
+                                opening.cassonettoStyle === "internal_monoblocco"
+                                  ? "border-blue-200 bg-blue-50 text-blue-700"
+                                  : opening.hasCassonetto
+                                    ? "border-border bg-muted/30 text-foreground"
+                                    : "border-dashed border-border bg-background text-muted-foreground",
+                              )}
+                              title="Click per correggere lo stile cassonetto rilevato"
+                            >
+                              {opening.hasCassonetto
+                                ? `cassonetto${
+                                    opening.cassonettoStyle === "internal_monoblocco"
+                                      ? " (monoblocco a scomparsa)"
+                                      : opening.cassonettoStyle === "external_box"
+                                        ? " (scatola esterna)"
+                                        : ""
+                                  }`
+                                : "no cassonetto"}
+                              <span className="opacity-60">▾</span>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="text-xs">
+                            <DropdownMenuItem
+                              onClick={() => overrideOpeningCassonettoStyle(opening.id, "external_box")}
+                            >
+                              <span className={cn("mr-2", opening.cassonettoStyle === "external_box" && "font-bold")}>
+                                {opening.cassonettoStyle === "external_box" ? "✓" : " "}
+                              </span>
+                              Scatola esterna (sporgente sopra il telaio)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => overrideOpeningCassonettoStyle(opening.id, "internal_monoblocco")}
+                            >
+                              <span className={cn("mr-2", opening.cassonettoStyle === "internal_monoblocco" && "font-bold")}>
+                                {opening.cassonettoStyle === "internal_monoblocco" ? "✓" : " "}
+                              </span>
+                              Monoblocco a scomparsa (incassato)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => overrideOpeningCassonettoStyle(opening.id, "absent")}
+                            >
+                              <span className={cn("mr-2", (!opening.hasCassonetto || opening.cassonettoStyle === "absent") && "font-bold")}>
+                                {(!opening.hasCassonetto || opening.cassonettoStyle === "absent") ? "✓" : " "}
+                              </span>
+                              Nessun cassonetto
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         {opening.hasRollerShutter && <MiniBadge text="tapparella" />}
                         {opening.hasBelt && <MiniBadge text="cinghia visibile" intent="warning" />}
                         {opening.hasCurtains && <MiniBadge text="tende" />}

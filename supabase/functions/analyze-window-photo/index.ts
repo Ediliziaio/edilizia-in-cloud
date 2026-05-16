@@ -139,10 +139,10 @@ Most Italian residential portefinestre are BATTENTE (3 ante battenti is common).
 Italian portafinestre have THREE possible cassonetto configurations. Choose ONE precisely:
 
 CASE A — "external_box":
-  Set has_cassonetto=true AND cassonetto_style="external_box" ONLY if you clearly see:
-  1. A distinct horizontal BOX above the window frame, projecting OUT from the wall plane.
-  2. Different material/color/texture than the wall (PVC, wood, aluminum, NOT painted wall).
-  3. Width matches the window opening width.
+  Set has_cassonetto=true AND cassonetto_style="external_box" if you can see:
+  1. A volumetric 3D BOX above the window frame, with visible DEPTH (front face, bottom edge, sometimes side edges). It is NOT flush with the wall — there is a clear edge/shadow line where the box meets the wall above and the frame below.
+  2. The box width matches (or closely matches) the window opening width.
+  3. (Optional) Different material visible (wood grain, PVC texture, aluminum surface). Note: a real cassonetto CAN be painted the same color as the wall — what matters is the volumetric shape, not the color contrast. If you see a distinct edge/shadow line outlining a rectangular box above the frame, it IS an external_box even if it's painted to match the wall.
 
 CASE B — "internal_monoblocco" (the most common in modern Italian housing):
   Set has_cassonetto=true AND cassonetto_style="internal_monoblocco" if:
@@ -156,7 +156,12 @@ CASE C — "absent":
   - No box above the frame.
   - The wall above the frame is plain wall (paint, plaster, lintel, cornice — none of these is a cassonetto).
 
-If uncertain between cases, prefer "internal_monoblocco" if roller shutter slats are visible somewhere, else "absent". NEVER default to "external_box" when uncertain — false external_box is the worst failure mode (causes AI to invent a projecting box that breaks photo realism).
+If uncertain between cases:
+- See clear edges/shadows of a 3D box above the frame? → "external_box" (even if same color as wall)
+- See roller shutter slats but NO volumetric box edges? → "internal_monoblocco"
+- See no box AND no slats? → "absent"
+
+False external_box on a flat wall is bad (AI invents a projecting box). False internal_monoblocco on a real external box is also bad (AI hides the box that should be visible). Use the volumetric/edge criteria above to decide.
 
 DO NOT confuse with:
 - Window header / lintel (structural wall element above frame) → "absent" if no slats, "internal_monoblocco" if slats visible
