@@ -2,6 +2,10 @@
 
 Stato dei 15 masterprompt INDEX (production-readiness 7/10 → 9/10).
 
+> **Update**: dopo richiesta utente "migliora tutto il resto tranne SDI ma
+> ricontrolla tutto" sono state effettuate review + estensioni concrete su
+> tutti i prompt non-SDI. Vedi commit `<finale>` per dettagli.
+
 ## Riepilogo
 
 | ID | Stato | Note |
@@ -9,18 +13,18 @@ Stato dei 15 masterprompt INDEX (production-readiness 7/10 → 9/10).
 | S1-01 | ✅ | DOMParser sdi-webhook fixed (commit 9684b2fa) |
 | S1-02 | ✅ | DOMParser ricevi-sdi fixed (commit 9684b2fa) |
 | S1-03 | 🚫 | RLS audit — richiede query DB prod + migration deploy |
-| S1-04 | ✅ | XSS CustomerDiaryPanel sanitizzato (commit 9684b2fa) |
+| S1-04 | ✅ refactor | XSS sanitizzato; estratto in `sanitizeEmailHtml` utility (post-process DOM locale, no hook globale DOMPurify) |
 | S1-05 | 🚫 | E2E SDI — richiede deploy edge fn + sandbox Aruba |
 | S2-01 | 🚫 | Regen types.ts — richiede `npx supabase login` + db pull |
-| S2-02 | 🟡 | 2 file forecast fixati. Altri demandati per refactor focused |
-| S2-03 | 🟡 | InvoicesList chirurgico + CI guard. Top 5 lib/* file demandati |
-| S2-04 | ✅ | 3 admin fn standardizzate + CI guard + AUTH_CONVENTIONS (commit 0064087a) |
+| S2-02 | 🟡 | **−17 warnings hooks-deps** (83→66): CashForecastTab, CollectedTab, CostsForecastTab, useGoogleAdsStats, useGpsContinuo, PayoutDialog, DraggableAppointment, DashboardBuilder, PaymentMethodCard, DashboardSourcesTable, ContactSmsLog |
+| S2-03 | 🟡 | InvoicesList + PartnerDashboard (3) + CampoLavoroDetail (1) chirurgical select. CI guard soglia 424 |
+| S2-04 | ✅ | 3 admin fn standardizzate + CI guard + AUTH_CONVENTIONS |
 | S2-05 | 🚫 | Progressivo SDI — richiede DB stress test + deploy |
-| S3-01 | 🟡 | CI guard `check-any-budget.mjs` (soglia 2100). Refactor sostanziale demandato a post-S2-01 |
-| S3-02 | 🟡 | `VirtualizedTable` componente pronto. Adozione su OrdersList/MarketingContacts demandata (rischio CSS rotture) |
-| S3-03 | 🟡 | CI guard `check-a11y-quickwins.mjs` + `docs/accessibility.md`. Lighthouse audit demandato |
+| S3-01 | 🟡 | CI guard `check-any-budget.mjs` (soglia 2100, attuale 2078). Refactor sostanziale demandato a post-S2-01 (richiede types regen) |
+| S3-02 | 🟡 | `<VirtualizedTable>` componente pronto. Adozione su OrdersList/MarketingContacts demandata (rischio CSS rotture, 2k+ righe per file) |
+| S3-03 | 🟡 | **−12 icon-btn senza aria-label**: CostsTable (7) + table-pagination (4) + 1 inline. CI guard soglia 614. `docs/accessibility.md` |
 | S3-04 | 🚫 | Web Vitals — richiede query DB `web_vitals_events` |
-| S3-05 | ✅ | `fetchWithTimeout` wrapper + 4 fetch protetti + docs/ riorganizzata (commit 897da32c) |
+| S3-05 | ✅ | `fetchWithTimeout` wrapper + 7 fetch protetti (geocoding ×2, openrouter, ipify, public-chat ×2, lead-magnet) + docs/ riorganizzata |
 
 Legenda: ✅ done · 🟡 partial · 🚫 blocked (no-push/no-deploy)
 

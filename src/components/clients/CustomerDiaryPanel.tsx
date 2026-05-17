@@ -20,52 +20,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import DOMPurify from "dompurify";
+import { sanitizeEmailHtml } from "@/lib/utils/sanitizeEmailHtml";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
-
-// S1-04 — sanitize email HTML bodies before injection (XSS hardening)
-const EMAIL_SANITIZE_CONFIG: DOMPurify.Config = {
-  ALLOWED_TAGS: [
-    "p", "br", "strong", "em", "u", "s", "code", "pre",
-    "a", "img",
-    "ul", "ol", "li",
-    "blockquote", "hr",
-    "h1", "h2", "h3", "h4", "h5", "h6",
-    "table", "thead", "tbody", "tr", "th", "td",
-    "div", "span",
-  ],
-  ALLOWED_ATTR: [
-    "href", "target", "rel",
-    "src", "alt", "title", "width", "height",
-    "class", "style",
-  ],
-  FORBID_TAGS: ["script", "iframe", "object", "embed", "link", "meta", "base"],
-  FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onfocus"],
-  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|cid):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
-};
-
-// Hook globale: tutti i link in email → nuova tab + no opener (anti-phishing)
-let __diaryHookInstalled = false;
-function installDiaryEmailHook() {
-  if (__diaryHookInstalled) return;
-  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
-    if (node.tagName === "A") {
-      node.setAttribute("target", "_blank");
-      node.setAttribute("rel", "noopener noreferrer nofollow");
-    }
-    if (node.tagName === "IMG") {
-      const src = node.getAttribute("src") ?? "";
-      if (src.startsWith("data:") && src.length > 100_000) {
-        node.removeAttribute("src");
-      }
-    }
-  });
-  __diaryHookInstalled = true;
-}
-installDiaryEmailHook();
 
 interface Message {
   id: string;
@@ -154,9 +113,7 @@ function MessageBubble({ message }: { message: Message }) {
         {isEmail ? (
           <div
             className="text-xs prose-sm max-w-none [&>*]:my-1"
-            dangerouslySetInnerHTML={{
-              __html: DOMPurify.sanitize(message.body ?? "", EMAIL_SANITIZE_CONFIG),
-            }}
+            dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(message.body) }}
           />
         ) : (
           <p className="whitespace-pre-wrap break-words">{message.body}</p>

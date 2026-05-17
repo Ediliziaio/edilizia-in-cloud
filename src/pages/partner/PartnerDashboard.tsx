@@ -69,9 +69,10 @@ export default function PartnerDashboard() {
     queryKey: ["my-referral-companies", referrer?.id],
     enabled: !!referrer?.id,
     queryFn: async () => {
+      // S2-03: select chirurgico — UI usa id, company_id, is_active
       const { data, error } = await supabase
         .from("referral_companies")
-        .select("*")
+        .select("id, company_id, is_active, referred_at")
         .eq("referrer_id", referrer!.id)
         .order("referred_at", { ascending: false });
       if (error) throw error;
@@ -98,9 +99,10 @@ export default function PartnerDashboard() {
     enabled: !!referrer?.id,
     queryFn: async () => {
       const now = new Date();
+      // S2-03: select chirurgico — UI usa solo commission_amount
       const { data, error } = await supabase
         .from("referral_commission_ledger")
-        .select("*")
+        .select("id, commission_amount")
         .eq("referrer_id", referrer!.id)
         .eq("period_month", now.getMonth() + 1)
         .eq("period_year", now.getFullYear());
@@ -129,9 +131,10 @@ export default function PartnerDashboard() {
     queryKey: ["next-tier", referrer?.referral_tiers?.position],
     enabled: !!referrer?.referral_tiers,
     queryFn: async () => {
+      // S2-03: select chirurgico — UI usa icon/name/min_active/position/multiplier
       const { data } = await supabase
         .from("referral_tiers")
-        .select("*")
+        .select("id, icon, name, min_active_companies, position, commission_multiplier")
         .gt("position", referrer!.referral_tiers?.position ?? 0)
         .order("position", { ascending: true })
         .limit(1)

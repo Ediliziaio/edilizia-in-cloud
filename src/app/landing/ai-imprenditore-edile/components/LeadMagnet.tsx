@@ -3,6 +3,7 @@ import { BookOpen, Bot, Check, FileSearch, Sparkles } from "lucide-react";
 import { useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -81,9 +82,11 @@ export function LeadMagnet() {
 
   async function onSubmit(values: LeadForm) {
     trackEvent("landing_ai_lead_magnet_submit", { email_domain: values.email.split("@")[1] ?? "" });
-    await fetch("/api/lead-magnet", {
+    await fetchWithTimeout("/api/lead-magnet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      timeoutMs: 8_000,
+      context: "lead-magnet.submit",
       body: JSON.stringify({ ...values, source: "landing_ai_imprenditore_edile" }),
     }).catch(() => undefined);
     form.reset();

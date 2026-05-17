@@ -64,6 +64,8 @@ export function PayoutDialog({ referrer, onOpenChange }: Props) {
         notes: "",
       });
     }
+    // S2-02: form.reset stabile (react-hook-form ref-based), referrer letto via .id
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [referrer?.id]);
 
   const mutation = useMutation({

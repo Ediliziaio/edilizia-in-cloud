@@ -241,6 +241,9 @@ export default function DashboardBuilder() {
     setScope(dash.data.dashboard.scope === "company" ? "company" : "personal");
     resetLayout(dash.data.version.layout ?? emptyLayout());
     setDirty(false);
+    // S2-02: hydrate solo al cambio di dashboard.id o version — i campi del payload
+    // sono letti via dash.data?.dashboard?.id come trigger, dash.data e' stabile per la stessa version
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, dash.data?.dashboard?.id, dash.data?.version?.version, resetLayout]);
 
   // When a widget is selected close settings collapsible to reveal config

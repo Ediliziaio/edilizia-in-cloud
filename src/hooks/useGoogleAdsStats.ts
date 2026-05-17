@@ -109,7 +109,8 @@ export function useGoogleAdsStats(): UseGoogleAdsStatsReturn {
     staleTime: 5 * 60 * 1000,
   });
 
-  const stats = data ?? [];
+  // S2-02: stabilize `stats` via useMemo (era nuovo array ad ogni render)
+  const stats = useMemo(() => data ?? [], [data]);
   const kpis = useMemo(() => calculateKPIs(stats), [stats]);
   const campaigns = useMemo(() => aggregateByCampaign(stats), [stats]);
 

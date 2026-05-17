@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,8 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 
 export function ContactSmsLog({ contactId, companyId }: ContactSmsLogProps) {
   const queryClient = useQueryClient();
-  const queryKey = ["sms_logs", contactId, companyId];
+  // S2-02: stabilize queryKey via useMemo (era array nuovo ogni render -> realtime re-subscribe)
+  const queryKey = useMemo(() => ["sms_logs", contactId, companyId], [contactId, companyId]);
 
   const { data: logs = [], isLoading } = useQuery({
     queryKey,
@@ -62,7 +63,7 @@ export function ContactSmsLog({ contactId, companyId }: ContactSmsLogProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [contactId, queryClient]);
+  }, [contactId, queryClient, queryKey]);
 
   if (isLoading) {
     return (

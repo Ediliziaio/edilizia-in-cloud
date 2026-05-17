@@ -149,6 +149,21 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
     }
   }, [user?.id, effectiveCompany?.id]);
 
+  // ── stopTracking ──────────────────────────────────────────────────────────
+  // S2-02: spostato PRIMA di revokeConsent per chiudere ciclo deps
+  const stopTracking = useCallback(() => {
+    // Ferma watchPosition nel main thread
+    if (geoWatchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(geoWatchIdRef.current);
+      geoWatchIdRef.current = null;
+    }
+    // Notifica il SW
+    if (swRef.current?.active) {
+      swRef.current.active.postMessage({ type: "STOP_TRACKING" });
+    }
+    setState((s) => ({ ...s, status: "idle" }));
+  }, []);
+
   // ── revokeConsent ─────────────────────────────────────────────────────────
   const revokeConsent = useCallback(async () => {
     if (!user?.id || !effectiveCompany?.id) return;
@@ -168,21 +183,7 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
       hasConsent: false,
       status: "idle",
     }));
-  }, [user?.id, effectiveCompany?.id]);
-
-  // ── stopTracking ──────────────────────────────────────────────────────────
-  const stopTracking = useCallback(() => {
-    // Ferma watchPosition nel main thread
-    if (geoWatchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(geoWatchIdRef.current);
-      geoWatchIdRef.current = null;
-    }
-    // Notifica il SW
-    if (swRef.current?.active) {
-      swRef.current.active.postMessage({ type: "STOP_TRACKING" });
-    }
-    setState((s) => ({ ...s, status: "idle" }));
-  }, []);
+  }, [user?.id, effectiveCompany?.id, stopTracking]);
 
   // ── startTracking ─────────────────────────────────────────────────────────
   const startTracking = useCallback(async () => {
@@ -280,7 +281,8 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
     );
 
     setState((s) => ({ ...s, status: "active", errorMessage: null }));
-  }, [state.hasConsent, effectiveCompany?.id, user?.id, stopTracking]);
+    // S2-02: stopTracking non e' chiamato in startTracking — solo geoWatchIdRef inline
+  }, [state.hasConsent, effectiveCompany?.id, user?.id]);
 
   return {
     ...state,

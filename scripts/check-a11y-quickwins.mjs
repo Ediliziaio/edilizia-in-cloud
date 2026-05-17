@@ -15,7 +15,7 @@
 
 import { execSync } from "node:child_process";
 
-const ICON_BTN_ALLOWED_MAX = 626;
+const ICON_BTN_ALLOWED_MAX = 614;
 const LOW_CONTRAST_ALLOWED_MAX = 417;
 
 function safeGrep(pattern) {

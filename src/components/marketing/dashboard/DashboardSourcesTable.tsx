@@ -14,8 +14,9 @@ interface Props {
 }
 
 export const DashboardSourcesTable = memo(function DashboardSourcesTable({ sources, isLoading }: Props) {
-  const rawRows = sources || [];
-  const hasSpend = rawRows.some(r => r.spend > 0);
+  // S2-02: stabilize rawRows via useMemo (era nuovo array vuoto ogni render se sources undefined)
+  const rawRows = useMemo(() => sources || [], [sources]);
+  const hasSpend = useMemo(() => rawRows.some(r => r.spend > 0), [rawRows]);
 
   const rows = useMemo(() => {
     return [...rawRows].sort((a, b) => {

@@ -11,7 +11,7 @@
 
 import { execSync } from "node:child_process";
 
-const ALLOWED_MAX = 429;
+const ALLOWED_MAX = 424;
 
 let raw;
 try {

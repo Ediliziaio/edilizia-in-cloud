@@ -106,7 +106,7 @@ export default function DraggableAppointment({
       document.body.style.cursor = "s-resize";
       document.body.style.userSelect = "none";
     },
-    [onResize, startTime, appointment, slotDurationMinutes, pxPerMinute]
+    [onResize, onResizeEnd, startTime, appointment, slotDurationMinutes, pxPerMinute]
   );
 
   return (

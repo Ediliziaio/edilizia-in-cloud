@@ -105,6 +105,8 @@ export function PaymentMethodCard({
     setAccountHolder(company.bank_account_holder || "");
     setBankName(company.bank_name || "");
     setNotes(company.payment_notes || "");
+    // S2-02: re-hydrate solo al cambio di company.id (no loop con i singoli campi)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company.id]);
 
   const handleSave = () => {

@@ -505,7 +505,7 @@ export function CostsTable({
                             {!cost.is_paid ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)}>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)} aria-label="Segna come pagato">
                                     <CheckSquare className="h-3.5 w-3.5 text-green-600" />
                                   </Button>
                                 </TooltipTrigger>
@@ -514,7 +514,7 @@ export function CostsTable({
                             ) : (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkUnpaid(cost.id)}>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkUnpaid(cost.id)} aria-label="Riporta a non pagato">
                                     <Undo2 className="h-3.5 w-3.5 text-orange-600" />
                                   </Button>
                                 </TooltipTrigger>
@@ -523,18 +523,18 @@ export function CostsTable({
                             )}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenTasks(cost.id)}>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenTasks(cost.id)} aria-label="Task collegate">
                                   <AlertCircle className="h-3.5 w-3.5" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>Task collegate</TooltipContent>
                             </Tooltip>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenEdit(cost)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenEdit(cost)} aria-label="Modifica costo">
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Altre azioni">
                                   <MoreHorizontal className="h-3.5 w-3.5" />
                                 </Button>
                               </DropdownMenuTrigger>
@@ -559,7 +559,7 @@ export function CostsTable({
                             {!cost.is_paid ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)}>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)} aria-label="Segna come pagato">
                                     <CheckSquare className="h-3.5 w-3.5 text-green-600" />
                                   </Button>
                                 </TooltipTrigger>
@@ -568,7 +568,7 @@ export function CostsTable({
                             ) : (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkOrderItemUnpaid(cost)}>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkOrderItemUnpaid(cost)} aria-label="Riporta a non pagato">
                                     <Undo2 className="h-3.5 w-3.5 text-orange-600" />
                                   </Button>
                                 </TooltipTrigger>
@@ -578,7 +578,7 @@ export function CostsTable({
                             {cost.order && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" asChild aria-label="Vai all'ordine collegato">
                                     <Link to={`/azienda/ordini/${cost.order.id}`}>
                                       <ExternalLink className="h-3.5 w-3.5" />
                                     </Link>

@@ -160,9 +160,10 @@ export default function CampoLavoroDetail() {
   const { data: orderItems = [] } = useQuery({
     queryKey: ["campo-order-items", orderId],
     queryFn: async () => {
+      // S2-03: select chirurgico — UI usa id/description/name/quantity
       const { data, error } = await supabase
         .from("order_items")
-        .select("*")
+        .select("id, description, name, quantity")
         .eq("order_id", orderId!);
       if (error) throw error;
       return data ?? [];

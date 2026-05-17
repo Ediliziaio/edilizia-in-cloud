@@ -12,6 +12,7 @@
  */
 import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageCircle, X, Send, Loader2, Minimize2 } from "lucide-react";
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 
 interface Props {
   /** UUID del widget configurato in public_chatbot_settings */
@@ -117,9 +118,11 @@ export function PublicChatWidget({
     setError(null);
     try {
       const utm = getUtmParams();
-      const res = await fetch(apiUrl, {
+      const res = await fetchWithTimeout(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        timeoutMs: 10_000,
+        context: "public-chat.init",
         body: JSON.stringify({
           action: "init",
           widget_token: widgetToken,
@@ -178,9 +181,11 @@ export function PublicChatWidget({
     setError(null);
 
     try {
-      const res = await fetch(apiUrl, {
+      const res = await fetchWithTimeout(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        timeoutMs: 30_000,
+        context: "public-chat.message",
         body: JSON.stringify({
           action: "message",
           session_id: sessionId,

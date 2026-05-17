@@ -43,17 +43,17 @@ export function TablePagination({
           </Select>
         </div>
         <div className="flex items-center gap-0.5">
-          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(1)} disabled={currentPage <= 1}>
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(1)} disabled={currentPage <= 1} aria-label="Prima pagina">
             <ChevronsLeft className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage <= 1}>
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage <= 1} aria-label="Pagina precedente">
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
           <span className="text-xs px-2 tabular-nums">{currentPage} / {totalPages}</span>
-          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(currentPage + 1)} disabled={currentPage >= totalPages}>
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(currentPage + 1)} disabled={currentPage >= totalPages} aria-label="Pagina successiva">
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(totalPages)} disabled={currentPage >= totalPages}>
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => onPageChange(totalPages)} disabled={currentPage >= totalPages} aria-label="Ultima pagina">
             <ChevronsRight className="h-3.5 w-3.5" />
           </Button>
         </div>

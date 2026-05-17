@@ -29,18 +29,25 @@ interface CostsForecastTabProps {
 }
 
 export function CostsForecastTab({ expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts }: CostsForecastTabProps) {
-  const now = new Date();
+  // S2-02: stabilize `now` + derived date intervals via useMemo
+  const now = useMemo(() => new Date(), []);
   const [customMonths, setCustomMonths] = useState(3);
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [activePreset, setActivePreset] = useState<string>("thisMonth");
   const [customPopoverOpen, setCustomPopoverOpen] = useState(false);
 
-  const thisMonthStart = startOfMonth(now);
-  const thisMonthEnd = endOfMonth(now);
-  const nextMonthInterval = { start: startOfMonth(addMonths(now, 1)), end: endOfMonth(addMonths(now, 1)) };
+  const thisMonthStart = useMemo(() => startOfMonth(now), [now]);
+  const thisMonthEnd = useMemo(() => endOfMonth(now), [now]);
+  const nextMonthInterval = useMemo(
+    () => ({ start: startOfMonth(addMonths(now, 1)), end: endOfMonth(addMonths(now, 1)) }),
+    [now],
+  );
 
-  const unpaidSupplier = expectedSupplierPayments.filter(p => !p.isPaid);
+  const unpaidSupplier = useMemo(
+    () => expectedSupplierPayments.filter(p => !p.isPaid),
+    [expectedSupplierPayments],
+  );
 
   const sumInPeriod = <T extends { expectedDate: Date | null; amount: number }>(items: T[], interval: { start: Date; end: Date }) =>
     items.filter(i => i.expectedDate && isWithinInterval(i.expectedDate, interval)).reduce((s, i) => s + i.amount, 0);
@@ -48,14 +55,14 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
   const totals = useMemo(() => ({
     thisMonth: sumInPeriod(expectedExpenses, { start: thisMonthStart, end: thisMonthEnd }) + sumInPeriod(expectedCommissions, { start: thisMonthStart, end: thisMonthEnd }) + sumInPeriod(unpaidSupplier, { start: thisMonthStart, end: thisMonthEnd }) + sumInPeriod(expectedCompanyCosts, { start: thisMonthStart, end: thisMonthEnd }),
     nextMonth: sumInPeriod(expectedExpenses, nextMonthInterval) + sumInPeriod(expectedCommissions, nextMonthInterval) + sumInPeriod(unpaidSupplier, nextMonthInterval) + sumInPeriod(expectedCompanyCosts, nextMonthInterval),
-  }), [expectedExpenses, expectedCommissions, unpaidSupplier, expectedCompanyCosts]);
+  }), [expectedExpenses, expectedCommissions, unpaidSupplier, expectedCompanyCosts, thisMonthStart, thisMonthEnd, nextMonthInterval]);
 
   const customPeriodTotal = useMemo(() => {
     const start = startOfMonth(addMonths(now, 1));
     const end = endOfMonth(addMonths(now, customMonths));
     const interval = { start, end };
     return sumInPeriod(expectedExpenses, interval) + sumInPeriod(expectedCommissions, interval) + sumInPeriod(unpaidSupplier, interval) + sumInPeriod(expectedCompanyCosts, interval);
-  }, [customMonths, expectedExpenses, expectedCommissions, unpaidSupplier, expectedCompanyCosts]);
+  }, [now, customMonths, expectedExpenses, expectedCommissions, unpaidSupplier, expectedCompanyCosts]);
 
   // Preset logic
   const applyPreset = (preset: string) => {
