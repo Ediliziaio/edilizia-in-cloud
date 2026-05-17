@@ -21,167 +21,17 @@ import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
-
-const STATUS_COLORS: Record<string, string> = {
-  bozza: "bg-muted text-muted-foreground",
-  approvato: "bg-green-100 text-green-800",
-  archiviato: "bg-slate-100 text-slate-600",
-  firmato: "bg-blue-100 text-blue-800",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  bozza: "Bozza",
-  approvato: "Approvato",
-  archiviato: "Archiviato",
-  firmato: "Firmato",
-};
-
-type OrderOption = {
-  id: string;
-  description: string | null;
-  order_code: string | null;
-};
-
-type RelatedOrder = Pick<OrderOption, "description" | "order_code">;
-
-type RiskItem = {
-  rischio?: string;
-  livello?: string;
-  misura_prevenzione?: string;
-};
-
-type DpiItem = string | {
-  mansione?: string;
-  dpi?: string | string[];
-};
-
-type InterferenceItem = {
-  rischio?: string;
-  misura?: string;
-  misura_prevenzione?: string;
-  livello_rischio?: string;
-  responsabile?: string;
-};
-
-type PosDocument = {
-  id: string;
-  order_id: string | null;
-  orders?: RelatedOrder | null;
-  version?: number | string | null;
-  created_at: string;
-  responsabile_sicurezza?: string | null;
-  status: string;
-  tipo_lavori?: string | null;
-  numero_lavoratori?: number | null;
-  rischi_presenti?: RiskItem[] | null;
-  dpi_richiesti?: DpiItem[] | null;
-  procedure_operative?: string | null;
-  generated_content?: string | null;
-};
-
-type DuvriDocument = {
-  id: string;
-  order_id: string | null;
-  orders?: RelatedOrder | null;
-  created_at: string;
-  status: string;
-  committente_nome?: string | null;
-  subappaltatori?: unknown[] | null;
-  interferenze?: InterferenceItem[] | null;
-  costi_sicurezza?: number | null;
-  misure_prevenzione?: string | null;
-  generated_content?: string | null;
-};
-
-type VerbaleSicurezza = {
-  id: string;
-  orders?: RelatedOrder | null;
-  tipo: string;
-  esito: string;
-  data?: string | null;
-  redatto_da?: string | null;
-  note?: string | null;
-};
-
-type SubappaltatoreSicurezza = {
-  id: string;
-  orders?: RelatedOrder | null;
-  ragione_sociale: string;
-  tipo_lavori?: string | null;
-  responsabile?: string | null;
-  durc_scadenza?: string | null;
-};
-
-type AdempimentoSicurezza = {
-  id: string;
-  titolo: string;
-  tipo?: string | null;
-  scadenza_data?: string | null;
-  stato: string;
-  note?: string | null;
-};
-
-type PrintableSafetyDoc = Pick<PosDocument | DuvriDocument, "id" | "order_id" | "status" | "created_at" | "generated_content">;
-
-const getSupabaseErrorMessage = (error: { message?: string; details?: string | null; hint?: string | null }) =>
-  error.message || error.details || error.hint || "Operazione non riuscita";
-
-const escapeHtml = (value: unknown) =>
-  String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-
-const readFunctionError = async (res: Response, fallback: string) => {
-  const text = await res.text();
-  if (!text) return fallback;
-  try {
-    const parsed = JSON.parse(text) as { error?: string; message?: string };
-    return parsed.error || parsed.message || fallback;
-  } catch {
-    return text;
-  }
-};
-
-const toStartOfDay = (value: Date) => {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  return date;
-};
-
-const parseDateOnly = (value?: string | null) => {
-  if (!value) return null;
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
-
-const isPastDate = (value?: string | null) => {
-  const date = parseDateOnly(value);
-  return !!date && date < toStartOfDay(new Date());
-};
-
-const formatDpi = (item: DpiItem) => {
-  if (typeof item === "string") return item;
-  const dpi = Array.isArray(item.dpi) ? item.dpi.join(", ") : item.dpi;
-  return [item.mansione, dpi].filter(Boolean).join(": ") || "DPI da verificare";
-};
-
-const statToneClass = (tone: string) => {
-  switch (tone) {
-    case "red":
-      return "border-red-200 bg-red-50/70 text-red-700";
-    case "green":
-      return "border-green-200 bg-green-50/70 text-green-700";
-    case "amber":
-      return "border-amber-200 bg-amber-50/70 text-amber-700";
-    case "indigo":
-      return "border-indigo-200 bg-indigo-50/70 text-indigo-700";
-    default:
-      return "border-blue-200 bg-blue-50/70 text-blue-700";
-  }
-};
+// MP-CAN-001 Fase 3 — types/constants/helpers estratti
+import type {
+  OrderOption, RelatedOrder, RiskItem, DpiItem, InterferenceItem,
+  PosDocument, DuvriDocument, VerbaleSicurezza,
+  SubappaltatoreSicurezza, AdempimentoSicurezza, PrintableSafetyDoc,
+} from "./SicurezzaCantiere/types";
+import { STATUS_COLORS, STATUS_LABELS } from "./SicurezzaCantiere/constants";
+import {
+  getSupabaseErrorMessage, escapeHtml, readFunctionError,
+  toStartOfDay, parseDateOnly, isPastDate, formatDpi, statToneClass,
+} from "./SicurezzaCantiere/helpers";
 
 export default function SicurezzaCantiere() {
   const { effectiveCompany } = useAuth();

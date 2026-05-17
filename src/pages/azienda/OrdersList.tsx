@@ -53,30 +53,13 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { OrderTypeChoiceDialog } from "@/components/orders/OrderTypeChoiceDialog";
 
-interface DateRange {
-  from: Date | undefined;
-  to: Date | undefined;
-}
-
-const ORDER_IMPORT_FIELDS: ImportField[] = [
-  { key: "order_code", label: "Codice Commessa", required: false },
-  { key: "customer_email", label: "Email Cliente", required: true, type: "email" },
-  { key: "description", label: "Descrizione", required: true },
-  { key: "total_amount", label: "Importo Totale", required: true, type: "number" },
-  { key: "deposit_amount", label: "Acconto 1", required: false, type: "number" },
-  { key: "deposit_2_amount", label: "Acconto 2", required: false, type: "number" },
-  { key: "balance_amount", label: "Saldo", required: false, type: "number" },
-  { key: "expected_date", label: "Data Prevista", required: false, type: "date" },
-  { key: "warehouse_arrival_date", label: "Data Magazzino", required: false, type: "date" },
-  { key: "work_start_date", label: "Data Inizio Lavori", required: false, type: "date" },
-  { key: "internal_notes", label: "Note Interne", required: false },
-  { key: "payment_type", label: "Tipo Pagamento", required: false },
-];
-
-const PENDING_PAYMENTS_FILTER =
-  "and(deposit_amount.gt.0,deposit_paid.eq.false),and(deposit_2_amount.gt.0,deposit_2_paid.eq.false),and(balance_amount.gt.0,balance_paid.eq.false),and(financing_amount.gt.0,financing_paid.eq.false)";
-
-const EMPTY_ORDERS: OrderWithDetails[] = [];
+// MP-CAN-001 — types/constants estratti in ./OrdersList/constants.ts
+import {
+  type DateRange,
+  ORDER_IMPORT_FIELDS,
+  PENDING_PAYMENTS_FILTER,
+  EMPTY_ORDERS,
+} from "./OrdersList/constants";
 
 function OrdersListInner() {
   const { user, effectiveCompany } = useAuth();
