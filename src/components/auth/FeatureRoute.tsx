@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Button } from "@/components/ui/button";
@@ -29,8 +30,24 @@ export function FeatureRoute({
 }: FeatureRouteProps) {
   const location = useLocation();
   const { isEnabled, isLoading, isError, errorMessage, refetch, isFetching } = useFeatureAccess(featureKey);
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  const shouldSoftOpenWhileResolving = featureKey === "render_ai" && isLoading;
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingTimedOut(false);
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => setLoadingTimedOut(true), 12_000);
+    return () => window.clearTimeout(timer);
+  }, [isLoading, featureKey]);
+
+  if (shouldSoftOpenWhileResolving) {
+    return <>{children}</>;
+  }
+
+  if (isLoading && !loadingTimedOut) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -41,7 +58,7 @@ export function FeatureRoute({
     );
   }
 
-  if (isError) {
+  if (isError || (isLoading && loadingTimedOut)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <div className="w-full max-w-md rounded-xl border bg-card p-6 text-center shadow-sm">
@@ -55,6 +72,11 @@ export function FeatureRoute({
           {errorMessage && (
             <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
               {errorMessage}
+            </p>
+          )}
+          {!errorMessage && loadingTimedOut && (
+            <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+              Verifica accesso {featureKey}: timeout dopo 12 secondi
             </p>
           )}
           <Button className="mt-5" onClick={refetch} disabled={isFetching}>

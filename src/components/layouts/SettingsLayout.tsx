@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 // ─── Mappa URL → titolo + descrizione ───────────────────────────────────────
 interface SectionMeta {
@@ -58,6 +58,45 @@ const DEFAULT_META: SectionMeta = {
   description: "Configura il tuo account e la tua azienda",
 };
 
+const MOBILE_SETTINGS_GROUPS = [
+  {
+    label: "Account",
+    items: [
+      { to: "/azienda/impostazioni/mio-profilo", label: "Il mio profilo" },
+      { to: "/azienda/impostazioni/sicurezza-privacy", label: "Sicurezza & privacy" },
+    ],
+  },
+  {
+    label: "Azienda",
+    items: [
+      { to: "/azienda/impostazioni/profilo", label: "Profilo aziendale" },
+      { to: "/azienda/impostazioni/sedi", label: "Sedi" },
+      { to: "/azienda/impostazioni/branding", label: "White-Label" },
+      { to: "/azienda/impostazioni/persone", label: "Persone & accessi" },
+    ],
+  },
+  {
+    label: "Vendite e operativo",
+    items: [
+      { to: "/azienda/impostazioni/listino", label: "Listino prodotti" },
+      { to: "/azienda/impostazioni/template-preventivi", label: "Template offerte" },
+      { to: "/azienda/impostazioni/firma-elettronica", label: "Firma elettronica" },
+      { to: "/azienda/impostazioni/sopralluoghi", label: "Sopralluoghi" },
+      { to: "/azienda/impostazioni/finanziamenti", label: "Finanziamenti" },
+    ],
+  },
+  {
+    label: "Marketing e integrazioni",
+    items: [
+      { to: "/azienda/impostazioni/calendari", label: "Calendari marketing" },
+      { to: "/azienda/impostazioni/lead-forms", label: "Lead Facebook" },
+      { to: "/azienda/impostazioni/integrazioni", label: "Integrazioni" },
+      { to: "/azienda/impostazioni/crediti", label: "Crediti & saldo" },
+      { to: "/azienda/impostazioni/abbonamento", label: "Piano abbonamento" },
+    ],
+  },
+];
+
 /** Estrae il segmento URL dopo /impostazioni/ — funzione pura, zero side effects */
 function getSectionMeta(pathname: string): SectionMeta {
   const match = pathname.match(/\/impostazioni\/([^/]+)/);
@@ -68,20 +107,53 @@ function getSectionMeta(pathname: string): SectionMeta {
 // ─── Layout wrapper per tutte le route /azienda/impostazioni/* ───────────────
 export function SettingsLayout() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { title, description } = getSectionMeta(pathname);
+  const currentMobileSection =
+    MOBILE_SETTINGS_GROUPS
+      .flatMap(group => group.items)
+      .find(item => pathname === item.to || pathname.startsWith(`${item.to}/`))
+      ?.to ?? "";
 
   return (
     <div className="flex flex-col min-h-full">
       {/* Header contestuale — titolo + descrizione derivati dall'URL corrente */}
-      <div className="border-b bg-background px-6 py-5">
+      <div className="border-b bg-background px-4 py-4 md:px-6 md:py-5">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
         </div>
+
+        <div className="mt-4 md:hidden">
+          <label htmlFor="mobile-settings-nav" className="sr-only">
+            Vai a una sezione delle impostazioni
+          </label>
+          <select
+            id="mobile-settings-nav"
+            value={currentMobileSection}
+            onChange={(event) => {
+              if (event.target.value) navigate(event.target.value);
+            }}
+            className="h-11 w-full rounded-lg border bg-background px-3 text-sm font-medium shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <option value="" disabled>
+              Vai a una sezione...
+            </option>
+            {MOBILE_SETTINGS_GROUPS.map(group => (
+              <optgroup key={group.label} label={group.label}>
+                {group.items.map(item => (
+                  <option key={item.to} value={item.to}>
+                    {item.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Contenuto della pagina figlia — larghezza piena */}
-      <div className="flex-1 px-6 py-6">
+      <div className="flex-1 px-4 py-4 md:px-6 md:py-6">
         <Outlet />
       </div>
     </div>

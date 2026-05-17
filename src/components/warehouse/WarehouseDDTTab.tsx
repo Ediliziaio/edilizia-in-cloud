@@ -152,7 +152,7 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
         const qta = typeof d.quantita_ricevuta === "number" ? d.quantita_ricevuta : 0;
         return (
           <Card key={d.id}>
-            <CardContent className="p-4 flex items-center justify-between gap-3">
+            <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="font-medium">DDT {d.numero_ddt}</span>
@@ -175,8 +175,8 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
                   </p>
                 )}
               </div>
-              <div className="flex gap-1 shrink-0">
-                <Button variant="outline" size="sm" asChild>
+              <div className="flex w-full shrink-0 gap-1 sm:w-auto">
+                <Button variant="outline" size="sm" className="w-full sm:w-auto" asChild>
                   <a
                     href={`/azienda/ordini-acquisto/${d.purchase_order_id}`}
                     aria-label={`Apri ordine di acquisto collegato al DDT ${d.numero_ddt}`}

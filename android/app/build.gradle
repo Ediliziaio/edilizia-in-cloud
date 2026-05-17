@@ -1,5 +1,27 @@
 apply plugin: 'com.android.application'
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+def getSigningValue = { String key ->
+    return System.getenv(key) ?: keystoreProperties.getProperty(key)
+}
+
+def releaseStoreFilePath = getSigningValue('ANDROID_KEYSTORE_FILE')
+def releaseStorePassword = getSigningValue('ANDROID_KEYSTORE_PASSWORD')
+def releaseKeyAlias = getSigningValue('ANDROID_KEY_ALIAS')
+def releaseKeyPassword = getSigningValue('ANDROID_KEY_PASSWORD') ?: releaseStorePassword
+def hasReleaseSigning = releaseStoreFilePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+def isReleaseTaskRequested = gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }
+
+def resolveSigningFile = { String path ->
+    def signingFile = new File(path)
+    return signingFile.isAbsolute() ? signingFile : rootProject.file(path)
+}
+
 android {
     namespace = "com.ediliziaincloud.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,17 +29,32 @@ android {
         applicationId "com.ediliziaincloud.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode = (System.getenv("ANDROID_VERSION_CODE") ?: "1").toInteger()
+        versionName = System.getenv("ANDROID_VERSION_NAME") ?: "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile resolveSigningFile(releaseStoreFilePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
         }
     }
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else if (isReleaseTaskRequested) {
+                logger.warn("Release signing not configured. Set ANDROID_KEYSTORE_FILE, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD or android/keystore.properties before uploading to Play Store.")
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

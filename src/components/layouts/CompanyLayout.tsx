@@ -1253,7 +1253,7 @@ export function CompanyLayout() {
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
       {deferredRealtimeReady && <PWAInstallBanner />}
       <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
-      {/* Silvio FAB — sempre visibile in basso a sinistra */}
+      {/* Silvio FAB — visibile da tablet/desktop; su mobile si usa la voce Chat */}
       {deferredRealtimeReady && <SilvioFAB />}
     </SidebarProvider>
     </>

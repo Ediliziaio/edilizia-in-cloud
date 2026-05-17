@@ -1536,7 +1536,7 @@ function OrdersListInner() {
   }, [effectiveCompany?.id, queryClient]);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-4 pb-20 sm:gap-6 sm:pb-0">
       {/* Header */}
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 sm:px-6 pt-5 pb-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
@@ -1696,7 +1696,7 @@ function OrdersListInner() {
         />
       )}
 
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <section className="order-4 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
         <div className="grid gap-0 xl:grid-cols-[minmax(320px,0.58fr)_minmax(520px,1fr)]">
           <div className="bg-[#173b67] p-5 sm:p-6 text-white">
             <div className="flex items-start gap-3">
@@ -1876,7 +1876,7 @@ function OrdersListInner() {
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section className="order-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4 sm:order-none">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md hover:shadow-slate-950/10">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600 ring-1 ring-orange-100">
@@ -1953,7 +1953,7 @@ function OrdersListInner() {
         onExpectedDateRangeChange={setExpectedDateRange}
       />
 
-      <div className="space-y-4">
+      <div className="order-3 space-y-4 sm:order-none">
           <OrdersFilters
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
@@ -2050,10 +2050,10 @@ function OrdersListInner() {
             <div className="space-y-4">
               {/* 🆕 Sort selector — server-side sort dell'intero dataset
                   (non solo della pagina visibile). Persisted in localStorage. */}
-              <div className="flex flex-wrap items-center gap-2 px-1">
-                <span className="text-xs text-muted-foreground font-medium">Ordina:</span>
+              <div className="grid grid-cols-2 items-center gap-2 px-1 sm:flex sm:flex-wrap">
+                <span className="col-span-2 text-xs font-medium text-muted-foreground sm:col-span-1">Ordina:</span>
                 <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
-                  <SelectTrigger className="h-8 w-auto min-w-[180px] text-xs">
+                  <SelectTrigger className="h-9 w-full text-xs sm:h-8 sm:w-auto sm:min-w-[180px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -2068,7 +2068,7 @@ function OrdersListInner() {
                   </SelectContent>
                 </Select>
                 <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
-                  <SelectTrigger className="h-8 w-auto min-w-[140px] text-xs">
+                  <SelectTrigger className="h-9 w-full text-xs sm:h-8 sm:w-auto sm:min-w-[140px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -2088,7 +2088,7 @@ function OrdersListInner() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 text-xs"
+                    className="col-span-2 h-8 text-xs sm:col-span-1"
                     onClick={() => { setSortField("created_at"); setSortDir("desc"); setPage(1); }}
                   >
                     Ripristina
@@ -2189,10 +2189,14 @@ export default function OrdersList() {
   }, [activeTab, requestedTab, setSearchParams]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-20 sm:space-y-6 sm:pb-0">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
       <div className="rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
-        <nav className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Sezioni commesse">
+        <nav
+          className="flex gap-1 overflow-x-auto scroll-smooth px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="tablist"
+          aria-label="Sezioni commesse"
+        >
           {tabs.map((t) => {
             const isActive = activeTab === t.id;
             return (
@@ -2202,7 +2206,7 @@ export default function OrdersList() {
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => handleTabChange(t.id)}
-                className={`relative flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-all sm:px-4 ${
+                className={`relative flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-all sm:px-4 ${
                   isActive
                     ? "bg-orange-50 text-slate-950 font-semibold shadow-sm ring-1 ring-orange-100"
                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"

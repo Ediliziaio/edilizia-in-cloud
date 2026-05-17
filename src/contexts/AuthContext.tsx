@@ -1087,16 +1087,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   //
   // Every 4 minutes we fire a trivial SELECT to keep the project awake.
   // Only runs when a user is authenticated — stops immediately on sign-out.
+  const authenticatedUserId = state.user?.id;
+
   useEffect(() => {
-    if (!state.user) return;
+    if (!authenticatedUserId) return;
     const ping = () => {
-      // PostgrestBuilder è PromiseLike (non Promise completo) — .catch() non esiste sulla chain raw.
-      // Usiamo void per ignorare il risultato in modo sicuro.
-      void supabase.from("subscription_plans").select("id").limit(1);
+      void supabase
+        .from("subscription_plans")
+        .select("id")
+        .limit(1)
+        .then(() => undefined)
+        .catch((err) => {
+          captureVelocityError("auth.keepalive", err, { source: "subscription_plans" });
+        });
     };
+    ping();
     const id = setInterval(ping, 4 * 60 * 1000);
     return () => clearInterval(id);
-  }, [state.user?.id]);
+  }, [authenticatedUserId]);
 
   // ── Velocity — Sentry user/tenant context ────────────────────────────────
   // Tagga ogni evento Sentry con user_id + role + tenant_id (company).

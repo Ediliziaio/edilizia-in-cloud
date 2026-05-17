@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, type FormEvent } from "react";
 import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { ScanLine, X, Flashlight, FlashlightOff, Focus } from "lucide-react";
+import { ScanLine, X, Flashlight, FlashlightOff, Focus, Keyboard, Camera, AlertCircle } from "lucide-react";
 import {
   openScannerStream,
   pulseFocus,
@@ -37,6 +40,9 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
   const [scanning, setScanning] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
+  const [manualCode, setManualCode] = useState("");
+  const manualInputRef = useRef<HTMLInputElement>(null);
 
   const stopScanner = useCallback(() => {
     scannerRunRef.current += 1;
@@ -55,6 +61,12 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
 
   useEffect(() => {
     if (!open) {
+      stopScanner();
+      setManualMode(false);
+      setManualCode("");
+      return;
+    }
+    if (manualMode) {
       stopScanner();
       return;
     }
@@ -122,7 +134,32 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
       active = false;
       stopScanner();
     };
-  }, [open, onScan, onOpenChange, stopScanner]);
+  }, [manualMode, open, onScan, onOpenChange, stopScanner]);
+
+  useEffect(() => {
+    if (open && error && !manualMode) {
+      setManualMode(true);
+    }
+  }, [error, manualMode, open]);
+
+  useEffect(() => {
+    if (manualMode && open) {
+      const t = setTimeout(() => manualInputRef.current?.focus(), 100);
+      return () => clearTimeout(t);
+    }
+  }, [manualMode, open]);
+
+  const handleManualSubmit = useCallback(
+    (event: FormEvent) => {
+      event.preventDefault();
+      const code = manualCode.trim();
+      if (!code) return;
+      onScan(code);
+      setManualCode("");
+      onOpenChange(false);
+    },
+    [manualCode, onOpenChange, onScan],
+  );
 
   const handleTapFocus = useCallback(() => {
     if (streamRef.current) void pulseFocus(streamRef.current);
@@ -148,6 +185,49 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
           </SheetDescription>
         </SheetHeader>
 
+        {manualMode ? (
+          <div className="flex-1 bg-card p-4">
+            <form onSubmit={handleManualSubmit} className="space-y-3">
+              {error && (
+                <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    Fotocamera non disponibile su questo dispositivo. Inserisci o incolla il codice qui sotto.
+                  </AlertDescription>
+                </Alert>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="barcode-manual" className="text-xs">
+                  Codice manuale
+                </Label>
+                <Input
+                  ref={manualInputRef}
+                  id="barcode-manual"
+                  value={manualCode}
+                  onChange={(event) => setManualCode(event.target.value)}
+                  placeholder="Digita o incolla QR/barcode..."
+                  autoComplete="off"
+                  className="font-mono"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={!manualCode.trim()} className="flex-1 gap-2">
+                  <ScanLine className="h-4 w-4" />
+                  Cerca codice
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setManualMode(false)}
+                  aria-label="Torna alla fotocamera"
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
+              </div>
+            </form>
+          </div>
+        ) : (
         <div className="flex-1 relative bg-black overflow-hidden">
           <video
             ref={videoRef}
@@ -160,6 +240,16 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
 
           {/* Toolbar overlay (torch + manual focus) */}
           <div className="absolute top-3 right-3 flex gap-2 z-10">
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              onClick={() => setManualMode(true)}
+              aria-label="Inserimento manuale"
+              className="h-9 w-9 bg-white/90 hover:bg-white"
+            >
+              <Keyboard className="h-4 w-4" />
+            </Button>
             {torchAvailable && (
               <Button
                 type="button"
@@ -225,6 +315,7 @@ export function BarcodeScanner({ open, onOpenChange, onScan }: BarcodeScannerPro
             </div>
           )}
         </div>
+        )}
 
         <div className="p-4 flex justify-center">
           <Button variant="destructive" size="sm" onClick={() => onOpenChange(false)} className="gap-2">

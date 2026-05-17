@@ -960,43 +960,43 @@ export default function Warehouse() {
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <Tabs value={viewMode} onValueChange={handleViewModeChange}>
-                <TabsList className="flex-wrap h-auto">
-                  <TabsTrigger value="list" className="gap-1.5" aria-label="Vista lista commesse">
+              <Tabs value={viewMode} onValueChange={handleViewModeChange} className="min-w-0">
+                <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-xl p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <TabsTrigger value="list" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista lista commesse">
                     <List className="h-4 w-4" />
-                    <span className="hidden sm:inline">Lista commesse</span>
+                    <span className="text-[11px] sm:text-sm">Commesse</span>
                   </TabsTrigger>
-                  <TabsTrigger value="purchase_list" className="gap-1.5" aria-label="Vista lista acquisti">
+                  <TabsTrigger value="purchase_list" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista lista acquisti">
                     <ShoppingCart className="h-4 w-4" />
-                    <span className="hidden sm:inline">Lista acquisti</span>
+                    <span className="text-[11px] sm:text-sm">Acquisti</span>
                   </TabsTrigger>
-                  <TabsTrigger value="stock" className="gap-1.5" aria-label="Vista inventario">
+                  <TabsTrigger value="stock" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista inventario">
                     <PackageOpen className="h-4 w-4" />
-                    <span className="hidden sm:inline">Inventario</span>
+                    <span className="text-[11px] sm:text-sm">Inventario</span>
                   </TabsTrigger>
-                  <TabsTrigger value="kanban" className="gap-1.5" aria-label="Vista pipeline">
+                  <TabsTrigger value="kanban" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista pipeline">
                     <LayoutGrid className="h-4 w-4" />
-                    <span className="hidden sm:inline">Pipeline</span>
+                    <span className="text-[11px] sm:text-sm">Pipeline</span>
                   </TabsTrigger>
-                  <TabsTrigger value="calendar" className="gap-1.5" aria-label="Vista calendario">
+                  <TabsTrigger value="calendar" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista calendario">
                     <CalendarIcon className="h-4 w-4" />
-                    <span className="hidden sm:inline">Calendario</span>
+                    <span className="text-[11px] sm:text-sm">Calendario</span>
                   </TabsTrigger>
-                  <TabsTrigger value="lotti" className="gap-1.5" aria-label="Vista lotti">
+                  <TabsTrigger value="lotti" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista lotti">
                     <Package className="h-4 w-4" />
-                    <span className="hidden sm:inline">Lotti</span>
+                    <span className="text-[11px] sm:text-sm">Lotti</span>
                   </TabsTrigger>
-                  <TabsTrigger value="ddt" className="gap-1.5" aria-label="Vista DDT">
+                  <TabsTrigger value="ddt" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista DDT">
                     <FileText className="h-4 w-4" />
-                    <span className="hidden sm:inline">DDT</span>
+                    <span className="text-[11px] sm:text-sm">DDT</span>
                   </TabsTrigger>
-                  <TabsTrigger value="valuation" className="gap-1.5" aria-label="Vista valorizzazione magazzino">
+                  <TabsTrigger value="valuation" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista valorizzazione magazzino">
                     <Calculator className="h-4 w-4" />
-                    <span className="hidden sm:inline">Valore</span>
+                    <span className="text-[11px] sm:text-sm">Valore</span>
                   </TabsTrigger>
-                  <TabsTrigger value="scadenze" className="gap-1.5" aria-label="Vista scadenze lotti">
+                  <TabsTrigger value="scadenze" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista scadenze lotti">
                     <Clock className="h-4 w-4" />
-                    <span className="hidden sm:inline">Scadenze</span>
+                    <span className="text-[11px] sm:text-sm">Scadenze</span>
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -1383,7 +1383,7 @@ export default function Warehouse() {
       )}
 
       {/* Pagination */}
-      {viewMode !== "stock" && viewMode !== "lotti" && viewMode !== "purchase_list" && totalPages > 1 && (
+      {isWorkflowView && totalPages > 1 && (
         <div className="flex items-center justify-between print:hidden">
           <p className="text-sm text-muted-foreground">
             {totalCount} articol{totalCount === 1 ? "o" : "i"} totali — Pagina {page + 1} di {totalPages}

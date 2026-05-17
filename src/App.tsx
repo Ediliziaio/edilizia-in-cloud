@@ -211,6 +211,9 @@ const shouldRetryQuery = (failureCount: number, error: unknown) => {
   return !isNonRetriableQueryError(error);
 };
 
+const DEFAULT_QUERY_STALE_TIME_MS = isNative ? 10 * 60 * 1000 : 5 * 60 * 1000;
+const DEFAULT_QUERY_GC_TIME_MS = isNative ? 60 * 60 * 1000 : 30 * 60 * 1000;
+
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {
@@ -252,10 +255,10 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: shouldRetryQuery,
-      staleTime: 5 * 60 * 1000,
-      gcTime: 30 * 60 * 1000,
+      staleTime: DEFAULT_QUERY_STALE_TIME_MS,
+      gcTime: DEFAULT_QUERY_GC_TIME_MS,
       refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
+      refetchOnReconnect: true,
     },
   },
 });
@@ -317,6 +320,7 @@ function GARouteTracker() {
 
 function PublicSiteChatWidgetGate() {
   const { pathname } = useLocation();
+  if (isNative) return null;
   if (PRIVATE_APP_PREFIXES.test(pathname || "/")) return null;
   return <SiteChatWidget />;
 }
