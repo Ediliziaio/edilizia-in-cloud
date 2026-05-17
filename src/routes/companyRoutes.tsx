@@ -1,4 +1,4 @@
-import { lazy, type ReactNode } from "react";
+import { lazy } from "react";
 import { Route, Navigate, useParams } from "react-router-dom";
 
 /** Redirect /azienda/interventi/:id → /azienda/assistenza/:id (unificazione) */
@@ -14,10 +14,7 @@ function InterventoChiusuraRedirect() {
 }
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { FeatureRoute } from "@/components/auth/FeatureRoute";
-import {
-  RequireCompanyPermission,
-  type CompanyPermissionKey,
-} from "@/components/auth/RequireCompanyPermission";
+// RequireCompanyPermission + CompanyPermissionKey usati via ./company/_shared
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CompanyLayout } from "@/components/layouts/CompanyLayout";
 import { SettingsLayout } from "@/components/layouts/SettingsLayout";
@@ -265,11 +262,9 @@ const ControlloGestione = lazy(() => import("@/pages/azienda/ControlloGestione")
 const ContabilitaFiscale = lazy(() => import("@/pages/azienda/ContabilitaFiscale"));
 const ArchivioSostitutivo = lazy(() => import("@/pages/azienda/ArchivioSostitutivo"));
 
-const COMPANY_ROLES = ["company_admin", "company_staff", "super_admin", "salesperson", "call_center", "multi_company_user"] as const;
-
-function withCompanyPermission(permission: CompanyPermissionKey, element: ReactNode) {
-  return <RequireCompanyPermission permission={permission}>{element}</RequireCompanyPermission>;
-}
+// MP-CLN-001 Fase 1: COMPANY_ROLES + withCompanyPermission estratti in
+// `./company/_shared.tsx` per riuso e modularizzazione futura router.
+import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
 
 export function companyRoutes() {
   return (

@@ -47,3 +47,5 @@ package-lock.json
 
 # Masterprompt reference docs (user-local, non committare)
 Masterprompt_*.docx
+
+# MP-CLN-001: archivio storico non attivo
