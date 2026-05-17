@@ -48,6 +48,27 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
+  // SECURITY: questa edge function gira con SERVICE_ROLE e processa un
+  // messaggio WhatsApp arbitrario (costo OpenAI, side-effect su DB). Va
+  // chiamata SOLO da worker interni (whatsapp-webhook → handlers/*) che
+  // possiedono INTERNAL_WORKER_KEY. Senza il check, un caller esterno
+  // potrebbe triggerare elaborazione AI ripetuta su qualsiasi message_id.
+  const workerKey = Deno.env.get("INTERNAL_WORKER_KEY");
+  if (workerKey) {
+    const provided = req.headers.get("x-internal-worker-key");
+    if (provided !== workerKey) {
+      console.warn("[whatsapp-ai-processor] worker key mismatch — rejecting");
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  } else {
+    console.warn(
+      "[whatsapp-ai-processor] INTERNAL_WORKER_KEY non configurato — endpoint senza protezione header.",
+    );
+  }
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,

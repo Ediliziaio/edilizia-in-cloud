@@ -11,7 +11,7 @@
  *  - Mobile-first: tutto impila, FAB per azioni rapide
  *  - Tastiera: Cmd+K per comandi globali
  */
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1153,6 +1153,21 @@ export default function CompanyDashboard() {
 
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // Ref per il timeout di "spegnimento" dell'indicator + flag mount per
+  // evitare setState dopo unmount se l'utente naviga via durante il delay.
+  const refreshTimerRef = useRef<number | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -1165,8 +1180,15 @@ export default function CompanyDashboard() {
       queryClient.invalidateQueries({ queryKey: ["company-dashboard-management-financials"] }),
       queryClient.invalidateQueries({ queryKey: ["company-dashboard-operational-agenda"] }),
     ]);
+    if (!isMountedRef.current) return;
     setLastRefresh(new Date());
-    setTimeout(() => setIsRefreshing(false), 600);
+    if (refreshTimerRef.current !== null) {
+      window.clearTimeout(refreshTimerRef.current);
+    }
+    refreshTimerRef.current = window.setTimeout(() => {
+      refreshTimerRef.current = null;
+      if (isMountedRef.current) setIsRefreshing(false);
+    }, 600);
   };
 
   // ─────────────────────────────────────────────

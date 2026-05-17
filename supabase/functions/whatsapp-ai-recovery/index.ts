@@ -79,12 +79,14 @@ Deno.serve(async (req: Request) => {
       .eq("id", msg.id);
 
     try {
+      const workerKey = Deno.env.get("INTERNAL_WORKER_KEY") ?? "";
       const res = await fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-processor`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${serviceKey}`,
           "x-cron-secret": cronSecret,
+          "x-internal-worker-key": workerKey,
         },
         body: JSON.stringify({ message_id: msg.id }),
       });

@@ -14,6 +14,11 @@ export function OAuthStep({ onSuccess, hook }: OAuthStepProps) {
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
+      // SECURITY: accetta postMessage solo dalla stessa origine (la popup
+      // OAuth ritorna al nostro callback). Senza questo check qualsiasi
+      // sito terzo aperto in altro tab può inviare un fake "success" e
+      // far credere all'app che l'OAuth sia andato a buon fine.
+      if (event.origin !== window.location.origin) return;
       if (event.data?.type === "META_OAUTH_RESULT") {
         if (event.data.status === "success") {
           onSuccess();

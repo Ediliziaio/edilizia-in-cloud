@@ -154,11 +154,14 @@ export async function handleBotOperativo(
       // Invoca AI processor in fire-and-forget.
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const workerKey = Deno.env.get("INTERNAL_WORKER_KEY") ?? "";
       fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-processor`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-cron-secret": serviceKey,
+          // Worker key per autenticare la chiamata interna verso ai-processor
+          "x-internal-worker-key": workerKey,
         },
         body: JSON.stringify({ message_id: waMsg.id }),
       }).catch((err) =>
