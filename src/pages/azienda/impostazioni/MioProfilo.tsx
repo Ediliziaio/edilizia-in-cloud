@@ -3,7 +3,7 @@
  * Include: Dati personali, Sicurezza, Calendari, Notifiche
  * Accessibile a TUTTI i ruoli
  */
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -13,7 +13,7 @@ import { it } from "date-fns/locale";
 import {
   Camera, User, Save, Loader2, Phone, Mail, Lock, Eye, EyeOff,
   Shield, Check, X, CalendarDays, RefreshCw, Unlink, Clock, Bell,
-  BellRing, MessageSquare, FileText, Briefcase, Settings,
+  BellRing, MessageSquare, FileText, Briefcase,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
 // v8.6.36 — MySurveysTab rimosso dal profilo (non era semantica corretta:
 // è una LISTA OPERATIVA di sopralluoghi assegnati, non un'impostazione
@@ -140,13 +139,26 @@ export default function MioProfilo() {
     } finally { setIsUploading(false); }
   };
 
+  // v8.6.39 H2 — removeAvatar con try/catch + loading state per evitare
+  // toast success "Foto rimossa" anche quando il DB update fallisce
+  // (RLS, rete, ecc.) → prima si vedeva ack false-positive.
+  const [isRemovingAvatar, setIsRemovingAvatar] = useState(false);
   const removeAvatar = async () => {
-    if (!user?.id) return;
-    await supabase.from("profiles").update({ avatar_url: null }).eq("id", user.id);
-    setAvatarPreview(null);
-    queryClient.invalidateQueries({ queryKey: ["my-profile"] });
-    refreshAuth();
-    toast.success("Foto rimossa");
+    if (!user?.id || isRemovingAvatar) return;
+    setIsRemovingAvatar(true);
+    try {
+      const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("id", user.id);
+      if (error) throw error;
+      setAvatarPreview(null);
+      queryClient.invalidateQueries({ queryKey: ["my-profile"] });
+      refreshAuth();
+      toast.success("Foto rimossa");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Si è verificato un errore. Riprova tra qualche secondo.";
+      toast.error("Impossibile rimuovere la foto", { description: msg });
+    } finally {
+      setIsRemovingAvatar(false);
+    }
   };
 
   // ── Save profile ──
@@ -172,6 +184,20 @@ export default function MioProfilo() {
   const [confirmPw, setConfirmPw] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [changingPw, setChangingPw] = useState(false);
+
+  // v8.6.39 M5 — Calcolo strength score riutilizzabile (display + guard submit).
+  // Prima score era inline dentro il JSX, e il bottone disabled controllava solo
+  // length >= 8 — una password "aaaaaaaa" (8x 'a') passava i guard pur essendo
+  // score=1 (solo lunghezza). Ora il bottone richiede score >= 2.
+  const pwStrength = useMemo(() => {
+    let score = 0;
+    if (newPw.length >= 8) score++;
+    if (newPw.length >= 12) score++;
+    if (/[A-Z]/.test(newPw) && /[a-z]/.test(newPw)) score++;
+    if (/\d/.test(newPw)) score++;
+    if (/[^A-Za-z0-9]/.test(newPw)) score++;
+    return score;
+  }, [newPw]);
 
   const handleChangePassword = async () => {
     if (newPw.length < 8) { toast.error("Minimo 8 caratteri"); return; }
@@ -232,8 +258,18 @@ export default function MioProfilo() {
       if (res.error) throw new Error(res.error.message);
       if (res.data?.url) {
         const popup = window.open(res.data.url, "google-cal-auth", "width=500,height=700,left=400,top=100");
+        // v8.6.39 H3 — Early return se popup bloccato dal browser: prima il
+        // codice procedeva al setInterval su popup?.closed, che era sempre
+        // undefined → spinner infinito fino al timeout 5min senza feedback.
+        if (!popup) {
+          toast.error("Popup bloccato", {
+            description: "Abilita i popup per questo sito nelle impostazioni del browser e riprova.",
+          });
+          setConnectingGoogle(false);
+          return;
+        }
         const pollInterval = setInterval(() => {
-          if (popup?.closed) {
+          if (popup.closed) {
             clearInterval(pollInterval);
             setConnectingGoogle(false);
             queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
@@ -337,8 +373,13 @@ export default function MioProfilo() {
               {ROLE_LABELS[role ?? ""] ?? role}
             </Badge>
             {profile?.avatar_url && (
-              <button onClick={removeAvatar} className="text-xs text-destructive hover:underline">
-                Rimuovi foto
+              <button
+                type="button"
+                onClick={removeAvatar}
+                disabled={isRemovingAvatar}
+                className="text-xs text-destructive hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
+              >
+                {isRemovingAvatar ? "Rimozione…" : "Rimuovi foto"}
               </button>
             )}
           </div>
@@ -373,7 +414,9 @@ export default function MioProfilo() {
           <div className="lg:col-span-2 space-y-5">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Dati personali</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className="h-4 w-4" /> Dati personali
+              </CardTitle>
               <CardDescription>Le informazioni che vengono mostrate nella chat, calendario e nel team.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -387,14 +430,13 @@ export default function MioProfilo() {
                   <Input id="ln" value={lastName} onChange={(e) => setLastName(e.target.value)} />
                 </div>
               </div>
+              {/* v8.6.39 M7 — Input email rimosso: era duplicato dell'header
+                  avatar in cima alla pagina + l'input era disabled (no modifica
+                  diretta possibile). Per cambiare email: contatta admin (info
+                  spostata nel testo informativo del Telefono). */}
               <div className="space-y-1.5">
-                <Label className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" /> Email</Label>
-                <Input value={user?.email || ""} disabled className="bg-muted" />
-                <p className="text-xs text-muted-foreground">Contatta l'admin per modificare l'email.</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> Telefono</Label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" />
+                <Label htmlFor="phone" className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> Telefono</Label>
+                <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" />
               </div>
               <div className="flex items-center justify-between pt-2">
                 {profileDirty ? (
@@ -413,6 +455,11 @@ export default function MioProfilo() {
                   Salva Modifiche
                 </Button>
               </div>
+              {/* v8.6.39 M7 — nota separata in fondo: info su modifica email
+                  che prima era sotto l'input email duplicato. */}
+              <p className="text-xs text-muted-foreground border-t pt-3">
+                Per modificare l'email contatta l'amministratore della tua azienda.
+              </p>
             </CardContent>
           </Card>
           </div>
@@ -421,7 +468,9 @@ export default function MioProfilo() {
           <div className="space-y-5">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Cronologia account</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="h-4 w-4" /> Cronologia account
+              </CardTitle>
               <CardDescription>Informazioni di utilizzo del tuo account.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -458,9 +507,9 @@ export default function MioProfilo() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <Label>Nuova Password</Label>
+                <Label htmlFor="new-pw">Nuova Password</Label>
                 <div className="relative">
-                  <Input type={showPw ? "text" : "password"} value={newPw}
+                  <Input id="new-pw" type={showPw ? "text" : "password"} value={newPw}
                     onChange={(e) => setNewPw(e.target.value)} placeholder="Minimo 8 caratteri" />
                   <button onClick={() => setShowPw(!showPw)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
@@ -470,12 +519,6 @@ export default function MioProfilo() {
                 </div>
                 {/* v8.6.36 — Password strength indicator (5 livelli) */}
                 {newPw.length > 0 && (() => {
-                  let score = 0;
-                  if (newPw.length >= 8) score++;
-                  if (newPw.length >= 12) score++;
-                  if (/[A-Z]/.test(newPw) && /[a-z]/.test(newPw)) score++;
-                  if (/\d/.test(newPw)) score++;
-                  if (/[^A-Za-z0-9]/.test(newPw)) score++;
                   const labels = ["Troppo debole", "Debole", "Media", "Buona", "Forte"];
                   const colors = ["bg-red-500", "bg-orange-500", "bg-amber-500", "bg-lime-500", "bg-emerald-500"];
                   return (
@@ -484,13 +527,13 @@ export default function MioProfilo() {
                         {[0, 1, 2, 3, 4].map((i) => (
                           <div
                             key={i}
-                            className={`h-1 flex-1 rounded-full transition-colors ${i < score ? colors[score - 1] : "bg-muted"}`}
+                            className={`h-1 flex-1 rounded-full transition-colors ${i < pwStrength ? colors[pwStrength - 1] : "bg-muted"}`}
                           />
                         ))}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Sicurezza: <span className="font-medium">{labels[Math.max(0, score - 1)] ?? "Troppo debole"}</span>
-                        {score < 3 && newPw.length >= 8 && (
+                        Sicurezza: <span className="font-medium">{labels[Math.max(0, pwStrength - 1)] ?? "Troppo debole"}</span>
+                        {pwStrength < 3 && newPw.length >= 8 && (
                           <span className="ml-2 text-amber-600">· aggiungi maiuscole, numeri o simboli</span>
                         )}
                       </p>
@@ -499,8 +542,8 @@ export default function MioProfilo() {
                 })()}
               </div>
               <div className="space-y-1.5">
-                <Label>Conferma Password</Label>
-                <Input type={showPw ? "text" : "password"} value={confirmPw}
+                <Label htmlFor="confirm-pw">Conferma Password</Label>
+                <Input id="confirm-pw" type={showPw ? "text" : "password"} value={confirmPw}
                   onChange={(e) => setConfirmPw(e.target.value)} placeholder="Ripeti la password" />
                 {newPw && confirmPw && newPw !== confirmPw && (
                   <p className="text-xs text-destructive flex items-center gap-1">
@@ -514,8 +557,11 @@ export default function MioProfilo() {
                 )}
               </div>
               <div className="flex justify-end pt-2">
-                <Button variant="outline" onClick={handleChangePassword}
-                  disabled={changingPw || !newPw || newPw !== confirmPw || newPw.length < 8}>
+                <Button onClick={handleChangePassword}
+                  /* v8.6.39 M5 — guard score>=2: prima "aaaaaaaa" (8x 'a',
+                     score=1) passava il check. Ora richiede almeno 2 criteri
+                     soddisfatti (es. lunghezza + numero/maiuscole/simbolo). */
+                  disabled={changingPw || !newPw || newPw !== confirmPw || newPw.length < 8 || pwStrength < 2}>
                   {changingPw ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Shield className="h-4 w-4 mr-2" />}
                   Aggiorna Password
                 </Button>
@@ -650,8 +696,11 @@ export default function MioProfilo() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* v8.6.39 M3 — body allineato al registro di Apple Calendar
+                  (entrambi "Prossimamente" con stessa lunghezza/struttura). */}
               <p className="text-sm text-muted-foreground">
-                L'integrazione con Microsoft Outlook Calendar sarà disponibile a breve.
+                L'integrazione con Microsoft Outlook (Microsoft 365) sarà disponibile a breve.
+                Richiederà l'autorizzazione tramite il tuo account aziendale Microsoft.
               </p>
             </CardContent>
           </Card>
@@ -710,13 +759,15 @@ export default function MioProfilo() {
             in piccolo testo sopra (subtitle) — niente più sezione
             colorata che ruba spazio. */}
         <TabsContent value="email" className="mt-0 space-y-3">
-          <p className="text-xs text-muted-foreground flex items-start gap-2 px-1">
+          {/* v8.6.39 M6 — subtitle ora in mini-card neutra (border-dashed)
+              per coerenza visiva con le altre tab che iniziano con una Card. */}
+          <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground flex items-start gap-2">
             <Mail className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>
               Ogni utente collega il proprio Gmail o Outlook. Vedi solo le tue connessioni;
               le email di altri membri del team non sono visibili.
             </span>
-          </p>
+          </div>
           <EmailOAuthConnectionsCard scope="user" />
         </TabsContent>
 
