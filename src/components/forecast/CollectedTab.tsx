@@ -41,7 +41,8 @@ interface CollectedTabProps {
 
 export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
   const navigate = useNavigate();
-  const now = new Date();
+  // S2-02: stabilize `now` via useMemo
+  const now = useMemo(() => new Date(), []);
   const [customMonths, setCustomMonths] = useState(3);
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();

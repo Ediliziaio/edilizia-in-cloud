@@ -65,7 +65,8 @@ interface UnifiedTransaction {
 
 export function CashForecastTab({ stats, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast = [], primaNotaSaldo }: CashForecastTabProps) {
   const navigate = useNavigate();
-  const now = new Date();
+  // S2-02: stabilize `now` via useMemo (era ricreata ad ogni render -> deps break)
+  const now = useMemo(() => new Date(), []);
   const [filter, setFilter] = useState<FilterCategory>("all");
   const [customMonths, setCustomMonths] = useState(3);
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
@@ -75,7 +76,7 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const thisMonthEnd = endOfMonth(now);
+  const thisMonthEnd = useMemo(() => endOfMonth(now), [now]);
 
   // Calculate custom period stats from raw data
   const customPeriodStats = useMemo(() => {
@@ -98,7 +99,7 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
     const totalIncome = income + scadenzeIncome;
     const expenses = expExternal + expCommissions + expSupplier + expCosts + scadenzeExpenses;
     return { income: totalIncome, expenses, net: totalIncome - expenses };
-  }, [customMonths, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast]);
+  }, [now, customMonths, expectedPayments, expectedExpenses, expectedCommissions, expectedSupplierPayments, expectedCompanyCosts, scadenzeForForecast]);
 
   // Preset logic
   const applyPreset = (preset: string) => {

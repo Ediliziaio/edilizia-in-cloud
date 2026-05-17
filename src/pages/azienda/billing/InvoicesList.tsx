@@ -62,9 +62,10 @@ export default function InvoicesList() {
   const { data: integration } = useQuery({
     queryKey: ["billing_integration", companyId],
     queryFn: async () => {
+      // S2-03: select chirurgico — UI usa solo last_sync_at
       const { data } = await supabase
         .from("billing_integrations")
-        .select("*")
+        .select("id, last_sync_at")
         .eq("company_id", companyId!)
         .eq("is_active", true)
         .limit(1)
