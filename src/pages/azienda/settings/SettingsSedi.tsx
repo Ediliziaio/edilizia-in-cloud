@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Building2, Clock, Mail, MapPin, Pencil, Phone, Plus, Search, Star, Trash2, UserRound } from 'lucide-react'
+import { Building2, Clock, Mail, MapPin, Pencil, Phone, Plus, Search, Star, Trash2, UserRound, Warehouse, HardHat, Briefcase, MoreHorizontal, LayoutGrid, List as ListIcon } from 'lucide-react'
 
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
@@ -95,6 +95,19 @@ const TIPO_LABELS: Record<string, string> = {
   altro: 'Altro',
 }
 
+// v8.6.41 — Mapping tipo → icona + colore semantico (badge + stat cards).
+// Tailwind richiede classi statiche, quindi non si genera dinamicamente.
+const TIPO_META: Record<string, { icon: typeof Building2; tone: string; chip: string; iconBg: string }> = {
+  showroom:  { icon: Building2, tone: 'text-sky-700',     chip: 'bg-sky-50 text-sky-700 border-sky-200',         iconBg: 'bg-sky-100 text-sky-700' },
+  magazzino: { icon: Warehouse, tone: 'text-emerald-700', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200', iconBg: 'bg-emerald-100 text-emerald-700' },
+  cantiere:  { icon: HardHat,   tone: 'text-orange-700',  chip: 'bg-orange-50 text-orange-700 border-orange-200',  iconBg: 'bg-orange-100 text-orange-700' },
+  ufficio:   { icon: Briefcase, tone: 'text-violet-700',  chip: 'bg-violet-50 text-violet-700 border-violet-200',  iconBg: 'bg-violet-100 text-violet-700' },
+  altro:     { icon: MoreHorizontal, tone: 'text-slate-700', chip: 'bg-slate-50 text-slate-700 border-slate-200', iconBg: 'bg-slate-100 text-slate-700' },
+}
+function getTipoMeta(tipo: string) {
+  return TIPO_META[tipo] ?? TIPO_META.altro
+}
+
 const COLORI_PRESET = [
   '#1E3A5F', '#F97316', '#16A34A', '#7C3AED',
   '#DC2626', '#0891B2', '#CA8A04', '#9333EA',
@@ -128,6 +141,8 @@ export default function SettingsSedi() {
   const [search, setSearch] = useState('')
   const [tipoFilter, setTipoFilter] = useState<'all' | SedeFormData['tipo']>('all')
   const [statoFilter, setStatoFilter] = useState<'all' | 'attive' | 'disattive'>('all')
+  // v8.6.41 — toggle vista (grid card vs list)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   const filteredSedi = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -153,6 +168,15 @@ export default function SettingsSedi() {
   }, [search, sedi, statoFilter, tipoFilter])
 
   const activeCount = (sedi as Sede[]).filter((sede) => sede.attiva).length
+
+  // v8.6.41 — Conteggio per tipo (stats card + filtri rapidi)
+  const countByTipo = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const s of sedi as Sede[]) {
+      map[s.tipo] = (map[s.tipo] ?? 0) + 1
+    }
+    return map
+  }, [sedi])
 
   const form = useForm<SedeFormData>({
     resolver: zodResolver(sedeSchema),
@@ -281,10 +305,8 @@ export default function SettingsSedi() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      {/* Header pattern h-10 w-10 bg-primary/10 — bug fix: rimosso colore
-          hardcoded #1E3A5F che non rispettava il white-label per i clienti
-          con brand personalizzato. */}
+    <div className="space-y-6 max-w-6xl">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -293,8 +315,8 @@ export default function SettingsSedi() {
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold leading-tight">Sedi Aziendali</h1>
             <p className="text-sm text-muted-foreground">
-              Showroom, cantieri, magazzini. Usa le sedi per analytics disaggregati su
-              dashboard, ordini e fatturazione. {sedi.length} {sedi.length === 1 ? "sede" : "sedi"} configurate, {activeCount} attive.
+              Showroom, cantieri, magazzini e uffici. Usale per disaggregare gli analytics
+              su dashboard, ordini e fatturazione.
             </p>
           </div>
         </div>
@@ -304,9 +326,55 @@ export default function SettingsSedi() {
         </Button>
       </div>
 
+      {/* v8.6.41 — Stats overview: totale + breakdown per tipo. Clickable per
+          filtrare rapidamente. La card "Tutte" resetta il filtro tipo. */}
       {sedi.length > 0 && (
-        <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
-          <div className="relative">
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-6">
+          <button
+            type="button"
+            onClick={() => setTipoFilter('all')}
+            className={`rounded-lg border p-3 text-left transition-colors hover:bg-muted/40 ${tipoFilter === 'all' ? 'ring-2 ring-primary border-primary' : 'border-border'}`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <div className="h-7 w-7 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                <MapPin className="h-3.5 w-3.5" />
+              </div>
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Tutte</span>
+            </div>
+            <div className="text-lg font-bold leading-none">{sedi.length}</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              {activeCount} attive
+            </div>
+          </button>
+          {Object.entries(TIPO_LABELS).map(([key, label]) => {
+            const meta = getTipoMeta(key)
+            const count = countByTipo[key] ?? 0
+            const Icon = meta.icon
+            const isSelected = tipoFilter === key
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTipoFilter(isSelected ? 'all' : key as typeof tipoFilter)}
+                className={`rounded-lg border p-3 text-left transition-colors hover:bg-muted/40 ${isSelected ? 'ring-2 ring-primary border-primary' : 'border-border'} ${count === 0 ? 'opacity-60' : ''}`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={`h-7 w-7 rounded-md flex items-center justify-center ${meta.iconBg}`}>
+                    <Icon className="h-3.5 w-3.5" />
+                  </div>
+                  <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium truncate">{label}</span>
+                </div>
+                <div className="text-lg font-bold leading-none">{count}</div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Filtri + view mode */}
+      {sedi.length > 0 && (
+        <div className="flex flex-col gap-2 md:flex-row md:items-center">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
@@ -315,19 +383,8 @@ export default function SettingsSedi() {
               className="pl-9"
             />
           </div>
-          <Select value={tipoFilter} onValueChange={(value) => setTipoFilter(value as typeof tipoFilter)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Tipo sede" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti i tipi</SelectItem>
-              {Object.entries(TIPO_LABELS).map(([k, v]) => (
-                <SelectItem key={k} value={k}>{v}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Select value={statoFilter} onValueChange={(value) => setStatoFilter(value as typeof statoFilter)}>
-            <SelectTrigger>
+            <SelectTrigger className="md:w-44">
               <SelectValue placeholder="Stato" />
             </SelectTrigger>
             <SelectContent>
@@ -336,6 +393,31 @@ export default function SettingsSedi() {
               <SelectItem value="disattive">Solo disattive</SelectItem>
             </SelectContent>
           </Select>
+          {/* View mode toggle */}
+          <div className="hidden md:inline-flex rounded-md border bg-background p-0.5">
+            <Button
+              type="button"
+              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-8 px-2.5"
+              onClick={() => setViewMode('grid')}
+              aria-label="Vista griglia"
+              aria-pressed={viewMode === 'grid'}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-8 px-2.5"
+              onClick={() => setViewMode('list')}
+              aria-label="Vista lista"
+              aria-pressed={viewMode === 'list'}
+            >
+              <ListIcon className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
 
@@ -348,19 +430,44 @@ export default function SettingsSedi() {
         </div>
       ) : sedi.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+          <CardContent className="flex flex-col items-center justify-center py-10 gap-4 text-center">
             <MapPin className="h-10 w-10 text-muted-foreground/40" />
-            <p className="text-sm font-medium text-muted-foreground">
-              Nessuna sede configurata
-            </p>
-            <p className="text-xs text-muted-foreground max-w-xs">
-              Aggiungi le sedi della tua azienda (showroom, cantieri, magazzini) per
-              visualizzare analytics disaggregati in ogni dashboard.
-            </p>
-            <Button onClick={openCreate} size="sm" className="mt-2 gap-2 " disabled={!canEditSedi}>
-              <Plus className="h-4 w-4" />
-              Aggiungi la prima sede
-            </Button>
+            <div>
+              <p className="text-base font-semibold">Nessuna sede configurata</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-md">
+                Aggiungi le sedi della tua azienda per disaggregare gli analytics in ogni dashboard.
+                Scegli il tipo per iniziare con i campi giusti precompilati.
+              </p>
+            </div>
+            {/* v8.6.41 — Quick-add chips per tipo: precompila il dialog */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 w-full max-w-xl">
+              {Object.entries(TIPO_LABELS).map(([key, label]) => {
+                const meta = getTipoMeta(key)
+                const Icon = meta.icon
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      if (!canEditSedi) {
+                        toast.error('Non hai il permesso di modificare le sedi.')
+                        return
+                      }
+                      setEditSede(null)
+                      form.reset({ nome: '', tipo: key as SedeFormData['tipo'], colore: '#1E3A5F', nazione: 'Italia' })
+                      setDialogOpen(true)
+                    }}
+                    disabled={!canEditSedi}
+                    className="flex flex-col items-center gap-1.5 rounded-lg border p-3 hover:bg-muted/40 transition-colors disabled:opacity-50"
+                  >
+                    <div className={`h-8 w-8 rounded-md flex items-center justify-center ${meta.iconBg}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <span className="text-xs font-medium">{label}</span>
+                  </button>
+                )
+              })}
+            </div>
           </CardContent>
         </Card>
       ) : filteredSedi.length === 0 ? (
@@ -372,112 +479,239 @@ export default function SettingsSedi() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {filteredSedi.map((sede) => (
-            <Card key={sede.id} className={`transition-opacity ${!sede.attiva ? 'opacity-60' : ''}`}>
-              <CardContent className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center">
-                {/* Colore badge */}
-                <div className="flex items-start gap-3 flex-1 min-w-0">
-                  <span
-                    className="mt-1 w-4 h-4 rounded-full flex-shrink-0"
+        <div className={viewMode === 'grid' ? 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3' : 'space-y-3'}>
+          {filteredSedi.map((sede) => {
+            const meta = getTipoMeta(sede.tipo)
+            const TipoIcon = meta.icon
+            const indirizzo = [sede.indirizzo, sede.cap, sede.citta, sede.provincia, sede.regione].filter(Boolean).join(', ')
+
+            // Card grid: layout verticale con accent colore tipo in alto
+            if (viewMode === 'grid') {
+              return (
+                <Card
+                  key={sede.id}
+                  className={`relative overflow-hidden transition-opacity ${!sede.attiva ? 'opacity-60' : ''}`}
+                >
+                  {/* Accent bar colore tipo */}
+                  <div
+                    className="absolute top-0 left-0 right-0 h-1"
                     style={{ backgroundColor: sede.colore ?? '#1E3A5F' }}
                   />
+                  <CardContent className="pt-5 pb-4 space-y-3">
+                    {/* Header: tipo + nome + badges */}
+                    <div className="flex items-start justify-between gap-2 min-w-0">
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${meta.iconBg}`}>
+                          <TipoIcon className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-semibold leading-tight truncate">{sede.nome}</div>
+                          <div className="text-[11px] text-muted-foreground uppercase tracking-wide mt-0.5">
+                            {TIPO_LABELS[sede.tipo] ?? sede.tipo}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {sede.principale && (
+                          <Badge className="bg-amber-100 text-amber-700 text-[10px] hover:bg-amber-100 gap-1 h-5">
+                            <Star className="h-2.5 w-2.5" /> Principale
+                          </Badge>
+                        )}
+                        {!sede.attiva && (
+                          <Badge variant="secondary" className="text-[10px] h-5">Disattiva</Badge>
+                        )}
+                      </div>
+                    </div>
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold truncate">{sede.nome}</span>
-                      <Badge variant="outline" className="capitalize text-xs">
-                        {TIPO_LABELS[sede.tipo] ?? sede.tipo}
-                      </Badge>
-                      {sede.principale && (
-                        <Badge className="bg-amber-100 text-amber-700 text-xs hover:bg-amber-100 gap-1">
-                          <Star className="h-3 w-3" /> Principale
+                    {/* Info contatti */}
+                    {(indirizzo || sede.responsabile_sede || sede.telefono || sede.email || sede.orari_apertura) && (
+                      <div className="space-y-1.5 text-xs text-muted-foreground border-t pt-3">
+                        {indirizzo && (
+                          <div className="flex items-start gap-1.5">
+                            <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
+                            <span className="line-clamp-2">{indirizzo}</span>
+                          </div>
+                        )}
+                        {sede.responsabile_sede && (
+                          <div className="flex items-center gap-1.5">
+                            <UserRound className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{sede.responsabile_sede}</span>
+                          </div>
+                        )}
+                        {sede.telefono && (
+                          <div className="flex items-center gap-1.5">
+                            <Phone className="h-3 w-3 shrink-0" />
+                            <a href={`tel:${sede.telefono}`} className="truncate hover:text-foreground">{sede.telefono}</a>
+                          </div>
+                        )}
+                        {sede.email && (
+                          <div className="flex items-center gap-1.5">
+                            <Mail className="h-3 w-3 shrink-0" />
+                            <a href={`mailto:${sede.email}`} className="truncate hover:text-foreground">{sede.email}</a>
+                          </div>
+                        )}
+                        {sede.orari_apertura && (
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{sede.orari_apertura}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Azioni */}
+                    <div className="flex items-center justify-between pt-2 border-t -mx-2 px-2">
+                      <div className="flex items-center gap-1.5">
+                        <Switch
+                          checked={Boolean(sede.attiva)}
+                          aria-label={`${sede.attiva ? 'Disattiva' : 'Attiva'} sede ${sede.nome}`}
+                          onCheckedChange={(v) => toggleMutation.mutate({ id: sede.id, attiva: v })}
+                          disabled={!canEditSedi || toggleMutation.isPending}
+                        />
+                        <span className="text-[11px] text-muted-foreground">
+                          {sede.attiva ? 'Attiva' : 'Disattiva'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-0.5">
+                        {!sede.principale && sede.attiva && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-[11px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                            aria-label={`Imposta ${sede.nome} come sede principale`}
+                            onClick={() => setPrincipaleMutation.mutate(sede.id)}
+                            disabled={!canEditSedi || setPrincipaleMutation.isPending}
+                          >
+                            <Star className="h-3 w-3 mr-1" />
+                            Principale
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon" aria-label={`Modifica sede ${sede.nome}`}
+                          className="h-7 w-7"
+                          onClick={() => openEdit(sede)}
+                          disabled={!canEditSedi}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon" aria-label={`Elimina sede ${sede.nome}`}
+                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteId(sede.id)}
+                          disabled={!canEditSedi}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            }
+
+            // List view (vecchio layout compatto in orizzontale)
+            return (
+              <Card key={sede.id} className={`transition-opacity ${!sede.attiva ? 'opacity-60' : ''}`}>
+                <CardContent className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${meta.iconBg}`}>
+                      <TipoIcon className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold truncate">{sede.nome}</span>
+                        <Badge variant="outline" className={`text-xs ${meta.chip}`}>
+                          {TIPO_LABELS[sede.tipo] ?? sede.tipo}
                         </Badge>
+                        {sede.principale && (
+                          <Badge className="bg-amber-100 text-amber-700 text-xs hover:bg-amber-100 gap-1">
+                            <Star className="h-3 w-3" /> Principale
+                          </Badge>
+                        )}
+                        {!sede.attiva && (
+                          <Badge variant="secondary" className="text-xs">Disattiva</Badge>
+                        )}
+                      </div>
+                      {indirizzo && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          <MapPin className="inline h-3 w-3 mr-1" />
+                          {indirizzo}
+                        </p>
                       )}
-                      {!sede.attiva && (
-                        <Badge variant="secondary" className="text-xs">Disattiva</Badge>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        {sede.responsabile_sede && (
+                          <span className="inline-flex items-center gap-1">
+                            <UserRound className="h-3 w-3" /> {sede.responsabile_sede}
+                          </span>
+                        )}
+                        {sede.telefono && (
+                          <span className="inline-flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> {sede.telefono}
+                          </span>
+                        )}
+                        {sede.email && (
+                          <span className="inline-flex items-center gap-1">
+                            <Mail className="h-3 w-3" /> {sede.email}
+                          </span>
+                        )}
+                        {sede.orari_apertura && (
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> {sede.orari_apertura}
+                          </span>
+                        )}
+                      </div>
+                      {sede.note_interne && (
+                        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{sede.note_interne}</p>
                       )}
                     </div>
-                    {(sede.indirizzo || sede.citta || sede.provincia || sede.regione) && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        <Building2 className="inline h-3 w-3 mr-1" />
-                        {[sede.indirizzo, sede.cap, sede.citta, sede.provincia, sede.regione].filter(Boolean).join(', ')}
-                      </p>
-                    )}
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      {sede.responsabile_sede && (
-                        <span className="inline-flex items-center gap-1">
-                          <UserRound className="h-3 w-3" /> {sede.responsabile_sede}
-                        </span>
-                      )}
-                      {sede.telefono && (
-                        <span className="inline-flex items-center gap-1">
-                          <Phone className="h-3 w-3" /> {sede.telefono}
-                        </span>
-                      )}
-                      {sede.email && (
-                        <span className="inline-flex items-center gap-1">
-                          <Mail className="h-3 w-3" /> {sede.email}
-                        </span>
-                      )}
-                      {sede.orari_apertura && (
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> {sede.orari_apertura}
-                        </span>
-                      )}
-                    </div>
-                    {sede.note_interne && (
-                      <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{sede.note_interne}</p>
-                    )}
                   </div>
-                </div>
-
-                {/* Azioni */}
-                <div className="flex items-center gap-2 flex-shrink-0 justify-end">
+                  <div className="flex items-center gap-2 flex-shrink-0 justify-end">
                     {!sede.principale && sede.attiva && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                        aria-label={`Imposta ${sede.nome} come sede principale`}
+                        onClick={() => setPrincipaleMutation.mutate(sede.id)}
+                        disabled={!canEditSedi || setPrincipaleMutation.isPending}
+                      >
+                        <Star className="h-3 w-3 mr-1" />
+                        Principale
+                      </Button>
+                    )}
+                    <Switch
+                      checked={Boolean(sede.attiva)}
+                      aria-label={`${sede.attiva ? 'Disattiva' : 'Attiva'} sede ${sede.nome}`}
+                      onCheckedChange={(v) => toggleMutation.mutate({ id: sede.id, attiva: v })}
+                      disabled={!canEditSedi || toggleMutation.isPending}
+                    />
                     <Button
                       variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                      aria-label={`Imposta ${sede.nome} come sede principale`}
-                      onClick={() => setPrincipaleMutation.mutate(sede.id)}
-                      disabled={!canEditSedi || setPrincipaleMutation.isPending}
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label={`Modifica sede ${sede.nome}`}
+                      onClick={() => openEdit(sede)}
+                      disabled={!canEditSedi}
                     >
-                      <Star className="h-3 w-3 mr-1" />
-                      Principale
+                      <Pencil className="h-4 w-4" />
                     </Button>
-                  )}
-                  <Switch
-                    checked={Boolean(sede.attiva)}
-                    aria-label={`${sede.attiva ? 'Disattiva' : 'Attiva'} sede ${sede.nome}`}
-                    onCheckedChange={(v) => toggleMutation.mutate({ id: sede.id, attiva: v })}
-                    disabled={!canEditSedi || toggleMutation.isPending}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    aria-label={`Modifica sede ${sede.nome}`}
-                    onClick={() => openEdit(sede)}
-                    disabled={!canEditSedi}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    aria-label={`Elimina sede ${sede.nome}`}
-                    onClick={() => setDeleteId(sede.id)}
-                    disabled={!canEditSedi}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      aria-label={`Elimina sede ${sede.nome}`}
+                      onClick={() => setDeleteId(sede.id)}
+                      disabled={!canEditSedi}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
 
