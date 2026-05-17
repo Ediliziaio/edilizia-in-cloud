@@ -12,7 +12,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Loader2, Sparkles } from "lucide-react";
-import { useWhatsAppEmbeddedSignup } from "@/hooks/whatsapp/useWhatsAppEmbeddedSignup";
+import { useWhatsAppEmbeddedSignup, isEmbeddedSignupSupported } from "@/hooks/whatsapp/useWhatsAppEmbeddedSignup";
 import type { WAPurpose } from "@/hooks/whatsapp/useWhatsAppNumbers";
 
 interface Props {
@@ -53,7 +53,12 @@ export function WhatsAppEmbeddedSignupButton({
       variant={variant}
       size={size}
       className={className}
-      disabled={disabled || isBusy}
+      disabled={disabled || isBusy || !isEmbeddedSignupSupported}
+      title={
+        !isEmbeddedSignupSupported
+          ? "Embedded Signup non disponibile su mobile — usa il flusso manuale"
+          : undefined
+      }
       onClick={() => {
         connect.mutate(
           { purpose, display_name: displayName },

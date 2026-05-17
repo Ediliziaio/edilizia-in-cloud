@@ -25,7 +25,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { isNative } from "@/lib/mobile/platform";
 import { WA_NUMBERS_KEY, type WAPurpose } from "./useWhatsAppNumbers";
+
+/**
+ * Embedded Signup è supportato solo su web: in Capacitor (iOS/Android) la
+ * popup `FB.login` apre un browser system-level e il postMessage al window
+ * opener non funziona dalla webview, il che lascia il flusso appeso.
+ * Su mobile bisogna usare il wizard manuale.
+ */
+export const isEmbeddedSignupSupported = !isNative;
 
 // ── FB SDK loader (singleton) ─────────────────────────────────────────────
 const FB_SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";
@@ -43,8 +52,13 @@ let fbSdkPromise: Promise<void> | null = null;
 let lastInitAppId: string | null = null;
 
 function loadFacebookSdk(appId: string): Promise<void> {
-  // Se l'SDK è già stato caricato con un altro appId, lo re-init.
+  // Se l'SDK è già stato caricato per LO STESSO appId, riusiamo la Promise.
   if (fbSdkPromise && lastInitAppId === appId) return fbSdkPromise;
+
+  // Cambio appId (multi-tenant in-session): scarta la cache e re-init pulito.
+  if (lastInitAppId && lastInitAppId !== appId) {
+    fbSdkPromise = null;
+  }
 
   fbSdkPromise = new Promise<void>((resolve, reject) => {
     if (typeof window === "undefined") {
@@ -71,17 +85,26 @@ function loadFacebookSdk(appId: string): Promise<void> {
       }
     };
 
-    // Se è già presente lo script, basta re-init
+    // Se l'SDK è già caricato e inizializzato → basta re-init con nuovo appId
     if (window.FB) {
       initFB();
       return;
     }
 
-    window.fbAsyncInit = initFB;
+    // Chaining di fbAsyncInit esistente (es. Meta Pixel già installato)
+    const prevAsyncInit = window.fbAsyncInit;
+    window.fbAsyncInit = () => {
+      try {
+        prevAsyncInit?.();
+      } catch (e) {
+        console.warn("[whatsapp-embedded] fbAsyncInit precedente ha sollevato:", e);
+      }
+      initFB();
+    };
 
     const existing = document.getElementById("facebook-jssdk");
     if (existing) {
-      // script presente ma SDK non ancora inizializzato
+      // script presente ma SDK non ancora inizializzato → aspettiamo fbAsyncInit
       return;
     }
     const script = document.createElement("script");
@@ -131,14 +154,41 @@ async function fetchEmbeddedConfig(companyId: string): Promise<EmbeddedConfigRes
   return data as EmbeddedConfigResponse;
 }
 
+// Origin allowlist per i postMessage di Embedded Signup. Meta invia da
+// www.facebook.com e da m.facebook.com (mobile web fallback).
+const ALLOWED_META_ORIGINS = new Set([
+  "https://www.facebook.com",
+  "https://web.facebook.com",
+  "https://m.facebook.com",
+  "https://business.facebook.com",
+]);
+
+function isMetaOrigin(origin: string): boolean {
+  if (ALLOWED_META_ORIGINS.has(origin)) return true;
+  try {
+    const host = new URL(origin).hostname;
+    return host === "facebook.com" || host.endsWith(".facebook.com");
+  } catch {
+    return false;
+  }
+}
+
 // Listener temporaneo per il messaggio "session info" dell'Embedded Signup.
 // Meta invia un postMessage con `{ type: 'WA_EMBEDDED_SIGNUP', event: 'FINISH',
-// data: { phone_number_id, waba_id } }` al window padre.
-function waitForSessionInfo(timeoutMs = 120_000): Promise<MetaSessionInfo | null> {
+// data: { phone_number_id, waba_id } }` al window padre. Aumentato il timeout
+// a 180s per dare margine ai flussi mobile (OTP via SMS può essere lento).
+function waitForSessionInfo(timeoutMs = 180_000): Promise<MetaSessionInfo | null> {
   return new Promise((resolve) => {
     const handler = (event: MessageEvent) => {
-      if (typeof event.data !== "object" || event.data === null) return;
-      // Meta invia stringhe JSON da facebook.com — tolleriamo entrambi i formati
+      // SECURITY: accetta solo postMessage provenienti da domini Meta.
+      // Senza questo check, qualsiasi iframe/popup di terze parti potrebbe
+      // iniettare phone_number_id/waba_id arbitrari (spoof degli hint).
+      if (!isMetaOrigin(event.origin)) return;
+
+      if (typeof event.data !== "object" || event.data === null) {
+        // Meta a volte invia il payload come string JSON
+        if (typeof event.data !== "string") return;
+      }
       let payload = event.data;
       if (typeof payload === "string") {
         try { payload = JSON.parse(payload); } catch { return; }
@@ -181,6 +231,11 @@ export function useWhatsAppEmbeddedSignup() {
   const connect = useMutation({
     mutationFn: async ({ purpose, display_name }: { purpose: WAPurpose; display_name?: string }) => {
       if (!companyId) throw new Error("Azienda non disponibile");
+      if (!isEmbeddedSignupSupported) {
+        throw new Error(
+          "Embedded Signup non supportato su mobile. Usa il wizard manuale (Phone Number ID + Token).",
+        );
+      }
 
       // 1. Recupera config Meta lato server
       const cfg = await fetchEmbeddedConfig(companyId);

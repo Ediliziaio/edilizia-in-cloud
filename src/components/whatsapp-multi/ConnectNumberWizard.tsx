@@ -27,6 +27,7 @@ import {
 } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import { PurposeSelector } from "./PurposeSelector";
 import { WhatsAppEmbeddedSignupButton } from "./WhatsAppEmbeddedSignupButton";
+import { isEmbeddedSignupSupported } from "@/hooks/whatsapp/useWhatsAppEmbeddedSignup";
 
 type ConnectMode = "embedded" | "manual";
 
@@ -44,9 +45,12 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
     (p) => (byPurpose[p] ?? []).length > 0,
   );
 
+  // Su mobile (Capacitor) il flusso embedded non funziona → default manuale.
+  const defaultMode: ConnectMode = isEmbeddedSignupSupported ? "embedded" : "manual";
+
   const [step, setStep] = useState<Step>(initialPurpose ? 2 : 1);
   const [purpose, setPurpose] = useState<WAPurpose | null>(initialPurpose ?? null);
-  const [mode, setMode] = useState<ConnectMode>("embedded");
+  const [mode, setMode] = useState<ConnectMode>(defaultMode);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [wabaId, setWabaId] = useState("");
@@ -59,13 +63,13 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
     if (!open) return;
     setPurpose(initialPurpose ?? null);
     setStep(initialPurpose ? 2 : 1);
-    setMode("embedded");
-  }, [open, initialPurpose]);
+    setMode(defaultMode);
+  }, [open, initialPurpose, defaultMode]);
 
   const reset = () => {
     setStep(1);
     setPurpose(null);
-    setMode("embedded");
+    setMode(defaultMode);
     setPhoneNumber("");
     setPhoneNumberId("");
     setWabaId("");
@@ -132,28 +136,42 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
 
         {step === 2 && (
           <div className="space-y-4">
-            {/* Toggle modalità: Embedded Signup (default) vs Manuale */}
-            <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/40 p-1">
-              <button
-                type="button"
-                onClick={() => setMode("embedded")}
-                className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${mode === "embedded" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                <Sparkles className="h-4 w-4" />
-                Embedded Signup
-                <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-                  consigliato
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("manual")}
-                className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${mode === "manual" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                <KeyRound className="h-4 w-4" />
-                Manuale
-              </button>
-            </div>
+            {/* Toggle modalità: visibile solo su web. Su Capacitor mobile
+                il flusso Embedded non funziona (popup FB.login esterna +
+                postMessage non raggiunge la webview), quindi mostriamo
+                un banner informativo e teniamo sempre il flusso manuale. */}
+            {isEmbeddedSignupSupported ? (
+              <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/40 p-1">
+                <button
+                  type="button"
+                  onClick={() => setMode("embedded")}
+                  className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${mode === "embedded" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Embedded Signup
+                  <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                    consigliato
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("manual")}
+                  className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${mode === "manual" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <KeyRound className="h-4 w-4" />
+                  Manuale
+                </button>
+              </div>
+            ) : (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  Su app mobile l'Embedded Signup non è disponibile. Procedi
+                  con l'inserimento manuale di Phone Number ID + Access Token,
+                  oppure completa l'onboarding dal browser desktop.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {mode === "embedded" && purpose && (
               <div className="space-y-4 py-2 text-center">
