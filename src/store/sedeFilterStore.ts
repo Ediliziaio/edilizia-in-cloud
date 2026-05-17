@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware'
 interface SedeFilterState {
   sediSelezionate: string[]      // array di sede_id, vuoto = tutte
   periodo: { da: string; a: string }
-  tipoSede: string | null        // 'showroom'|'cantiere'|null
+  tipoSede: string | null        // 'showroom'|'magazzino'|'ufficio'|'altro'|null
   setSediSelezionate: (ids: string[]) => void
   setPeriodo: (da: string, a: string) => void
   setTipoSede: (tipo: string | null) => void

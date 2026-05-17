@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Building2, Clock, Mail, MapPin, Pencil, Phone, Plus, Search, Star, Trash2, UserRound, Warehouse, HardHat, Briefcase, MoreHorizontal, LayoutGrid, List as ListIcon } from 'lucide-react'
+import { Building2, Clock, Mail, MapPin, Pencil, Phone, Plus, Search, Star, Trash2, UserRound, Warehouse, Briefcase, MoreHorizontal, LayoutGrid, List as ListIcon } from 'lucide-react'
 
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
@@ -47,7 +47,7 @@ const emptyToUndefined = (v: string | undefined) => (!v || v.trim() === '' ? und
 
 const sedeSchema = z.object({
   nome:      z.string().min(2, 'Nome richiesto (min 2 caratteri)'),
-  tipo:      z.enum(['showroom', 'magazzino', 'cantiere', 'ufficio', 'altro']),
+  tipo:      z.enum(['showroom', 'magazzino', 'ufficio', 'altro']),
   indirizzo: z.preprocess(emptyToUndefined, z.string().optional()),
   citta:     z.preprocess(emptyToUndefined, z.string().optional()),
   cap:       z.preprocess(emptyToUndefined, z.string().regex(/^\d{5}$/, 'CAP non valido').optional()),
@@ -87,10 +87,11 @@ type Sede = {
   principale: boolean | null
 }
 
+// v8.6.42 — Rimosso tipo 'cantiere': i cantieri sono entità separate
+// (tabella `orders`), il tipo qui era ridondante e confondeva l'UX.
 const TIPO_LABELS: Record<string, string> = {
   showroom: 'Showroom',
   magazzino: 'Magazzino',
-  cantiere: 'Cantiere',
   ufficio: 'Ufficio',
   altro: 'Altro',
 }
@@ -100,7 +101,6 @@ const TIPO_LABELS: Record<string, string> = {
 const TIPO_META: Record<string, { icon: typeof Building2; tone: string; chip: string; iconBg: string }> = {
   showroom:  { icon: Building2, tone: 'text-sky-700',     chip: 'bg-sky-50 text-sky-700 border-sky-200',         iconBg: 'bg-sky-100 text-sky-700' },
   magazzino: { icon: Warehouse, tone: 'text-emerald-700', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200', iconBg: 'bg-emerald-100 text-emerald-700' },
-  cantiere:  { icon: HardHat,   tone: 'text-orange-700',  chip: 'bg-orange-50 text-orange-700 border-orange-200',  iconBg: 'bg-orange-100 text-orange-700' },
   ufficio:   { icon: Briefcase, tone: 'text-violet-700',  chip: 'bg-violet-50 text-violet-700 border-violet-200',  iconBg: 'bg-violet-100 text-violet-700' },
   altro:     { icon: MoreHorizontal, tone: 'text-slate-700', chip: 'bg-slate-50 text-slate-700 border-slate-200', iconBg: 'bg-slate-100 text-slate-700' },
 }
@@ -315,8 +315,8 @@ export default function SettingsSedi() {
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold leading-tight">Sedi Aziendali</h1>
             <p className="text-sm text-muted-foreground">
-              Showroom, cantieri, magazzini e uffici. Usale per disaggregare gli analytics
-              su dashboard, ordini e fatturazione.
+              Showroom, magazzini, uffici. Usate per timbrature e geofencing HR,
+              analytics su lead/preventivi/costi e segmentazione del cruscotto.
             </p>
           </div>
         </div>

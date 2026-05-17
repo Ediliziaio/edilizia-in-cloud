@@ -13,7 +13,8 @@ import {
 import { useSedeFilter } from '@/store/sedeFilterStore'
 import { useSediList } from '@/hooks/useSediAnalytics'
 
-const TIPI_SEDE = ['showroom', 'cantiere', 'magazzino', 'ufficio'] as const
+// v8.6.42 — Rimosso 'cantiere': i cantieri sono `orders`, non sedi.
+const TIPI_SEDE = ['showroom', 'magazzino', 'ufficio'] as const
 
 export function SedeFilterBar() {
   const {

@@ -2,7 +2,10 @@ import { getCorsHeaders } from '../_shared/headers.ts'
 import { requireAuth } from '../_shared/auth.ts'
 import { verifyCompanyAccess } from '../_shared/companyAuth.ts'
 
-const TIPI_SEDE = new Set(['showroom', 'magazzino', 'cantiere', 'ufficio', 'altro'])
+// v8.6.42 — Rimosso 'cantiere': i cantieri sono `orders`, non sedi. La
+// migration di safety (UPDATE+CHECK) downgrade i record esistenti a 'altro'
+// prima di stringere il vincolo.
+const TIPI_SEDE = new Set(['showroom', 'magazzino', 'ufficio', 'altro'])
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
 const CAP = /^\d{5}$/
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
