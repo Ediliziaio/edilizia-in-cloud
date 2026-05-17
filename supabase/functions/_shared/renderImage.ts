@@ -6,8 +6,8 @@
 //    max. Evita di mandare foto iPhone 4032x3024 al provider (cost killer).
 //
 // 2. `pickProviderSize()` — sceglie la size output del provider mappando
-//    l'aspect ratio dell'input su una delle size supportate (OpenAI) o
-//    restituendo null (Gemini, che non accetta size esplicito).
+//    l'aspect ratio dell'input su una delle size supportate da OpenAI
+//    (1024x1024 / 1536x1024 / 1024x1536).
 //
 // NOTE: Supabase Storage transform API richiede il bucket con image transform
 // abilitato (default-on per progetti nuovi). Se la chiamata fallisce, fallback
@@ -16,7 +16,8 @@
 
 // ── Tipi ────────────────────────────────────────────────────────────────────
 
-export type ProviderKey = "openai" | "gemini";
+// v8.6.32 — Gemini rimosso, ora solo OpenAI gpt-image-1 (+ fallback OpenRouter).
+export type ProviderKey = "openai";
 
 export interface InputImageMeta {
   input_original_px: string | null;   // "4032x3024" — dall'hint client
@@ -241,18 +242,15 @@ export async function prepareInputImage(args: {
 /**
  * Sceglie la size output del provider in base all'aspect ratio dell'input.
  *
- * - OpenAI: mappa su 1024x1024 / 1536x1024 / 1024x1536 (quella più vicina).
- * - Gemini: ritorna null (il provider non accetta size esplicito).
+ * OpenAI gpt-image-1: mappa su 1024x1024 / 1536x1024 / 1024x1536 (quella più vicina).
  *
  * Invariante: l'output non supera MAX_OUTPUT_LONG_SIDE (1600) per design.
  */
 export function pickProviderSize(
   inputW: number | null | undefined,
   inputH: number | null | undefined,
-  provider: ProviderKey,
+  _provider: ProviderKey,
 ): string | null {
-  if (provider === "gemini") return null;
-
   // Default square se mancano dim
   if (!inputW || !inputH || inputW <= 0 || inputH <= 0) {
     return "1024x1024";

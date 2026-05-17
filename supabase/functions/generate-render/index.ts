@@ -693,11 +693,12 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
   // ── v8.6.29 — META-PROMPT è ora il PATH UNICO (no env, no flag) ──────
   // La storia: block-based prompt aveva accumulato 25KB di regole +
   // 6 PRIORITY OVERRIDE + 13 categorie QA. Ogni nuova regola CONFONDEVA
-  // di più il modello image (gpt-image-1 / Gemini) addestrato su prosa
-  // breve, non su blocchi strutturati. Stesso pattern usato da OpenAI
-  // per DALL-E: GPT-4 riscrive in prosa, DALL-E rende.
+  // di più il modello image (gpt-image-1) addestrato su prosa breve,
+  // non su blocchi strutturati. Stesso pattern usato da OpenAI per
+  // DALL-E: GPT-4 riscrive in prosa, DALL-E rende.
   //
-  // Strategia: Gemini Flash rewriter genera 300-500 parole di prosa
+  // Strategia (v8.6.32, post-rimozione Gemini): rewriter LLM testuale
+  // (gpt-4o-mini → gpt-4o fallback) genera 300-500 parole di prosa
   // naturale dalla config strutturata. Il system prompt del rewriter è
   // il single source of truth per TUTTE le regole (cassonetto trichotomy,
   // sash count change, nodo asimmetrico, hinges, transom, ecc).
@@ -1216,7 +1217,7 @@ async function processRenderBackground(args: BackgroundRenderArgs): Promise<void
           r.label.substring(0, 100)
         ),
         // v8.3.7 — Observability QA Vision multi-criterion:
-        // model     = quale provider vision ha risposto (Gemini Flash/Claude/GPT-4o-mini)
+        // model     = quale provider vision ha risposto (Claude Haiku / GPT-4o-mini)
         // categories = categorie di failure rilevate al primo tentativo (vuoto = pass)
         // count     = totale issue rilevate (utile per dashboard %)
         // retried   = true se generationAttempts > 1 (QA ha forzato retry)

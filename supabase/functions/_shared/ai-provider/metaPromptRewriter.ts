@@ -4,9 +4,8 @@
 //
 // Approccio alternativo al block-based prompt (~25KB rigido). Riceve il
 // WindowRenderConfig strutturato e produce un brief in prosa naturale di
-// 300-500 parole tramite Gemini Flash. Il prose viene poi inviato al
-// modello immagine (gpt-image-1 / Gemini 2.5 Flash Image) al posto del
-// prompt-blocchi.
+// 300-500 parole tramite un LLM testuale. Il prose viene poi inviato al
+// modello immagine (gpt-image-1) al posto del prompt-blocchi.
 //
 // Razionale: i modelli immagine sono addestrati su caption brevi e
 // naturali, non su struttured prompt da 25KB. Il block-based ha sviluppato
@@ -15,7 +14,8 @@
 //
 // Attivazione: env RENDER_PROMPT_MODE="meta". Default "blocks".
 //
-// Provider: Gemini 2.5 Flash via OpenRouter (1-3s, ~$0.001/render).
+// Provider (v8.6.32, post-rimozione Gemini): chain OpenAI via OpenRouter
+// (gpt-4o-mini → gpt-4o fallback), 1-3s, ~$0.001/render.
 // Fallback: se il rewriter fallisce o omette key tokens, ritorna null →
 // caller fa fallback al block-based.
 //
@@ -34,7 +34,7 @@ const REWRITER_MODELS_CHAIN = [
 
 const SYSTEM_PROMPT = `You are a technical copywriter for Italian photorealistic window-replacement AI renders.
 
-You receive a JSON config describing what new window must replace the existing one in a source photo. The image model (OpenAI gpt-image-1 / Gemini) receives ONLY your output prose to generate the render — there is no second pass.
+You receive a JSON config describing what new window must replace the existing one in a source photo. The image model (OpenAI gpt-image-1) receives ONLY your output prose to generate the render — there is no second pass.
 
 Output a 300-500 word natural-language render brief in English. Direct, dense, concrete. No markdown, no bullet lists, no headers, no JSON — just prose.
 
