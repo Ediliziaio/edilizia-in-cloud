@@ -1,4 +1,5 @@
 import { Outlet, useLocation } from "react-router-dom";
+import { SettingsSearch } from "@/components/layouts/SettingsSearch";
 
 // ─── Mappa URL → titolo + descrizione ───────────────────────────────────────
 interface SectionMeta {
@@ -74,9 +75,13 @@ export function SettingsLayout() {
     <div className="flex flex-col min-h-full">
       {/* Header contestuale — titolo + descrizione derivati dall'URL corrente */}
       <div className="border-b bg-background px-6 py-5">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
+          </div>
+          {/* MP-IMP-001 Fase 7: search settings + Cmd+K shortcut */}
+          <SettingsSearch />
         </div>
       </div>
 

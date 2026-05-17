@@ -4,6 +4,8 @@
 
 - [`../README.md`](../README.md) — overview progetto + setup
 - [`../ARCHITECTURE.md`](../ARCHITECTURE.md) — architettura tecnica completa
+- [`PIANI_MATRIX.md`](PIANI_MATRIX.md) — **matrice piani × permission × feature** (sales engineering + onboarding)
+- [`accessibility.md`](accessibility.md) — principi a11y + checklist nuovi componenti
 
 ## Status di sprint e feature ([docs/status/](status/))
 

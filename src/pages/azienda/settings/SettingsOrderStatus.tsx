@@ -1,23 +1,10 @@
-import { useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+// MP-IMP-001 Fase 2 — gating gestito da withCompanyPermission("canViewSettingsOrders") in companyRoutes.tsx
+import { Link } from "react-router-dom";
 import { ListOrdered, Info } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OrderStatusConfig } from "@/components/settings/OrderStatusConfig";
 
 export default function SettingsOrderStatus() {
-  const { role } = useAuth();
-  const navigate = useNavigate();
-  const isAdmin = role === "company_admin" || role === "super_admin";
-
-  useEffect(() => {
-    if (!isAdmin) {
-      navigate("/azienda", { replace: true });
-    }
-  }, [isAdmin, navigate]);
-
-  if (!isAdmin) return null;
-
   return (
     <div className="space-y-6">
       {/* Header pattern h-10 w-10 bg-primary/10 */}
