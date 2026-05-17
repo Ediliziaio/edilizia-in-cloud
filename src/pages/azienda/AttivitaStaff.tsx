@@ -23,6 +23,7 @@ import {
   CloudSun, ChevronLeft, ChevronRight, CalendarDays, Droplets,
   Thermometer, MapPin, Plus, Pencil, Trash2, X, Filter,
   ArrowUpCircle, Circle, AlertCircle, MoreHorizontal, Tag, Users,
+  MessagesSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -64,6 +65,9 @@ import {
 const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
 const FeriePersonali = lazy(() => import("@/pages/azienda/FeriePersonali"));
 const CedoliniPersonali = lazy(() => import("@/pages/azienda/CedoliniPersonali"));
+// MP-PER-001 Fase 1: Comunicazione Team integrata come tab Chat
+// (evita di creare nuove tabelle team_announcements/reads — riusa InternalChat).
+const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Costanti
@@ -1380,18 +1384,28 @@ export default function AttivitaStaff() {
       <AttivitaHeader />
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         {isAdmin ? (
-          <TabsList className="max-w-[200px]">
+          <TabsList className="max-w-[300px]">
             <TabsTrigger value="attivita" className="gap-1.5"><ClipboardCheck className="h-4 w-4" /><span className="hidden sm:inline">Attività</span></TabsTrigger>
+            <TabsTrigger value="chat" className="gap-1.5"><MessagesSquare className="h-4 w-4" /><span className="hidden sm:inline">Comunicazione</span></TabsTrigger>
           </TabsList>
         ) : (
-          <TabsList className="grid w-full grid-cols-4 max-w-xl">
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
             <TabsTrigger value="attivita" className="gap-1.5"><ClipboardCheck className="h-4 w-4" /><span className="hidden sm:inline">Attività</span></TabsTrigger>
             <TabsTrigger value="timbrature" className="gap-1.5"><Clock className="h-4 w-4" /><span className="hidden sm:inline">Timbrature</span></TabsTrigger>
             <TabsTrigger value="ferie" className="gap-1.5"><Palmtree className="h-4 w-4" /><span className="hidden sm:inline">Ferie</span></TabsTrigger>
             <TabsTrigger value="cedolini" className="gap-1.5"><Receipt className="h-4 w-4" /><span className="hidden sm:inline">Cedolini</span></TabsTrigger>
+            <TabsTrigger value="chat" className="gap-1.5"><MessagesSquare className="h-4 w-4" /><span className="hidden sm:inline">Comunicazione</span></TabsTrigger>
           </TabsList>
         )}
         <TabsContent value="attivita" className="mt-6"><TabAttivita /></TabsContent>
+        <TabsContent value="chat" className="mt-6">
+          {/* MP-PER-001 Fase 1 — Comunicazione team integrata. InternalChat
+              ha già canali, DM, reactions, replies, pins. Evita di creare
+              tabelle team_announcements/reads separate. */}
+          <Suspense fallback={<TabFallback />}>
+            <InternalChat />
+          </Suspense>
+        </TabsContent>
         {!isAdmin && (
           <>
             <TabsContent value="timbrature" className="mt-6"><Suspense fallback={<TabFallback />}><TimbraturePersonali /></Suspense></TabsContent>
