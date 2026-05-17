@@ -3,9 +3,10 @@
 // Parsea XML FatturaPA, estrae i dati e salva in fatture_ricevute
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
 import { corsHeaders } from "../_shared/headers.ts";
 
-// ─── XML Parser Helpers (DOMParser, native in Deno) ─────────────
+// ─── XML Parser Helpers (DOMParser via deno-dom WASM) ─────────────
 
 function getTagText(doc: Document, tag: string): string {
   const el = doc.getElementsByTagName(tag)[0];
@@ -40,6 +41,9 @@ interface ParsedFattura {
 
 function parseFatturaPA(xmlString: string): ParsedFattura {
   const doc = new DOMParser().parseFromString(xmlString, "text/xml");
+  if (!doc) {
+    throw new Error("XML FatturaPA non parsabile (body vuoto o non valido)");
+  }
 
   // Trasmissione
   const sdiId = getTagText(doc, "IdentificativoSdI");
@@ -198,6 +202,15 @@ Deno.serve(async (req) => {
 
       // Find company by P.IVA del cessionario (l'azienda che riceve la fattura)
       const xmlDoc = new DOMParser().parseFromString(xmlBody, "text/xml");
+      if (!xmlDoc) {
+        await supabase.from("sdi_log").insert({
+          company_id: null as unknown as string,
+          evento: "ricevi_sdi_parse_failed",
+          messaggio: "XML body non parsabile in webhook handler",
+          xml_content: xmlBody.slice(0, 5000),
+        }).then(() => {}, () => {});
+        return new Response("Bad request: invalid XML", { status: 400 });
+      }
       const cessionario = xmlDoc.getElementsByTagName("CessionarioCommittente")[0];
       const destPiva =
         cessionario?.getElementsByTagName("IdCodice")[0]?.textContent?.trim() ?? "";

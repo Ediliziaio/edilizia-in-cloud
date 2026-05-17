@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
 import { corsHeaders } from "../_shared/headers.ts";
 
 Deno.serve(async (req) => {
@@ -48,8 +49,17 @@ Deno.serve(async (req) => {
       return new Response("Unauthorized: invalid signature", { status: 401 });
     }
 
-    // Parse notification from XML body using DOMParser (robust, handles CDATA/namespaces)
+    // Parse notification from XML body using DOMParser (deno-dom WASM)
     const xmlDoc = new DOMParser().parseFromString(body, "text/xml");
+    if (!xmlDoc) {
+      await supabase.from("sdi_log").insert({
+        company_id: null as unknown as string,
+        evento: "webhook_parse_failed",
+        messaggio: "XML body non parsabile",
+        xml_content: body.slice(0, 5000),
+      }).then(() => {}, () => {});
+      return new Response("Bad request: invalid XML", { status: 400 });
+    }
     const getTag = (tag: string): string | null => {
       // Try with and without namespace
       const el = xmlDoc.getElementsByTagName(tag)[0]
