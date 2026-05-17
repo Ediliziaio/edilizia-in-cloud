@@ -1,11 +1,11 @@
 /**
- * SilvioFAB — Floating Action Button bottom-left con accesso rapido a:
+ * SilvioFAB — Floating Action Button desktop/tablet con accesso rapido a:
  *   1. Chat con Silvio (assistente AI principale)
  *   2. Azioni rapide (Documento intelligente, Computo metrico, Cerca commesse)
  *   3. "Cose da sapere" (tip rotanti AI/feature highlight)
  *
- * Visibile in tutto CompanyLayout. Su mobile diventa un bottone più grande
- * e il popover full-width.
+ * Visibile in CompanyLayout da tablet/desktop. Su mobile resta disponibile
+ * dalla sezione Chat, così non copre CTA, input e bottom navigation.
  *
  * Pattern: Popover ancorato al bottone, animazioni leggere via framer-motion.
  */
@@ -166,7 +166,7 @@ export function SilvioFAB({ hidden = false }: Props) {
 	            type="button"
 	            aria-label="Apri assistente Silvio"
               aria-expanded={open}
-	            className="fixed bottom-4 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 hover:shadow-2xl hover:scale-105 transition-all sm:w-auto sm:gap-2 sm:px-4 md:bottom-6 md:right-6"
+	            className="fixed bottom-4 right-4 z-40 hidden h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 transition-all hover:scale-105 hover:shadow-2xl md:bottom-6 md:right-6 md:flex md:w-auto md:gap-2 md:px-4"
               style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
 	            whileHover={{ rotate: [0, -5, 5, 0] }}
 	            transition={{ duration: 0.5 }}

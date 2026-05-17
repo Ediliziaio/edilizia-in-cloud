@@ -9,6 +9,8 @@
  *   <anything else>  → treated like "app" (white-label or unknown)
  */
 
+import { isMobileAppRuntime } from "@/lib/mobile/platform";
+
 export type AppSubdomain = "www" | "app" | "admin" | "clienti" | "lavori" | "other";
 
 export interface SubdomainConfig {
@@ -65,6 +67,13 @@ const DEFAULT_CONFIG: SubdomainConfig = {
 export function getCurrentSubdomain(): string {
   if (typeof window === "undefined") return "app";
   const hostname = window.location.hostname;
+
+  // Dentro iOS/Android Capacitor il bundle gira su localhost, ma non è il
+  // sito marketing: è sempre l'app operativa. La root deve quindi portare al
+  // login/redirect ruoli, non alla homepage pubblica.
+  if (isMobileAppRuntime) {
+    return "app";
+  }
 
   // Local marketing/SEO preview — match the public www site at the root.
   // Protected app routes remain available by explicit path (for example /azienda).

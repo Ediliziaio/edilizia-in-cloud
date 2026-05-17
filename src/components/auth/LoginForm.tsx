@@ -23,6 +23,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "./TwoFactorVerify";
 import { useBrandingByDomain } from "@/hooks/useBrandingByDomain";
+import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { cn } from "@/lib/utils";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
@@ -281,7 +282,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     : "";
 
   return (
-    <div ref={ref} className="min-h-screen flex flex-col lg:flex-row bg-[#0a0a0a]">
+    <div ref={ref} className="min-h-dvh flex flex-col lg:flex-row bg-[#0a0a0a]">
       {/* ─── Left branding panel (desktop only) ─── */}
       <div
         className={cn(
@@ -352,24 +353,25 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
       {/* ─── Right form panel — always light ─── */}
       <div
         className={cn(
-          "flex-1 flex items-center justify-center px-4 py-10 lg:py-12 lg:px-12 bg-background"
+          "flex-1 flex items-start justify-center overflow-y-auto bg-background px-4 py-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.25rem)]",
+          "sm:items-center sm:py-10 lg:py-12 lg:px-12"
         )}
       >
         {/* Card — white on mobile, transparent on desktop */}
         <div
           className={cn(
             "w-full max-w-sm",
-            "rounded-2xl bg-white dark:bg-zinc-900 border border-border shadow-2xl p-8",
+            "rounded-2xl bg-white dark:bg-zinc-900 border border-border shadow-xl p-5 sm:p-8",
             "lg:rounded-none lg:bg-transparent lg:dark:bg-transparent lg:border-0 lg:shadow-none lg:p-0",
             "animate-in fade-in-0 slide-in-from-bottom-4 duration-500"
           )}
         >
           {/* Mobile logo (inside card) */}
-          <div className="lg:hidden mb-8 text-center">
+          <div className="lg:hidden mb-5 sm:mb-8 text-center">
             {loginLogoUrl ? (
-              <img src={loginLogoUrl} alt={platformName} className="h-11 mx-auto object-contain" />
+              <img src={loginLogoUrl} alt={platformName} className="h-9 sm:h-11 mx-auto object-contain" />
             ) : (
-              <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-11 mx-auto" />
+              <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-9 sm:h-11 mx-auto" />
             )}
           </div>
 
@@ -382,13 +384,13 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
           {/* ── Login view ── */}
           {view === "login" && (
-            <div className="animate-in fade-in-0 duration-300 space-y-6">
+            <div className="animate-in fade-in-0 duration-300 space-y-5 sm:space-y-6">
               <div className="text-center space-y-1">
-                <h2 className="text-2xl font-bold text-foreground">Accedi al gestionale</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-foreground">Accedi al gestionale</h2>
                 <p className="text-muted-foreground text-sm">Inserisci le tue credenziali per accedere</p>
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-5">
+              <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <div className="relative">
@@ -402,7 +404,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                       required
                       disabled={isLoading}
                       autoComplete="email"
-                      autoFocus
+                      autoFocus={!isMobileAppRuntime}
                       className="pl-10 h-12 sm:h-11 focus-visible:ring-[#F97415]"
                     />
                   </div>
@@ -479,9 +481,9 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
           {/* ── Forgot password view ── */}
           {view === "forgot" && (
-            <div className="animate-in fade-in-0 duration-300 space-y-6">
+            <div className="animate-in fade-in-0 duration-300 space-y-5 sm:space-y-6">
               <div className="text-center space-y-1">
-                <h2 className="text-2xl font-bold text-foreground">Reimposta la password</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-foreground">Reimposta la password</h2>
                 <p className="text-muted-foreground text-sm">
                   Ti invieremo un link via email per reimpostare la password
                 </p>
@@ -510,7 +512,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                         required
                         disabled={isLoading}
                         autoComplete="email"
-                        autoFocus
+                        autoFocus={!isMobileAppRuntime}
                         className="pl-10 h-12 sm:h-11 focus-visible:ring-[#F97415]"
                       />
                     </div>

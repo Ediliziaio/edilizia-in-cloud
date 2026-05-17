@@ -1,5 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
+const isNativeDebugEnabled = process.env.CAPACITOR_DEBUG === "1";
+
 const config: CapacitorConfig = {
   appId: "com.ediliziaincloud.app",
   appName: "Edilizia in Cloud",
@@ -44,7 +46,7 @@ const config: CapacitorConfig = {
     backgroundColor: "#0a0a0f",
     allowMixedContent: false,
     captureInput: true,
-    webContentsDebuggingEnabled: true,
+    webContentsDebuggingEnabled: isNativeDebugEnabled,
     minSdkVersion: 24,
   },
 };

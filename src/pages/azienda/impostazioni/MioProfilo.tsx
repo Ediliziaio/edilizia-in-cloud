@@ -405,7 +405,7 @@ export default function MioProfilo() {
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
 
       {/* ── Header con avatar ── */}
-      <div className="flex items-center gap-5 mb-6">
+      <div className="flex items-center gap-4 mb-6 sm:gap-5">
         <div className="relative group">
           <Avatar className="h-20 w-20 ring-4 ring-primary/10">
             <AvatarImage src={avatarUrl ?? undefined} />
@@ -449,23 +449,26 @@ export default function MioProfilo() {
 
       {/* ── Tabs ── */}
       <Tabs defaultValue="profilo" className="w-full">
-        <TabsList className="w-full justify-start bg-muted/50 h-10 p-1 mb-6">
-          <TabsTrigger value="profilo" className="gap-1.5 text-xs sm:text-sm">
-            <User className="h-3.5 w-3.5" /> Profilo
-          </TabsTrigger>
-          <TabsTrigger value="sicurezza" className="gap-1.5 text-xs sm:text-sm">
-            <Shield className="h-3.5 w-3.5" /> Sicurezza
-          </TabsTrigger>
-          <TabsTrigger value="calendari" className="gap-1.5 text-xs sm:text-sm">
-            <CalendarDays className="h-3.5 w-3.5" /> Calendari
-          </TabsTrigger>
-          <TabsTrigger value="email" className="gap-1.5 text-xs sm:text-sm">
-            <Mail className="h-3.5 w-3.5" /> Email
-          </TabsTrigger>
-          <TabsTrigger value="notifiche" className="gap-1.5 text-xs sm:text-sm">
-            <Bell className="h-3.5 w-3.5" /> Notifiche
-          </TabsTrigger>
-        </TabsList>
+        {/* Mobile-friendly scrolling tabs (no sopralluoghi — rimossa per cleanup duplicati) */}
+        <div className="-mx-1 mb-6 overflow-x-auto overscroll-x-contain px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <TabsList className="inline-flex h-auto min-w-max w-max justify-start gap-1 bg-muted/50 p-1">
+            <TabsTrigger value="profilo" className="h-9 shrink-0 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm">
+              <User className="h-3.5 w-3.5" /> Profilo
+            </TabsTrigger>
+            <TabsTrigger value="sicurezza" className="h-9 shrink-0 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm">
+              <Shield className="h-3.5 w-3.5" /> Sicurezza
+            </TabsTrigger>
+            <TabsTrigger value="calendari" className="h-9 shrink-0 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm">
+              <CalendarDays className="h-3.5 w-3.5" /> Calendari
+            </TabsTrigger>
+            <TabsTrigger value="email" className="h-9 shrink-0 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm">
+              <Mail className="h-3.5 w-3.5" /> Email
+            </TabsTrigger>
+            <TabsTrigger value="notifiche" className="h-9 shrink-0 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm">
+              <Bell className="h-3.5 w-3.5" /> Notifiche
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ════════════ TAB PROFILO ════════════ */}
         {/* v8.6.37 — Grid 2 colonne su lg+: dati personali (2/3) + cronologia (1/3).
@@ -481,7 +484,7 @@ export default function MioProfilo() {
               <CardDescription>Le informazioni che vengono mostrate nella chat, calendario e nel team.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="fn">Nome</Label>
                   <Input id="fn" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -640,6 +643,7 @@ export default function MioProfilo() {
               <CardDescription>Esercita i tuoi diritti GDPR sui dati conservati dalla piattaforma.</CardDescription>
             </CardHeader>
             <CardContent>
+              {/* v8.6.36 — Card 'Privacy' pulita: rimosso duplicato date account (già nella tab Profilo) */}
               <div className="rounded-md border border-muted bg-muted/30 p-3 text-sm text-muted-foreground">
                 <p>
                   Per richiedere la <strong>cancellazione</strong> del tuo account o l'<strong>esportazione</strong> dei tuoi dati

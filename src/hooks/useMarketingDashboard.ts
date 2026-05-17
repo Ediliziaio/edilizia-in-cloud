@@ -5,6 +5,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useState, useMemo, useCallback } from "react";
 import { getDateRange } from "@/lib/dateRangeUtils";
+import { withClientTimeout } from "@/lib/query-timeout";
+
+const MARKETING_DASHBOARD_TIMEOUT_MS = 12_000;
 
 export type DatePreset = "today" | "yesterday" | "last7" | "last30" | "month" | "custom";
 
@@ -146,20 +149,25 @@ export function useMarketingDashboard() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.marketing.dashboard(companyId, dateRange.from.toISOString().slice(0, 10), dateRange.to.toISOString().slice(0, 10), effectiveAssignedIds, filters.sources, filters.pipelineId),
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_marketing_dashboard_stats", {
-        p_company_id: companyId!,
-        p_date_from: dateRange.from.toISOString(),
-        p_date_to: dateRange.to.toISOString(),
-        p_assigned_user_ids: effectiveAssignedIds,
-        p_sources: filters.sources.length > 0 ? filters.sources : null,
-        p_pipeline_id: filters.pipelineId,
-      });
+      const { data, error } = await withClientTimeout(
+        supabase.rpc("get_marketing_dashboard_stats", {
+          p_company_id: companyId!,
+          p_date_from: dateRange.from.toISOString(),
+          p_date_to: dateRange.to.toISOString(),
+          p_assigned_user_ids: effectiveAssignedIds,
+          p_sources: filters.sources.length > 0 ? filters.sources : null,
+          p_pipeline_id: filters.pipelineId,
+        }),
+        "Caricamento KPI commerciali",
+        MARKETING_DASHBOARD_TIMEOUT_MS,
+      );
       if (error) throw error;
       return data as unknown as DashboardStats;
     },
     enabled: !!companyId,
     staleTime: 3 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+    retry: false,
   });
 
   const updateFilters = useCallback((partial: Partial<DashboardFiltersState>) => {

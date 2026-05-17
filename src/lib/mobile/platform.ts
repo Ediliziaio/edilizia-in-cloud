@@ -1,6 +1,8 @@
 import { Capacitor } from "@capacitor/core";
 
 export const isNative = Capacitor.isNativePlatform();
+export const isMobileAppBuild = import.meta.env.VITE_APP_MODE === "mobile";
+export const isMobileAppRuntime = isNative || isMobileAppBuild;
 export const isIOS = Capacitor.getPlatform() === "ios";
 export const isAndroid = Capacitor.getPlatform() === "android";
 export const isWeb = Capacitor.getPlatform() === "web";

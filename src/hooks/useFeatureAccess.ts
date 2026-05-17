@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { withClientTimeout } from "@/lib/query-timeout";
 import { queryKeys } from "@/lib/queryKeys";
 
-const FEATURE_ACCESS_TIMEOUT_MS = 20_000;
+const FEATURE_ACCESS_TIMEOUT_MS = 10_000;
 
 /**
  * Hook unificato per il gating delle feature.
@@ -87,9 +87,17 @@ export function useFeatureAccess(
     isImpersonationReady,
     impersonatedCompanyId,
     impersonationToken,
+    selectedMultiCompanyId,
+    profile,
     isLoading: authLoading,
   } = useAuth();
-  const companyId = companyIdOverride || effectiveCompany?.id;
+  const companyId =
+    companyIdOverride ||
+    effectiveCompany?.id ||
+    selectedMultiCompanyId ||
+    impersonatedCompanyId ||
+    profile?.company_id ||
+    undefined;
 
   // Bypass sa-impersonation: richiede TUTTE queste condizioni per evitare che
   // un attaccante che scrive in sessionStorage attivi il bypass prima che la
@@ -99,12 +107,18 @@ export function useFeatureAccess(
   //   - isImpersonating=true (company ID + validazione attiva)
   //   - impersonationToken presente (ed usato dal client come auth header)
   const isSuperAdmin = role === "super_admin";
-  const bypass =
+  const directSuperAdminBypass =
+    isSuperAdmin &&
+    !isImpersonating &&
+    !impersonatedCompanyId &&
+    !impersonationToken;
+  const impersonationSuperAdminBypass =
     isSuperAdmin &&
     isImpersonationReady &&
     isImpersonating &&
     !!impersonatedCompanyId &&
     !!impersonationToken;
+  const bypass = directSuperAdminBypass || impersonationSuperAdminBypass;
 
   // La sidebar usa già `resolve_company_features`; sottoscriverci alla stessa
   // query evita una seconda verifica fragile al primo mount della route. Se il
@@ -122,20 +136,30 @@ export function useFeatureAccess(
     queryKey: queryKeys.featureFlags.companyResolved(companyId),
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await supabase.rpc("resolve_company_features", {
-        p_company_id: companyId,
-      });
+      const { data, error } = await withClientTimeout(
+        supabase.rpc("resolve_company_features", {
+          p_company_id: companyId,
+        }),
+        "Verifica accessi aziendali",
+        FEATURE_ACCESS_TIMEOUT_MS,
+      );
       if (error) throw error;
       return (data ?? []) as ResolvedFeatureRow[];
     },
     enabled: !!companyId && !bypass,
     staleTime: 60 * 1000,
-    retry: 1,
+    retry: 0,
   });
 
   const resolvedFeature = normalizeResolvedFeatureRow(
     resolvedFeatures.find((row) => row.feature_key === featureKey),
   );
+  const shouldRunSingleFeatureFallback =
+    !!companyId &&
+    !!featureKey &&
+    !bypass &&
+    !resolvedFeature &&
+    !resolvedFeaturesLoading;
 
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery<ResolveRow | null, Error>({
     queryKey: ["feature-access", companyId, featureKey],
@@ -161,12 +185,9 @@ export function useFeatureAccess(
         : ((data as ResolveRow | null) ?? null);
       return row;
     },
-    enabled: !!companyId && !!featureKey && !bypass && !resolvedFeature,
+    enabled: shouldRunSingleFeatureFallback,
     staleTime: 60 * 1000, // 1 min — override cambiano raramente ma bisogna reagire veloce
-    retry: (failureCount, queryError) => {
-      const isTransient = /timeout|network|fetch/i.test(queryError.message);
-      return isTransient && failureCount < 1;
-    },
+    retry: false,
   });
 
   if (bypass) {
@@ -187,6 +208,7 @@ export function useFeatureAccess(
   const effectiveData = resolvedFeature ?? data ?? null;
   const effectiveError = error?.message ?? resolvedFeaturesErrorObj?.message ?? null;
   const effectiveIsError = !effectiveData && (isError || resolvedFeaturesError);
+  const shouldWaitForAuth = authLoading && !companyId;
 
   return {
     isEnabled: Boolean(effectiveData?.is_enabled),
@@ -194,7 +216,7 @@ export function useFeatureAccess(
     limit: effectiveData?.limit_value ?? null,
     priceOverride: effectiveData?.price_override ?? null,
     expiresAt: effectiveData?.expires_at ?? null,
-    isLoading: authLoading || (!effectiveData && (resolvedFeaturesLoading || isLoading)),
+    isLoading: shouldWaitForAuth || (!effectiveData && (resolvedFeaturesLoading || isLoading)),
     isError: effectiveIsError,
     isFetching: resolvedFeaturesFetching || isFetching,
     errorMessage: effectiveIsError ? effectiveError : null,

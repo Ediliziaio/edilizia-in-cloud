@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>L'app richiede l'accesso alla fotocamera per scattare foto dei cantieri, allegare immagini a rapportini e ticket di assistenza.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>L'app richiede l'accesso al microfono per registrare note vocali, rapportini e richieste da trasformare in testo.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>L'app richiede l'accesso alle foto per allegare immagini esistenti a rapportini di cantiere, documenti e ticket di assistenza.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

@@ -272,8 +272,8 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90svh] overflow-hidden p-0">
-        <DialogHeader className="px-5 py-4 border-b">
+      <DialogContent className="!fixed !left-3 !right-3 !top-3 !bottom-[calc(5.25rem+env(safe-area-inset-bottom))] !flex !flex-col !w-auto !max-w-none !translate-x-0 !translate-y-0 gap-0 overflow-hidden p-0 sm:!left-[50%] sm:!right-auto sm:!top-[50%] sm:!bottom-auto sm:!w-full sm:!max-w-3xl sm:!max-h-[90svh] sm:!translate-x-[-50%] sm:!translate-y-[-50%]">
+        <DialogHeader className="shrink-0 px-5 py-4 border-b">
           <DialogTitle className="flex items-center gap-2 text-base">
             <ArrowUpFromLine className="h-5 w-5 text-primary" />
             Uscita merce e DDT
@@ -283,7 +283,7 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[calc(90svh-150px)] overflow-y-auto px-5 py-4 space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border bg-muted/20 p-3">
               <p className="text-xs font-medium uppercase text-muted-foreground">Preparazione</p>
@@ -536,7 +536,7 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
           </Alert>
         </div>
 
-        <DialogFooter className="border-t p-3 flex-row gap-2 bg-card">
+        <DialogFooter className="shrink-0 border-t p-3 flex-row gap-2 bg-card">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Annulla

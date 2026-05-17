@@ -12,6 +12,22 @@ function InterventoChiusuraRedirect() {
   const { id } = useParams();
   return <Navigate to={`/azienda/assistenza/${id ?? ""}/chiudi`} replace />;
 }
+
+/** Redirect legacy /azienda/commesse/* → /azienda/ordini/* */
+function LegacyCommessaRedirect() {
+  const { id } = useParams();
+  return <Navigate to={id ? `/azienda/ordini/${id}` : "/azienda/ordini"} replace />;
+}
+
+function LegacyCommessaDiaryRedirect() {
+  const { id } = useParams();
+  return <Navigate to={id ? `/azienda/ordini/${id}/diario` : "/azienda/ordini"} replace />;
+}
+
+function LegacyCommessaEditRedirect() {
+  const { id } = useParams();
+  return <Navigate to={id ? `/azienda/ordini/${id}/modifica` : "/azienda/ordini"} replace />;
+}
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { FeatureRoute } from "@/components/auth/FeatureRoute";
 // RequireCompanyPermission + CompanyPermissionKey usati via ./company/_shared
@@ -345,6 +361,10 @@ export function companyRoutes() {
         <Route path="dashboards/nuova" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
         <Route path="dashboards/:id" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboard"><DashboardView /></ErrorBoundary></FeatureRoute>} />
         <Route path="dashboards/:id/modifica" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
+        <Route path="commesse" element={<Navigate to="/azienda/ordini" replace />} />
+        <Route path="commesse/:id" element={<LegacyCommessaRedirect />} />
+        <Route path="commesse/:id/diario" element={<LegacyCommessaDiaryRedirect />} />
+        <Route path="commesse/:id/modifica" element={<LegacyCommessaEditRedirect />} />
         <Route path="ordini" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel caricamento commesse"><OrdersList /></ErrorBoundary>)} />
         <Route path="ordini/nuovo" element={withCompanyPermission("canEditOrders", <ErrorBoundary title="Errore nella creazione commessa"><CreateOrder /></ErrorBoundary>)} />
         <Route path="ordini/nuovo-lavoro-appaltatore" element={withCompanyPermission("canEditOrders", <FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella creazione lavoro appaltatore"><CreateLavoroAppaltatore /></ErrorBoundary></FeatureRoute>)} />

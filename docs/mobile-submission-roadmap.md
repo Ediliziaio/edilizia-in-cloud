@@ -22,7 +22,7 @@
 - **Icona App Store**: `AppIcon-512@2x.png` 1024x1024 presente
 - **14 plugin Capacitor** integrati (app, camera, geolocation, push, etc.)
 
-### Android ✅ config / ❌ build environment
+### Android ✅ config / ✅ build environment
 - Progetto Gradle `android/app/build.gradle` configurato
 - **AndroidManifest fixato** (commit `1a7c4400`):
   - rimosso `ACCESS_BACKGROUND_LOCATION` (evita form giustificazione Play)
@@ -31,11 +31,10 @@
 - **Icone mipmap**: hdpi/mdpi/xxxhdpi tutte presenti
 - **minSdk 24** (Android 7.0+) — copre ~99% del mercato
 - **targetSdk 36** — compliance con policy Google 2026
-
-**❌ Manca su questa macchina**:
-- Java JDK 17+ (obbligatorio per Gradle)
-- Android SDK / Android Studio
-- `ANDROID_HOME` env var
+- **Build Debug**: `./gradlew :app:assembleDebug` → SUCCEEDED
+- **Build Release AAB**: `./gradlew :app:bundleRelease` → SUCCEEDED
+- **Signing release**: configurabile via `android/keystore.properties` o variabili ambiente, ma il file reale non deve essere committato
+- **Nota**: senza keystore reale il bundle viene generato ma non è caricabile su Play Store.
 
 ---
 
@@ -157,7 +156,9 @@ xcodebuild -exportArchive \
 
 Verifica identità: serve documento ID + 2-3 giorni per approvazione iniziale.
 
-### 2.2 Setup ambiente build (blocking per te su questa macchina)
+### 2.2 Setup ambiente build
+
+Su questa macchina l'ambiente base è già stato verificato con OpenJDK 21 e Android command line tools. Se devi rifarlo su un'altra macchina:
 
 ```bash
 # 1. Installa OpenJDK 17 via Homebrew
@@ -193,25 +194,11 @@ keytool -genkey -v \
 # Salva la password in 1Password. BACKUP il file .keystore in due posti sicuri.
 ```
 
-Poi in `android/app/build.gradle` sezione `android {`:
+Poi copia il template e compila i valori reali:
 
-```gradle
-signingConfigs {
-    release {
-        storeFile file("../ediliziaincloud-release.keystore")
-        storePassword System.getenv("KEYSTORE_PASSWORD")
-        keyAlias "ediliziaincloud"
-        keyPassword System.getenv("KEYSTORE_PASSWORD")
-    }
-}
-buildTypes {
-    release {
-        signingConfig signingConfigs.release
-        minifyEnabled true  // riduce APK/AAB del ~40%
-        shrinkResources true
-        proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-    }
-}
+```bash
+cp android/keystore.properties.example android/keystore.properties
+# modifica android/keystore.properties con file, alias e password reali
 ```
 
 **Google Play App Signing** (raccomandato): ti consente di perdere il keystore e recuperarlo via Google. Attivalo in Play Console → Setup → App Integrity.
@@ -221,12 +208,8 @@ buildTypes {
 AAB è il formato richiesto dal 2021 per nuove app. Sostituisce APK.
 
 ```bash
-export KEYSTORE_PASSWORD="<la_tua_password>"
 cd /Users/agenteai/edilizia-in-cloud
-npm run build
-npx cap sync android
-cd android
-./gradlew bundleRelease
+npm run mobile:android:release
 # Output: android/app/build/outputs/bundle/release/app-release.aab
 ```
 

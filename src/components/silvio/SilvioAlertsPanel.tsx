@@ -25,7 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  AlertTriangle, AlertCircle, Info, Sparkles, X, RefreshCw,
+  Sparkles, X, RefreshCw,
   ArrowRight, Bell, Wallet, Package, FileText, Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -65,7 +65,7 @@ const CTA_NAVIGATION_MAP: Record<string, (payload: Record<string, unknown> | nul
   },
   open_order: (payload) => {
     const id = payload?.order_id ?? payload?.id;
-    return id ? `/azienda/commesse/${id}` : "/azienda/commesse";
+    return id ? `/azienda/ordini/${id}` : "/azienda/ordini";
   },
   open_stock: (payload) => {
     const id = payload?.stock_id ?? payload?.id;
@@ -83,14 +83,6 @@ function resolveCtaNavigation(action: string | null, payload: Record<string, unk
   const handler = CTA_NAVIGATION_MAP[action];
   if (!handler) return null;
   return handler(payload);
-}
-
-function alertIcon(severity: string) {
-  switch (severity) {
-    case "critical": return AlertCircle;
-    case "warning": return AlertTriangle;
-    default: return Info;
-  }
 }
 
 function alertColorClasses(severity: string) {
@@ -339,7 +331,6 @@ function AlertRow({
   isDismissing: boolean;
   compact: boolean;
 }) {
-  const Icon = alertIcon(alert.severity);
   const TypeIcon = ALERT_TYPE_ICON[alert.alert_type] ?? Bell;
   const colors = alertColorClasses(alert.severity);
 

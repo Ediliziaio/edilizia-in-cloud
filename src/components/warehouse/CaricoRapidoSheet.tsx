@@ -48,7 +48,9 @@ import {
   Loader2,
   ExternalLink,
   Camera,
+  CheckCircle2,
   X,
+  Search,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -136,6 +138,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   const [supplierId, setSupplierId] = useState<string | undefined>();
   const [warehouseId, setWarehouseId] = useState<string | undefined>();
   const [relatedOrderIds, setRelatedOrderIds] = useState<string[]>([]);
+  const [orderSearch, setOrderSearch] = useState("");
   const [ddtFile, setDdtFile] = useState<File | null>(null);
   const [notes, setNotes] = useState("");
   const [productPhotos, setProductPhotos] = useState<File[]>([]);
@@ -173,6 +176,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       setReceiveMode("scan");
       setSupplierId(undefined);
       setRelatedOrderIds([]);
+      setOrderSearch("");
       setDdtFile(null);
       setNotes("");
       setProductPhotos([]);
@@ -200,6 +204,36 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   const canProceedToScan = !!supplierId && !!warehouseId;
   const canContinueReceipt = canProceedToScan && (receiveMode === "scan" || !!ddtFile);
   const continueLabel = receiveMode === "ddt" ? "Carica DDT e registra prodotti" : "Inizia scansione";
+  const selectedRelatedOrders = useMemo(
+    () => relatedOrders.filter((order) => relatedOrderIds.includes(order.id)),
+    [relatedOrderIds, relatedOrders],
+  );
+  const filteredRelatedOrders = useMemo(() => {
+    const q = orderSearch.trim().toLowerCase();
+    if (!q) return relatedOrders;
+    return relatedOrders.filter((order) =>
+      `${order.order_code} ${order.customer_name ?? ""}`.toLowerCase().includes(q),
+    );
+  }, [orderSearch, relatedOrders]);
+  const scannerContextLabel = useMemo(() => {
+    const parts = [
+      supplierObj ? `Fornitore: ${supplierObj.name}` : null,
+      warehouseObj ? `Magazzino: ${warehouseObj.name}` : null,
+      ddtFile ? `DDT: ${ddtFile.name}` : null,
+      selectedRelatedOrders.length > 0
+        ? `${selectedRelatedOrders.length} ordin${selectedRelatedOrders.length === 1 ? "e" : "i"} collegat${
+            selectedRelatedOrders.length === 1 ? "o" : "i"
+          }`
+        : null,
+    ];
+    return parts.filter(Boolean).join(" · ");
+  }, [ddtFile, selectedRelatedOrders.length, supplierObj, warehouseObj]);
+  const progressItems = [
+    { label: "Fornitore", done: !!supplierId },
+    { label: "DDT", done: receiveMode === "scan" || !!ddtFile },
+    { label: "Ordini", done: relatedOrderIds.length > 0 },
+    { label: "Magazzino", done: !!warehouseId },
+  ];
   const toggleRelatedOrder = (orderId: string) => {
     setRelatedOrderIds((current) =>
       current.includes(orderId)
@@ -376,9 +410,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             }}
             mode="carico"
             contextLabel={
-              supplierObj && warehouseObj
-                ? `Fornitore: ${supplierObj.name} · Magazzino: ${warehouseObj.name}`
-                : ""
+              scannerContextLabel
             }
             supplierId={supplierId}
             supplierUsesGs1={supplierUsesGs1}
@@ -388,6 +420,8 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             confirmLabel="Conferma carico"
             isConfirming={batchCarico.isPending}
             onRequestCreateItem={handleRequestCreateItem}
+            onBack={() => setStep("context")}
+            backLabel="Indietro"
           />
         </Suspense>
         {/* Dialog inline per creare un articolo da scansione no-match. */}
@@ -405,8 +439,8 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90svh] overflow-hidden p-0">
-        <DialogHeader className="px-5 py-4 border-b">
+      <DialogContent className="!fixed !left-3 !right-3 !top-3 !bottom-[calc(5.25rem+env(safe-area-inset-bottom))] !flex !flex-col !w-auto !max-w-none !translate-x-0 !translate-y-0 gap-0 overflow-hidden p-0 sm:!left-[50%] sm:!right-auto sm:!top-[50%] sm:!bottom-auto sm:!w-full sm:!max-w-3xl sm:!max-h-[90svh] sm:!translate-x-[-50%] sm:!translate-y-[-50%]">
+        <DialogHeader className="shrink-0 px-5 py-4 border-b">
           <DialogTitle className="flex items-center gap-2 text-base">
             <ArrowDownToLine className="h-5 w-5 text-primary" />
             Registra arrivo merce
@@ -416,7 +450,23 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[calc(90svh-150px)] overflow-y-auto px-5 py-4 space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <div className="grid grid-cols-4 gap-1.5">
+            {progressItems.map((item) => (
+              <div
+                key={item.label}
+                className={`rounded-md border px-2 py-1.5 text-center text-[10px] font-medium ${
+                  item.done
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-border bg-muted/30 text-muted-foreground"
+                }`}
+              >
+                <CheckCircle2 className={`mx-auto mb-0.5 h-3.5 w-3.5 ${item.done ? "" : "opacity-35"}`} />
+                <span className="block truncate">{item.label}</span>
+              </div>
+            ))}
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border bg-muted/20 p-3">
               <p className="text-xs font-medium uppercase text-muted-foreground">Inserimento</p>
@@ -498,16 +548,50 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 </p>
               </div>
             </div>
-            <Input
-              id="cr-ddt-file"
-              type="file"
-              accept="image/*,.pdf"
-              capture="environment"
-              onChange={(event) => {
-                setDdtFile(event.target.files?.[0] ?? null);
-                event.currentTarget.value = "";
-              }}
-            />
+            <div className="rounded-md border bg-background p-2">
+              <Input
+                id="cr-ddt-file"
+                type="file"
+                accept="image/*,.pdf"
+                capture="environment"
+                className="sr-only"
+                onChange={(event) => {
+                  setDdtFile(event.target.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
+              />
+              {ddtFile ? (
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      DDT allegato
+                    </p>
+                    <p className="truncate text-xs font-medium">{ddtFile.name}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 min-h-8 min-w-8 shrink-0"
+                    onClick={() => setDdtFile(null)}
+                    aria-label={`Rimuovi DDT ${ddtFile.name}`}
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Button>
+                </div>
+              ) : (
+                <label
+                  htmlFor="cr-ddt-file"
+                  className="flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm transition hover:bg-muted"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <FileText className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                    <span className="truncate font-medium">Allega DDT</span>
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">Foto o PDF</span>
+                </label>
+              )}
+            </div>
             {receiveMode === "ddt" && !ddtFile && (
               <Alert className="border-amber-200 bg-amber-50/70 text-amber-900">
                 <Info className="h-4 w-4" />
@@ -516,51 +600,76 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 </AlertDescription>
               </Alert>
             )}
-            {ddtFile && (
-              <div className="flex items-center justify-between gap-2 rounded-md bg-background px-3 py-2 text-xs">
-                <span className="truncate">{ddtFile.name}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => setDdtFile(null)}
-                  aria-label={`Rimuovi DDT ${ddtFile.name}`}
-                >
-                  <X className="h-3.5 w-3.5" aria-hidden="true" />
-                </Button>
-              </div>
-            )}
             <div className="rounded-md border bg-background">
-              <div className="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
-                Ordini da collegare {relatedOrderIds.length > 0 && `(${relatedOrderIds.length})`}
+              <div className="flex items-center justify-between gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+                <span>Ordini da collegare</span>
+                <div className="flex items-center gap-2">
+                  {relatedOrderIds.length > 0 && (
+                    <>
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+                        {relatedOrderIds.length} selezionat{relatedOrderIds.length === 1 ? "o" : "i"}
+                      </span>
+                      <button
+                        type="button"
+                        className="text-[11px] text-primary hover:underline"
+                        onClick={() => setRelatedOrderIds([])}
+                      >
+                        Azzera
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="max-h-44 overflow-y-auto p-2 space-y-1">
+              <div className="border-b p-1.5">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={orderSearch}
+                    onChange={(event) => setOrderSearch(event.target.value)}
+                    placeholder="Cerca ordine o cliente..."
+                    className="h-8 pl-8 text-xs"
+                  />
+                </div>
+              </div>
+              <div className="max-h-36 space-y-1 overflow-y-auto p-1.5 sm:max-h-44">
                 {relatedOrdersLoading ? (
                   <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
                     <Loader2 className="mr-2 h-3 w-3 animate-spin" />
                     Caricamento ordini...
                   </div>
-                ) : relatedOrders.length === 0 ? (
-                  <p className="px-2 py-3 text-xs text-muted-foreground">Nessun ordine disponibile.</p>
+                ) : filteredRelatedOrders.length === 0 ? (
+                  <p className="px-2 py-3 text-xs text-muted-foreground">
+                    {orderSearch ? "Nessun ordine trovato con questa ricerca." : "Nessun ordine disponibile."}
+                  </p>
                 ) : (
-                  relatedOrders.map((order) => (
-                    <label
-                      key={order.id}
-                      className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted"
-                    >
-                      <Checkbox
-                        checked={relatedOrderIds.includes(order.id)}
-                        onCheckedChange={() => toggleRelatedOrder(order.id)}
-                      />
-                      <span className="min-w-0">
-                        <span className="font-medium">{order.order_code}</span>
-                        {order.customer_name && (
-                          <span className="text-muted-foreground"> · {order.customer_name}</span>
-                        )}
-                      </span>
-                    </label>
-                  ))
+                  filteredRelatedOrders.map((order) => {
+                    const selected = relatedOrderIds.includes(order.id);
+
+                    return (
+                      <label
+                        key={order.id}
+                        className={`flex min-h-11 cursor-pointer items-start gap-2 rounded-md border px-2.5 py-2 text-sm transition ${
+                          selected
+                            ? "border-primary/35 bg-primary/5"
+                            : "border-transparent hover:border-border hover:bg-muted/70"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={selected}
+                          onCheckedChange={() => toggleRelatedOrder(order.id)}
+                          className="mt-0.5 !h-4 !w-4 !min-h-4 !min-w-4 rounded border-muted-foreground/50 data-[state=checked]:border-primary"
+                        />
+                        <span className="min-w-0 flex-1 leading-tight">
+                          <span className="block truncate font-semibold text-foreground">{order.order_code}</span>
+                          {order.customer_name && (
+                            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                              {order.customer_name}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -667,7 +776,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
           )}
         </div>
 
-        <DialogFooter className="border-t p-3 flex-row gap-2 bg-card">
+        <DialogFooter className="shrink-0 border-t p-3 flex-row gap-2 bg-card">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Annulla

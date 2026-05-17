@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState } from "react";
+import { useMemo, useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -284,6 +284,19 @@ export function useCompanyDashboardData() {
     () => getDateRange(filters.datePreset, filters.dateFrom, filters.dateTo),
     [filters.datePreset, filters.dateFrom, filters.dateTo]
   );
+
+  const [allowPartialRender, setAllowPartialRender] = useState(false);
+
+  useEffect(() => {
+    setAllowPartialRender(false);
+    if (!companyId) return;
+
+    const timer = window.setTimeout(() => {
+      setAllowPartialRender(true);
+    }, 8_000);
+
+    return () => window.clearTimeout(timer);
+  }, [companyId, dateRange.from, dateRange.to, filters.statusId]);
 
   const { data: dashboardData, isLoading: isDashboardLoading, isError: isDashboardError } = useQuery({
     queryKey: queryKeys.dashboard.company(companyId, `${dateRange.from.toISOString()}-${dateRange.to.toISOString()}-${filters.statusId}`),
@@ -755,7 +768,7 @@ export function useCompanyDashboardData() {
     dashboardData,
     // P2.3 fix — la condizione precedente `!companyId && isDashboardLoading`
     // era sempre false quando companyId era valorizzato → skeleton dead.
-    isLoading: !!companyId && isDashboardLoading && !managementFinancials,
+    isLoading: !!companyId && isDashboardLoading && !managementFinancials && !allowPartialRender,
     isError: isDashboardError && !managementFinancials,
     stats,
     prevStats: dashboardData?.prevStats ?? { totalOrders: 0, totalCustomers: 0 },

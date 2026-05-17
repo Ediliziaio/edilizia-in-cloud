@@ -44,6 +44,7 @@ import {
   WifiOff,
   ScanLine,
   X,
+  ArrowLeft,
   Trash2,
   AlertCircle,
   Package,
@@ -121,6 +122,10 @@ interface BatchBarcodeScannerProps {
   confirmLabel?: string;
   /** True quando il commit è in corso. */
   isConfirming?: boolean;
+  /** Torna allo step precedente senza chiudere tutto il flusso. */
+  onBack?: () => void;
+  /** Etichetta CTA secondaria quando onBack è presente. */
+  backLabel?: string;
   /**
    * Quando una scansione restituisce "offer_create_new", il caller può
    * fornire questo callback per permettere all'utente di creare l'articolo
@@ -162,6 +167,8 @@ export function BatchBarcodeScanner({
   onConfirm,
   confirmLabel = "Conferma",
   isConfirming = false,
+  onBack,
+  backLabel = "Indietro",
   onRequestCreateItem,
   onLookupFilter,
   onLookupEdit,
@@ -393,6 +400,12 @@ export function BatchBarcodeScanner({
     onScan: handleScan,
   });
 
+  useEffect(() => {
+    if (open && cameraError && !manualMode) {
+      setManualMode(true);
+    }
+  }, [cameraError, manualMode, open]);
+
   const { canConfirm, handleConfirm } = useBatchScannerSubmit({
     mode,
     entries,
@@ -544,34 +557,50 @@ export function BatchBarcodeScanner({
           ) : (
             <form
               onSubmit={handleManualSubmit}
-              className="bg-card p-4 flex items-end gap-2 border-b"
+              className="bg-card p-4 border-b space-y-3"
             >
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="bs-manual" className="text-xs">
-                  Codice manuale
-                </Label>
-                <Input
-                  ref={manualInputRef}
-                  id="bs-manual"
-                  value={manualCode}
-                  onChange={(e) => setManualCode(e.target.value)}
-                  placeholder="Digita o incolla..."
-                  autoComplete="off"
-                  className="font-mono"
-                />
+              {cameraError && (
+                <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    Fotocamera non disponibile su questo dispositivo. Inserisci o incolla il codice qui sotto.
+                  </AlertDescription>
+                </Alert>
+              )}
+              <div className="flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="bs-manual" className="text-xs">
+                    Codice manuale
+                  </Label>
+                  <Input
+                    ref={manualInputRef}
+                    id="bs-manual"
+                    value={manualCode}
+                    onChange={(e) => setManualCode(e.target.value)}
+                    placeholder="Digita o incolla..."
+                    autoComplete="off"
+                    className="font-mono"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={!manualCode.trim() || lookup.isPending}
+                  className="shrink-0 gap-1.5"
+                  aria-label="Cerca codice manuale"
+                >
+                  <ScanLine className="h-4 w-4" />
+                  <span>Cerca</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setManualMode(false)}
+                  aria-label="Torna alla camera"
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
               </div>
-              <Button type="submit" disabled={!manualCode.trim() || lookup.isPending}>
-                <ScanLine className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => setManualMode(false)}
-                aria-label="Torna alla camera"
-              >
-                <Camera className="h-4 w-4" />
-              </Button>
             </form>
           )}
         </div>
@@ -639,6 +668,28 @@ export function BatchBarcodeScanner({
         {/* Footer with confirm CTA */}
         {mode !== "lookup" && (
           <div className="border-t p-3 space-y-2 shrink-0 bg-card">
+            {entries.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-md border bg-muted/30 px-2 py-1.5 text-center">
+                  <p className="text-sm font-bold leading-tight">{entries.length}</p>
+                  <p className="text-[10px] text-muted-foreground">righe</p>
+                </div>
+                <div className="rounded-md border bg-muted/30 px-2 py-1.5 text-center">
+                  <p className="text-sm font-bold leading-tight">{totalScans}</p>
+                  <p className="text-[10px] text-muted-foreground">pezzi</p>
+                </div>
+                <div
+                  className={`rounded-md border px-2 py-1.5 text-center ${
+                    noMatchCount > 0 || invalidSerializedCount > 0
+                      ? "border-amber-200 bg-amber-50 text-amber-800"
+                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  }`}
+                >
+                  <p className="text-sm font-bold leading-tight">{noMatchCount + invalidSerializedCount}</p>
+                  <p className="text-[10px]">da sistemare</p>
+                </div>
+              </div>
+            )}
             {noMatchCount > 0 && (
               <Alert>
                 <Package className="h-4 w-4" />
@@ -664,11 +715,15 @@ export function BatchBarcodeScanner({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={onBack ?? (() => onOpenChange(false))}
                 className="flex-1"
               >
-                <X className="h-4 w-4 mr-2" />
-                Chiudi
+                {onBack ? (
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                ) : (
+                  <X className="h-4 w-4 mr-2" />
+                )}
+                {onBack ? backLabel : "Chiudi"}
               </Button>
               <Button
                 type="button"

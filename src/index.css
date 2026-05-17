@@ -277,17 +277,28 @@ html { scroll-behavior: smooth; }
 
 /* ── Capacitor native app safe-area padding ────────────────── */
 /* Applied when running inside iOS/Android native shell.
-   Capacitor injects the `capacitor` class on <html>. */
+   The app bootstrap adds the `capacitor` class on <html>. */
 html.capacitor body {
+  min-height: 100dvh;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
 }
 
+html.capacitor #root {
+  min-height: 100dvh;
+}
+
 /* Fixed bottom bars (tabs, action bars) need bottom safe-area */
 html.capacitor .fixed.bottom-0 {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html.capacitor input,
+html.capacitor select,
+html.capacitor textarea {
+  font-size: 16px;
 }
 
 /* Disable pull-to-refresh in native (Capacitor handles it) */
