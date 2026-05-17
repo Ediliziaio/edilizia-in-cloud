@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 
 interface Props {
   referrer: any;
@@ -25,7 +26,10 @@ export function PartnerOnboardingModal({ referrer }: Props) {
       // Recupera IP per firma digitale
       let ip = "unknown";
       try {
-        const res  = await fetch("https://api.ipify.org?format=json");
+        const res  = await fetchWithTimeout("https://api.ipify.org?format=json", {
+          timeoutMs: 5_000,
+          context: "ipify.detect",
+        });
         const data = await res.json();
         ip = data.ip;
       } catch { /* storage non disponibile — silenzioso */ }

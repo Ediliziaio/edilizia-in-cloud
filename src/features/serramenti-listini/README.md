@@ -57,4 +57,4 @@ supabase/functions/
 
 ## Step di sviluppo
 
-Vedi `STATUS_SERRAMENTI_LISTINI.md` nella root del progetto.
+Vedi [`docs/status/STATUS_SERRAMENTI_LISTINI.md`](../../../docs/status/STATUS_SERRAMENTI_LISTINI.md).

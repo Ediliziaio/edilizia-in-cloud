@@ -11,6 +11,7 @@
  * Filtra il risultato applicando OPENROUTER_ALLOWED_PATTERNS.
  */
 import { supabase } from '@/integrations/supabase/client';
+import { fetchWithTimeout } from '@/lib/utils/fetchWithTimeout';
 import {
   OPENROUTER_ALLOWED_PATTERNS,
   OPENROUTER_EXCLUDE_PATTERNS,
@@ -189,7 +190,10 @@ export async function fetchAvailableModels(opts?: { forceRefresh?: boolean }): P
 
   // 2) Fallback: API pubblica OpenRouter direct (potrebbe fallire per CORS)
   try {
-    const res = await fetch('https://openrouter.ai/api/v1/models');
+    const res = await fetchWithTimeout('https://openrouter.ai/api/v1/models', {
+      timeoutMs: 10_000,
+      context: 'openrouter.models.list',
+    });
     if (res.ok) {
       const json = await res.json() as { data?: OpenRouterApiModel[] };
       const apiModels = (json.data ?? [])

@@ -6,9 +6,13 @@
  *  - Max 1 richiesta/secondo (rate limit)
  *  - User-Agent obbligatorio
  *  - Cache in-memory (4 decimali di precisione ≈ 11m)
+ *  - Timeout 5s (S3-05) + fallback graceful in caso di TimeoutError
  */
 
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
+
 const USER_AGENT = "EdiliziaInCloud/1.0 (info@ediliziaincloud.com)";
+const GEOCODE_TIMEOUT_MS = 5_000;
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 const reverseCache = new Map<string, string>();
@@ -51,11 +55,13 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
     const url =
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
 
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: {
         "User-Agent": USER_AGENT,
         "Accept-Language": "it",
       },
+      timeoutMs: GEOCODE_TIMEOUT_MS,
+      context: "geocoding.reverse",
     });
 
     if (!res.ok) throw new Error(`Nominatim HTTP ${res.status}`);
@@ -117,11 +123,13 @@ export async function forwardGeocode(
 
     const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
 
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: {
         "User-Agent": USER_AGENT,
         "Accept-Language": "it",
       },
+      timeoutMs: GEOCODE_TIMEOUT_MS,
+      context: "geocoding.forward",
     });
 
     if (!res.ok) throw new Error(`Nominatim HTTP ${res.status}`);
