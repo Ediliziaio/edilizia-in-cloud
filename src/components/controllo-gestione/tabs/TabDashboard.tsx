@@ -18,6 +18,7 @@ import { usePFN } from "@/hooks/controlloGestione/usePFN";
 import { useIndiciAvanzati } from "@/hooks/controlloGestione/useIndiciAvanzati";
 import { useMarginalitaCommesse } from "@/hooks/controlloGestione/useMarginalitaCommesse";
 import { useBudgetForecast } from "@/hooks/controlloGestione/useBudget";
+import { CogestEmptyState } from "@/components/controllo-gestione/CogestEmptyState";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import {
@@ -152,6 +153,19 @@ export function TabDashboard({ anno }: Props) {
   }
 
   if (ce.isError || sp.isError) return <ErrorBlock onRetry={() => { ce.refetch(); sp.refetch(); }} />;
+
+  // MP-DIR-001 Fase 2.1 — Empty state quando la company ha la feature attiva
+  // ma nessun dato classificato. Riconosciamo "empty" se le 4 voci principali
+  // del CE riclassificato sono tutte a zero (no ricavi, no ebitda, no ebit,
+  // no utile) E il cash flow non ha mesi popolati.
+  const isCogestEmpty =
+    ricavi === 0 && ebitda === 0 && ebit === 0 && utile === 0
+    && (cf.data?.mesi?.length ?? 0) === 0
+    && (com.data?.length ?? 0) === 0;
+
+  if (isCogestEmpty) {
+    return <CogestEmptyState />;
+  }
 
   return (
     <div className="space-y-4">
