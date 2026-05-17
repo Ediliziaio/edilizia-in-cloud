@@ -25,9 +25,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
-import { MySurveysTab } from "@/components/sopralluoghi/MySurveysTab";
-import { useFeatureFlags } from "@/hooks/useFeatureFlags";
-import { ClipboardList } from "lucide-react";
+// v8.6.36 — MySurveysTab rimosso dal profilo (non era semantica corretta:
+// è una LISTA OPERATIVA di sopralluoghi assegnati, non un'impostazione
+// personale). Il componente resta disponibile per future dashboard widget.
+// import { MySurveysTab } from "@/components/sopralluoghi/MySurveysTab";
 
 // ── Role labels ──
 const ROLE_LABELS: Record<string, string> = {
@@ -70,8 +71,7 @@ export default function MioProfilo() {
   const { user, role, refreshAuth, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
-  const { isFeatureEnabled } = useFeatureFlags();
-  const surveysEnabled = isFeatureEnabled("surveys_module");
+  // v8.6.36 — surveysEnabled rimosso (la tab Sopralluoghi non era nel posto giusto).
 
   // ── Profile data ──
   const { data: profile, isLoading } = useQuery({
@@ -98,6 +98,15 @@ export default function MioProfilo() {
       setPhone(profile.phone ?? "");
     }
   }, [profile]);
+
+  // v8.6.36 — Dirty-state: il bottone "Salva Modifiche" è abilitato solo
+  // se l'utente ha effettivamente cambiato qualcosa rispetto al DB.
+  // Evita salvataggi inutili e dà feedback visivo immediato.
+  const profileDirty = !!profile && (
+    firstName !== (profile.first_name ?? "") ||
+    lastName !== (profile.last_name ?? "") ||
+    phone !== (profile.phone ?? "")
+  );
 
   // ── Avatar ──
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -351,11 +360,6 @@ export default function MioProfilo() {
           <TabsTrigger value="email" className="gap-1.5 text-xs sm:text-sm">
             <Mail className="h-3.5 w-3.5" /> Email
           </TabsTrigger>
-          {surveysEnabled && (
-            <TabsTrigger value="sopralluoghi" className="gap-1.5 text-xs sm:text-sm">
-              <ClipboardList className="h-3.5 w-3.5" /> Sopralluoghi
-            </TabsTrigger>
-          )}
           <TabsTrigger value="notifiche" className="gap-1.5 text-xs sm:text-sm">
             <Bell className="h-3.5 w-3.5" /> Notifiche
           </TabsTrigger>
@@ -388,8 +392,19 @@ export default function MioProfilo() {
                 <Label className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> Telefono</Label>
                 <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" />
               </div>
-              <div className="flex justify-end pt-2">
-                <Button onClick={() => updateProfile.mutate()} disabled={updateProfile.isPending}>
+              <div className="flex items-center justify-between pt-2">
+                {profileDirty ? (
+                  <p className="text-xs text-amber-600 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Modifiche non salvate
+                  </p>
+                ) : (
+                  <span />
+                )}
+                <Button
+                  onClick={() => updateProfile.mutate()}
+                  disabled={updateProfile.isPending || !profileDirty}
+                >
                   {updateProfile.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                   Salva Modifiche
                 </Button>
@@ -397,21 +412,16 @@ export default function MioProfilo() {
             </CardContent>
           </Card>
 
-          {/* Info Account */}
+          {/* v8.6.36 — Card Info Account ridotta: Email + Ruolo erano già
+              nell'header avatar in cima alla pagina (duplicato rimosso).
+              Resta solo: data creazione + ultimo accesso. */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Info Account</CardTitle>
+              <CardTitle className="text-base">Cronologia account</CardTitle>
+              <CardDescription>Informazioni di utilizzo del tuo account.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground text-xs">Email</p>
-                  <p className="font-medium">{user?.email}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Ruolo</p>
-                  <p className="font-medium">{ROLE_LABELS[role ?? ""] ?? role}</p>
-                </div>
                 <div>
                   <p className="text-muted-foreground text-xs">Account creato</p>
                   <p className="font-medium">
@@ -445,10 +455,40 @@ export default function MioProfilo() {
                   <Input type={showPw ? "text" : "password"} value={newPw}
                     onChange={(e) => setNewPw(e.target.value)} placeholder="Minimo 8 caratteri" />
                   <button onClick={() => setShowPw(!showPw)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    type="button" aria-label={showPw ? "Nascondi password" : "Mostra password"}>
                     {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {/* v8.6.36 — Password strength indicator (5 livelli) */}
+                {newPw.length > 0 && (() => {
+                  let score = 0;
+                  if (newPw.length >= 8) score++;
+                  if (newPw.length >= 12) score++;
+                  if (/[A-Z]/.test(newPw) && /[a-z]/.test(newPw)) score++;
+                  if (/\d/.test(newPw)) score++;
+                  if (/[^A-Za-z0-9]/.test(newPw)) score++;
+                  const labels = ["Troppo debole", "Debole", "Media", "Buona", "Forte"];
+                  const colors = ["bg-red-500", "bg-orange-500", "bg-amber-500", "bg-lime-500", "bg-emerald-500"];
+                  return (
+                    <div className="space-y-1 pt-0.5">
+                      <div className="flex gap-1">
+                        {[0, 1, 2, 3, 4].map((i) => (
+                          <div
+                            key={i}
+                            className={`h-1 flex-1 rounded-full transition-colors ${i < score ? colors[score - 1] : "bg-muted"}`}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Sicurezza: <span className="font-medium">{labels[Math.max(0, score - 1)] ?? "Troppo debole"}</span>
+                        {score < 3 && newPw.length >= 8 && (
+                          <span className="ml-2 text-amber-600">· aggiungi maiuscole, numeri o simboli</span>
+                        )}
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="space-y-1.5">
                 <Label>Conferma Password</Label>
@@ -475,30 +515,22 @@ export default function MioProfilo() {
             </CardContent>
           </Card>
 
-          {/* Privacy & sessioni */}
+          {/* v8.6.36 — Card "Privacy" pulita: rimosso duplicato date
+              account (già nella tab Profilo). Focus su GDPR + sicurezza. */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Privacy & Sessione</CardTitle>
-              <CardDescription>Informazioni sulla tua sessione attiva e i dati del tuo account.</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Shield className="h-4 w-4" /> Privacy & dati personali
+              </CardTitle>
+              <CardDescription>Esercita i tuoi diritti GDPR sui dati conservati dalla piattaforma.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground text-xs">Account creato</p>
-                  <p className="font-medium">
-                    {profile?.created_at ? format(new Date(profile.created_at), "d MMMM yyyy", { locale: it }) : "—"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Ultimo accesso</p>
-                  <p className="font-medium">
-                    {profile?.last_login_at ? format(new Date(profile.last_login_at), "d MMM yyyy, HH:mm", { locale: it }) : "—"}
-                  </p>
-                </div>
-              </div>
-              <Separator />
-              <div className="text-sm text-muted-foreground">
-                <p>Per richiedere la cancellazione del tuo account o l'esportazione dei tuoi dati personali (GDPR), contatta l'amministratore della tua azienda.</p>
+            <CardContent>
+              <div className="rounded-md border border-muted bg-muted/30 p-3 text-sm text-muted-foreground">
+                <p>
+                  Per richiedere la <strong>cancellazione</strong> del tuo account o l'<strong>esportazione</strong> dei tuoi dati
+                  personali (Regolamento UE 2016/679, art. 15-17), contatta l'amministratore della tua azienda
+                  o scrivi a <a href="mailto:privacy@ediliziaincloud.it" className="text-primary hover:underline">privacy@ediliziaincloud.it</a>.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -679,12 +711,9 @@ export default function MioProfilo() {
           <EmailOAuthConnectionsCard scope="user" />
         </TabsContent>
 
-        {/* ════════════ TAB SOPRALLUOGHI ════════════ */}
-        {surveysEnabled && (
-          <TabsContent value="sopralluoghi" className="space-y-5 mt-0">
-            <MySurveysTab />
-          </TabsContent>
-        )}
+        {/* v8.6.36 — tab Sopralluoghi rimossa (era una lista operativa,
+            non un'impostazione personale). Per vedere i tuoi sopralluoghi
+            assegnati vai a /azienda/sopralluoghi. */}
 
         {/* ════════════ TAB NOTIFICHE ════════════ */}
         <TabsContent value="notifiche" className="space-y-5 mt-0">
