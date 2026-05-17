@@ -908,15 +908,19 @@ export default function RenderNewV2() {
 
           <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-widest opacity-70">
-                Sostituzione serramenti fotorealistica
-              </div>
-              <div className="text-2xl font-bold">
-                Stessa casa, stessa foto, nuovi infissi
-              </div>
-              <div className="mt-1 max-w-2xl text-sm text-white/70">
-                Guidiamo l'AI a sostituire solo le aperture selezionate, mantenendo ambiente, prospettiva,
-                arredi, luce e formato della foto esattamente coerenti con l'originale.
+              {/* Mobile: titolo compatto. Desktop: kicker + claim + descrizione estesa. */}
+              <div className="text-xl font-bold md:hidden">Render Infissi</div>
+              <div className="hidden md:block">
+                <div className="text-[11px] font-semibold uppercase tracking-widest opacity-70">
+                  Sostituzione serramenti fotorealistica
+                </div>
+                <div className="text-2xl font-bold">
+                  Stessa casa, stessa foto, nuovi infissi
+                </div>
+                <div className="mt-1 max-w-2xl text-sm text-white/70">
+                  Guidiamo l'AI a sostituire solo le aperture selezionate, mantenendo ambiente, prospettiva,
+                  arredi, luce e formato della foto esattamente coerenti con l'originale.
+                </div>
               </div>
             </div>
             <div className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80">
