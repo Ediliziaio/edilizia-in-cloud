@@ -255,6 +255,7 @@ function LoansSection() {
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
                             onClick={() => handleDelete(l.id)}
+                            aria-label="Elimina finanziamento"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

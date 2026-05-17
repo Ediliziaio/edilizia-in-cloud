@@ -4,6 +4,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 export type Semaforo = "verde" | "giallo" | "rosso" | "grigio";
 
@@ -58,11 +59,7 @@ export function useMarginalitaCommesse(
   return useQuery({
     queryKey: ["cg", "commesse", anno, statusFilter] as const,
     queryFn: async (): Promise<MarginalitaCommesseResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)(
-        "cg_get_marginalita_commesse_safe",
-        { p_anno: anno, p_status_filter: statusFilter },
-      );
+            const { data, error } = await cgRpc("cg_get_marginalita_commesse_safe", { p_anno: anno, p_status_filter: statusFilter });
       if (error) throw error;
       return data as unknown as MarginalitaCommesseResult;
     },

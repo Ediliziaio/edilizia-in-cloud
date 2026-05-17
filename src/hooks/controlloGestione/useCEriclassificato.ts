@@ -11,8 +11,8 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -75,13 +75,12 @@ export function useCEriclassificato(anno: number, meseDa = 1, meseA = 12) {
   return useQuery({
     queryKey: queryKeys.controlloGestione.ce(anno, meseDa, meseA),
     queryFn: async (): Promise<CEriclassificato> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)(
+      const { data, error } = await cgRpc<CEriclassificato>(
         "cg_get_ce_safe",
         { p_anno: anno, p_mese_da: meseDa, p_mese_a: meseA },
       );
       if (error) throw error;
-      return data as unknown as CEriclassificato;
+      return data as CEriclassificato;
     },
     staleTime: 5 * 60_000,
   });
@@ -91,10 +90,9 @@ export function useBEP(anno: number) {
   return useQuery({
     queryKey: queryKeys.controlloGestione.bep(anno),
     queryFn: async (): Promise<BEPResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)("cg_get_bep_safe", { p_anno: anno });
+      const { data, error } = await cgRpc<BEPResult>("cg_get_bep_safe", { p_anno: anno });
       if (error) throw error;
-      return data as unknown as BEPResult;
+      return data as BEPResult;
     },
     staleTime: 5 * 60_000,
   });
@@ -104,10 +102,9 @@ export function useCEMensile(anno: number) {
   return useQuery({
     queryKey: queryKeys.controlloGestione.mens(anno),
     queryFn: async (): Promise<CEMensileRow[]> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)("cg_get_ce_mensile", { p_anno: anno });
+      const { data, error } = await cgRpc<CEMensileRow[]>("cg_get_ce_mensile", { p_anno: anno });
       if (error) throw error;
-      return (data ?? []) as unknown as CEMensileRow[];
+      return data ?? [];
     },
     staleTime: 5 * 60_000,
   });
@@ -130,10 +127,12 @@ export function useCEMensileDettaglio(anno: number) {
   return useQuery({
     queryKey: ["cg", "ce-mensile-dettaglio", anno] as const,
     queryFn: async (): Promise<CEMensileDettaglioResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)("cg_get_ce_mensile_dettaglio", { p_anno: anno });
+      const { data, error } = await cgRpc<CEMensileDettaglioResult>(
+        "cg_get_ce_mensile_dettaglio",
+        { p_anno: anno },
+      );
       if (error) throw error;
-      return data as unknown as CEMensileDettaglioResult;
+      return data as CEMensileDettaglioResult;
     },
     staleTime: 5 * 60_000,
   });
@@ -154,13 +153,11 @@ export function useCEMultiAnno(anniDaConfrontare: number[]) {
     queryFn: async (): Promise<CEMultiAnnoRow[]> => {
       const results = await Promise.all(
         anniDaConfrontare.map(async (anno) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { data, error } = await (supabase.rpc as any)("cg_get_ce_safe", {
+          const { data, error } = await cgRpc<CEriclassificato>("cg_get_ce_safe", {
             p_anno: anno, p_mese_da: 1, p_mese_a: 12,
           });
-          if (error) return { anno, voci: [] as VoceCE[] };
-          const ce = data as unknown as CEriclassificato;
-          return { anno, voci: ce.voci };
+          if (error || !data) return { anno, voci: [] as VoceCE[] };
+          return { anno, voci: data.voci };
         })
       );
       return results;

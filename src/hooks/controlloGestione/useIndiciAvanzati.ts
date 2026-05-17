@@ -4,6 +4,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 export interface RotazioneData {
   dso_giorni: number | null;
@@ -44,11 +45,7 @@ export function useIndiciAvanzati(anno: number) {
   return useQuery({
     queryKey: ["cg", "indici-avanzati", anno] as const,
     queryFn: async (): Promise<IndiciAvanzatiResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)(
-        "cg_get_indici_avanzati_safe",
-        { p_anno: anno },
-      );
+            const { data, error } = await cgRpc("cg_get_indici_avanzati_safe", { p_anno: anno });
       if (error) throw error;
       return data as unknown as IndiciAvanzatiResult;
     },

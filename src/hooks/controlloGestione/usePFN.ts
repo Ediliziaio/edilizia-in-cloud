@@ -4,6 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 export interface PFNComponenti {
   cassa: number;
@@ -21,10 +22,9 @@ export function usePFN(anno: number) {
   return useQuery({
     queryKey: ["cg", "pfn", anno] as const,
     queryFn: async (): Promise<PFNResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)("cg_get_pfn_safe", { p_anno: anno });
+      const { data, error } = await cgRpc<PFNResult>("cg_get_pfn_safe", { p_anno: anno });
       if (error) throw error;
-      return data as unknown as PFNResult;
+      return data as PFNResult;
     },
     staleTime: 60_000,
   });
@@ -149,12 +149,11 @@ export function useAging(direction: "in" | "out") {
   return useQuery({
     queryKey: ["cg", "aging", direction] as const,
     queryFn: async (): Promise<AgingResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)("cg_get_aging_safe", {
+      const { data, error } = await cgRpc<AgingResult>("cg_get_aging_safe", {
         p_direction: direction,
       });
       if (error) throw error;
-      return data as unknown as AgingResult;
+      return data as AgingResult;
     },
     staleTime: 60_000,
   });

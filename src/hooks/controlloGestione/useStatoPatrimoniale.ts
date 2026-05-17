@@ -5,8 +5,8 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 // ── Stato Patrimoniale ─────────────────────────────────────────────────────
 
@@ -61,13 +61,9 @@ export function useStatoPatrimoniale(anno: number) {
   return useQuery({
     queryKey: queryKeys.controlloGestione.sp(anno),
     queryFn: async (): Promise<SPResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)(
-        "cg_get_sp_safe",
-        { p_anno: anno },
-      );
+      const { data, error } = await cgRpc<SPResult>("cg_get_sp_safe", { p_anno: anno });
       if (error) throw error;
-      return data as unknown as SPResult;
+      return data as SPResult;
     },
     staleTime: 5 * 60_000,
   });
@@ -100,10 +96,9 @@ export function useRating(anno: number) {
   return useQuery({
     queryKey: queryKeys.controlloGestione.rating(anno),
     queryFn: async (): Promise<RatingResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)("cg_get_rating_safe", { p_anno: anno });
+      const { data, error } = await cgRpc<RatingResult>("cg_get_rating_safe", { p_anno: anno });
       if (error) throw error;
-      return data as unknown as RatingResult;
+      return data as RatingResult;
     },
     staleTime: 5 * 60_000,
   });
@@ -123,10 +118,9 @@ export function useSPMultiAnno(anniDaConfrontare: number[]) {
     queryFn: async (): Promise<SPMultiAnnoRow[]> => {
       const results = await Promise.all(
         anniDaConfrontare.map(async (anno) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { data, error } = await (supabase.rpc as any)("cg_get_sp_safe", { p_anno: anno });
+          const { data, error } = await cgRpc<SPResult>("cg_get_sp_safe", { p_anno: anno });
           if (error) return { anno, data: null };
-          return { anno, data: data as unknown as SPResult };
+          return { anno, data };
         })
       );
       return results;

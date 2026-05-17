@@ -10,6 +10,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 export interface DettaglioRiga {
   id: string;
@@ -67,11 +68,7 @@ export function useDettaglioVoceMese(
     queryKey: ["cg", "dettaglio-voce-mese", anno, mese, codice] as const,
     enabled,
     queryFn: async (): Promise<DettaglioVoceMeseResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)(
-        "cg_get_dettaglio_voce_mese_safe",
-        { p_anno: anno, p_mese: mese, p_codice: codice },
-      );
+            const { data, error } = await cgRpc("cg_get_dettaglio_voce_mese_safe", { p_anno: anno, p_mese: mese, p_codice: codice });
       if (error) throw error;
       return data as unknown as DettaglioVoceMeseResult;
     },

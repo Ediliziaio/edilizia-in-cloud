@@ -86,43 +86,17 @@ export const macroAreas: MacroArea[] = [
   },
 
   // 2. Direzione & Bilancio (modulo add-on Controllo di Gestione)
-  // MP-DIR-001 Fase 3.1: 4 voci visibili che deep-linkano alle tab della pagina
-  // ControlloGestione (deep-link gia' implementato via URL_TO_TAB/TAB_TO_URL).
-  // Risolve il problema "ridondanza visiva" — la macroArea ora mostra le vere
-  // capability del modulo invece di una voce omonima generica.
+  // MacroArea con un'unica voce — le 13 sub-tab sono dentro la pagina
+  // ControlloGestione.tsx con deep-link URL↔tab via URL_TO_TAB/TAB_TO_URL.
   {
     id: "area_controllo_gestione",
     title: "Direzione & Bilancio",
     icon: PieChart,
     items: [
       {
-        title: "Dashboard Direzione",
-        url: "/azienda/controllo-gestione/dashboard",
-        icon: Gauge,
-        permissionKey: "canViewControlloGestione",
-        featureKey: "controllo_gestione_v1",
-        isBeta: true,
-      },
-      {
-        title: "Bilancio Mensile",
-        url: "/azienda/controllo-gestione/ce",
-        icon: BarChart3,
-        permissionKey: "canViewControlloGestione",
-        featureKey: "controllo_gestione_v1",
-        isBeta: true,
-      },
-      {
-        title: "Budget & Forecast",
-        url: "/azienda/controllo-gestione/budget",
-        icon: Target,
-        permissionKey: "canViewControlloGestione",
-        featureKey: "controllo_gestione_v1",
-        isBeta: true,
-      },
-      {
-        title: "Marginalità Cantieri",
-        url: "/azienda/controllo-gestione/commesse",
-        icon: TrendingUp,
+        title: "Controllo di Gestione",
+        url: "/azienda/controllo-gestione",
+        icon: PieChart,
         permissionKey: "canViewControlloGestione",
         featureKey: "controllo_gestione_v1",
         isBeta: true,

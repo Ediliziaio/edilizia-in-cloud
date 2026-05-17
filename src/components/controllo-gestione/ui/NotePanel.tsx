@@ -142,6 +142,7 @@ export function NotePanel({ anno }: Props) {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                    aria-label="Elimina nota"
                     onClick={async () => {
                       try {
                         await del.mutateAsync(n.id);

@@ -4,6 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 export interface ImposteAliquote {
   ires_pct: number;
@@ -36,11 +37,7 @@ export function useImposte(anno: number) {
   return useQuery({
     queryKey: ["cg", "imposte", anno] as const,
     queryFn: async (): Promise<ImposteResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)(
-        "cg_get_imposte_dettaglio_safe",
-        { p_anno: anno },
-      );
+            const { data, error } = await cgRpc("cg_get_imposte_dettaglio_safe", { p_anno: anno });
       if (error) throw error;
       return data as unknown as ImposteResult;
     },

@@ -203,6 +203,7 @@ export function TabBudget({ anno }: Props) {
                             size="icon"
                             className="h-7 w-7 text-muted-foreground"
                             onClick={() => setEditor(v)}
+                            aria-label="Modifica budget voce"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>

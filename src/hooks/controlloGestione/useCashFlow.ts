@@ -10,6 +10,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 export interface CashFlowEntrateBreakdown {
   scadenze: number;
@@ -61,11 +62,7 @@ export function useCashFlow(anno: number, meseDa = 1, meseA = 12) {
   return useQuery({
     queryKey: ["cg", "cash-flow", anno, meseDa, meseA] as const,
     queryFn: async (): Promise<CashFlowResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)(
-        "cg_get_cash_flow_prospettico_safe",
-        { p_anno: anno, p_mese_da: meseDa, p_mese_a: meseA },
-      );
+            const { data, error } = await cgRpc("cg_get_cash_flow_prospettico_safe", { p_anno: anno, p_mese_da: meseDa, p_mese_a: meseA });
       if (error) throw error;
       return data as unknown as CashFlowResult;
     },

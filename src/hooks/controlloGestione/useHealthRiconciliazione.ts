@@ -4,6 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 export type HealthStatus = "ok" | "warn" | "critical";
 
@@ -29,11 +30,7 @@ export function useHealthCheck(anno: number) {
   return useQuery({
     queryKey: ["cg", "health-check", anno] as const,
     queryFn: async (): Promise<HealthResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)(
-        "cg_get_health_check_safe",
-        { p_anno: anno },
-      );
+            const { data, error } = await cgRpc("cg_get_health_check_safe", { p_anno: anno });
       if (error) throw error;
       return data as unknown as HealthResult;
     },
@@ -77,11 +74,7 @@ export function useRiconciliazione(anno: number) {
   return useQuery({
     queryKey: ["cg", "riconciliazione", anno] as const,
     queryFn: async (): Promise<RiconciliazioneResult> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)(
-        "cg_get_riconciliazione_safe",
-        { p_anno: anno },
-      );
+            const { data, error } = await cgRpc("cg_get_riconciliazione_safe", { p_anno: anno });
       if (error) throw error;
       return data as unknown as RiconciliazioneResult;
     },
