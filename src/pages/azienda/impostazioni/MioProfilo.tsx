@@ -614,16 +614,16 @@ export default function MioProfilo() {
                   </div>
                 </div>
               ) : (
+                /* v8.6.38 — Onboarding compresso: 3 bullet inline invece di
+                    card colorata che occupava tutto lo spazio. CTA primaria
+                    subito visibile. */
                 <div className="space-y-4">
-                  <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-4">
-                    <p className="text-sm text-blue-800 dark:text-blue-300 mb-2 font-medium">Perché collegare Google Calendar?</p>
-                    <ul className="text-xs text-blue-700 dark:text-blue-400 space-y-1.5">
-                      <li className="flex items-start gap-2"><Check className="h-3 w-3 shrink-0 mt-0.5" /> I tuoi appuntamenti vengono sincronizzati automaticamente</li>
-                      <li className="flex items-start gap-2"><Check className="h-3 w-3 shrink-0 mt-0.5" /> Il team vede la tua disponibilità nel calendario aziendale</li>
-                      <li className="flex items-start gap-2"><Check className="h-3 w-3 shrink-0 mt-0.5" /> Evita sovrapposizioni con appuntamenti personali</li>
-                    </ul>
-                  </div>
-                  <Button onClick={connectGoogle} disabled={connectingGoogle} className="gap-2">
+                  <ul className="text-sm text-muted-foreground space-y-1.5">
+                    <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-green-600" /> Appuntamenti sincronizzati automaticamente</li>
+                    <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-green-600" /> Il team vede la tua disponibilità</li>
+                    <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-green-600" /> Evita sovrapposizioni con appuntamenti personali</li>
+                  </ul>
+                  <Button onClick={connectGoogle} disabled={connectingGoogle} className="gap-2 w-full sm:w-auto">
                     {connectingGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon className="h-4 w-4" />}
                     Collega Google Calendar
                   </Button>
@@ -669,12 +669,18 @@ export default function MioProfilo() {
                     <CardDescription>iCloud Calendar via CalDAV</CardDescription>
                   </div>
                 </div>
+                {/* v8.6.38 — Badge coerente con Outlook: se il bottone
+                    è disabled, mostra "Prossimamente" non "Non connesso".
+                    Quando l'integrazione sarà completata, restaurare il
+                    badge "Non connesso" originale. */}
                 {appleConn ? (
                   <Badge variant="default" className="bg-green-100 text-green-700 border-green-200 gap-1">
                     <Check className="h-3 w-3" /> Connesso
                   </Badge>
                 ) : (
-                  <Badge variant="secondary">Non connesso</Badge>
+                  <Badge variant="secondary" className="gap-1">
+                    <Clock className="h-3 w-3" /> Prossimamente
+                  </Badge>
                 )}
               </div>
             </CardHeader>
@@ -687,17 +693,10 @@ export default function MioProfilo() {
                   <p className="text-xs text-green-700 mt-1">Account: {appleConn.apple_id_email ?? "iCloud"}</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Collega il tuo iCloud Calendar per sincronizzare gli eventi via CalDAV.
-                  </p>
-                  <Button variant="outline" className="gap-2" disabled>
-                    <AppleIcon className="h-4 w-4" /> Collega Apple Calendar
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    Richiede una password specifica per le app generata nelle impostazioni Apple ID.
-                  </p>
-                </div>
+                <p className="text-sm text-muted-foreground">
+                  L'integrazione con Apple Calendar (iCloud via CalDAV) sarà disponibile a breve.
+                  Richiederà una password specifica per le app generata nelle impostazioni Apple ID.
+                </p>
               )}
             </CardContent>
           </Card>
@@ -705,24 +704,19 @@ export default function MioProfilo() {
         </TabsContent>
 
         {/* ════════════ TAB EMAIL — connessioni personali ════════════ */}
-        <TabsContent value="email" className="space-y-5 mt-0">
-          <Card className="bg-blue-50/30 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <Mail className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
-                <div className="text-sm">
-                  <p className="font-medium text-blue-800 dark:text-blue-300">
-                    Le tue email collegate
-                  </p>
-                  <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                    Come per il calendario, ogni utente collega il proprio Gmail
-                    o Outlook personale. Vedi solo le tue connessioni qui sotto;
-                    le email di altri membri del team non sono visibili.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* v8.6.38 — Rimossa card info blu duplicata: il titolo era
+            ripetuto nella card EmailOAuthConnectionsCard sotto. Il
+            messaggio "ogni utente collega il proprio" è ora compresso
+            in piccolo testo sopra (subtitle) — niente più sezione
+            colorata che ruba spazio. */}
+        <TabsContent value="email" className="mt-0 space-y-3">
+          <p className="text-xs text-muted-foreground flex items-start gap-2 px-1">
+            <Mail className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              Ogni utente collega il proprio Gmail o Outlook. Vedi solo le tue connessioni;
+              le email di altri membri del team non sono visibili.
+            </span>
+          </p>
           <EmailOAuthConnectionsCard scope="user" />
         </TabsContent>
 
@@ -731,55 +725,74 @@ export default function MioProfilo() {
             assegnati vai a /azienda/sopralluoghi. */}
 
         {/* ════════════ TAB NOTIFICHE ════════════ */}
-        {/* v8.6.37 — Grid 3 colonne su xl+: Email + Push + Altro affiancate */}
-        <TabsContent value="notifiche" className="mt-0">
-          <div className="grid gap-5 xl:grid-cols-3 lg:grid-cols-2">
-          {/* Email notifications */}
+        {/* v8.6.38 — Refactor in TABELLA event-based: una riga per ogni
+            evento, due colonne switch (Email + Push). Più compatto e
+            scansionabile rispetto a 3 card con eventi duplicati nelle
+            colonne Email/Push.
+
+            Sezione separata sotto: notifiche solo-email (newsletter, report). */}
+        <TabsContent value="notifiche" className="mt-0 space-y-5">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Mail className="h-4 w-4" /> Notifiche Email
+                <Bell className="h-4 w-4" /> Notifiche per evento
               </CardTitle>
-              <CardDescription>Scegli quali email ricevere dalla piattaforma.</CardDescription>
+              <CardDescription>Scegli per ogni evento se vuoi ricevere notifica via email, push (browser/app) o entrambe.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-1">
-              <NotifRow icon={Briefcase} label="Nuovo ordine / cantiere" desc="Quando viene creato un nuovo ordine"
-                checked={notifPrefs.email_new_order} onChange={() => toggleNotif("email_new_order")} />
-              <NotifRow icon={RefreshCw} label="Aggiornamento ordine" desc="Cambi di stato su ordini assegnati"
-                checked={notifPrefs.email_order_update} onChange={() => toggleNotif("email_order_update")} />
-              <NotifRow icon={MessageSquare} label="Nuovo messaggio chat" desc="Messaggi diretti e menzioni"
-                checked={notifPrefs.email_new_message} onChange={() => toggleNotif("email_new_message")} />
-              <NotifRow icon={FileText} label="Nuova attività assegnata" desc="Quando ti viene assegnata un'attività"
-                checked={notifPrefs.email_new_task} onChange={() => toggleNotif("email_new_task")} />
+            <CardContent className="p-0">
+              {/* Header colonne */}
+              <div className="hidden sm:grid grid-cols-[1fr_72px_72px] gap-2 px-4 pt-2 pb-2 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <div>Evento</div>
+                <div className="text-center flex items-center justify-center gap-1"><Mail className="h-3 w-3" /> Email</div>
+                <div className="text-center flex items-center justify-center gap-1"><BellRing className="h-3 w-3" /> Push</div>
+              </div>
+              <NotifMatrixRow
+                icon={Briefcase}
+                label="Nuovo ordine / cantiere"
+                desc="Quando viene creato un nuovo ordine assegnato a te"
+                emailChecked={notifPrefs.email_new_order}
+                pushChecked={notifPrefs.push_new_order}
+                onEmailToggle={() => toggleNotif("email_new_order")}
+                onPushToggle={() => toggleNotif("push_new_order")}
+              />
+              <NotifMatrixRow
+                icon={RefreshCw}
+                label="Aggiornamento ordine"
+                desc="Cambi di stato su ordini in cui sei coinvolto"
+                emailChecked={notifPrefs.email_order_update}
+                pushChecked={notifPrefs.push_order_update}
+                onEmailToggle={() => toggleNotif("email_order_update")}
+                onPushToggle={() => toggleNotif("push_order_update")}
+              />
+              <NotifMatrixRow
+                icon={MessageSquare}
+                label="Nuovo messaggio chat"
+                desc="Messaggi diretti e menzioni nelle chat"
+                emailChecked={notifPrefs.email_new_message}
+                pushChecked={notifPrefs.push_new_message}
+                onEmailToggle={() => toggleNotif("email_new_message")}
+                onPushToggle={() => toggleNotif("push_new_message")}
+              />
+              <NotifMatrixRow
+                icon={FileText}
+                label="Nuova attività assegnata"
+                desc="Quando ti viene assegnata un'attività"
+                emailChecked={notifPrefs.email_new_task}
+                pushChecked={notifPrefs.push_new_task}
+                onEmailToggle={() => toggleNotif("email_new_task")}
+                onPushToggle={() => toggleNotif("push_new_task")}
+                isLast
+              />
             </CardContent>
           </Card>
 
-          {/* Push notifications */}
+          {/* Altro: solo-email (newsletter, report) */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <BellRing className="h-4 w-4" /> Notifiche Push
+                <Mail className="h-4 w-4" /> Email periodiche
               </CardTitle>
-              <CardDescription>Notifiche in tempo reale nel browser e sull'app.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              <NotifRow icon={Briefcase} label="Nuovo ordine / cantiere" desc="Notifica push per nuovi ordini"
-                checked={notifPrefs.push_new_order} onChange={() => toggleNotif("push_new_order")} />
-              <NotifRow icon={RefreshCw} label="Aggiornamento ordine" desc="Push per cambi di stato"
-                checked={notifPrefs.push_order_update} onChange={() => toggleNotif("push_order_update")} />
-              <NotifRow icon={MessageSquare} label="Nuovo messaggio chat" desc="Push per messaggi diretti"
-                checked={notifPrefs.push_new_message} onChange={() => toggleNotif("push_new_message")} />
-              <NotifRow icon={FileText} label="Nuova attività" desc="Push per attività assegnate"
-                checked={notifPrefs.push_new_task} onChange={() => toggleNotif("push_new_task")} />
-            </CardContent>
-          </Card>
-
-          {/* Other */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Settings className="h-4 w-4" /> Altro
-              </CardTitle>
+              <CardDescription>Newsletter e riepiloghi automatici via email.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-1">
               <NotifRow icon={Mail} label="Email di marketing" desc="Newsletter e novità della piattaforma"
@@ -788,14 +801,13 @@ export default function MioProfilo() {
                 checked={notifPrefs.email_weekly_report} onChange={() => toggleNotif("email_weekly_report")} />
             </CardContent>
           </Card>
-          </div>
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-// ── Notification row component ──
+// ── Notification row component (per Email periodiche, single-channel) ──
 function NotifRow({
   icon: Icon, label, desc, checked, onChange,
 }: {
@@ -811,6 +823,40 @@ function NotifRow({
         </div>
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+// v8.6.38 — Matrix row per "Notifiche per evento": una riga = un evento,
+// 2 colonne switch (Email + Push). Più compatto e scansionabile rispetto
+// alla vecchia struttura 3 card con eventi duplicati.
+function NotifMatrixRow({
+  icon: Icon, label, desc, emailChecked, pushChecked, onEmailToggle, onPushToggle, isLast,
+}: {
+  icon: React.ElementType;
+  label: string;
+  desc: string;
+  emailChecked: boolean;
+  pushChecked: boolean;
+  onEmailToggle: () => void;
+  onPushToggle: () => void;
+  isLast?: boolean;
+}) {
+  return (
+    <div className={`grid grid-cols-[1fr_72px_72px] gap-2 px-4 py-3 ${!isLast ? "border-b" : ""} items-center hover:bg-muted/30 transition-colors`}>
+      <div className="flex items-center gap-3 min-w-0">
+        <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">{label}</p>
+          <p className="text-xs text-muted-foreground line-clamp-2">{desc}</p>
+        </div>
+      </div>
+      <div className="flex justify-center">
+        <Switch checked={emailChecked} onCheckedChange={onEmailToggle} aria-label={`Email: ${label}`} />
+      </div>
+      <div className="flex justify-center">
+        <Switch checked={pushChecked} onCheckedChange={onPushToggle} aria-label={`Push: ${label}`} />
+      </div>
     </div>
   );
 }
