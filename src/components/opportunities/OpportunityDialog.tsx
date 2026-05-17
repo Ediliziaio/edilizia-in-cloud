@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, User, UserPlus, Settings2, DatabaseZap } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TagSelector } from "@/components/marketing/TagSelector";
+import { CustomFieldInput } from "@/components/shared/CustomFieldInput";
 import { useNavigate } from "react-router-dom";
 import { syncTagsToContact } from "@/hooks/useTagSync";
 import { STATUS_OPTIONS } from "@/types/opportunities";
@@ -603,29 +604,27 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                   <TagSelector selectedTags={tags} onTagsChange={setTags} />
                 </div>
 
-                {/* Custom fields */}
+                {/* Custom fields — v8.6.44: usa CustomFieldInput unificato
+                    per supportare tutti i tipi (text/number/date/select/
+                    radio/multiselect/checkbox/email/phone/url/time/currency/
+                    percent/textarea). Prima il render gestiva solo select
+                    e textbox generica, ignorando 11 tipi. */}
                 {customFields && customFields.length > 0 && (
                   <div className="space-y-3 pt-2 border-t">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Campi personalizzati dell'opportunità</Label>
                     {(customFields as OpportunityCustomField[]).map((field) => (
-                      <div key={field.id} className="space-y-1">
-                        <Label className="text-xs font-medium">{field.name}</Label>
-                        {field.field_type === "select" && field.options?.length ? (
-                          <Select value={customFieldValues[field.id] || ""} onValueChange={(v) => setCustomFieldValues((prev) => ({ ...prev, [field.id]: v }))}>
-                            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
-                            <SelectContent>
-                              {field.options.map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input
-                            value={customFieldValues[field.id] || ""}
-                            onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.id]: e.target.value }))}
-                            className="h-9 text-sm"
-                            type={field.field_type === "number" ? "number" : field.field_type === "date" ? "date" : "text"}
-                          />
-                        )}
-                      </div>
+                      <CustomFieldInput
+                        key={field.id}
+                        fieldId={field.id}
+                        label={field.name}
+                        type={field.field_type}
+                        options={field.options}
+                        value={customFieldValues[field.id] || ""}
+                        onChange={(v) => setCustomFieldValues((prev) => ({
+                          ...prev,
+                          [field.id]: v === null || v === undefined ? "" : String(v),
+                        }))}
+                      />
                     ))}
                   </div>
                 )}

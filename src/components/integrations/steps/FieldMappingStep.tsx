@@ -101,12 +101,16 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
     queryKey: ["custom-fields", companyId],
     queryFn: async () => {
       if (!companyId) return [];
+      // v8.6.44 — fix bug: la tabella marketing_custom_fields ha solo
+      // `name`, non `field_label`. Prima la query falliva o ritornava []
+      // silenziosamente perché entrambe le colonne `field_name`/`field_label`
+      // non esistono nello schema.
       const { data } = await supabase
         .from("marketing_custom_fields")
-        .select("id, field_name, field_label, field_type")
+        .select("id, name, field_type, options, section")
         .eq("company_id", companyId)
         .eq("object_type", "contact")
-        .order("field_label");
+        .order("name");
       return data || [];
     },
     enabled: !!companyId,
@@ -161,7 +165,7 @@ export function FieldMappingStep({ hook, formId }: FieldMappingStepProps) {
 
   const allCrmFields = [
     ...CRM_STANDARD_FIELDS.map((f) => ({ key: f.key, label: f.label })),
-    ...customFields.map((f: any) => ({ key: `custom_${f.id}`, label: `✦ ${f.field_label}` })),
+    ...customFields.map((f: { id: string; name: string }) => ({ key: `custom_${f.id}`, label: `✦ ${f.name}` })),
   ];
 
   const handleSave = () => {
