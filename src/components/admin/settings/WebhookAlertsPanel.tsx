@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -139,10 +140,12 @@ function useAutoRetryBatch() {
   return useMutation({
     mutationFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/retry-failed-webhooks`,
         {
           method: "POST",
+          timeoutMs: 30_000,
+          context: "webhook.retry-batch",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session?.access_token ?? ""}`,

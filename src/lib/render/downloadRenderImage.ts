@@ -1,7 +1,13 @@
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
+
 export async function downloadRenderImage(resultUrl: string, filename: string): Promise<void> {
   if (!resultUrl) throw new Error("URL del render non disponibile.");
 
-  const resp = await fetch(resultUrl);
+  // Render image puo' essere CDN signed URL — timeout 30s
+  const resp = await fetchWithTimeout(resultUrl, {
+    timeoutMs: 30_000,
+    context: "render.download-image",
+  });
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
   const blob = await resp.blob();

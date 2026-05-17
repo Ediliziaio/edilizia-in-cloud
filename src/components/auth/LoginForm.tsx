@@ -2,6 +2,7 @@ import { useState, useEffect, forwardRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -76,8 +77,10 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     if (refCode) {
       sessionStorage.setItem("referral_code", refCode);
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      fetch(`${supabaseUrl}/functions/v1/track-referral-click`, {
+      fetchWithTimeout(`${supabaseUrl}/functions/v1/track-referral-click`, {
         method: "POST",
+        timeoutMs: 5_000,
+        context: "login.track-referral",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           referral_code: refCode,

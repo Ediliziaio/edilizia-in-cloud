@@ -3,6 +3,7 @@ import { CheckCircle, Zap, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Integration } from "@/types/integrations";
 
@@ -34,8 +35,10 @@ export function ActivationStep({ hook, integration }: ActivationStepProps) {
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Sessione scaduta");
 
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/meta-api-proxy`, {
+      const res = await fetchWithTimeout(`${SUPABASE_URL}/functions/v1/meta-api-proxy`, {
         method: "POST",
+        timeoutMs: 20_000,
+        context: "meta.send-test-lead",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           action: "send-test-lead",

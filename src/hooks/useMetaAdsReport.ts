@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 import {
   normalizeInsights,
   computeKPIs,
@@ -95,10 +96,12 @@ export function useMetaAdsReport() {
       if (!companyId || !integrationId) throw new Error("Non connesso a Meta");
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `${SUPABASE_URL}/functions/v1/meta-api-proxy`,
         {
           method: "POST",
+          timeoutMs: 30_000,
+          context: `meta-ads.${action}`,
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,

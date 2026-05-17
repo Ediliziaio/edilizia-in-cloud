@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 
 export const RENDER_AI_DISCLAIMER =
   "Render generato con intelligenza artificiale a scopo esclusivamente dimostrativo e illustrativo. L'immagine non rappresenta il risultato finale dell'intervento, che potrà variare in base a rilievi tecnici, materiali scelti, misure reali, condizioni dell'ambiente e fattibilità esecutiva.";
@@ -21,7 +22,10 @@ export interface DownloadRenderPdfArgs {
 }
 
 async function imageUrlToDataUrl(url: string): Promise<string> {
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url, {
+    timeoutMs: 15_000,
+    context: "render-pdf.fetch-image",
+  });
   if (!response.ok) {
     throw new Error(`Impossibile caricare immagine PDF (${response.status})`);
   }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchWithTimeout } from '@/lib/utils/fetchWithTimeout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
@@ -15,11 +16,13 @@ export default function ReferralLanding() {
   useEffect(() => {
     if (!code) return;
     (async () => {
-      // Track click
-      await fetch(
+      // Track click — fire-and-forget con timeout 5s
+      await fetchWithTimeout(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-referral-click`,
         {
           method: 'POST',
+          timeoutMs: 5_000,
+          context: 'referral.track-click',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             referral_code: code,

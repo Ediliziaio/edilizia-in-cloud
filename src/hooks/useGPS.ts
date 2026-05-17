@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 
 export interface GPSResult {
   lat: number;
@@ -78,9 +79,13 @@ export function useGPS(companyId: string | null) {
           // Try reverse geocoding
           let address: string | undefined;
           try {
-            const resp = await fetch(
+            const resp = await fetchWithTimeout(
               `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-              { headers: { "Accept-Language": "it" } }
+              {
+                headers: { "Accept-Language": "it" },
+                timeoutMs: 5_000,
+                context: "gps.reverse-geocode",
+              },
             );
             if (resp.ok) {
               const data = await resp.json();

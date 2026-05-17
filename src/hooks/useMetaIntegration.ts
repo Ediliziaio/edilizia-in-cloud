@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 import { toast } from "sonner";
 import type { Integration, MetaAsset, MetaLeadForm, IntegrationFieldMapping } from "@/types/integrations";
 
@@ -84,7 +85,7 @@ export function useMetaIntegration(integration: Integration | null) {
         return null;
       }
 
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `${SUPABASE_URL}/functions/v1/meta-oauth-start`,
         {
           method: "POST",
@@ -93,6 +94,8 @@ export function useMetaIntegration(integration: Integration | null) {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ company_id: companyId }),
+          timeoutMs: 15_000,
+          context: "meta.oauth-start",
         }
       );
 
@@ -120,10 +123,12 @@ export function useMetaIntegration(integration: Integration | null) {
         throw new Error("Sessione scaduta. Effettua di nuovo l'accesso.");
       }
 
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `${SUPABASE_URL}/functions/v1/meta-api-proxy`,
         {
           method: "POST",
+          timeoutMs: 30_000,
+          context: `meta.proxy.${action}`,
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
