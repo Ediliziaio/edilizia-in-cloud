@@ -15,6 +15,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
+import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { renderLayout } from "../_shared/email-templates/layout.ts";
 import { applyPlaceholders, htmlToPlainText } from "../_shared/email-templates/applyPlaceholders.ts";
 import type { Branding } from "../_shared/email-templates/types.ts";
@@ -81,28 +82,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // ── 1. Auth ──
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("Unauthorized", 401, cors);
-    }
-    const token = authHeader.replace("Bearer ", "");
-
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-    const { data: { user }, error: authErr } = await admin.auth.getUser(token);
-    if (authErr || !user) return errorResponse("Unauthorized", 401, cors);
-
-    // ── 2. Super admin check ──
-    const { data: isAdmin } = await admin.rpc("has_role", {
-      _user_id: user.id,
-      _role: "super_admin",
-    });
-    if (isAdmin !== true) {
-      return errorResponse("Forbidden: super_admin only", 403, cors);
-    }
+    // ── 1+2. Auth + role check (S2-04) ──
+    const { userId, supabaseAdmin: admin } = await requireAuth(req, cors);
+    await requireRole(admin, userId, ["super_admin"], cors);
 
     // ── 3. Parse body ──
     let body: PreviewRequest;
@@ -157,6 +139,7 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ subject, html, text: rawText }, 200, cors);
   } catch (err: any) {
+    if (err instanceof Response) return err;
     console.error("[admin-preview-email-template] error:", err);
     return errorResponse(err?.message ?? "Internal error", 500, cors);
   }

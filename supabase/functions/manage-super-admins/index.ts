@@ -1,8 +1,7 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 import { recordMetric } from "../_shared/healthMetrics.ts";
-
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { requireAuth, requireRole } from "../_shared/auth.ts";
 
 async function logAudit(
   supabaseAdmin: any,
@@ -28,61 +27,12 @@ Deno.serve(async (req) => {
 
   const startTime = Date.now();
   let statusCode = 200;
+  const corsH = getCorsHeaders(req);
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-    // Verify caller is a super_admin
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
-    }
-
-    const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    // Extract user ID with fallback: getClaims -> getUser
-    let callerId: string;
-    try {
-      const token = authHeader.replace("Bearer ", "");
-      const { data: claimsData, error: claimsError } = await (callerClient.auth as any).getClaims(token);
-      if (!claimsError && claimsData?.claims?.sub) {
-        callerId = claimsData.claims.sub;
-      } else {
-        throw new Error("getClaims failed");
-      }
-    } catch {
-      const { data: userData, error: userError } = await callerClient.auth.getUser();
-      if (userError || !userData?.user?.id) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        });
-      }
-      callerId = userData.user.id;
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
-    // Verify caller is super_admin
-    const { data: callerRole } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId)
-      .eq("role", "super_admin")
-      .maybeSingle();
-
-    if (!callerRole) {
-      return new Response(JSON.stringify({ error: "Forbidden: not a super admin" }), {
-        status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
-    }
+    // S2-04: auth standardizzata via helper condivisi
+    const { userId: callerId, supabaseAdmin } = await requireAuth(req, corsH);
+    await requireRole(supabaseAdmin, callerId, ["super_admin"], corsH);
 
     // Rate limit: max 30 calls per 5 minutes for admin operations
     const rl = await checkRateLimit({
@@ -517,9 +467,13 @@ Deno.serve(async (req) => {
       status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (error) {
+    if (error instanceof Response) {
+      statusCode = error.status;
+      return error;
+    }
     statusCode = 500;
     return new Response(JSON.stringify({ error: (error as Error).message }), {
-      status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      status: 500, headers: { ...corsH, "Content-Type": "application/json" },
     });
   } finally {
     await recordMetric({

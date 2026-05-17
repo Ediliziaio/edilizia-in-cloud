@@ -1,61 +1,33 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 import { recordMetric } from "../_shared/healthMetrics.ts";
-
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { requireAuth, requireRole } from "../_shared/auth.ts";
 
+/**
+ * sign-in-as-user
+ *
+ * Privileged: solo super_admin (auth check inline via requireAuth + requireRole).
+ * Genera magic link per impersonificare un utente target o tornare al proprio
+ * super_admin originale (return_to_admin = true).
+ *
+ * S2-04: standardizzato sull'helper _shared/auth.ts.
+ */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   const startTime = Date.now();
   let statusCode = 200;
+  let callerId: string | null = null;
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      statusCode = 401;
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
-    }
+    // 1. Auth header valido + JWT decodificato
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
+    callerId = userId;
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-    // Verify caller
-    const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    let callerId: string | null = null;
-    try {
-      const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(
-        authHeader.replace("Bearer ", "")
-      );
-      if (!claimsError && claimsData?.claims?.sub) {
-        callerId = claimsData.claims.sub as string;
-      }
-    } catch {
-      // fallback
-    }
-    if (!callerId) {
-      const { data: userData } = await callerClient.auth.getUser();
-      callerId = userData?.user?.id ?? null;
-    }
-
-    if (!callerId) {
-      statusCode = 401;
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
-    }
-
-    // Rate limit: max 10 calls per 5 minutes per user
+    // 2. Rate limit prima del role check (anti-DoS lato auth caller)
     const rl = await checkRateLimit({
       functionName: "sign-in-as-user",
       callerId,
@@ -70,7 +42,7 @@ Deno.serve(async (req) => {
         statusCode: 429,
         metadata: { caller_id: callerId },
       });
-      return rateLimitResponse(rl.retryAfterSeconds!, getCorsHeaders(req));
+      return rateLimitResponse(rl.retryAfterSeconds!, corsH);
     }
 
     const { email, return_to_admin } = await req.json();
@@ -78,79 +50,67 @@ Deno.serve(async (req) => {
       statusCode = 400;
       return new Response(JSON.stringify({ error: "Email is required" }), {
         status: 400,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        headers: { ...corsH, "Content-Type": "application/json" },
       });
     }
 
-    // Check super_admin role of caller
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
-    const { data: roleData } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId)
-      .eq("role", "super_admin")
-      .maybeSingle();
-
-    if (!roleData) {
+    // 3. Role check: super_admin obbligatorio, eccetto return_to_admin
+    //    (in cui basta che il target sia super_admin).
+    try {
+      await requireRole(supabaseAdmin, callerId, ["super_admin"], corsH);
+    } catch (e) {
       if (!return_to_admin) {
         statusCode = 403;
-        return new Response(JSON.stringify({ error: "Only super admins can use this feature" }), {
-          status: 403,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        });
+        if (e instanceof Response) return e;
+        throw e;
       }
 
-      const { data: targetProfile } = await adminClient
+      // Caso return_to_admin: il caller potrebbe essere un user normale
+      // (impersonato), ma deve poter tornare al super_admin originale.
+      const { data: targetProfile } = await supabaseAdmin
         .from("profiles")
         .select("id")
         .eq("email", email)
         .maybeSingle();
       const targetUserId = targetProfile?.id;
-      
       if (!targetUserId) {
         statusCode = 404;
         return new Response(JSON.stringify({ error: "Target user not found" }), {
           status: 404,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+          headers: { ...corsH, "Content-Type": "application/json" },
         });
       }
-
-      const { data: targetRole } = await adminClient
+      const { data: targetRole } = await supabaseAdmin
         .from("user_roles")
         .select("role")
         .eq("user_id", targetUserId)
         .eq("role", "super_admin")
         .maybeSingle();
-
       if (!targetRole) {
         statusCode = 403;
-        return new Response(JSON.stringify({ error: "Can only return to a super admin account" }), {
-          status: 403,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ error: "Can only return to a super admin account" }),
+          { status: 403, headers: { ...corsH, "Content-Type": "application/json" } },
+        );
       }
     }
 
-    // Generate magic link
-    const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+    // 4. Generate magic link
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email,
     });
-
     if (linkError || !linkData) {
-      console.error("generateLink error:", linkError);
+      console.error("[sign-in-as-user] generateLink error:", linkError);
       statusCode = 500;
       return new Response(
         JSON.stringify({ error: linkError?.message || "Failed to generate link" }),
-        {
-          status: 500,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        }
+        { status: 500, headers: { ...corsH, "Content-Type": "application/json" } },
       );
     }
 
-    // Enhanced audit log with session details
-    await adminClient.from("admin_audit_log").insert({
+    // 5. Audit log
+    await supabaseAdmin.from("admin_audit_log").insert({
       user_id: callerId,
       action: return_to_admin ? "return_from_impersonation" : "sign_in_as_user",
       target_type: "user",
@@ -169,17 +129,18 @@ Deno.serve(async (req) => {
         hashed_token: linkData.properties?.hashed_token,
         email: linkData.user?.email,
       }),
-      {
-        status: 200,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      }
+      { status: 200, headers: { ...corsH, "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error("sign-in-as-user error:", err);
+    if (err instanceof Response) {
+      statusCode = err.status;
+      return err;
+    }
+    console.error("[sign-in-as-user] error:", err);
     statusCode = 500;
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
-      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      headers: { ...corsH, "Content-Type": "application/json" },
     });
   } finally {
     await recordMetric({
