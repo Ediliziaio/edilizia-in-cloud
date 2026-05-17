@@ -13,7 +13,8 @@ import { it } from "date-fns/locale";
 import {
   Camera, User, Save, Loader2, Phone, Mail, Lock, Eye, EyeOff,
   Shield, Check, X, CalendarDays, RefreshCw, Unlink, Clock, Bell,
-  BellRing, MessageSquare, FileText, Briefcase,
+  BellRing, MessageSquare, FileText, Briefcase, Calendar, AlarmClock,
+  Inbox, UserPlus, BellOff, MailCheck,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -336,13 +337,21 @@ export default function MioProfilo() {
   const { data: dbPrefs } = useUserNotifPrefs(user?.id);
   const savePrefs = useSaveUserNotifPrefs(user?.id, companyId);
 
-  // Mappa stato form ↔ chiavi DB (per coerenza UI esistente)
+  // Mappa stato form ↔ chiavi DB (per coerenza UI esistente).
+  // v8.6.40 — Estesa con eventi appuntamenti, scadenze, lead, email/whatsapp
+  // ricevute, report giornaliero/mensile. Tutti già supportati dal DB
+  // (vedi NotifPrefs) ma prima non esposti nella UI.
   type FormPrefKey =
     | "email_new_order" | "push_new_order"
     | "email_order_update" | "push_order_update"
     | "email_new_message" | "push_new_message"
     | "email_new_task" | "push_new_task"
-    | "email_weekly_report";
+    | "email_task_due" | "push_task_due"
+    | "email_new_appointment" | "push_new_appointment"
+    | "email_appointment_reminder" | "push_appointment_reminder"
+    | "email_new_lead" | "push_new_lead"
+    | "email_email_received" | "push_email_received"
+    | "email_daily_report" | "email_weekly_report" | "email_monthly_report";
   const formToDbKey: Record<FormPrefKey, keyof NotifPrefs> = {
     email_new_order: "order_new_email",
     push_new_order: "order_new_in_app",
@@ -352,7 +361,19 @@ export default function MioProfilo() {
     push_new_message: "message_whatsapp_in_app",
     email_new_task: "task_assigned_email",
     push_new_task: "task_assigned_in_app",
+    email_task_due: "task_due_soon_email",
+    push_task_due: "task_due_soon_in_app",
+    email_new_appointment: "appointment_new_email",
+    push_new_appointment: "appointment_new_in_app",
+    email_appointment_reminder: "appointment_reminder_email",
+    push_appointment_reminder: "appointment_reminder_in_app",
+    email_new_lead: "lead_new_email",
+    push_new_lead: "lead_new_in_app",
+    email_email_received: "message_email_received_email",
+    push_email_received: "message_email_received_in_app",
+    email_daily_report: "report_daily_email",
     email_weekly_report: "report_weekly_email",
+    email_monthly_report: "report_monthly_email",
   };
   // notifPrefs è derivato dal DB tramite il mapping (read-only locale)
   const notifPrefs = useMemo(() => {
@@ -366,9 +387,76 @@ export default function MioProfilo() {
       push_new_message: src.message_whatsapp_in_app,
       email_new_task: src.task_assigned_email,
       push_new_task: src.task_assigned_in_app,
+      email_task_due: src.task_due_soon_email,
+      push_task_due: src.task_due_soon_in_app,
+      email_new_appointment: src.appointment_new_email,
+      push_new_appointment: src.appointment_new_in_app,
+      email_appointment_reminder: src.appointment_reminder_email,
+      push_appointment_reminder: src.appointment_reminder_in_app,
+      email_new_lead: src.lead_new_email,
+      push_new_lead: src.lead_new_in_app,
+      email_email_received: src.message_email_received_email,
+      push_email_received: src.message_email_received_in_app,
+      email_daily_report: src.report_daily_email,
       email_weekly_report: src.report_weekly_email,
+      email_monthly_report: src.report_monthly_email,
     };
   }, [dbPrefs]);
+
+  // v8.6.40 — Quick actions (bulk toggle): attiva/disattiva canale per
+  // tutti gli eventi operativi. Non tocca i report periodici (sotto).
+  const bulkSetChannel = async (channel: "email" | "in_app", enabled: boolean) => {
+    if (!user?.id || !companyId) {
+      toast.error("Sessione non valida");
+      return;
+    }
+    const current = dbPrefs ?? DEFAULT_NOTIF_PREFS;
+    const next: NotifPrefs = { ...current };
+    const eventKeys: Array<keyof NotifPrefs> = [
+      "order_new_email", "order_new_in_app",
+      "order_status_changed_email", "order_status_changed_in_app",
+      "message_whatsapp_email", "message_whatsapp_in_app",
+      "message_email_received_email", "message_email_received_in_app",
+      "task_assigned_email", "task_assigned_in_app",
+      "task_due_soon_email", "task_due_soon_in_app",
+      "appointment_new_email", "appointment_new_in_app",
+      "appointment_reminder_email", "appointment_reminder_in_app",
+      "lead_new_email", "lead_new_in_app",
+    ];
+    const suffix = channel === "email" ? "_email" : "_in_app";
+    for (const k of eventKeys) {
+      if (k.endsWith(suffix)) next[k] = enabled;
+    }
+    try {
+      await savePrefs.mutateAsync(next);
+      toast.success(enabled ? "Notifiche attivate" : "Notifiche disattivate");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Riprova tra qualche secondo.";
+      toast.error("Impossibile aggiornare", { description: msg });
+    }
+  };
+
+  // Contatori per il riepilogo header
+  const notifCounts = useMemo(() => {
+    const p = notifPrefs;
+    let email = 0, push = 0;
+    const all = [
+      ["email_new_order", "push_new_order"],
+      ["email_order_update", "push_order_update"],
+      ["email_new_message", "push_new_message"],
+      ["email_email_received", "push_email_received"],
+      ["email_new_task", "push_new_task"],
+      ["email_task_due", "push_task_due"],
+      ["email_new_appointment", "push_new_appointment"],
+      ["email_appointment_reminder", "push_appointment_reminder"],
+      ["email_new_lead", "push_new_lead"],
+    ] as const;
+    for (const [e, q] of all) {
+      if (p[e as keyof typeof p]) email++;
+      if (p[q as keyof typeof p]) push++;
+    }
+    return { email, push };
+  }, [notifPrefs]);
 
   /** Toggle con persistenza ottimistica: aggiorna subito UI, fa upsert,
    *  rollback + toast errore se l'upsert fallisce. */
@@ -841,27 +929,85 @@ export default function MioProfilo() {
             assegnati vai a /azienda/sopralluoghi. */}
 
         {/* ════════════ TAB NOTIFICHE ════════════ */}
-        {/* v8.6.38 — Refactor in TABELLA event-based: una riga per ogni
-            evento, due colonne switch (Email + Push). Più compatto e
-            scansionabile rispetto a 3 card con eventi duplicati nelle
-            colonne Email/Push.
-
-            Sezione separata sotto: notifiche solo-email (newsletter, report). */}
+        {/* v8.6.40 — Sezione riprogettata:
+            - Header con riepilogo + quick actions bulk (Email tutto / Push
+              tutto / Disattiva tutto)
+            - Eventi raggruppati per categoria (Operativi, Comunicazione,
+              Calendario & attività, Lead)
+            - Più eventi esposti (appuntamenti, scadenze task, email/whatsapp
+              ricevuti, lead nuovi) tutti già nello schema DB
+            - Report periodici giornaliero / settimanale / mensile */}
         <TabsContent value="notifiche" className="mt-0 space-y-5">
+          {/* Header — riepilogo + quick actions */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Bell className="h-4 w-4" /> Notifiche per evento
-              </CardTitle>
-              <CardDescription>Scegli per ogni evento se vuoi ricevere notifica via email, push (browser/app) o entrambe.</CardDescription>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Bell className="h-4 w-4" /> Preferenze notifiche
+                  </CardTitle>
+                  <CardDescription>
+                    Decidi quali eventi ti notifichiamo e su quale canale (email o push browser/app).
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant="secondary" className="gap-1 text-xs">
+                    <Mail className="h-3 w-3" /> {notifCounts.email} email
+                  </Badge>
+                  <Badge variant="secondary" className="gap-1 text-xs">
+                    <BellRing className="h-3 w-3" /> {notifCounts.push} push
+                  </Badge>
+                </div>
+              </div>
             </CardHeader>
+            <CardContent className="pt-0">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => bulkSetChannel("in_app", true)}
+                  disabled={savePrefs.isPending}
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  <BellRing className="h-3 w-3" /> Attiva tutto Push
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => bulkSetChannel("email", true)}
+                  disabled={savePrefs.isPending}
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  <MailCheck className="h-3 w-3" /> Attiva tutto Email
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    await bulkSetChannel("in_app", false);
+                    await bulkSetChannel("email", false);
+                  }}
+                  disabled={savePrefs.isPending}
+                  className="h-8 gap-1.5 text-xs text-muted-foreground"
+                >
+                  <BellOff className="h-3 w-3" /> Disattiva tutto
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Eventi raggruppati per categoria */}
+          <Card>
             <CardContent className="p-0">
               {/* Header colonne */}
-              <div className="hidden sm:grid grid-cols-[1fr_72px_72px] gap-2 px-4 pt-2 pb-2 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <div className="hidden sm:grid grid-cols-[1fr_72px_72px] gap-2 px-4 pt-3 pb-2 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 <div>Evento</div>
                 <div className="text-center flex items-center justify-center gap-1"><Mail className="h-3 w-3" /> Email</div>
                 <div className="text-center flex items-center justify-center gap-1"><BellRing className="h-3 w-3" /> Push</div>
               </div>
+
+              {/* Categoria: Ordini & cantieri */}
+              <NotifGroupHeader icon={Briefcase} label="Ordini & cantieri" />
               <NotifMatrixRow
                 icon={Briefcase}
                 label="Nuovo ordine / cantiere"
@@ -874,49 +1020,139 @@ export default function MioProfilo() {
               <NotifMatrixRow
                 icon={RefreshCw}
                 label="Aggiornamento ordine"
-                desc="Cambi di stato su ordini in cui sei coinvolto"
+                desc="Cambi di stato sugli ordini in cui sei coinvolto"
                 emailChecked={notifPrefs.email_order_update}
                 pushChecked={notifPrefs.push_order_update}
                 onEmailToggle={() => toggleNotif("email_order_update")}
                 onPushToggle={() => toggleNotif("push_order_update")}
               />
+
+              {/* Categoria: Comunicazione */}
+              <NotifGroupHeader icon={MessageSquare} label="Comunicazione" />
               <NotifMatrixRow
                 icon={MessageSquare}
-                label="Nuovo messaggio chat"
-                desc="Messaggi diretti e menzioni nelle chat"
+                label="Nuovo messaggio chat / WhatsApp"
+                desc="Messaggi diretti e menzioni nelle chat interne e WhatsApp"
                 emailChecked={notifPrefs.email_new_message}
                 pushChecked={notifPrefs.push_new_message}
                 onEmailToggle={() => toggleNotif("email_new_message")}
                 onPushToggle={() => toggleNotif("push_new_message")}
               />
               <NotifMatrixRow
+                icon={Inbox}
+                label="Email ricevuta"
+                desc="Nuove email nella casella collegata (Gmail / Outlook / IMAP)"
+                emailChecked={notifPrefs.email_email_received}
+                pushChecked={notifPrefs.push_email_received}
+                onEmailToggle={() => toggleNotif("email_email_received")}
+                onPushToggle={() => toggleNotif("push_email_received")}
+              />
+
+              {/* Categoria: Calendario & attività */}
+              <NotifGroupHeader icon={Calendar} label="Calendario & attività" />
+              <NotifMatrixRow
+                icon={Calendar}
+                label="Nuovo appuntamento"
+                desc="Quando ti viene creato un appuntamento in agenda"
+                emailChecked={notifPrefs.email_new_appointment}
+                pushChecked={notifPrefs.push_new_appointment}
+                onEmailToggle={() => toggleNotif("email_new_appointment")}
+                onPushToggle={() => toggleNotif("push_new_appointment")}
+              />
+              <NotifMatrixRow
+                icon={AlarmClock}
+                label="Promemoria appuntamento"
+                desc="Promemoria prima dell'inizio (15 min default)"
+                emailChecked={notifPrefs.email_appointment_reminder}
+                pushChecked={notifPrefs.push_appointment_reminder}
+                onEmailToggle={() => toggleNotif("email_appointment_reminder")}
+                onPushToggle={() => toggleNotif("push_appointment_reminder")}
+              />
+              <NotifMatrixRow
                 icon={FileText}
                 label="Nuova attività assegnata"
-                desc="Quando ti viene assegnata un'attività"
+                desc="Quando ti viene assegnata un'attività / to-do"
                 emailChecked={notifPrefs.email_new_task}
                 pushChecked={notifPrefs.push_new_task}
                 onEmailToggle={() => toggleNotif("email_new_task")}
                 onPushToggle={() => toggleNotif("push_new_task")}
+              />
+              <NotifMatrixRow
+                icon={Clock}
+                label="Attività in scadenza"
+                desc="Alert quando un'attività sta per scadere"
+                emailChecked={notifPrefs.email_task_due}
+                pushChecked={notifPrefs.push_task_due}
+                onEmailToggle={() => toggleNotif("email_task_due")}
+                onPushToggle={() => toggleNotif("push_task_due")}
+              />
+
+              {/* Categoria: Lead & vendita */}
+              <NotifGroupHeader icon={UserPlus} label="Lead & vendita" />
+              <NotifMatrixRow
+                icon={UserPlus}
+                label="Nuovo lead in arrivo"
+                desc="Lead dai form, Facebook Ads, WhatsApp o chat sito"
+                emailChecked={notifPrefs.email_new_lead}
+                pushChecked={notifPrefs.push_new_lead}
+                onEmailToggle={() => toggleNotif("email_new_lead")}
+                onPushToggle={() => toggleNotif("push_new_lead")}
                 isLast
               />
             </CardContent>
           </Card>
 
-          {/* Altro: solo-email (newsletter, report) */}
+          {/* Email periodiche: report giornaliero / settimanale / mensile */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Mail className="h-4 w-4" /> Email periodiche
               </CardTitle>
-              <CardDescription>Newsletter e riepiloghi automatici via email.</CardDescription>
+              <CardDescription>
+                Riepiloghi automatici dell'attività via email. Indipendenti dalle notifiche per evento.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-1">
-              <NotifRow icon={FileText} label="Report settimanale" desc="Riepilogo attività della settimana via email"
-                checked={notifPrefs.email_weekly_report} onChange={() => toggleNotif("email_weekly_report")} />
+              <NotifRow
+                icon={FileText}
+                label="Report giornaliero"
+                desc="Riepilogo della giornata, inviato ogni sera"
+                checked={notifPrefs.email_daily_report}
+                onChange={() => toggleNotif("email_daily_report")}
+              />
+              <NotifRow
+                icon={FileText}
+                label="Report settimanale"
+                desc="Riepilogo della settimana, inviato il lunedì mattina"
+                checked={notifPrefs.email_weekly_report}
+                onChange={() => toggleNotif("email_weekly_report")}
+              />
+              <NotifRow
+                icon={FileText}
+                label="Report mensile"
+                desc="Riepilogo del mese, inviato il 1° del mese"
+                checked={notifPrefs.email_monthly_report}
+                onChange={() => toggleNotif("email_monthly_report")}
+              />
             </CardContent>
           </Card>
+
+          <p className="text-[11px] text-muted-foreground px-1">
+            Le modifiche vengono salvate automaticamente. Per ricevere notifiche push sul browser,
+            assicurati di aver dato il permesso quando richiesto dal browser.
+          </p>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// v8.6.40 — Divider/header di gruppo dentro la matrice eventi.
+function NotifGroupHeader({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
+  return (
+    <div className="flex items-center gap-2 bg-muted/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-b">
+      <Icon className="h-3.5 w-3.5" />
+      {label}
     </div>
   );
 }
