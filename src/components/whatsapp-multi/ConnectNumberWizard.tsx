@@ -1,7 +1,8 @@
 // MP-FINAL — Wizard Connect Number 3 step canonico (da masterprompt MP04).
 // Step 1: scegli purpose
-// Step 2: inserisci dati Meta (numero, phone_id, waba, token, display_name)
-// Step 3: riepilogo + conferma
+// Step 2: scegli modalità: Embedded Signup (rapido, consigliato) OPPURE manuale
+//         (numero, phone_id, waba, token)
+// Step 3: riepilogo + conferma (solo modalità manuale; Embedded chiude al volo)
 
 import { useEffect, useState } from "react";
 import {
@@ -17,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, ArrowRight, Info, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Info, Loader2, Sparkles, KeyRound } from "lucide-react";
 import {
   PURPOSE_LABELS,
   useConnectWANumber,
@@ -25,6 +26,9 @@ import {
   type WAPurpose,
 } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import { PurposeSelector } from "./PurposeSelector";
+import { WhatsAppEmbeddedSignupButton } from "./WhatsAppEmbeddedSignupButton";
+
+type ConnectMode = "embedded" | "manual";
 
 type Step = 1 | 2 | 3;
 
@@ -42,6 +46,7 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
 
   const [step, setStep] = useState<Step>(initialPurpose ? 2 : 1);
   const [purpose, setPurpose] = useState<WAPurpose | null>(initialPurpose ?? null);
+  const [mode, setMode] = useState<ConnectMode>("embedded");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [wabaId, setWabaId] = useState("");
@@ -54,11 +59,13 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
     if (!open) return;
     setPurpose(initialPurpose ?? null);
     setStep(initialPurpose ? 2 : 1);
+    setMode("embedded");
   }, [open, initialPurpose]);
 
   const reset = () => {
     setStep(1);
     setPurpose(null);
+    setMode("embedded");
     setPhoneNumber("");
     setPhoneNumberId("");
     setWabaId("");
@@ -68,7 +75,10 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
 
   const canNext = (): boolean => {
     if (step === 1) return purpose !== null && !disabledPurposes.includes(purpose);
-    if (step === 2) return !!(purpose && !disabledPurposes.includes(purpose) && phoneNumber && phoneNumberId && wabaId && accessToken);
+    if (step === 2) {
+      if (mode === "embedded") return false; // Embedded chiude direttamente al success
+      return !!(purpose && !disabledPurposes.includes(purpose) && phoneNumber && phoneNumberId && wabaId && accessToken);
+    }
     return true;
   };
 
@@ -122,11 +132,74 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
 
         {step === 2 && (
           <div className="space-y-4">
+            {/* Toggle modalità: Embedded Signup (default) vs Manuale */}
+            <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/40 p-1">
+              <button
+                type="button"
+                onClick={() => setMode("embedded")}
+                className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${mode === "embedded" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Sparkles className="h-4 w-4" />
+                Embedded Signup
+                <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                  consigliato
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("manual")}
+                className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${mode === "manual" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <KeyRound className="h-4 w-4" />
+                Manuale
+              </button>
+            </div>
+
+            {mode === "embedded" && purpose && (
+              <div className="space-y-4 py-2 text-center">
+                <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center">
+                  <Sparkles className="h-6 w-6 text-emerald-600" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Onboarding rapido tramite Meta</p>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                    Aprirà una popup ufficiale Meta dove potrai selezionare l'account WABA, verificare
+                    il numero e completare l'onboarding senza copiare token o ID. Al termine il numero
+                    sarà registrato in stato <code>pending</code> in attesa della verifica webhook.
+                  </p>
+                </div>
+                <div className="space-y-2 text-left">
+                  <Label htmlFor="wz-display-emb">Nome visualizzato (opzionale)</Label>
+                  <Input
+                    id="wz-display-emb"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Bot Cantieri Rossi Srl"
+                  />
+                </div>
+                <WhatsAppEmbeddedSignupButton
+                  purpose={purpose}
+                  displayName={displayName || undefined}
+                  onSuccess={() => {
+                    onClose();
+                    reset();
+                  }}
+                  className="w-full"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Richiede che il super_admin abbia configurato Meta App ID + Embedded Signup Config nelle
+                  impostazioni di piattaforma. Se non funziona usa la modalità Manuale.
+                </p>
+              </div>
+            )}
+
+            {mode === "manual" && (
+              <>
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
                 Questi dati si trovano in <b>Meta Business Manager → WhatsApp → API setup</b>.
-                In produzione preferisci il flusso OAuth Embedded Signup (via pagina Impostazioni).
+                In produzione preferisci il flusso Embedded Signup (toggle sopra).
                 Il token viene salvato cifrato lato server. Inserimento manuale qui è pensato per staging/test.
               </AlertDescription>
             </Alert>
@@ -176,6 +249,8 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
                 placeholder="Bot Cantieri Rossi Srl"
               />
             </div>
+              </>
+            )}
           </div>
         )}
 
@@ -208,16 +283,20 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
               Indietro
             </Button>
           )}
-          {step < 3 ? (
-            <Button disabled={!canNext()} onClick={() => setStep((s) => ((s + 1) as Step))}>
-              Avanti
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          ) : (
-            <Button disabled={connect.isPending} onClick={submit}>
-              {connect.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Connetti
-            </Button>
+          {/* In modalità Embedded a step 2 il CTA è dentro il pannello (FB.login),
+              non serve "Avanti". Per gli altri casi mostro Avanti/Connetti. */}
+          {!(step === 2 && mode === "embedded") && (
+            step < 3 ? (
+              <Button disabled={!canNext()} onClick={() => setStep((s) => ((s + 1) as Step))}>
+                Avanti
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            ) : (
+              <Button disabled={connect.isPending} onClick={submit}>
+                {connect.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Connetti
+              </Button>
+            )
           )}
         </DialogFooter>
       </DialogContent>

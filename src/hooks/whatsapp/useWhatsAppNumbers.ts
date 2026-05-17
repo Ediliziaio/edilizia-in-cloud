@@ -32,7 +32,7 @@ export const PURPOSE_DESCRIPTIONS: Record<WAPurpose, string> = {
   notifiche: "Alert automatici (scadenze, margini, pagamenti).",
 };
 
-const WA_NUMBERS_KEY = ["whatsapp", "numbers"] as const;
+export const WA_NUMBERS_KEY = ["whatsapp", "numbers"] as const;
 
 export function useWhatsAppNumbers() {
   const companyId = useEffectiveCompanyId();
