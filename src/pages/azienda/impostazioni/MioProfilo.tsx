@@ -24,6 +24,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
+// v8.6.39 H1 — hook persistenza preferenze notifiche (tabella user_notification_preferences)
+import {
+  useUserNotifPrefs,
+  useSaveUserNotifPrefs,
+  DEFAULT_NOTIF_PREFS,
+  type NotifPrefs,
+} from "@/hooks/useUserNotificationPrefs";
 // v8.6.36 — MySurveysTab rimosso dal profilo (non era semantica corretta:
 // è una LISTA OPERATIVA di sopralluoghi assegnati, non un'impostazione
 // personale). Il componente resta disponibile per future dashboard widget.
@@ -311,21 +318,75 @@ export default function MioProfilo() {
   };
 
   // ── Notification preferences (local state, will persist to DB when table exists) ──
-  const [notifPrefs, setNotifPrefs] = useState({
-    email_new_order: true,
-    email_order_update: true,
-    email_new_message: true,
-    email_new_task: true,
-    push_new_order: true,
-    push_order_update: false,
-    push_new_message: true,
-    push_new_task: true,
-    email_marketing: false,
-    email_weekly_report: true,
-  });
+  // v8.6.39 H1 — Persistenza vera tramite tabella user_notification_preferences
+  // (esisteva già nel DB con 60+ colonne, hook useUserNotifPrefs già pronto).
+  // Prima era solo useState locale → al refresh tornava ai default = bug subdolo.
+  // Mapping form ↔ colonne DB:
+  //   email_new_order      → order_new_email
+  //   push_new_order       → order_new_in_app   (push = notifica in-app)
+  //   email_order_update   → order_status_changed_email
+  //   push_order_update    → order_status_changed_in_app
+  //   email_new_message    → message_whatsapp_email (più rappresentativo di "chat")
+  //   push_new_message     → message_whatsapp_in_app
+  //   email_new_task       → task_assigned_email
+  //   push_new_task        → task_assigned_in_app
+  //   email_weekly_report  → report_weekly_email
+  // email_marketing rimosso dalla UI: nessuna colonna corrispondente,
+  // l'utente può disiscriversi direttamente dalle newsletter via link in fondo.
+  const { data: dbPrefs } = useUserNotifPrefs(user?.id);
+  const savePrefs = useSaveUserNotifPrefs(user?.id, companyId);
 
-  const toggleNotif = (key: keyof typeof notifPrefs) => {
-    setNotifPrefs(prev => ({ ...prev, [key]: !prev[key] }));
+  // Mappa stato form ↔ chiavi DB (per coerenza UI esistente)
+  type FormPrefKey =
+    | "email_new_order" | "push_new_order"
+    | "email_order_update" | "push_order_update"
+    | "email_new_message" | "push_new_message"
+    | "email_new_task" | "push_new_task"
+    | "email_weekly_report";
+  const formToDbKey: Record<FormPrefKey, keyof NotifPrefs> = {
+    email_new_order: "order_new_email",
+    push_new_order: "order_new_in_app",
+    email_order_update: "order_status_changed_email",
+    push_order_update: "order_status_changed_in_app",
+    email_new_message: "message_whatsapp_email",
+    push_new_message: "message_whatsapp_in_app",
+    email_new_task: "task_assigned_email",
+    push_new_task: "task_assigned_in_app",
+    email_weekly_report: "report_weekly_email",
+  };
+  // notifPrefs è derivato dal DB tramite il mapping (read-only locale)
+  const notifPrefs = useMemo(() => {
+    const src = dbPrefs ?? DEFAULT_NOTIF_PREFS;
+    return {
+      email_new_order: src.order_new_email,
+      push_new_order: src.order_new_in_app,
+      email_order_update: src.order_status_changed_email,
+      push_order_update: src.order_status_changed_in_app,
+      email_new_message: src.message_whatsapp_email,
+      push_new_message: src.message_whatsapp_in_app,
+      email_new_task: src.task_assigned_email,
+      push_new_task: src.task_assigned_in_app,
+      email_weekly_report: src.report_weekly_email,
+    };
+  }, [dbPrefs]);
+
+  /** Toggle con persistenza ottimistica: aggiorna subito UI, fa upsert,
+   *  rollback + toast errore se l'upsert fallisce. */
+  const toggleNotif = async (key: FormPrefKey) => {
+    if (!user?.id || !companyId) {
+      toast.error("Sessione non valida", { description: "Ricarica la pagina e riprova." });
+      return;
+    }
+    const dbKey = formToDbKey[key];
+    const current = dbPrefs ?? DEFAULT_NOTIF_PREFS;
+    const next: NotifPrefs = { ...current, [dbKey]: !current[dbKey] };
+    // optimistic update via mutation
+    try {
+      await savePrefs.mutateAsync(next);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Riprova tra qualche secondo.";
+      toast.error("Impossibile salvare la preferenza", { description: msg });
+    }
   };
 
   const avatarUrl = avatarPreview ?? profile?.avatar_url ?? null;
@@ -846,8 +907,6 @@ export default function MioProfilo() {
               <CardDescription>Newsletter e riepiloghi automatici via email.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-1">
-              <NotifRow icon={Mail} label="Email di marketing" desc="Newsletter e novità della piattaforma"
-                checked={notifPrefs.email_marketing} onChange={() => toggleNotif("email_marketing")} />
               <NotifRow icon={FileText} label="Report settimanale" desc="Riepilogo attività della settimana via email"
                 checked={notifPrefs.email_weekly_report} onChange={() => toggleNotif("email_weekly_report")} />
             </CardContent>
