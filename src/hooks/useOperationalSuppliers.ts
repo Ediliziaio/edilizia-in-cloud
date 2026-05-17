@@ -117,7 +117,9 @@ export function useOperationalSuppliers() {
       toast.success("Fornitore aggiornato");
       queryClient.invalidateQueries({ queryKey: ["operational-suppliers"] });
     },
-    onError: (e) => toast.error("Errore", { description: String(e) }),
+    onError: (e) => toast.error("Errore", {
+      description: e instanceof Error ? e.message : "Errore sconosciuto",
+    }),
   });
 
   return {
