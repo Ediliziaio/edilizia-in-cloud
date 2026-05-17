@@ -80,16 +80,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const templateAssetUrl = (path?: string | null) => {
-  if (!path) return undefined;
-  if (/^https?:\/\//i.test(path)) return path;
-  const clean = path.replace(/^\/+/, "");
-  const [maybeBucket, ...rest] = clean.split("/");
-  if ((maybeBucket === "quote-template-assets" || maybeBucket === "company-assets") && rest.length > 0) {
-    return supabase.storage.from(maybeBucket).getPublicUrl(rest.join("/")).data.publicUrl;
-  }
-  return supabase.storage.from("quote-template-assets").getPublicUrl(clean).data.publicUrl;
-};
+// MP-MKT-001: templateAssetUrl estratto in ./QuoteBuilder/helpers.ts
+import { templateAssetUrl } from "./QuoteBuilder/helpers";
 import {
   Table,
   TableBody,
@@ -232,26 +224,8 @@ function SortableItem({
   );
 }
 
-interface ContactOption {
-  id: string;
-  first_name: string;
-  last_name: string | null;
-  email: string | null;
-  phone: string | null;
-  company_name: string | null;
-  address: string | null;
-  city: string | null;
-  province: string | null;
-  postal_code: string | null;
-  fiscal_code: string | null;
-  vat_number: string | null;
-}
-
-interface ListinoCategoria {
-  id: string;
-  nome: string;
-  margine_target_percentuale?: number | null;
-}
+// MP-MKT-001: ContactOption + ListinoCategoria estratti in ./QuoteBuilder/types.ts
+import type { ContactOption, ListinoCategoria } from "./QuoteBuilder/types";
 
 function ContactCombobox({
   contacts,
@@ -318,12 +292,8 @@ function ContactCombobox({
 // ─────────────────────────────────────────────────────────────────────────────
 // ─── STEPS ────────────────────────────────────────────────────────────────────
 
-const STEPS = [
-  { key: "cliente", label: "Cliente", icon: User },
-  { key: "prodotti", label: "Prodotti", icon: Package },
-  { key: "documenti", label: "Documenti", icon: FileStack },
-  { key: "riepilogo", label: "Riepilogo", icon: FileCheck },
-];
+// MP-MKT-001: STEPS estratto in ./QuoteBuilder/constants.ts
+import { STEPS } from "./QuoteBuilder/constants";
 
 // ─── Main component ───────────────────────────────────────────────────────────
 

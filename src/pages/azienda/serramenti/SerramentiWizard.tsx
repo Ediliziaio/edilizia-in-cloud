@@ -76,38 +76,11 @@ const STEP_ICONS: Record<SrWizardStep, React.FC<React.SVGProps<SVGSVGElement>>> 
   pdf: FileText,
 };
 
-const compactText = (...parts: Array<string | null | undefined>) =>
-  parts.map((part) => part?.trim()).filter(Boolean).join(" ");
-
-const compactAddress = (...parts: Array<string | null | undefined>) =>
-  parts.map((part) => part?.trim()).filter(Boolean).join(", ");
-
-function isWizardStepComplete(
-  step: SrWizardStep,
-  form: Partial<SrProgettoRow>,
-  detail?: SrProgettoDetail,
-): boolean {
-  switch (step) {
-    case "cliente":
-      return Boolean(form.cliente_id || form.cliente_nome || form.cliente_cognome);
-    case "immobile":
-      return Boolean(form.cantiere_indirizzo || form.cantiere_citta || form.tipo_intervento);
-    case "esigenze":
-      return Boolean((form.esigenze?.length ?? 0) > 0 || (form.soluzione?.length ?? 0) > 0);
-    case "bom":
-      return Boolean((detail?.serramenti.length ?? 0) > 0);
-    case "accessori_foto":
-      return Boolean((detail?.media.length ?? 0) > 0 || (detail?.accessori.length ?? 0) > 0);
-    case "economia":
-      return Boolean((form.totale_min ?? 0) > 0 || (form.totale_max ?? 0) > 0 || form.schema_pagamento);
-    case "consulenza":
-      return Boolean(form.consulenza_at || (form.prossimi_passi?.length ?? 0) > 0);
-    case "pdf":
-      return Boolean(form.pdf_url || form.pdf_generated_at);
-    default:
-      return false;
-  }
-}
+// MP-MKT-001: compactText/compactAddress/isWizardStepComplete estratti
+// in ./SerramentiWizard/helpers.ts
+import {
+  compactText, compactAddress, isWizardStepComplete,
+} from "./SerramentiWizard/helpers";
 
 export default function SerramentiWizard() {
   const { id } = useParams<{ id?: string }>();
