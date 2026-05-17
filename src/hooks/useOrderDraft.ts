@@ -13,6 +13,8 @@ export interface OrderDraftData {
   salespersonData: { commission_type: string; commission_value: number } | null;
   assignedTo: string;
   destinationWarehouseId: string | null;
+  // v8.6.42 — sede operativa per analytics disaggregati
+  sedeId?: string | null;
   // Dates as ISO strings
   expectedDate: string | null;
   warehouseArrivalDate: string | null;

@@ -294,6 +294,7 @@ function ContactCombobox({
 
 // MP-MKT-001: STEPS estratto in ./QuoteBuilder/constants.ts
 import { STEPS } from "./QuoteBuilder/constants";
+import { SedeSelect } from "@/components/sedi/SedeSelect";
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -349,6 +350,8 @@ export default function QuoteBuilder() {
 
   // Commerciale assegnato al preventivo (per provvigioni e regole sconto)
   const [salespersonId, setSalespersonId] = useState<string | null>(null);
+  // v8.6.42 — sede operativa per analytics disaggregati
+  const [sedeId, setSedeId] = useState<string | null>(null);
   const [approvalStatus, setApprovalStatus] = useState<"not_required" | "pending" | "approved" | "rejected" | "counter_proposed">("not_required");
 
   // Step 1: Items
@@ -616,9 +619,12 @@ export default function QuoteBuilder() {
     const q = existingQuote as unknown as {
       salesperson_id: string | null;
       approval_status: "not_required" | "pending" | "approved" | "rejected" | "counter_proposed" | null;
+      sede_id?: string | null;
     };
     if (q.salesperson_id !== undefined) setSalespersonId(q.salesperson_id);
     if (q.approval_status) setApprovalStatus(q.approval_status);
+    // v8.6.42 — hydrate sede_id (analytics per sede)
+    if (q.sede_id !== undefined) setSedeId(q.sede_id);
   }, [existingQuote]);
 
   // MP-preventivi-v2: hydrate PDF override da quote esistente (edit mode)
@@ -1396,6 +1402,7 @@ export default function QuoteBuilder() {
         margine_totale_percentuale: totaliPro.margine_totale_pct || null,
         // Preventivi V2
         salesperson_id: salespersonId,
+        sede_id: sedeId,
         margine_pct_snapshot: totaliPro.margine_totale_pct ?? null,
         firma_digitale_abilitata: pdfFirma,
         template_layout_override: layoutOverride || null,
@@ -1761,6 +1768,15 @@ export default function QuoteBuilder() {
                 <p className="text-xs text-muted-foreground mt-1">
                   La provvigione teorica viene calcolata automaticamente in base alla configurazione del commerciale.
                 </p>
+              </div>
+              {/* v8.6.42 — Sede operativa del preventivo (analytics MV) */}
+              <div className="md:col-span-2">
+                <SedeSelect
+                  label="Sede operativa"
+                  placeholder="Sede operativa (opzionale)"
+                  value={sedeId}
+                  onChange={setSedeId}
+                />
               </div>
               <div className="md:col-span-2">
                 <Label>Indirizzo lavori (se diverso da cliente)</Label>

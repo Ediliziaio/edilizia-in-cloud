@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { TagSelector } from "@/components/marketing/TagSelector";
+import { SedeSelect } from "@/components/sedi/SedeSelect";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cleanPhone } from "@/lib/contactUtils";
@@ -22,6 +23,8 @@ export interface ContactFormData {
   tags: string[];
   notes: string;
   source: string;
+  // v8.6.42 — sede operativa di pertinenza (per analytics LeadPerSedeChart)
+  sede_id?: string | null;
 }
 
 interface ContactDialogProps {
@@ -51,6 +54,7 @@ const emptyForm: ContactFormData = {
   tags: [],
   notes: "",
   source: "manuale",
+  sede_id: null,
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -215,6 +219,14 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
               onTagsChange={(tags) => setForm((f) => ({ ...f, tags }))}
             />
           </div>
+          {/* v8.6.42 — Sede operativa di pertinenza (per LeadPerSedeChart) */}
+          <SedeSelect
+            label="Sede operativa"
+            placeholder="Sede operativa (opzionale)"
+            value={form.sede_id}
+            onChange={(id) => setForm((f) => ({ ...f, sede_id: id }))}
+            className="space-y-1.5"
+          />
           <div className="space-y-1.5">
             <Label>Note</Label>
             <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={3} />

@@ -19,6 +19,9 @@ const baseOrderSchema = z.object({
   work_end_date: z.date().optional(),
   // Magazzino destinazione materiali
   destination_warehouse_id: z.string().optional().nullable().default(null),
+  // v8.6.42 — Sede operativa dell'ordine (showroom/magazzino/ufficio).
+  // Usato per analytics disaggregati per sede in Cruscotto e Marginalità.
+  sede_id: z.string().optional().nullable().default(null),
   // Financial
   payment_type: z.enum(["standard", "financing"]).default("standard"),
   total_amount: z.string().default(""),
@@ -91,6 +94,7 @@ export const orderDefaultValues: OrderFormValues = {
   work_start_date: undefined,
   work_end_date: undefined,
   destination_warehouse_id: null,
+  sede_id: null,
   payment_type: "standard",
   total_amount: "",
   vat_rate: "22",

@@ -55,6 +55,7 @@ import {
 } from "@/lib/orderUtils";
 import { orderSchema, orderDefaultValues, type OrderFormValues } from "@/lib/orderSchema";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
+import { SedeSelect } from "@/components/sedi/SedeSelect";
 
 function CreateOrderInner() {
   const navigate = useNavigate();
@@ -91,6 +92,7 @@ function CreateOrderInner() {
     internal_notes: internalNotes,
     assigned_to: assignedTo,
     destination_warehouse_id: destinationWarehouseId,
+    sede_id: sedeId,
   } = watch();
   const paymentType = _paymentTypeRaw as PaymentType;
 
@@ -183,6 +185,7 @@ function CreateOrderInner() {
       salesperson_data: draft.salespersonData || null,
       assigned_to: draft.assignedTo || "",
       destination_warehouse_id: draft.destinationWarehouseId || null,
+      sede_id: draft.sedeId ?? null,
       expected_date: isoToDate(draft.expectedDate),
       warehouse_arrival_date: isoToDate(draft.warehouseArrivalDate),
       work_start_date: isoToDate(draft.workStartDate),
@@ -217,6 +220,7 @@ function CreateOrderInner() {
         salespersonData: (salespersonData as { commission_type: string; commission_value: number } | null) || null,
         assignedTo: assignedTo || "",
         destinationWarehouseId: destinationWarehouseId || null,
+        sedeId: sedeId ?? null,
         expectedDate: dateToIso(expectedDate),
         warehouseArrivalDate: dateToIso(warehouseArrivalDate),
         workStartDate: dateToIso(workStartDate),
@@ -234,7 +238,7 @@ function CreateOrderInner() {
       if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
     };
   }, [customerId, orderCode, description, internalNotes, statusId, salespersonId, salespersonData,
-      assignedTo, destinationWarehouseId,
+      assignedTo, destinationWarehouseId, sedeId,
       expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
       paymentType, totalAmount, vatRate,
       installments, financingCost,
@@ -317,6 +321,7 @@ function CreateOrderInner() {
         has_building_bonus: values.has_building_bonus,
         assigned_to: values.assigned_to || null,
         destination_warehouse_id: values.destination_warehouse_id || null,
+        sede_id: values.sede_id || null,
       };
 
       const itemsPayload = orderItems.map((item, index) => ({
@@ -380,6 +385,20 @@ function CreateOrderInner() {
       const result = data as unknown as { id: string; success: boolean };
       if (!result || !result.id) {
         throw new Error("Risposta inattesa dalla funzione atomica");
+      }
+
+      // v8.6.42 — sede_id non è nel RPC create_order_atomic, viene
+      // settato con un UPDATE follow-up (best-effort, non blocca l'ordine).
+      // La colonna orders.sede_id è FK opzionale (vedi migration create_sedi_system).
+      if (values.sede_id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: sedeErr } = await (supabase as any)
+          .from("orders")
+          .update({ sede_id: values.sede_id })
+          .eq("id", result.id);
+        if (sedeErr) {
+          console.warn("[CreateOrder] update sede_id fallito (ordine creato comunque):", sedeErr.message);
+        }
       }
 
       return result;
@@ -744,6 +763,16 @@ function CreateOrderInner() {
                   placeholder="Magazzino predefinito"
                 />
               </div>
+
+              {/* v8.6.42 — Sede operativa (showroom/magazzino/ufficio) per
+                  analytics disaggregati su cruscotto e marginalità. */}
+              <SedeSelect
+                label="Sede operativa"
+                placeholder="Sede operativa (opzionale)"
+                value={sedeId}
+                onChange={(id) => setValue("sede_id", id)}
+                className="space-y-2"
+              />
             </div>
           </QuoteCard>
 
