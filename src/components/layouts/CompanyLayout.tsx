@@ -799,13 +799,26 @@ const CompanySidebar = memo(function CompanySidebar() {
     return findActiveAreaId(location.pathname);
   });
 
+  // BUG FIX: la dep `openAreaId` qui causava un loop di accordion: se l'utente
+  // cliccava su un'altra macroArea (es. "Persone") mentre era su una route di
+  // un'altra area (es. /azienda/fatture in area_finanza), `setOpenAreaId(area_persone)`
+  // veniva immediatamente sovrascritto da questo effect che ri-leggeva il
+  // pathname e riportava `openAreaId` ad area_finanza. Risultato: la sidebar
+  // restava "incollata" all'area della route corrente e non si poteva esplorare.
+  //
+  // Soluzione: l'effect deve allineare la sidebar SOLO quando cambia il
+  // pathname (navigazione effettiva). I click manuali sull'accordion sono
+  // gestiti da onOpenChange e devono essere preservati. Quindi: dep array
+  // include solo `location.pathname` (con `findActiveAreaId` stabile via
+  // useCallback).
   useEffect(() => {
     const active = findActiveAreaId(location.pathname);
-    if (active && active !== openAreaId) {
+    if (active) {
       setOpenAreaId(active);
       try { localStorage.setItem("sidebar_open_area", active); } catch { /* storage non disponibile — silenzioso */ }
     }
-  }, [findActiveAreaId, location.pathname, openAreaId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   // Apply CSS variables for brand colors
   useEffect(() => {
