@@ -723,6 +723,8 @@ function OrderDetailInner() {
         balance_paid_date: item.balance_paid_date || null,
         balance_expected_date: item.balance_expected_date || null,
         deposit_expected_date: item.deposit_expected_date || null,
+        // v8.6.35 — Tracking & ODA
+        delivery_date: item.delivery_date || null,
       }).eq("id", item.id);
       if (error) throw error;
     },
@@ -760,6 +762,8 @@ function OrderDetailInner() {
         balance_paid_date: item.balance_paid_date || null,
         balance_expected_date: item.balance_expected_date || null,
         deposit_expected_date: item.deposit_expected_date || null,
+        // v8.6.35 — Tracking & ODA
+        delivery_date: item.delivery_date || null,
       });
       if (error) throw error;
     },
@@ -802,6 +806,8 @@ function OrderDetailInner() {
     balance_paid_date: item.balance_paid_date || undefined,
     balance_expected_date: item.balance_expected_date || undefined,
     deposit_expected_date: item.deposit_expected_date || undefined,
+    // v8.6.35 — Tracking
+    delivery_date: item.delivery_date || undefined,
     attachments: attachments.filter(att => att.order_item_id === item.id).map(att => ({
       id: att.id, file_name: att.file_name, file_url: att.file_url, file_type: att.file_type, file_size: att.file_size,
     })),

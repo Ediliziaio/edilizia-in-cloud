@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -80,6 +80,9 @@ export interface OrderItem {
   balance_paid?: boolean;
   balance_paid_date?: string;
   balance_expected_date?: string;
+  // v8.6.35 — Tracking & ODA
+  delivery_date?: string; // arrivo previsto YYYY-MM-DD
+  linked_purchase_order_id?: string; // link a purchase_orders esistente
   // Legacy fields kept for backwards compat
   unit_price?: number;
   discount_percent?: number;
@@ -179,6 +182,21 @@ export function OrderItemsList({
   const [itemBalancePaidDate, setItemBalancePaidDate] = useState<Date | undefined>();
   const [itemBalanceExpectedDate, setItemBalanceExpectedDate] = useState<Date | undefined>();
   const [itemDepositExpectedDate, setItemDepositExpectedDate] = useState<Date | undefined>();
+  // v8.6.35 — Tracking & ODA state nel dialog
+  const [itemDeliveryDate, setItemDeliveryDate] = useState<Date | undefined>();
+  const [itemLinkedPoId, setItemLinkedPoId] = useState<string | undefined>();
+  /** Deferred upload: file selezionato in memoria, viene caricato DOPO
+   *  che l'articolo è salvato (necessita order_item_id). */
+  const [pendingAttachment, setPendingAttachment] = useState<File | null>(null);
+  /**
+   * v8.6.35 — Map "nome articolo + ts" → file in attesa di upload.
+   * Quando l'utente crea un articolo nuovo con allegato, l'item non ha
+   * ancora id; il parent fa insert in DB → items[] si aggiorna con l'id.
+   * Un useEffect osserva items e quando trova un match per name+timestamp
+   * recente che ha id ma non ha ancora l'attachment caricato, processa
+   * l'upload. Per articoli in edit mode l'upload è immediato.
+   */
+  const pendingUploadsRef = useRef<Map<string, File>>(new Map());
   // Stock picking state
   const [selectedStockItem, setSelectedStockItem] = useState<string>("");
   const [stockPickQuantity, setStockPickQuantity] = useState("1");
@@ -223,6 +241,73 @@ export function OrderItemsList({
     },
     enabled: !!companyId,
   });
+
+  // v8.6.35 — Fetch ODA (purchase_orders) esistenti per questa company,
+  // opzionalmente filtrabile per fornitore selezionato nel dialog.
+  const { data: purchaseOrders = [] } = useQuery({
+    queryKey: ["purchase-orders-for-link", companyId, itemSupplierId],
+    queryFn: async () => {
+      let q = supabase
+        .from("purchase_orders")
+        .select("id, oda_number, supplier_id, status, expected_delivery_date")
+        .eq("company_id", companyId!)
+        .neq("status", "annullato")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (itemSupplierId) {
+        q = q.eq("supplier_id", itemSupplierId);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId && dialogOpen,
+  });
+
+  // v8.6.35 — Upload helper riusabile per pendingAttachment
+  const uploadAttachmentForItem = async (orderItemId: string, file: File) => {
+    if (!companyId) return;
+    try {
+      const ts = Date.now();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `${companyId}/${orderItemId}/ODA-${ts}-${safeName}`;
+      const { error: upErr } = await supabase.storage
+        .from("order-attachments")
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (upErr) throw upErr;
+      const { error: dbErr } = await supabase.from("order_item_attachments").insert({
+        order_item_id: orderItemId,
+        file_name: file.name,
+        file_url: path,
+        file_type: file.type,
+        file_size: file.size,
+      });
+      if (dbErr) throw dbErr;
+      onAttachmentsRefresh?.();
+      toast({ title: "ODA caricato", description: `${file.name} allegato all'articolo.` });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast({ variant: "destructive", title: "Upload ODA fallito", description: msg });
+    }
+  };
+
+  // v8.6.35 — Processor di pendingUploads: osserva quando items[] si aggiorna
+  // dal DB con nuovi id. Per ogni item nuovo con un file in attesa, lancia
+  // l'upload e rimuove dalla mappa.
+  useEffect(() => {
+    if (pendingUploadsRef.current.size === 0) return;
+    items.forEach((item) => {
+      if (!item.id) return;
+      // chiave temporanea = name + position
+      const tempKey = `${item.name}::${item.position}`;
+      const file = pendingUploadsRef.current.get(tempKey);
+      if (file) {
+        pendingUploadsRef.current.delete(tempKey);
+        void uploadAttachmentForItem(item.id, file);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
 
   // Fetch PO item coverage (which order items have linked purchase_order_items)
   const orderItemIds = useMemo(() => items.filter(i => i.id).map(i => i.id!), [items]);
@@ -285,6 +370,10 @@ export function OrderItemsList({
     setItemBalancePaidDate(undefined);
     setItemBalanceExpectedDate(undefined);
     setItemDepositExpectedDate(undefined);
+    // v8.6.35
+    setItemDeliveryDate(undefined);
+    setItemLinkedPoId(undefined);
+    setPendingAttachment(null);
     setEditingIndex(null);
     setSelectedStockItem("");
     setStockPickQuantity("1");
@@ -317,6 +406,10 @@ export function OrderItemsList({
     setItemBalancePaidDate(item.balance_paid_date ? new Date(item.balance_paid_date) : undefined);
     setItemBalanceExpectedDate(item.balance_expected_date ? new Date(item.balance_expected_date) : undefined);
     setItemDepositExpectedDate(item.deposit_expected_date ? new Date(item.deposit_expected_date) : undefined);
+    // v8.6.35
+    setItemDeliveryDate(item.delivery_date ? new Date(item.delivery_date) : undefined);
+    setItemLinkedPoId(item.linked_purchase_order_id);
+    setPendingAttachment(null); // file deferred non si "pre-popola" in edit
     setEditingIndex(index);
     setDialogOpen(true);
   };
@@ -377,6 +470,9 @@ export function OrderItemsList({
       balance_paid: isInstallment ? itemBalancePaid : false,
       balance_paid_date: isInstallment && itemBalancePaid && itemBalancePaidDate ? itemBalancePaidDate.toISOString().split("T")[0] : undefined,
       balance_expected_date: isInstallment && itemBalanceExpectedDate ? itemBalanceExpectedDate.toISOString().split("T")[0] : undefined,
+      // v8.6.35 — Tracking & ODA
+      delivery_date: itemDeliveryDate ? itemDeliveryDate.toISOString().split("T")[0] : undefined,
+      linked_purchase_order_id: itemLinkedPoId,
       // Legacy fields zeroed out
       unit_price: 0,
       discount_percent: 0,
@@ -384,8 +480,9 @@ export function OrderItemsList({
     };
 
     if (editingIndex !== null) {
+      const existing = items[editingIndex];
       const updatedItem = {
-        ...items[editingIndex],
+        ...existing,
         ...commonFields,
       };
       if (onItemUpdate && allowEdit) {
@@ -395,16 +492,63 @@ export function OrderItemsList({
         newItems[editingIndex] = updatedItem;
         onItemsChange(newItems);
       }
+      // v8.6.35 — Edit mode: item ha già id → upload immediato + link PO
+      if (existing.id) {
+        if (pendingAttachment) {
+          void uploadAttachmentForItem(existing.id, pendingAttachment);
+        }
+        if (itemLinkedPoId && itemLinkedPoId !== existing.linked_purchase_order_id) {
+          void linkExistingPoToItem(existing.id, itemLinkedPoId);
+        }
+      }
     } else {
       const newItem: OrderItem = {
         ...commonFields,
         position: items.length,
       };
+      // v8.6.35 — Create mode: pendingAttachment va in coda (no id ancora).
+      // Quando il parent farà insert in DB e items[] si refresha con id,
+      // useEffect su `items` processerà l'upload.
+      if (pendingAttachment) {
+        const tempKey = `${commonFields.name}::${items.length}`;
+        pendingUploadsRef.current.set(tempKey, pendingAttachment);
+        toast({
+          title: "Allegato in attesa",
+          description: "Il PDF sarà caricato dopo il salvataggio della commessa.",
+        });
+      }
       onItemsChange([...items, newItem]);
     }
 
     setDialogOpen(false);
     resetForm();
+  };
+
+  // v8.6.35 — Helper link ODA esistente: crea record in purchase_order_items
+  // collegando l'articolo al PO selezionato. Mantiene tracking DDT/ricezione.
+  const linkExistingPoToItem = async (orderItemId: string, poId: string) => {
+    if (!companyId) return;
+    try {
+      // Trova item nel parent items (per dati base)
+      const item = items.find((i) => i.id === orderItemId);
+      if (!item) return;
+      const { error } = await supabase.from("purchase_order_items").insert({
+        company_id: companyId,
+        purchase_order_id: poId,
+        order_item_id: orderItemId,
+        description: item.name,
+        quantity: item.quantity,
+        unit_price: item.purchase_price ?? 0,
+        vat_rate: item.vat_rate ?? 22,
+        line_total: (item.purchase_price ?? 0) * item.quantity,
+        vat_amount: ((item.purchase_price ?? 0) * item.quantity) * ((item.vat_rate ?? 22) / 100),
+      });
+      if (error) throw error;
+      toast({ title: "ODA collegato", description: "L'articolo è ora associato all'ODA selezionato." });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast({ variant: "destructive", title: "Collegamento ODA fallito", description: msg });
+    }
   };
 
   /**
@@ -747,6 +891,132 @@ export function OrderItemsList({
           );
         })()}
       </div>
+
+      <Separator />
+
+      {/* ── Section 4: Tracking & ODA (v8.6.35) ─────────────────────────── */}
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+          <FileText className="h-4 w-4" /> Tracking & Ordine di Acquisto
+        </h4>
+
+        {/* Data Arrivo Prevista */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5">
+            <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+            Data Arrivo Prevista <span className="text-xs text-muted-foreground font-normal">(opzionale)</span>
+          </Label>
+          <div className="flex gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  type="button"
+                  className={cn("flex-1 justify-start text-left font-normal", !itemDeliveryDate && "text-muted-foreground")}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {itemDeliveryDate ? format(itemDeliveryDate, "dd/MM/yyyy", { locale: it }) : "Quando arriva la merce…"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={itemDeliveryDate} onSelect={setItemDeliveryDate} locale={it} />
+              </PopoverContent>
+            </Popover>
+            {itemDeliveryDate && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setItemDeliveryDate(undefined)}
+                title="Rimuovi data"
+                className="shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* ODA: link esistente */}
+        {purchaseOrders.length > 0 && (
+          <div className="space-y-2">
+            <Label>Collega ODA esistente <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
+            <Select
+              value={itemLinkedPoId || "none"}
+              onValueChange={(v) => setItemLinkedPoId(v === "none" ? undefined : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Nessun ODA collegato" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <span className="text-muted-foreground">Nessun ODA collegato</span>
+                </SelectItem>
+                {purchaseOrders.map((po: { id: string; oda_number?: string | null; status?: string | null; expected_delivery_date?: string | null }) => (
+                  <SelectItem key={po.id} value={po.id}>
+                    {po.oda_number || `ODA #${po.id.substring(0, 8)}`}
+                    {po.status && <span className="ml-2 text-xs text-muted-foreground">· {po.status}</span>}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Solo ODA di {itemSupplierId ? "questo fornitore" : "tutti i fornitori"} (max 50 più recenti).
+            </p>
+          </div>
+        )}
+
+        {/* Upload PDF/foto ODA */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5">
+            <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
+            Allega PDF ordine di acquisto <span className="text-xs text-muted-foreground font-normal">(opzionale)</span>
+          </Label>
+          {pendingAttachment ? (
+            <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="flex-1 truncate" title={pendingAttachment.name}>{pendingAttachment.name}</span>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {(pendingAttachment.size / 1024).toFixed(0)} KB
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setPendingAttachment(null)}
+                title="Rimuovi"
+                className="h-6 w-6 shrink-0"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-muted/30">
+              <Upload className="h-4 w-4" />
+              <span>Clicca per scegliere file (PDF/JPG/PNG, max 10MB)</span>
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 10 * 1024 * 1024) {
+                    toast({ variant: "destructive", title: "File troppo grande", description: "Massimo 10 MB. Comprimi il PDF e riprova." });
+                    e.target.value = "";
+                    return;
+                  }
+                  setPendingAttachment(file);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Caricato come allegato all'articolo dopo il salvataggio.
+          </p>
+        </div>
+      </div>
     </div>
   );
 
@@ -874,6 +1144,45 @@ export function OrderItemsList({
                       <Badge variant="outline" className="text-xs text-muted-foreground gap-1 border-dashed">
                         <Link2 className="h-3 w-3" />
                         Senza OdA
+                      </Badge>
+                    )}
+                    {/* v8.6.35 — Badge data arrivo prevista */}
+                    {item.delivery_date && (() => {
+                      const arr = new Date(item.delivery_date);
+                      const now = new Date();
+                      const diffDays = Math.floor((arr.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                      const isPast = diffDays < 0;
+                      const isImminent = diffDays >= 0 && diffDays <= 3;
+                      const isInArrival = item.status === "in_arrivo" || item.status === "in_magazzino";
+                      // Highlight giallo se prossima/imminente, rosso se scaduta
+                      // e status non è ancora in_arrivo (auto-suggest), grigio normale altrimenti
+                      const colorClass = isPast && !isInArrival
+                        ? "bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-400 dark:border-red-700"
+                        : isImminent && !isInArrival
+                          ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700"
+                          : "bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-950 dark:text-sky-400 dark:border-sky-700";
+                      const title = isPast && !isInArrival
+                        ? `Arrivo previsto ${format(arr, "dd/MM/yyyy", { locale: it })} — già passata. Aggiorna stato a 'In Arrivo' o 'In Magazzino'.`
+                        : isImminent && !isInArrival
+                          ? `Arrivo previsto in ${diffDays === 0 ? "oggi" : `${diffDays} gg`}`
+                          : `Arrivo previsto ${format(arr, "dd/MM/yyyy", { locale: it })}`;
+                      return (
+                        <Badge className={`text-xs gap-1 ${colorClass}`} title={title}>
+                          <CalendarIcon className="h-3 w-3" />
+                          Arrivo {format(arr, "dd/MM", { locale: it })}
+                          {isPast && !isInArrival && " ⚠"}
+                        </Badge>
+                      );
+                    })()}
+                    {/* v8.6.35 — Badge allegato ODA */}
+                    {item.attachments && item.attachments.some((a) => a.file_name.startsWith("ODA") || a.file_name.toLowerCase().includes("oda")) && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs gap-1 cursor-pointer hover:bg-muted/50"
+                        title="Allegato ODA disponibile — click per scaricare"
+                      >
+                        <Paperclip className="h-3 w-3" />
+                        ODA allegato
                       </Badge>
                     )}
                   </div>
