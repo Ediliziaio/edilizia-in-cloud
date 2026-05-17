@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus, Send, Search, Users, MessageCircle, CornerDownRight, Bot, Brain, Sparkles, Loader2,
-  Smile, X, Pin, PinOff, ArrowLeft, MoreVertical, UserPlus, UsersRound, CheckCheck,
+  Smile, X, Pin, PinOff, ArrowLeft, MoreVertical, UserPlus, UsersRound, CheckCheck, Megaphone,
   Paperclip, Mic, Trash2, AlertCircle, RefreshCw,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -937,6 +937,8 @@ interface InternalChatProps {
 
 export default function InternalChat({ companyIdOverride }: InternalChatProps = {}) {
   const location = useLocation();
+  const { role } = useAuth();
+  const isCompanyAdmin = role === "company_admin" || role === "super_admin";
   const {
     channels, members, profiles, companyId, userId,
     queryClient, unreadCounts, markChannelRead, refetchUnread, lastMessages, internalProfileIds,
@@ -1657,6 +1659,31 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 <DropdownMenuItem onClick={() => setCreateOpen(true)}>
                   <UsersRound className="h-4 w-4 mr-2" /> Nuovo gruppo
                 </DropdownMenuItem>
+                {isCompanyAdmin && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      // MP-PER-001: scorciatoia "Comunicazioni team" — apre il
+                      // dialog Nuovo gruppo già pre-popolato con tutti i membri
+                      // interni dell'azienda e nome standardizzato.
+                      // Se l'admin vuole modificare può farlo, poi conferma.
+                      const existing = channels.find(
+                        (c) => !c.is_dm && c.name.toLowerCase().includes("comunicazion"),
+                      );
+                      if (existing) {
+                        handleSelectChannel(existing.id);
+                        toast.success("Canale Comunicazioni team aperto");
+                        return;
+                      }
+                      setChannelName("📢 Comunicazioni");
+                      setChannelDesc("Annunci ufficiali dell'azienda a tutto il team");
+                      // Tutti i profili interni (esclude super_admin esterni se non in `profiles`)
+                      setSelectedMembers(Array.from(internalProfileIds).filter((id) => id !== userId));
+                      setCreateOpen(true);
+                    }}
+                  >
+                    <Megaphone className="h-4 w-4 mr-2" /> Comunicazioni team (azienda)
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
