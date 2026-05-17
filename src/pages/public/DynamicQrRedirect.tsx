@@ -15,7 +15,29 @@ interface PublicQrRow {
   expires_at: string | null;
 }
 
+// v8.6.43 — SECURITY: validazione scheme prima del redirect.
+// Senza questo check, un destination_url come `javascript:alert(1)` o
+// `data:text/html,...` apre vettori XSS sul dominio dell'app. La
+// `normalizeDestinationUrl` nel form di creazione blocca questi schemi
+// in input, ma un valore già esistente / iniettato via API può bypassare.
+// Allowlist: http://, https://, mailto:, tel:, percorsi assoluti (/...) interni.
+const ALLOWED_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"]);
+
+function isSafeRedirect(destination: string): boolean {
+  if (!destination) return false;
+  const trimmed = destination.trim();
+  // Path assoluto interno
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) return true;
+  try {
+    const url = new URL(trimmed);
+    return ALLOWED_PROTOCOLS.has(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
 function buildRedirectUrl(destination: string) {
+  // Path interni: lasciali tali per il SPA router
   if (destination.startsWith("/")) return destination;
   return destination;
 }
@@ -78,6 +100,30 @@ export default function DynamicQrRedirect() {
         return;
       }
 
+      // v8.6.43 — SECURITY: blocca redirect a schemi pericolosi
+      // (javascript:, data:, ecc.) prima del setState/assign.
+      if (!isSafeRedirect(qr.destination_url)) {
+        await (supabase as any).from("company_qr_scan_logs").insert({
+          company_id: qr.company_id,
+          qr_code_id: qr.id,
+          scan_status: "private_denied",
+          user_agent: navigator.userAgent,
+          referrer: document.referrer || null,
+          device_info: {
+            language: navigator.language,
+            // navigator.platform deprecato ma comunque utile come fallback
+            platform: navigator.platform,
+          },
+        });
+        if (cancelled) return;
+        setState("blocked");
+        setMessage("Destinazione del QR non valida o non sicura.");
+        return;
+      }
+
+      // v8.6.43 — Tracking scan: AWAITed prima del redirect (era già il
+      // pattern attuale ma confermiamolo) per evitare race condition con
+      // il successivo window.location.assign che cancella i fetch in-flight.
       await (supabase as any).from("company_qr_scan_logs").insert({
         company_id: qr.company_id,
         qr_code_id: qr.id,

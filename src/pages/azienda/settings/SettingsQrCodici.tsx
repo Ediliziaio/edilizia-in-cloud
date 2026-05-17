@@ -191,7 +191,22 @@ function generateQrToken() {
 function normalizeDestinationUrl(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return "";
+  // v8.6.43 — SECURITY: blocca scheme pericolosi (javascript:, data:, vbscript:, ...)
+  // Senza questo guard, anche se il DB ha un CHECK constraint, un attaccante con
+  // accesso DB diretto (super_admin malevolo) potrebbe iniettare XSS via QR pubblico.
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.startsWith("javascript:") ||
+    lower.startsWith("data:") ||
+    lower.startsWith("vbscript:") ||
+    lower.startsWith("file:") ||
+    lower.startsWith("blob:")
+  ) {
+    throw new Error("Schema URL non consentito (solo https://, mailto:, tel:, /path interno)");
+  }
   if (trimmed.startsWith("/") || /^https?:\/\//i.test(trimmed)) return trimmed;
+  // Schemi consentiti senza riscrittura
+  if (/^(mailto:|tel:)/i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
 }
 
@@ -267,8 +282,13 @@ function QrDinamiciTab() {
       const destinationUrl = normalizeDestinationUrl(formData.destination_url);
       if (!name) throw new Error("Il nome QR è obbligatorio.");
       if (!destinationUrl) throw new Error("La destinazione è obbligatoria.");
-      if (!destinationUrl.startsWith("/") && !/^https?:\/\//i.test(destinationUrl)) {
-        throw new Error("La destinazione deve essere un URL valido o un percorso interno.");
+      // v8.6.43 — Allowlist schemi sicuri (coerente con CHECK constraint DB)
+      const isInternal = destinationUrl.startsWith("/") && !destinationUrl.startsWith("//");
+      const isHttp = /^https?:\/\//i.test(destinationUrl);
+      const isMailto = /^mailto:/i.test(destinationUrl);
+      const isTel = /^tel:/i.test(destinationUrl);
+      if (!isInternal && !isHttp && !isMailto && !isTel) {
+        throw new Error("Schema non consentito. Usa https://, mailto:, tel: o un percorso interno (/...).");
       }
 
       const payload = {
