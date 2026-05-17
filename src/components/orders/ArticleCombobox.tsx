@@ -36,19 +36,25 @@ interface ArticleComboboxProps {
   value: string;
   onValueChange: (value: string, templateData?: ArticleTemplateData) => void;
   placeholder?: string;
+  /**
+   * v8.6.34 — Fallback companyId per super_admin senza impersonation.
+   * Se effectiveCompany è null, usiamo questo (es. company della commessa).
+   */
+  fallbackCompanyId?: string;
 }
 
 export function ArticleCombobox({
   value,
   onValueChange,
   placeholder = "Seleziona o digita nome articolo...",
+  fallbackCompanyId,
 }: ArticleComboboxProps) {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
 
-  const companyId = effectiveCompany?.id;
+  const companyId = effectiveCompany?.id ?? fallbackCompanyId;
 
   const { data: templates = [] } = useQuery({
     queryKey: ["article-templates", companyId],

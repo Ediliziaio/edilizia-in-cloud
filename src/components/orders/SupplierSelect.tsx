@@ -36,22 +36,28 @@ interface SupplierSelectProps {
   value?: string;
   onValueChange: (value: string | undefined, supplierVatRate?: number, paymentMethod?: string) => void;
   placeholder?: string;
+  /**
+   * v8.6.34 — Fallback companyId per super_admin senza impersonation.
+   * Se effectiveCompany è null, usiamo questo (es. company della commessa).
+   */
+  fallbackCompanyId?: string;
 }
 
 export function SupplierSelect({
   value,
   onValueChange,
   placeholder = "Seleziona fornitore",
+  fallbackCompanyId,
 }: SupplierSelectProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newSupplierName, setNewSupplierName] = useState("");
   const [newSupplierVatRate, setNewSupplierVatRate] = useState<number>(22);
   const [newSupplierPaymentMethod, setNewSupplierPaymentMethod] = useState<string>("");
   const { effectiveCompany } = useAuth();
-  
+
   const queryClient = useQueryClient();
 
-  const companyId = effectiveCompany?.id;
+  const companyId = effectiveCompany?.id ?? fallbackCompanyId;
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery({

@@ -94,6 +94,13 @@ interface OrderItemsListProps {
   onAttachmentsRefresh?: () => void;
   onStockPick?: (stockItemId: string, quantity: number) => void;
   onItemUpdate?: (item: OrderItem) => void;
+  /**
+   * v8.6.34 — Company id della commessa.
+   * Necessario per super_admin (effectiveCompany è null senza impersonation):
+   * altrimenti articoli/fornitori/magazzino non vengono caricati e l'utente
+   * vede "Nessun articolo / Nessun fornitore" anche se ne esistono nel DB.
+   */
+  fallbackCompanyId?: string;
 }
 
 const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
@@ -146,6 +153,7 @@ export function OrderItemsList({
   onStockPick,
   onItemUpdate,
   showOdaCoverage = false,
+  fallbackCompanyId,
 }: OrderItemsListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -177,7 +185,12 @@ export function OrderItemsList({
   const [sourceFilter, setSourceFilter] = useState<"all" | "stock" | "supplier">("all");
 
   const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
+  // v8.6.34 — Usa fallbackCompanyId (companyId della commessa corrente) se
+  // effectiveCompany è null. Necessario per super_admin che opera su una
+  // company senza essere in impersonation: senza fallback, queries
+  // article_templates / suppliers / warehouse_stock vengono saltate
+  // (enabled: !!companyId === false) e l'utente vede dropdown vuoti.
+  const companyId = effectiveCompany?.id ?? fallbackCompanyId;
 
   // Fetch suppliers to display names and get VAT rates
   const { data: suppliers = [] } = useQuery({
@@ -527,7 +540,7 @@ export function OrderItemsList({
     <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
       <div className="space-y-2">
         <Label>Nome Articolo *</Label>
-        <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Seleziona o digita nome articolo..." />
+        <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Seleziona o digita nome articolo..." fallbackCompanyId={fallbackCompanyId} />
       </div>
       <div className="space-y-2">
         <Label>Descrizione</Label>
@@ -570,7 +583,7 @@ export function OrderItemsList({
       </div>
       <div className="space-y-2">
         <Label>Fornitore</Label>
-        <SupplierSelect value={itemSupplierId} onValueChange={handleSupplierChange} />
+        <SupplierSelect value={itemSupplierId} onValueChange={handleSupplierChange} fallbackCompanyId={fallbackCompanyId} />
       </div>
 
       {/* Supplier Payment Status Section */}

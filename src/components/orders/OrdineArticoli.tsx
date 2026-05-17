@@ -43,6 +43,7 @@ export function OrdineArticoli({
             showOdaCoverage={true}
             onAttachmentsRefresh={onAttachmentsRefresh}
             onItemUpdate={onItemUpdate}
+            fallbackCompanyId={companyId}
           />
         </CardContent>
       </Card>
