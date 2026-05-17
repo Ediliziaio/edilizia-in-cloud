@@ -1,23 +1,14 @@
-// generate-render — Edge Function EiC (REFACTORED 2026-05-14)
+// generate-render — Edge Function EiC
 // Render Infissi AI — pipeline unificata via _shared/ai-provider/
 //
-// Cambiamenti rispetto alla versione precedente:
-//   ✓ Eliminata la vecchia fallback chain image legacy
-//   ✓ Eliminato resolveRenderSize duplicato (ora in image.ts)
-//   ✓ Eliminato l'helper legacy di fallback OpenAI (chain ora gestita in image.ts)
-//   ✓ Eliminate fetch dirette a OpenAI/Gemini (tutto via _shared/ai-provider/)
-//   ✓ Validation prima del deduct credito (no più refund inutili)
-//   ✓ Idempotency key (no doppia generazione su doppio click)
-//   ✓ Refund log esplicito (no più catch silenzioso)
-//   ✓ Prompt original salvato separato dal retry
-//   ✓ Logging strutturato JSON
-//   ✓ provider_chain_used tracking
+// v8.6.32 — Gemini eliminato dal sistema. Stack attuale:
+//   image edit  → OpenAI gpt-image-1 (direct) → OpenRouter gpt-5-image
+//   prompt rewrite → OpenAI gpt-4o-mini → gpt-4o (via OpenRouter)
+//   QA vision   → Claude Haiku → GPT-4o-mini → GPT-4o
+//   scene analyze → OpenAI Vision (gpt-4o-mini)
 //
-// Routing:
-//   image edit  → Gemini diretto → OpenRouter Gemini
-//   QA vision   → Gemini Flash → Claude Haiku → GPT-4o mini
-//
-// NON modifica la pipeline di prompt engineering in shared/render-window/.
+// Pattern: meta-prompt rewriter come path UNICO; block-based prompt resta
+// come safety net silent quando il rewriter LLM fallisce su tutta la chain.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
@@ -547,8 +538,6 @@ Deno.serve(async (req) => {
           blocks,
           promptVersion,
           composedPrompt: originalPrompt,
-          systemPrompt,
-          userPrompt,
           negativePrompt,
           referenceImageDescriptors: referenceImageDescriptors ?? [],
           target_width,
@@ -668,8 +657,9 @@ interface BackgroundRenderArgs {
   blocks: Record<string, string>;
   promptVersion: string;
   composedPrompt: string;
-  systemPrompt: string;
-  userPrompt: string;
+  // v8.6.33 — systemPrompt/userPrompt args morti rimossi: erano mai letti.
+  // Il prompt effettivo è composedPrompt (block-based safety net) o quello
+  // sovrascritto dal meta-prompt rewriter dentro processRenderBackground.
   negativePrompt: string;
   // deno-lint-ignore no-explicit-any
   referenceImageDescriptors: any[];

@@ -48,8 +48,8 @@ export interface ImageProviderAttempt {
 
 /**
  * Foto reference passata INSIEME alla sorgente al modello multi-image.
- * Gemini Nano Banana e GPT-5 Image accettano N immagini per turno: la prima è
- * la "scena", le successive sono ancore visive per colore/modello/finitura.
+ * GPT-5 Image / gpt-image-1 accettano N immagini per turno: la prima è la
+ * "scena", le successive sono ancore visive per colore/modello/finitura.
  */
 export interface ImageReferenceInput {
   /** Label semantica (es. "FRAME COLOR TARGET — Grigio Ardesia (RAL 1009)"). */
@@ -73,7 +73,7 @@ export interface ImageEditParams {
   effectiveHeight?: number;
   /** OpenAI quality tier — usato sui fallback OpenAI. */
   openaiQuality?: "low" | "medium" | "high";
-  /** Negative prompt opzionale — su Gemini viene incluso nel prompt. */
+  /** Negative prompt opzionale — concatenato al prompt principale. */
   negativePrompt?: string;
   /** Timeout per chiamata singola (millisecondi). */
   timeoutMs?: number;
@@ -631,15 +631,7 @@ function extractOpenRouterImage(json: Record<string, unknown>): string | null {
   return null;
 }
 
-// v8.6.32 — extractGeminiImage e getGeminiApiKey rimossi (Gemini eliminato).
-
-function splitDataUrl(dataUrl: string): { mime: string; base64: string } {
-  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  if (!match) {
-    throw makeAIError("unknown", "Invalid source image data URL", false);
-  }
-  return { mime: match[1], base64: match[2] };
-}
+// v8.6.32 — extractGeminiImage / getGeminiApiKey / splitDataUrl rimossi (orfani).
 
 function withAttemptHistory(
   error: AIProviderError,

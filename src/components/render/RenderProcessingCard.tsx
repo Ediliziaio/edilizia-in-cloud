@@ -99,7 +99,15 @@ export function RenderProcessingCard({
                 <p className="font-semibold text-slate-900 truncate">
                   {stages[stageIdx].label}{".".repeat(dots)}
                 </p>
-                <p className="text-xs text-slate-500">{elapsedSec}s trascorsi · stima 1-2 min</p>
+                {/* v8.6.33 — Messaggio dinamico: dopo 90s il "stima 1-2 min"
+                    rassicura mentre la barra resta al 96%. Dopo 150s avviso che
+                    è più del solito. */}
+                <p className="text-xs text-slate-500">
+                  {elapsedSec}s trascorsi
+                  {elapsedSec < 90 && " · stima 1-2 min"}
+                  {elapsedSec >= 90 && elapsedSec < 150 && " · stiamo finalizzando, ci siamo quasi"}
+                  {elapsedSec >= 150 && " · sta impiegando più del previsto, attendere ancora un attimo"}
+                </p>
               </div>
             </div>
             <div className={`text-2xl font-bold ${a.text} tabular-nums shrink-0`}>

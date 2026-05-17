@@ -182,29 +182,11 @@ export const HANDLE_FINISH_DESCRIPTION: Record<string, string> = {
   titanio: "titanium anodized finish with cool refined metallic depth",
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CASSONETTI / TAPPARELLE: invariato
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const CASSONETTO_DESCRIPTION: Record<string, string> = {
-  pvc_tradizionale: "traditional PVC roller box with residential proportions above the opening",
-  pvc_slim: "slimmer PVC roller box with reduced visible height",
-  pvc_integrato: "integrated roller box recessed into the wall, with only the access strip subtly visible",
-  alluminio_coibentato: "insulated aluminum roller box with crisp machined edges and coated finish",
-  mantieni: "existing roller box retained exactly as in the source photo",
-};
-
-export const SHUTTER_DESCRIPTION: Record<string, string> = {
-  pvc_avvolgibile: "PVC roller shutter with realistic interlocking slats and guide channels",
-  alluminio_avvolgibile: "aluminum roller shutter with crisp slat geometry and premium coating",
-  microforata: "microperforated roller shutter with visible perforation pattern allowing light through",
-  persiana_alluminio: "aluminum louvered shutter system with articulated slats",
-  veneziana_integrata: "integrated blind between glass panes with very fine horizontal slat lines",
-  mantieni: "existing shading system retained exactly as photographed",
-};
+// v8.6.33 — CASSONETTO_DESCRIPTION, SHUTTER_DESCRIPTION rimossi
+// (zero consumatori esterni — la logica cassonetto/shutter è nel meta-prompt rewriter).
 
 // ─────────────────────────────────────────────────────────────────────────────
-// v8 NEW — CERNIERE A SCOMPARSA / VISIBILI
+// v8 — CERNIERE A SCOMPARSA
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const HIDDEN_HINGE_DESCRIPTION =
@@ -215,10 +197,7 @@ export const HIDDEN_HINGE_DESCRIPTION =
   "European-style hinge knuckles, decorative caps, or hinge cylinders on the outside of " +
   "the frame. The hinge side stile is clean and continuous.";
 
-export const VISIBLE_HINGE_DESCRIPTION_BASE =
-  "Visible compact European-style hinges, aligned on the hinged side stile, with " +
-  "consistent finish matching the handle hardware. Each hinge is a compact cylindrical " +
-  "knuckle (~12-15mm diameter) with the cap/cover in the selected hardware finish.";
+// v8.6.33 — VISIBLE_HINGE_DESCRIPTION_BASE rimosso (zero consumatori).
 
 // ─────────────────────────────────────────────────────────────────────────────
 // v8 NEW — BOTTONE ELETTRICO TAPPARELLA
@@ -275,27 +254,8 @@ export function buildElectricButtonFragment(style: "bianco_standard" | "nero_opa
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// v8 NEW — TRAVERSO PORTAFINESTRA
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const TRANSOM_KEEP_DESCRIPTION =
-  "Keep the existing horizontal transom (mullion) at the same height position " +
-  "as photographed. Above the transom: clear glass. Below the transom: same panel " +
-  "type as the source photo (clear glass or solid panel — match what is visible).";
-
-export const TRANSOM_REMOVE_DESCRIPTION =
-  "REMOVE the horizontal transom (mullion) entirely from the door-window composition. " +
-  "Each sash becomes a SINGLE full-height glazed panel with NO horizontal divider in the " +
-  "middle. Replace the area below the former transom with continuous clear glass from the " +
-  "top of the door to the bottom rail. The result must look like a modern frameless " +
-  "full-height glazed door-window.";
-
-export const TRANSOM_ADD_DESCRIPTION =
-  "Add a horizontal transom (mullion) at approximately 50% height of the door-window. " +
-  "The transom is a horizontal frame element in the same material and finish as the " +
-  "outer frame. Above the transom: clear glass. Below the transom: clear glass " +
-  "(do NOT add a solid panel unless specifically required).";
+// v8.6.33 — TRANSOM_KEEP/REMOVE/ADD_DESCRIPTION rimossi (zero consumatori esterni;
+// la logica transom è nel meta-prompt rewriter system prompt + PRIORITY OVERRIDE).
 
 // ─────────────────────────────────────────────────────────────────────────────
 // QUALITY DIRECTIVES (estese in v8)

@@ -187,6 +187,13 @@ export default function RenderNewV2() {
   // invece di polling 3-15s. Il channel è opaco al type checker quindi
   // usiamo Awaited<ReturnType<...>> non disponibile facilmente → ref unknown.
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  // v8.6.33 — companyId in ref per evitare stale closure nel callback Realtime.
+  // Se l'utente cambia azienda durante un render attivo, queryClient.invalidateQueries
+  // deve usare il companyId CORRENTE, non quello catturato al momento della subscribe.
+  const companyIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    companyIdRef.current = companyId;
+  }, [companyId]);
 
   // v8.5.7 — Rimossa persistenza in sessionStorage (causava pre-selezione
   // delle scelte del render precedente al nuovo ingresso wizard).
@@ -252,9 +259,23 @@ export default function RenderNewV2() {
   }, [sceneAnalysis, selectedOpeningIds, state, notes, photoMeta]);
 
   const handleFileChange = useCallback((file: File | null) => {
+    // v8.6.33 — Revoke EAGERLY del objectURL precedente per evitare memory
+    // leak (foto >5MB pesano). Il cleanup dell'useEffect su unmount/cambio
+    // è asincrono e arriva DOPO setPhotoPreview(new) → vecchio URL trattenuto
+    // in memoria fino al successivo render. Revoke esplicito sincrono qui.
+    setPhotoPreview((prevPreview) => {
+      if (prevPreview) {
+        try {
+          URL.revokeObjectURL(prevPreview);
+        } catch {
+          // ignore: già revocato o non un objectURL
+        }
+      }
+      return null; // sarà sovrascritto subito sotto se file non è null
+    });
+
     if (!file) {
       setPhoto(null);
-      setPhotoPreview(null);
       setPhotoMeta(null);
       setPhotoPath(null);
       setSessionId(null);
@@ -267,7 +288,7 @@ export default function RenderNewV2() {
     }
 
     if (file.size > 20 * 1024 * 1024) {
-      toast.error("File troppo grande (max 20 MB)");
+      toast.error("File troppo grande (max 20 MB). Comprimi l'immagine e riprova.");
       return;
     }
 
@@ -338,6 +359,8 @@ export default function RenderNewV2() {
     newStyle: "external_box" | "internal_monoblocco" | "absent",
   ) => {
     if (!sceneAnalysis || !sessionId) return;
+    // Snapshot per rollback se save fallisce
+    const previousAnalysis = sceneAnalysis;
     const nextAnalysis: WindowSceneAnalysis = {
       ...sceneAnalysis,
       openings: sceneAnalysis.openings.map((o) =>
@@ -352,15 +375,20 @@ export default function RenderNewV2() {
           : o,
       ),
     };
+    // v8.6.33 — UI optimistic update + rollback su errore + toast utente.
     setSceneAnalysis(nextAnalysis);
-    // Persist su DB (non blocking)
     try {
-      await supabase
+      const { error } = await supabase
         .from("render_sessions")
         .update({ foto_analisi: nextAnalysis })
         .eq("id", sessionId);
+      if (error) throw error;
+      // success: nessun toast (override è azione minore, non vogliamo spam)
     } catch (err) {
+      // Rollback UI + toast utente con messaggio chiaro in italiano.
+      setSceneAnalysis(previousAnalysis);
       console.warn("Override cassonettoStyle persist failed:", err);
+      toast.error("Modifica non salvata. Controlla la connessione e riprova.");
     }
   }, [sceneAnalysis, sessionId]);
 
@@ -480,8 +508,12 @@ export default function RenderNewV2() {
       await preloadImage(sess.result_urls[0]);
       setResultUrl(sess.result_urls[0]);
       setGenerating(false);
-      queryClient.invalidateQueries({ queryKey: ["render-sessions", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["render-gallery", companyId] });
+      // v8.6.33 — usa companyIdRef per evitare stale closure se l'utente
+      // cambia azienda mid-render. Il callback Realtime invalida la
+      // company CORRENTE, non quella catturata al subscribe.
+      const currentCompanyId = companyIdRef.current;
+      queryClient.invalidateQueries({ queryKey: ["render-sessions", currentCompanyId] });
+      queryClient.invalidateQueries({ queryKey: ["render-gallery", currentCompanyId] });
       if (isEmbed && typeof window !== "undefined" && window.parent !== window) {
         try {
           window.parent.postMessage(
@@ -528,7 +560,9 @@ export default function RenderNewV2() {
     }
 
     return false;
-  }, [companyId, queryClient, stopPolling, isEmbed]);
+    // v8.6.33 — companyId rimosso dalle deps: ora letto da companyIdRef.current
+    // per evitare stale closure su Realtime callback (multi-tenant fix).
+  }, [queryClient, stopPolling, isEmbed]);
 
   const startPolling = useCallback((sid: string) => {
     // Cancella solo eventuali poll timeout pendenti.
@@ -621,6 +655,10 @@ export default function RenderNewV2() {
       return;
     }
 
+    // v8.6.33 — Atomic stop: pulizia COMPLETA (poll + tick + realtime) prima
+    // di avviare un nuovo ciclo. Previene race condition se l'utente clicca
+    // due volte rapidamente o tenta un retry mentre un ciclo precedente è
+    // ancora attivo (tickRef vivo da una sessione precedente).
     stopPolling();
 
     setGenerating(true);
@@ -641,11 +679,17 @@ export default function RenderNewV2() {
 
     if (updateError) {
       setGenerating(false);
-      setGenerateError(updateError.message);
+      setGenerateError(`Salvataggio configurazione fallito. Riprova tra qualche secondo.`);
       toast.error(`Salvataggio configurazione render fallito: ${updateError.message}`);
       return;
     }
 
+    // v8.6.33 — Defensive: se per qualche ragione tickRef è ancora vivo
+    // (es. un retry più rapido del cleanup), fermarlo prima di creare il nuovo.
+    if (tickRef.current) {
+      clearInterval(tickRef.current);
+      tickRef.current = null;
+    }
     tickRef.current = setInterval(() => {
       elapsedRef.current += 1;
       setElapsedSec(elapsedRef.current);
@@ -790,14 +834,19 @@ export default function RenderNewV2() {
     setOpportunityId(null);
   }, [stopPolling]);
 
+  // v8.6.33 — Loading state download per evitare silenzio su mobile + rete lenta.
+  const [downloading, setDownloading] = useState(false);
   const downloadResult = useCallback(async () => {
-    if (!resultUrl) return;
+    if (!resultUrl || downloading) return;
+    setDownloading(true);
     try {
       await downloadRenderImage(resultUrl, `render_infissi_${Date.now()}.png`);
     } catch {
       toast.error("Download fallito. Tieni premuto sull'immagine per salvarla.");
+    } finally {
+      setDownloading(false);
     }
-  }, [resultUrl]);
+  }, [resultUrl, downloading]);
 
   const canGoNextFromStep = useCallback((current: Step) => {
     switch (current) {
@@ -991,6 +1040,7 @@ export default function RenderNewV2() {
             onReset={reset}
             onBack={goBack}
             onDownload={downloadResult}
+            downloading={downloading}
             onCreateQuote={() => {
               const qs = new URLSearchParams();
               if (contactId) qs.set("contact_id", contactId);
@@ -1053,6 +1103,10 @@ function StepPhoto({
                 <div className="text-lg font-bold">Carica la foto reale dell'ambiente</div>
                 <div className="text-sm text-muted-foreground">
                   L'obiettivo è sostituire solo gli infissi visibili mantenendo identico tutto il resto.
+                </div>
+                {/* v8.6.33 — Hint preventivo formato/dimensione: evita di scoprire i limiti DOPO la selezione del file. */}
+                <div className="pt-2 text-xs text-muted-foreground">
+                  JPG o PNG · max 20 MB · idealmente sotto i 5 MB per analisi più veloce
                 </div>
               </div>
               <div className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white">
@@ -1400,7 +1454,13 @@ function StepTargeting({
   const toggle = (id: string) => {
     if (selectedOpeningIds.includes(id)) {
       const next = selectedOpeningIds.filter((item) => item !== id);
-      if (next.length > 0) onChange(next);
+      // v8.6.33 — Feedback esplicito se l'utente prova a deselezionare l'ultima
+      // apertura: altrimenti il click sembra "non fare nulla" = bug percepito.
+      if (next.length === 0) {
+        toast.info("Almeno un'apertura deve restare selezionata per generare il render.");
+        return;
+      }
+      onChange(next);
       return;
     }
     onChange([...selectedOpeningIds, id]);
@@ -2086,6 +2146,7 @@ function StepRender({
   onBack,
   onDownload,
   onCreateQuote,
+  downloading,
 }: {
   preview: WindowRenderConfig | null;
   originalSignedUrl: string | null;
@@ -2106,6 +2167,7 @@ function StepRender({
   onBack: () => void;
   onDownload: () => void;
   onCreateQuote: () => void;
+  downloading?: boolean;
 }) {
 
   return (
@@ -2235,6 +2297,21 @@ function StepRender({
               <Button variant="outline" onClick={onBack}>
                 Rivedi configurazione
               </Button>
+              {/* v8.6.33 — Recovery CTA: copia errore per supporto */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  try {
+                    void navigator.clipboard.writeText(error);
+                    toast.success("Dettagli errore copiati. Inviali al supporto se il problema persiste.");
+                  } catch {
+                    toast.error("Impossibile copiare. Annota manualmente il messaggio sopra.");
+                  }
+                }}
+              >
+                Copia dettagli
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -2292,9 +2369,19 @@ function StepRender({
           </Card>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <Button onClick={onDownload} className="gap-2">
-              <Download className="h-4 w-4" />
-              Scarica render
+            {/* v8.6.33 — Loading state download per feedback su mobile/rete lenta */}
+            <Button onClick={onDownload} className="gap-2" disabled={downloading}>
+              {downloading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Scaricamento…
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  Scarica render
+                </>
+              )}
             </Button>
             <Button variant="outline" onClick={onReset} className="gap-2">
               <RefreshCw className="h-4 w-4" />
