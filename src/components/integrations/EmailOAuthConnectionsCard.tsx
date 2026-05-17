@@ -234,6 +234,19 @@ export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConne
                     Re-check
                   </button>
                 </div>
+                <div className="pt-2 border-t border-amber-200 dark:border-amber-900">
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                    💡 Nel frattempo puoi comunque collegare la tua casella usando{" "}
+                    <button
+                      type="button"
+                      onClick={() => setImapDialogOpen(true)}
+                      className="underline font-medium hover:text-amber-900"
+                    >
+                      Altro provider (IMAP)
+                    </button>{" "}
+                    — funziona con Aruba, Libero, iCloud, Yahoo, Register e qualsiasi server custom senza bisogno di OAuth.
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -256,43 +269,74 @@ export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConne
           </div>
         )}
 
-        {/* Bottoni connect */}
+        {/* Bottoni connect — disabilita i provider OAuth con secrets mancanti.
+            IMAP è sempre disponibile perché usa pgsodium, niente env var. */}
+        {(() => {
+          const gmailReady = diag?.checklist?.google_oauth_client_id?.configured !== false
+            && diag?.checklist?.google_oauth_client_secret?.configured !== false;
+          const outlookReady = diag?.checklist?.ms_oauth_client_id?.configured !== false
+            && diag?.checklist?.ms_oauth_client_secret?.configured !== false;
+          const gmailTitle = gmailReady
+            ? undefined
+            : "OAuth Google non configurato — l'admin di piattaforma deve impostare GOOGLE_OAUTH_CLIENT_ID/SECRET";
+          const outlookTitle = outlookReady
+            ? undefined
+            : "OAuth Microsoft non configurato — l'admin di piattaforma deve impostare MS_OAUTH_CLIENT_ID/SECRET";
+          return (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => {
+                  if (!gmailReady) {
+                    toast.error("OAuth Google non configurato", { description: gmailTitle });
+                    return;
+                  }
+                  startOAuth.mutate("gmail");
+                }}
+                disabled={!!connecting || !gmailReady}
+                variant="outline"
+                className="gap-2"
+                title={gmailTitle}
+              >
+                {connecting === "gmail" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                Connetti Gmail
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!outlookReady) {
+                    toast.error("OAuth Microsoft non configurato", { description: outlookTitle });
+                    return;
+                  }
+                  startOAuth.mutate("outlook");
+                }}
+                disabled={!!connecting || !outlookReady}
+                variant="outline"
+                className="gap-2"
+                title={outlookTitle}
+              >
+                {connecting === "outlook" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                Connetti Outlook
+              </Button>
+              <Button
+                onClick={() => setImapDialogOpen(true)}
+                variant={!gmailReady && !outlookReady ? "default" : "outline"}
+                className="gap-2"
+                title="Per Aruba, Libero, iCloud, Yahoo, Register o server custom — sempre disponibile"
+              >
+                <Server className="h-4 w-4" />
+                Altro provider (IMAP)
+              </Button>
+            </div>
+          );
+        })()}
         <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={() => startOAuth.mutate("gmail")}
-            disabled={!!connecting}
-            variant="outline"
-            className="gap-2"
-          >
-            {connecting === "gmail" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            Connetti Gmail
-          </Button>
-          <Button
-            onClick={() => startOAuth.mutate("outlook")}
-            disabled={!!connecting}
-            variant="outline"
-            className="gap-2"
-          >
-            {connecting === "outlook" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            Connetti Outlook
-          </Button>
-          <Button
-            onClick={() => setImapDialogOpen(true)}
-            variant="outline"
-            className="gap-2"
-            title="Per Aruba, Libero, iCloud, Yahoo, Register o server custom"
-          >
-            <Server className="h-4 w-4" />
-            Altro provider (IMAP)
-          </Button>
           {connections.length > 0 && (
             <Button
               onClick={() => forceSync.mutate()}
