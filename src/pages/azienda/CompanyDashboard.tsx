@@ -125,10 +125,8 @@ function ManagementOverview({
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">Dashboard gestione</p>
-                <h2 className="mt-1 text-xl font-semibold text-white">Vista dall'alto della gestione</h2>
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-50/85">
-                  Qui vedi in un colpo solo commesse, venduto, incassi, calendario lavori, materiali, assistenza
-                  e anomalie. Serve a decidere cosa controllare prima, non a rifare il bilancio aziendale.
+                <p className="mt-2 text-sm leading-6 text-blue-50/85">
+                  Commesse, venduto, incassi, calendario, materiali, assistenza e anomalie — tutto in un colpo d'occhio per decidere cosa controllare prima.
                 </p>
               </div>
             </div>
