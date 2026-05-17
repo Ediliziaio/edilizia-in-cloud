@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2 } from "lucide-react";
+import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -537,62 +539,84 @@ export function OrderItemsList({
   };
 
   const renderNewArticleForm = () => (
-    <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
-      <div className="space-y-2">
-        <Label>Nome Articolo *</Label>
-        <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Seleziona o digita nome articolo..." fallbackCompanyId={fallbackCompanyId} />
-      </div>
-      <div className="space-y-2">
-        <Label>Descrizione</Label>
-        <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+      {/* ── Section 1: Articolo ─────────────────────────── */}
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+          <Package className="h-4 w-4" /> Articolo
+        </h4>
         <div className="space-y-2">
-          <Label>Quantità</Label>
-          <Input type="number" min="1" value={itemQuantity} onChange={(e) => setItemQuantity(e.target.value)} />
+          <Label>Nome Articolo *</Label>
+          <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Cerca o digita nome articolo…" fallbackCompanyId={fallbackCompanyId} />
         </div>
         <div className="space-y-2">
-          <Label>Costo Acquisto</Label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
-            <Input type="number" min="0" step="0.01" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} className="pl-8" placeholder="0.00" />
-          </div>
+          <Label>Descrizione <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
+          <Input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} placeholder="Es. dimensioni, finitura, codice fornitore…" />
         </div>
-      </div>
-      <div className="space-y-2">
-        <Label>IVA Acquisto</Label>
-        <Select value={itemVatRate.toString()} onValueChange={(v) => setItemVatRate(parseInt(v))}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {VAT_RATES.map((rate) => (
-              <SelectItem key={rate.value} value={rate.value.toString()}>{rate.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Stato Articolo</Label>
-        <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-              <SelectItem key={status} value={status}>{config.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Fornitore</Label>
-        <SupplierSelect value={itemSupplierId} onValueChange={handleSupplierChange} fallbackCompanyId={fallbackCompanyId} />
+        <div className="space-y-2">
+          <Label>Stato Articolo</Label>
+          <Select value={itemStatus} onValueChange={(v: OrderItemStatus) => setItemStatus(v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                <SelectItem key={status} value={status}>{config.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Supplier Payment Status Section */}
-      <div className="border-t pt-4 space-y-3">
-        <Label className="text-sm font-semibold">Stato Pagamento Fornitore</Label>
+      <Separator />
+
+      {/* ── Section 2: Costi & IVA ─────────────────────────── */}
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+          <Tag className="h-4 w-4" /> Costi
+        </h4>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label>Quantità</Label>
+            <Input type="number" min="1" value={itemQuantity} onChange={(e) => setItemQuantity(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Costo Acquisto</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
+              <Input type="number" min="0" step="0.01" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} className="pl-8" placeholder="0.00" />
+            </div>
+          </div>
+        </div>
         <div className="space-y-2">
-          <Label>Modalità Pagamento</Label>
+          <Label>IVA Acquisto</Label>
+          <Select value={itemVatRate.toString()} onValueChange={(v) => setItemVatRate(parseInt(v))}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {VAT_RATES.map((rate) => (
+                <SelectItem key={rate.value} value={rate.value.toString()}>{rate.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* ── Section 3: Fornitore & Pagamento ─────────────────────────── */}
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+          <Truck className="h-4 w-4" /> Fornitore & Pagamento
+        </h4>
+        <div className="space-y-2">
+          <Label>Fornitore <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
+          <SupplierSelect value={itemSupplierId} onValueChange={handleSupplierChange} fallbackCompanyId={fallbackCompanyId} />
+        </div>
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5">
+            <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+            Modalità Pagamento
+          </Label>
           <Select value={itemPaymentMethod} onValueChange={setItemPaymentMethod}>
-            <SelectTrigger><SelectValue placeholder="Seleziona modalità..." /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Seleziona modalità…" /></SelectTrigger>
             <SelectContent>
               {PAYMENT_METHODS.map((m) => (
                 <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
@@ -945,7 +969,7 @@ export function OrderItemsList({
 
         {/* Add/Edit Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingIndex !== null ? "Modifica Articolo" : "Nuovo Articolo"}
@@ -977,23 +1001,34 @@ export function OrderItemsList({
 
                 <TabsContent value="new">
                   {renderNewArticleForm()}
+                  {/* Footer: ordine logico per scan-pattern italiano (sinistra→destra):
+                      [Annulla] [Aggiungi e continua] [Aggiungi]
+                      "Aggiungi" è la primary action (destra). "Aggiungi e continua"
+                      è secondary (per inserimenti rapidi). Tooltip su "continua"
+                      per chiarire la differenza alla prima visita. */}
                   <DialogFooter className="mt-4 flex-col sm:flex-row gap-2">
                     <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1">
                       Annulla
                     </Button>
-                    {/* 🆕 Aggiungi e continua: salva + riapre dialog con
-                        fornitore/IVA/stato pre-compilati per inserimenti veloci */}
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleSaveAndContinue}
-                      disabled={!itemName.trim()}
-                      className="sm:order-2 gap-1.5"
-                      title="Salva l'articolo e apri subito il form per il prossimo (mantiene fornitore, IVA, stato)"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Aggiungi e continua
-                    </Button>
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={handleSaveAndContinue}
+                            disabled={!itemName.trim()}
+                            className="sm:order-2 gap-1.5"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Aggiungi e continua
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          Salva l'articolo e riapre subito il form col fornitore, IVA e stato già compilati. Utile per inserire più articoli simili in fila.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3">
                       Aggiungi
                     </Button>
@@ -1060,26 +1095,34 @@ export function OrderItemsList({
             ) : (
               <>
                 {renderNewArticleForm()}
-                <DialogFooter className="flex-col sm:flex-row gap-2">
+                <DialogFooter className="mt-4 flex-col sm:flex-row gap-2">
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1">
                     Annulla
                   </Button>
-                  {/* 🆕 "Aggiungi e continua" solo in creazione (non in edit) */}
+                  {/* "Aggiungi e continua" solo in creazione (non in edit) */}
                   {editingIndex === null && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleSaveAndContinue}
-                      disabled={!itemName.trim()}
-                      className="sm:order-2 gap-1.5"
-                      title="Salva e apri subito il form per il prossimo articolo (mantiene fornitore, IVA, stato)"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Aggiungi e continua
-                    </Button>
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={handleSaveAndContinue}
+                            disabled={!itemName.trim()}
+                            className="sm:order-2 gap-1.5"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Aggiungi e continua
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          Salva l'articolo e riapre subito il form col fornitore, IVA e stato già compilati. Utile per inserire più articoli simili in fila.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                   <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3">
-                    {editingIndex !== null ? "Salva" : "Aggiungi"}
+                    {editingIndex !== null ? "Salva modifiche" : "Aggiungi"}
                   </Button>
                 </DialogFooter>
               </>

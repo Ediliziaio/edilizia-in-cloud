@@ -141,8 +141,10 @@ export function ArticleCombobox({
             onValueChange={setSearchValue}
           />
           <CommandList>
-            <CommandEmpty className="py-2 px-4 text-sm text-muted-foreground">
-              Nessun articolo trovato
+            <CommandEmpty className="py-3 px-4 text-sm text-muted-foreground">
+              {searchValue.trim()
+                ? <>Nessun articolo "{searchValue}" — premi <kbd className="px-1 py-0.5 mx-0.5 rounded border bg-muted text-[10px]">↩</kbd> o clicca sotto per crearne uno nuovo</>
+                : "Digita per cercare un articolo esistente o crearne uno nuovo"}
             </CommandEmpty>
             <CommandGroup>
               {filteredTemplates.map((template) => (
