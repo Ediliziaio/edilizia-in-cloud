@@ -304,7 +304,7 @@ export default function MioProfilo() {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-6xl">
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
 
       {/* ── Header con avatar ── */}
@@ -366,7 +366,11 @@ export default function MioProfilo() {
         </TabsList>
 
         {/* ════════════ TAB PROFILO ════════════ */}
-        <TabsContent value="profilo" className="space-y-5 mt-0">
+        {/* v8.6.37 — Grid 2 colonne su lg+: dati personali (2/3) + cronologia (1/3).
+            Riempie meglio lo spazio della pagina che era troppo vuoto a destra. */}
+        <TabsContent value="profilo" className="mt-0">
+          <div className="grid gap-5 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-5">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Dati personali</CardTitle>
@@ -411,17 +415,17 @@ export default function MioProfilo() {
               </div>
             </CardContent>
           </Card>
+          </div>
 
-          {/* v8.6.36 — Card Info Account ridotta: Email + Ruolo erano già
-              nell'header avatar in cima alla pagina (duplicato rimosso).
-              Resta solo: data creazione + ultimo accesso. */}
+          {/* Colonna laterale: cronologia account */}
+          <div className="space-y-5">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Cronologia account</CardTitle>
               <CardDescription>Informazioni di utilizzo del tuo account.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="space-y-4 text-sm">
                 <div>
                   <p className="text-muted-foreground text-xs">Account creato</p>
                   <p className="font-medium">
@@ -437,10 +441,14 @@ export default function MioProfilo() {
               </div>
             </CardContent>
           </Card>
+          </div>
+          </div>
         </TabsContent>
 
         {/* ════════════ TAB SICUREZZA ════════════ */}
-        <TabsContent value="sicurezza" className="space-y-5 mt-0">
+        {/* v8.6.37 — Grid 2 colonne su lg+: cambio password + privacy GDPR */}
+        <TabsContent value="sicurezza" className="mt-0">
+          <div className="grid gap-5 lg:grid-cols-2">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -534,10 +542,15 @@ export default function MioProfilo() {
               </div>
             </CardContent>
           </Card>
+          </div>
         </TabsContent>
 
         {/* ════════════ TAB CALENDARI ════════════ */}
-        <TabsContent value="calendari" className="space-y-5 mt-0">
+        {/* v8.6.37 — Grid 2 colonne su lg+: Google (con dettagli) span 2,
+            Outlook + Apple side-by-side. Riempie meglio orizzontalmente. */}
+        <TabsContent value="calendari" className="mt-0">
+          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="lg:col-span-2">
           {/* Google Calendar */}
           <Card>
             <CardHeader className="pb-3">
@@ -618,6 +631,7 @@ export default function MioProfilo() {
               )}
             </CardContent>
           </Card>
+          </div>
 
           {/* Outlook */}
           <Card>
@@ -687,6 +701,7 @@ export default function MioProfilo() {
               )}
             </CardContent>
           </Card>
+          </div>
         </TabsContent>
 
         {/* ════════════ TAB EMAIL — connessioni personali ════════════ */}
@@ -716,7 +731,9 @@ export default function MioProfilo() {
             assegnati vai a /azienda/sopralluoghi. */}
 
         {/* ════════════ TAB NOTIFICHE ════════════ */}
-        <TabsContent value="notifiche" className="space-y-5 mt-0">
+        {/* v8.6.37 — Grid 3 colonne su xl+: Email + Push + Altro affiancate */}
+        <TabsContent value="notifiche" className="mt-0">
+          <div className="grid gap-5 xl:grid-cols-3 lg:grid-cols-2">
           {/* Email notifications */}
           <Card>
             <CardHeader className="pb-3">
@@ -771,6 +788,7 @@ export default function MioProfilo() {
                 checked={notifPrefs.email_weekly_report} onChange={() => toggleNotif("email_weekly_report")} />
             </CardContent>
           </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
