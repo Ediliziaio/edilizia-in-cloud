@@ -430,6 +430,16 @@ function useInternalChat(companyIdOverride?: string) {
   });
 
   // Last message per visible channel for preview — avoid loading non-member/private previews.
+  // v8.6.50 — Fix bug sidebar non sincronizzata con la chat aperta:
+  //   prima la query aveva staleTime 30s ma niente refetchInterval né
+  //   realtime sub globale. Quando l'edge function silvio-chat inseriva il
+  //   messaggio Silvio, la realtime sub specifica del canale (`chat-${id}`)
+  //   invalidava ma per race condition / filtri RLS sull'INSERT da
+  //   service_role talvolta non scattava → sidebar restava sul vecchio
+  //   "last message" mentre il pane mostrava i nuovi messaggi.
+  // Fix: refetchInterval 15s + realtime sub globale su `internal_chat_messages`
+  //   (vedi useEffect sotto) → l'aggiornamento avviene sempre entro 15s anche
+  //   se la realtime channel-specific fallisce.
   const channelIds = useMemo(() => myChannels.map((c) => c.id), [myChannels]);
   const { data: lastMessages = {} } = useQuery({
     queryKey: ["internal-chat-last-messages", companyId, channelIds],
@@ -448,8 +458,34 @@ function useInternalChat(companyIdOverride?: string) {
       }
       return result;
     },
-    staleTime: 30_000,
+    staleTime: 10_000,
+    refetchInterval: 15_000, // safety net: 1 fetch ogni 15s se realtime fallisce
   });
+
+  // v8.6.50 — Realtime sub globale (no filtro channel_id) per garantire che
+  // la sidebar preview si aggiorni anche per i canali NON attivi (es. quando
+  // Silvio in un canale di background risponde). La sub channel-specific in
+  // useChannelMessages copre solo il canale aperto.
+  useEffect(() => {
+    if (!companyId || channelIds.length === 0) return;
+    const sub = supabase
+      .channel(`chat-list-${companyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "internal_chat_messages",
+          filter: `company_id=eq.${companyId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["internal-chat-last-messages"] });
+          queryClient.invalidateQueries({ queryKey: ["internal-chat-unread"] });
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(sub); };
+  }, [companyId, channelIds.length, queryClient]);
 
   const { data: unreadCounts = {}, refetch: refetchUnread } = useQuery({
     queryKey: ["internal-chat-unread", companyId, userId],
