@@ -460,7 +460,57 @@ function TabPagamenti() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div>
+              {/* MOBILE: card-list compatta — solo cose che contano (data, importo, stato, azioni) */}
+              <ul className="space-y-2 sm:hidden">
+                {invoices.map((inv) => (
+                  <li key={inv.id} className="rounded-lg border p-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-sm font-semibold">
+                          {inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: it }) : "—"}
+                        </span>
+                        {inv.status === "paid" ? (
+                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px]">Pagata</Badge>
+                        ) : inv.status === "open" ? (
+                          <Badge variant="secondary" className="text-[10px]">In scadenza</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">{inv.status}</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{formatPeriod(inv.periodStart, inv.periodEnd)}</p>
+                      <p className="text-base font-semibold tabular-nums mt-1">
+                        {inv.status === "paid"
+                          ? formatEurCents(inv.amountPaid, inv.currency)
+                          : formatEurCents(inv.amountDue, inv.currency)}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {inv.invoicePdf && (
+                        <Button
+                          variant="ghost" size="icon" className="h-8 w-8"
+                          onClick={() => window.open(inv.invoicePdf!, "_blank")}
+                          aria-label="Scarica PDF fattura"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {inv.invoiceUrl && (
+                        <Button
+                          variant="ghost" size="icon" className="h-8 w-8"
+                          onClick={() => window.open(inv.invoiceUrl!, "_blank")}
+                          aria-label="Apri fattura online"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              {/* DESKTOP/TABLET: tabella completa */}
+              <div className="hidden sm:block overflow-x-auto">
               {/* Un solo TooltipProvider per tutta la tabella, no N provider per riga. */}
               <TooltipProvider delayDuration={200}>
                 <Table>
@@ -537,6 +587,7 @@ function TabPagamenti() {
                   </TableBody>
                 </Table>
               </TooltipProvider>
+              </div>
             </div>
           )}
         </CardContent>
