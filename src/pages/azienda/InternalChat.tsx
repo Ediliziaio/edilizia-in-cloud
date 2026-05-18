@@ -96,6 +96,9 @@ interface ChannelMember {
   user_id: string;
   role: string;
   last_read_at: string | null;
+  // v8.6.51 — pin per-user. Migration 20270518100000.
+  // Opzionale: pre-migration la colonna non esiste, fallback a false.
+  is_pinned?: boolean | null;
 }
 
 interface Message {
@@ -529,6 +532,7 @@ function useInternalChat(companyIdOverride?: string) {
     markChannelRead,
     refetchUnread,
     lastMessages,
+    myMemberships,
     internalProfileIds,
     isLoading: membershipsLoading || channelsLoading || membersLoading || profilesLoading,
     isError: membershipsError || channelsError || membersError || profilesError,
@@ -581,10 +585,14 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
 // ─── Chat List Item ──────────────────────────────────────────────────────────
 function ChatListItem({
   channel, isActive, unread, lastMsg, profileMap, userId, members, onClick,
+  isPinned, onTogglePin,
 }: {
   channel: Channel; isActive: boolean; unread: number;
   lastMsg?: Message; profileMap: Map<string, Profile>;
   userId?: string; members: ChannelMember[]; onClick: () => void;
+  // v8.6.51 — pin per-utente
+  isPinned?: boolean;
+  onTogglePin?: () => void;
 }) {
   const channelNameLower = channel.name.toLowerCase();
   const isLucia = channelNameLower === "lucia-ai";
@@ -620,7 +628,7 @@ function ChatListItem({
     <button
       onClick={onClick}
       className={cn(
-        "w-full text-left px-3 py-3 flex items-center gap-3 transition-all border-b border-border/40",
+        "w-full text-left px-3 py-3 flex items-center gap-3 transition-all border-b border-border/40 group/listitem relative",
         isActive
           ? "bg-[#f0f2f5] dark:bg-white/10"
           : "hover:bg-[#f5f6f6] dark:hover:bg-white/5",
@@ -657,8 +665,12 @@ function ChatListItem({
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className={cn("text-[15px] truncate", unread > 0 ? "font-semibold text-foreground" : "font-normal text-foreground")}>
-            {displayName}
+          <span className={cn("text-[15px] truncate flex items-center gap-1.5", unread > 0 ? "font-semibold text-foreground" : "font-normal text-foreground")}>
+            {/* v8.6.51 — Pin icon visibile sempre se pinnato */}
+            {isPinned && (
+              <Pin className="h-3 w-3 text-[#F97316] shrink-0" fill="currentColor" aria-label="Pinnata" />
+            )}
+            <span className="truncate">{displayName}</span>
           </span>
           <span className={cn("text-xs shrink-0", unread > 0 ? "text-[#00a884] font-medium" : "text-muted-foreground")}>
             {lastMsg ? formatChatListTime(lastMsg.created_at) : ""}
@@ -672,6 +684,21 @@ function ChatListItem({
             {lastMsgPreview}
           </p>
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* v8.6.51 — Bottone pin: visibile on hover (group-hover), o sempre se già pinnato */}
+            {onTogglePin && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
+                className={cn(
+                  "p-1 rounded hover:bg-foreground/10 transition-opacity",
+                  isPinned ? "opacity-80 hover:opacity-100" : "opacity-0 group-hover/listitem:opacity-60 hover:!opacity-100",
+                )}
+                aria-label={isPinned ? "Rimuovi pin" : "Pinna chat"}
+                title={isPinned ? "Rimuovi pin" : "Pinna chat in alto"}
+              >
+                <Pin className={cn("h-3.5 w-3.5", isPinned ? "text-[#F97316]" : "text-muted-foreground")} fill={isPinned ? "currentColor" : "none"} />
+              </button>
+            )}
             {!isDm && !isAI && (
               <span className="text-[10px] text-muted-foreground">
                 <Users className="inline h-3 w-3 mr-0.5 -mt-0.5" />{memberCount}
@@ -977,7 +1004,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const isCompanyAdmin = role === "company_admin" || role === "super_admin";
   const {
     channels, members, profiles, companyId, userId,
-    queryClient, unreadCounts, markChannelRead, refetchUnread, lastMessages, internalProfileIds,
+    queryClient, unreadCounts, markChannelRead, refetchUnread, lastMessages, myMemberships, internalProfileIds,
     isLoading: chatLoading, isError: chatDataError, refetchChatData,
   } = useInternalChat(companyIdOverride);
   const permissions = usePermissions();
@@ -1613,6 +1640,43 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
   });
 
   // Filter channels
+  // v8.6.51 — Toggle pin per-utente sul canale. Resiliente alla migration
+  // 20270518100000 non ancora applicata: se la colonna is_pinned non esiste,
+  // mostra toast informativo e non spacca l'UI.
+  const toggleChannelPin = useCallback(async (channelId: string) => {
+    if (!userId) return;
+    const current = myMemberships.find((m) => m.channel_id === channelId);
+    if (!current) return;
+    const next = !current.is_pinned;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("internal_chat_members")
+      .update({ is_pinned: next })
+      .eq("channel_id", channelId)
+      .eq("user_id", userId);
+    if (error) {
+      if (/is_pinned.*does not exist/i.test(error.message ?? "")) {
+        toast.error("Pin chat: funzionalità in attivazione (migration DB pending)");
+        return;
+      }
+      toast.error(`Errore pin: ${error.message ?? "errore sconosciuto"}`);
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["internal-chat-my-memberships"] });
+    toast.success(next ? "Chat pinnata in alto" : "Pin rimosso");
+  }, [userId, myMemberships, queryClient]);
+
+  // v8.6.51 — Ordinamento sidebar:
+  //   1. Canali PINNATI dall'utente (membership.is_pinned = true) in cima
+  //   2. Poi per ultima attività (last_messages[channel].created_at desc)
+  //   3. Tie-breaker: nome canale alfabetico
+  // Memoizza una mappa channel_id → membership per accesso O(1) al pin.
+  const membershipByChannel = useMemo(() => {
+    const map = new Map<string, ChannelMember>();
+    for (const m of myMemberships) map.set(m.channel_id, m);
+    return map;
+  }, [myMemberships]);
+
   const filteredChannels = useMemo(() => {
     let list = channels;
     if (chatFilter === "groups") list = list.filter((c) => !c.is_dm && !c.is_system);
@@ -1632,8 +1696,18 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
         return false;
       });
     }
-    return list;
-  }, [channels, chatFilter, searchQuery, userId, profileMap]);
+    // Sort: pinned first, then by last message activity desc, then alpha.
+    const sorted = [...list].sort((a, b) => {
+      const aPinned = membershipByChannel.get(a.id)?.is_pinned ? 1 : 0;
+      const bPinned = membershipByChannel.get(b.id)?.is_pinned ? 1 : 0;
+      if (aPinned !== bPinned) return bPinned - aPinned; // pinned first
+      const aLast = lastMessages[a.id]?.created_at ?? "";
+      const bLast = lastMessages[b.id]?.created_at ?? "";
+      if (aLast !== bLast) return bLast.localeCompare(aLast); // recent first
+      return a.name.localeCompare(b.name);
+    });
+    return sorted;
+  }, [channels, chatFilter, searchQuery, userId, profileMap, membershipByChannel, lastMessages]);
 
   const filteredMessages = useMemo(
     () => msgSearch.trim() ? messages.filter((m) => m.content.toLowerCase().includes(msgSearch.toLowerCase())) : messages,
@@ -1824,6 +1898,8 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 userId={userId}
                 members={members}
                 onClick={() => handleSelectChannel(ch.id)}
+                isPinned={!!membershipByChannel.get(ch.id)?.is_pinned}
+                onTogglePin={() => toggleChannelPin(ch.id)}
               />
             ))
           )}
