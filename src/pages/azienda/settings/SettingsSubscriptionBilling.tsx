@@ -28,6 +28,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Pencil } from "lucide-react";
 import { useBillingInfo, useInvoices, useOpenBillingPortal } from "@/hooks/useBilling";
 import { useBillingDetails } from "@/hooks/useBillingDetails";
 import { formatCurrency } from "@/lib/formatters";
@@ -226,6 +228,7 @@ function TabPagamenti() {
   const { data: billingDetails } = useBillingDetails();
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
   const [cronTab, setCronTab] = useState<"costi" | "fatture">("fatture");
+  const [fiscalDialogOpen, setFiscalDialogOpen] = useState(false);
 
   // I metodi di pagamento veri (carta last4, brand, scadenza) richiedono Stripe API
   // server-side. Per ora mostriamo placeholder + CTA Stripe Portal.
@@ -273,17 +276,36 @@ function TabPagamenti() {
           </CardContent>
         </Card>
 
-        {/* Card Informazioni fiscali */}
-        <Card>
+        {/* Card Informazioni fiscali — riepilogo cliccabile (apre dialog con form completo) */}
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => setFiscalDialogOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setFiscalDialogOpen(true);
+            }
+          }}
+          className="cursor-pointer transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-label="Apri modifica informazioni fiscali"
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-muted-foreground" />
               Informazioni fiscali
             </CardTitle>
+            <Pencil className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
           </CardHeader>
           <CardContent>
-            {billingDetails?.vat_number || billingDetails?.tax_code ? (
+            {billingDetails?.legal_name || billingDetails?.vat_number ? (
               <div className="space-y-2">
+                {billingDetails.legal_name && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Ragione sociale</p>
+                    <p className="text-sm font-medium truncate">{billingDetails.legal_name}</p>
+                  </div>
+                )}
                 {billingDetails.vat_number && (
                   <div className="flex items-center justify-between gap-2">
                     <div>
@@ -296,31 +318,29 @@ function TabPagamenti() {
                     </Badge>
                   </div>
                 )}
-                {billingDetails.tax_code && (
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Codice Fiscale</p>
-                    <p className="text-sm font-medium font-mono">{billingDetails.tax_code}</p>
-                  </div>
-                )}
-                {billingDetails.sdi_code && (
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Codice SDI</p>
-                    <p className="text-sm font-medium font-mono">{billingDetails.sdi_code}</p>
-                  </div>
-                )}
               </div>
             ) : (
               <div className="text-center py-4">
                 <p className="text-sm text-muted-foreground mb-2">Nessuna informazione fiscale</p>
-                <p className="text-xs text-muted-foreground">Compila i dati di fatturazione qui sotto.</p>
+                <p className="text-xs text-muted-foreground">Clicca qui per compilare i dati di fatturazione.</p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Card Dati di fatturazione completa (form editabile) */}
-      <BillingDetailsCard />
+      {/* Dialog con form completo dati fatturazione (aperto dal click sulla card sopra) */}
+      <Dialog open={fiscalDialogOpen} onOpenChange={setFiscalDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Dati di fatturazione</DialogTitle>
+            <DialogDescription>
+              Anagrafica fiscale completa usata per le fatture EdiliziaInCloud.
+            </DialogDescription>
+          </DialogHeader>
+          <BillingDetailsCard />
+        </DialogContent>
+      </Dialog>
 
       {/* Cronologia pagamenti con tab Costi/Fatture */}
       <Card>
