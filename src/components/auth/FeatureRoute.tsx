@@ -39,7 +39,10 @@ export function FeatureRoute({
       return undefined;
     }
 
-    const timer = window.setTimeout(() => setLoadingTimedOut(true), 12_000);
+    // v8.6.62 — ridotto da 12s a 6s: il timeout della RPC sottostante è 10s,
+    // ma se dopo 6s ancora non sappiamo lo stato è meglio mostrare fallback
+    // chiaro che lasciare l'utente con uno spinner muto.
+    const timer = window.setTimeout(() => setLoadingTimedOut(true), 6_000);
     return () => window.clearTimeout(timer);
   }, [isLoading, featureKey]);
 
@@ -76,7 +79,8 @@ export function FeatureRoute({
           )}
           {!errorMessage && loadingTimedOut && (
             <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-              Verifica accesso {featureKey}: timeout dopo 12 secondi
+              La verifica permessi richiede più del solito. Connessione lenta? Riprova
+              o ricarica la pagina.
             </p>
           )}
           <Button className="mt-5" onClick={refetch} disabled={isFetching}>
