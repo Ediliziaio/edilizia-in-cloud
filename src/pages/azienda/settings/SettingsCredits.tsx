@@ -260,10 +260,11 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
                   ricarica manuale almeno una volta per associarla.
                 </AlertDescription>
               </Alert>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <AutoTopupConfig walletType="email" />
                 <AutoTopupConfig walletType="ai" />
                 <AutoTopupConfig walletType="whatsapp" />
+                <AutoTopupConfig walletType="render" />
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -321,10 +322,11 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
                 ricarica manuale almeno una volta per associarla.
               </AlertDescription>
             </Alert>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <AutoTopupConfig walletType="email" />
               <AutoTopupConfig walletType="ai" />
               <AutoTopupConfig walletType="whatsapp" />
+              <AutoTopupConfig walletType="render" />
             </div>
           </TabsContent>
 
