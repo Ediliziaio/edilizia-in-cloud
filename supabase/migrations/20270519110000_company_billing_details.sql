@@ -40,15 +40,22 @@ CREATE TABLE IF NOT EXISTS public.company_billing_details (
   updated_by        UUID REFERENCES auth.users(id)
 );
 
--- Constraint validity
+-- Constraint validity — idempotenti (DROP IF EXISTS poi ADD)
+-- Necessario per re-run dopo apply parziale precedente.
+ALTER TABLE public.company_billing_details
+  DROP CONSTRAINT IF EXISTS cbd_vat_format;
 ALTER TABLE public.company_billing_details
   ADD CONSTRAINT cbd_vat_format
   CHECK (vat_number IS NULL OR length(vat_number) BETWEEN 6 AND 20);
 
 ALTER TABLE public.company_billing_details
+  DROP CONSTRAINT IF EXISTS cbd_sdi_format;
+ALTER TABLE public.company_billing_details
   ADD CONSTRAINT cbd_sdi_format
   CHECK (sdi_code IS NULL OR length(sdi_code) = 7);
 
+ALTER TABLE public.company_billing_details
+  DROP CONSTRAINT IF EXISTS cbd_pec_email;
 ALTER TABLE public.company_billing_details
   ADD CONSTRAINT cbd_pec_email
   CHECK (pec IS NULL OR pec ~* '^[^\s@]+@[^\s@]+\.[^\s@]+$');
