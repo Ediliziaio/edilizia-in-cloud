@@ -488,18 +488,16 @@ function TabPagamenti() {
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       {inv.invoicePdf && (
                         <Button
-                          variant="ghost" size="icon" className="h-8 w-8"
+                          variant="ghost" size="icon" aria-label="Scarica PDF fattura" className="h-8 w-8"
                           onClick={() => window.open(inv.invoicePdf!, "_blank")}
-                          aria-label="Scarica PDF fattura"
                         >
                           <Download className="h-4 w-4" />
                         </Button>
                       )}
                       {inv.invoiceUrl && (
                         <Button
-                          variant="ghost" size="icon" className="h-8 w-8"
+                          variant="ghost" size="icon" aria-label="Apri fattura online" className="h-8 w-8"
                           onClick={() => window.open(inv.invoiceUrl!, "_blank")}
-                          aria-label="Apri fattura online"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>
