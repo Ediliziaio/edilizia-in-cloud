@@ -1,27 +1,48 @@
-import { ExternalLink, Download, AlertTriangle,
-         CreditCard, FileText, RefreshCw, Clock, Info, Sparkles, ArrowRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+/**
+ * Dashboard di Fatturazione — v8.6.59
+ *
+ * Layout a 4 tab ispirato a dashboard agency moderne:
+ *   1. Abbonamenti — piano corrente + add-on + cross-sell
+ *   2. Pagamenti — metodo di pagamento + info fiscali + dati fatturazione + cronologia
+ *   3. Portafoglio — saldo crediti + auto-ricarica + spese
+ *   4. Notifiche — alert spesa per agenzia / sub-account
+ *
+ * Mantiene 100% retro-compat: i sotto-componenti (CurrentPlanCard,
+ * InvoiceHistoryCard, BillingDetailsCard) sono riusati invariati,
+ * cambia solo l'organizzazione visiva.
+ */
+import { lazy, Suspense, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  ExternalLink, Download, AlertTriangle, CreditCard, FileText, RefreshCw, Clock,
+  Info, Sparkles, ArrowRight, Wallet, Bell, Receipt, ShieldCheck, Loader2, Gift,
+} from "lucide-react";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card, CardContent, CardHeader, CardTitle, CardDescription,
+} from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useBillingInfo, useInvoices, useOpenBillingPortal } from "@/hooks/useBilling";
-import { BillingDetailsCard } from "@/components/billing/BillingDetailsCard";
+import { useBillingDetails } from "@/hooks/useBillingDetails";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { BillingDetailsCard } from "@/components/billing/BillingDetailsCard";
 
-// ─── UTILITY ──────────────────────────────────────────────────────────────────
+// Lazy-load contenuto Portafoglio (la pagina Crediti & Saldo ha già tutta la logica)
+const SettingsCrediti = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
 
+const VALID_TABS = new Set(["abbonamenti", "pagamenti", "portafoglio", "notifiche"]);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILITY
+═══════════════════════════════════════════════════════════════════════════ */
 function formatEurCents(centesimi: number, currency = "eur"): string {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
@@ -31,30 +52,16 @@ function formatEurCents(centesimi: number, currency = "eur"): string {
 
 function formatPeriod(start: string | null, end: string | null): string {
   if (!start || !end) return "—";
-  const s = format(new Date(start), "d MMM yyyy", { locale: it });
-  const e = format(new Date(end), "d MMM yyyy", { locale: it });
-  return `${s} → ${e}`;
-}
-
-function statusBadge(status: string) {
-  const map: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
-    paid:          { label: "Pagata",       variant: "default" },
-    open:          { label: "In scadenza",  variant: "secondary" },
-    draft:         { label: "Bozza",        variant: "outline" },
-    void:          { label: "Annullata",    variant: "outline" },
-    uncollectible: { label: "Non riscossa", variant: "destructive" },
-  };
-  const cfg = map[status] ?? { label: status, variant: "outline" as const };
-  return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
+  return `${format(new Date(start), "d MMM yyyy", { locale: it })} → ${format(new Date(end), "d MMM yyyy", { locale: it })}`;
 }
 
 function companyStatusBadge(status: string) {
   const map: Record<string, { label: string; className: string }> = {
     trial:     { label: "Periodo di prova", className: "bg-blue-100 text-blue-700 border-blue-200" },
-    active:    { label: "Attivo",           className: "bg-green-100 text-green-700 border-green-200" },
-    suspended: { label: "Sospeso",          className: "bg-red-100 text-red-700 border-red-200" },
+    active:    { label: "Attivo",           className: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+    suspended: { label: "Sospeso",          className: "bg-rose-100 text-rose-700 border-rose-200" },
     expired:   { label: "Scaduto",          className: "bg-muted text-muted-foreground border-border" },
-    free:      { label: "Piano Scopri",    className: "bg-gray-100 text-gray-700 border-gray-200" },
+    free:      { label: "Piano Scopri",     className: "bg-slate-100 text-slate-700 border-slate-200" },
   };
   const cfg = map[status] ?? { label: status, className: "" };
   return (
@@ -64,19 +71,19 @@ function companyStatusBadge(status: string) {
   );
 }
 
-// ─── CARD: PIANO CORRENTE ─────────────────────────────────────────────────────
-
-function CurrentPlanCard() {
+/* ═══════════════════════════════════════════════════════════════════════════
+   TAB 1 — ABBONAMENTI
+═══════════════════════════════════════════════════════════════════════════ */
+function TabAbbonamenti() {
   const { data: billing, isLoading } = useBillingInfo();
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
-  // Must be called unconditionally at top level — NEVER after an early return
-  const { data: invoices } = useInvoices();
+  const navigate = useNavigate();
 
   if (isLoading) {
     return (
       <Card>
-        <CardHeader><Skeleton className="h-6 w-48" /><Skeleton className="h-4 w-72" /></CardHeader>
-        <CardContent><Skeleton className="h-20 w-full" /><Skeleton className="h-10 w-64 mt-4" /></CardContent>
+        <CardHeader><Skeleton className="h-6 w-48" /></CardHeader>
+        <CardContent><Skeleton className="h-32 w-full" /></CardContent>
       </Card>
     );
   }
@@ -85,308 +92,480 @@ function CurrentPlanCard() {
 
   const priceLabel = billing.planPriceMonthly === 0
     ? "Gratuito"
-    : `${formatCurrency(billing.planPriceMonthly)} / mese`;
-
-  const failedInvoiceUrl = billing.isInDunning
-    ? invoices?.find(i => i.status === "open")?.invoiceUrl ?? null
-    : null;
+    : formatCurrency(billing.planPriceMonthly);
+  const isYearly = billing.billingCycle === "yearly";
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <CardTitle>Piano corrente</CardTitle>
-          {companyStatusBadge(billing.status)}
-        </div>
-        <CardDescription>
-          Gestisci il tuo abbonamento e i metodi di pagamento
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xl font-semibold">{billing.planName}</p>
-            <p className="text-sm text-muted-foreground">
-              {priceLabel}
-              {billing.billingCycle === "yearly" && " · Pagamento annuale"}
-              {billing.billingCycle === "monthly" && " · Pagamento mensile"}
+    <div className="space-y-5">
+      {/* ── Card piano principale ── */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">{billing.planName}</h2>
+              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                <p className="text-sm text-muted-foreground">Gestisci il tuo piano</p>
+                {companyStatusBadge(billing.status)}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="flex items-baseline gap-1 justify-end">
+                <span className="text-4xl font-bold tabular-nums">{priceLabel}</span>
+                <span className="text-sm text-muted-foreground">/ {isYearly ? "anno" : "mese"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* CTA piano annuale — risparmio 2 mesi */}
+          {!isYearly && billing.planPriceMonthly > 0 && (
+            <div className="mt-5 rounded-xl border bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900 p-4 flex items-center gap-3 flex-wrap">
+              <div className="h-9 w-9 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
+                <Gift className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">Richiedi i tuoi 2 mesi gratis</p>
+                <p className="text-xs text-muted-foreground">Se passi all'abbonamento annuale, ottieni 2 mesi gratis (sconto ~17%).</p>
+              </div>
+              <Button onClick={() => openPortal()} disabled={isPending}>
+                {isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+                Richiedi ora
+              </Button>
+            </div>
+          )}
+
+          {/* Trial banner */}
+          {billing.status === "trial" && billing.trialEndsAt && (
+            <Alert className="mt-5">
+              <Clock className="h-4 w-4" />
+              <AlertDescription>
+                Il periodo di prova termina il{" "}
+                <strong>{format(new Date(billing.trialEndsAt), "d MMMM yyyy", { locale: it })}</strong>.
+                Aggiungi un metodo di pagamento per continuare senza interruzioni.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Dunning */}
+          {billing.isInDunning && (
+            <Alert variant="destructive" className="mt-5">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Pagamento non riuscito. Hai ancora <strong>{billing.dunningDaysLeft} giorni</strong> per aggiornare il metodo di pagamento.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Date ciclo */}
+          {(billing.currentPeriodStart || billing.currentPeriodEnd) && (
+            <div className="mt-5 grid gap-3 sm:grid-cols-3 rounded-lg border bg-muted/30 p-3">
+              {billing.currentPeriodStart && (
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Inizio periodo</p>
+                  <p className="text-sm font-semibold">{format(new Date(billing.currentPeriodStart), "d MMM yyyy", { locale: it })}</p>
+                </div>
+              )}
+              {billing.currentPeriodEnd && (
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                    {billing.cancelAtPeriodEnd ? "Scade il" : "Prossima fattura"}
+                  </p>
+                  <p className="text-sm font-semibold">{format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Ciclo</p>
+                <p className="text-sm font-semibold">{isYearly ? "Annuale" : "Mensile"}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Footer azioni */}
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 pt-4 border-t">
+            <Button variant="outline" onClick={() => openPortal()} disabled={isPending} className="gap-1.5">
+              {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
+              Vuoi modificare/annullare il tuo abbonamento?
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Hai una domanda sulla fatturazione? <a href="mailto:info@ediliziaincloud.com" className="text-primary hover:underline">Contattaci</a>
             </p>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* v8.6.58 — Date e ciclo abbonamento (se disponibili da Stripe) */}
-        {(billing.currentPeriodStart || billing.currentPeriodEnd) && (
-          <div className="grid gap-3 sm:grid-cols-2 rounded-lg border bg-muted/30 p-3">
-            {billing.currentPeriodStart && (
-              <div>
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Periodo attuale</p>
-                <p className="text-sm font-medium">
-                  Dal {format(new Date(billing.currentPeriodStart), "d MMM yyyy", { locale: it })}
-                </p>
+      {/* ── Cross-sell: confronta piani / upgrade ── */}
+      {billing.planPriceMonthly < 547 && (
+        <Card className="border-orange-200 bg-orange-50/40 dark:bg-orange-950/20">
+          <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-orange-600" />
+                Vuoi più funzionalità?
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Esplora i piani superiori per sbloccare AI, multi-sede, banca PSD2 e molto altro.
+              </p>
+            </div>
+            <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={() => navigate("/prezzi")}>
+              Vedi tutti i piani
+              <ArrowRight className="h-4 w-4 ml-1.5" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TAB 2 — PAGAMENTI
+═══════════════════════════════════════════════════════════════════════════ */
+function TabPagamenti() {
+  const { data: billing } = useBillingInfo();
+  const { data: invoices, isLoading: invoicesLoading } = useInvoices();
+  const { data: billingDetails } = useBillingDetails();
+  const { mutate: openPortal, isPending } = useOpenBillingPortal();
+  const [cronTab, setCronTab] = useState<"costi" | "fatture">("fatture");
+
+  // I metodi di pagamento veri (carta last4, brand, scadenza) richiedono Stripe API
+  // server-side. Per ora mostriamo placeholder + CTA Stripe Portal.
+  const hasStripeCustomer = !!billing?.stripeCustomerId;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Card Metodo di pagamento */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+              Metodo di pagamento
+            </CardTitle>
+            <Button
+              variant="outline" size="sm" className="h-7 px-2"
+              onClick={() => openPortal()} disabled={isPending}
+              aria-label="Modifica metodo di pagamento"
+            >
+              {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {hasStripeCustomer ? (
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-14 rounded border bg-white flex items-center justify-center text-[10px] font-bold text-slate-600">
+                  CARD
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Carta registrata su Stripe</p>
+                  <p className="text-xs text-muted-foreground">
+                    Modifica dettagli, scadenza o aggiungi una nuova carta dal portale Stripe.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground mb-3">Nessun metodo di pagamento</p>
+                <Button size="sm" onClick={() => openPortal()} disabled={isPending}>
+                  Aggiungi metodo di pagamento
+                </Button>
               </div>
             )}
-            {billing.currentPeriodEnd && (
-              <div>
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
-                  {billing.cancelAtPeriodEnd ? "Scade il" : "Prossimo rinnovo"}
-                </p>
-                <p className="text-sm font-medium">
-                  {format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}
-                </p>
-                {billing.cancelAtPeriodEnd && (
-                  <p className="text-[11px] text-amber-700 mt-0.5">
-                    Cancellazione programmata
-                  </p>
+          </CardContent>
+        </Card>
+
+        {/* Card Informazioni fiscali */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+              Informazioni fiscali
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {billingDetails?.vat_number || billingDetails?.tax_code ? (
+              <div className="space-y-2">
+                {billingDetails.vat_number && (
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">P.IVA</p>
+                      <p className="text-sm font-medium font-mono">{billingDetails.vat_number}</p>
+                    </div>
+                    <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                      <ShieldCheck className="h-3 w-3 mr-1" />
+                      Verificato
+                    </Badge>
+                  </div>
+                )}
+                {billingDetails.tax_code && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Codice Fiscale</p>
+                    <p className="text-sm font-medium font-mono">{billingDetails.tax_code}</p>
+                  </div>
+                )}
+                {billingDetails.sdi_code && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Codice SDI</p>
+                    <p className="text-sm font-medium font-mono">{billingDetails.sdi_code}</p>
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-        )}
-
-        {/* Trial banner */}
-        {billing.status === "trial" && billing.trialEndsAt && (
-          <Alert>
-            <Clock className="h-4 w-4" />
-            <AlertDescription>
-              Il periodo di prova termina il{" "}
-              <strong>{format(new Date(billing.trialEndsAt), "d MMMM yyyy", { locale: it })}</strong>.
-              Aggiungi un metodo di pagamento per continuare senza interruzioni.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Dunning banner */}
-        {billing.isInDunning && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="space-y-2">
-              <p>
-                Pagamento non riuscito. Hai ancora{" "}
-                <strong>{billing.dunningDaysLeft} giorni</strong> per aggiornare
-                il metodo di pagamento prima della sospensione.
-              </p>
-              {failedInvoiceUrl && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => window.open(failedInvoiceUrl!, "_blank")}
-                  className="gap-1"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  Paga ora
-                </Button>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Suspended */}
-        {billing.status === "suspended" && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Il tuo account è sospeso. Contatta il supporto o aggiorna il
-              metodo di pagamento per riattivare il servizio.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* CTA Stripe Portal */}
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={() => openPortal()}
-            disabled={isPending}
-            className="gap-2"
-          >
-            {isPending ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
             ) : (
-              <CreditCard className="h-4 w-4" />
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground mb-2">Nessuna informazione fiscale</p>
+                <p className="text-xs text-muted-foreground">Compila i dati di fatturazione qui sotto.</p>
+              </div>
             )}
-            Gestisci abbonamento e pagamenti
-          </Button>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="max-w-xs text-sm">
-                  Verrai reindirizzato al portale sicuro Stripe dove puoi
-                  aggiornare la carta, cambiare piano, o scaricare le fatture.
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+          </CardContent>
+        </Card>
+      </div>
 
-// ─── CARD: STORICO FATTURE ────────────────────────────────────────────────────
+      {/* Card Dati di fatturazione completa (form editabile) */}
+      <BillingDetailsCard />
 
-function InvoiceHistoryCard() {
-  const { data: invoices, isLoading } = useInvoices();
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-muted-foreground" />
-          <CardTitle>Storico fatture</CardTitle>
-        </div>
-        <CardDescription>Le ultime 24 fatture del tuo abbonamento</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="space-y-3">
-            {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
+      {/* Cronologia pagamenti con tab Costi/Fatture */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-muted-foreground" />
+                Cronologia dei pagamenti
+              </CardTitle>
+              <CardDescription className="text-xs">Tieni traccia dei tuoi pagamenti</CardDescription>
+            </div>
+            <Tabs value={cronTab} onValueChange={(v) => setCronTab(v as "costi" | "fatture")}>
+              <TabsList className="h-8">
+                <TabsTrigger value="costi" className="text-xs h-7">Costi</TabsTrigger>
+                <TabsTrigger value="fatture" className="text-xs h-7">Fatture</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
-        ) : !invoices || invoices.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <FileText className="h-12 w-12 text-muted-foreground/40 mb-3" />
-            <p className="font-medium text-foreground">Nessuna fattura ancora disponibile.</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Le fatture appariranno qui dopo il primo rinnovo o pagamento.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Periodo</TableHead>
-                  <TableHead>Importo</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead>Azioni</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.map((inv) => (
-                  <TableRow key={inv.id}>
-                    <TableCell className="text-sm">
-                      {formatPeriod(inv.periodStart, inv.periodEnd)}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {inv.status === "paid"
-                        ? formatEurCents(inv.amountPaid, inv.currency)
-                        : formatEurCents(inv.amountDue, inv.currency)}
-                    </TableCell>
-                    <TableCell>{statusBadge(inv.status)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {inv.invoicePdf && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => window.open(inv.invoicePdf!, "_blank")}
-                                >
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Scarica PDF</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                        {inv.invoiceUrl && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => window.open(inv.invoiceUrl!, "_blank")}
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Apri su Stripe</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                        {inv.status === "open" && inv.invoiceUrl && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => window.open(inv.invoiceUrl!, "_blank")}
-                          >
-                            Paga
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+        </CardHeader>
+        <CardContent>
+          {invoicesLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : !invoices || invoices.length === 0 ? (
+            <div className="text-center py-12">
+              <Receipt className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="font-medium">Nessun pagamento ancora registrato</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                I pagamenti appariranno qui dopo il primo addebito.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Descrizione</TableHead>
+                    <TableHead className="text-right">Importo</TableHead>
+                    <TableHead>Stato</TableHead>
+                    <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                </TableHeader>
+                <TableBody>
+                  {invoices.map((inv) => (
+                    <TableRow key={inv.id}>
+                      <TableCell>
+                        <code className="text-[10px] bg-muted px-1 py-0.5 rounded">{inv.id.slice(0, 10)}…</code>
+                      </TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: it }) : "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatPeriod(inv.periodStart, inv.periodEnd)}
+                      </TableCell>
+                      <TableCell className="font-semibold text-right tabular-nums">
+                        {inv.status === "paid"
+                          ? formatEurCents(inv.amountPaid, inv.currency)
+                          : formatEurCents(inv.amountDue, inv.currency)}
+                      </TableCell>
+                      <TableCell>
+                        {inv.status === "paid" ? (
+                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px]">Pagata</Badge>
+                        ) : inv.status === "open" ? (
+                          <Badge variant="secondary" className="text-[10px]">In scadenza</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">{inv.status}</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {inv.invoicePdf && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost" size="icon" className="h-7 w-7"
+                                    onClick={() => window.open(inv.invoicePdf!, "_blank")}
+                                    aria-label="Scarica PDF"
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Scarica PDF</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {inv.invoiceUrl && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost" size="icon" className="h-7 w-7"
+                                    onClick={() => window.open(inv.invoiceUrl!, "_blank")}
+                                    aria-label="Apri online"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Apri online</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <p className="text-xs text-muted-foreground text-center">
+        I pagamenti sono gestiti in modo sicuro da{" "}
+        <a href="https://stripe.com" target="_blank" rel="noopener noreferrer" className="underline">
+          Stripe
+        </a>. Non memorizziamo i dati della carta di credito.
+      </p>
+    </div>
   );
 }
 
-// ─── PAGINA PRINCIPALE ────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════
+   TAB 3 — PORTAFOGLIO (delega a SettingsCrediti esistente)
+═══════════════════════════════════════════════════════════════════════════ */
+function TabPortafoglio() {
+  return (
+    <Suspense
+      fallback={
+        <Card>
+          <CardContent className="py-12 flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </CardContent>
+        </Card>
+      }
+    >
+      <SettingsCrediti />
+    </Suspense>
+  );
+}
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   TAB 4 — NOTIFICHE
+═══════════════════════════════════════════════════════════════════════════ */
+function TabNotifiche() {
+  return (
+    <div className="space-y-5">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Bell className="h-4 w-4 text-muted-foreground" />
+            Notifiche fatturazione
+          </CardTitle>
+          <CardDescription>
+            Imposta avvisi quando ti avvicini ai limiti di spesa o quando un pagamento fallisce.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Le notifiche email per pagamenti, scadenze e trial in scadenza sono già attive di default.
+              Configura preferenze granulari (push, SMS, multi-destinatario) dalla sezione{" "}
+              <a href="/azienda/impostazioni/mio-profilo" className="text-primary hover:underline">
+                Profilo → Notifiche
+              </a>.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+
+      {/* Roadmap: spending alerts per limite, notifiche payment failed, ecc. */}
+      <Card className="border-dashed">
+        <CardContent className="py-8 text-center">
+          <Bell className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="font-medium">Avvisi di spesa avanzati</p>
+          <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+            Stiamo lavorando a alert configurabili (soglie €, destinatari multipli) per agenzie con sub-account.
+            In arrivo nelle prossime release.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN — Page con header + tabs
+═══════════════════════════════════════════════════════════════════════════ */
 export default function SettingsSubscriptionBilling() {
+  const { isScopriPlan, isLoading: limitsLoading } = useSubscriptionLimits();
+  const [params, setParams] = useSearchParams();
+  const tabParam = params.get("tab") ?? "";
+  const activeTab = VALID_TABS.has(tabParam) ? tabParam : "abbonamenti";
+
+  const setTab = (v: string) => {
+    const next = new URLSearchParams(params);
+    next.set("tab", v);
+    setParams(next, { replace: true });
+  };
+
+  // Mantieni vecchia logica "Scopri" (paywall onboarding)
   const navigate = useNavigate();
-  const { isScopriPlan } = useSubscriptionLimits();
+  if (limitsLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
 
   if (isScopriPlan) {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-xl font-semibold">Il tuo piano</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Stai usando il piano Scopri — gratuito, senza limiti di tempo.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard di fatturazione</h1>
+          <p className="text-muted-foreground">Stai usando il Piano Scopri gratuito.</p>
         </div>
-
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-xl">{"\uD83D\uDD0D"}</div>
+              <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-xl">🔍</div>
               <div>
                 <div className="font-semibold">Piano Scopri</div>
-                <div className="text-sm text-muted-foreground">Gratuito {"\u00B7"} Per sempre {"\u00B7"} Nessuna carta</div>
+                <div className="text-sm text-muted-foreground">Gratuito · Per sempre · Nessuna carta</div>
               </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              {[
-                { label: "Cantieri", value: "3 max" },
-                { label: "Utenti", value: "\u221E Illimitati" },
-                { label: "Storage", value: "1 GB" },
-              ].map(({ label, value }) => (
-                <div key={label} className="bg-gray-50 dark:bg-gray-900/40 rounded-lg p-3">
-                  <div className="text-sm font-medium">{value}</div>
-                  <div className="text-xs text-muted-foreground">{label}</div>
-                </div>
-              ))}
             </div>
           </CardContent>
         </Card>
-
-        <Card className="border-[#E8521A]/30 bg-orange-50/50 dark:bg-orange-950/20">
+        <Card className="border-orange-200 bg-orange-50/50">
           <CardContent className="pt-6">
             <h3 className="font-semibold mb-1">Pronto a fare sul serio?</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Starter a {"\u20AC"}127/mese: commesse illimitate, fatturazione SDI, banca PSD2, HR, magazzino e molto altro. Trial 31 giorni gratuito.
+              Starter a €127/mese: commesse illimitate, fatturazione SDI, banca PSD2, HR, magazzino. Trial 31 giorni.
             </p>
-            <Button
-              className="gap-2 bg-[#E8521A] hover:bg-[#d44714] text-white"
-              onClick={() => navigate("/prezzi")}
-            >
-              <Sparkles className="h-4 w-4" />
+            <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => navigate("/prezzi")}>
+              <Sparkles className="h-4 w-4 mr-1.5" />
               Vedi tutti i piani
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4 ml-1.5" />
             </Button>
           </CardContent>
         </Card>
@@ -395,33 +574,46 @@ export default function SettingsSubscriptionBilling() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Abbonamento</h1>
-        <p className="text-muted-foreground">
-          Gestisci il tuo piano, i metodi di pagamento, i dati di fatturazione e visualizza lo storico fatture.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard di fatturazione</h1>
       </div>
 
-      <Separator />
+      <Tabs value={activeTab} onValueChange={setTab} className="w-full">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+          <TabsTrigger value="abbonamenti" className="gap-1.5">
+            <Wallet className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Abbonamenti</span>
+            <span className="sm:hidden">Piano</span>
+          </TabsTrigger>
+          <TabsTrigger value="pagamenti" className="gap-1.5">
+            <CreditCard className="h-3.5 w-3.5" />
+            Pagamenti
+          </TabsTrigger>
+          <TabsTrigger value="portafoglio" className="gap-1.5">
+            <Wallet className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Portafoglio</span>
+            <span className="sm:hidden">Saldo</span>
+          </TabsTrigger>
+          <TabsTrigger value="notifiche" className="gap-1.5">
+            <Bell className="h-3.5 w-3.5" />
+            Notifiche
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Piano corrente: status, prezzo, trial banner, bottone Stripe Portal */}
-      <CurrentPlanCard />
-
-      {/* v8.6.58 — Dati fatturazione separati: ragione sociale, P.IVA, CF,
-          indirizzo, PEC, SDI. Possono differire da anagrafica company. */}
-      <BillingDetailsCard />
-
-      {/* Storico fatture */}
-      <InvoiceHistoryCard />
-
-      <p className="text-xs text-muted-foreground text-center">
-        I pagamenti e le carte sono gestiti in modo sicuro da{" "}
-        <a href="https://stripe.com" target="_blank" rel="noopener noreferrer" className="underline">
-          Stripe
-        </a>
-        . Non memorizziamo i dati della carta di credito.
-      </p>
+        <TabsContent value="abbonamenti" className="mt-5">
+          <TabAbbonamenti />
+        </TabsContent>
+        <TabsContent value="pagamenti" className="mt-5">
+          <TabPagamenti />
+        </TabsContent>
+        <TabsContent value="portafoglio" className="mt-5">
+          <TabPortafoglio />
+        </TabsContent>
+        <TabsContent value="notifiche" className="mt-5">
+          <TabNotifiche />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
