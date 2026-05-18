@@ -119,22 +119,36 @@ function TabAbbonamenti() {
             </div>
           </div>
 
-          {/* CTA piano annuale — risparmio 2 mesi */}
-          {!isYearly && billing.planPriceMonthly > 0 && (
-            <div className="mt-5 rounded-xl border bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900 p-4 flex items-center gap-3 flex-wrap">
-              <div className="h-9 w-9 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
-                <Gift className="h-5 w-5 text-emerald-600" />
+          {/* CTA piano annuale — risparmio reale calcolato sui prezzi del piano
+              (no hardcoded). Mostra solo se l'utente è mensile e il piano ha
+              anche un price_yearly < 12×price_monthly (cioè uno sconto reale). */}
+          {!isYearly && billing.planPriceMonthly > 0 && billing.planPriceYearly > 0 && (() => {
+            const monthlyTotalYear = billing.planPriceMonthly * 12;
+            const yearlySaving = monthlyTotalYear - billing.planPriceYearly;
+            const savingMonths = yearlySaving / billing.planPriceMonthly;
+            // Solo se risparmi >= 1 mese intero, mostriamo la card
+            if (savingMonths < 1) return null;
+            const savingLabel = savingMonths >= 1.9
+              ? `${Math.round(savingMonths)} mesi`
+              : `${Math.round(yearlySaving)}€/anno`;
+            return (
+              <div className="mt-5 rounded-xl border bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900 p-4 flex items-center gap-3 flex-wrap">
+                <div className="h-9 w-9 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
+                  <Gift className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">Risparmia {savingLabel} con l'annuale</p>
+                  <p className="text-xs text-muted-foreground">
+                    Passa al ciclo annuale dal portale Stripe — confermi tu il cambio prima del pagamento.
+                  </p>
+                </div>
+                <Button onClick={() => openPortal()} disabled={isPending}>
+                  {isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+                  Passa all'annuale
+                </Button>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm">Richiedi i tuoi 2 mesi gratis</p>
-                <p className="text-xs text-muted-foreground">Se passi all'abbonamento annuale, ottieni 2 mesi gratis (sconto ~17%).</p>
-              </div>
-              <Button onClick={() => openPortal()} disabled={isPending}>
-                {isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
-                Richiedi ora
-              </Button>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Trial banner — distingue trial attivo vs trial già scaduto (status=trial
               ma data passata: il backend non ha ancora flippato lo stato). */}
