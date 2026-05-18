@@ -35,6 +35,7 @@ import {
   Loader2, Upload, Palette, Lock, HeadphonesIcon, Eye, Globe, Copy,
   CheckCircle2, RefreshCw, AlertTriangle, Image as ImageIcon,
 } from "lucide-react";
+import { LogoUploader } from "@/components/settings/LogoUploader";
 
 const COLOR_PRESETS = [
   { name: "Blu Professionale", primary: "#1E40AF", secondary: "#3B82F6", accent: "#DBEAFE", text: "#FFFFFF" },
@@ -57,11 +58,11 @@ function isValidHex(v: string): boolean {
 
 /** RFC 1035: subdomain 3–63 chars, [a-z0-9-], no leading/trailing dash. */
 const SUBDOMAIN_REGEX = /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/;
-function isValidSubdomain(v: string): boolean {
+const isValidSubdomain = (v: string): boolean => {
   if (!v) return false;
   if (v.length < 3 || v.length > 63) return false;
   return SUBDOMAIN_REGEX.test(v);
-}
+};
 
 /** Calcolo luminanza relativa (WCAG 2.x). */
 function relativeLuminance(hex: string): number {
@@ -220,7 +221,7 @@ function LivePreview({
    MAIN
 ═══════════════════════════════════════════════════════════════════════════ */
 export default function SettingsBranding() {
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, refreshAuth } = useAuth();
   const { brand, saveBrand, uploadBrandFile, isLoading } = useBrandSettings();
   const { branding: companyBranding } = useBranding();
   const wlGate = useWhitelabelGate();
@@ -421,31 +422,31 @@ export default function SettingsBranding() {
         Personalizza colori, logo, dominio e l'aspetto della piattaforma per la tua azienda.
       </p>
 
-      {/* Logo — sempre disponibile, riempie tutta la larghezza */}
+      {/* Logo — gestito dal componente condiviso (stesso usato in Profilo aziendale).
+          Il logo è UNIVOCO: companies.logo_url → mostrato in sidebar, navbar,
+          email, PDF preventivi, portale clienti, branding white-label, login page. */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <ImageIcon className="h-4 w-4 text-muted-foreground" /> Logo aziendale
           </CardTitle>
           <CardDescription>
-            Mostrato in sidebar, navbar e comunicazioni. Raccomandato: PNG/SVG trasparente, max 2 MB.
+            Lo stesso logo viene mostrato in sidebar, navbar, email, preventivi PDF, portale
+            clienti e pagina di login. Modifica qui o in <a href="/azienda/impostazioni/profilo" className="underline">Profilo aziendale</a>.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="h-16 w-32 rounded border bg-muted/30 flex items-center justify-center p-2">
-              {effectiveCompany?.logo_url ? (
-                <img src={effectiveCompany.logo_url} alt="Logo" className="h-full object-contain" />
-              ) : (
-                <span className="text-[10px] text-muted-foreground">Nessun logo</span>
-              )}
-            </div>
-            <FileUploadButton
-              label="Carica logo"
-              isUploading={uploading === "logo_url"}
-              onUpload={(f) => handleFileUpload(f, "logo_url", "logo")}
-            />
-          </div>
+          <LogoUploader
+            company={effectiveCompany}
+            onLogoUpdated={async () => {
+              // Invalida tutte le query che leggono il logo per propagazione istantanea
+              queryClient.invalidateQueries({ queryKey: ["effective-company"] });
+              queryClient.invalidateQueries({ queryKey: ["company-branding"] });
+              queryClient.invalidateQueries({ queryKey: ["branding-settings"] });
+              // Refresh AuthContext per aggiornare effectiveCompany live
+              await refreshAuth();
+            }}
+          />
         </CardContent>
       </Card>
 

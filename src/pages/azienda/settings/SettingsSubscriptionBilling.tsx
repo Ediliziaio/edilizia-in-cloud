@@ -14,8 +14,8 @@
 import { lazy, Suspense, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ExternalLink, Download, AlertTriangle, CreditCard, FileText, RefreshCw, Clock,
-  Info, Sparkles, ArrowRight, Wallet, Bell, Receipt, ShieldCheck, Loader2, Gift,
+  ExternalLink, Download, AlertTriangle, CreditCard, Clock,
+  Sparkles, ArrowRight, Wallet, Bell, Receipt, ShieldCheck, Loader2, Gift,
 } from "lucide-react";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { Button } from "@/components/ui/button";
@@ -741,10 +741,8 @@ export default function SettingsSubscriptionBilling() {
   if (isScopriPlan) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard di fatturazione</h1>
-          <p className="text-muted-foreground">Stai usando il Piano Scopri gratuito.</p>
-        </div>
+        {/* Niente h1 — SettingsLayout monta già "Piano abbonamento" nell'header */}
+        <p className="text-muted-foreground">Stai usando il Piano Scopri gratuito.</p>
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3 mb-4">
@@ -775,10 +773,7 @@ export default function SettingsSubscriptionBilling() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard di fatturazione</h1>
-      </div>
-
+      {/* Niente h1 — SettingsLayout monta già "Piano abbonamento" nell'header */}
       <Tabs value={activeTab} onValueChange={setTab} className="w-full">
         <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="abbonamenti" className="gap-1.5">

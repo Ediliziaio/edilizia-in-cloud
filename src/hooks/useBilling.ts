@@ -79,7 +79,7 @@ export function useBillingInfo() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cExtra = company as unknown as Record<string, any>;
 
-      const plan = company.subscription_plans as any;
+      const plan = company.subscription_plans as { name?: string; price_monthly?: number; price_yearly?: number } | null;
       const dunningStatus = company.dunning_status;
       const isInDunning = !!dunningStatus && dunningStatus !== "none";
 
@@ -162,7 +162,12 @@ export function useInvoices() {
 
       if (error) throw error;
 
-      return ((data as any[]) ?? []).map((row: any) => ({
+      type InvoiceRow = {
+        id: string; stripe_invoice_id: string; amount_paid: number; amount_due: number;
+        currency: string; status: string; invoice_url: string | null; invoice_pdf: string | null;
+        period_start: string | null; period_end: string | null; paid_at: string | null; created_at: string;
+      };
+      return ((data as InvoiceRow[] | null) ?? []).map((row) => ({
         id: row.id,
         stripeInvoiceId: row.stripe_invoice_id,
         amountPaid: row.amount_paid,
