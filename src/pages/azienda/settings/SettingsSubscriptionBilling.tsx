@@ -473,17 +473,30 @@ function TabPagamenti() {
 ═══════════════════════════════════════════════════════════════════════════ */
 function TabPortafoglio() {
   return (
-    <Suspense
-      fallback={
-        <Card>
-          <CardContent className="py-12 flex items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </CardContent>
-        </Card>
-      }
-    >
-      <SettingsCrediti />
-    </Suspense>
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+          <Wallet className="h-4 w-4 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Portafoglio e transazioni</h2>
+          <p className="text-xs text-muted-foreground">
+            Saldo crediti, auto-ricarica e storico consumi (email, AI, WhatsApp).
+          </p>
+        </div>
+      </div>
+      <Suspense
+        fallback={
+          <Card>
+            <CardContent className="py-12 flex items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </CardContent>
+          </Card>
+        }
+      >
+        <SettingsCrediti embedded />
+      </Suspense>
+    </div>
   );
 }
 

@@ -42,7 +42,15 @@ import { subDays } from "date-fns";
 
 const LOW_BALANCE_THRESHOLD = 5;
 
-export default function SettingsCredits() {
+/**
+ * @prop embedded — Se true, nasconde l'h1 header (la pagina è già montata
+ *                  dentro un tab con titolo proprio, evita doppio h1 a11y/SEO).
+ */
+interface SettingsCreditsProps {
+  embedded?: boolean;
+}
+
+export default function SettingsCredits({ embedded = false }: SettingsCreditsProps = {}) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [searchParams] = useSearchParams();
@@ -111,26 +119,42 @@ export default function SettingsCredits() {
   return (
     <div className="space-y-5">
       {/* ── Header ──────────────────────────────────────────────────── */}
-      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-            <Wallet className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Crediti & Saldo</h1>
-            <p className="text-sm text-muted-foreground">
-              Saldo totale:{" "}
-              <span className="font-semibold text-foreground">{formatEur(totalBalanceEur)}</span>
-              {hasBlocked && (
-                <>
-                  {" · "}
-                  <span className="font-medium text-destructive">servizi bloccati</span>
-                </>
-              )}
-            </p>
+      {/* v8.6.59 — in modalità embedded (es. tab Portafoglio della dashboard
+          abbonamento) nascondiamo l'h1 per evitare doppio heading; saldo
+          totale mostrato comunque come riga compatta. */}
+      {embedded ? (
+        <p className="text-sm text-muted-foreground">
+          Saldo totale:{" "}
+          <span className="font-semibold text-foreground">{formatEur(totalBalanceEur)}</span>
+          {hasBlocked && (
+            <>
+              {" · "}
+              <span className="font-medium text-destructive">servizi bloccati</span>
+            </>
+          )}
+        </p>
+      ) : (
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <Wallet className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Crediti & Saldo</h1>
+              <p className="text-sm text-muted-foreground">
+                Saldo totale:{" "}
+                <span className="font-semibold text-foreground">{formatEur(totalBalanceEur)}</span>
+                {hasBlocked && (
+                  <>
+                    {" · "}
+                    <span className="font-medium text-destructive">servizi bloccati</span>
+                  </>
+                )}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── Alert globali ───────────────────────────────────────────── */}
       {hasBlocked && (
