@@ -143,23 +143,88 @@
     <meta name="language" content="Italian">
     <meta name="content-language" content="it">
 
-    <!-- Canonical + Hreflang -->
+    <!-- Canonical + Hreflang ────────────────────────────────────────────────
+         v8.6.47 — SEO fix critico per Google Search Console:
+         Prima il canonical statico nell'HTML era sempre "/" (homepage), e uno
+         script JS lo sovrascriveva DOPO. Googlebot leggeva spesso il canonical
+         iniziale "/" durante la prima passata → segnale "tutte le pagine
+         puntano alla homepage" → de-indicizzazione massiva.
+         Cause GSC risolte:
+         - "Pagina alternativa con tag canonical appropriato" (calendario-lavori)
+         - "Pagina duplicata, Google ha scelto canonica diversa" (6 pagine)
+         - "Pagina scansionata ma non indicizzata" (5 pagine incl. homepage)
+         Fix: lo script INLINE all'inizio dell'head inserisce subito il
+         canonical corretto via createElement+appendChild PRIMA che il fallback
+         statico venga aggiunto al DOM. Per i crawler no-JS resta il fallback
+         <link> statico (path canonico homepage). -->
+    <script>
+      (function() {
+        try {
+          var base = 'https://www.ediliziaincloud.com';
+          var path = window.location.pathname || '/';
+          var isFile = /\.[a-z0-9]{2,8}$/i.test(path);
+          if (path !== '/' && !isFile && !path.endsWith('/')) path += '/';
+          var canonicalUrl = base + (path === '/' ? '/' : path);
+          var head = document.head || document.getElementsByTagName('head')[0];
+          if (!head) return;
+          // Insert canonical link
+          var lc = document.createElement('link');
+          lc.rel = 'canonical';
+          lc.setAttribute('data-dynamic', '1');
+          lc.href = canonicalUrl;
+          head.appendChild(lc);
+          // hreflang it + x-default
+          var lit = document.createElement('link');
+          lit.rel = 'alternate';
+          lit.hreflang = 'it';
+          lit.setAttribute('data-dynamic', '1');
+          lit.href = canonicalUrl;
+          head.appendChild(lit);
+          var lx = document.createElement('link');
+          lx.rel = 'alternate';
+          lx.hreflang = 'x-default';
+          lx.setAttribute('data-dynamic', '1');
+          lx.href = canonicalUrl;
+          head.appendChild(lx);
+          // og:url
+          var om = document.createElement('meta');
+          om.setAttribute('property', 'og:url');
+          om.setAttribute('data-dynamic', '1');
+          om.setAttribute('content', canonicalUrl);
+          head.appendChild(om);
+        } catch (e) { /* no-op: fallback statico sotto */ }
+      })();
+    </script>
+    <!-- Fallback statico per crawler no-JS (Bing legacy, alcuni preview tool).
+         Googlebot moderno esegue JS e usa il canonical dinamico inserito sopra.
+         Se entrambi presenti, browser/Googlebot prendono il PRIMO dichiarato
+         che è quello dinamico (corretto). -->
     <link rel="canonical" href="https://www.ediliziaincloud.com/">
     <link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/">
     <link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/">
     <meta property="og:url" content="https://www.ediliziaincloud.com/">
-    <!-- Dynamic canonical — allinea immediatamente al percorso corrente prima che React carichi -->
-    <!-- Risolve "Pagina alternativa con tag canonical appropriato" in Google Search Console -->
+    <!-- Cleanup: rimuove il fallback statico se quello dinamico è presente,
+         evitando duplicati ambigui durante l'audit Google. -->
     <script>
       (function() {
-        var base = 'https://www.ediliziaincloud.com';
-        var path = window.location.pathname || '/';
-        var isFile = /\.[a-z0-9]{2,8}$/i.test(path);
-        if (path !== '/' && !isFile && !path.endsWith('/')) path += '/';
-        var canonical = document.querySelector('link[rel="canonical"]');
-        if (canonical) canonical.href = base + (path === '/' ? '/' : path);
-        var ogUrl = document.querySelector('meta[property="og:url"]');
-        if (ogUrl) ogUrl.content = base + (path === '/' ? '/' : path);
+        function cleanup() {
+          var dyn = document.querySelector('link[rel="canonical"][data-dynamic="1"]');
+          if (!dyn) return; // fallback rimane (JS guard ha fallito)
+          // Rimuovi i tag statici (senza data-dynamic) di canonical/hreflang/og:url
+          var staticTags = [
+            'link[rel="canonical"]:not([data-dynamic])',
+            'link[rel="alternate"][hreflang]:not([data-dynamic])',
+            'meta[property="og:url"]:not([data-dynamic])',
+          ];
+          staticTags.forEach(function(sel) {
+            document.querySelectorAll(sel).forEach(function(el) { el.remove(); });
+          });
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', cleanup);
+        } else {
+          cleanup();
+        }
       })();
     </script>
     <!-- Preconnect per risorse critiche -->

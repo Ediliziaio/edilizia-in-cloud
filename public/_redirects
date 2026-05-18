@@ -58,6 +58,50 @@ http://www.ediliziaincloud.com/*   https://www.ediliziaincloud.com/:splat   301
 /import-dati-gestionale-edilizia    /pianifica-migrazione/    301
 /onboarding-gestionale-edilizia    /pianifica-migrazione/    301
 
+# ── Trailing slash normalization (v8.6.47 — SEO fix) ─────────────────────────
+# Cloudflare Pages serviva sia `/blog` che `/blog/` come stesso index.html →
+# Google li vedeva come 2 URL distinti con contenuto identico → "Pagina duplicata,
+# Google ha scelto una canonica diversa" + "Pagina con reindirizzamento".
+# Forzando 301 verso la versione con trailing slash si elimina l'ambiguità
+# e si allinea al sitemap.xml (che già usa /path/).
+
+# Core pages
+/prezzi                            /prezzi/                            301
+/blog                              /blog/                              301
+/funzionalita                      /funzionalita/                      301
+/integrazioni                      /integrazioni/                      301
+/confronto                         /confronto/                         301
+/chi-siamo                         /chi-siamo/                         301
+/demo                              /demo/                              301
+/pianifica-migrazione              /pianifica-migrazione/              301
+/diventa-partner                   /diventa-partner/                   301
+/formazione                        /formazione/                        301
+/casi-studio                       /casi-studio/                       301
+/software-gestionale-edilizia      /software-gestionale-edilizia/      301
+
+# Legal pages
+/privacy-policy                    /privacy-policy/                    301
+/termini-e-condizioni              /termini-e-condizioni/              301
+/cookie-policy                     /cookie-policy/                     301
+/dpa                               /dpa/                               301
+/avviso-legale                     /avviso-legale/                     301
+/accessibility                     /accessibility/                     301
+
+# Wildcard trailing slash per route dinamiche (sintassi Cloudflare Pages :splat)
+# Coprono i pattern dinamici delle landing pages.
+# IMPORTANTE: Cloudflare matcha l'URL ESATTO. Se l'utente arriva su
+# /software-gestionale-edilizia-ferrara (no slash), il match con
+# /software-gestionale-edilizia-:slug fa il 301 → con slash.
+# Pattern critici per GSC "Pagina duplicata":
+/software-gestionale-edilizia-:slug    /software-gestionale-edilizia-:slug/    301
+/blog/:slug                            /blog/:slug/                            301
+/per/:slug                             /per/:slug/                             301
+/confronto/:slug                       /confronto/:slug/                       301
+/citta/:slug                           /citta/:slug/                           301
+/funzionalita/:slug                    /funzionalita/:slug/                    301
+
 # ── SPA fallback routing ──────────────────────────────────────────────────────
-# All routes fall through to index.html so React Router handles them client-side
+# All routes fall through to index.html so React Router handles them client-side.
+# IMPORTANTE: i redirect 301 sopra devono stare PRIMA del catch-all 200,
+# altrimenti il catch-all matcha per primo e i redirect non funzionano.
 /*    /index.html   200
