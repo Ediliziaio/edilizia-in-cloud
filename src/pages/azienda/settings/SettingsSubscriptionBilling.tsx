@@ -30,7 +30,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Pencil } from "lucide-react";
-import { useBillingInfo, useInvoices, useOpenBillingPortal, useTopPlanPrice } from "@/hooks/useBilling";
+import { useBillingInfo, useInvoices, useOpenBillingPortal, useTopPlanPrice, useStripePaymentMethod } from "@/hooks/useBilling";
 import { useBillingDetails } from "@/hooks/useBillingDetails";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
@@ -55,6 +55,22 @@ function formatEurCents(centesimi: number, currency = "eur"): string {
 function formatPeriod(start: string | null, end: string | null): string {
   if (!start || !end) return "—";
   return `${format(new Date(start), "d MMM yyyy", { locale: it })} → ${format(new Date(end), "d MMM yyyy", { locale: it })}`;
+}
+
+/** Restituisce label + colore brand pulito (visa, mastercard, amex…). */
+function brandLabel(brand?: string): { label: string; className: string } {
+  const b = (brand ?? "").toLowerCase();
+  const map: Record<string, { label: string; className: string }> = {
+    visa:       { label: "VISA",       className: "bg-blue-700 text-white" },
+    mastercard: { label: "MasterCard", className: "bg-orange-600 text-white" },
+    amex:       { label: "AMEX",       className: "bg-sky-600 text-white" },
+    american_express: { label: "AMEX", className: "bg-sky-600 text-white" },
+    discover:   { label: "Discover",   className: "bg-orange-500 text-white" },
+    diners:     { label: "Diners",     className: "bg-slate-700 text-white" },
+    jcb:        { label: "JCB",        className: "bg-emerald-700 text-white" },
+    unionpay:   { label: "UnionPay",   className: "bg-red-600 text-white" },
+  };
+  return map[b] ?? { label: b.toUpperCase() || "CARD", className: "bg-slate-700 text-white" };
 }
 
 function companyStatusBadge(status: string) {
@@ -255,6 +271,7 @@ function TabPagamenti() {
   const { data: billing } = useBillingInfo();
   const { data: invoices, isLoading: invoicesLoading } = useInvoices();
   const { data: billingDetails } = useBillingDetails();
+  const { data: pm, isLoading: pmLoading } = useStripePaymentMethod();
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
   const [cronTab, setCronTab] = useState<"costi" | "fatture">("fatture");
   const [, setSearchParams] = useSearchParams();
@@ -283,16 +300,41 @@ function TabPagamenti() {
             </Button>
           </CardHeader>
           <CardContent>
-            {hasStripeCustomer ? (
+            {pmLoading ? (
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-14 rounded" />
+                <div className="flex-1">
+                  <Skeleton className="h-4 w-32 mb-2" />
+                  <Skeleton className="h-3 w-48" />
+                </div>
+              </div>
+            ) : pm?.hasMethod ? (
+              <div className="flex items-center gap-3">
+                <div className={`h-10 w-14 rounded flex items-center justify-center text-[10px] font-bold tracking-wider ${brandLabel(pm.brand).className}`}>
+                  {brandLabel(pm.brand).label}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">
+                    {brandLabel(pm.brand).label} •••• {pm.last4}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {pm.expMonth && pm.expYear ? (
+                      <>Scade {String(pm.expMonth).padStart(2, "0")}/{String(pm.expYear).slice(-2)}</>
+                    ) : (
+                      "Carta registrata"
+                    )}
+                    {pm.funding ? ` · ${pm.funding === "credit" ? "Credito" : pm.funding === "debit" ? "Debito" : pm.funding}` : null}
+                  </p>
+                </div>
+              </div>
+            ) : hasStripeCustomer ? (
               <div className="flex items-center gap-3">
                 <div className="h-10 w-14 rounded border bg-white flex items-center justify-center text-[10px] font-bold text-slate-600">
                   CARD
                 </div>
-                <div>
-                  <p className="text-sm font-medium">Carta registrata su Stripe</p>
-                  <p className="text-xs text-muted-foreground">
-                    Modifica dettagli, scadenza o aggiungi una nuova carta dal portale Stripe.
-                  </p>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Nessuna carta predefinita</p>
+                  <p className="text-xs text-muted-foreground">Aggiungi un metodo di pagamento dal portale Stripe.</p>
                 </div>
               </div>
             ) : (

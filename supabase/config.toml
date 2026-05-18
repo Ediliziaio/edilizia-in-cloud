@@ -388,3 +388,7 @@ verify_jwt = false
 
 [functions.cg-export-pacchetto-banca]
 verify_jwt = true
+
+# v8.6.59 — Stripe payment method lookup (brand/last4/exp) per dashboard abbonamento
+[functions.stripe-payment-method]
+verify_jwt = false

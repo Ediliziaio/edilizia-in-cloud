@@ -182,6 +182,46 @@ export function useInvoices() {
   });
 }
 
+// ─── HOOK: METODO DI PAGAMENTO DEFAULT (carta brand/last4/scadenza) ──────────
+
+export interface StripePaymentMethod {
+  hasMethod: boolean;
+  brand?: string;
+  last4?: string;
+  expMonth?: number;
+  expYear?: number;
+  funding?: string;
+  type?: string;
+}
+
+/**
+ * Recupera il default payment method del customer Stripe (carta brand + last4
+ * + scadenza). Usato dalla card "Metodo di pagamento" nella dashboard.
+ *
+ * - Resilient: se l'edge function non esiste o errore, ritorna {hasMethod:false}
+ * - Cache 5 min: i cambi avvengono via Stripe portal, l'utente torna qui dopo
+ */
+export function useStripePaymentMethod() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  return useQuery({
+    queryKey: ["stripe-payment-method", companyId],
+    enabled: !!companyId,
+    queryFn: async (): Promise<StripePaymentMethod> => {
+      try {
+        const { data, error } = await supabase.functions.invoke("stripe-payment-method");
+        if (error) return { hasMethod: false };
+        return (data as StripePaymentMethod) ?? { hasMethod: false };
+      } catch {
+        return { hasMethod: false };
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    retry: false,
+  });
+}
+
 // ─── HOOK: APRIRE IL CUSTOMER PORTAL STRIPE ───────────────────────────────────
 
 export function useOpenBillingPortal() {
