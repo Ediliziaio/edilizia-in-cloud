@@ -35,7 +35,7 @@ const config: FunzionalitaPageConfig = {
       "Area cliente brandizzata dove ogni cliente vede in tempo reale: avanzamento del cantiere, foto, documenti, fatture, SAL firmabili online.",
     keywords:
       "portale clienti edilizia, area cliente impresa edile, portale cantiere cliente, app cliente edilizia, software trasparenza cantiere, portale ristrutturazione cliente, dashboard cliente edilizia, area riservata clienti edili",
-    ogImage: "https://www.ediliziaincloud.com/og/portale-clienti-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Portale Clienti",

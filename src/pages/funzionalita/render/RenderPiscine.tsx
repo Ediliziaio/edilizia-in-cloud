@@ -34,7 +34,7 @@ const config: RenderPageConfig = {
       "Render Piscine AI: trasforma la foto del giardino del cliente in un prima/dopo realistico con nuova piscina, bordo, pavimentazione, pergola, illuminazione…",
     keywords:
       "render piscina, render piscine AI, software piscinisti, configuratore piscina online, render bordo piscina, render giardino, render pergola, render outdoor, prima dopo piscina, software costruttori piscine, gestionale piscinisti, AI piscine",
-    ogImage: "https://www.ediliziaincloud.com/og/render-piscine-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Render AI per piscinisti e installatori outdoor · Beta",

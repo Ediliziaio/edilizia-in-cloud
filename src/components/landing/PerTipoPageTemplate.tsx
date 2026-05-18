@@ -326,10 +326,10 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             </p>
           </div>
           <div className={`flex flex-col sm:flex-row items-center justify-center gap-4 transition-all duration-700 delay-300 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <Link to="/demo" className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
+            <Link to="/demo/" className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
               Prova Gratis 31 Giorni →
             </Link>
-            <Link to="/prezzi" className="w-full sm:w-auto px-8 py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all">
+            <Link to="/prezzi/" className="w-full sm:w-auto px-8 py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all">
               Vedi i Prezzi
             </Link>
           </div>
@@ -518,7 +518,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               <p className="text-white/40 text-sm">
                 🎯 <span className="text-white/60">31 giorni gratis</span> per verificarlo tu stesso. Se non vedi i risultati, non paghi nulla.
               </p>
-              <Link to="/demo" className="flex-shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#F97415] text-white font-bold text-sm hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
+              <Link to="/demo/" className="flex-shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#F97415] text-white font-bold text-sm hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
                 Calcola il tuo ROI reale <ArrowRight size={14} />
               </Link>
             </div>
@@ -623,7 +623,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             ))}
           </div>
           <div className={`text-center mt-10 transition-all duration-700 ${modulesAnim.isVisible ? "opacity-100" : "opacity-0"}`}>
-            <Link to="/funzionalita" className="inline-flex items-center gap-2 text-[#F97415] font-bold hover:underline">
+            <Link to="/funzionalita/" className="inline-flex items-center gap-2 text-[#F97415] font-bold hover:underline">
               Vedi tutti i 26 moduli <ArrowRight size={16} />
             </Link>
           </div>
@@ -682,7 +682,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                 </div>
               ))}
               <div className="mt-2 pt-4 border-t border-white/10">
-                <Link to="/casi-studio" className="inline-flex items-center gap-2 text-[#F97415] text-sm font-bold hover:underline">
+                <Link to="/casi-studio/" className="inline-flex items-center gap-2 text-[#F97415] text-sm font-bold hover:underline">
                   Leggi tutti i casi studio <ArrowRight size={14} />
                 </Link>
               </div>
@@ -894,10 +894,10 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4 leading-tight">{config.ctaTitle}</h2>
           <p className="text-white/50 text-lg mb-10">{config.ctaSubtitle}</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
-            <Link to="/demo" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#e8650e] text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
+            <Link to="/demo/" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#e8650e] text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
               Prova Gratis 31 Giorni <ArrowRight size={18} />
             </Link>
-            <Link to="/prezzi" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/20 text-white font-bold hover:border-white/40 hover:bg-white/5 transition-all">
+            <Link to="/prezzi/" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/20 text-white font-bold hover:border-white/40 hover:bg-white/5 transition-all">
               Vedi i Prezzi
             </Link>
           </div>

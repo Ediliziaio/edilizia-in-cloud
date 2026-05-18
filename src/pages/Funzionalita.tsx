@@ -409,14 +409,14 @@ export default function Funzionalita() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              to="/demo"
+              to="/demo/"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#C94F06] text-white font-bold text-base transition-colors shadow-lg shadow-[#F97415]/20"
             >
               Richiedi una Demo Gratuita
               <ArrowRight className="w-5 h-5" />
             </Link>
             <Link
-              to="/prezzi"
+              to="/prezzi/"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border-2 border-[#111111]/15 hover:border-[#F97415] text-[#111111] hover:text-[#F97415] font-bold text-base transition-colors"
             >
               Vedi i prezzi

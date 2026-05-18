@@ -34,7 +34,7 @@ const config: FunzionalitaPageConfig = {
       "SMS transazionali e marketing per imprese edili: notifiche cantiere automatiche, promemoria sopralluogo, alert SAL/fattura, campagne riattivazione.",
     keywords:
       "SMS marketing edilizia, notifiche SMS cantiere, promemoria sopralluogo edilizia, alert SAL SMS, sms transazionali edilizia, mittente personalizzato edilizia, GDPR SMS marketing, software SMS edili",
-    ogImage: "https://www.ediliziaincloud.com/og/sms-marketing-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · SMS Marketing",

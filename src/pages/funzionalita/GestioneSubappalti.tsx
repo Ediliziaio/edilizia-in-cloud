@@ -34,7 +34,7 @@ const config: FunzionalitaPageConfig = {
       "Gestisci subappaltatori, contratti, SAL, ritenute (4% INPS), DURC e fatture passive in un unico modulo. Alert automatico su DURC scaduti, blocco pagamenti…",
     keywords:
       "gestione subappalti software, software subappalti edilizia, ritenuta 4% INPS subappalto, DURC subappaltatore, SAL subappalto edilizia, responsabilità solidale subappalto, fatture passive cantiere, contratto subappalto edile, controllo subappaltatori",
-    ogImage: "https://www.ediliziaincloud.com/og/gestione-subappalti-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Gestione Subappalti",

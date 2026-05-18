@@ -99,7 +99,7 @@ export default function BlogCategory() {
   });
 
   // Redirect to blog if slug unknown (DOPO i hooks)
-  if (!meta) return <Navigate to="/blog" replace />;
+  if (!meta) return <Navigate to="/blog/" replace />;
 
   const colorClass = categoryColors[meta.category] ?? "bg-gray-100 text-gray-700";
   const [featured, ...rest] = posts;
@@ -150,7 +150,7 @@ export default function BlogCategory() {
         <div className="max-w-6xl mx-auto px-6">
           {/* Back link */}
           <Link
-            to="/blog"
+            to="/blog/"
             className="inline-flex items-center gap-2 text-white/50 hover:text-white text-sm mb-8 transition-colors"
           >
             <ArrowLeft size={14} /> Tutti gli articoli
@@ -177,7 +177,7 @@ export default function BlogCategory() {
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
             <Link
-              to="/blog"
+              to="/blog/"
               className="whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all flex-shrink-0"
             >
               Tutti
@@ -204,7 +204,7 @@ export default function BlogCategory() {
         {posts.length === 0 ? (
           <div className="text-center py-24">
             <p className="text-gray-400 text-lg">Nessun articolo in questa categoria.</p>
-            <Link to="/blog" className="mt-4 inline-block text-[#F97415] font-medium hover:underline">
+            <Link to="/blog/" className="mt-4 inline-block text-[#F97415] font-medium hover:underline">
               Vai al blog
             </Link>
           </div>
@@ -309,7 +309,7 @@ export default function BlogCategory() {
             risolve i problemi di {meta.category.toLowerCase()} nella tua impresa.
           </p>
           <Link
-            to="/demo"
+            to="/demo/"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#F97415] text-white font-bold hover:bg-[#e8650e] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#F97415]/30"
           >
             Richiedi una Demo Gratuita <ArrowRight size={18} />

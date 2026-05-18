@@ -291,7 +291,7 @@ export default function Glossario() {
             SAL, avanzamenti, fatturazione elettronica e controllo margini in tempo reale.
           </p>
           <Link
-            to="/demo"
+            to="/demo/"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#F97415] text-white font-bold hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
           >
             Prova Gratis 31 Giorni <ArrowRight size={18} />

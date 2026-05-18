@@ -36,7 +36,7 @@ const config: FunzionalitaPageConfig = {
       "App mobile dedicata ai cantieri: timbratura GPS, foto cantiere, ordini materiali, SAL, giornale lavori, comunicazione team. Funziona offline in cantieri…",
     keywords:
       "app cantiere mobile, app capocantiere, app operai edilizia, app timbratura GPS cantiere, app foto cantiere, app giornale lavori, software cantiere offline, app iOS Android edilizia, gestione cantiere mobile, app cantiere senza segnale",
-    ogImage: "https://www.ediliziaincloud.com/og/app-cantiere-mobile-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · App Cantiere Mobile",

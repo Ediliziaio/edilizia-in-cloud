@@ -37,7 +37,7 @@ const config: FunzionalitaPageConfig = {
       "Gestione magazzino multi-cantiere con stock per cantiere, prelievi tracciati con codici a barre, scorte minime e ordini automatici, valorizzazione FIFO.",
     keywords:
       "magazzino cantiere edilizia, gestione magazzino multi-cantiere, stock cantiere, prelievi tracciati edilizia, codici a barre magazzino edilizia, scorte minime cantiere, valorizzazione FIFO edilizia, software magazzino edile",
-    ogImage: "https://www.ediliziaincloud.com/og/magazzino-cantiere-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Magazzino Cantiere",

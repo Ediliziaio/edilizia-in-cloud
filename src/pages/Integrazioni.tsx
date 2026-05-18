@@ -218,7 +218,7 @@ export default function Integrazioni() {
                 ))}
               </ul>
               <Link
-                to="/demo"
+                to="/demo/"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#F97415] text-white font-bold hover:bg-[#e8650e] transition-all"
               >
                 Richiedi accesso API <ExternalLink size={15} />
@@ -261,13 +261,13 @@ export default function Integrazioni() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              to="/demo"
+              to="/demo/"
               className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#F97415] text-white font-bold hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
             >
               Richiedi un'integrazione <ArrowRight size={18} />
             </Link>
             <Link
-              to="/funzionalita"
+              to="/funzionalita/"
               className="inline-flex items-center gap-2 px-8 py-4 rounded-full border border-gray-200 text-gray-700 font-bold hover:border-[#F97415]/40 hover:text-[#F97415] transition-all"
             >
               Vedi tutte le funzionalità

@@ -209,7 +209,7 @@ export default function BlogPost() {
             L&apos;articolo che stai cercando non esiste o è stato rimosso.
           </p>
           <Link
-            to="/blog"
+            to="/blog/"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#F97415] text-white font-semibold hover:bg-[#e8650e] transition-colors"
           >
             <ArrowLeft size={16} /> Torna al Blog
@@ -328,7 +328,7 @@ export default function BlogPost() {
         <div className="absolute inset-0 flex items-end">
           <div className="max-w-5xl mx-auto px-6 pb-10 w-full">
             <Link
-              to="/blog"
+              to="/blog/"
               className="inline-flex items-center gap-2 text-white/70 hover:text-white text-sm mb-4 transition-colors"
             >
               <ArrowLeft size={14} /> Blog
@@ -461,7 +461,7 @@ export default function BlogPost() {
                         <p className="text-white/85 mb-6 leading-relaxed">{section.body}</p>
                       )}
                       <Link
-                        to="/demo"
+                        to="/demo/"
                         className="inline-flex items-center gap-2 px-7 py-3 bg-white text-[#F97415] font-bold rounded-full hover:bg-white/90 transition-colors shadow-lg"
                       >
                         Prova Edilizia in Cloud <ArrowRight size={16} />
@@ -534,7 +534,7 @@ export default function BlogPost() {
                 31 giorni di prova gratuita. Cancella quando vuoi. Onboarding 1:1 incluso.
               </p>
               <Link
-                to="/demo"
+                to="/demo/"
                 className="block text-center px-5 py-2.5 rounded-full bg-[#F97415] text-white font-bold text-sm hover:bg-[#e8650e] transition-colors"
               >
                 Richiedi Demo

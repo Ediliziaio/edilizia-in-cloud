@@ -761,13 +761,13 @@ export default function PianificaMigrazione() {
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Link
-                  to="/funzionalita"
+                  to="/funzionalita/"
                   className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm border border-[#111111]/15 text-[#111111] hover:bg-gray-50 transition"
                 >
                   Esplora le funzionalità
                 </Link>
                 <Link
-                  to="/casi-studio"
+                  to="/casi-studio/"
                   className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm text-white transition"
                   style={{ background: "#F97415" }}
                 >

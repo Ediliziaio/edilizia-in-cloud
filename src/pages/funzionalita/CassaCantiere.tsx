@@ -35,7 +35,7 @@ const config: FunzionalitaPageConfig = {
       "Previsionale di cassa per impresa edile a 30/60/90 giorni: incassi previsti, pagamenti programmati, fatturato in arrivo, scadenze fornitori.",
     keywords:
       "previsionale di cassa edilizia, cash flow forecast impresa edile, software tesoreria edilizia, gestione liquidità cantiere, cash flow cantieri, software finanziario imprese edili, riconciliazione bancaria edilizia, scadenzario impresa edile",
-    ogImage: "https://www.ediliziaincloud.com/og/cassa-cantiere-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Previsionale di Cassa",

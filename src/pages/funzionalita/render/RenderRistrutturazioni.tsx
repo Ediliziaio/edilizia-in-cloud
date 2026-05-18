@@ -35,7 +35,7 @@ const config: RenderPageConfig = {
       "Render Ristrutturazioni AI: trasforma la foto reale dell'appartamento del cliente in un prima/dopo credibile per ristrutturazioni complete.",
     keywords:
       "render ristrutturazione, render ristrutturazioni AI, software imprese ristrutturazione, configuratore ristrutturazione, render appartamento, render casa AI, prima dopo ristrutturazione, software interior designer, gestionale ristrutturatori, AI casa",
-    ogImage: "https://www.ediliziaincloud.com/og/render-ristrutturazioni-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Render AI per ristrutturatori e general contractor · Beta",

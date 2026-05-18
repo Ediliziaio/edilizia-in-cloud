@@ -33,7 +33,7 @@ const config: RenderPageConfig = {
       "Render Pavimenti AI: trasforma la foto reale della stanza del cliente in un prima/dopo credibile con nuovi pavimenti in gres, parquet, microcemento,…",
     keywords:
       "render pavimento, render pavimenti AI, software posatori pavimenti, configuratore pavimento online, render gres, render parquet, render ceramica, render microcemento, render resina, prima dopo pavimento, software showroom pavimenti, gestionale posatori",
-    ogImage: "https://www.ediliziaincloud.com/og/render-pavimenti-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Render AI per posatori e showroom · Beta",

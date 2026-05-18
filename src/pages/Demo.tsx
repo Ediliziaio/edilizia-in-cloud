@@ -508,7 +508,7 @@ export default function Demo() {
                       />
                       <span className="text-xs text-[#111111]/75 leading-relaxed">
                         <strong className="text-[#F97415]">*</strong> Ho letto e accetto la{" "}
-                        <Link to="/privacy-policy" target="_blank" rel="noopener" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
+                        <Link to="/privacy-policy/" target="_blank" rel="noopener" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
                           Privacy Policy
                         </Link>{" "}
                         e acconsento al trattamento dei miei dati personali per finalità connesse alla gestione della richiesta di demo (art. 6.1.b GDPR — misura precontrattuale).{" "}

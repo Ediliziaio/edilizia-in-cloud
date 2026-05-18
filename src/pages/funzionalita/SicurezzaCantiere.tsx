@@ -37,7 +37,7 @@ const config: FunzionalitaPageConfig = {
       "Software sicurezza cantiere conforme D.Lgs 81/2008: POS digitali, DUVRI, formazione tracciata, DPI, sopralluoghi, near-miss, scadenze visite mediche.",
     keywords:
       "sicurezza cantiere software, dlgs 81 2008 gestione, pos digitale cantiere, duvri impresa edile, formazione lavoratori edilizia, dpi tracciato cantiere, near miss edilizia, visita medica operai scadenza",
-    ogImage: "https://www.ediliziaincloud.com/og/sicurezza-cantiere-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Sicurezza Cantiere",

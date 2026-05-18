@@ -36,7 +36,7 @@ const config: FunzionalitaPageConfig = {
       "App mobile timbrature operai con GPS geofence cantiere, foto-timbratura antifrode, calcolo automatico ore extra/notturne CCNL Edilizia, integrazione…",
     keywords:
       "timbrature GPS edilizia, app timbrature operai cantiere, geofence cantiere edilizia, antifrode timbrature edilizia, CCNL edilizia ore extra, cedolini paga edilizia, timbratura foto cantiere, software presenze edilizia",
-    ogImage: "https://www.ediliziaincloud.com/og/timbrature-gps-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Timbrature GPS",

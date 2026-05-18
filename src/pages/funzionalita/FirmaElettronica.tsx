@@ -38,7 +38,7 @@ const config: FunzionalitaPageConfig = {
       "Firma elettronica avanzata eIDAS per imprese edili: preventivi, SAL, varianti, contratti, DURC firmati online in 30 secondi dal cliente.",
     keywords:
       "firma elettronica edilizia, firma digitale impresa edile, firma SAL online, firma contratti edili, firma elettronica avanzata eIDAS, marca temporale edilizia, firma preventivi cliente, firma varianti cantiere, archivio firme cloud edilizia",
-    ogImage: "https://www.ediliziaincloud.com/og/firma-elettronica-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Firma Elettronica",

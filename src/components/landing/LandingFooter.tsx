@@ -18,17 +18,17 @@ export default function LandingFooter() {
           <div>
             <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Link Utili</h4>
             <ul className="space-y-2 text-sm text-[#111111]/60">
-              <li><Link to="/funzionalita" className="hover:text-[#F97415] transition-colors">Funzionalità</Link></li>
-              <li><Link to="/prezzi" className="hover:text-[#F97415] transition-colors">Prezzi</Link></li>
-              <li><Link to="/confronto" className="hover:text-[#F97415] transition-colors">Confronto</Link></li>
-              <li><Link to="/blog" className="hover:text-[#F97415] transition-colors">Blog</Link></li>
-              <li><Link to="/integrazioni" className="hover:text-[#F97415] transition-colors">Integrazioni</Link></li>
-              <li><Link to="/glossario-edilizia" className="hover:text-[#F97415] transition-colors">Glossario Edilizia</Link></li>
-              <li><Link to="/casi-studio" className="hover:text-[#F97415] transition-colors">Casi Studio</Link></li>
-              <li><Link to="/chi-siamo" className="hover:text-[#F97415] transition-colors">Chi Siamo</Link></li>
-              <li><Link to="/formazione" className="hover:text-[#F97415] transition-colors">Formazione</Link></li>
-              <li><Link to="/diventa-partner" className="hover:text-[#F97415] transition-colors">Diventa Partner</Link></li>
-              <li><Link to="/demo" className="hover:text-[#F97415] transition-colors">Richiedi Demo</Link></li>
+              <li><Link to="/funzionalita/" className="hover:text-[#F97415] transition-colors">Funzionalità</Link></li>
+              <li><Link to="/prezzi/" className="hover:text-[#F97415] transition-colors">Prezzi</Link></li>
+              <li><Link to="/confronto/" className="hover:text-[#F97415] transition-colors">Confronto</Link></li>
+              <li><Link to="/blog/" className="hover:text-[#F97415] transition-colors">Blog</Link></li>
+              <li><Link to="/integrazioni/" className="hover:text-[#F97415] transition-colors">Integrazioni</Link></li>
+              <li><Link to="/glossario-edilizia/" className="hover:text-[#F97415] transition-colors">Glossario Edilizia</Link></li>
+              <li><Link to="/casi-studio/" className="hover:text-[#F97415] transition-colors">Casi Studio</Link></li>
+              <li><Link to="/chi-siamo/" className="hover:text-[#F97415] transition-colors">Chi Siamo</Link></li>
+              <li><Link to="/formazione/" className="hover:text-[#F97415] transition-colors">Formazione</Link></li>
+              <li><Link to="/diventa-partner/" className="hover:text-[#F97415] transition-colors">Diventa Partner</Link></li>
+              <li><Link to="/demo/" className="hover:text-[#F97415] transition-colors">Richiedi Demo</Link></li>
               <li><a href="/sitemap.xml" className="hover:text-[#F97415] transition-colors">Sitemap</a></li>
             </ul>
           </div>
@@ -61,12 +61,12 @@ export default function LandingFooter() {
             © 2026 Domus Group S.r.l. — Tutti i diritti riservati.
           </p>
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-[#111111]/65 justify-center md:justify-end">
-            <Link to="/privacy-policy" className="hover:text-[#F97415] transition-colors">Privacy Policy</Link>
-            <Link to="/termini-e-condizioni" className="hover:text-[#F97415] transition-colors">Termini e Condizioni</Link>
-            <Link to="/avviso-legale" className="hover:text-[#F97415] transition-colors">Avviso Legale</Link>
-            <Link to="/condizioni-utilizzo" className="hover:text-[#F97415] transition-colors">Condizioni di Utilizzo</Link>
-            <Link to="/cookie-policy" className="hover:text-[#F97415] transition-colors">Cookie Policy</Link>
-            <Link to="/dpa" className="hover:text-[#F97415] transition-colors">DPA</Link>
+            <Link to="/privacy-policy/" className="hover:text-[#F97415] transition-colors">Privacy Policy</Link>
+            <Link to="/termini-e-condizioni/" className="hover:text-[#F97415] transition-colors">Termini e Condizioni</Link>
+            <Link to="/avviso-legale/" className="hover:text-[#F97415] transition-colors">Avviso Legale</Link>
+            <Link to="/condizioni-utilizzo/" className="hover:text-[#F97415] transition-colors">Condizioni di Utilizzo</Link>
+            <Link to="/cookie-policy/" className="hover:text-[#F97415] transition-colors">Cookie Policy</Link>
+            <Link to="/dpa/" className="hover:text-[#F97415] transition-colors">DPA</Link>
           </div>
         </div>
       </div>

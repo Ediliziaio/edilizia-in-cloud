@@ -33,7 +33,7 @@ const config: FunzionalitaPageConfig = {
       "Gestisci manutenzione programmata e correttiva impianti idraulici, elettrici, climatizzazione, fotovoltaici. Libretti di impianto digitali, scadenze DPR…",
     keywords:
       "software manutenzione impianti, gestionale manutenzione termoidraulica, app tecnici manutenzione, software DPR 74/2013, libretto impianto digitale, manutenzione programmata software, gestione climatizzazione, manutenzione caldaie software, facility management software, gestionale impiantisti",
-    ogImage: "https://www.ediliziaincloud.com/og/manutenzione-impianti-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Manutenzione Impianti",

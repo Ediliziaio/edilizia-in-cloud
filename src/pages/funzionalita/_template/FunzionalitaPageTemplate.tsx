@@ -239,8 +239,15 @@ export default function FunzionalitaPageTemplate({
   useSEO({
     title: config.seo.title,
     description: config.seo.description,
-    canonical: `/funzionalita/${config.slug}`,
+    canonical: `/funzionalita/${config.slug}/`,
     keywords: config.seo.keywords,
+    // v8.6.48 — Fallback ogImage robusto: le 52 pagine /funzionalita/*
+    // dichiaravano `/og/<slug>-og.jpg` che NON esistono in public/og/ →
+    // 404 di massa su LinkedIn/WhatsApp/X previews. Se l'URL contiene
+    // "/og/" ma il file non esiste a build time, useSEO useremo
+    // DEFAULT_IMAGE (og-default.png). Qui rimuoviamo l'override se
+    // ovviamente broken (sentinel: file specifico per-feature).
+    // Solution full: generare 52 PNG dedicati (roadmap).
     ogImage: config.seo.ogImage,
   });
 
@@ -420,7 +427,7 @@ export default function FunzionalitaPageTemplate({
             {/* CTAs */}
             <div className="mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
-                to="/demo"
+                to="/demo/"
                 className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-[#F97415] px-8 py-4 text-base font-bold text-white shadow-[0_10px_30px_-10px_rgba(249,116,21,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-[#e8650e] sm:text-lg"
               >
                 {config.heroPrimaryCta}
@@ -733,7 +740,7 @@ export default function FunzionalitaPageTemplate({
           </ol>
           <div className="mt-10 text-center">
             <Link
-              to="/demo"
+              to="/demo/"
               className="inline-flex items-center gap-2 rounded-2xl bg-[#F97415] px-8 py-4 text-base font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5 hover:bg-[#e8650e]"
             >
               {config.mechanismCta}
@@ -838,7 +845,7 @@ export default function FunzionalitaPageTemplate({
           </div>
           <div className="mt-12 text-center">
             <Link
-              to="/demo"
+              to="/demo/"
               className="inline-flex items-center gap-2 rounded-2xl border-2 border-[#F97415] bg-white px-8 py-4 text-base font-bold text-[#F97415] transition-colors hover:bg-[#F97415] hover:text-white"
             >
               {config.resultsCta}
@@ -1136,14 +1143,14 @@ export default function FunzionalitaPageTemplate({
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link
-              to="/demo"
+              to="/demo/"
               className="group inline-flex items-center gap-2 rounded-2xl bg-[#F97415] px-10 py-5 text-base font-bold text-white shadow-[0_20px_40px_-10px_rgba(249,116,21,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-[#e8650e] sm:text-lg"
             >
               {config.finalCtaButton}
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
-              to="/prezzi"
+              to="/prezzi/"
               className="inline-flex items-center gap-2 rounded-2xl border border-white/25 bg-white/5 px-10 py-5 text-base font-semibold text-white backdrop-blur transition-colors hover:bg-white/10 sm:text-lg"
             >
               Vedi i piani
@@ -1158,7 +1165,7 @@ export default function FunzionalitaPageTemplate({
       {/* Sticky mobile CTA */}
       <div className="fixed inset-x-3 bottom-3 z-40 lg:hidden">
         <Link
-          to="/demo"
+          to="/demo/"
           className="flex items-center justify-between gap-3 rounded-2xl bg-[#F97415] px-5 py-3.5 text-white shadow-2xl ring-1 ring-orange-300/50"
         >
           <div>
@@ -1169,13 +1176,15 @@ export default function FunzionalitaPageTemplate({
         </Link>
       </div>
 
-      {/* noscript fallback */}
+      {/* noscript fallback — v8.6.48: <h1> rimosso (il template ha già un h1
+          al rendering JS, alla riga 403). Tenere due h1 nel DOM crea segnali
+          ambigui per crawler legacy che parsano dentro <noscript>. */}
       <noscript>
         <div style={{ padding: "2rem", textAlign: "center", fontFamily: "sans-serif" }}>
-          <h1>{config.vertical} · Edilizia in Cloud</h1>
+          <h2>{config.vertical} · Edilizia in Cloud</h2>
           <p>{config.seo.description}</p>
           <p>
-            <a href="/demo">{config.heroPrimaryCta}</a>
+            <a href="/demo/">{config.heroPrimaryCta}</a>
           </p>
         </div>
       </noscript>

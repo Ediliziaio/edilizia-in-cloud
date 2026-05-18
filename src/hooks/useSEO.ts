@@ -16,7 +16,13 @@ export interface SEOOptions {
 
 const DEFAULT_TITLE = "Edilizia in Cloud — Software Gestionale per Imprese Edili";
 const DEFAULT_DESC  = "Il software gestionale n°1 per imprese edili italiane. Gestisci cantieri, margini, HR, marketing e fatturazione in un'unica piattaforma. Prova gratuita 31 giorni.";
-const DEFAULT_IMAGE = "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7a5d2f3f-4a52-4b31-81c9-fc593d582ee7/id-preview-b70db1cf--c34c07f6-5aea-4505-b4c7-9b00cd75679c.lovable.app-1771279786357.png";
+// v8.6.48 — DEFAULT_IMAGE punta a un file locale garantito esistente in
+// public/og/og-default.png. Prima puntava a un URL R2 lovable.app che
+// dipende da un bucket esterno (rischio link rot). Inoltre, le 52 pagine
+// /funzionalita/* dichiarano ogImage specifico (es. /og/calendario-lavori-og.jpg)
+// che NON esiste in public/og/ → 404 di massa su anteprime social.
+// Con questo default, FunzionalitaPageTemplate fa fallback corretto.
+const DEFAULT_IMAGE = "https://www.ediliziaincloud.com/og/og-default.png";
 export const SITE_URL = "https://www.ediliziaincloud.com";
 
 type MetaEntry = { attr: "name" | "property"; key: string; prev: string | null; created: boolean };

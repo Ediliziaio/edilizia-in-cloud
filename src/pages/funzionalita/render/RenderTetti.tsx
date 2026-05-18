@@ -33,7 +33,7 @@ const config: RenderPageConfig = {
       "Render Tetti AI: trasforma la foto reale dell'immobile del cliente in un prima/dopo credibile con nuove tegole, manto di copertura, gronde, lattoneria,…",
     keywords:
       "render tetto, render tetti AI, software imprese copertura, configuratore tetto online, render tegole, render lattoneria, render manto copertura, render fotovoltaico tetto, prima dopo tetto, software lattonieri, gestionale coperture",
-    ogImage: "https://www.ediliziaincloud.com/og/render-tetti-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Render AI per imprese di copertura · Beta",

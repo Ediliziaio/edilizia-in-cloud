@@ -203,7 +203,7 @@ export default function VsBuildertrend() {
               Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
             </button>
             <Link
-              to="/confronto"
+              to="/confronto/"
               className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-white/20"
             >
               Tutti i confronti

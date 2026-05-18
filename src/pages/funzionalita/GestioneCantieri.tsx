@@ -36,7 +36,7 @@ const config: FunzionalitaPageConfig = {
       "Controlla l'avanzamento di ogni cantiere in tempo reale dal telefono. Margini per commessa aggiornati, timbrature GPS, giornale lavori digitale, chat…",
     keywords:
       "gestione cantieri software, avanzamento lavori real time, software cantieri edili, controllo cantiere smartphone, timbrature cantiere digitale, giornale lavori digitale, app cantiere offline, gestione commesse edili, dashboard cantieri",
-    ogImage: "https://www.ediliziaincloud.com/og/gestione-cantieri-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Gestione Cantieri",

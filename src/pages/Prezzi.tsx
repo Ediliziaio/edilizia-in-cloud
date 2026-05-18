@@ -453,7 +453,7 @@ export default function Prezzi() {
                 ))}
               </div>
               <Link
-                to="/demo"
+                to="/demo/"
                 className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
               >
                 Inizia la prova gratuita <ArrowRight className="w-5 h-5" />
@@ -685,7 +685,7 @@ export default function Prezzi() {
               )}
             </div>
             <Link
-              to="/demo"
+              to="/demo/"
               className="block text-center border-2 border-[#111111] text-[#111111] font-bold py-3 rounded-xl hover:bg-[#111111] hover:text-white transition-colors mb-6"
             >
               Inizia con Gestionale
@@ -745,7 +745,7 @@ export default function Prezzi() {
               )}
             </div>
             <Link
-              to="/demo"
+              to="/demo/"
               className="block text-center bg-[#F97415] text-white font-bold py-3 rounded-xl hover:bg-[#e8650e] transition-colors mb-6 shadow-md"
             >
               Scegli Professionista
@@ -962,7 +962,7 @@ export default function Prezzi() {
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link
-                to="/demo"
+                to="/demo/"
                 className="inline-flex items-center gap-2 bg-[#F97415] text-white font-bold px-8 py-4 rounded-xl hover:bg-[#C94F06] transition-colors text-base shadow-md"
               >
                 Inizia la Demo — Vedi i Risultati Reali
@@ -1050,17 +1050,17 @@ export default function Prezzi() {
                     </Link>
                   </td>
                   <td className="px-3 py-4 text-center">
-                    <Link to="/demo" className="text-xs border border-[#111111] text-[#111111] font-bold px-3 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">
+                    <Link to="/demo/" className="text-xs border border-[#111111] text-[#111111] font-bold px-3 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">
                       Gestionale
                     </Link>
                   </td>
                   <td className="px-3 py-4 text-center bg-[#F97415]/5">
-                    <Link to="/demo" className="text-xs bg-[#F97415] text-white font-bold px-3 py-2 rounded-lg hover:bg-[#e8650e] transition-colors shadow">
+                    <Link to="/demo/" className="text-xs bg-[#F97415] text-white font-bold px-3 py-2 rounded-lg hover:bg-[#e8650e] transition-colors shadow">
                       Professionista
                     </Link>
                   </td>
                   <td className="px-3 py-4 text-center">
-                    <Link to="/demo" className="text-xs border border-[#111111] text-[#111111] font-bold px-3 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">
+                    <Link to="/demo/" className="text-xs border border-[#111111] text-[#111111] font-bold px-3 py-2 rounded-lg hover:bg-[#111111] hover:text-white transition-colors">
                       Impresa AI
                     </Link>
                   </td>
@@ -1152,7 +1152,7 @@ export default function Prezzi() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
             <Link
-              to="/demo"
+              to="/demo/"
               className="bg-white text-[#F97415] font-extrabold px-8 py-4 rounded-xl hover:bg-gray-50 transition-colors shadow-lg text-base"
             >
               Inizia con il Professionista
@@ -1272,7 +1272,7 @@ export default function Prezzi() {
               Privacy Policy
             </Link>
             ,{" "}
-            <Link to="/dpa" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
+            <Link to="/dpa/" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
               DPA
             </Link>
             .
@@ -1383,7 +1383,7 @@ function TestimonialCard({ quote, name, company }: { quote: string; name: string
         <p className="font-bold text-white text-sm">{name}</p>
         <p className="text-white/50 text-xs">{company}</p>
         <Link
-          to="/casi-studio"
+          to="/casi-studio/"
           className="inline-flex items-center gap-1 mt-3 text-[#F97415] hover:text-white text-xs font-semibold transition-colors"
         >
           Leggi il caso studio completo <ArrowRight className="w-3 h-3" />

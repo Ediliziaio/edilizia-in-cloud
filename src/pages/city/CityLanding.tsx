@@ -1829,13 +1829,13 @@ export default function CityLanding() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              to="/demo"
+              to="/demo/"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
             >
               Prova Gratis 31 Giorni <ArrowRight size={18} />
             </Link>
             <Link
-              to="/prezzi"
+              to="/prezzi/"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/20 text-white font-bold hover:border-white/40 hover:bg-white/5 transition-all"
             >
               Vedi i Prezzi
@@ -1898,7 +1898,7 @@ export default function CityLanding() {
                 ))}
               </ul>
               <Link
-                to="/funzionalita"
+                to="/funzionalita/"
                 className="inline-flex items-center gap-2 mt-8 text-[#F97415] font-semibold hover:gap-3 transition-all"
               >
                 Vedi tutte le funzionalità <ArrowRight size={16} />
@@ -1940,7 +1940,7 @@ export default function CityLanding() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
             <Link
-              to="/demo"
+              to="/demo/"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
             >
               Richiedi Demo Gratuita <ArrowRight size={18} />

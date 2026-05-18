@@ -34,7 +34,7 @@ const config: FunzionalitaPageConfig = {
       "Email marketing pensato per imprese edili: segmentazione clienti attivi/dormienti/lead, template settoriali pronti, automazioni post-cantiere, GDPR…",
     keywords:
       "email marketing edilizia, dem impresa edile, segmentazione clienti edili, automazioni email cantiere, template email edilizia, gdpr email impresa, deliverability email b2c, riattivazione clienti edili",
-    ogImage: "https://www.ediliziaincloud.com/og/email-marketing-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Email Marketing",

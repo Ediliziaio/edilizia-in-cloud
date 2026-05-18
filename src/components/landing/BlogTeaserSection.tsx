@@ -66,7 +66,7 @@ export default function BlogTeaserSection() {
           }`}
         >
           <Link
-            to="/blog"
+            to="/blog/"
             className="inline-flex items-center gap-2 text-[#F97415] hover:text-[#C94F06] font-bold text-base group"
           >
             Vai al blog

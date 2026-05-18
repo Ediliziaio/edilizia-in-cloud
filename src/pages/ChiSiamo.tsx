@@ -726,7 +726,7 @@ export default function ChiSiamo() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              to="/demo"
+              to="/demo/"
               className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-white font-bold text-base hover:scale-105 transition-all shadow-lg"
               style={{ background: "#F97415", boxShadow: "0 8px 30px rgba(249,116,21,0.35)" }}
             >
@@ -734,7 +734,7 @@ export default function ChiSiamo() {
               <ArrowRight className="w-5 h-5" />
             </Link>
             <Link
-              to="/pianifica-migrazione"
+              to="/pianifica-migrazione/"
               className="inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold text-base text-white hover:bg-white/10 transition-all"
               style={{ border: "2px solid rgba(255,255,255,0.35)" }}
             >

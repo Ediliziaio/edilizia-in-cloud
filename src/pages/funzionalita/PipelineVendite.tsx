@@ -35,7 +35,7 @@ const config: FunzionalitaPageConfig = {
       "Pipeline preventivi visuale per imprese edili: drag&drop fasi (lead, sopralluogo, preventivo, trattativa, firmato), forecast cassa, conversion rate per…",
     keywords:
       "pipeline vendite edilizia, kanban preventivi edili, conversion rate edilizia, forecast cassa preventivi, gestione lead edilizia, pipeline preventivi cantiere, software vendite edili, sales pipeline edilizia",
-    ogImage: "https://www.ediliziaincloud.com/og/pipeline-vendite-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Pipeline Vendite",

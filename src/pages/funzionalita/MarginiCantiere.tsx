@@ -36,7 +36,7 @@ const config: FunzionalitaPageConfig = {
       "Margine reale per commessa in tempo reale, scostamento preventivo/consuntivo automatico, alert sui cantieri a rischio. Smetti di scoprire i buchi a fine…",
     keywords:
       "margini cantiere software, controllo costi commessa edile, margine reale commessa, scostamento preventivo consuntivo, software controllo cantieri, dashboard margini edilizia, KPI cantiere, controllo gestione impresa edile, software ROI commessa edile",
-    ogImage: "https://www.ediliziaincloud.com/og/margini-cantiere-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Margini Cantiere",

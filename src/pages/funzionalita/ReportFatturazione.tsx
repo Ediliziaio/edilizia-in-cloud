@@ -36,7 +36,7 @@ const config: FunzionalitaPageConfig = {
       "Reportistica fatturazione per imprese edili: dashboard mensile fatturato/incassato/scaduto, report per cliente/cantiere/agente/periodo, KPI commerciali,…",
     keywords:
       "report fatturazione edilizia, dashboard fatturato impresa edile, KPI commerciali edilizia, report cantieri fatturato, target vs actual edilizia, esportazione excel fatturato, scaduti edilizia, monitoraggio incassi edilizia",
-    ogImage: "https://www.ediliziaincloud.com/og/report-fatturazione-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Report Fatturazione",

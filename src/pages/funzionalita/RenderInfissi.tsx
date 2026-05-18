@@ -941,7 +941,7 @@ export default function RenderInfissi() {
     keywords:
       "render infissi, render serramenti, render finestre AI, software serramentisti, prima dopo infissi, configuratore infissi AI, vendita serramenti, render tapparelle, render persiane, render porte blindate, render pergole, AI infissi, software preventivi serramenti, gestionale serramentisti",
     ogImage:
-      "https://www.ediliziaincloud.com/og/render-infissi-og.jpg",
+      "https://www.ediliziaincloud.com/og/og-default.png",
   });
 
   const pageUrl = `${SITE_URL}/funzionalita/render-infissi`;

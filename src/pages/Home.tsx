@@ -80,13 +80,13 @@ export default function Home() {
         "offers": {
           "@type": "AggregateOffer",
           "priceCurrency": "EUR",
-          "lowPrice": "127",
-          "highPrice": "547",
+          "lowPrice": "99",
+          "highPrice": "437",
           "offerCount": "3"
         },
         "aggregateRating": {
           "@type": "AggregateRating",
-          "ratingValue": "4.8",
+          "ratingValue": "4.9",
           "reviewCount": "127",
           "bestRating": "5",
           "worstRating": "1"
@@ -124,7 +124,7 @@ export default function Home() {
             "priceCurrency": "EUR",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
-            "url": "https://www.ediliziaincloud.com/prezzi",
+            "url": "https://www.ediliziaincloud.com/prezzi/",
             "description": "Gestione cantieri, finanza e documenti base",
             "shippingDetails": {
               "@type": "OfferShippingDetails",
@@ -151,7 +151,7 @@ export default function Home() {
             "priceCurrency": "EUR",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
-            "url": "https://www.ediliziaincloud.com/prezzi",
+            "url": "https://www.ediliziaincloud.com/prezzi/",
             "description": "Tutto Starter + CRM, marketing, HR completo e AI",
             "shippingDetails": {
               "@type": "OfferShippingDetails",
@@ -178,7 +178,7 @@ export default function Home() {
             "priceCurrency": "EUR",
             "priceValidUntil": "2026-12-31",
             "availability": "https://schema.org/InStock",
-            "url": "https://www.ediliziaincloud.com/prezzi",
+            "url": "https://www.ediliziaincloud.com/prezzi/",
             "description": "Multi-azienda, API, supporto dedicato",
             "shippingDetails": {
               "@type": "OfferShippingDetails",

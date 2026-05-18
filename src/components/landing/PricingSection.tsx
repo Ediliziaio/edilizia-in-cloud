@@ -66,7 +66,7 @@ export default function PricingSection() {
             Inizia Gratis Adesso →
           </button>
           <Link
-            to="/prezzi"
+            to="/prezzi/"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all"
           >
             Vedi tutti i piani <ArrowRight size={16} />

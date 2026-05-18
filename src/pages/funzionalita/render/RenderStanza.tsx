@@ -34,7 +34,7 @@ const config: RenderPageConfig = {
       "Render Stanza AI: trasforma la foto del soggiorno, della cucina, della camera o dell'ufficio del cliente in un prima/dopo realistico con nuovi mobili,…",
     keywords:
       "render stanza, render arredo, render cucina, render soggiorno, render camera da letto, software arredatori, configuratore arredo online, AI arredo, render mobili, prima dopo arredo, software showroom mobili, gestionale interior designer",
-    ogImage: "https://www.ediliziaincloud.com/og/render-stanza-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Render AI per arredatori e showroom · Beta",

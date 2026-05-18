@@ -259,7 +259,7 @@ export default function QuickContactModal() {
                   />
                   <span className="text-[11px] text-[#111111]/70 leading-relaxed">
                     <strong className="text-[#F97415]">*</strong> Accetto la{" "}
-                    <Link to="/privacy-policy" target="_blank" rel="noopener" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
+                    <Link to="/privacy-policy/" target="_blank" rel="noopener" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
                       Privacy Policy
                     </Link>{" "}
                     (art. 6.1.b GDPR — gestione richiesta demo).

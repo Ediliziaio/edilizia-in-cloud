@@ -463,7 +463,7 @@ export default function CasiStudio() {
               La prossima storia di successo <span className="text-[#F97415]">è la tua.</span>
             </h2>
             <p className="text-white/50 text-base sm:text-lg mb-8 sm:mb-10 leading-relaxed">30 minuti di demo gratuita. Nessun impegno. Solo chiarezza su cosa puoi ottenere.</p>
-            <Link to="/demo" className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 sm:px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#e8650e] text-white font-bold text-base sm:text-lg hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
+            <Link to="/demo/" className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 sm:px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#e8650e] text-white font-bold text-base sm:text-lg hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
               Richiedi Demo Gratuita <ArrowRight size={18} />
             </Link>
           </div>

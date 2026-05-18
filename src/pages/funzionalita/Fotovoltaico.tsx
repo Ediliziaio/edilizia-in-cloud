@@ -36,7 +36,7 @@ const config: FunzionalitaPageConfig = {
       "Gestisci impianti fotovoltaici residenziali e industriali con pratiche GSE, Superbonus 110%, Conto Termico, pratiche distributore e schede tecniche…",
     keywords:
       "software gestione fotovoltaico, gestionale impianti fotovoltaici, pratiche GSE software, software Superbonus fotovoltaico, gestionale EPC fotovoltaico, software installatori solare, pratiche enel distributore software, conto termico software, scambio sul posto gestione, gestione impianti residenziali industriali",
-    ogImage: "https://www.ediliziaincloud.com/og/fotovoltaico-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Cantieri Fotovoltaico",

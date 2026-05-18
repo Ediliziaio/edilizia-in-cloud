@@ -171,14 +171,14 @@ export default function CityHub() {
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link
-              to="/demo"
+              to="/demo/"
               className="inline-flex items-center gap-2 bg-[#F97415] text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-[#e8650f] transition-colors"
             >
               Richiedi Demo Gratuita
               <ArrowRight className="h-5 w-5" />
             </Link>
             <Link
-              to="/prezzi"
+              to="/prezzi/"
               className="inline-flex items-center gap-2 border-2 border-gray-200 text-[#111111] px-8 py-4 rounded-xl font-bold text-lg hover:border-[#F97415] hover:text-[#F97415] transition-colors"
             >
               Vedi i Prezzi
@@ -295,7 +295,7 @@ export default function CityHub() {
             Edilizia in Cloud funziona in tutta Italia. Siamo presenti nelle 36 principali città ma serviamo imprese in ogni provincia. Contattaci e ti mostriamo come il software si adatta al tuo mercato locale.
           </p>
           <Link
-            to="/demo"
+            to="/demo/"
             className="inline-flex items-center gap-2 bg-[#F97415] text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-[#e8650f] transition-colors"
           >
             Parla con un Consulente

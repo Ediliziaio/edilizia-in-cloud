@@ -34,7 +34,7 @@ const config: FunzionalitaPageConfig = {
       "Dashboard executive per titolari edili con KPI real-time: margine cantieri, cassa a 90 giorni, fatturato, pipeline preventivi. Drill-down per…",
     keywords:
       "cruscotto aziendale edilizia, dashboard impresa edile, kpi cantieri real time, business intelligence edilizia, margine cantieri tempo reale, cassa 90 giorni edile, dashboard titolare impresa costruzioni",
-    ogImage: "https://www.ediliziaincloud.com/og/cruscotto-aziendale-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Cruscotto Aziendale",

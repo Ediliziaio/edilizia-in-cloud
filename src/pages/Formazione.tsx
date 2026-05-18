@@ -280,7 +280,7 @@ export default function Formazione() {
                   </ul>
                   <div className="mt-auto pt-4 border-t border-gray-100">
                     <p className="text-[#111111] font-bold text-sm mb-3">🎯 {path.result}</p>
-                    <Link to="/demo" className="block text-center px-4 py-2.5 rounded-xl bg-[#111111] text-white text-sm font-bold hover:bg-[#F97415] transition-colors">
+                    <Link to="/demo/" className="block text-center px-4 py-2.5 rounded-xl bg-[#111111] text-white text-sm font-bold hover:bg-[#F97415] transition-colors">
                       {path.cta}
                     </Link>
                   </div>
@@ -330,7 +330,7 @@ export default function Formazione() {
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {videos.map((v, i) => (
-              <Link key={i} to="/demo"
+              <Link key={i} to="/demo/"
                 className={`group block rounded-2xl overflow-hidden border border-gray-200 hover:border-[#F97415]/40 hover:shadow-md transition-all duration-500 ${videosAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
                 style={{ transitionDelay: `${100 + i * 80}ms` }}>
                 <div className="relative bg-[#111111] h-36 flex items-center justify-center">
@@ -390,7 +390,7 @@ export default function Formazione() {
                     </p>
                   ))}
                 </div>
-                <Link to="/demo" className="block text-center mt-5 px-4 py-2.5 rounded-xl bg-[#F97415] text-white text-sm font-bold hover:bg-[#e8650e] transition-colors">
+                <Link to="/demo/" className="block text-center mt-5 px-4 py-2.5 rounded-xl bg-[#F97415] text-white text-sm font-bold hover:bg-[#e8650e] transition-colors">
                   Prenota il tuo posto
                 </Link>
               </div>
@@ -477,7 +477,7 @@ export default function Formazione() {
           <p className="text-white/60 mb-8">
             31 giorni gratis. Onboarding 1:1 incluso. Setup in 48 ore.
           </p>
-          <Link to="/demo" className="inline-flex items-center gap-2 px-8 py-4 bg-[#F97415] text-white font-bold text-lg rounded-xl hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
+          <Link to="/demo/" className="inline-flex items-center gap-2 px-8 py-4 bg-[#F97415] text-white font-bold text-lg rounded-xl hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
             Inizia la prova gratuita <ArrowRight size={18} />
           </Link>
           <p className="text-white/25 text-xs mt-4">Cancella quando vuoi. Nessun obbligo.</p>

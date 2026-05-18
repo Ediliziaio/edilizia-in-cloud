@@ -38,7 +38,7 @@ const config: FunzionalitaPageConfig = {
       "Gestisci operai e impiegati con timbrature GPS, ferie, malattie, presenze e costo orario CCNL applicato in automatico. Esporta tracciati per il consulente…",
     keywords:
       "software HR edilizia, gestione personale impresa edile, timbrature GPS cantiere, costo orario CCNL edilizia, ferie malattie presenze edilizia, busta paga edilizia, software paghe imprese edili, gestione operai cantiere, presenze cantiere edile",
-    ogImage: "https://www.ediliziaincloud.com/og/hr-personale-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · HR e Personale",

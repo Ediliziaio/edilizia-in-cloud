@@ -36,7 +36,7 @@ const config: FunzionalitaPageConfig = {
       "Agenti AI custom addestrati sui dati della tua impresa edile: rispondono a clienti su WhatsApp, qualificano lead, fanno follow-up preventivi, riassumono…",
     keywords:
       "agente AI edilizia, intelligenza artificiale impresa edile, AI per cantieri, chatbot AI edilizia, AI assistente CRM edilizia, automazione AI edile, AI generativa imprese edili, AI follow-up preventivi, AI WhatsApp edilizia",
-    ogImage: "https://www.ediliziaincloud.com/og/agenti-ai-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Agenti AI",

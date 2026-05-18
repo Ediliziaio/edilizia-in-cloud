@@ -1382,7 +1382,7 @@ export default function DiventaPartner() {
                 <span className="text-xs text-gray-600 leading-relaxed">
                   <strong className="text-[#F97415]">*</strong> Ho letto e accetto la{" "}
                   <Link
-                    to="/privacy-policy"
+                    to="/privacy-policy/"
                     target="_blank"
                     rel="noopener"
                     className="text-[#F97415] hover:text-[#C94F06] underline font-semibold"

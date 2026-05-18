@@ -413,7 +413,7 @@ export default function LandingNavbar() {
             </button>
 
             {/* PREZZI (single link) */}
-            <Link to="/prezzi" className={linkClass(location.pathname === "/prezzi")}>
+            <Link to="/prezzi/" className={linkClass(location.pathname === "/prezzi")}>
               Prezzi
             </Link>
           </div>
@@ -431,7 +431,7 @@ export default function LandingNavbar() {
               Accedi
             </a>
             <Link
-              to="/demo"
+              to="/demo/"
               className="px-5 py-2.5 rounded-full bg-[#F97415] text-white text-sm font-bold hover:bg-[#C94F06] transition-colors shadow-lg shadow-[#F97415]/20"
             >
               Richiedi una demo
@@ -540,7 +540,7 @@ export default function LandingNavbar() {
                   </p>
                 </div>
                 <Link
-                  to="/funzionalita"
+                  to="/funzionalita/"
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#111111] text-white text-sm font-semibold hover:bg-[#F97415] transition-colors"
                 >
                   Tutte le funzionalità
@@ -631,7 +631,7 @@ export default function LandingNavbar() {
                   Scelto da 150+ imprese edili italiane.
                 </p>
                 <Link
-                  to="/casi-studio"
+                  to="/casi-studio/"
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#111111] text-white text-sm font-semibold hover:bg-[#F97415] transition-colors"
                 >
                   Leggi le storie dei nostri clienti
@@ -701,7 +701,7 @@ export default function LandingNavbar() {
                     </p>
                   </div>
                   <Link
-                    to="/blog"
+                    to="/blog/"
                     className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-white border border-[#111111]/10 text-sm font-semibold text-[#111111] hover:border-[#F97415] hover:text-[#F97415] transition-colors"
                   >
                     Iscriviti
@@ -765,7 +765,7 @@ export default function LandingNavbar() {
                     </p>
                   </div>
                   <Link
-                    to="/pianifica-migrazione"
+                    to="/pianifica-migrazione/"
                     className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-[#F97415] text-white text-sm font-semibold hover:bg-[#C94F06] transition-colors"
                   >
                     Pianifica la migrazione
@@ -829,7 +829,7 @@ export default function LandingNavbar() {
                 </div>
               ))}
               <Link
-                to="/funzionalita"
+                to="/funzionalita/"
                 onClick={() => setMobileOpen(false)}
                 className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#F97415]"
               >
@@ -926,7 +926,7 @@ export default function LandingNavbar() {
 
             {/* Direct links */}
             <Link
-              to="/prezzi"
+              to="/prezzi/"
               onClick={() => setMobileOpen(false)}
               className="block py-3 font-semibold border-b border-gray-100 text-[#111111]"
             >
@@ -942,7 +942,7 @@ export default function LandingNavbar() {
                 Accedi
               </a>
               <Link
-                to="/demo"
+                to="/demo/"
                 onClick={() => setMobileOpen(false)}
                 className="block py-3 text-center text-white font-bold bg-[#F97415] rounded-full shadow-lg shadow-[#F97415]/20"
               >

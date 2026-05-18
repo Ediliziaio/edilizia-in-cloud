@@ -34,7 +34,7 @@ const config: FunzionalitaPageConfig = {
       "App mobile per capocantiere: foto geolocalizzate con timestamp, organizzazione automatica per cantiere/giorno, condivisione cliente via portale, archivio…",
     keywords:
       "foto cantiere app, foto geolocalizzate cantiere, app capocantiere foto, archivio foto cantiere cloud, condivisione foto cliente edilizia, prova legale stato cantiere, foto datate cantiere edile",
-    ogImage: "https://www.ediliziaincloud.com/og/foto-cantiere-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Foto Cantiere",

@@ -34,7 +34,7 @@ const config: FunzionalitaPageConfig = {
       "Gestisci ritenute di garanzia 0,5% Legge 296/2006 e 4% INPS subappalto art. 17 ter D.P.R. 633/72. Scadenze svincolo automatiche, controllo DURC, archivio…",
     keywords:
       "ritenute garanzia edilizia, software ritenute 0,5% L 296/2006, ritenuta 4% INPS subappalto, art 17 ter DPR 633/72, software appalti pubblici edilizia, gestione ritenute SAL, svincolo ritenute software, DURC software, gestione subappalti pubblici, archivio ritenute conforme",
-    ogImage: "https://www.ediliziaincloud.com/og/ritenute-garanzia-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Ritenute di Garanzia",

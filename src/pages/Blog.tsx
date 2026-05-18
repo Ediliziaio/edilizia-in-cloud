@@ -358,7 +358,7 @@ export default function Blog() {
             guide pratiche per far crescere la tua impresa.
           </p>
           <Link
-            to="/demo"
+            to="/demo/"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#F97415] text-white font-bold hover:bg-[#e8650e] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#F97415]/30"
           >
             Richiedi una Demo Gratuita <ArrowRight size={18} />

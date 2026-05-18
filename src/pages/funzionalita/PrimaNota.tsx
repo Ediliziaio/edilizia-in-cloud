@@ -35,7 +35,7 @@ const config: FunzionalitaPageConfig = {
       "Prima nota cassa e banca digitale con riconciliazione automatica estratti conto via PSD2, categorizzazione AI dei movimenti, dashboard cassa giornaliera,…",
     keywords:
       "prima nota edilizia, prima nota cassa banca impresa edile, riconciliazione PSD2 edilizia, contabilità impresa costruzione, prima nota digitale, software contabilità edilizia, prima nota XBRL commercialista, dashboard cassa edilizia",
-    ogImage: "https://www.ediliziaincloud.com/og/prima-nota-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
   },
 
   heroBadge: "Funzionalità · Prima Nota",

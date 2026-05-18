@@ -639,7 +639,7 @@ export default function AISystemShowcaseSection() {
                   <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
-                  to="/funzionalita"
+                  to="/funzionalita/"
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 px-5 py-3 text-sm font-extrabold text-[#111111] transition hover:border-[#F97415] hover:text-[#D95E0B]"
                 >
                   Tutti i moduli AI

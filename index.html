@@ -133,7 +133,11 @@
     <meta name="description" content="Il software cloud per imprese edili italiane. Gestisci cantieri, preventivi, fatturazione e squadre in un'unica piattaforma AI. Prova gratis.">
     <meta name="author" content="Edilizia in Cloud" />
     <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1">
-    <meta name="keywords" content="gestionale edilizia, software gestionale edilizia, software impresa edile, gestione cantieri software, ERP edilizia, software costruzioni, gestionale cantieri, gestionale edilizia con AI, software edilizia intelligenza artificiale, AI impresa edile, software edilizia cloud, gestionale edilizia prezzi, software preventivi edilizia, fatturazione elettronica edilizia, gestionale margini cantieri, software HR edilizia, CRM impresa edile, software edilizia Italia, gestionale imprese edili italiane, software gestione commesse edilizia, gestionale edilizia online, software edilizia PMI, miglior gestionale edilizia, gestionale edilizia 2026, software cantieri digitale, piattaforma gestionale edilizia">
+    <!-- v8.6.48 — meta keywords ridotto a 8 termini focus.
+         Google ignora da anni questo tag, Yandex/Naver penalizzano keyword stuffing
+         (prima erano 26 keyword in un solo tag = anti-pattern).
+         Le keyword lunghe sono gestite per-pagina via useSEO. -->
+    <meta name="keywords" content="gestionale edilizia, software impresa edile, gestione cantieri, ERP edilizia cloud, fatturazione elettronica edilizia, software edilizia AI, CRM impresa edile, gestionale edilizia 2026">
 
     <!-- Geo / Local SEO -->
     <meta name="geo.region" content="IT">
@@ -176,7 +180,7 @@
           // hreflang it + x-default
           var lit = document.createElement('link');
           lit.rel = 'alternate';
-          lit.hreflang = 'it';
+          lit.hreflang = 'it-IT';
           lit.setAttribute('data-dynamic', '1');
           lit.href = canonicalUrl;
           head.appendChild(lit);
@@ -200,7 +204,7 @@
          Se entrambi presenti, browser/Googlebot prendono il PRIMO dichiarato
          che è quello dinamico (corretto). -->
     <link rel="canonical" href="https://www.ediliziaincloud.com/">
-    <link rel="alternate" hreflang="it" href="https://www.ediliziaincloud.com/">
+    <link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/">
     <link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/">
     <meta property="og:url" content="https://www.ediliziaincloud.com/">
     <!-- Cleanup: rimuove il fallback statico se quello dinamico è presente,
@@ -293,108 +297,30 @@
     <!-- IndexNow — notifica aggiornamenti a Bing, Yandex, Naver -->
     <meta name="indexnow-key" content="62ac6a799ade356135bf527565c13e17">
 
-    <!-- Structured Data: SoftwareApplication -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "@id": "https://www.ediliziaincloud.com/#software",
-      "name": "Edilizia in Cloud — Gestionale Edilizia con AI",
-      "applicationCategory": "BusinessApplication",
-      "applicationSubCategory": "Construction Management Software",
-      "operatingSystem": "Web, iOS, Android",
-      "url": "https://www.ediliziaincloud.com",
-      "image": {
-        "@type": "ImageObject",
-        "url": "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7a5d2f3f-4a52-4b31-81c9-fc593d582ee7/id-preview-b70db1cf--c34c07f6-5aea-4505-b4c7-9b00cd75679c.lovable.app-1771279786357.png",
-        "width": 1200,
-        "height": 630,
-        "caption": "Dashboard Edilizia in Cloud — gestione cantieri e margini in tempo reale"
-      },
-      "description": "Il gestionale edilizia con AI più usato in Italia: controllo cantieri in tempo reale, margini, fatturazione elettronica, CRM, WhatsApp marketing, HR e intelligenza artificiale per imprese edili.",
-      "inLanguage": "it",
-      "keywords": "gestionale edilizia AI, software cantieri, gestione impresa edile",
-      "featureList": [
-        "Gestione cantieri e avanzamento lavori in tempo reale",
-        "Analisi margini reali per commessa",
-        "Previsione liquidità a 30-60-90 giorni",
-        "Fatturazione elettronica SDI integrata",
-        "CRM e preventivi commerciali",
-        "Marketing WhatsApp e email automation",
-        "Gestione HR presenze e buste paga",
-        "Dashboard AI con insights automatici",
-        "App mobile iOS e Android per cantiere",
-        "Reportistica avanzata e BI"
-      ],
-      "offers": {
-        "@type": "AggregateOffer",
-        "lowPrice": 79,
-        "highPrice": 319,
-        "priceCurrency": "EUR",
-        "offerCount": 3,
-        "seller": { "@id": "https://www.ediliziaincloud.com/#organization" },
-        "shippingDetails": {
-          "@type": "OfferShippingDetails",
-          "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "EUR" },
-          "shippingDestination": { "@type": "DefinedRegion", "addressCountry": "IT" },
-          "deliveryTime": {
-            "@type": "ShippingDeliveryTime",
-            "handlingTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" },
-            "transitTime": { "@type": "QuantitativeValue", "minValue": 0, "maxValue": 0, "unitCode": "DAY" }
-          }
-        },
-        "hasMerchantReturnPolicy": {
-          "@type": "MerchantReturnPolicy",
-          "applicableCountry": "IT",
-          "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
-          "merchantReturnDays": 31,
-          "returnFees": "https://schema.org/FreeReturn"
-        }
-      },
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": "4.9",
-        "reviewCount": "127",
-        "bestRating": "5",
-        "worstRating": "1"
-      },
-      "publisher": {
-        "@type": "Organization",
-        "@id": "https://www.ediliziaincloud.com/#organization",
-        "name": "Domus Group S.r.l.",
-        "url": "https://www.ediliziaincloud.com",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "https://www.ediliziaincloud.com/icons/icon-512.png",
-          "width": 512,
-          "height": 512
-        }
-      },
-      "screenshot": {
-        "@type": "ImageObject",
-        "url": "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7a5d2f3f-4a52-4b31-81c9-fc593d582ee7/id-preview-b70db1cf--c34c07f6-5aea-4505-b4c7-9b00cd75679c.lovable.app-1771279786357.png",
-        "width": 1200,
-        "height": 630,
-        "caption": "Dashboard principale Edilizia in Cloud — controllo cantieri e margini in tempo reale"
-      },
-      "softwareVersion": "2.0",
-      "releaseNotes": "Nuovi moduli AI, fatturazione elettronica nativa, dashboard avanzata.",
-      "installUrl": "https://www.ediliziaincloud.com/demo"
-    }
-    </script>
+    <!-- v8.6.48 — SoftwareApplication + LocalBusiness rimossi dall'HTML statico.
+         Prima erano serviti su OGNI route → conflitto con i JSON-LD specifici
+         delle pagine Home/Prezzi che dichiaravano prezzi/rating DIVERSI:
+         - HTML statico: lowPrice 79, highPrice 319, rating 4.9
+         - Home.tsx SoftwareApplication: lowPrice 127, highPrice 547, rating 4.8
+         - Home.tsx Product (offers): 99/197/437, rating 4.9
+         Google Rich Results test → "Markup with issues" (3 set prezzi diversi).
+         Soluzione: tengo qui solo schemi sitewide compatibili (WebSite +
+         ItemList). Gli schemi della homepage stanno in Home.tsx.
+         L'Organization globale è dichiarato in Home.tsx (#organization),
+         altre pagine fanno reference via @id per coerenza Knowledge Graph. -->
 
-    <!-- Structured Data: LocalBusiness -->
+    <!-- Structured Data: Organization (sitewide identity) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "LocalBusiness",
+      "@type": "Organization",
       "@id": "https://www.ediliziaincloud.com/#organization",
       "name": "Edilizia in Cloud — Domus Group S.r.l.",
       "legalName": "Domus Group S.r.l.",
       "taxID": "13132010961",
-      "image": { "@type": "ImageObject", "url": "https://www.ediliziaincloud.com/icons/icon-512.png", "width": 512, "height": 512 },
+      "url": "https://www.ediliziaincloud.com/",
       "logo": { "@type": "ImageObject", "url": "https://www.ediliziaincloud.com/icons/icon-512.png", "width": 512, "height": 512 },
-      "url": "https://www.ediliziaincloud.com",
+      "image": { "@type": "ImageObject", "url": "https://www.ediliziaincloud.com/icons/icon-512.png", "width": 512, "height": 512 },
       "telephone": "+39-02-87198520",
       "email": "info@ediliziaincloud.com",
       "address": {
@@ -405,45 +331,13 @@
         "addressRegion": "MI",
         "addressCountry": "IT"
       },
-      "geo": {
-        "@type": "GeoCoordinates",
-        "latitude": 45.4642,
-        "longitude": 9.1900
-      },
-      "areaServed": [
-        { "@type": "Country", "name": "Italia" },
-        { "@type": "AdministrativeArea", "name": "Lombardia" },
-        { "@type": "AdministrativeArea", "name": "Lazio" },
-        { "@type": "AdministrativeArea", "name": "Veneto" },
-        { "@type": "AdministrativeArea", "name": "Emilia-Romagna" },
-        { "@type": "AdministrativeArea", "name": "Piemonte" },
-        { "@type": "AdministrativeArea", "name": "Toscana" },
-        { "@type": "AdministrativeArea", "name": "Campania" },
-        { "@type": "AdministrativeArea", "name": "Sicilia" },
-        { "@type": "AdministrativeArea", "name": "Calabria" },
-        { "@type": "AdministrativeArea", "name": "Puglia" },
-        { "@type": "AdministrativeArea", "name": "Marche" },
-        { "@type": "AdministrativeArea", "name": "Abruzzo" },
-        { "@type": "AdministrativeArea", "name": "Liguria" },
-        { "@type": "AdministrativeArea", "name": "Friuli-Venezia Giulia" }
-      ],
-      "openingHoursSpecification": [{
-        "@type": "OpeningHoursSpecification",
-        "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"],
-        "opens": "09:00",
-        "closes": "18:00"
-      }],
-      "priceRange": "€€",
-      "currenciesAccepted": "EUR",
-      "paymentAccepted": "Carta di credito, Bonifico bancario",
       "sameAs": [
         "https://www.linkedin.com/company/edilizia-in-cloud",
         "https://www.facebook.com/ediliziaincloud",
         "https://www.instagram.com/ediliziaincloud"
       ],
       "foundingDate": "2021-01-01",
-      "numberOfEmployees": {"@type": "QuantitativeValue", "value": 8},
-      "knowsAbout": ["Software gestionale edilizia", "Gestione cantieri", "Contabilità edilizia", "Marketing imprese edili", "HR edilizia", "Intelligenza artificiale in edilizia", "Software SaaS per PMI edili", "Digitalizzazione impresa edile", "Gestione commesse edilizia", "Previsione liquidità cantieri"]
+      "knowsAbout": ["Software gestionale edilizia", "Gestione cantieri", "Contabilità edilizia", "Marketing imprese edili", "HR edilizia", "Intelligenza artificiale in edilizia"]
     }
     </script>
 
@@ -456,14 +350,14 @@
       "description": "Le funzionalità chiave del gestionale edilizia con AI",
       "numberOfItems": 8,
       "itemListElement": [
-        {"@type": "ListItem", "position": 1, "name": "Gestione Cantieri", "url": "https://www.ediliziaincloud.com/funzionalita/gestione-cantieri"},
-        {"@type": "ListItem", "position": 2, "name": "Analisi Margini per Cantiere", "url": "https://www.ediliziaincloud.com/funzionalita/margini-cantiere"},
-        {"@type": "ListItem", "position": 3, "name": "Fatturazione Elettronica", "url": "https://www.ediliziaincloud.com/funzionalita/fatturazione-elettronica"},
-        {"@type": "ListItem", "position": 4, "name": "Preventivi Professionali", "url": "https://www.ediliziaincloud.com/funzionalita/preventivi-edilizia"},
-        {"@type": "ListItem", "position": 5, "name": "CRM e Marketing", "url": "https://www.ediliziaincloud.com/funzionalita"},
-        {"@type": "ListItem", "position": 6, "name": "HR e Presenze Cantiere", "url": "https://www.ediliziaincloud.com/funzionalita"},
-        {"@type": "ListItem", "position": 7, "name": "Dashboard AI", "url": "https://www.ediliziaincloud.com/funzionalita"},
-        {"@type": "ListItem", "position": 8, "name": "Integrazioni", "url": "https://www.ediliziaincloud.com/integrazioni"}
+        {"@type": "ListItem", "position": 1, "name": "Gestione Cantieri", "url": "https://www.ediliziaincloud.com/funzionalita/gestione-cantieri/"},
+        {"@type": "ListItem", "position": 2, "name": "Analisi Margini per Cantiere", "url": "https://www.ediliziaincloud.com/funzionalita/margini-cantiere/"},
+        {"@type": "ListItem", "position": 3, "name": "Fatturazione Elettronica", "url": "https://www.ediliziaincloud.com/funzionalita/fatturazione-elettronica/"},
+        {"@type": "ListItem", "position": 4, "name": "Preventivi Professionali", "url": "https://www.ediliziaincloud.com/funzionalita/preventivi-edilizia/"},
+        {"@type": "ListItem", "position": 5, "name": "CRM e Marketing", "url": "https://www.ediliziaincloud.com/funzionalita/"},
+        {"@type": "ListItem", "position": 6, "name": "HR e Presenze Cantiere", "url": "https://www.ediliziaincloud.com/funzionalita/"},
+        {"@type": "ListItem", "position": 7, "name": "Dashboard AI", "url": "https://www.ediliziaincloud.com/funzionalita/"},
+        {"@type": "ListItem", "position": 8, "name": "Integrazioni", "url": "https://www.ediliziaincloud.com/integrazioni/"}
       ]
     }
     </script>
@@ -485,7 +379,7 @@
         "@type": "SearchAction",
         "target": {
           "@type": "EntryPoint",
-          "urlTemplate": "https://www.ediliziaincloud.com/blog?q={search_term_string}"
+          "urlTemplate": "https://www.ediliziaincloud.com/blog/?q={search_term_string}"
         },
         "query-input": "required name=search_term_string"
       }

@@ -80,7 +80,7 @@ export default function CaseStudyTeaserSection() {
           }`}
         >
           <Link
-            to="/casi-studio"
+            to="/casi-studio/"
             className="inline-flex items-center gap-2 text-[#F97415] hover:text-[#C94F06] font-bold text-base group"
           >
             Scopri tutti i casi studio
