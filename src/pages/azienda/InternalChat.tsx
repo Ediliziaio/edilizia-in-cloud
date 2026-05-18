@@ -551,13 +551,23 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
     queryKey: ["internal-chat-messages", channelId],
     enabled: !!channelId,
     queryFn: async () => {
+      // v8.6.53 — BUGFIX critico: prima `ascending: true + limit 200`
+      // ritornava i PRIMI 200 messaggi cronologici (i più vecchi). Per chat
+      // attive (es. Silvio AI) con > 200 messaggi totali, i nuovi messaggi
+      // NON apparivano mai nel pane → l'utente vedeva preview sidebar
+      // aggiornata ma il pane chat congelato sui vecchi 200.
+      // Fix: prendi i 500 più RECENTI (desc) + reverse client-side per
+      // ordine cronologico asc nel rendering UI.
       const { data, error } = await supabase
         .from("internal_chat_messages").select("*")
         .eq("channel_id", channelId!)
-        .order("created_at", { ascending: true })
-        .limit(200);
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (error) throw error;
-      return data as Message[];
+      // Reverse: ora la lista è ASC (dal più vecchio al più nuovo) come si
+      // aspetta il render di una chat. Roadmap: paginazione "carica più
+      // vecchi" se l'utente scrolla su per chat con > 500 messaggi.
+      return ((data as Message[]) ?? []).slice().reverse();
     },
     retry: 2,
   });
