@@ -27,7 +27,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  ArrowLeft, Sparkles, Save, Package, AlertCircle, Search, Calendar, Loader2, Image as ImageIcon, Layers,
+  ArrowLeft, Sparkles, Save, Package, AlertCircle, Search, Calendar, Loader2, Image as ImageIcon, Layers, Download, ShieldAlert,
 } from "lucide-react";
 import {
   useFeatureBundles,
@@ -36,6 +36,7 @@ import {
   useCreateFeatureBundle,
   type FeatureBundle,
 } from "@/hooks/useFeatureBundles";
+import { exportOfferPdf, type OfferFeature } from "@/lib/pacchetto-custom/exportOfferPdf";
 import { toast } from "sonner";
 
 interface FlagRow {
@@ -84,6 +85,10 @@ export default function CompanyPacchettoCustom() {
   const [saveBundleOpen, setSaveBundleOpen] = useState(false);
   const [bundleName, setBundleName] = useState("");
   const [bundleDescription, setBundleDescription] = useState("");
+  // v8.6.56 — Toggle modalità esclusiva: disabilita TUTTE le altre feature
+  // non incluse nella selezione, oltre ad abilitare quelle scelte.
+  const [exclusiveMode, setExclusiveMode] = useState(false);
+  const [confirmExclusiveOpen, setConfirmExclusiveOpen] = useState(false);
 
   // ── Company info ──
   const { data: company } = useQuery<CompanyRow | null>({
@@ -211,13 +216,35 @@ export default function CompanyPacchettoCustom() {
     });
   };
 
-  const handleApplyCustom = () => {
+  const handleApplyCustom = (force = false) => {
     if (!companyId) return;
-    const featureKeys = Object.entries(selectedFeatures).map(([key, val]) => ({
-      key,
-      enabled: val.enabled,
-      price: val.price ?? null,
-    }));
+
+    // v8.6.56 — Modalità esclusiva: disabilita TUTTE le feature non incluse
+    // nella selezione (oltre ad abilitare quelle scelte). Confirm distruttivo
+    // tramite dialog dedicato.
+    if (exclusiveMode && !force) {
+      setConfirmExclusiveOpen(true);
+      return;
+    }
+
+    const enabledKeys = new Set(
+      Object.entries(selectedFeatures).filter(([, v]) => v.enabled).map(([k]) => k),
+    );
+
+    // Lista finale: include selezionate esplicite + tutte le altre come disable
+    // (se modalità esclusiva) o solo le selezionate (se modalità normale).
+    const featureKeys = exclusiveMode
+      ? flags.map((f) => ({
+          key: f.key,
+          enabled: enabledKeys.has(f.key),
+          price: selectedFeatures[f.key]?.price ?? null,
+        }))
+      : Object.entries(selectedFeatures).map(([key, val]) => ({
+          key,
+          enabled: val.enabled,
+          price: val.price ?? null,
+        }));
+
     if (featureKeys.length === 0) {
       toast.error("Nessuna feature configurata");
       return;
@@ -226,9 +253,46 @@ export default function CompanyPacchettoCustom() {
       companyId,
       featureKeys,
       userEmail: user?.email,
-      notes: "Pacchetto custom",
+      notes: exclusiveMode ? "Pacchetto custom (modalità esclusiva)" : "Pacchetto custom",
       expiresAt: expiresAt || null,
+    }, {
+      onSuccess: () => setConfirmExclusiveOpen(false),
     });
+  };
+
+  // v8.6.56 — Export PDF offerta commerciale
+  const handleExportPdf = () => {
+    if (!company) {
+      toast.error("Dati azienda non disponibili");
+      return;
+    }
+    const offerFeatures: OfferFeature[] = flags
+      .filter((f) => selectedFeatures[f.key]?.enabled)
+      .map((f) => ({
+        key: f.key,
+        name: f.name,
+        price: selectedFeatures[f.key]?.price ?? f.price_per_month ?? null,
+        description: f.description,
+        category: f.category,
+      }));
+    if (offerFeatures.length === 0) {
+      toast.error("Seleziona almeno una feature per generare l'offerta");
+      return;
+    }
+    try {
+      exportOfferPdf({
+        companyName: company.name,
+        companyEmail: company.email,
+        features: offerFeatures,
+        totals,
+        expiresAt: expiresAt || null,
+      });
+      toast.success("Offerta PDF generata");
+    } catch (e) {
+      toast.error("Errore generazione PDF", {
+        description: e instanceof Error ? e.message : "Errore sconosciuto",
+      });
+    }
   };
 
   const handleSaveAsBundle = () => {
@@ -497,42 +561,101 @@ export default function CompanyPacchettoCustom() {
 
       {/* ── Footer fisso con totale + applica ─────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur border-t shadow-lg z-30">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-5">
-            <div>
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Totale mensile</div>
-              <div className="text-xl font-bold tabular-nums">{formatEuro(totals.monthly)}</div>
-            </div>
-            <div className="hidden sm:block">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Annuale</div>
-              <div className="text-sm font-semibold tabular-nums">{formatEuro(totals.yearly)}</div>
-            </div>
-            <div className="hidden md:block">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Feature</div>
-              <div className="text-sm font-semibold">{totals.enabledCount} attive</div>
-            </div>
+        <div className="max-w-6xl mx-auto px-6 py-3 space-y-2">
+          {/* Toggle modalità esclusiva */}
+          <div className="flex items-center gap-2 text-xs">
+            <Switch
+              checked={exclusiveMode}
+              onCheckedChange={setExclusiveMode}
+              id="exclusive-mode"
+            />
+            <Label htmlFor="exclusive-mode" className="cursor-pointer flex items-center gap-1.5">
+              <ShieldAlert className={`h-3.5 w-3.5 ${exclusiveMode ? "text-amber-600" : "text-muted-foreground"}`} />
+              Modalità esclusiva — disabilita anche tutte le altre feature non incluse
+              {exclusiveMode && (
+                <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold">ATTIVA</span>
+              )}
+            </Label>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSaveBundleOpen(true)}
-              disabled={totals.enabledCount === 0}
-            >
-              <Save className="h-3.5 w-3.5 mr-1.5" />
-              Salva come bundle
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleApplyCustom}
-              disabled={applyCustom.isPending || Object.keys(selectedFeatures).length === 0}
-            >
-              {applyCustom.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
-              Applica configurazione
-            </Button>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-5">
+              <div>
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Totale mensile</div>
+                <div className="text-xl font-bold tabular-nums">{formatEuro(totals.monthly)}</div>
+              </div>
+              <div className="hidden sm:block">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Annuale</div>
+                <div className="text-sm font-semibold tabular-nums">{formatEuro(totals.yearly)}</div>
+              </div>
+              <div className="hidden md:block">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Feature</div>
+                <div className="text-sm font-semibold">{totals.enabledCount} attive</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportPdf}
+                disabled={totals.enabledCount === 0}
+                title="Genera PDF dell'offerta da inviare al cliente"
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Esporta offerta PDF
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSaveBundleOpen(true)}
+                disabled={totals.enabledCount === 0}
+              >
+                <Save className="h-3.5 w-3.5 mr-1.5" />
+                Salva come bundle
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleApplyCustom()}
+                disabled={applyCustom.isPending || Object.keys(selectedFeatures).length === 0}
+              >
+                {applyCustom.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                Applica configurazione
+              </Button>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* AlertDialog conferma modalità esclusiva (distruttiva) */}
+      <Dialog open={confirmExclusiveOpen} onOpenChange={setConfirmExclusiveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-700">
+              <ShieldAlert className="h-5 w-5" />
+              Conferma modalità esclusiva
+            </DialogTitle>
+            <DialogDescription className="space-y-2 text-sm">
+              <span className="block">
+                Stai per applicare una configurazione che <strong>disabilita esplicitamente tutte le altre feature</strong>
+                non incluse nelle {totals.enabledCount} selezionate.
+              </span>
+              <span className="block text-amber-700 font-medium">
+                Il cliente vedrà SOLO le feature che hai attivato qui. Operazione reversibile (puoi cambiare configurazione in qualsiasi momento).
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmExclusiveOpen(false)}>Annulla</Button>
+            <Button
+              variant="destructive"
+              onClick={() => handleApplyCustom(true)}
+              disabled={applyCustom.isPending}
+            >
+              {applyCustom.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+              Conferma modalità esclusiva
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog "Salva come bundle" */}
       <Dialog open={saveBundleOpen} onOpenChange={setSaveBundleOpen}>
