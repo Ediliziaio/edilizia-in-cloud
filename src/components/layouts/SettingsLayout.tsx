@@ -78,7 +78,6 @@ const MOBILE_SETTINGS_GROUPS = [
       { to: "/azienda/impostazioni/sedi", label: "Sedi" },
       { to: "/azienda/impostazioni/branding", label: "White-Label" },
       { to: "/azienda/impostazioni/abbonamento", label: "Piano abbonamento" },
-      { to: "/azienda/impostazioni/crediti", label: "Crediti & saldo" },
       { to: "/azienda/impostazioni/fatturazione", label: "Fatturazione" },
       { to: "/azienda/impostazioni/persone", label: "Persone & accessi" },
     ],

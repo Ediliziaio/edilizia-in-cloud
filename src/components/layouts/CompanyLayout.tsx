@@ -562,11 +562,9 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
         { to: "/azienda/impostazioni/profilo",      label: "Profilo aziendale", icon: <Building2 className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsProfile },
         { to: "/azienda/impostazioni/sedi",          label: "Sedi",              icon: <MapPin className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/branding",      label: "White-Label",       icon: <Paintbrush className="h-4 w-4" />,   visible: isAdmin },
-        // v8.6.57 — Piano abbonamento + Crediti & Saldo spostati qui dal
-        // vecchio gruppo "Abbonamento" / "Integrazioni & API": l'utente li
-        // pensa come dati dell'azienda, non come setup tecnico.
+        // v8.6.59 — Solo "Piano abbonamento": "Crediti & Saldo" è ora il tab
+        // "Portafoglio" interno alla dashboard Abbonamento (no duplicazione).
         { to: "/azienda/impostazioni/abbonamento",   label: "Piano abbonamento", icon: <Wallet className="h-4 w-4" />,       visible: isAdmin },
-        { to: "/azienda/impostazioni/crediti",       label: "Crediti & Saldo",   icon: <Wallet className="h-4 w-4" />,       visible: isAdmin },
       ],
     },
     {
