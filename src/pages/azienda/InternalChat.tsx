@@ -14,7 +14,7 @@ import { AIModelSelector } from "@/components/ai/AIModelSelector";
 import { AIRunFooter } from "@/components/ai/AIRunFooter";
 import { useAIModelSelector } from "@/lib/ai/use-ai-model-selector";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, isToday, isYesterday, isSameDay } from "date-fns";
@@ -545,46 +545,30 @@ function useInternalChat(companyIdOverride?: string) {
   };
 }
 
-// v8.6.53 — Paginazione cursor-based per chat infinite-scroll.
-// Carica gli ULTIMI 30 messaggi all'apertura; carica i precedenti in batch
-// di 30 quando l'utente scrolla verso l'alto. No più "limit 200/500 fisso"
-// che congela il pane su chat lunghe.
-const MESSAGES_PAGE_SIZE = 30;
+// v8.6.54 — Rollback a useQuery dopo crash regressione del refactor
+// useInfiniteQuery. La paginazione lazy resta in roadmap ma servirà un
+// approccio più conservativo (es. cursor manuale via useState).
+// Per ora carico gli ULTIMI 500 messaggi (.order desc + reverse) — sufficiente
+// per il 99% dei use case e bug-free.
+const MESSAGES_PAGE_SIZE = 500;
 
 function useChannelMessages(channelId: string | null, onNewMessage?: () => void) {
   const queryClient = useQueryClient();
-  const { data: pagesData, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useInfiniteQuery({
-      queryKey: ["internal-chat-messages", channelId],
-      enabled: !!channelId,
-      initialPageParam: null as string | null, // cursor = created_at del messaggio più vecchio già caricato
-      queryFn: async ({ pageParam }) => {
-        let q = supabase
-          .from("internal_chat_messages").select("*")
-          .eq("channel_id", channelId!)
-          .order("created_at", { ascending: false })
-          .limit(MESSAGES_PAGE_SIZE);
-        if (pageParam) q = q.lt("created_at", pageParam);
-        const { data, error } = await q;
-        if (error) throw error;
-        return (data ?? []) as Message[];
-      },
-      // `pageParam` per la prossima fetch = `created_at` del messaggio più vecchio della pagina corrente.
-      // Se la pagina ha meno di pageSize elementi, non ci sono più messaggi → hasNextPage=false.
-      getNextPageParam: (lastPage) => {
-        if (!lastPage || lastPage.length < MESSAGES_PAGE_SIZE) return undefined;
-        return lastPage[lastPage.length - 1]?.created_at ?? undefined;
-      },
-      retry: 2,
-    });
-
-  // Flatten pages + reverse: ordine ASC (dal più vecchio al più nuovo) come si aspetta il render
-  const messages = useMemo<Message[]>(() => {
-    if (!pagesData) return [];
-    // Le pagine sono DESC e ogni pagina è DESC al suo interno. Flatten + reverse globale.
-    const all = pagesData.pages.flat();
-    return all.slice().reverse();
-  }, [pagesData]);
+  const { data: messages = [], isError, refetch } = useQuery({
+    queryKey: ["internal-chat-messages", channelId],
+    enabled: !!channelId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("internal_chat_messages").select("*")
+        .eq("channel_id", channelId!)
+        .order("created_at", { ascending: false })
+        .limit(MESSAGES_PAGE_SIZE);
+      if (error) throw error;
+      // Reverse client-side: ordine ASC (dal più vecchio al più nuovo) per render UI
+      return ((data ?? []) as Message[]).slice().reverse();
+    },
+    retry: 2,
+  });
 
   useEffect(() => {
     if (!channelId) return;
@@ -603,7 +587,7 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
     return () => { supabase.removeChannel(sub); };
   }, [channelId, queryClient, onNewMessage]);
 
-  return { messages, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage };
+  return { messages, isError, refetch };
 }
 
 // ─── Chat List Item ──────────────────────────────────────────────────────────
@@ -648,11 +632,23 @@ function ChatListItem({
       + lastMsg.content.slice(0, 50) + (lastMsg.content.length > 50 ? "…" : "")
     : isDm ? "Inizia a chattare" : "Nessun messaggio";
 
+  // v8.6.54 — Cambiato da <button> a <div role=button> per evitare HTML
+  // nesting illegale: il bottone pin/unpin DENTRO il button-listitem
+  // causava warning React + crash potenziale "Cannot read properties of
+  // undefined (reading 'length')" su hydration.
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        "w-full text-left px-3 py-3 flex items-center gap-3 transition-all border-b border-border/40 group/listitem relative",
+        "w-full text-left px-3 py-3 flex items-center gap-3 transition-all border-b border-border/40 group/listitem relative cursor-pointer",
         isActive
           ? "bg-[#f0f2f5] dark:bg-white/10"
           : "hover:bg-[#f5f6f6] dark:hover:bg-white/5",
@@ -736,7 +732,7 @@ function ChatListItem({
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -1063,14 +1059,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   // Silvio Superadmin (admin team chat): edge function diversa, sender ID diverso
   const isSilvioAdminChannel = !!selectedChannel && selectedChannel.name.toLowerCase() === "silvio-admin";
   const isAIChannel = isLuciaChannel || isSilvioChannel || isSilvioAdminChannel;
-  const {
-    messages,
-    isError: messagesError,
-    refetch: retryMessages,
-    fetchNextPage: fetchOlderMessages,
-    hasNextPage: hasOlderMessages,
-    isFetchingNextPage: isFetchingOlder,
-  } = useChannelMessages(selectedChannelId, refetchUnread);
+  const { messages, isError: messagesError, refetch: retryMessages } = useChannelMessages(selectedChannelId, refetchUnread);
 
   const profileMap = useMemo(() => {
     const m = new Map(profiles.map((p) => [p.id, p]));
@@ -1164,24 +1153,14 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     }
   }, [messages.length, selectedChannelId]);
 
-  // v8.6.53 — Lazy-load messaggi più vecchi quando l'utente scrolla in alto.
-  // Mantiene la posizione di scroll attuale dopo il prepend (UX naturale).
+  // v8.6.54 — Solo tracking "wasAtBottom" per lo smart-scroll.
+  // La lazy-load di messaggi più vecchi è stata temporaneamente rimossa
+  // (causava crash con useInfiniteQuery). Verrà reintrodotta con
+  // approccio cursor manuale via useState in un commit dedicato.
   const onMessagesScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     wasAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= AT_BOTTOM_THRESHOLD;
-    // Trigger load older quando ci sono < 200px da scrollare in cima
-    if (el.scrollTop < 200 && hasOlderMessages && !isFetchingOlder) {
-      const prevScrollHeight = el.scrollHeight;
-      fetchOlderMessages().then(() => {
-        // Mantieni posizione visuale: dopo il prepend dei nuovi vecchi messaggi,
-        // ripristina scrollTop al delta di altezza
-        requestAnimationFrame(() => {
-          const newScrollHeight = el.scrollHeight;
-          el.scrollTop = newScrollHeight - prevScrollHeight + el.scrollTop;
-        });
-      });
-    }
-  }, [fetchOlderMessages, hasOlderMessages, isFetchingOlder]);
+  }, []);
 
   // Typing presence
   useEffect(() => {
@@ -2127,21 +2106,6 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 backgroundColor: "#efeae2",
               }}
             >
-              {/* v8.6.53 — Indicator caricamento messaggi più vecchi */}
-              {isFetchingOlder && (
-                <div className="flex justify-center py-2">
-                  <span className="text-[11px] text-muted-foreground px-3 py-1 rounded-full bg-white/60 shadow-sm">
-                    Carico messaggi più vecchi…
-                  </span>
-                </div>
-              )}
-              {!hasOlderMessages && messages.length >= MESSAGES_PAGE_SIZE && (
-                <div className="flex justify-center py-2">
-                  <span className="text-[10px] text-muted-foreground/60">
-                    — inizio conversazione —
-                  </span>
-                </div>
-              )}
               {messagesError ? (
                 <div className="text-center py-12">
                   <p className="text-sm text-destructive mb-3">Errore nel caricamento.</p>
