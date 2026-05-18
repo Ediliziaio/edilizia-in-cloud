@@ -39,6 +39,7 @@ import { useAuth } from "@/contexts/AuthContext";
 // Company pages
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
 const UpgradePage = lazy(() => import("@/pages/azienda/UpgradePage"));
+const DemoPreviewShowcase = lazy(() => import("@/pages/azienda/DemoPreviewShowcase"));
 const CruscottoAziendale = lazy(() => import("@/pages/azienda/CruscottoAziendale"));
 const CruscottoHub = lazy(() => import("@/pages/azienda/CruscottoHub"));
 const CruscottoDashboardPage = lazy(() => import("@/pages/azienda/CruscottoDashboardPage"));
@@ -359,6 +360,8 @@ export function companyRoutes() {
         />
         {/* Upgrade fallback — mostrata da FeatureRoute quando una feature è negata */}
         <Route path="upgrade" element={<UpgradePage />} />
+        {/* v8.6.63 — Showcase Feature Preview Mode (per QA / demo commerciale) */}
+        <Route path="preview-demo" element={<DemoPreviewShowcase />} />
         {/* Dashboard Builder v1 — custom dashboards (gated: dashboard_builder_v1) */}
         <Route path="dashboards" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboards"><DashboardsList /></ErrorBoundary></FeatureRoute>} />
         <Route path="dashboards/nuova" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
