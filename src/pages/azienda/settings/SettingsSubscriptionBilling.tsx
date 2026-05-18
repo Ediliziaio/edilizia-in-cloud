@@ -243,6 +243,7 @@ function TabPagamenti() {
   const { data: billingDetails } = useBillingDetails();
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
   const [cronTab, setCronTab] = useState<"costi" | "fatture">("fatture");
+  const [, setSearchParams] = useSearchParams();
   // Dialog gestito da DialogTrigger asChild (focus restore automatico).
 
   // I metodi di pagamento veri (carta last4, brand, scadenza) richiedono Stripe API
@@ -352,7 +353,10 @@ function TabPagamenti() {
         </Dialog>
       </div>
 
-      {/* Cronologia pagamenti con tab Costi/Fatture */}
+      {/* Cronologia pagamenti con tab Costi/Fatture
+          • Fatture = subscription invoices da Stripe (subscription_invoices)
+          • Costi   = consumo crediti AI/email/whatsapp → deep-link al tab
+                     Portafoglio (sezione "Storico"). Non duplichiamo qui. */}
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -361,18 +365,33 @@ function TabPagamenti() {
                 <Receipt className="h-4 w-4 text-muted-foreground" />
                 Cronologia dei pagamenti
               </CardTitle>
-              <CardDescription className="text-xs">Tieni traccia dei tuoi pagamenti</CardDescription>
+              <CardDescription className="text-xs">Fatture dell'abbonamento e consumi crediti</CardDescription>
             </div>
             <Tabs value={cronTab} onValueChange={(v) => setCronTab(v as "costi" | "fatture")}>
               <TabsList className="h-8">
-                <TabsTrigger value="costi" className="text-xs h-7">Costi</TabsTrigger>
-                <TabsTrigger value="fatture" className="text-xs h-7">Fatture</TabsTrigger>
+                <TabsTrigger value="fatture" className="text-xs h-7">Fatture abbonamento</TabsTrigger>
+                <TabsTrigger value="costi" className="text-xs h-7">Consumi crediti</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
         </CardHeader>
         <CardContent>
-          {invoicesLoading ? (
+          {cronTab === "costi" ? (
+            <div className="text-center py-10">
+              <Wallet className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="font-medium">I consumi crediti vivono nel tab Portafoglio</p>
+              <p className="text-sm text-muted-foreground mt-1 mb-4 max-w-md mx-auto">
+                Storico unificato dei consumi (email, AI, WhatsApp) con filtri per wallet e periodo.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => setSearchParams({ tab: "portafoglio" }, { replace: true })}
+              >
+                Vai al Portafoglio
+                <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+              </Button>
+            </div>
+          ) : invoicesLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
