@@ -163,6 +163,8 @@ export function WalletCard({
             spentEur={wallet.spent}
             rechargedEur={wallet.recharged}
             label={`Utilizzo ${wallet.label}`}
+            unit={wallet.currency}
+            unitSuffix={wallet.currency === "count" ? "render" : ""}
           />
         )}
 

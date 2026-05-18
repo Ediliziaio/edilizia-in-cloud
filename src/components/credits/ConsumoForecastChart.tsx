@@ -93,6 +93,38 @@ export function ConsumoForecastChart({ currentBalanceEur }: Props) {
     return <Skeleton className="h-64 w-full rounded-2xl" />;
   }
 
+  // v8.6.60 — Empty state quando NESSUN consumo nei 14 giorni:
+  // niente grafico vuoto con asse 0-4€ e "Autonomia stimata —". UX più pulita.
+  const totalSpentLast14d = chartData.reduce((s, d) => s + d.spent, 0);
+  if (totalSpentLast14d === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center justify-between text-base">
+            <span className="flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-muted-foreground" />
+              Consumo Email — ultimi 14 giorni
+            </span>
+            <Badge className="gap-1 bg-emerald-100 text-emerald-800 text-[10px]">
+              <CheckCircle2 className="h-2.5 w-2.5" />
+              Nessun consumo
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <TrendingDown className="h-10 w-10 text-muted-foreground/30 mb-2" />
+            <p className="text-sm font-medium">Nessuna email inviata negli ultimi 14 giorni</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+              Saldo attuale: <strong>{formatEur(currentBalanceEur)}</strong>.
+              Lo storico apparirà qui appena inizierai a inviare email.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="pb-3">

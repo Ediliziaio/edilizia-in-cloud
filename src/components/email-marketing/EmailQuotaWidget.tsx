@@ -67,7 +67,10 @@ export function EmailQuotaWidget() {
   if (!q) return null;
 
   const unlimited = q.effective_limit === -1;
-  const pct = unlimited
+  // v8.6.60 — "quota non configurata": piano senza limite definito o limit=0
+  // (es. piano free/sconosciuto). Mostra empty state invece di "1 / 0".
+  const noQuota = !unlimited && (q.effective_limit === 0 || q.effective_limit == null);
+  const pct = unlimited || noQuota
     ? 0
     : q.effective_limit > 0
     ? Math.min(100, (q.sent_this_month / q.effective_limit) * 100)
@@ -92,11 +95,15 @@ export function EmailQuotaWidget() {
               </div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Package className="h-3 w-3" />
-                Piano {q.plan_name ?? "—"}
+                Piano {q.plan_name ?? "non configurato"}
               </div>
             </div>
           </div>
-          {q.over_quota ? (
+          {noQuota ? (
+            <Badge variant="outline" className="gap-1 text-[11px]">
+              Non configurata
+            </Badge>
+          ) : q.over_quota ? (
             <Badge variant="destructive" className="gap-1 text-[11px]">
               <AlertTriangle className="h-3 w-3" />
               Oltre quota
@@ -109,41 +116,50 @@ export function EmailQuotaWidget() {
           )}
         </div>
 
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-2xl font-bold">{fmtInt(q.sent_this_month)}</span>
-          <span className="text-sm text-muted-foreground">
-            / {unlimited ? "∞" : fmtInt(q.effective_limit)} email inviate questo mese
-          </span>
-        </div>
+        {noQuota ? (
+          <div className="text-xs text-muted-foreground">
+            Il tuo piano non include una quota email mensile. Le email vengono addebitate
+            direttamente dal wallet Email Marketing.
+          </div>
+        ) : (
+          <>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold">{fmtInt(q.sent_this_month)}</span>
+              <span className="text-sm text-muted-foreground">
+                / {unlimited ? "∞" : fmtInt(q.effective_limit)} email inviate questo mese
+              </span>
+            </div>
 
-        {!unlimited && <Progress value={pct} />}
+            {!unlimited && <Progress value={pct} />}
 
-        <div className="text-xs text-muted-foreground">
-          {unlimited ? (
-            <>Piano con email transazionali illimitate.</>
-          ) : q.over_quota ? (
-            q.is_free ? (
-              <>Quota esaurita ma il tuo piano copre le email in eccesso senza addebito.</>
-            ) : (
-              <>
-                Quota esaurita. Ogni email ulteriore costa{" "}
-                <strong>{fmtEur(q.effective_price_eur)}</strong> e viene scalata dal wallet.
-              </>
-            )
-          ) : (
-            <>
-              Restano <strong>{fmtInt(q.remaining)}</strong> email incluse nel piano questo mese.
-            </>
-          )}
-        </div>
+            <div className="text-xs text-muted-foreground">
+              {unlimited ? (
+                <>Piano con email transazionali illimitate.</>
+              ) : q.over_quota ? (
+                q.is_free ? (
+                  <>Quota esaurita ma il tuo piano copre le email in eccesso senza addebito.</>
+                ) : (
+                  <>
+                    Quota esaurita. Ogni email ulteriore costa{" "}
+                    <strong>{fmtEur(q.effective_price_eur)}</strong> e viene scalata dal wallet.
+                  </>
+                )
+              ) : (
+                <>
+                  Restano <strong>{fmtInt(q.remaining)}</strong> email incluse nel piano questo mese.
+                </>
+              )}
+            </div>
 
-        {q.over_quota && !q.is_free && (
-          <Alert className="py-2 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-700" />
-            <AlertDescription className="text-xs text-amber-900 dark:text-amber-200">
-              Hai superato la quota inclusa. Le prossime email verranno addebitate.
-            </AlertDescription>
-          </Alert>
+            {q.over_quota && !q.is_free && (
+              <Alert className="py-2 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-700" />
+                <AlertDescription className="text-xs text-amber-900 dark:text-amber-200">
+                  Hai superato la quota inclusa. Le prossime email verranno addebitate.
+                </AlertDescription>
+              </Alert>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

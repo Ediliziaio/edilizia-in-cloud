@@ -123,16 +123,13 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
           abbonamento) nascondiamo l'h1 per evitare doppio heading; saldo
           totale mostrato comunque come riga compatta. */}
       {embedded ? (
-        <p className="text-sm text-muted-foreground">
-          Saldo totale:{" "}
-          <span className="font-semibold text-foreground">{formatEur(totalBalanceEur)}</span>
-          {hasBlocked && (
-            <>
-              {" · "}
-              <span className="font-medium text-destructive">servizi bloccati</span>
-            </>
-          )}
-        </p>
+        // v8.6.60 — Nessun header embedded: il saldo totale è già nella hero
+        // card sotto i tabs. Evitiamo la tripla esposizione del valore.
+        hasBlocked ? (
+          <p className="text-sm font-medium text-destructive">
+            ⚠ Uno o più servizi sono bloccati per saldo insufficiente.
+          </p>
+        ) : null
       ) : (
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -215,10 +212,10 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
               </div>
               <div className="text-right">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Servizi attivi
+                  Wallet con saldo
                 </p>
-                <p className="text-sm font-medium">
-                  {wallets.filter((w) => w.balance > 0).length} di {wallets.length}
+                <p className="text-sm font-medium tabular-nums">
+                  {wallets.filter((w) => w.balance > 0).length} su {wallets.length}
                 </p>
               </div>
             </CardContent>
