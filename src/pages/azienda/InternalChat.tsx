@@ -14,7 +14,7 @@ import { AIModelSelector } from "@/components/ai/AIModelSelector";
 import { AIRunFooter } from "@/components/ai/AIRunFooter";
 import { useAIModelSelector } from "@/lib/ai/use-ai-model-selector";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, isToday, isYesterday, isSameDay } from "date-fns";
@@ -545,32 +545,46 @@ function useInternalChat(companyIdOverride?: string) {
   };
 }
 
+// v8.6.53 — Paginazione cursor-based per chat infinite-scroll.
+// Carica gli ULTIMI 30 messaggi all'apertura; carica i precedenti in batch
+// di 30 quando l'utente scrolla verso l'alto. No più "limit 200/500 fisso"
+// che congela il pane su chat lunghe.
+const MESSAGES_PAGE_SIZE = 30;
+
 function useChannelMessages(channelId: string | null, onNewMessage?: () => void) {
   const queryClient = useQueryClient();
-  const { data: messages = [], isError, refetch } = useQuery({
-    queryKey: ["internal-chat-messages", channelId],
-    enabled: !!channelId,
-    queryFn: async () => {
-      // v8.6.53 — BUGFIX critico: prima `ascending: true + limit 200`
-      // ritornava i PRIMI 200 messaggi cronologici (i più vecchi). Per chat
-      // attive (es. Silvio AI) con > 200 messaggi totali, i nuovi messaggi
-      // NON apparivano mai nel pane → l'utente vedeva preview sidebar
-      // aggiornata ma il pane chat congelato sui vecchi 200.
-      // Fix: prendi i 500 più RECENTI (desc) + reverse client-side per
-      // ordine cronologico asc nel rendering UI.
-      const { data, error } = await supabase
-        .from("internal_chat_messages").select("*")
-        .eq("channel_id", channelId!)
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      // Reverse: ora la lista è ASC (dal più vecchio al più nuovo) come si
-      // aspetta il render di una chat. Roadmap: paginazione "carica più
-      // vecchi" se l'utente scrolla su per chat con > 500 messaggi.
-      return ((data as Message[]) ?? []).slice().reverse();
-    },
-    retry: 2,
-  });
+  const { data: pagesData, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: ["internal-chat-messages", channelId],
+      enabled: !!channelId,
+      initialPageParam: null as string | null, // cursor = created_at del messaggio più vecchio già caricato
+      queryFn: async ({ pageParam }) => {
+        let q = supabase
+          .from("internal_chat_messages").select("*")
+          .eq("channel_id", channelId!)
+          .order("created_at", { ascending: false })
+          .limit(MESSAGES_PAGE_SIZE);
+        if (pageParam) q = q.lt("created_at", pageParam);
+        const { data, error } = await q;
+        if (error) throw error;
+        return (data ?? []) as Message[];
+      },
+      // `pageParam` per la prossima fetch = `created_at` del messaggio più vecchio della pagina corrente.
+      // Se la pagina ha meno di pageSize elementi, non ci sono più messaggi → hasNextPage=false.
+      getNextPageParam: (lastPage) => {
+        if (!lastPage || lastPage.length < MESSAGES_PAGE_SIZE) return undefined;
+        return lastPage[lastPage.length - 1]?.created_at ?? undefined;
+      },
+      retry: 2,
+    });
+
+  // Flatten pages + reverse: ordine ASC (dal più vecchio al più nuovo) come si aspetta il render
+  const messages = useMemo<Message[]>(() => {
+    if (!pagesData) return [];
+    // Le pagine sono DESC e ogni pagina è DESC al suo interno. Flatten + reverse globale.
+    const all = pagesData.pages.flat();
+    return all.slice().reverse();
+  }, [pagesData]);
 
   useEffect(() => {
     if (!channelId) return;
@@ -589,7 +603,7 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
     return () => { supabase.removeChannel(sub); };
   }, [channelId, queryClient, onNewMessage]);
 
-  return { messages, isError, refetch };
+  return { messages, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage };
 }
 
 // ─── Chat List Item ──────────────────────────────────────────────────────────
@@ -1049,7 +1063,14 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   // Silvio Superadmin (admin team chat): edge function diversa, sender ID diverso
   const isSilvioAdminChannel = !!selectedChannel && selectedChannel.name.toLowerCase() === "silvio-admin";
   const isAIChannel = isLuciaChannel || isSilvioChannel || isSilvioAdminChannel;
-  const { messages, isError: messagesError, refetch: retryMessages } = useChannelMessages(selectedChannelId, refetchUnread);
+  const {
+    messages,
+    isError: messagesError,
+    refetch: retryMessages,
+    fetchNextPage: fetchOlderMessages,
+    hasNextPage: hasOlderMessages,
+    isFetchingNextPage: isFetchingOlder,
+  } = useChannelMessages(selectedChannelId, refetchUnread);
 
   const profileMap = useMemo(() => {
     const m = new Map(profiles.map((p) => [p.id, p]));
@@ -1108,10 +1129,59 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     }
   }, [channels, selectedChannelId, handleSelectChannel, location.search]);
 
-  // Scroll to bottom
+  // v8.6.53 — Smart-scroll: l'auto-scroll al bottom scatta SOLO se l'utente
+  // era già in fondo prima dell'arrivo del nuovo messaggio. Se sta leggendo
+  // messaggi più in alto, rispettiamo la sua posizione.
+  // Inoltre: al primo cambio canale facciamo UN solo scroll iniziale a
+  // bottom (instant), non smooth, per non disorientare l'utente.
+  const wasAtBottomRef = useRef(true);
+  const lastChannelIdRef = useRef<string | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  // Threshold: considerato "at bottom" se a meno di 80px dal fondo
+  const AT_BOTTOM_THRESHOLD = 80;
+
+  // Traccia se l'utente è già al bottom (prima del prossimo render)
+  const checkIsAtBottom = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= AT_BOTTOM_THRESHOLD;
+  }, []);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+    const channelChanged = lastChannelIdRef.current !== selectedChannelId;
+    lastChannelIdRef.current = selectedChannelId;
+    if (channelChanged) {
+      // Apertura nuova chat: scroll instant a bottom 1 volta
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+        wasAtBottomRef.current = true;
+      });
+      return;
+    }
+    // Cambio length su stesso canale: scroll smooth solo se ero già in fondo
+    if (wasAtBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages.length, selectedChannelId]);
+
+  // v8.6.53 — Lazy-load messaggi più vecchi quando l'utente scrolla in alto.
+  // Mantiene la posizione di scroll attuale dopo il prepend (UX naturale).
+  const onMessagesScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    wasAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= AT_BOTTOM_THRESHOLD;
+    // Trigger load older quando ci sono < 200px da scrollare in cima
+    if (el.scrollTop < 200 && hasOlderMessages && !isFetchingOlder) {
+      const prevScrollHeight = el.scrollHeight;
+      fetchOlderMessages().then(() => {
+        // Mantieni posizione visuale: dopo il prepend dei nuovi vecchi messaggi,
+        // ripristina scrollTop al delta di altezza
+        requestAnimationFrame(() => {
+          const newScrollHeight = el.scrollHeight;
+          el.scrollTop = newScrollHeight - prevScrollHeight + el.scrollTop;
+        });
+      });
+    }
+  }, [fetchOlderMessages, hasOlderMessages, isFetchingOlder]);
 
   // Typing presence
   useEffect(() => {
@@ -2046,13 +2116,32 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
 
             {/* ═══ Messages ═══ */}
             <div
-              ref={scrollAreaRef}
+              ref={(el) => {
+                scrollAreaRef.current = el;
+                messagesContainerRef.current = el;
+              }}
+              onScroll={onMessagesScroll}
               className="flex-1 overflow-y-auto px-4 md:px-12 lg:px-16 py-4"
               style={{
                 backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
                 backgroundColor: "#efeae2",
               }}
             >
+              {/* v8.6.53 — Indicator caricamento messaggi più vecchi */}
+              {isFetchingOlder && (
+                <div className="flex justify-center py-2">
+                  <span className="text-[11px] text-muted-foreground px-3 py-1 rounded-full bg-white/60 shadow-sm">
+                    Carico messaggi più vecchi…
+                  </span>
+                </div>
+              )}
+              {!hasOlderMessages && messages.length >= MESSAGES_PAGE_SIZE && (
+                <div className="flex justify-center py-2">
+                  <span className="text-[10px] text-muted-foreground/60">
+                    — inizio conversazione —
+                  </span>
+                </div>
+              )}
               {messagesError ? (
                 <div className="text-center py-12">
                   <p className="text-sm text-destructive mb-3">Errore nel caricamento.</p>
