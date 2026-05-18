@@ -639,6 +639,37 @@ function TabPortafoglio() {
    TAB 4 — NOTIFICHE
 ═══════════════════════════════════════════════════════════════════════════ */
 function TabNotifiche() {
+  // Eventi billing già notificati di default via email dal backend
+  // (stripe-webhook + check-due-dates + dunning service). Lista trasparente
+  // per dare all'utente visibilità su cosa riceve.
+  const events: Array<{ title: string; desc: string; channel: string }> = [
+    {
+      title: "Pagamento riuscito",
+      desc: "Conferma di addebito con link alla fattura PDF.",
+      channel: "Email",
+    },
+    {
+      title: "Pagamento fallito",
+      desc: "Avviso immediato + tentativo automatico di re-charge nei 14 gg.",
+      channel: "Email",
+    },
+    {
+      title: "Trial in scadenza",
+      desc: "Promemoria 3 giorni prima del termine del periodo di prova.",
+      channel: "Email",
+    },
+    {
+      title: "Rinnovo imminente",
+      desc: "Avviso 7 giorni prima del rinnovo (solo piani annuali).",
+      channel: "Email",
+    },
+    {
+      title: "Saldo crediti basso",
+      desc: "Quando un wallet (AI/Email/WhatsApp) scende sotto la soglia.",
+      channel: "Email",
+    },
+  ];
+
   return (
     <div className="space-y-5">
       <Card>
@@ -648,31 +679,34 @@ function TabNotifiche() {
             Notifiche fatturazione
           </CardTitle>
           <CardDescription>
-            Imposta avvisi quando ti avvicini ai limiti di spesa o quando un pagamento fallisce.
+            Eventi billing già attivi via email. Per granularità (in-app/SMS, destinatari multipli)
+            usa <a href="/azienda/impostazioni/mio-profilo" className="text-primary hover:underline">
+            Profilo → Notifiche</a>.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Le notifiche email per pagamenti, scadenze e trial in scadenza sono già attive di default.
-              Configura preferenze granulari (push, SMS, multi-destinatario) dalla sezione{" "}
-              <a href="/azienda/impostazioni/mio-profilo" className="text-primary hover:underline">
-                Profilo → Notifiche
-              </a>.
-            </AlertDescription>
-          </Alert>
+          <ul className="space-y-2">
+            {events.map((ev) => (
+              <li key={ev.title} className="flex items-start justify-between gap-3 rounded-lg border p-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{ev.title}</p>
+                  <p className="text-xs text-muted-foreground">{ev.desc}</p>
+                </div>
+                <Badge variant="outline" className="text-[10px] shrink-0">{ev.channel}</Badge>
+              </li>
+            ))}
+          </ul>
         </CardContent>
       </Card>
 
-      {/* Roadmap: spending alerts per limite, notifiche payment failed, ecc. */}
+      {/* Roadmap: spending alerts soglia €, destinatari multipli, alert per agenzia */}
       <Card className="border-dashed">
         <CardContent className="py-8 text-center">
           <Bell className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
           <p className="font-medium">Avvisi di spesa avanzati</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-            Stiamo lavorando a alert configurabili (soglie €, destinatari multipli) per agenzie con sub-account.
-            In arrivo nelle prossime release.
+            Alert configurabili (soglie € personalizzate, destinatari multipli) per agenzie con
+            sub-account in arrivo nelle prossime release.
           </p>
         </CardContent>
       </Card>
