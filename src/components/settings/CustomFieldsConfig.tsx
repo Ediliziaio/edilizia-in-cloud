@@ -23,7 +23,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, Search, Copy, FolderPlus, Lock, AlertCircle, Pencil } from "lucide-react";
+import { Plus, Trash2, Search, Copy, FolderPlus, Lock, AlertCircle, Pencil, FolderOpen, Undo2, ShieldAlert } from "lucide-react";
+import {
+  useCustomFieldFolders,
+  useCreateCustomFieldFolder,
+  useUpdateCustomFieldFolder,
+  useDeleteCustomFieldFolder,
+  type CustomFieldFolder,
+} from "@/hooks/useCustomFieldFolders";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -1018,7 +1025,18 @@ export function CustomFieldsConfig() {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<UnifiedField | null>(null);
   const [editTarget, setEditTarget] = useState<UnifiedField | null>(null);
+  // v8.6.45 — Folders (tab Cartelle)
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
+  const [folderEditId, setFolderEditId] = useState<string | null>(null);
+  const [folderName, setFolderName] = useState("");
+  const [folderColor, setFolderColor] = useState("#1E3A5F");
+  const [folderObjectType, setFolderObjectType] = useState<string>("contact");
+  const [folderDeleteId, setFolderDeleteId] = useState<string | null>(null);
 
+  // v8.6.45 — Resiliente alla migration `deleted_at` non ancora applicata.
+  // Se la colonna non esiste (migration 20270517130000 ancora pending),
+  // l'UI degrada graceful: tab Eliminati mostra banner, tab principale
+  // continua a funzionare (filtro client-side se la colonna esiste).
   const { data: customFields = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["marketing_custom_fields", companyId],
     queryFn: async () => {
@@ -1030,10 +1048,78 @@ export function CustomFieldsConfig() {
         .order("section")
         .order("position");
       if (error) throw error;
-      return data;
+      // Filtro client-side dei soft-deletati (compatibile pre-migration:
+      // se la colonna non esiste è semplicemente undefined e tutti passano).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []).filter((row: any) => !row.deleted_at);
     },
     enabled: !!companyId,
   });
+
+  // v8.6.45 — Tab "Campi eliminati": graceful fallback se la migration
+  // non è ancora applicata. Catturo l'errore PostgREST `column does not exist`
+  // e ritorno [] + flag per mostrare un banner informativo.
+  const [softDeleteSupported, setSoftDeleteSupported] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: deletedFields = [] } = useQuery<any[]>({
+    queryKey: ["marketing_custom_fields_deleted", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("marketing_custom_fields")
+        .select("*")
+        .eq("company_id", companyId)
+        .not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false });
+      if (error) {
+        // Migration pending: la colonna deleted_at non esiste ancora
+        if (/deleted_at.*does not exist/i.test(error.message ?? "")) {
+          setSoftDeleteSupported(false);
+          return [];
+        }
+        throw error;
+      }
+      setSoftDeleteSupported(true);
+      return data ?? [];
+    },
+    enabled: !!companyId,
+    retry: false,
+  });
+
+  // v8.6.45 — Tab Cartelle: hook CRUD
+  const { data: folders = [] } = useCustomFieldFolders();
+  const createFolder = useCreateCustomFieldFolder();
+  const updateFolder = useUpdateCustomFieldFolder();
+  const deleteFolder = useDeleteCustomFieldFolder();
+
+  const openCreateFolderDialog = () => {
+    setFolderEditId(null);
+    setFolderName("");
+    setFolderColor("#1E3A5F");
+    setFolderObjectType("contact");
+    setFolderDialogOpen(true);
+  };
+  const openEditFolderDialog = (f: CustomFieldFolder) => {
+    setFolderEditId(f.id);
+    setFolderName(f.name);
+    setFolderColor(f.color ?? "#1E3A5F");
+    setFolderObjectType(f.object_type ?? "contact");
+    setFolderDialogOpen(true);
+  };
+  const submitFolder = () => {
+    if (folderEditId) {
+      updateFolder.mutate(
+        { id: folderEditId, name: folderName, color: folderColor, object_type: folderObjectType },
+        { onSuccess: () => setFolderDialogOpen(false) },
+      );
+    } else {
+      createFolder.mutate(
+        { name: folderName, color: folderColor, object_type: folderObjectType },
+        { onSuccess: () => setFolderDialogOpen(false) },
+      );
+    }
+  };
 
   const allFields = useMemo<UnifiedField[]>(() => {
     const custom: UnifiedField[] = (customFields as MarketingCustomFieldRow[]).map((f) => {
@@ -1203,29 +1289,107 @@ export function CustomFieldsConfig() {
     onError: (e: unknown) => toast.error(getErrorMessage(e) || "Errore nell'aggiornamento"),
   });
 
+  // v8.6.45 — Soft-delete: marca deleted_at invece di DELETE hard.
+  // I valori storici nelle tabelle *_field_values restano referenziati,
+  // l'utente può ripristinare il campo dalla tab "Campi eliminati".
+  // Il blocco "usage > 0" non serve più come hard-block: con soft-delete
+  // il campo torna disponibile in 1 click. Lo manteniamo come WARNING.
   const deleteMutation = useMutation({
+    mutationFn: async ({ id, force }: { id: string; force?: boolean }) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const usage = await getCustomFieldUsageCounts(id);
+      if (!force && (usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0)) {
+        throw new CustomFieldInUseError(usage);
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from("marketing_custom_fields")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("company_id", companyId);
+      if (error) {
+        // Migration pending: fallback hard-delete (backward compat)
+        if (/deleted_at.*does not exist/i.test(error.message ?? "")) {
+          const { error: hardErr } = await supabase
+            .from("marketing_custom_fields")
+            .delete()
+            .eq("id", id)
+            .eq("company_id", companyId);
+          if (hardErr) throw hardErr;
+          return { hard: true };
+        }
+        throw error;
+      }
+      return { hard: false };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields_deleted"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing-custom-fields"] });
+      toast.success(
+        result?.hard
+          ? "Campo eliminato"
+          : "Campo spostato nei campi eliminati. Puoi ripristinarlo in qualsiasi momento."
+      );
+    },
+    onError: (e: unknown) => {
+      if (e instanceof CustomFieldInUseError) {
+        const total = e.usage.contacts + e.usage.opportunities + e.usage.entities;
+        toast.error(`Campo già usato in ${total} valore/i. Riprova confermando l'eliminazione per proteggere i dati.`);
+        return;
+      }
+      toast.error(getErrorMessage(e) || "Errore nell'eliminazione");
+    },
+  });
+
+  // v8.6.45 — Ripristina un campo soft-deleted (UPDATE deleted_at = null)
+  const restoreMutation = useMutation({
+    mutationFn: async (id: string) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from("marketing_custom_fields")
+        .update({ deleted_at: null })
+        .eq("id", id)
+        .eq("company_id", companyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields_deleted"] });
+      toast.success("Campo ripristinato");
+    },
+    onError: (e: unknown) => toast.error(getErrorMessage(e) || "Errore nel ripristino"),
+  });
+
+  // v8.6.45 — Eliminazione DEFINITIVA (hard delete) dei campi già nella
+  // tab Eliminati. Solo se non hanno valori storici associati.
+  const purgeMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       const usage = await getCustomFieldUsageCounts(id);
       if (usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0) {
         throw new CustomFieldInUseError(usage);
       }
-
-      const { error } = await supabase.from("marketing_custom_fields").delete().eq("id", id).eq("company_id", companyId);
+      const { error } = await supabase
+        .from("marketing_custom_fields")
+        .delete()
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing-custom-fields"] });
-      toast.success("Campo eliminato");
+      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields_deleted"] });
+      toast.success("Campo eliminato definitivamente");
     },
     onError: (e: unknown) => {
       if (e instanceof CustomFieldInUseError) {
         const total = e.usage.contacts + e.usage.opportunities + e.usage.entities;
-        toast.error(`Campo già usato in ${total} valore/i. Non eliminato per proteggere i dati salvati.`);
+        toast.error(`Impossibile eliminare definitivamente: ${total} valore/i ancora referenziati. Cancellali manualmente prima di procedere.`);
         return;
       }
-      toast.error(getErrorMessage(e) || "Errore nell'eliminazione");
+      toast.error(getErrorMessage(e) || "Errore nell'eliminazione definitiva");
     },
   });
 
@@ -1246,33 +1410,45 @@ export function CustomFieldsConfig() {
 
   return (
     <div className="space-y-0">
-      {/* ── Header tabs + buttons ── */}
+      {/* ── Header tabs + buttons ──
+          v8.6.45 — 2 tab prima `disabled` ora attive:
+          - "Cartelle": CRUD folders custom
+          - "Campi eliminati": lista soft-deleted + restore/purge */}
       <div className="flex items-center justify-between border-b pb-0 mb-0">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-transparent h-auto p-0 gap-0">
             <TabsTrigger value="all" className="rounded-none border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-4 pb-2.5 pt-1">
               Tutti i campi
             </TabsTrigger>
-            <TabsTrigger value="folders" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-4 pb-2.5 pt-1" disabled>
+            <TabsTrigger value="folders" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-4 pb-2.5 pt-1">
               Cartelle
             </TabsTrigger>
-            <TabsTrigger value="deleted" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-4 pb-2.5 pt-1" disabled>
+            <TabsTrigger value="deleted" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-4 pb-2.5 pt-1">
               Campi eliminati
+              {deletedFields.length > 0 && (
+                <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                  {deletedFields.length}
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
         <div className="flex items-center gap-2 pb-1">
-          <Button variant="outline" size="sm" disabled>
-            <FolderPlus className="h-4 w-4 mr-1.5" /> Aggiungi cartella
-          </Button>
-          <Button size="sm" onClick={openCreateDialog} disabled={!companyId}>
-            <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
-          </Button>
+          {activeTab === "folders" ? (
+            <Button size="sm" onClick={openCreateFolderDialog} disabled={!companyId}>
+              <FolderPlus className="h-4 w-4 mr-1.5" /> Aggiungi cartella
+            </Button>
+          ) : (
+            <Button size="sm" onClick={openCreateDialog} disabled={!companyId}>
+              <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* ── Search bar ── */}
+      {/* ── Search bar (solo su "all") ── */}
+      {activeTab === "all" && (
       <div className="flex items-center justify-between gap-3 py-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1297,9 +1473,10 @@ export function CustomFieldsConfig() {
           </Select>
         </div>
       </div>
+      )}
 
-      {/* ── Table ── */}
-      {isError ? (
+      {/* ── Table (solo tab "all") ── */}
+      {activeTab === "all" && (isError ? (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Campi personalizzati non disponibili</AlertTitle>
@@ -1397,18 +1574,270 @@ export function CustomFieldsConfig() {
             </TableBody>
           </Table>
         </div>
+      ))}
+
+      {/* ── Footer pagination (solo tab "all") ── */}
+      {activeTab === "all" && (
+        <TablePagination
+          currentPage={safePage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalItems={total}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
+          pageSizeOptions={[25, 50, 100, 200]}
+        />
       )}
 
-      {/* ── Footer ── */}
-      <TablePagination
-        currentPage={safePage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        totalItems={total}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
-        pageSizeOptions={[25, 50, 100, 200]}
-      />
+      {/* ── Tab CARTELLE ── v8.6.45 — */}
+      {activeTab === "folders" && (
+        <div className="space-y-3 pt-3">
+          {!softDeleteSupported && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Funzione in attivazione</AlertTitle>
+              <AlertDescription className="text-xs">
+                Le cartelle dei campi personalizzati richiedono una migration DB
+                non ancora applicata (<code className="text-[10px]">20270517130000</code>).
+                Contatta il super_admin per attivarla.
+              </AlertDescription>
+            </Alert>
+          )}
+          {folders.length === 0 ? (
+            <div className="rounded-lg border-2 border-dashed p-10 text-center">
+              <FolderOpen className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+              <p className="text-sm font-medium">Nessuna cartella creata</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                Crea cartelle per raggruppare campi custom dello stesso oggetto in sezioni logiche.
+              </p>
+              <Button size="sm" className="mt-4" onClick={openCreateFolderDialog} disabled={!companyId}>
+                <FolderPlus className="h-4 w-4 mr-1.5" /> Crea la prima cartella
+              </Button>
+            </div>
+          ) : (
+            <div className="border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Nome</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Oggetto</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Colore</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Creata</TableHead>
+                    <TableHead className="w-10" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {folders.map((f) => (
+                    <TableRow key={f.id} className="group">
+                      <TableCell className="font-medium text-sm">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-3 w-3 rounded-sm border"
+                            style={{ backgroundColor: f.color ?? "#1E3A5F" }}
+                          />
+                          {f.name}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {f.object_type ? (OBJECT_NAME_MAP[f.object_type] ?? f.object_type) : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-[11px] font-mono text-muted-foreground">{f.color ?? "—"}</code>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatSafeDate(f.created_at)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="icon" aria-label="Modifica cartella"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => openEditFolderDialog(f)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon" aria-label="Elimina cartella"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive"
+                            onClick={() => setFolderDeleteId(f.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Tab CAMPI ELIMINATI ── v8.6.45 — */}
+      {activeTab === "deleted" && (
+        <div className="space-y-3 pt-3">
+          {!softDeleteSupported && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Funzione in attivazione</AlertTitle>
+              <AlertDescription className="text-xs">
+                Il soft-delete dei campi personalizzati richiede una migration DB
+                non ancora applicata (<code className="text-[10px]">20270517130000</code>).
+                Contatta il super_admin per attivarla. Nel frattempo l'eliminazione
+                resta definitiva.
+              </AlertDescription>
+            </Alert>
+          )}
+          {deletedFields.length === 0 ? (
+            <div className="rounded-lg border-2 border-dashed p-10 text-center">
+              <Trash2 className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+              <p className="text-sm font-medium">Nessun campo eliminato</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                I campi che elimini finiscono qui. Puoi ripristinarli in qualsiasi momento o eliminarli definitivamente.
+              </p>
+            </div>
+          ) : (
+            <div className="border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Nome Del Campo</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Oggetto</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Tipo</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Eliminato Il</TableHead>
+                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold">Azioni</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(deletedFields as MarketingCustomFieldRow[]).map((f) => (
+                    <TableRow key={f.id} className="group">
+                      <TableCell className="font-medium text-sm">{f.name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {OBJECT_NAME_MAP[f.object_type] ?? f.object_type}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground capitalize">{f.field_type}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {(f as { deleted_at?: string }).deleted_at ? formatSafeDate((f as { deleted_at?: string }).deleted_at!) : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1.5"
+                            onClick={() => restoreMutation.mutate(f.id)}
+                            disabled={restoreMutation.isPending}
+                          >
+                            <Undo2 className="h-3 w-3" />
+                            Ripristina
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              if (window.confirm("Eliminazione DEFINITIVA: il campo e tutti i suoi metadati saranno rimossi. Operazione irreversibile. Procedere?")) {
+                                purgeMutation.mutate(f.id);
+                              }
+                            }}
+                            disabled={purgeMutation.isPending}
+                          >
+                            <ShieldAlert className="h-3 w-3" />
+                            Elimina definitivamente
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Dialog Cartelle */}
+      <Dialog open={folderDialogOpen} onOpenChange={setFolderDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{folderEditId ? "Modifica cartella" : "Nuova cartella"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="folder-name">Nome cartella *</Label>
+              <Input
+                id="folder-name"
+                value={folderName}
+                onChange={(e) => setFolderName(e.target.value)}
+                placeholder="es. Anagrafica fiscale"
+                maxLength={80}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="folder-object">Oggetto</Label>
+              <Select value={folderObjectType} onValueChange={setFolderObjectType}>
+                <SelectTrigger id="folder-object">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(OBJECT_NAME_MAP).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="folder-color">Colore</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="folder-color"
+                  type="color"
+                  value={folderColor}
+                  onChange={(e) => setFolderColor(e.target.value)}
+                  className="h-9 w-16 p-1"
+                />
+                <code className="text-xs text-muted-foreground font-mono">{folderColor}</code>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFolderDialogOpen(false)}>Annulla</Button>
+            <Button
+              onClick={submitFolder}
+              disabled={!folderName.trim() || createFolder.isPending || updateFolder.isPending}
+            >
+              {folderEditId ? "Salva" : "Crea"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AlertDialog Elimina Cartella */}
+      <AlertDialog open={!!folderDeleteId} onOpenChange={(o) => !o && setFolderDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina cartella</AlertDialogTitle>
+            <AlertDialogDescription>
+              I campi che appartenevano a questa cartella resteranno disponibili (senza cartella). Vuoi procedere?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (folderDeleteId) deleteFolder.mutate(folderDeleteId);
+                setFolderDeleteId(null);
+              }}
+              disabled={deleteFolder.isPending}
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -1422,7 +1851,7 @@ export function CustomFieldsConfig() {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+                if (deleteTarget) deleteMutation.mutate({ id: deleteTarget.id });
                 setDeleteTarget(null);
               }}
               disabled={deleteMutation.isPending}
