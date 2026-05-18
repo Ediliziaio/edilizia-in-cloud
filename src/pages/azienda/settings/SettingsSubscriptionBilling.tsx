@@ -30,7 +30,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Pencil } from "lucide-react";
-import { useBillingInfo, useInvoices, useOpenBillingPortal } from "@/hooks/useBilling";
+import { useBillingInfo, useInvoices, useOpenBillingPortal, useTopPlanPrice } from "@/hooks/useBilling";
 import { useBillingDetails } from "@/hooks/useBillingDetails";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
@@ -79,6 +79,7 @@ function companyStatusBadge(status: string) {
 function TabAbbonamenti() {
   const { data: billing, isLoading } = useBillingInfo();
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
+  const { data: topPlanPrice = 0 } = useTopPlanPrice();
   const navigate = useNavigate();
 
   if (isLoading) {
@@ -208,8 +209,9 @@ function TabAbbonamenti() {
         </CardContent>
       </Card>
 
-      {/* ── Cross-sell: confronta piani / upgrade ── */}
-      {billing.planPriceMonthly < 547 && (
+      {/* ── Cross-sell: mostrato se l'utente non è sul piano top.
+            topPlanPrice viene dalla tabella subscription_plans (no hardcoded). ── */}
+      {topPlanPrice > 0 && billing.planPriceMonthly < topPlanPrice && (
         <Card className="border-orange-200 bg-orange-50/40 dark:bg-orange-950/20">
           <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-3">
             <div>

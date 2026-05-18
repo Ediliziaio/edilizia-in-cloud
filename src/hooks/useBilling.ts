@@ -119,6 +119,30 @@ export function useBillingInfo() {
   });
 }
 
+// ─── HOOK: PREZZO MAX PIANO (per cross-sell dinamico) ─────────────────────────
+/**
+ * Restituisce il price_monthly massimo tra i piani published, così la card
+ * cross-sell "Vuoi più funzionalità?" si mostra dinamicamente sotto questa
+ * soglia senza hardcoded €547. Cache aggressiva (1h): cambia raramente.
+ */
+export function useTopPlanPrice() {
+  return useQuery({
+    queryKey: ["top-plan-price"],
+    queryFn: async (): Promise<number> => {
+      const { data, error } = await supabase
+        .from("subscription_plans")
+        .select("price_monthly")
+        .order("price_monthly", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return 0;
+      return (data?.price_monthly as number | undefined) ?? 0;
+    },
+    staleTime: 60 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+  });
+}
+
 // ─── HOOK: STORICO FATTURE ─────────────────────────────────────────────────────
 
 export function useInvoices() {
