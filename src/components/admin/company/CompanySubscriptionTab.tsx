@@ -396,6 +396,28 @@ export function CompanySubscriptionTab({
         checkoutUrl={checkoutUrl}
       />
 
+      {/* v8.6.55 — CTA pacchetto custom: setup rapido feature à la carte
+          con preset bundle riutilizzabili e calcolo totale mensile. */}
+      <div className="rounded-lg border border-orange-200 bg-gradient-to-r from-orange-50/60 to-amber-50/40 dark:from-orange-950/20 dark:to-amber-950/10 p-4 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="h-9 w-9 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v18M3 12h18"/></svg>
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm">Pacchetto custom à la carte</p>
+            <p className="text-xs text-muted-foreground">
+              Crea una configurazione su misura: scegli le feature da abilitare, preset rapidi e calcolo prezzo totale.
+            </p>
+          </div>
+        </div>
+        <a
+          href={`/admin/companies/${company.id}/pacchetto-custom`}
+          className="inline-flex items-center gap-1.5 rounded-md bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium px-3 py-2 shadow-sm transition-colors"
+        >
+          Apri configuratore →
+        </a>
+      </div>
+
       {/* Sezione dedicata Moduli Vendita Verticali (categoria modulo_vendita) */}
       <CompanyModuliVendutaSection
         companyId={company.id}

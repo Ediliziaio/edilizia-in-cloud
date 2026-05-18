@@ -37,6 +37,8 @@ const SubscriptionPlans = lazy(() => import("@/pages/admin/SubscriptionPlans"));
 const PlanDetail = lazy(() => import("@/pages/admin/PlanDetail"));
 const ReferralDashboard = lazy(() => import("@/pages/admin/ReferralDashboard"));
 const FeatureFlags = lazy(() => import("@/pages/admin/FeatureFlags"));
+const FeatureBundles = lazy(() => import("@/pages/admin/FeatureBundles"));
+const CompanyPacchettoCustom = lazy(() => import("@/pages/admin/CompanyPacchettoCustom"));
 const AdminFvModulo = lazy(() => import("@/pages/admin/AdminFvModulo"));
 const AdminSettingsSecurity = lazy(() => import("@/pages/admin/settings/AdminSettingsSecurity"));
 const SyncLogs = lazy(() => import("@/pages/admin/SyncLogs"));
@@ -231,6 +233,8 @@ export function adminRoutes() {
         <Route path="piani/:id" element={<RequireSuperAdmin><PlanDetail /></RequireSuperAdmin>} />
         <Route path="referral" element={<RequireSuperAdmin><ReferralDashboard /></RequireSuperAdmin>} />
         <Route path="feature-flags" element={<RequireSuperAdmin><FeatureFlags /></RequireSuperAdmin>} />
+        <Route path="feature-bundles" element={<RequireSuperAdmin><FeatureBundles /></RequireSuperAdmin>} />
+        <Route path="companies/:id/pacchetto-custom" element={<RequireSuperAdmin><CompanyPacchettoCustom /></RequireSuperAdmin>} />
         <Route path="implementazioni" element={<Navigate to="/admin/feature-flags" replace />} />
         <Route path="fv-modulo" element={<RequireSuperAdmin><AdminFvModulo /></RequireSuperAdmin>} />
         <Route path="sync-logs" element={<RequireAdminPermission permission="can_view_platform_stats"><SyncLogs /></RequireAdminPermission>} />
