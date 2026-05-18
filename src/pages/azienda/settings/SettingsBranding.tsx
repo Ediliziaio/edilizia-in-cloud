@@ -41,24 +41,63 @@ function FileUploadButton({ label, onUpload, isUploading, accept }: { label: str
   );
 }
 
+/** Regex hex color: # + 3/6/8 caratteri esadecimali (con alpha opzionale). */
+const HEX_REGEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+function isValidHex(v: string): boolean {
+  return HEX_REGEX.test(v);
+}
+
+/** RFC 1035: subdomain 3–63 chars, [a-z0-9-], no leading/trailing dash. */
+const SUBDOMAIN_REGEX = /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/;
+function isValidSubdomain(v: string): boolean {
+  if (!v) return false;
+  if (v.length < 3 || v.length > 63) return false;
+  return SUBDOMAIN_REGEX.test(v);
+}
+
 function HexColorInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  // Sync esterno → interno
+  useEffect(() => { setDraft(value); }, [value]);
+
+  const valid = isValidHex(draft);
+  // Normalizza: aggiunge # se manca
+  const handleBlur = () => {
+    let v = draft.trim();
+    if (v && !v.startsWith("#")) v = "#" + v;
+    if (isValidHex(v)) {
+      onChange(v.toUpperCase());
+      setDraft(v.toUpperCase());
+    } else {
+      // rollback al valore valido precedente
+      setDraft(value);
+    }
+  };
+
   return (
     <div className="space-y-1.5">
       <Label className="text-sm">{label}</Label>
       <div className="flex items-center gap-2">
         <input
           type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-9 w-9 rounded border cursor-pointer p-0.5"
+          value={valid ? draft : value}
+          onChange={(e) => { onChange(e.target.value.toUpperCase()); setDraft(e.target.value.toUpperCase()); }}
+          className="h-9 w-9 rounded border cursor-pointer p-0.5 shrink-0"
+          aria-label={`Selettore colore ${label}`}
         />
         <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={handleBlur}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
           placeholder="#1E40AF"
-          className="font-mono text-sm flex-1"
+          aria-invalid={!valid}
+          className={`font-mono text-sm flex-1 ${valid ? "" : "border-destructive focus-visible:ring-destructive"}`}
         />
       </div>
+      {!valid && (
+        <p className="text-[10px] text-destructive">Formato non valido (es. #1E40AF)</p>
+      )}
     </div>
   );
 }
@@ -96,50 +135,90 @@ export default function SettingsBranding() {
     brand_hide_powered_by: false,
   });
 
-  const [initialized, setInitialized] = useState(false);
+  // Form snapshot iniziale (riempito dal DB) — usato per dirty check + reset
+  const buildFormFromBrand = (b: typeof brand) => ({
+    brand_primary_color: b?.brand_primary_color || "#1E40AF",
+    brand_secondary_color: b?.brand_secondary_color || "#3B82F6",
+    brand_accent_color: b?.brand_accent_color || "#DBEAFE",
+    brand_text_on_primary: b?.brand_text_on_primary || "#FFFFFF",
+    brand_platform_name: b?.brand_platform_name || "",
+    brand_hide_powered_by: b?.brand_hide_powered_by || false,
+  });
 
+  // Inizializza il form alla prima volta che brand arriva dal DB.
   useEffect(() => {
-    if (!initialized && brand) {
-      setForm({
-        brand_primary_color: brand.brand_primary_color || "#1E40AF",
-        brand_secondary_color: brand.brand_secondary_color || "#3B82F6",
-        brand_accent_color: brand.brand_accent_color || "#DBEAFE",
-        brand_text_on_primary: brand.brand_text_on_primary || "#FFFFFF",
-        brand_platform_name: brand.brand_platform_name || "",
-        brand_hide_powered_by: brand.brand_hide_powered_by || false,
-      });
-      setInitialized(true);
+    if (brand) {
+      setForm(buildFormFromBrand(brand));
     }
-  }, [brand, initialized]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brand]);
+
+  // Dirty state derivato (non serve useState): confronta JSON serializzato.
+  const initialFormSnapshot = JSON.stringify(buildFormFromBrand(brand));
+  const isDirty = JSON.stringify(form) !== initialFormSnapshot;
+
+  const resetForm = () => {
+    if (brand) setForm(buildFormFromBrand(brand));
+  };
 
   const handleSave = async () => {
+    // Pre-validazione: tutti gli hex devono essere validi prima di salvare.
+    const hexFields: Array<keyof typeof form> = [
+      "brand_primary_color",
+      "brand_secondary_color",
+      "brand_accent_color",
+      "brand_text_on_primary",
+    ];
+    for (const k of hexFields) {
+      const v = form[k];
+      if (typeof v === "string" && !isValidHex(v)) {
+        toast.error(`Colore non valido in "${k.replace("brand_", "").replace(/_/g, " ")}"`);
+        return;
+      }
+    }
+
     setSaving(true);
     try {
-      await saveBrand.mutateAsync(form as any);
-      // Log branding update
+      await saveBrand.mutateAsync(form as Partial<typeof brand>);
+      // Audit log best-effort (no throw se la tabella manca)
       if (user && effectiveCompany) {
-        await supabase.from("company_addons_log" as never).insert({
-          company_id: effectiveCompany.id,
-          addon_key: "white_label",
-          action: "branding_updated",
-          performed_by: user.id,
-          performed_by_email: user.email,
-          new_value: form,
-        } as never);
+        await supabase
+          .from("company_addons_log" as never)
+          .insert({
+            company_id: effectiveCompany.id,
+            addon_key: "white_label",
+            action: "branding_updated",
+            performed_by: user.id,
+            performed_by_email: user.email,
+            new_value: form,
+          } as never)
+          .then((r) => {
+            if (r.error) console.warn("Audit log skipped:", r.error.message);
+          });
       }
       toast.success("Brand aggiornato con successo");
-    } catch (err: any) {
-      toast.error(err.message || "Errore nel salvataggio");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
   };
 
   const handleFileUpload = async (file: File, field: string, path: string) => {
+    // Validazione client-side dimensione (max 2MB)
+    const MAX_BYTES = 2 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      toast.error("File troppo grande (max 2 MB)");
+      return;
+    }
     setUploading(field);
     try {
       const url = await uploadBrandFile(file, path);
       await saveBrand.mutateAsync({ [field]: url } as any);
+      // Invalida anche le query che leggono effectiveCompany (AuthContext logo)
+      queryClient.invalidateQueries({ queryKey: ["effective-company"] });
+      queryClient.invalidateQueries({ queryKey: ["company-branding"] });
       toast.success("File caricato con successo");
     } catch (err: any) {
       toast.error(err.message || "Errore nel caricamento");
@@ -170,10 +249,11 @@ export default function SettingsBranding() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">White-Label & Branding</h1>
-        <p className="text-muted-foreground">Personalizza l'aspetto della piattaforma per la tua azienda</p>
-      </div>
+      {/* Niente h1 qui: SettingsLayout monta già un h1/breadcrumb "White-Label"
+          nell'header. Usiamo solo descrizione contestuale. */}
+      <p className="text-muted-foreground">
+        Personalizza colori, logo, dominio e l'aspetto della piattaforma per la tua azienda.
+      </p>
 
       {/* Logo — always available */}
       <Card>
@@ -251,8 +331,8 @@ export default function SettingsBranding() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <HexColorInput label="Colore primario" value={form.brand_primary_color} onChange={(v) => setForm((f) => ({ ...f, brand_primary_color: v }))} />
                 <HexColorInput label="Colore secondario" value={form.brand_secondary_color} onChange={(v) => setForm((f) => ({ ...f, brand_secondary_color: v }))} />
-                <HexColorInput label="Sfondo leggero" value={form.brand_accent_color} onChange={(v) => setForm((f) => ({ ...f, brand_accent_color: v }))} />
-                <HexColorInput label="Testo su colore scuro" value={form.brand_text_on_primary} onChange={(v) => setForm((f) => ({ ...f, brand_text_on_primary: v }))} />
+                <HexColorInput label="Colore accento (sfondi chiari)" value={form.brand_accent_color} onChange={(v) => setForm((f) => ({ ...f, brand_accent_color: v }))} />
+                <HexColorInput label="Testo su colore primario" value={form.brand_text_on_primary} onChange={(v) => setForm((f) => ({ ...f, brand_text_on_primary: v }))} />
               </div>
 
               {/* Presets */}
@@ -360,21 +440,29 @@ export default function SettingsBranding() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Il tuo subdomain</Label>
+                <Label htmlFor="bnd-subdomain">Il tuo subdomain</Label>
                 <div className="flex items-center gap-2">
                   <Input
+                    id="bnd-subdomain"
                     value={subdomain}
                     onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
                     placeholder="la-mia-azienda"
-                    className="max-w-48"
+                    maxLength={63}
+                    aria-invalid={subdomain.length > 0 && !isValidSubdomain(subdomain)}
+                    className={`max-w-48 ${subdomain.length > 0 && !isValidSubdomain(subdomain) ? "border-destructive" : ""}`}
                   />
                   <span className="text-sm text-muted-foreground">.ediliziaincloud.com</span>
                 </div>
-                <p className="text-xs text-muted-foreground">Solo lettere minuscole, numeri e trattini</p>
+                <p className="text-xs text-muted-foreground">
+                  3–63 caratteri, lettere minuscole/numeri/trattini, non può iniziare o finire con un trattino.
+                </p>
+                {subdomain.length > 0 && !isValidSubdomain(subdomain) && (
+                  <p className="text-xs text-destructive">Formato subdomain non valido</p>
+                )}
               </div>
               <Button
                 size="sm"
-                disabled={saveSubdomainMut.isPending || !subdomain}
+                disabled={saveSubdomainMut.isPending || !isValidSubdomain(subdomain)}
                 onClick={async () => {
                   try {
                     await saveSubdomainMut.mutateAsync(subdomain);
@@ -488,14 +576,17 @@ export default function SettingsBranding() {
             </CardContent>
           </Card>
 
-          {/* Save */}
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setInitialized(false)}>
+          {/* Save bar — sticky in basso, attiva solo se ci sono modifiche */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t sticky bottom-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 -mx-4 px-4 py-3 z-10">
+            {isDirty && (
+              <span className="text-xs text-amber-600 mr-auto">• Modifiche non salvate</span>
+            )}
+            <Button variant="outline" onClick={resetForm} disabled={!isDirty || saving}>
               Annulla modifiche
             </Button>
-            <Button onClick={handleSave} disabled={saving} size="lg">
-              {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              💾 Salva Brand
+            <Button onClick={handleSave} disabled={!isDirty || saving} size="lg">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Palette className="h-4 w-4 mr-2" />}
+              Salva brand
             </Button>
           </div>
         </>
