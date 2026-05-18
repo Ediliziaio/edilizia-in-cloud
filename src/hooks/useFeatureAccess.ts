@@ -22,8 +22,23 @@ const FEATURE_ACCESS_TIMEOUT_MS = 10_000;
  *   if (isLoading) return <Spinner />;
  *   if (!isEnabled) return <UpgradePrompt />;
  */
+/**
+ * v8.6.62 — Tri-state feature access:
+ *   - enabled:  uso pieno (default per super_admin / azienda con piano)
+ *   - preview:  UI visibile in modalità demo, ogni azione bloccata da popup
+ *               "Sblocca contattando il consulente"
+ *   - disabled: feature nascosta (rotte protette redirigono /azienda/upgrade)
+ */
+export type FeatureAccessLevel = "disabled" | "preview" | "enabled";
+
 export interface FeatureAccess {
   isEnabled: boolean;
+  /** Tri-state esplicito — preferisci questo a isEnabled per le nuove implementazioni. */
+  accessLevel: FeatureAccessLevel;
+  /** True se la feature è in modalità preview (vede UI, click bloccati). */
+  isPreview: boolean;
+  /** True se la feature supporta preview mode (alcune feature a consumo non lo supportano). */
+  supportsPreview: boolean;
   /**
    * Origine della decisione di gating:
    *   - override:     company_feature_overrides attivo
@@ -44,14 +59,15 @@ export interface FeatureAccess {
 }
 
 // Shape della riga ritornata da RPC `resolve_company_feature` lato DB.
-// Se la feature è sconosciuta la RPC ritorna comunque una riga con
-// `is_enabled=false, source='default'` → fail-closed.
+// v8.6.62 — esteso con access_level + supports_preview.
 interface ResolveRow {
   is_enabled: boolean;
+  access_level: FeatureAccessLevel;
   source: "override" | "plan_default" | "plan" | "default";
   limit_value: number | null;
   price_override: number | null;
   expires_at: string | null;
+  supports_preview: boolean;
 }
 
 interface ResolvedFeatureRow extends ResolveRow {
@@ -65,14 +81,23 @@ const normalizeSource = (source: string | null | undefined): ResolveRow["source"
   return "default";
 };
 
+const normalizeAccessLevel = (level: string | null | undefined, isEnabled: boolean): FeatureAccessLevel => {
+  if (level === "enabled" || level === "preview" || level === "disabled") return level;
+  // Fallback se RPC non ritorna access_level (pre-migration): derivo da is_enabled
+  return isEnabled ? "enabled" : "disabled";
+};
+
 const normalizeResolvedFeatureRow = (row: ResolvedFeatureRow | undefined): ResolveRow | null => {
   if (!row) return null;
+  const isEnabled = Boolean(row.is_enabled);
   return {
-    is_enabled: Boolean(row.is_enabled),
+    is_enabled: isEnabled,
+    access_level: normalizeAccessLevel(row.access_level, isEnabled),
     source: normalizeSource(row.source),
     limit_value: row.limit_value ?? null,
     price_override: row.price_override ?? null,
     expires_at: row.expires_at ?? null,
+    supports_preview: row.supports_preview ?? true,
   };
 };
 
@@ -193,6 +218,9 @@ export function useFeatureAccess(
   if (bypass) {
     return {
       isEnabled: true,
+      accessLevel: "enabled",
+      isPreview: false,
+      supportsPreview: true,
       source: "bypass",
       limit: null,
       priceOverride: null,
@@ -210,8 +238,15 @@ export function useFeatureAccess(
   const effectiveIsError = !effectiveData && (isError || resolvedFeaturesError);
   const shouldWaitForAuth = authLoading && !companyId;
 
+  const accessLevel: FeatureAccessLevel =
+    effectiveData?.access_level ??
+    (effectiveData?.is_enabled ? "enabled" : "disabled");
+
   return {
-    isEnabled: Boolean(effectiveData?.is_enabled),
+    isEnabled: Boolean(effectiveData?.is_enabled) || accessLevel === "enabled",
+    accessLevel,
+    isPreview: accessLevel === "preview",
+    supportsPreview: effectiveData?.supports_preview ?? true,
     source: (effectiveData?.source as FeatureAccess["source"]) ?? "default",
     limit: effectiveData?.limit_value ?? null,
     priceOverride: effectiveData?.price_override ?? null,

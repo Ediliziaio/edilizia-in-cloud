@@ -29,7 +29,9 @@ export function FeatureRoute({
   fallbackPath = "/azienda/upgrade",
 }: FeatureRouteProps) {
   const location = useLocation();
-  const { isEnabled, isLoading, isError, errorMessage, refetch, isFetching } = useFeatureAccess(featureKey);
+  // v8.6.62 — Tri-state: enabled = passa, preview = lascia passare (UI demo
+  // + guard sulle azioni), disabled = redirect a fallback.
+  const { isEnabled, isPreview, isLoading, isError, errorMessage, refetch, isFetching } = useFeatureAccess(featureKey);
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const shouldSoftOpenWhileResolving = featureKey === "render_ai" && isLoading;
 
@@ -94,6 +96,13 @@ export function FeatureRoute({
         </div>
       </div>
     );
+  }
+
+  // v8.6.62 — preview = lascia accedere alla pagina (UI demo). Il banner
+  // <FeaturePreviewBanner> dentro la pagina avvisa l'utente, e ogni
+  // <FeatureActionGuard> blocca le azioni di scrittura.
+  if (isPreview) {
+    return <>{children}</>;
   }
 
   if (!isEnabled) {

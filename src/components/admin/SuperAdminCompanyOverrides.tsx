@@ -53,11 +53,12 @@ export function SuperAdminCompanyOverrides({
   const [trialReason, setTrialReason] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Local state for override edits
+  // v8.6.62 — local state ora supporta access_level tri-state
+  type AccessLevel = "disabled" | "preview" | "enabled";
   const [localOverrides, setLocalOverrides] = useState<
     Record<
       string,
-      { is_enabled: boolean; expires_at: string; override_reason: string }
+      { access_level: AccessLevel; is_enabled: boolean; expires_at: string; override_reason: string }
     >
   >({});
 
@@ -161,15 +162,16 @@ export function SuperAdminCompanyOverrides({
     if (localOverrides[flagKey]) return localOverrides[flagKey];
     const existing = existingOverrides.find(
       (o: { feature_key: string }) => o.feature_key === flagKey
-    );
+    ) as { is_enabled: boolean; access_level?: AccessLevel; expires_at: string | null; override_reason: string | null } | undefined;
     if (existing) {
       return {
+        access_level: existing.access_level ?? (existing.is_enabled ? "enabled" : "disabled") as AccessLevel,
         is_enabled: existing.is_enabled,
         expires_at: existing.expires_at ?? "",
         override_reason: existing.override_reason ?? "",
       };
     }
-    return { is_enabled: false, expires_at: "", override_reason: "" };
+    return { access_level: "disabled" as AccessLevel, is_enabled: false, expires_at: "", override_reason: "" };
   };
 
   const updateLocalOverride = (
@@ -177,13 +179,17 @@ export function SuperAdminCompanyOverrides({
     field: string,
     value: string | boolean
   ) => {
-    setLocalOverrides((prev) => ({
-      ...prev,
-      [flagKey]: {
-        ...getOverrideState(flagKey),
-        [field]: value,
-      },
-    }));
+    setLocalOverrides((prev) => {
+      const current = getOverrideState(flagKey);
+      const next = { ...current, [field]: value };
+      // Sync is_enabled <-> access_level
+      if (field === "access_level") {
+        next.is_enabled = value === "enabled";
+      } else if (field === "is_enabled") {
+        next.access_level = value ? "enabled" : "disabled";
+      }
+      return { ...prev, [flagKey]: next };
+    });
   };
 
   // ── Save all overrides ──
@@ -203,7 +209,8 @@ export function SuperAdminCompanyOverrides({
               {
                 company_id: company.id,
                 feature_key: key,
-                is_enabled: state.is_enabled,
+                access_level: state.access_level,
+                is_enabled: state.access_level === "enabled",
                 expires_at: state.expires_at || null,
                 override_by: user.id,
                 override_reason: state.override_reason || reason || null,
@@ -396,19 +403,21 @@ export function SuperAdminCompanyOverrides({
                     description: string | null;
                     is_beta: boolean | null;
                     price_per_month: number | null;
+                    supports_preview?: boolean;
                   }) => {
                     const state = getOverrideState(flag.key);
+                    const isPreview = state.access_level === "preview";
+                    const isEnabled = state.access_level === "enabled";
                     return (
                       <div
                         key={flag.id}
                         className={`rounded-lg border p-3 space-y-2 transition-colors ${
-                          state.is_enabled
-                            ? "border-primary/20 bg-primary/5"
-                            : ""
+                          isEnabled ? "border-emerald-300/40 bg-emerald-50/40" :
+                          isPreview ? "border-amber-300/40 bg-amber-50/40" : ""
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-medium">
                               {flag.name}
                             </span>
@@ -430,23 +439,60 @@ export function SuperAdminCompanyOverrides({
                                 </Badge>
                               )}
                           </div>
-                          <Switch
-                            checked={state.is_enabled}
-                            onCheckedChange={(checked) =>
-                              updateLocalOverride(
-                                flag.key,
-                                "is_enabled",
-                                checked
-                              )
-                            }
-                          />
+                          {/* Tri-state selector */}
+                          <div className="inline-flex rounded-md border bg-background p-0.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => updateLocalOverride(flag.key, "access_level", "disabled")}
+                              className={`px-2.5 py-1 text-xs rounded-sm transition-colors ${
+                                state.access_level === "disabled"
+                                  ? "bg-slate-200 text-slate-900 font-medium"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              aria-pressed={state.access_level === "disabled"}
+                            >
+                              Off
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateLocalOverride(flag.key, "access_level", "preview")}
+                              disabled={flag.supports_preview === false}
+                              title={flag.supports_preview === false ? "Questa funzione non supporta la modalità demo (consumi API a pagamento)" : "Modalità demo: vede UI ma azioni bloccate da popup"}
+                              className={`px-2.5 py-1 text-xs rounded-sm transition-colors ${
+                                state.access_level === "preview"
+                                  ? "bg-amber-200 text-amber-900 font-medium"
+                                  : "text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                              }`}
+                              aria-pressed={state.access_level === "preview"}
+                            >
+                              Demo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateLocalOverride(flag.key, "access_level", "enabled")}
+                              className={`px-2.5 py-1 text-xs rounded-sm transition-colors ${
+                                state.access_level === "enabled"
+                                  ? "bg-emerald-200 text-emerald-900 font-medium"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              aria-pressed={state.access_level === "enabled"}
+                            >
+                              On
+                            </button>
+                          </div>
                         </div>
                         {flag.description && (
                           <p className="text-xs text-muted-foreground">
                             {flag.description}
                           </p>
                         )}
-                        {state.is_enabled && (
+                        {isPreview && (
+                          <p className="text-xs text-amber-700 bg-amber-100/50 rounded px-2 py-1.5">
+                            💡 L'azienda vede l'interfaccia ma ogni azione apre il popup
+                            "Sblocca contattando il consulente" → ticket assegnato a te.
+                          </p>
+                        )}
+                        {(isEnabled || isPreview) && (
                           <div className="grid grid-cols-2 gap-2 pt-1">
                             <div className="space-y-1">
                               <Label className="text-xs text-muted-foreground">
