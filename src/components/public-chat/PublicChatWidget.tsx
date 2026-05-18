@@ -134,7 +134,19 @@ export function PublicChatWidget({
       });
       const data = (await res.json()) as InitResponse;
       if (!data.ok || !data.session_id) {
-        setError(data.error ?? "Impossibile avviare la chat");
+        // v8.6.52 — Messaggi error user-friendly per i casi noti dell'edge
+        // function (widget_not_found, invalid_token, ecc).
+        const code = data.error ?? "init_failed";
+        const friendly =
+          code === "widget_not_found"
+            ? "La chat di assistenza non è ancora configurata. Scrivici via email: info@ediliziaincloud.com"
+            : code === "invalid_token"
+              ? "La chat di assistenza non è disponibile al momento. Riprova tra qualche minuto."
+              : code === "rate_limited"
+                ? "Troppe richieste. Riprova tra qualche secondo."
+                : "Impossibile avviare la chat. Riprova più tardi o scrivici a info@ediliziaincloud.com";
+        setError(friendly);
+        console.warn("[PublicChatWidget] init failed:", code);
         return;
       }
       setSessionId(data.session_id);
