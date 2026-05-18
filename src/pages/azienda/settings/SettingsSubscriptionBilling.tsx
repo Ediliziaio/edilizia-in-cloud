@@ -386,47 +386,48 @@ function TabPagamenti() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Descrizione</TableHead>
-                    <TableHead className="text-right">Importo</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invoices.map((inv) => (
-                    <TableRow key={inv.id}>
-                      <TableCell>
-                        <code className="text-[10px] bg-muted px-1 py-0.5 rounded">{inv.id.slice(0, 10)}…</code>
-                      </TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">
-                        {inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: it }) : "—"}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatPeriod(inv.periodStart, inv.periodEnd)}
-                      </TableCell>
-                      <TableCell className="font-semibold text-right tabular-nums">
-                        {inv.status === "paid"
-                          ? formatEurCents(inv.amountPaid, inv.currency)
-                          : formatEurCents(inv.amountDue, inv.currency)}
-                      </TableCell>
-                      <TableCell>
-                        {inv.status === "paid" ? (
-                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px]">Pagata</Badge>
-                        ) : inv.status === "open" ? (
-                          <Badge variant="secondary" className="text-[10px]">In scadenza</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px]">{inv.status}</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {inv.invoicePdf && (
-                            <TooltipProvider>
+              {/* Un solo TooltipProvider per tutta la tabella, no N provider per riga. */}
+              <TooltipProvider delayDuration={200}>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Descrizione</TableHead>
+                      <TableHead className="text-right">Importo</TableHead>
+                      <TableHead>Stato</TableHead>
+                      <TableHead className="text-right">Azioni</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {invoices.map((inv) => (
+                      <TableRow key={inv.id}>
+                        <TableCell>
+                          <code className="text-[10px] bg-muted px-1 py-0.5 rounded">{inv.id.slice(0, 10)}…</code>
+                        </TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">
+                          {inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: it }) : "—"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {formatPeriod(inv.periodStart, inv.periodEnd)}
+                        </TableCell>
+                        <TableCell className="font-semibold text-right tabular-nums">
+                          {inv.status === "paid"
+                            ? formatEurCents(inv.amountPaid, inv.currency)
+                            : formatEurCents(inv.amountDue, inv.currency)}
+                        </TableCell>
+                        <TableCell>
+                          {inv.status === "paid" ? (
+                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px]">Pagata</Badge>
+                          ) : inv.status === "open" ? (
+                            <Badge variant="secondary" className="text-[10px]">In scadenza</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px]">{inv.status}</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {inv.invoicePdf && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
@@ -439,10 +440,8 @@ function TabPagamenti() {
                                 </TooltipTrigger>
                                 <TooltipContent>Scarica PDF</TooltipContent>
                               </Tooltip>
-                            </TooltipProvider>
-                          )}
-                          {inv.invoiceUrl && (
-                            <TooltipProvider>
+                            )}
+                            {inv.invoiceUrl && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
@@ -455,14 +454,14 @@ function TabPagamenti() {
                                 </TooltipTrigger>
                                 <TooltipContent>Apri online</TooltipContent>
                               </Tooltip>
-                            </TooltipProvider>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TooltipProvider>
             </div>
           )}
         </CardContent>
