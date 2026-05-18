@@ -10,7 +10,7 @@
  * Sorgente di verità unica: companies.brand_* + companies.logo_url.
  * Sincronizzazione automatica con company_branding.* per il login page.
  */
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { useBranding } from "@/hooks/useBranding";
 import { useWhitelabelGate } from "@/hooks/useWhitelabelGate";
@@ -32,29 +32,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Loader2, Upload, Palette, Lock, HeadphonesIcon, Eye, Globe, Copy,
-  CheckCircle2, RefreshCw, AlertTriangle, Image as ImageIcon,
+  Loader2, Upload, Palette, Lock, HeadphonesIcon, Globe, Copy,
+  CheckCircle2, RefreshCw, Image as ImageIcon,
 } from "lucide-react";
 import { LogoUploader } from "@/components/settings/LogoUploader";
 
-const COLOR_PRESETS = [
-  { name: "Blu Professionale", primary: "#1E40AF", secondary: "#3B82F6", accent: "#DBEAFE", text: "#FFFFFF" },
-  { name: "Verde Fiducia", primary: "#166534", secondary: "#22C55E", accent: "#DCFCE7", text: "#FFFFFF" },
-  { name: "Rosso Energia", primary: "#991B1B", secondary: "#EF4444", accent: "#FEE2E2", text: "#FFFFFF" },
-  { name: "Grigio Elegante", primary: "#374151", secondary: "#6B7280", accent: "#F3F4F6", text: "#FFFFFF" },
-  { name: "Viola Premium", primary: "#5B21B6", secondary: "#8B5CF6", accent: "#EDE9FE", text: "#FFFFFF" },
-  { name: "Arancio", primary: "#C2410C", secondary: "#F97316", accent: "#FFF7ED", text: "#FFFFFF" },
-  { name: "Teal Moderno", primary: "#115E59", secondary: "#14B8A6", accent: "#CCFBF1", text: "#FFFFFF" },
-  { name: "Nero Lusso", primary: "#18181B", secondary: "#3F3F46", accent: "#F4F4F5", text: "#FFFFFF" },
-];
-
 /* ═══════════════════════════════════════════════════════════════════════════
-   UTILITY validazione + contrasto
+   UTILITY validazione
 ═══════════════════════════════════════════════════════════════════════════ */
-const HEX_REGEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
-function isValidHex(v: string): boolean {
-  return HEX_REGEX.test(v);
-}
 
 /** RFC 1035: subdomain 3–63 chars, [a-z0-9-], no leading/trailing dash. */
 const SUBDOMAIN_REGEX = /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/;
@@ -63,26 +48,6 @@ const isValidSubdomain = (v: string): boolean => {
   if (v.length < 3 || v.length > 63) return false;
   return SUBDOMAIN_REGEX.test(v);
 };
-
-/** Calcolo luminanza relativa (WCAG 2.x). */
-function relativeLuminance(hex: string): number {
-  const m = hex.match(/^#([0-9a-f]{6})$/i);
-  if (!m) return 0;
-  const n = parseInt(m[1], 16);
-  const r = ((n >> 16) & 0xff) / 255;
-  const g = ((n >> 8) & 0xff) / 255;
-  const b = (n & 0xff) / 255;
-  const f = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
-  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-}
-
-/** Contrast ratio WCAG (max 21:1). */
-function contrastRatio(a: string, b: string): number {
-  const la = relativeLuminance(a);
-  const lb = relativeLuminance(b);
-  const [hi, lo] = la > lb ? [la, lb] : [lb, la];
-  return (hi + 0.05) / (lo + 0.05);
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    COMPONENTS
@@ -114,108 +79,9 @@ function FileUploadButton({
   );
 }
 
-function HexColorInput({
-  label, value, onChange, disabled,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => { setDraft(value); }, [value]);
-
-  const valid = isValidHex(draft);
-  const handleBlur = () => {
-    let v = draft.trim();
-    if (v && !v.startsWith("#")) v = "#" + v;
-    if (isValidHex(v)) {
-      onChange(v.toUpperCase());
-      setDraft(v.toUpperCase());
-    } else {
-      setDraft(value);
-    }
-  };
-
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-sm">{label}</Label>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={valid ? draft : value}
-          onChange={(e) => { onChange(e.target.value.toUpperCase()); setDraft(e.target.value.toUpperCase()); }}
-          className="h-9 w-9 rounded border cursor-pointer p-0.5 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label={`Selettore colore ${label}`}
-          disabled={disabled}
-        />
-        <Input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-          placeholder="#1E40AF"
-          aria-invalid={!valid}
-          disabled={disabled}
-          className={`font-mono text-sm flex-1 ${valid ? "" : "border-destructive focus-visible:ring-destructive"}`}
-        />
-      </div>
-      {!valid && (
-        <p className="text-[10px] text-destructive">Formato non valido (es. #1E40AF)</p>
-      )}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   PREVIEW LIVE (sticky pannello destra)
-═══════════════════════════════════════════════════════════════════════════ */
-function LivePreview({
-  primary, secondary, accent, textOnPrimary, platformName, logoUrl,
-}: {
-  primary: string; secondary: string; accent: string; textOnPrimary: string;
-  platformName: string; logoUrl: string | null | undefined;
-}) {
-  return (
-    <div className="rounded-xl border overflow-hidden shadow-sm bg-background">
-      {/* Header navbar mock */}
-      <div className="px-4 py-3 flex items-center gap-2" style={{ backgroundColor: primary, color: textOnPrimary }}>
-        {logoUrl ? (
-          <img src={logoUrl} alt="" className="h-6 w-auto object-contain rounded bg-white/10 p-0.5" />
-        ) : (
-          <div className="h-6 w-6 rounded bg-white/20" />
-        )}
-        <span className="text-sm font-semibold truncate flex-1">{platformName || "EdiliziaInCloud"}</span>
-        <span className="text-[10px] opacity-75 shrink-0">Utente ▼</span>
-      </div>
-
-      {/* Body */}
-      <div className="p-4 space-y-3" style={{ backgroundColor: accent }}>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            className="px-3 py-1.5 rounded text-xs font-medium shadow-sm"
-            style={{ backgroundColor: primary, color: textOnPrimary }}
-          >
-            Azione primaria
-          </button>
-          <span
-            className="px-2 py-1 rounded text-xs font-medium"
-            style={{ backgroundColor: secondary, color: textOnPrimary }}
-          >
-            Badge
-          </span>
-        </div>
-        <p className="text-xs" style={{ color: primary }}>
-          Esempio di testo con il colore primario.
-        </p>
-        <div className="rounded border bg-white p-2 text-[10px] text-muted-foreground">
-          Card sfondo bianco (contenuto)
-        </div>
-      </div>
-    </div>
-  );
-}
+/* Note: HexColorInput e LivePreview rimossi insieme alla palette colori.
+   Quando il binding HEX→HSL al design system sarà pronto, ripristinare dalla
+   storia git (commit d09fe07e) e abilitare la sezione colori. */
 
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN
@@ -275,25 +141,9 @@ export default function SettingsBranding() {
     if (brand) setForm(buildFormFromBrand(brand));
   };
 
-  // Contrast check: warning se primary vs text-on-primary < 4.5 (WCAG AA)
-  const primaryContrast = useMemo(
-    () => contrastRatio(form.brand_primary_color, form.brand_text_on_primary),
-    [form.brand_primary_color, form.brand_text_on_primary],
-  );
-  const contrastWarning = primaryContrast < 4.5;
-
   const handleSave = async () => {
-    const hexFields: Array<keyof typeof form> = [
-      "brand_primary_color", "brand_secondary_color", "brand_accent_color", "brand_text_on_primary",
-    ];
-    for (const k of hexFields) {
-      const v = form[k];
-      if (typeof v === "string" && !isValidHex(v)) {
-        toast.error(`Colore non valido in "${k.replace("brand_", "").replace(/_/g, " ")}"`);
-        return;
-      }
-    }
-
+    // Validazione hex non più necessaria: la palette colori è disabilitata
+    // (i campi brand_*_color sono salvati ma non editabili dalla UI).
     setSaving(true);
     try {
       await saveBrand.mutateAsync(form as Partial<typeof brand>);
@@ -365,16 +215,6 @@ export default function SettingsBranding() {
     }
   };
 
-  const applyPreset = (preset: typeof COLOR_PRESETS[0]) => {
-    setForm((f) => ({
-      ...f,
-      brand_primary_color: preset.primary,
-      brand_secondary_color: preset.secondary,
-      brand_accent_color: preset.accent,
-      brand_text_on_primary: preset.text,
-    }));
-  };
-
   const handleSaveSubdomain = async () => {
     // Se l'utente sta SVUOTANDO un subdomain esistente → chiede conferma
     if (!subdomain && companyBranding?.subdomain) {
@@ -411,7 +251,8 @@ export default function SettingsBranding() {
 
   const isWhiteLabel = wlGate.isWhiteLabel || (brand?.white_label_enabled ?? false);
   // Gating capabilities dal tier: se tier presente, applica i flag
-  const canColors = !wlGate.isWhiteLabel || wlGate.canChangeColors !== false;
+  // Capabilities tier (la palette colori è temporaneamente disabilitata sul
+  // frontend a prescindere dal tier).
   const canLoginPage = !wlGate.isWhiteLabel || wlGate.canChangeLoginPage !== false;
   const canCustomDomain = !wlGate.isWhiteLabel || wlGate.canCustomDomain !== false;
   const canHidePoweredBy = !wlGate.isWhiteLabel || wlGate.canHidePoweredBy !== false;
@@ -485,10 +326,8 @@ export default function SettingsBranding() {
             )}
           </div>
 
-          {/* ═════ LAYOUT 2-COL: editor (8) + preview live (4) ══════════════════════ */}
-          <div className="grid gap-6 lg:grid-cols-12">
-            {/* COL SX — Editor */}
-            <div className="lg:col-span-8 space-y-6">
+          {/* ═════ LAYOUT FULL-WIDTH (preview colori rimossa: la palette è in arrivo) ═ */}
+          <div className="space-y-6">
               {/* Nome piattaforma */}
               <Card>
                 <CardHeader>
@@ -507,75 +346,34 @@ export default function SettingsBranding() {
                 </CardContent>
               </Card>
 
-              {/* Palette colori */}
-              <Card>
+              {/* Palette colori — disabilitata: i colori vengono salvati nel DB
+                  ma il design system dell'app usa --primary (HSL) non
+                  --brand-primary (HEX). Non applichiamo finché non c'è il
+                  binding completo HEX→HSL per evitare di rompere il look. */}
+              <Card className="border-dashed">
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Palette className="h-4 w-4 text-muted-foreground" /> Palette colori
+                    <Badge variant="secondary" className="text-[10px]">In arrivo</Badge>
                   </CardTitle>
-                  {!canColors && (
-                    <CardDescription className="text-amber-600">
-                      Il tuo tier ({wlGate.name}) non include la personalizzazione colori.
-                    </CardDescription>
-                  )}
+                  <CardDescription>
+                    La personalizzazione dei colori della piattaforma è in fase di rilascio.
+                    Stiamo lavorando al binding completo con il design system per garantire
+                    un'esperienza visiva coerente. Per ora restano disponibili logo, favicon,
+                    nome piattaforma, sfondo login e dominio personalizzato.
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <HexColorInput
-                      label="Colore primario" disabled={!canColors}
-                      value={form.brand_primary_color}
-                      onChange={(v) => setForm((f) => ({ ...f, brand_primary_color: v }))}
-                    />
-                    <HexColorInput
-                      label="Colore secondario" disabled={!canColors}
-                      value={form.brand_secondary_color}
-                      onChange={(v) => setForm((f) => ({ ...f, brand_secondary_color: v }))}
-                    />
-                    <HexColorInput
-                      label="Colore accento (sfondi chiari)" disabled={!canColors}
-                      value={form.brand_accent_color}
-                      onChange={(v) => setForm((f) => ({ ...f, brand_accent_color: v }))}
-                    />
-                    <HexColorInput
-                      label="Testo su colore primario" disabled={!canColors}
-                      value={form.brand_text_on_primary}
-                      onChange={(v) => setForm((f) => ({ ...f, brand_text_on_primary: v }))}
-                    />
-                  </div>
-
-                  {/* Contrast warning WCAG AA */}
-                  {contrastWarning && (
-                    <Alert variant="destructive" className="border-amber-500 bg-amber-50 text-amber-900">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertDescription className="text-xs">
-                        Contrasto basso ({primaryContrast.toFixed(1)}:1). WCAG AA richiede &ge; 4.5:1 per testo
-                        su sfondi. Il testo bianco potrebbe risultare illeggibile.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {/* Presets */}
-                  <div>
-                    <Label className="text-sm text-muted-foreground mb-2 block">Palette predefinite</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {COLOR_PRESETS.map((preset) => (
-                        <Button
-                          key={preset.name}
-                          variant="outline"
-                          size="sm"
-                          className="gap-2 text-xs"
-                          onClick={() => applyPreset(preset)}
-                          disabled={!canColors}
-                        >
-                          <div className="flex gap-0.5">
-                            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: preset.primary }} />
-                            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: preset.secondary }} />
-                          </div>
-                          {preset.name}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
+                <CardContent>
+                  <Alert>
+                    <Palette className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      Vuoi i colori del tuo brand sulla piattaforma?{" "}
+                      <a href="/cliente/assistenza" className="text-primary underline">
+                        Contatta l'assistenza
+                      </a>{" "}
+                      — possiamo applicarli manualmente al tuo account.
+                    </AlertDescription>
+                  </Alert>
                 </CardContent>
               </Card>
 
@@ -827,44 +625,6 @@ export default function SettingsBranding() {
                   )}
                 </CardContent>
               </Card>
-            </div>
-
-            {/* COL DX — Preview live sticky */}
-            <aside className="lg:col-span-4">
-              <div className="lg:sticky lg:top-4 space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                    Anteprima live
-                  </h3>
-                  <p className="text-xs text-muted-foreground">Si aggiorna man mano che modifichi.</p>
-                </div>
-                <LivePreview
-                  primary={form.brand_primary_color}
-                  secondary={form.brand_secondary_color}
-                  accent={form.brand_accent_color}
-                  textOnPrimary={form.brand_text_on_primary}
-                  platformName={form.brand_platform_name}
-                  logoUrl={effectiveCompany?.logo_url}
-                />
-                <Card className="border-muted">
-                  <CardContent className="p-3 text-xs text-muted-foreground space-y-1.5">
-                    <p className="flex items-center justify-between">
-                      <span>Contrasto testo/primario:</span>
-                      <span className={contrastWarning ? "text-amber-600 font-medium" : "text-emerald-700 font-medium"}>
-                        {primaryContrast.toFixed(1)}:1 {contrastWarning ? "✗" : "✓"}
-                      </span>
-                    </p>
-                    <p className="flex items-center justify-between">
-                      <span>Stato modifiche:</span>
-                      <span className={isDirty ? "text-amber-600 font-medium" : "text-muted-foreground"}>
-                        {isDirty ? "Non salvate" : "Tutto salvato"}
-                      </span>
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            </aside>
           </div>
 
           {/* Save bar sticky in basso */}
