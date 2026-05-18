@@ -18,6 +18,9 @@ export interface CustomFieldInputProps {
   onChange: (value: unknown) => void;
   disabled?: boolean;
   className?: string;
+  // v8.6.46 — C5 minimal: validazione + UX hint
+  required?: boolean;
+  helpText?: string | null;
 }
 
 export function CustomFieldInput({
@@ -29,6 +32,8 @@ export function CustomFieldInput({
   onChange,
   disabled,
   className,
+  required,
+  helpText,
 }: CustomFieldInputProps) {
   const id = `cf-${fieldId}`;
   const stringVal = value === null || value === undefined ? "" : String(value);
@@ -147,8 +152,12 @@ export function CustomFieldInput({
     <div className={`space-y-1.5 ${className ?? ""}`}>
       <Label htmlFor={id} className="text-xs font-medium">
         {label}
+        {required && <span className="ml-0.5 text-destructive" aria-label="obbligatorio">*</span>}
       </Label>
       {renderInput()}
+      {helpText && (
+        <p className="text-[11px] text-muted-foreground">{helpText}</p>
+      )}
     </div>
   );
 }

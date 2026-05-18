@@ -348,9 +348,36 @@ function MarketingOpportunitiesContent() {
       const exportRows = await fetchAllOpportunitiesForExport();
       const stageMap = Object.fromEntries(stages.map((s: any) => [s.id, s.name]));
       const staffMap = Object.fromEntries(staff.map((s: any) => [s.id, s.name]));
+
+      // v8.6.46 — C4: include custom fields nell'export opportunità.
+      // Fetch definitions + values con chunking per evitare i limiti Supabase IN().
+      const { data: cfDefs } = await supabase
+        .from("marketing_custom_fields")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .eq("object_type", "opportunity");
+      const cfDefsArr = (cfDefs ?? []) as Array<{ id: string; name: string }>;
+
+      const cfValueMap: Record<string, Record<string, string>> = {};
+      if (cfDefsArr.length > 0 && exportRows.length > 0) {
+        const oppIds = exportRows.map((o: any) => o.id);
+        const CHUNK_SIZE = 2000;
+        for (let i = 0; i < oppIds.length; i += CHUNK_SIZE) {
+          const chunk = oppIds.slice(i, i + CHUNK_SIZE);
+          const { data: vals } = await supabase
+            .from("marketing_opportunity_field_values")
+            .select("opportunity_id, field_id, value")
+            .in("opportunity_id", chunk);
+          for (const v of (vals ?? []) as Array<{ opportunity_id: string; field_id: string; value: string | null }>) {
+            if (!cfValueMap[v.opportunity_id]) cfValueMap[v.opportunity_id] = {};
+            if (v.value) cfValueMap[v.opportunity_id][v.field_id] = v.value;
+          }
+        }
+      }
+
       const rows = exportRows.map((o: any) => {
         const c = o.marketing_contacts || {};
-        return {
+        const row: Record<string, string> = {
           name: o.name || "",
           contact: [c.first_name, c.last_name].filter(Boolean).join(" "),
           email: c.email || "",
@@ -367,8 +394,14 @@ function MarketingOpportunitiesContent() {
           created_at: o.created_at ? new Date(o.created_at).toLocaleDateString("it-IT") : "",
           updated_at: o.updated_at ? new Date(o.updated_at).toLocaleDateString("it-IT") : "",
         };
+        // Custom field values
+        for (const cf of cfDefsArr) {
+          row[`cf_${cf.id}`] = cfValueMap[o.id]?.[cf.id] ?? "";
+        }
+        return row;
       });
       const today = new Date().toISOString().slice(0, 10);
+      const cfColumns = cfDefsArr.map((cf) => ({ key: `cf_${cf.id}`, label: cf.name }));
       exportToCSV(rows, [
         { key: "name", label: "Nome Opportunità" },
         { key: "contact", label: "Contatto" },
@@ -385,6 +418,7 @@ function MarketingOpportunitiesContent() {
         { key: "expected_close_date", label: "Chiusura prevista" },
         { key: "created_at", label: "Data Creazione" },
         { key: "updated_at", label: "Ultimo aggiornamento" },
+        ...cfColumns,
       ], `opportunita_${today}.csv`);
       toast.success(`${rows.length} opportunità esportate${permissions.onlyAssigned ? " tra quelle assegnate a te" : ""}`);
     } catch {
@@ -392,7 +426,7 @@ function MarketingOpportunitiesContent() {
     } finally {
       setIsExporting(false);
     }
-  }, [fetchAllOpportunitiesForExport, selectedPipelineId, stages, staff, permissions.onlyAssigned]);
+  }, [fetchAllOpportunitiesForExport, selectedPipelineId, stages, staff, permissions.onlyAssigned, companyId]);
 
   const activeFilterCount = countActiveFilters(filters);
 

@@ -911,6 +911,26 @@ const CANTIERE_SECTIONS: Record<string, { value: string; label: string }[]> = {
   catalog_category:      [{ value: "catalog_category",      label: "Categoria Listino" }],
 };
 
+// v8.6.46 — C3 minimal: traccia gli oggetti che hanno un renderer reale
+// nei form dell'app. Gli altri salvano il valore in DB ma non sono
+// visualizzati in UI. Usato per warning nel dialog di create/edit campo.
+export const RENDERED_OBJECT_TYPES = new Set<string>([
+  "contact",                  // ContactFieldsSheet + ContactDialog
+  "opportunity",              // OpportunityDialog (fix v8.6.44)
+  "ordini_variazione",        // OdVSection
+  "giornale_lavori",          // GiornaleLavori
+  "pos_document",             // SicurezzaCantiere
+  "duvri_document",           // SicurezzaCantiere
+  "product",                  // CustomFieldValuesForm (articoli)
+  "family",                   // CustomFieldValuesForm (famiglie)
+  "tariffa",                  // CustomFieldValuesForm (tariffe)
+  "catalog_category",         // CustomFieldValuesForm
+]);
+
+export function isObjectRendered(objectType: string): boolean {
+  return RENDERED_OBJECT_TYPES.has(objectType);
+}
+
 export const GROUP_OPTIONS = [
   { value: "all", label: "Tutto" },
   { value: "contact", label: "Contatto" },
@@ -1018,6 +1038,9 @@ export function CustomFieldsConfig() {
   const [section, setSection] = useState("general_info");
   const [objectType, setObjectType] = useState<string>("contact");
   const [optionsInput, setOptionsInput] = useState("");
+  // v8.6.46 — C5 minimal: validazione + UX
+  const [isRequired, setIsRequired] = useState(false);
+  const [helpText, setHelpText] = useState("");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [groupBy, setGroupBy] = useState("all");
@@ -1185,6 +1208,8 @@ export function CustomFieldsConfig() {
     setObjectType("contact");
     setOptionsInput("");
     setEditTarget(null);
+    setIsRequired(false);
+    setHelpText("");
   };
 
   const openCreateDialog = () => {
@@ -1200,6 +1225,11 @@ export function CustomFieldsConfig() {
     setObjectType(field.objectType);
     setSection(field.section || field.objectType);
     setOptionsInput((field.options || []).join(", "));
+    // v8.6.46 — hydrate is_required + help_text (resiliente se colonne assenti)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = customFields.find((f: any) => f.id === field.id) as any;
+    setIsRequired(Boolean(raw?.is_required));
+    setHelpText(raw?.help_text ?? "");
     setDialogOpen(true);
   };
 
@@ -1230,7 +1260,9 @@ export function CustomFieldsConfig() {
   const addMutation = useMutation({
     mutationFn: async () => {
       validateForm();
-      const { error } = await supabase.from("marketing_custom_fields").insert({
+      // v8.6.46 — try-first con is_required + help_text. Se la migration
+      // C5 non è applicata, fallback su payload base.
+      const fullPayload = {
         company_id: companyId!,
         name: normalizedName,
         field_type: fieldType,
@@ -1238,8 +1270,28 @@ export function CustomFieldsConfig() {
         section,
         position: customFields.length,
         object_type: objectType,
-      });
-      if (error) throw error;
+        is_required: isRequired,
+        help_text: helpText.trim() || null,
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).from("marketing_custom_fields").insert(fullPayload);
+      if (error) {
+        if (/is_required|help_text.*does not exist/i.test(error.message ?? "")) {
+          // Migration C5 pending — retry senza i nuovi campi
+          const { error: retryErr } = await supabase.from("marketing_custom_fields").insert({
+            company_id: companyId!,
+            name: normalizedName,
+            field_type: fieldType,
+            options: normalizedOptions,
+            section,
+            position: customFields.length,
+            object_type: objectType,
+          });
+          if (retryErr) throw retryErr;
+        } else {
+          throw error;
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
@@ -1266,7 +1318,10 @@ export function CustomFieldsConfig() {
         throw new Error("Il campo contiene valori salvati: puoi modificare nome e sezione, ma non tipo, oggetto o opzioni.");
       }
 
-      const { error } = await supabase
+      // v8.6.46 — try-first con is_required + help_text. Fallback se
+      // migration C5 pending.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
         .from("marketing_custom_fields")
         .update({
           name: normalizedName,
@@ -1274,10 +1329,29 @@ export function CustomFieldsConfig() {
           options: normalizedOptions,
           section,
           object_type: objectType,
+          is_required: isRequired,
+          help_text: helpText.trim() || null,
         })
         .eq("id", editTarget.id)
         .eq("company_id", companyId);
-      if (error) throw error;
+      if (error) {
+        if (/is_required|help_text.*does not exist/i.test(error.message ?? "")) {
+          const { error: retryErr } = await supabase
+            .from("marketing_custom_fields")
+            .update({
+              name: normalizedName,
+              field_type: fieldType,
+              options: normalizedOptions,
+              section,
+              object_type: objectType,
+            })
+            .eq("id", editTarget.id)
+            .eq("company_id", companyId);
+          if (retryErr) throw retryErr;
+        } else {
+          throw error;
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
@@ -1884,10 +1958,29 @@ export function CustomFieldsConfig() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {GROUP_OPTIONS.filter((g) => g.value !== "all").map((g) => (
-                    <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                    <SelectItem key={g.value} value={g.value}>
+                      <span className="inline-flex items-center gap-1.5">
+                        {g.label}
+                        {!isObjectRendered(g.value) && (
+                          <span className="text-[10px] text-amber-600">(API only)</span>
+                        )}
+                      </span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {/* v8.6.46 — Warning UX onestà: avverte l'utente quando crea
+                  un campo su un oggetto senza renderer integrato nei form. */}
+              {!isObjectRendered(objectType) && (
+                <Alert className="mt-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    <strong>Oggetto API-only:</strong> il campo verrà salvato in DB e sarà
+                    accessibile via API/integrazioni/automazioni, ma non viene ancora visualizzato
+                    nei form della UI. Roadmap render universale in corso.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Nome del campo *</Label>
@@ -1936,6 +2029,35 @@ export function CustomFieldsConfig() {
                 </p>
               </div>
             )}
+            {/* v8.6.46 — C5: validazione + UX (is_required + help_text) */}
+            <div className="space-y-3 pt-2 border-t">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="cf-required"
+                  checked={isRequired}
+                  onCheckedChange={(c) => setIsRequired(c === true)}
+                />
+                <Label htmlFor="cf-required" className="text-sm font-medium cursor-pointer">
+                  Campo obbligatorio
+                </Label>
+                <span className="text-xs text-muted-foreground">
+                  l'utente deve compilarlo prima di salvare
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cf-help">Testo di aiuto (opzionale)</Label>
+                <Input
+                  id="cf-help"
+                  value={helpText}
+                  onChange={(e) => setHelpText(e.target.value)}
+                  placeholder="es. Indica la potenza nominale in kW"
+                  maxLength={200}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Mostrato come hint sotto al campo nel form.
+                </p>
+              </div>
+            </div>
             <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
               <p className="font-medium text-foreground">Anteprima campo</p>
               <p><span className="text-muted-foreground">Oggetto:</span> {OBJECT_NAME_MAP[objectType] || objectType}</p>
