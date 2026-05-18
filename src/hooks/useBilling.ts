@@ -9,7 +9,9 @@ import { safeRedirect } from "@/utils/safeRedirect";
 export interface SubscriptionInvoice {
   id: string;
   stripeInvoiceId: string;
+  /** Importo pagato in CENTESIMI (es. 12700 = €127,00). Convertire con formatEurCents(). */
   amountPaid: number;
+  /** Importo dovuto in CENTESIMI. Convertire con formatEurCents(). */
   amountDue: number;
   currency: string;
   status: "draft" | "open" | "paid" | "void" | "uncollectible";

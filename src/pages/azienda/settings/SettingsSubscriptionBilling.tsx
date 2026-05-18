@@ -135,17 +135,30 @@ function TabAbbonamenti() {
             </div>
           )}
 
-          {/* Trial banner */}
-          {billing.status === "trial" && billing.trialEndsAt && (
-            <Alert className="mt-5">
-              <Clock className="h-4 w-4" />
-              <AlertDescription>
-                Il periodo di prova termina il{" "}
-                <strong>{format(new Date(billing.trialEndsAt), "d MMMM yyyy", { locale: it })}</strong>.
-                Aggiungi un metodo di pagamento per continuare senza interruzioni.
-              </AlertDescription>
-            </Alert>
-          )}
+          {/* Trial banner — distingue trial attivo vs trial già scaduto (status=trial
+              ma data passata: il backend non ha ancora flippato lo stato). */}
+          {billing.status === "trial" && billing.trialEndsAt && (() => {
+            const trialEnd = new Date(billing.trialEndsAt);
+            const isExpired = trialEnd.getTime() < Date.now();
+            const dateLabel = format(trialEnd, "d MMMM yyyy", { locale: it });
+            return isExpired ? (
+              <Alert variant="destructive" className="mt-5">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Il periodo di prova è terminato il <strong>{dateLabel}</strong>.
+                  Aggiungi un metodo di pagamento per riattivare i servizi.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Alert className="mt-5">
+                <Clock className="h-4 w-4" />
+                <AlertDescription>
+                  Il periodo di prova termina il <strong>{dateLabel}</strong>.
+                  Aggiungi un metodo di pagamento per continuare senza interruzioni.
+                </AlertDescription>
+              </Alert>
+            );
+          })()}
 
           {/* Dunning */}
           {billing.isInDunning && (
