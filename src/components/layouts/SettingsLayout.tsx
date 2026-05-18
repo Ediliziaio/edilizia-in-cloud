@@ -50,8 +50,9 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   "dominio-email":        { title: "Dominio email",            description: "Invia email dal tuo dominio aziendale per deliverability e branding" },
   "numeri-telefono":      { title: "Numeri virtuali",          description: "Gestisci i numeri telefonici virtuali" },
   abbonamento:            { title: "Piano abbonamento",        description: "Gestisci il tuo piano e i dettagli dell'abbonamento" },
-  fatturazione:           { title: "Fatturazione",             description: "Gestisci le informazioni di fatturazione" },
-  "fatturazione-nativa":  { title: "Fatturazione elettronica", description: "Configura la fatturazione elettronica italiana" },
+  // v8.6.57 — Voce unica "Fatturazione" con 2 tab interni (esterna vs nativa)
+  fatturazione:           { title: "Fatturazione",             description: "Provider esterni (Fatture in Cloud, Aruba, ecc.) o configurazione SDI nativa" },
+  "fatturazione-nativa":  { title: "Fatturazione",             description: "Provider esterni o configurazione SDI nativa" },
 };
 
 const DEFAULT_META: SectionMeta = {
@@ -68,11 +69,17 @@ const MOBILE_SETTINGS_GROUPS = [
     ],
   },
   {
+    // v8.6.57 — "Piano abbonamento" + "Crediti & saldo" + "Fatturazione"
+    // (unificata) spostati qui dal vecchio gruppo "Marketing e integrazioni"
+    // perché l'utente li pensa come dati dell'azienda.
     label: "Azienda",
     items: [
       { to: "/azienda/impostazioni/profilo", label: "Profilo aziendale" },
       { to: "/azienda/impostazioni/sedi", label: "Sedi" },
       { to: "/azienda/impostazioni/branding", label: "White-Label" },
+      { to: "/azienda/impostazioni/abbonamento", label: "Piano abbonamento" },
+      { to: "/azienda/impostazioni/crediti", label: "Crediti & saldo" },
+      { to: "/azienda/impostazioni/fatturazione", label: "Fatturazione" },
       { to: "/azienda/impostazioni/persone", label: "Persone & accessi" },
     ],
   },
@@ -92,8 +99,6 @@ const MOBILE_SETTINGS_GROUPS = [
       { to: "/azienda/impostazioni/calendari", label: "Calendari marketing" },
       { to: "/azienda/impostazioni/lead-forms", label: "Lead Facebook" },
       { to: "/azienda/impostazioni/integrazioni", label: "Integrazioni" },
-      { to: "/azienda/impostazioni/crediti", label: "Crediti & saldo" },
-      { to: "/azienda/impostazioni/abbonamento", label: "Piano abbonamento" },
     ],
   },
 ];

@@ -559,9 +559,14 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
     {
       label: "La mia azienda",
       items: [
-        { to: "/azienda/impostazioni/profilo",   label: "Profilo aziendale", icon: <Building2 className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsProfile },
-        { to: "/azienda/impostazioni/sedi",       label: "Sedi",             icon: <MapPin className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsOrders },
-        { to: "/azienda/impostazioni/branding",   label: "White-Label",      icon: <Paintbrush className="h-4 w-4" />,   visible: isAdmin },
+        { to: "/azienda/impostazioni/profilo",      label: "Profilo aziendale", icon: <Building2 className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsProfile },
+        { to: "/azienda/impostazioni/sedi",          label: "Sedi",              icon: <MapPin className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/branding",      label: "White-Label",       icon: <Paintbrush className="h-4 w-4" />,   visible: isAdmin },
+        // v8.6.57 — Piano abbonamento + Crediti & Saldo spostati qui dal
+        // vecchio gruppo "Abbonamento" / "Integrazioni & API": l'utente li
+        // pensa come dati dell'azienda, non come setup tecnico.
+        { to: "/azienda/impostazioni/abbonamento",   label: "Piano abbonamento", icon: <Wallet className="h-4 w-4" />,       visible: isAdmin },
+        { to: "/azienda/impostazioni/crediti",       label: "Crediti & Saldo",   icon: <Wallet className="h-4 w-4" />,       visible: isAdmin },
       ],
     },
     {
@@ -623,8 +628,8 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
     {
       label: "Integrazioni & API",
       items: [
+        // v8.6.57 — "Crediti & Saldo" spostato in "La mia azienda" sopra
         { to: "/azienda/impostazioni/integrazioni",   label: "Integrazioni",   icon: <Plug className="h-4 w-4" />,   visible: isAdmin },
-        { to: "/azienda/impostazioni/crediti",        label: "Crediti & Saldo",icon: <Wallet className="h-4 w-4" />, visible: isAdmin },
         { to: "/azienda/impostazioni/api",            label: "API Platform",   icon: <Key className="h-4 w-4" />,    visible: isAdmin },
         { to: "/azienda/impostazioni/webhook",        label: "Webhook",        icon: <Globe className="h-4 w-4" />,  visible: isAdmin },
         { to: "/azienda/impostazioni/dominio-email",  label: "Dominio Email",  icon: <AtSign className="h-4 w-4" />, visible: isAdmin },
@@ -632,11 +637,12 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       ],
     },
     {
-      label: "Abbonamento",
+      // v8.6.57 — "Piano abbonamento" spostato in "La mia azienda".
+      // "Fatturazione" + "Fatturazione elettronica" unificate in 1 voce sola
+      // con tabs interni (modalità esterna provider vs nativa).
+      label: "Fatturazione",
       items: [
-        { to: "/azienda/impostazioni/abbonamento",        label: "Piano abbonamento",         icon: <Wallet className="h-4 w-4" />,   visible: isAdmin },
-        { to: "/azienda/impostazioni/fatturazione",       label: "Fatturazione",              icon: <FileText className="h-4 w-4" />, visible: isAdmin },
-        { to: "/azienda/impostazioni/fatturazione-nativa",label: "Fatturazione elettronica",  icon: <FileText className="h-4 w-4" />, visible: isAdmin },
+        { to: "/azienda/impostazioni/fatturazione", label: "Fatturazione", icon: <FileText className="h-4 w-4" />, visible: isAdmin },
       ],
     },
   ];

@@ -99,6 +99,8 @@ const SettingsEmailDomain = lazy(() => import("@/pages/azienda/settings/Settings
 const SettingsEmailPreferences = lazy(() => import("@/pages/azienda/settings/SettingsEmailPreferences"));
 const SettingsBranding = lazy(() => import("@/pages/azienda/settings/SettingsBranding"));
 const SettingsBilling = lazy(() => import("@/pages/azienda/settings/SettingsBilling"));
+// v8.6.57 — Wrapper unificato Fatturazione (tab provider esterni + nativa SDI)
+const SettingsFatturazioneUnified = lazy(() => import("@/pages/azienda/settings/SettingsFatturazioneUnified"));
 const SettingsSubscriptionBilling = lazy(() => import("@/pages/azienda/settings/SettingsSubscriptionBilling"));
 const SettingsFormBuilder = lazy(() => import("@/pages/azienda/settings/SettingsFormBuilder"));
 const SettingsPhoneNumbers = lazy(() => import("@/pages/azienda/settings/SettingsPhoneNumbers"));
@@ -216,7 +218,8 @@ const RegistroIVA = lazy(() => import("@/pages/azienda/fatturazione/RegistroIVA"
 const AnagraficheList = lazy(() => import("@/pages/azienda/fatturazione/AnagraficheList"));
 const AnagraficaDetail = lazy(() => import("@/pages/azienda/fatturazione/AnagraficaDetail"));
 const ReportFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ReportFatturazione"));
-const ImpostazioniFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ImpostazioniFatturazione"));
+// v8.6.57 — ImpostazioniFatturazione ora caricato da SettingsFatturazioneUnified
+// (wrapper con tabs). Non più import diretto qui per evitare duplicato chunk.
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
 const PersonalePage = lazy(() => import("@/pages/azienda/personale/PersonalePage"));
 const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaKiosk"));
@@ -718,8 +721,11 @@ export function companyRoutes() {
           {/* AI Test Lab — gated all'interno della pagina (auto-redirect se non autorizzato) */}
           <Route path="ai-test-lab" element={<AITestLab />} />
           <Route path="firma-elettronica" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFirmaElettronica />)} />
-          <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <SettingsBilling />)} />
-          <Route path="fatturazione-nativa" element={withCompanyPermission("canViewBilling", <ImpostazioniFatturazione />)} />
+          {/* v8.6.57 — Unico endpoint con tab interni (provider esterni + nativa).
+              Il legacy path /fatturazione-nativa redirige a /fatturazione?tab=nativa
+              per backward-compat (link diretti, bookmark utenti). */}
+          <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <SettingsFatturazioneUnified />)} />
+          <Route path="fatturazione-nativa" element={<Navigate to="/azienda/impostazioni/fatturazione?tab=nativa" replace />} />
           <Route path="abbonamento" element={withCompanyPermission("canViewBilling", <SettingsSubscriptionBilling />)} />
           <Route path="form-builder" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFormBuilder />)} />
           <Route path="numeri-telefono" element={withCompanyPermission("canViewSettingsCustomization", <SettingsPhoneNumbers />)} />
