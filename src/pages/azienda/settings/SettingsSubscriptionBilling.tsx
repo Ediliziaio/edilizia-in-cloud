@@ -15,6 +15,7 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useBillingInfo, useInvoices, useOpenBillingPortal } from "@/hooks/useBilling";
+import { BillingDetailsCard } from "@/components/billing/BillingDetailsCard";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -105,9 +106,42 @@ function CurrentPlanCard() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xl font-semibold">{billing.planName}</p>
-            <p className="text-sm text-muted-foreground">{priceLabel}</p>
+            <p className="text-sm text-muted-foreground">
+              {priceLabel}
+              {billing.billingCycle === "yearly" && " · Pagamento annuale"}
+              {billing.billingCycle === "monthly" && " · Pagamento mensile"}
+            </p>
           </div>
         </div>
+
+        {/* v8.6.58 — Date e ciclo abbonamento (se disponibili da Stripe) */}
+        {(billing.currentPeriodStart || billing.currentPeriodEnd) && (
+          <div className="grid gap-3 sm:grid-cols-2 rounded-lg border bg-muted/30 p-3">
+            {billing.currentPeriodStart && (
+              <div>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Periodo attuale</p>
+                <p className="text-sm font-medium">
+                  Dal {format(new Date(billing.currentPeriodStart), "d MMM yyyy", { locale: it })}
+                </p>
+              </div>
+            )}
+            {billing.currentPeriodEnd && (
+              <div>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                  {billing.cancelAtPeriodEnd ? "Scade il" : "Prossimo rinnovo"}
+                </p>
+                <p className="text-sm font-medium">
+                  {format(new Date(billing.currentPeriodEnd), "d MMMM yyyy", { locale: it })}
+                </p>
+                {billing.cancelAtPeriodEnd && (
+                  <p className="text-[11px] text-amber-700 mt-0.5">
+                    Cancellazione programmata
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Trial banner */}
         {billing.status === "trial" && billing.trialEndsAt && (
@@ -365,20 +399,28 @@ export default function SettingsSubscriptionBilling() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Abbonamento</h1>
         <p className="text-muted-foreground">
-          Gestisci il tuo piano, i metodi di pagamento e visualizza lo storico fatture.
+          Gestisci il tuo piano, i metodi di pagamento, i dati di fatturazione e visualizza lo storico fatture.
         </p>
       </div>
 
       <Separator />
 
+      {/* Piano corrente: status, prezzo, trial banner, bottone Stripe Portal */}
       <CurrentPlanCard />
+
+      {/* v8.6.58 — Dati fatturazione separati: ragione sociale, P.IVA, CF,
+          indirizzo, PEC, SDI. Possono differire da anagrafica company. */}
+      <BillingDetailsCard />
+
+      {/* Storico fatture */}
       <InvoiceHistoryCard />
 
       <p className="text-xs text-muted-foreground text-center">
-        I pagamenti sono gestiti in modo sicuro da{" "}
+        I pagamenti e le carte sono gestiti in modo sicuro da{" "}
         <a href="https://stripe.com" target="_blank" rel="noopener noreferrer" className="underline">
           Stripe
-        </a>. Non memorizziamo i dati della tua carta di credito.
+        </a>
+        . Non memorizziamo i dati della carta di credito.
       </p>
     </div>
   );

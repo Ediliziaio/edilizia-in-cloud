@@ -33,6 +33,12 @@ export interface BillingInfo {
   stripeSubscriptionStatus: string | null;
   isInDunning: boolean;
   dunningDaysLeft: number;
+  // v8.6.58 — Date e ciclo di fatturazione (popolate via sync da Stripe webhook
+  // su companies.current_period_*). Se vuote = non disponibili (es. piano free).
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  billingCycle: "monthly" | "yearly" | null;
 }
 
 // ─── HOOK: INFO PIANO CORRENTE ─────────────────────────────────────────────────
@@ -65,6 +71,11 @@ export function useBillingInfo() {
         .single();
 
       if (error) throw error;
+      // v8.6.58 — Lettura best-effort delle colonne ciclo abbonamento
+      // (current_period_*, cancel_at_period_end, billing_cycle). Se non
+      // esistono nello schema (pre-migration), restano undefined.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cExtra = company as unknown as Record<string, any>;
 
       const plan = company.subscription_plans as any;
       const dunningStatus = company.dunning_status;
@@ -92,6 +103,13 @@ export function useBillingInfo() {
         stripeSubscriptionStatus: company.stripe_subscription_status ?? null,
         isInDunning,
         dunningDaysLeft,
+        currentPeriodStart: cExtra.current_period_start ?? null,
+        currentPeriodEnd: cExtra.current_period_end ?? null,
+        cancelAtPeriodEnd: Boolean(cExtra.cancel_at_period_end),
+        billingCycle:
+          cExtra.billing_cycle === "yearly" || cExtra.billing_cycle === "monthly"
+            ? cExtra.billing_cycle
+            : null,
       };
     },
     staleTime: 5 * 60 * 1000,
