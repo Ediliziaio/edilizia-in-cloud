@@ -14,6 +14,12 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageCircle, X, Send, Loader2, Minimize2 } from "lucide-react";
 import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 
+// v8.6.58 — Supabase Edge Functions richiedono header apikey + Authorization
+// anche per le function "pubbliche" (verify_jwt=false). Senza header → 401
+// UNAUTHORIZED_NO_AUTH_HEADER. Uso la VITE_SUPABASE_PUBLISHABLE_KEY (anon key
+// pubblica safe-to-expose) come bearer per autenticare il client anonimo.
+const SUPABASE_ANON_KEY = (import.meta as { env?: Record<string, string> }).env?.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+
 interface Props {
   /** UUID del widget configurato in public_chatbot_settings */
   widgetToken: string;
@@ -120,7 +126,14 @@ export function PublicChatWidget({
       const utm = getUtmParams();
       const res = await fetchWithTimeout(apiUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          // v8.6.58 — anon key per autenticare la chiamata come "public"
+          ...(SUPABASE_ANON_KEY && {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          }),
+        },
         timeoutMs: 10_000,
         context: "public-chat.init",
         body: JSON.stringify({
@@ -195,7 +208,13 @@ export function PublicChatWidget({
     try {
       const res = await fetchWithTimeout(apiUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(SUPABASE_ANON_KEY && {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          }),
+        },
         timeoutMs: 30_000,
         context: "public-chat.message",
         body: JSON.stringify({
