@@ -88,6 +88,7 @@ interface AdminNavItem {
 // Le icone restano sui singoli item dentro la subcategory.
 const adminSubcategories: Array<{ id: string; label: string }> = [
   { id: "sa_revenue", label: "Fatturato" },
+  { id: "sa_ai", label: "AI" },
   { id: "sa_customer_success", label: "Customer Success" },
   { id: "sa_prodotto", label: "Prodotto" },
   { id: "sa_operazioni", label: "Operazioni" },
@@ -105,6 +106,7 @@ const adminMarketingSubcategories: Array<{ id: string; label: string }> = [
 // Customer Success per gestire lifecycle, ticket, onboarding
 const ADMIN_SIDEBAR_DEFAULTS: Record<string, boolean> = {
   sa_revenue: true,
+  sa_ai: false,
   sa_customer_success: true,
   sa_prodotto: false,
   sa_operazioni: false,
@@ -124,13 +126,13 @@ const allNavItems: AdminNavItem[] = [
   { title: "Fatture", url: "/admin/fatture", icon: FileText, permission: "billing_read", subcategory: "sa_revenue" },
   { title: "Promo", url: "/admin/promo-codes", icon: Ticket, permission: "billing_write", subcategory: "sa_revenue" },
   { title: "Dunning", url: "/admin/dunning", icon: Settings2, permission: "billing_write", subcategory: "sa_revenue" },
-  // ─── AI MANAGEMENT (refactor Strategia C: 3 pagine consolidate) ───────
+  // ─── AI MANAGEMENT (sezione dedicata: scorporo da Fatturato per ridurre rumore) ───
   // Config: routing modelli, personas, KB, pricing, governance
-  { title: "AI · Config", url: "/admin/ai-config", icon: Settings2, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
+  { title: "AI · Config", url: "/admin/ai-config", icon: Settings2, permission: "can_view_platform_stats", subcategory: "sa_ai" },
   // Monitor: usage, costs, test lab, health
-  { title: "AI · Monitor", url: "/admin/ai-monitor", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
+  { title: "AI · Monitor", url: "/admin/ai-monitor", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_ai" },
   // Operate: approvals, queue, policies, missions, chief, memory, learning
-  { title: "AI · Operate", url: "/admin/ai-operate", icon: Bot, permission: "can_view_platform_stats", subcategory: "sa_revenue" },
+  { title: "AI · Operate", url: "/admin/ai-operate", icon: Bot, permission: "can_view_platform_stats", subcategory: "sa_ai" },
   // ─── CUSTOMER SUCCESS ───────────────────────────────────────────────
   { title: "CS Dashboard", url: "/admin/cs-dashboard", icon: TrendingUp, permission: "can_impersonate", subcategory: "sa_customer_success" },
   { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare, permission: "can_manage_tickets", subcategory: "sa_customer_success" },
@@ -554,10 +556,11 @@ function AdminMainSidebar() {
             <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground/50 pointer-events-none" />
             <input
               type="text"
-              placeholder="Cerca…"
+              placeholder=""
+              aria-label="Cerca nel menu"
               value={navSearch}
               onChange={(e) => setNavSearch(e.target.value)}
-              className="w-full h-7 pl-7 pr-2 text-xs bg-transparent border-0 outline-none placeholder:text-muted-foreground/50 focus:bg-muted/30 rounded-md transition-colors"
+              className="w-full h-7 pl-7 pr-2 text-xs bg-transparent border-0 outline-none focus:bg-muted/30 rounded-md transition-colors"
             />
           </div>
         </div>
