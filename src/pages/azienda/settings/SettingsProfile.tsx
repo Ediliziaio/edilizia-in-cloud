@@ -21,7 +21,8 @@ export default function SettingsProfile() {
             <Building2 className="h-5 w-5 text-primary" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Profilo Azienda</h1>
+            {/* v8.6.64 — niente h1: SettingsLayout monta già "Profilo aziendale" come h1 */}
+            <h2 className="text-xl sm:text-2xl font-bold leading-tight">Profilo Azienda</h2>
             <p className="text-sm text-muted-foreground">
               Dati dell'azienda, logo e impostazioni del portale clienti.
               {isAdmin && " (riservato agli admin)"}

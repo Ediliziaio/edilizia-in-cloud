@@ -70,7 +70,6 @@ import {
   FvChip,
   FvFooter,
   FvTabPane,
-  type FvTabDef,
 } from "@/lib/fotovoltaico/wizardUI";
 import { toast } from "sonner";
 // Refactor 2026-05-10: CassaCumulataChart estratto in
@@ -83,7 +82,7 @@ import { TOTAL_STEPS, TABS } from "./FotovoltaicoWizard/constants";
 // MP-MKT-001: WizardData/PersistedDraft → ./FotovoltaicoWizard/types.ts
 //   coordinate Italia + helpers di validazione + persistenza locale draft
 //   → ./FotovoltaicoWizard/helpers.ts
-import type { WizardData, PersistedDraft } from "./FotovoltaicoWizard/types";
+import type { WizardData } from "./FotovoltaicoWizard/types";
 import {
   isCoordinataItalia, validaIseeReddito, calcolaCapienzaWarning,
   loadPersistedDraft, savePersistedDraft, clearPersistedDraft,

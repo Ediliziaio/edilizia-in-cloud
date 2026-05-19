@@ -43,7 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
 import { OrdersFilters } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
-import { CSVImportDialog, type ImportField } from "@/components/shared/CSVImportDialog";
+import { CSVImportDialog } from "@/components/shared/CSVImportDialog";
 import { CustomerSheetsExportDialog } from "@/components/orders/CustomerSheetsExportDialog";
 import { useToast } from "@/hooks/use-toast";
 import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount, getOrderMargin } from "@/lib/orderUtils";

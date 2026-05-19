@@ -444,8 +444,9 @@ export function DashboardSelectorBar({
           </PopoverContent>
         </Popover>
 
-        {/* Titolo */}
-        <h1 className="text-base font-semibold truncate flex-1 min-w-0">{title}</h1>
+        {/* Titolo — v8.6.64 era h1, ma in pagine con DashboardPageHeader (che ha
+            il vero h1 semantico) causava doppio h1. Ridotto a span/p stilizzato. */}
+        <p className="text-base font-semibold truncate flex-1 min-w-0">{title}</p>
 
         {/* Slot azioni a destra */}
         {actions && <div className="flex items-center gap-2 shrink-0 max-w-[62vw] overflow-x-auto sm:max-w-none">{actions}</div>}

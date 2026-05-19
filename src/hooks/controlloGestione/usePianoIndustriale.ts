@@ -3,7 +3,6 @@
  */
 
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 

@@ -31,7 +31,7 @@ const EMAIL_SANITIZE_CONFIG: DOMPurify.Config = {
   FORBID_TAGS: ["script", "iframe", "object", "embed", "link", "meta", "base"],
   FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onfocus"],
   ALLOWED_URI_REGEXP:
-    /^(?:(?:https?|mailto|tel|cid):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+    /^(?:(?:https?|mailto|tel|cid):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
 };
 
 const MAX_DATA_URI_LENGTH = 100_000;

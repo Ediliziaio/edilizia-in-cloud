@@ -225,7 +225,7 @@ function SortableItem({
 }
 
 // MP-MKT-001: ContactOption + ListinoCategoria estratti in ./QuoteBuilder/types.ts
-import type { ContactOption, ListinoCategoria } from "./QuoteBuilder/types";
+import type { ContactOption } from "./QuoteBuilder/types";
 
 function ContactCombobox({
   contacts,

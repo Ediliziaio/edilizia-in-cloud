@@ -23,14 +23,13 @@ import { it } from "date-fns/locale";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 // MP-CAN-001 Fase 3 — types/constants/helpers estratti
 import type {
-  OrderOption, RelatedOrder, RiskItem, DpiItem, InterferenceItem,
+  OrderOption,
   PosDocument, DuvriDocument, VerbaleSicurezza,
   SubappaltatoreSicurezza, AdempimentoSicurezza, PrintableSafetyDoc,
 } from "./SicurezzaCantiere/types";
 import { STATUS_COLORS, STATUS_LABELS } from "./SicurezzaCantiere/constants";
 import {
-  getSupabaseErrorMessage, escapeHtml, readFunctionError,
-  toStartOfDay, parseDateOnly, isPastDate, formatDpi, statToneClass,
+  getSupabaseErrorMessage, escapeHtml, readFunctionError, isPastDate, formatDpi,
 } from "./SicurezzaCantiere/helpers";
 
 export default function SicurezzaCantiere() {

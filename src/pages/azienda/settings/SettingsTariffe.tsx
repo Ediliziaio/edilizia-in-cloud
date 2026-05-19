@@ -9,9 +9,7 @@ import { invalidateAllTariffe } from "@/lib/tariffeQueryKeys";
 import {
   Plus, Pencil, Trash2, Zap, Search, Copy, MoreVertical, Calculator,
   TrendingUp, Percent, Package, Activity, Archive, RotateCcw, Info,
-  Building2, Layers3, Wallet, CheckCircle2, Hammer, HardHat, Wrench,
-  ClipboardList, Sparkles, Paintbrush, Bath, Sun, PaintBucket, Cloud,
-  Construction, Shovel, Waves, AlertTriangle,
+  Building2, Layers3, Wallet, CheckCircle2, Wrench, Paintbrush, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

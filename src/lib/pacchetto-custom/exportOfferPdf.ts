@@ -12,7 +12,7 @@
  * Uso: `await exportOfferPdf({ company, features, totals, expiresAt })`
  *      → scarica `Offerta-{company}-{date}.pdf`
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";

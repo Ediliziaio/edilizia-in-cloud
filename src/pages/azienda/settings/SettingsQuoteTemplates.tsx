@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef, Suspense } from "react";
+import React, { useState, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
@@ -9,7 +9,7 @@ import {
   KIND_META, KIND_ORDER, blankTemplateForKind,
 } from "@/types/quoteTemplate";
 import type {
-  QuoteTemplate, QuoteTemplateLayout, QuoteTemplateKind, LogoPosition, LogoSize, FontFamily,
+  QuoteTemplate, QuoteTemplateKind, LogoPosition, LogoSize,
   RowDensity, TableBorders, TextAlignment, ProductSpec,
 } from "@/types/quoteTemplate";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,14 +35,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShoppingBag } from "lucide-react";
 // MP-IMP-001 Fase 3 — sezioni estratte in cartella dedicata
 import {
-  LAYOUTS, FONTS, DESIGN_PRESETS, TEMPLATE_ASSET_BUCKET, ALLOWED_LOGO_TYPES,
+  LAYOUTS, FONTS, DESIGN_PRESETS, ALLOWED_LOGO_TYPES,
 } from "./SettingsQuoteTemplates/constants";
 import {
-  getLogoPublicUrl, kindColorHint, kindColorLabels, cnTab,
-  quoteTemplateKind, getReferencingOffers,
+  getLogoPublicUrl, kindColorHint, kindColorLabels, cnTab, getReferencingOffers,
 } from "./SettingsQuoteTemplates/helpers";
 import type {
-  TemplateFormPayload, TemplateColorKey, TemplateVisibilityKey,
+  TemplateFormPayload, TemplateVisibilityKey,
 } from "./SettingsQuoteTemplates/helpers";
 import { ModuliVenditaPanel } from "./SettingsQuoteTemplates/ModuliVenditaPanel";
 

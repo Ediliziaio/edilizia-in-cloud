@@ -3,7 +3,6 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { cgRpc } from "@/hooks/controlloGestione/cgRpc";
 
 export interface RotazioneData {

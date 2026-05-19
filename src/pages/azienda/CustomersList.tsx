@@ -49,7 +49,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   CustomerImportDialog,
-  type CustomerImportField,
   type ImportOptions,
 } from "@/components/clients/CustomerImportDialog";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
@@ -58,15 +57,13 @@ import { logger } from "@/utils/logger";
 import type {
   Salesperson, CustomerWithOrders, PaginatedResult, CustomerStats,
   ResetPasswordResult, SortField, SortDir, YesNoAll, PortalState,
-  CustomerAnomalySeverity, CustomerAnomaly,
+  CustomerAnomalySeverity,
 } from "./CustomersList/types";
 import {
   PAGE_SIZES, CUSTOMER_IMPORT_FIELDS, ALL_COLUMNS,
-  DEFAULT_VISIBLE, COLUMN_STORAGE_KEY, INTERNAL_NO_EMAIL_DOMAIN,
   type ColumnKey,
 } from "./CustomersList/constants";
-import {
-  formatFullName, formatDisplayName, formatInitials, formatLocality,
+import { formatDisplayName, formatInitials, formatLocality,
   formatPhone, formatCustomerEmail, truncate,
 } from "./CustomersList/formatters";
 import { getCustomerAnomalies, getWorstSeverity } from "./CustomersList/anomalies";
