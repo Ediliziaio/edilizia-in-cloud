@@ -321,15 +321,15 @@ export default function FirmaElettronicaHub() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-4 sm:p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-3 min-w-0">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
               <FileSignature className="h-5 w-5" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-950">Firma Elettronica</h1>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-950">Firma Elettronica</h1>
               <p className="text-sm text-slate-600">
                 {isMarketingContext
                   ? "Preventivi e contratti firmati dal cliente, collegati a CRM e opportunità."
@@ -337,7 +337,9 @@ export default function FirmaElettronicaHub() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          {/* v8.6.67 — flex-wrap su mobile: prima i 3 elementi (badge + 2 button)
+              finivano in una riga forzata e uscivano dal viewport iPhone (375px). */}
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
             {emailProvider?.is_active ? (
               <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
                 <Mail className="h-3 w-3" />

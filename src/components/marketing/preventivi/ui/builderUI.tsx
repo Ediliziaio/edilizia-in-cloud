@@ -513,7 +513,10 @@ export function QuoteHubTabs({
               aria-selected={isActive}
               onClick={() => onSelect(t.key)}
               className={cn(
-                "relative flex items-center gap-1.5 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-[3px] -mb-px",
+                // v8.6.67 — `shrink-0` evita che il flex parent comprima il button:
+                // senza, il testo della label tracimava fuori bound del button
+                // e si sovrapponeva alle tab adiacenti su mobile.
+                "relative flex shrink-0 items-center gap-1.5 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-[3px] -mb-px",
                 isActive
                   ? "border-orange-500 text-slate-900 font-semibold"
                   : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50",
