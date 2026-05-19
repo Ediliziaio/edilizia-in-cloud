@@ -144,7 +144,8 @@ export default function Demo() {
         render_slug: renderContext?.slug ?? null,
         page_path: renderContext?.pagePath ?? null,
         context_label: renderContext?.label ?? null,
-        tags: renderContext ? ["richiesta-render", `richiesta-${renderContext.slug}`] : [],
+        // Solo tag tipologici stabili. Slug specifico già in metadata (render_slug).
+        tags: renderContext ? ["richiesta-render"] : [],
       });
       setSubmitted(true);
     } catch (err) {

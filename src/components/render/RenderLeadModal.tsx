@@ -111,7 +111,10 @@ export function RenderLeadModal({ slug, open, onOpenChange }: RenderLeadModalPro
         render_slug: slug,
         page_path: pagePath,
         context_label: label,
-        tags: ["richiesta-render", `richiesta-${slug}`, "modulo-render-in-page"],
+        // Solo tag tipologici stabili. Slug specifico e contesto modulo
+        // sono già tracciati dal backend in metadata (render_slug, context_label).
+        // Dettaglio in commit edge function public-lead-submit dedup tags.
+        tags: ["richiesta-render"],
       });
       setSubmitted(true);
     } catch (error) {
