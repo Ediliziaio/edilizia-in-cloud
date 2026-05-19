@@ -31,8 +31,12 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 function generateCode(): string {
-  // 6 cifre, zero-padded
-  const n = Math.floor(Math.random() * 1_000_000);
+  // v8.6.101 — CSPRNG invece di Math.random (predicibile/brute-force-friendly).
+  // crypto.getRandomValues garantisce ≥128 bit entropia → bruteforce 6 cifre
+  // resta limitato dal rate-limit lato server + max attempts (5).
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  const n = buf[0] % 1_000_000;
   return n.toString().padStart(6, "0");
 }
 
@@ -102,7 +106,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ status: "sent", ttl_min: 15 });
   }
 
-  // 2. Rate limit: max 1 codice / 60s per email
+  // 2a. Rate limit per EMAIL: max 1 codice / 60s
   const { data: recent } = await supa
     .from("email_otp_codes")
     .select("created_at")
@@ -114,6 +118,21 @@ Deno.serve(async (req) => {
     const sentAt = new Date(recent[0].created_at).getTime();
     const cooldown = Math.max(0, 60 - Math.floor((Date.now() - sentAt) / 1000));
     return jsonResponse({ status: "rate_limited", cooldown });
+  }
+
+  // 2b. v8.6.101 — Rate limit per IP: max 10 codici / ora (anti-enumeration).
+  const ipForLimit = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  if (ipForLimit) {
+    const { count: ipCount } = await supa
+      .from("email_otp_codes")
+      .select("id", { count: "exact", head: true })
+      .eq("ip_address", ipForLimit)
+      .gte("created_at", new Date(Date.now() - 60 * 60_000).toISOString());
+    if ((ipCount ?? 0) >= 10) {
+      console.warn(`[email-otp-send] IP rate-limit hit for ${ipForLimit}`);
+      // Risposta neutra (anti-enumeration): l'attaccante non sa se è blocked
+      return jsonResponse({ status: "sent", ttl_min: 15 });
+    }
   }
 
   // 3. Genera codice + hash

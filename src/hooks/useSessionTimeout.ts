@@ -66,6 +66,22 @@ export function useSessionTimeout(): void {
       }
     };
 
+    // v8.6.101 — Auto-mark session start su QUALSIASI new sign-in
+    // (SSO, OAuth, cross-subdomain handoff, password+OTP). Senza questo,
+    // il TTL 45gg viene applicato SOLO al flow password+OTP che chiamava
+    // esplicitamente markSessionStarted() in LoginForm.
+    const { data: authSub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") {
+        try {
+          if (!localStorage.getItem(STORAGE_KEY)) {
+            localStorage.setItem(STORAGE_KEY, String(Date.now()));
+          }
+        } catch { /* ignore */ }
+      } else if (event === "SIGNED_OUT") {
+        clearSessionStarted();
+      }
+    });
+
     // Check immediato al mount
     void enforceTimeout();
 
@@ -84,6 +100,7 @@ export function useSessionTimeout(): void {
       alive = false;
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
+      authSub.subscription.unsubscribe();
     };
   }, []);
 }

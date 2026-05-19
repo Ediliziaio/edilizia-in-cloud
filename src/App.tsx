@@ -210,9 +210,13 @@ const isNonRetriableQueryError = (error: unknown) => {
   );
 };
 
+// v8.6.101 — retry policy meno aggressiva per network glitch mobile/cantiere.
+// Prima: 1 solo retry → mobile flaky network → toast errore frequente.
+// Dopo: max 2 retry con backoff (gestito da react-query default = exponential).
+// Errori non-retriable (auth, 4xx user-fault) sempre saltati.
 const shouldRetryQuery = (failureCount: number, error: unknown) => {
-  if (failureCount >= 1) return false;
-  return !isNonRetriableQueryError(error);
+  if (isNonRetriableQueryError(error)) return false;
+  return failureCount < 2;
 };
 
 const DEFAULT_QUERY_STALE_TIME_MS = isNative ? 10 * 60 * 1000 : 5 * 60 * 1000;

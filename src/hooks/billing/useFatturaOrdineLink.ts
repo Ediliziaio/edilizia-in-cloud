@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -34,54 +35,73 @@ interface FatturaJoined {
 // ─── Ordini collegati a una fattura ───────────────────────────
 
 export function useOrdiniByFattura(fatturaId: string | undefined) {
+  // v8.6.101 — tenant isolation: SA in impersonation senza filtro
+  // company_id avrebbe accesso a tutti gli ordini di tutte le aziende.
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["fattura-ordini", fatturaId],
+    queryKey: ["fattura-ordini", fatturaId, companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const baseQuery = supabase
         .from("fattura_ordine" as never)
-        .select("id, importo_associato, note, ordine_id")
+        .select("id, importo_associato, note, ordine_id, company_id")
         .eq("fattura_id", fatturaId!);
+      const { data, error } = companyId
+        ? await baseQuery.eq("company_id" as never, companyId as never)
+        : await baseQuery;
       if (error) throw error;
 
-      // Fetch orders separately (junction table join may not work with `as never`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ordineIds = ((data as any[]) ?? []).map((d: any) => d.ordine_id);
       if (ordineIds.length === 0) return [];
 
-      const { data: orders, error: ordErr } = await supabase
+      const ordQuery = supabase
         .from("orders")
         .select("id, order_code, description, total_amount, customer:profiles!orders_customer_id_fkey(id, first_name, last_name)")
         .in("id", ordineIds);
+      const { data: orders, error: ordErr } = companyId
+        ? await ordQuery.eq("company_id", companyId)
+        : await ordQuery;
       if (ordErr) throw ordErr;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ordersMap = new Map((orders ?? []).map((o: any) => [o.id, o]));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return ((data as any[]) ?? []).map((link: any) => ({
         ...link,
         ordine: ordersMap.get(link.ordine_id) as OrderJoined | undefined,
       }));
     },
-    enabled: !!fatturaId,
+    enabled: !!fatturaId && !!companyId,
   });
 }
 
 // ─── Fatture collegate a un ordine ────────────────────────────
 
 export function useFattureByOrdine(ordineId: string | undefined) {
+  // v8.6.101 — tenant isolation per impersonation
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["ordine-fatture", ordineId],
+    queryKey: ["ordine-fatture", ordineId, companyId],
     queryFn: async () => {
       // From junction table
-      const { data: junctionData, error: jErr } = await supabase
+      const junctionQuery = supabase
         .from("fattura_ordine" as never)
-        .select("id, importo_associato, fattura_id")
+        .select("id, importo_associato, fattura_id, company_id")
         .eq("ordine_id", ordineId!);
+      const { data: junctionData, error: jErr } = companyId
+        ? await junctionQuery.eq("company_id" as never, companyId as never)
+        : await junctionQuery;
       if (jErr) throw jErr;
 
       // From direct ordine_id shortcut
-      const { data: directData, error: dErr } = await supabase
+      const directQuery = supabase
         .from("documenti_fiscali" as never)
-        .select("id, numero, data_emissione, stato, tipo, totale_da_pagare")
+        .select("id, numero, data_emissione, stato, tipo, totale_da_pagare, company_id")
         .eq("ordine_id", ordineId!)
         .is("deleted_at", null);
+      const { data: directData, error: dErr } = companyId
+        ? await directQuery.eq("company_id" as never, companyId as never)
+        : await directQuery;
       if (dErr) throw dErr;
 
       // Fetch fatture from junction
@@ -103,7 +123,7 @@ export function useFattureByOrdine(ordineId: string | undefined) {
 
       return Array.from(allFatture.values());
     },
-    enabled: !!ordineId,
+    enabled: !!ordineId && !!companyId,
   });
 }
 
