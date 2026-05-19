@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AnalyticsProvider } from "@/contexts/AnalyticsProvider";
 import { Force2FAGuard } from "@/components/auth/Force2FAGuard";
+import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import { captureVelocityError } from "@/lib/velocity/sentry";
 import { BillingModeProvider } from "@/contexts/BillingModeContext";
 import { SubdomainRedirect } from "@/components/auth/SubdomainRedirect";
@@ -328,6 +329,12 @@ function PublicSiteChatWidgetGate() {
   return <SiteChatWidget />;
 }
 
+/** v8.6.99 — Monta hook globale che forza logout dopo 45gg dal login. */
+function SessionTimeoutGuard() {
+  useSessionTimeout();
+  return null;
+}
+
 const App = () => (
   <ErrorBoundary title="Errore critico dell'applicazione">
   <QueryClientProvider client={queryClient}>
@@ -493,6 +500,8 @@ const App = () => (
             <PublicSiteChatWidgetGate />
             {/* v8.6.91 — Install PWA prompt (Android/iOS) con snooze 7gg */}
             <InstallPWAPrompt />
+            {/* v8.6.99 — Auto-logout dopo 45gg dal login */}
+            <SessionTimeoutGuard />
           </Suspense>
           </BillingModeProvider>
           </Force2FAGuard>

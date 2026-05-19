@@ -40,26 +40,28 @@ function buildEmailHtml(code: string, ttlMin: number): string {
   return `<!DOCTYPE html>
 <html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f3f4f6;padding:24px">
   <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb">
-    <h2 style="color:#173b67;margin:0 0 16px;font-size:20px">Codice di accesso · Edilizia in Cloud</h2>
-    <p style="color:#374151;margin:0 0 24px">Ecco il tuo codice per accedere senza password:</p>
+    <h2 style="color:#173b67;margin:0 0 16px;font-size:20px">🔐 Codice di sicurezza · Edilizia in Cloud</h2>
+    <p style="color:#374151;margin:0 0 24px">Hai appena effettuato l'accesso con la tua password. Per completare l'autenticazione inserisci questo codice di sicurezza:</p>
     <div style="background:#fff7ed;border:2px solid #fed7aa;border-radius:8px;padding:24px;text-align:center;margin:24px 0">
       <div style="font-size:36px;font-weight:700;letter-spacing:12px;font-family:monospace;color:#9a3412">${code}</div>
     </div>
     <p style="color:#6b7280;font-size:14px;margin:24px 0 8px">Il codice scade tra <strong>${ttlMin} minuti</strong>.</p>
-    <p style="color:#9ca3af;font-size:12px;margin:16px 0 0">Se non hai richiesto questo accesso, ignora questa email — il tuo account è al sicuro.</p>
+    <p style="color:#9ca3af;font-size:12px;margin:16px 0 0">⚠️ Se NON sei stato tu, qualcuno ha la tua password. Cambiala immediatamente.</p>
   </div>
   <p style="text-align:center;color:#9ca3af;font-size:11px;margin:16px 0 0">© Edilizia in Cloud · app.ediliziaincloud.com</p>
 </body></html>`;
 }
 
 function buildEmailText(code: string, ttlMin: number): string {
-  return `Codice di accesso Edilizia in Cloud
+  return `Codice di sicurezza Edilizia in Cloud
 
-Il tuo codice: ${code}
+Hai appena fatto l'accesso. Inserisci questo codice per completare l'autenticazione:
+
+${code}
 
 Scade tra ${ttlMin} minuti.
 
-Se non hai richiesto l'accesso, ignora questa email.`;
+Se NON sei stato tu, cambia immediatamente la password.`;
 }
 
 Deno.serve(async (req) => {

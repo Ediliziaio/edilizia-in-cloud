@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "./TwoFactorVerify";
 import { SSOButtons } from "./SSOButtons";
 import { EmailOTPLogin } from "./EmailOTPLogin";
+import { markSessionStarted } from "@/hooks/useSessionTimeout";
 import { useBrandingByDomain } from "@/hooks/useBrandingByDomain";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { cn } from "@/lib/utils";
@@ -209,7 +210,12 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         // If TOTP check fails, proceed normally
       }
 
-      toast({ title: "Accesso effettuato", description: "Benvenuto!" });
+      // v8.6.99 — Email OTP come 2FA automatico (sostituisce il login finale).
+      // L'utente è già signed-in, ma forziamo la verifica via codice email.
+      // setView("email-otp") rende montato EmailOTPLogin che invia il codice
+      // e blocca l'UI finché non viene verificato.
+      setView("email-otp");
+      return;
     } catch {
       setFormError("Si è verificato un errore. Riprova più tardi.");
       toast({
@@ -384,11 +390,21 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
             </div>
           )}
 
-          {/* ── Email OTP view (v8.6.97 — login senza password) ── */}
+          {/* ── Email OTP MFA view (v8.6.99 — 2-step verification post-login) ── */}
           {view === "email-otp" && (
             <EmailOTPLogin
-              initialEmail={email}
-              onBack={() => setView("login")}
+              email={email}
+              onCancel={async () => {
+                await supabase.auth.signOut();
+                setView("login");
+              }}
+              onVerified={() => {
+                markSessionStarted(); // v8.6.99 — session TTL 45gg parte da ora
+                toast({ title: "Accesso confermato", description: "Benvenuto!" });
+                // AuthContext rileva la sessione già attiva e ridirige automaticamente.
+                // Forziamo un reload per assicurarsi che la dashboard si carichi pulita.
+                window.location.href = "/azienda";
+              }}
             />
           )}
 
@@ -483,14 +499,8 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
               {/* ── SSO providers (v8.6.92) ────────────────────────────── */}
               <SSOButtons disabled={isLoading} onError={(msg) => setFormError(msg)} />
 
-              {/* ── Magic link / Email OTP (v8.6.97) ───────────────────── */}
-              <button
-                type="button"
-                onClick={() => setView("email-otp")}
-                className="w-full text-center text-sm text-primary hover:underline font-medium"
-              >
-                Accedi senza password (codice via email)
-              </button>
+              {/* v8.6.99 — Magic-link rimosso: l'OTP email è 2FA automatico
+                  dopo signInWithPassword. Niente più login senza password. */}
 
               <p className="text-center text-xs text-muted-foreground leading-relaxed">
                 L'accesso è riservato agli utenti registrati.<br />

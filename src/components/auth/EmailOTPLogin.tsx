@@ -1,17 +1,16 @@
 /**
- * EmailOTPLogin — v8.6.97
+ * EmailOTPLogin — v8.6.99
  *
- * Login senza password con codice OTP a 6 cifre inviato via email.
- * Più sicuro di "password riusata" + più semplice di "password complessa".
+ * 2FA via codice email (6 cifre, TTL 15min). Mostrato DOPO il login con
+ * email+password ha avuto successo. L'utente HA GIÀ la sessione Supabase
+ * attiva — questa UI è il secondo step di verifica.
  *
  * Flusso:
- *  1. Utente inserisce email → click "Invia codice"
- *  2. Supabase invia email con OTP (TTL 15min, configurato lato dashboard)
- *  3. Utente legge email → inserisce 6 cifre → click "Verifica"
- *  4. supabase.auth.verifyOtp() autentica + Auth listener completa il login
- *
- * Va integrato accanto al form email/password classico via un bottone
- * "Accedi senza password".
+ *   1. LoginForm fa signInWithPassword OK → mostra questa view
+ *   2. Subito al mount: chiama email-otp-send (codice arriva in email)
+ *   3. Utente inserisce 6 cifre → email-otp-verify → status ok
+ *   4. onSuccess (=login completato) → redirect alla dashboard
+ *   5. onBack/cancel → signOut + return to login
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,7 +18,19 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-react";
+import { Loader2, Mail, ArrowLeft, CheckCircle2, ShieldCheck } from "lucide-react";
+
+interface Props {
+  /** Email dell'utente appena loggato (per mostrare conferma + invio OTP). */
+  email: string;
+  /** Click su "Annulla" → signOut + torna a login. */
+  onCancel: () => void;
+  /** OTP verificato → naviga alla dashboard. */
+  onVerified: () => void;
+}
+
+const OTP_TTL_MIN = 15;
+const RESEND_COOLDOWN_SEC = 60;
 
 // ─── OTP input inline (no extra deps) ──────────────────────────────────────
 interface OtpInputProps {
@@ -36,13 +47,13 @@ function OtpInput({ value, onChange, disabled, onComplete }: OtpInputProps) {
   const setChar = useCallback(
     (idx: number, ch: string) => {
       const digit = ch.replace(/\D/g, "").slice(-1);
-      const next = chars.map((c) => c.trim()).join("");
-      const arr = next.padEnd(6, " ").split("");
+      const arr = chars.map((c) => c.trim());
+      while (arr.length < 6) arr.push("");
       arr[idx] = digit;
-      const newVal = arr.join("").trim();
+      const newVal = arr.join("");
       onChange(newVal);
       if (digit && idx < 5) refs.current[idx + 1]?.focus();
-      if (newVal.length === 6) onComplete?.(newVal);
+      if (newVal.replace(/\s/g, "").length === 6) onComplete?.(newVal);
     },
     [chars, onChange, onComplete],
   );
@@ -88,27 +99,15 @@ function OtpInput({ value, onChange, disabled, onComplete }: OtpInputProps) {
   );
 }
 
-interface Props {
-  /** Click su "Indietro" → torna al form principale. */
-  onBack: () => void;
-  /** Email pre-compilata dal form principale (UX continuity). */
-  initialEmail?: string;
-}
-
-type Step = "request" | "verify";
-
-const OTP_TTL_MIN = 15;
-
-export function EmailOTPLogin({ onBack, initialEmail = "" }: Props) {
+export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
   const { toast } = useToast();
-  const [step, setStep] = useState<Step>("request");
-  const [email, setEmail] = useState(initialEmail);
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_SEC);
   const timerRef = useRef<number | null>(null);
+  const sentOnceRef = useRef(false);
 
-  // Countdown re-invio
+  // Countdown reinvio
   useEffect(() => {
     if (secondsLeft <= 0) return;
     timerRef.current = window.setInterval(() => {
@@ -119,222 +118,162 @@ export function EmailOTPLogin({ onBack, initialEmail = "" }: Props) {
     };
   }, [secondsLeft]);
 
-  // v8.6.98 — Custom OTP via edge function email-otp-send (TTL 15min server-side)
-  const sendOtp = async () => {
-    const trimmed = email.trim().toLowerCase();
-    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      toast({ title: "Email non valida", variant: "destructive" });
-      return;
-    }
+  // Invia codice al mount (1 volta sola)
+  const sendCode = useCallback(async (showToast = true) => {
+    if (!email) return;
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("email-otp-send", {
-        body: { email: trimmed },
+        body: { email: email.trim().toLowerCase() },
       });
       if (error) {
-        toast({
-          title: "Errore invio codice",
-          description: error.message,
-          variant: "destructive",
-        });
+        toast({ title: "Errore invio codice", description: error.message, variant: "destructive" });
         return;
       }
-      const status = (data as { status?: string } | null)?.status;
-      if (status === "user_not_found") {
-        toast({
-          title: "Email non registrata",
-          description: "Contatta il tuo consulente per ottenere l'accesso.",
-          variant: "destructive",
-        });
-        return;
-      }
+      const status = (data as { status?: string; cooldown?: number } | null)?.status;
       if (status === "rate_limited") {
-        const cooldown = (data as { cooldown?: number }).cooldown ?? 60;
-        toast({
-          title: "Troppi tentativi",
-          description: `Aspetta ${cooldown}s prima di richiedere un nuovo codice.`,
-          variant: "destructive",
-        });
+        const cooldown = (data as { cooldown?: number }).cooldown ?? RESEND_COOLDOWN_SEC;
         setSecondsLeft(cooldown);
+        toast({
+          title: "Codice già inviato",
+          description: `Aspetta ${cooldown}s prima di richiederne uno nuovo.`,
+        });
         return;
       }
-      setStep("verify");
-      setSecondsLeft(60);
-      toast({
-        title: "Codice inviato",
-        description: `Controlla la casella di posta. Il codice scade tra ${OTP_TTL_MIN} minuti.`,
-      });
+      setSecondsLeft(RESEND_COOLDOWN_SEC);
+      if (showToast) {
+        toast({
+          title: "Codice inviato",
+          description: `Controlla la casella di posta (anche spam). Valido ${OTP_TTL_MIN} minuti.`,
+        });
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [email, toast]);
+
+  useEffect(() => {
+    if (sentOnceRef.current) return;
+    sentOnceRef.current = true;
+    void sendCode(true);
+  }, [sendCode]);
 
   const verifyOtp = async () => {
-    if (otp.length !== 6) return;
+    const cleanOtp = otp.replace(/\D/g, "");
+    if (cleanOtp.length !== 6) return;
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("email-otp-verify", {
-        body: { email: email.trim().toLowerCase(), code: otp },
+        body: { email: email.trim().toLowerCase(), code: cleanOtp },
       });
       if (error) {
         toast({ title: "Errore verifica", description: error.message, variant: "destructive" });
         setOtp("");
         return;
       }
-      const result = data as { status?: string; token_hash?: string; attempts_left?: number } | null;
-      if (!result || result.status !== "ok" || !result.token_hash) {
+      const result = data as { status?: string; attempts_left?: number } | null;
+      if (!result || result.status !== "ok") {
         const msg =
           result?.status === "expired"
             ? "Il codice è scaduto. Richiedine uno nuovo."
             : result?.status === "too_many_attempts"
               ? "Troppi tentativi falliti. Richiedi un nuovo codice."
               : result?.status === "no_active_code"
-                ? "Nessun codice attivo per questa email."
+                ? "Nessun codice attivo. Richiedine uno nuovo."
                 : `Codice non valido${result?.attempts_left !== undefined ? ` (${result.attempts_left} tentativi rimasti)` : ""}.`;
         toast({ title: "Codice non valido", description: msg, variant: "destructive" });
         setOtp("");
         return;
       }
-      // Autentica con il token_hash ritornato dal magic link nativo
-      const { error: vErr } = await supabase.auth.verifyOtp({
-        token_hash: result.token_hash,
-        type: "magiclink",
-      });
-      if (vErr) {
-        toast({
-          title: "Errore autenticazione",
-          description: vErr.message,
-          variant: "destructive",
-        });
-        return;
-      }
-      toast({ title: "Accesso effettuato", description: "Stai entrando…" });
+      toast({ title: "Accesso confermato", description: "Stai entrando…" });
+      onVerified();
     } finally {
       setIsLoading(false);
     }
   };
 
+  const maskedEmail = (() => {
+    const at = email.indexOf("@");
+    if (at <= 0) return email;
+    const local = email.slice(0, at);
+    const domain = email.slice(at);
+    const masked = local.slice(0, 2) + "•".repeat(Math.max(1, local.length - 2));
+    return masked + domain;
+  })();
+
   return (
     <div className="animate-in fade-in-0 duration-300 space-y-5">
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 -ml-2"
-          onClick={onBack}
-          type="button"
-          aria-label="Indietro"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h2 className="text-lg font-semibold">
-            {step === "request" ? "Accedi senza password" : "Inserisci il codice"}
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            {step === "request"
-              ? "Ti invieremo un codice via email."
-              : `Codice inviato a ${email}`}
-          </p>
+      <div className="text-center space-y-2">
+        <div className="mx-auto h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+          <ShieldCheck className="h-6 w-6 text-amber-600 dark:text-amber-400" />
         </div>
+        <h2 className="text-xl font-bold text-foreground">Verifica di sicurezza</h2>
+        <p className="text-sm text-muted-foreground">
+          Abbiamo inviato un codice a <strong className="text-foreground">{maskedEmail}</strong>
+        </p>
       </div>
 
-      {step === "request" && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void sendOtp();
-          }}
-          className="space-y-4"
-        >
-          <div className="space-y-2">
-            <Label htmlFor="email-otp">Email</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="email-otp"
-                type="email"
-                placeholder="nome@tuaazienda.it"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pl-10"
-                autoComplete="email"
-                required
-                disabled={isLoading}
-              />
-            </div>
-          </div>
-          <Button type="submit" className="w-full" disabled={isLoading || !email}>
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Invio in corso…
-              </>
-            ) : (
-              <>
-                <KeyRound className="h-4 w-4 mr-2" />
-                Ricevi codice via email
-              </>
-            )}
-          </Button>
-          <p className="text-xs text-center text-muted-foreground">
-            Il codice è valido per {OTP_TTL_MIN} minuti. Funziona solo se la tua
-            email è già registrata.
-          </p>
-        </form>
-      )}
+      <div className="space-y-3">
+        <Label className="text-center block">Inserisci il codice a 6 cifre</Label>
+        <OtpInput
+          value={otp}
+          onChange={setOtp}
+          disabled={isLoading}
+          onComplete={() => void verifyOtp()}
+        />
+      </div>
 
-      {step === "verify" && (
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label className="text-center block">Codice a 6 cifre</Label>
-            <OtpInput
-              value={otp}
-              onChange={setOtp}
+      <Button
+        onClick={() => void verifyOtp()}
+        className="w-full"
+        disabled={isLoading || otp.replace(/\D/g, "").length !== 6}
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Verifica…
+          </>
+        ) : (
+          <>
+            <CheckCircle2 className="h-4 w-4 mr-2" />
+            Conferma e accedi
+          </>
+        )}
+      </Button>
+
+      <div className="text-center text-xs text-muted-foreground space-y-2">
+        <div>
+          Non hai ricevuto l&apos;email?{" "}
+          {secondsLeft > 0 ? (
+            <span>Reinvia tra {secondsLeft}s</span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void sendCode(true)}
               disabled={isLoading}
-              onComplete={() => void verifyOtp()}
-            />
-          </div>
-
-          <Button
-            onClick={() => void verifyOtp()}
-            className="w-full"
-            disabled={isLoading || otp.length !== 6}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Verifica…
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Verifica e accedi
-              </>
-            )}
-          </Button>
-
-          <div className="text-center text-xs text-muted-foreground">
-            Non hai ricevuto l&apos;email?{" "}
-            {secondsLeft > 0 ? (
-              <span>Reinvia tra {secondsLeft}s</span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void sendOtp()}
-                disabled={isLoading}
-                className="text-primary hover:underline font-medium"
-              >
-                Reinvia codice
-              </button>
-            )}
-          </div>
-
-          <p className="text-[11px] text-center text-muted-foreground">
-            Controlla anche spam. Il codice scade tra {OTP_TTL_MIN} minuti dall&apos;invio.
-          </p>
+              className="text-primary hover:underline font-medium"
+            >
+              Reinvia codice
+            </button>
+          )}
         </div>
-      )}
+        <p className="text-[11px]">
+          <Mail className="inline h-3 w-3 mr-1" />
+          Controlla anche spam. Valido {OTP_TTL_MIN} minuti.
+        </p>
+      </div>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onCancel}
+        className="w-full text-muted-foreground"
+        type="button"
+        disabled={isLoading}
+      >
+        <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+        Annulla e torna al login
+      </Button>
     </div>
   );
 }

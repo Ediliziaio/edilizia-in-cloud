@@ -66,30 +66,7 @@ Deno.serve(async (req) => {
   }
 
   const result = verifyData as unknown as { status: string; attempts_left?: number };
-  if (result.status !== "ok") {
-    return jsonResponse(result);
-  }
-
-  // 2. Genera magic link e estrae token_hash (per autenticazione client-side)
-  const { data: linkData, error: linkErr } = await supa.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-  });
-  if (linkErr || !linkData) {
-    console.error("[email-otp-verify] generateLink error:", linkErr);
-    return jsonResponse({ error: "Impossibile generare sessione" }, 500);
-  }
-
-  // Il properties.hashed_token può essere verificato lato client con verifyOtp
-  const tokenHash = (linkData.properties as { hashed_token?: string } | undefined)?.hashed_token;
-  if (!tokenHash) {
-    console.error("[email-otp-verify] hashed_token mancante in generateLink response");
-    return jsonResponse({ error: "Sessione non generata" }, 500);
-  }
-
-  return jsonResponse({
-    status: "ok",
-    token_hash: tokenHash,
-    email,
-  });
+  // v8.6.99 — Flow MFA post-login: l'utente HA GIA' la sessione (signInWithPassword).
+  // L'OTP è solo conferma 2-step. Ritorniamo solo status, no magic link.
+  return jsonResponse(result);
 });

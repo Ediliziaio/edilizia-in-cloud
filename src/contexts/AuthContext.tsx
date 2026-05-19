@@ -1005,6 +1005,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await endSession();
     sessionStorage.removeItem("quick_login_original_email");
     sessionStorage.removeItem("quick_login_original_name");
+    // v8.6.99 — clear session_started_at marker per useSessionTimeout
+    try { localStorage.removeItem("eic_session_started_at"); } catch { /* ignore */ }
     await supabase.auth.signOut();
   }, []);
 
