@@ -227,15 +227,23 @@ function TabAbbonamenti() {
             </div>
           )}
 
-          {/* Footer azioni */}
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={() => openPortal()} disabled={isPending} className="gap-1.5">
+          {/* Footer azioni — v8.6.75 label corta su mobile, w-full mobile.
+              Prima il bottone "Vuoi modificare/annullare il tuo abbonamento?"
+              tracimava dalla card su 375px (label 280px+ vs viewport 343px utili). */}
+          <div className="mt-5 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => openPortal()}
+              disabled={isPending}
+              className="gap-1.5 w-full sm:w-auto justify-center sm:justify-start"
+            >
               {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
-              Vuoi modificare/annullare il tuo abbonamento?
+              <span className="hidden sm:inline">Vuoi modificare/annullare il tuo abbonamento?</span>
+              <span className="sm:hidden">Gestisci abbonamento</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
-            <p className="text-xs text-muted-foreground">
-              Hai una domanda sulla fatturazione? <a href="mailto:info@ediliziaincloud.com" className="text-primary hover:underline">Contattaci</a>
+            <p className="text-xs text-muted-foreground text-center sm:text-left">
+              Hai una domanda? <a href="mailto:info@ediliziaincloud.com" className="text-primary hover:underline">Contattaci</a>
             </p>
           </div>
         </CardContent>

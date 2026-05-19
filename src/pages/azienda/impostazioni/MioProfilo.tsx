@@ -537,25 +537,31 @@ export default function MioProfilo() {
 
       {/* ── Tabs ── */}
       <Tabs defaultValue="profilo" className="w-full">
-        {/* Mobile-friendly scrolling tabs (no sopralluoghi — rimossa per cleanup duplicati) */}
-        <div className="-mx-1 mb-6 overflow-x-auto overscroll-x-contain px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <TabsList className="inline-flex h-auto min-w-max w-max justify-start gap-1 bg-muted/50 p-1">
-            <TabsTrigger value="profilo" className="h-9 shrink-0 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm">
-              <User className="h-3.5 w-3.5" /> Profilo
-            </TabsTrigger>
-            <TabsTrigger value="sicurezza" className="h-9 shrink-0 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm">
-              <Shield className="h-3.5 w-3.5" /> Sicurezza
-            </TabsTrigger>
-            <TabsTrigger value="calendari" className="h-9 shrink-0 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm">
-              <CalendarDays className="h-3.5 w-3.5" /> Calendari
-            </TabsTrigger>
-            <TabsTrigger value="email" className="h-9 shrink-0 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm">
-              <Mail className="h-3.5 w-3.5" /> Email
-            </TabsTrigger>
-            <TabsTrigger value="notifiche" className="h-9 shrink-0 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm">
-              <Bell className="h-3.5 w-3.5" /> Notifiche
-            </TabsTrigger>
-          </TabsList>
+        {/* v8.6.75 — Mobile-friendly scrolling tabs con fade gradient a destra
+            che indica "scroll possibile". Padding ridotto px-2 sm:px-3 +
+            gap-0.5 sm:gap-1 per far stare più tab a vista su 375px. */}
+        <div className="relative mb-6">
+          <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <TabsList className="inline-flex h-auto min-w-max w-max justify-start gap-0.5 sm:gap-1 bg-muted/50 p-1">
+              <TabsTrigger value="profilo" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
+                <User className="h-3.5 w-3.5" /> Profilo
+              </TabsTrigger>
+              <TabsTrigger value="sicurezza" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
+                <Shield className="h-3.5 w-3.5" /> Sicurezza
+              </TabsTrigger>
+              <TabsTrigger value="calendari" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
+                <CalendarDays className="h-3.5 w-3.5" /> Calendari
+              </TabsTrigger>
+              <TabsTrigger value="email" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
+                <Mail className="h-3.5 w-3.5" /> Email
+              </TabsTrigger>
+              <TabsTrigger value="notifiche" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
+                <Bell className="h-3.5 w-3.5" /> Notifiche
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          {/* Fade gradient: hint visivo "scrolla per vedere altre tab" */}
+          <div className="pointer-events-none absolute top-0 right-0 h-full w-8 bg-gradient-to-l from-background to-transparent sm:hidden" />
         </div>
 
         {/* ════════════ TAB PROFILO ════════════ */}
