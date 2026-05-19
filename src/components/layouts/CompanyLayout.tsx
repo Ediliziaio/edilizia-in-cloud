@@ -13,6 +13,7 @@ import { useBreadcrumb } from "@/hooks/useBreadcrumb";
 import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
+import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
 import { 
   HeadphonesIcon,
   Settings,
@@ -205,12 +206,11 @@ const SCOPRI_LOCKED_ROUTES = [
 ];
 
 // v8.6.93 — Module-level constants (no re-create per render)
+// FULL_PLAN_SLUGS: fallback hardcoded usato se `subscription_plans.is_full_plan`
+// non è popolato (backward compat con DB pre-migration). Quando il campo DB
+// è valorizzato, `currentPlan.is_full_plan === true` ha priorità.
 const FULL_PLAN_SLUGS = new Set(["starter", "pro", "enterprise"]);
 const CORE_MODULES_COUNT = 7;
-// Demo Azienda S.r.l. è la company-vetrina interna: deve mostrare la sidebar
-// PIENA senza badge DEMO indipendentemente dal piano DB (usata come reference
-// visiva per onboarding e supporto). UUID condiviso con src/lib/ai/models.config.ts.
-const DEMO_BASELINE_COMPANY_ID = "778a2c76-1253-49f2-a5e8-283363ac3e29";
 
 function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange, isScopriPlan = false, isFeaturePreview, isModuleDemo }: {
   area: MacroArea;
@@ -803,16 +803,22 @@ const CompanySidebar = memo(function CompanySidebar() {
   // Demo Azienda S.r.l. = company-vetrina interna. Bypassa DEMO badges così
   // la sidebar appare full-feature anche se il piano DB è parziale (è il caso
   // reference che support/onboarding usano come "come dovrebbe apparire").
-  const isDemoBaseline = effectiveCompany?.id === DEMO_BASELINE_COMPANY_ID;
+  const isDemoBaseline = effectiveCompany?.id === DEMO_COMPANY_ID;
 
-  // v8.6.83 — "Piano limitato": ha meno di tutti i 7 moduli core OPPURE
-  // slug NON è in FULL_PLAN_SLUGS. Per questi piani le voci moduleKey non
-  // incluse vengono mostrate come DEMO invece di nascoste.
-  // (FULL_PLAN_SLUGS è module-level constant — vedi top of file)
+  // "Piano full": fonte di verità è la colonna DB `subscription_plans.is_full_plan`.
+  // Fallback su `FULL_PLAN_SLUGS` hardcoded se il campo DB non è popolato
+  // (ambienti pre-migration). Aggiungere un nuovo piano "premium" ora richiede
+  // solo `UPDATE subscription_plans SET is_full_plan=true WHERE slug='premium'`
+  // → nessun deploy frontend.
+  const planIsFullFlag = (currentPlan as { is_full_plan?: boolean } | null | undefined)?.is_full_plan === true;
   const isFullBySlug = !!currentPlan?.slug && FULL_PLAN_SLUGS.has(currentPlan.slug);
-  const isLimitedPlan = !isSuperAdminViewer && !isDemoBaseline && !isFullBySlug && (
+  const isFullPlan = planIsFullFlag || isFullBySlug;
+
+  // v8.6.83 — "Piano limitato": NON full + ha moduli inclusi parziali OPPURE
+  // slug è presente ma non riconosciuto come full.
+  const isLimitedPlan = !isSuperAdminViewer && !isDemoBaseline && !isFullPlan && (
     (includedModules.length > 0 && includedModules.length < CORE_MODULES_COUNT) ||
-    (!!currentPlan?.slug && !FULL_PLAN_SLUGS.has(currentPlan.slug))
+    (!!currentPlan?.slug && !FULL_PLAN_SLUGS.has(currentPlan.slug) && !planIsFullFlag)
   );
 
   /** Modulo in modalità demo: non incluso ma piano è "limited" (o no plan) → preview. */

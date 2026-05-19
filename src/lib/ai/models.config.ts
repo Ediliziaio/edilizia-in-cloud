@@ -18,7 +18,10 @@
  *  - active company id = DEMO_COMPANY_ID
  *  - utente loggato email = DEMO_USER_EMAIL
  */
-export const DEMO_COMPANY_ID = '778a2c76-1253-49f2-a5e8-283363ac3e29';
+// Re-export dalla constants/ centralizzata per evitare drift.
+// Storico: il valore era duplicato qui e in CompanyLayout.tsx → centralizzato
+// in src/lib/constants/demoCompany.ts.
+export { DEMO_COMPANY_ID } from '@/lib/constants/demoCompany';
 export const DEMO_USER_EMAIL = 'demo@azienda.srl';
 
 export type ModelType = 'text' | 'image';

@@ -52,7 +52,9 @@ export function useSubscriptionLimits(options: UseSubscriptionLimitsOptions = {}
       const { data, error } = await withClientTimeout(
         supabase
           .from("subscription_plans")
-          .select("id, name, slug, included_modules, max_orders, max_users, price_monthly, price_yearly")
+          // is_full_plan è opzionale (DB pre-migration può non averla):
+          // il SELECT non rompe — Postgrest restituisce undefined se manca.
+          .select("id, name, slug, included_modules, max_orders, max_users, price_monthly, price_yearly, is_full_plan")
           .eq("id", planId)
           .maybeSingle(),
         "Caricamento piano aziendale",
