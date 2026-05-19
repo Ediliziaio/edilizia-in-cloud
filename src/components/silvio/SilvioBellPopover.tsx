@@ -91,7 +91,10 @@ export function SilvioBellPopover() {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-[420px] sm:w-[480px] p-0 max-h-[80vh] overflow-y-auto"
+        collisionPadding={12}
+        /* v8.6.66 — mobile fix: era w-[420px] fisso ma viewport iPhone è
+           375px → overflow di 45px a destra. Ora capped a viewport-aware. */
+        className="w-[min(360px,calc(100vw-1.5rem))] sm:w-[480px] p-0 max-h-[80vh] overflow-y-auto"
       >
         <div className="p-3 space-y-3">
           <SilvioAlertsPanel variant="compact" maxItems={6} />

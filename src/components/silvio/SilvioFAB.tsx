@@ -210,7 +210,12 @@ export function SilvioFAB({ hidden = false }: Props) {
           side="top"
           align="end"
           sideOffset={12}
-          className="w-[340px] sm:w-[380px] max-h-[calc(100vh-120px)] p-0 border-orange-100 shadow-2xl rounded-2xl overflow-hidden flex flex-col"
+          collisionPadding={12}
+          /* v8.6.66 — mobile fix: width responsive con max viewport-aware
+             per evitare che il popover fuoriesca dal bordo destro quando
+             aperto su trigger nascosti (es. da bell popover o link Silvio
+             in bottom-nav). Era w-[340px] fisso = overflow su iPhone SE. */
+          className="w-[min(340px,calc(100vw-1.5rem))] sm:w-[380px] max-h-[calc(100vh-120px)] p-0 border-orange-100 shadow-2xl rounded-2xl overflow-hidden flex flex-col"
         >
           {/* Header (sticky) */}
           <div className="bg-gradient-to-br from-orange-500 to-amber-400 px-4 py-3 text-white shrink-0">
