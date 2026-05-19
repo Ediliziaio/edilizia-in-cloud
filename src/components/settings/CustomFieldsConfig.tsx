@@ -1488,16 +1488,18 @@ export function CustomFieldsConfig() {
           v8.6.45 — 2 tab prima `disabled` ora attive:
           - "Cartelle": CRUD folders custom
           - "Campi eliminati": lista soft-deleted + restore/purge */}
-      <div className="flex items-center justify-between border-b pb-0 mb-0">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-transparent h-auto p-0 gap-0">
-            <TabsTrigger value="all" className="rounded-none border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-4 pb-2.5 pt-1">
+      {/* v8.6.74 — flex-wrap su mobile: prima i 3 tabs + button "Aggiungi
+          campo" andavano in overflow su 375px → button tagliato a destra. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 mb-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="min-w-0">
+          <TabsList className="bg-transparent h-auto p-0 gap-0 overflow-x-auto max-w-full">
+            <TabsTrigger value="all" className="rounded-none border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0">
               Tutti i campi
             </TabsTrigger>
-            <TabsTrigger value="folders" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-4 pb-2.5 pt-1">
+            <TabsTrigger value="folders" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0">
               Cartelle
             </TabsTrigger>
-            <TabsTrigger value="deleted" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-4 pb-2.5 pt-1">
+            <TabsTrigger value="deleted" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0">
               Campi eliminati
               {deletedFields.length > 0 && (
                 <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
@@ -1508,13 +1510,13 @@ export function CustomFieldsConfig() {
           </TabsList>
         </Tabs>
 
-        <div className="flex items-center gap-2 pb-1">
+        <div className="flex items-center gap-2 pb-1 shrink-0 w-full sm:w-auto">
           {activeTab === "folders" ? (
-            <Button size="sm" onClick={openCreateFolderDialog} disabled={!companyId}>
+            <Button size="sm" onClick={openCreateFolderDialog} disabled={!companyId} className="w-full sm:w-auto">
               <FolderPlus className="h-4 w-4 mr-1.5" /> Aggiungi cartella
             </Button>
           ) : (
-            <Button size="sm" onClick={openCreateDialog} disabled={!companyId}>
+            <Button size="sm" onClick={openCreateDialog} disabled={!companyId} className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
             </Button>
           )}

@@ -676,24 +676,27 @@ export function SuppliersConfig() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
+        {/* v8.6.74 — flex-wrap su mobile: prima i 2 button (Merge duplicati +
+            Nuovo Fornitore) tagliavano fuori dal viewport iPhone 375px. */}
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
             <CardTitle className="flex items-center gap-2">
-              <Truck className="h-5 w-5" />
+              <Truck className="h-5 w-5 shrink-0" />
               Fornitori
             </CardTitle>
             <CardDescription>
               Gestisci i tuoi fornitori e le relative informazioni
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setMergeDialogOpen(true)}>
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={() => setMergeDialogOpen(true)}>
               <Merge className="h-4 w-4 mr-2" />
               Merge duplicati
             </Button>
-            <Button onClick={handleOpenCreate}>
+            <Button size="sm" className="flex-1 sm:flex-none" onClick={handleOpenCreate}>
               <Plus className="h-4 w-4 mr-2" />
-              Nuovo Fornitore
+              <span className="hidden sm:inline">Nuovo Fornitore</span>
+              <span className="sm:hidden">Nuovo</span>
             </Button>
           </div>
         </div>
