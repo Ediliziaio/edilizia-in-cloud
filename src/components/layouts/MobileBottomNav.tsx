@@ -128,8 +128,10 @@ export function MobileBottomNav() {
   // Solo su mobile
   if (!isMobile) return null;
 
-  // Nascondi nelle impostazioni
-  if (location.pathname.startsWith("/azienda/impostazioni")) return null;
+  // v8.6.68 — Rimosso il "nascondi nelle impostazioni": l'utente segnalava
+  // incoerenza UX. La bottom nav è ora SEMPRE visibile su mobile in modo che
+  // navigazione e accesso rapido (Home/Commesse/Chat/Magazzino/App) restino
+  // coerenti tra pagine di lavoro e settings.
 
   // Rileva la sezione corrente e seleziona gli item contestuali
   const section = detectSection(location.pathname);
