@@ -315,7 +315,18 @@ async function main() {
           `  <meta name="x-prerendered" content="${new Date().toISOString()}">\n  </head>`,
         );
 
-        const outDir = route === "/" ? DIST : join(DIST, route.replace(/^\//, ""));
+        // ROOT CAUSE FIX: route "/" non deve più sovrascrivere dist/index.html
+        // (lo SHELL Vite che funziona da SPA fallback per /* in _redirects).
+        // Prima: dist/index.html era la Home prerenderata da 312KB → CloudFlare
+        // la serviva PER QUALSIASI route privata (/admin/*, /azienda/*) →
+        // utenti vedevano la HOME PAGE flashata fino al mount di React.
+        // Ora: Home prerenderata va in dist/_home/index.html, raggiunta via
+        // rewrite "/ → /_home/index.html 200" in public/_redirects.
+        // dist/index.html resta lo SHELL minimale per SPA fallback su route
+        // dinamiche/protette.
+        const outDir = route === "/"
+          ? join(DIST, "_home")
+          : join(DIST, route.replace(/^\//, ""));
         if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
         writeFileSync(join(outDir, "index.html"), html, "utf-8");
 

@@ -102,6 +102,16 @@ http://www.ediliziaincloud.com/*   https://www.ediliziaincloud.com/:splat   301
 /citta/:slug                           /citta/:slug/                           301
 /funzionalita/:slug                    /funzionalita/:slug/                    301
 
+# ── Root rewrite (prerendered Home) ───────────────────────────────────────────
+# Causa root del flash "Home page" su app.ediliziaincloud.com/admin/*,
+# /azienda/*, ecc.: il prerender script salvava la Home in dist/index.html,
+# che è ANCHE lo SPA fallback del catch-all sotto → ogni route privata serviva
+# 312KB di HTML Home renderizzato.
+# Fix: Home prerenderata ora in dist/_home/index.html (vedi scripts/prerender.mjs),
+# raggiunta SOLO via questo rewrite "/  → /_home/index.html 200" trasparente.
+# dist/index.html resta lo SHELL Vite minimale per SPA fallback /*.
+/                                      /_home/index.html                       200
+
 # ── SPA fallback routing ──────────────────────────────────────────────────────
 # All routes fall through to index.html so React Router handles them client-side.
 # IMPORTANTE: i redirect 301 sopra devono stare PRIMA del catch-all 200,
