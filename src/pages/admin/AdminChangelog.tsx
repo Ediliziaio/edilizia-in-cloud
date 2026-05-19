@@ -310,7 +310,7 @@ export default function AdminChangelog() {
               </Button>
               <Button
                 onClick={() => editing && save.mutate(editing)}
-                disabled={save.isPending || !editing?.title || !editing?.body_md}
+                disabled={save.isPending || !editing?.title?.trim() || !editing?.body_md?.trim()}
               >
                 {save.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 {editing?.id ? "Salva modifiche" : "Pubblica"}

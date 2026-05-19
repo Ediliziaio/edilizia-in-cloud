@@ -20,13 +20,17 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+/** Throttle delay tra invii email (anti rate-limit provider). */
+const INTER_SEND_DELAY_MS = 200;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>;
@@ -174,11 +178,12 @@ async function runD3NoActivation(
       .eq("template_key", "lifecycle_d3_no_activation");
     if ((alreadySent ?? 0) > 0) continue;
 
-    // Trova admin email
+    // Trova admin email (deterministic: order by id per stabilità)
     const { data: profile } = await supa
       .from("profiles")
       .select("id, first_name")
       .eq("company_id", c.id)
+      .order("id", { ascending: true })
       .limit(1)
       .maybeSingle();
     if (!profile) continue;
@@ -203,6 +208,7 @@ async function runD3NoActivation(
       res.errors.push(`${c.id}: ${sendRes.error}`);
       await logSend(supa, c.id, (profile as AnyRecord).id, "lifecycle_d3_no_activation", email, "failed", { error: sendRes.error });
     }
+    await sleep(INTER_SEND_DELAY_MS);
   }
   return res;
 }
@@ -233,7 +239,7 @@ async function runD7Features(supa: ReturnType<typeof createClient>): Promise<Sen
       .eq("template_key", "lifecycle_d7_features");
     if ((already ?? 0) > 0) continue;
 
-    const { data: profile } = await supa.from("profiles").select("id, first_name").eq("company_id", c.id).limit(1).maybeSingle();
+    const { data: profile } = await supa.from("profiles").select("id, first_name").eq("company_id", c.id).order("id", { ascending: true }).limit(1).maybeSingle();
     if (!profile) continue;
     const { data: ud } = await supa.auth.admin.getUserById((profile as AnyRecord).id);
     const email = ud.user?.email;
@@ -246,7 +252,11 @@ async function runD7Features(supa: ReturnType<typeof createClient>): Promise<Sen
     };
     const sr = await sendEmail("lifecycle_d7_features", email, vars, template);
     if (sr.ok) { res.sent++; await logSend(supa, c.id, (profile as AnyRecord).id, "lifecycle_d7_features", email, "sent", vars); }
-    else { res.failed++; res.errors.push(`${c.id}: ${sr.error}`); }
+    else {
+      res.failed++; res.errors.push(`${c.id}: ${sr.error}`);
+      await logSend(supa, c.id, (profile as AnyRecord).id, "lifecycle_d7_features", email, "failed", { error: sr.error });
+    }
+    await sleep(INTER_SEND_DELAY_MS);
   }
   return res;
 }
@@ -286,7 +296,7 @@ async function runTrialEnding(supa: ReturnType<typeof createClient>): Promise<Se
     const trialEnd = new Date(c.trial_ends_at as string);
     const daysRemaining = Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
 
-    const { data: profile } = await supa.from("profiles").select("id, first_name").eq("company_id", c.id).limit(1).maybeSingle();
+    const { data: profile } = await supa.from("profiles").select("id, first_name").eq("company_id", c.id).order("id", { ascending: true }).limit(1).maybeSingle();
     if (!profile) continue;
     const { data: ud } = await supa.auth.admin.getUserById((profile as AnyRecord).id);
     const email = ud.user?.email;
@@ -302,7 +312,11 @@ async function runTrialEnding(supa: ReturnType<typeof createClient>): Promise<Se
     };
     const sr = await sendEmail("lifecycle_trial_ending", email, vars, template);
     if (sr.ok) { res.sent++; await logSend(supa, c.id, (profile as AnyRecord).id, "lifecycle_trial_ending", email, "sent", vars); }
-    else { res.failed++; res.errors.push(`${c.id}: ${sr.error}`); }
+    else {
+      res.failed++; res.errors.push(`${c.id}: ${sr.error}`);
+      await logSend(supa, c.id, (profile as AnyRecord).id, "lifecycle_trial_ending", email, "failed", { error: sr.error });
+    }
+    await sleep(INTER_SEND_DELAY_MS);
   }
   return res;
 }
@@ -344,7 +358,7 @@ async function runMonthlySummary(supa: ReturnType<typeof createClient>): Promise
       .gte("created_at", lastMonth.toISOString())
       .lt("created_at", monthEnd.toISOString());
 
-    const { data: profile } = await supa.from("profiles").select("id, first_name").eq("company_id", c.id).limit(1).maybeSingle();
+    const { data: profile } = await supa.from("profiles").select("id, first_name").eq("company_id", c.id).order("id", { ascending: true }).limit(1).maybeSingle();
     if (!profile) continue;
     const { data: ud } = await supa.auth.admin.getUserById((profile as AnyRecord).id);
     const email = ud.user?.email;
@@ -364,7 +378,9 @@ async function runMonthlySummary(supa: ReturnType<typeof createClient>): Promise
       await logSend(supa, c.id, (profile as AnyRecord).id, "lifecycle_monthly_summary", email, "sent", { ...vars, month_key: monthKey });
     } else {
       res.failed++; res.errors.push(`${c.id}: ${sr.error}`);
+      await logSend(supa, c.id, (profile as AnyRecord).id, "lifecycle_monthly_summary", email, "failed", { error: sr.error, month_key: monthKey });
     }
+    await sleep(INTER_SEND_DELAY_MS);
   }
   return res;
 }
@@ -372,6 +388,25 @@ async function runMonthlySummary(supa: ReturnType<typeof createClient>): Promise
 // ─── Entry point ────────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+
+  // v8.6.94 — env validation: fail fast con messaggio chiaro
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    return new Response(
+      JSON.stringify({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env" }),
+      { status: 500, headers: { ...CORS, "Content-Type": "application/json" } },
+    );
+  }
+
+  // v8.6.94 — Auth check: solo service_role bearer può triggerare
+  // (chiamato da pg_cron internamente o admin tooling). Blocca utenti generici.
+  const authHeader = req.headers.get("authorization") ?? "";
+  const providedToken = authHeader.replace(/^Bearer\s+/i, "");
+  if (providedToken !== SERVICE_ROLE_KEY) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized: service_role required" }),
+      { status: 401, headers: { ...CORS, "Content-Type": "application/json" } },
+    );
+  }
 
   const supa = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const results: SendResult[] = [];

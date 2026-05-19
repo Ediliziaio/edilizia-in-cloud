@@ -31,7 +31,7 @@ BEGIN
   WHERE role = 'super_admin'::app_role
   LIMIT 1;
 
-  -- Inserisci template se non esiste
+  -- Inserisci template se non esiste (richiede UNIQUE(name) — vedi migration 20270519200000)
   INSERT INTO public.onboarding_templates (name, description, is_default, created_by)
   VALUES (
     'Quick Start Edilizia',
@@ -39,7 +39,7 @@ BEGIN
     true,
     v_super_admin_id
   )
-  ON CONFLICT DO NOTHING
+  ON CONFLICT (name) DO NOTHING
   RETURNING id INTO v_template_id;
 
   IF v_template_id IS NULL THEN

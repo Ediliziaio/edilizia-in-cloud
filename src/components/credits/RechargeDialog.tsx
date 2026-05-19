@@ -359,8 +359,14 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
                 <p className="mt-1 text-[10px] text-muted-foreground">Min €5 · Max €1.000</p>
               </div>
               <Button
-                onClick={() => purchase(Number(customAmount))}
-                disabled={!customAmount || Number(customAmount) < 5 || loadingAmount !== null}
+                onClick={() => purchase(Math.floor(Number(customAmount)))}
+                disabled={
+                  !customAmount ||
+                  Number.isNaN(Number(customAmount)) ||
+                  Number(customAmount) < 5 ||
+                  Number(customAmount) > 1000 ||
+                  loadingAmount !== null
+                }
               >
                 {loadingAmount !== null && Number(customAmount) === loadingAmount ? (
                   <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />

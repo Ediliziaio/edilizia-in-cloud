@@ -16,6 +16,7 @@ import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import {
   initAnalytics,
   identifyUser,
@@ -31,6 +32,8 @@ interface AnalyticsConfig {
 
 export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const { user, profile, effectiveCompany, role } = useAuth();
+  // v8.6.94 — usa currentPlan.slug (presente) invece di subscription_plan_id (uuid)
+  const { currentPlan } = useSubscriptionLimits({ includeUsageCounts: false });
   const location = useLocation();
 
   // 1. Carica config (cache lunga)
@@ -78,11 +81,11 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       companyId: effectiveCompany?.id,
       companyName: effectiveCompany?.name,
       role: role ?? undefined,
-      planSlug: (effectiveCompany as unknown as { subscription_plan_id?: string })?.subscription_plan_id ?? undefined,
+      planSlug: currentPlan?.slug ?? undefined,
     });
     // Nota: profile per first_name non lo passiamo a PostHog (privacy)
     void profile;
-  }, [config, user?.id, user?.email, effectiveCompany?.id, effectiveCompany?.name, role, profile]);
+  }, [config, user?.id, user?.email, effectiveCompany?.id, effectiveCompany?.name, role, profile, currentPlan?.slug]);
 
   // 4. Track pageview ad ogni cambio rotta
   useEffect(() => {

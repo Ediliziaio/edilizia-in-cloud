@@ -101,6 +101,8 @@ export function OnboardingChecklist() {
   // Toggle manuale (per gli step senza auto_check_key)
   const toggleStep = useMutation({
     mutationFn: async (stepId: string) => {
+      // v8.6.94 — guardia auth: senza user.id non scriviamo
+      if (!user?.id || !companyId) throw new Error("Sessione non disponibile");
       if (completedIds.has(stepId)) {
         const { error } = await supabase
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -119,7 +121,7 @@ export function OnboardingChecklist() {
           .insert({
             company_id: companyId,
             step_id: stepId,
-            completed_by: user!.id,
+            completed_by: user.id,
           } as any);
         if (error) throw error;
       }
@@ -175,8 +177,9 @@ export function OnboardingChecklist() {
                 }`}
               >
                 <button
-                  className="shrink-0 mt-0.5"
+                  className="shrink-0 mt-0.5 disabled:opacity-50"
                   onClick={() => toggleStep.mutate(step.id)}
+                  disabled={toggleStep.isPending}
                   aria-label={done ? "Segna come da fare" : "Segna come completato"}
                   type="button"
                   data-allow-in-preview="true"
