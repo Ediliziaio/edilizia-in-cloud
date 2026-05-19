@@ -58,15 +58,19 @@ export default function SettingsFatturazioneUnified() {
   return (
     <div className="space-y-4">
       <Tabs value={activeTab} onValueChange={setTab} className="w-full">
-        <TabsList className="grid w-full max-w-xl grid-cols-2">
-          <TabsTrigger value="esterna" className="gap-1.5">
-            <Plug className="h-3.5 w-3.5" />
-            <span>Provider esterni</span>
+        {/* v8.6.71 — Label tab abbreviate su mobile, complete da sm in su.
+            Prima "Configurazione elettronica nativa" traboccava dal cell grid. */}
+        <TabsList className="grid w-full max-w-xl grid-cols-2 h-auto">
+          <TabsTrigger value="esterna" className="gap-1.5 whitespace-normal text-xs sm:text-sm py-2">
+            <Plug className="h-3.5 w-3.5 shrink-0" />
+            <span className="sm:hidden">Esterni</span>
+            <span className="hidden sm:inline">Provider esterni</span>
           </TabsTrigger>
-          <TabsTrigger value="nativa" className="gap-1.5">
-            <FileSignature className="h-3.5 w-3.5" />
-            <span>Configurazione elettronica nativa</span>
-            {!isLoading && !isNative && <Lock className="h-3 w-3 text-muted-foreground" aria-label="Lettura sola" />}
+          <TabsTrigger value="nativa" className="gap-1.5 whitespace-normal text-xs sm:text-sm py-2">
+            <FileSignature className="h-3.5 w-3.5 shrink-0" />
+            <span className="sm:hidden">SDI nativa</span>
+            <span className="hidden sm:inline">Configurazione elettronica nativa</span>
+            {!isLoading && !isNative && <Lock className="h-3 w-3 text-muted-foreground shrink-0" aria-label="Lettura sola" />}
           </TabsTrigger>
         </TabsList>
 

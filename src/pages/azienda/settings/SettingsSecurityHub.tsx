@@ -56,7 +56,10 @@ export default function SettingsSecurityHub() {
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-      <TabsList className="mb-6 w-full sm:w-auto">
+      {/* v8.6.71 — mobile: scroll orizzontale invece di compressione (4 tab
+          con label lunghe sovrapponevano: Password / Privacy & GDPR /
+          Security dashboard / Registro attività). */}
+      <TabsList className="mb-6 w-full sm:w-auto h-auto flex-wrap justify-start gap-1 overflow-x-auto sm:overflow-visible sm:flex-nowrap">
         <TabsTrigger value="password" className="flex items-center gap-2">
           <Key className="h-4 w-4" />
           <span>Password</span>
