@@ -255,14 +255,17 @@ export function PipelinesConfig() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Sequenze (Pipeline)</CardTitle>
-            <CardDescription>Gestisci le pipeline di vendita e le relative fasi</CardDescription>
+        <CardHeader>
+          {/* v8.6.74 — flex-wrap mobile-safe */}
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <CardTitle>Sequenze (Pipeline)</CardTitle>
+              <CardDescription>Gestisci le pipeline di vendita e le relative fasi</CardDescription>
+            </div>
+            <Button size="sm" onClick={openCreateDialog} className="w-full sm:w-auto shrink-0">
+              <Plus className="mr-2 h-4 w-4" /> Crea Sequenza
+            </Button>
           </div>
-          <Button size="sm" onClick={openCreateDialog}>
-            <Plus className="mr-2 h-4 w-4" /> Crea Sequenza
-          </Button>
         </CardHeader>
         <CardContent>
           {pipelines.length === 0 ? (

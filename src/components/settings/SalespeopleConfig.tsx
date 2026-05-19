@@ -265,12 +265,15 @@ export function SalespeopleConfig() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2"><UserCheck className="h-5 w-5" />Venditori</CardTitle>
+        {/* v8.6.74 — flex-wrap su mobile */}
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2"><UserCheck className="h-5 w-5 shrink-0" />Venditori</CardTitle>
             <CardDescription>Gestisci i venditori e le loro provvigioni</CardDescription>
           </div>
-          <Button onClick={handleCreate} size="sm"><Plus className="h-4 w-4 mr-2" />Nuovo Venditore</Button>
+          <Button onClick={handleCreate} size="sm" className="w-full sm:w-auto shrink-0">
+            <Plus className="h-4 w-4 mr-2" />Nuovo Venditore
+          </Button>
         </div>
       </CardHeader>
       <CardContent>

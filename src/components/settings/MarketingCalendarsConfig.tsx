@@ -532,11 +532,12 @@ export default function MarketingCalendarsConfig() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="calendars" className="gap-2"><CalendarDays className="h-4 w-4" />Calendari</TabsTrigger>
-          <TabsTrigger value="preferences" className="gap-2"><Settings2 className="h-4 w-4" />Preferenze</TabsTrigger>
-          <TabsTrigger value="availability" className="gap-2"><Clock className="h-4 w-4" />Disponibilità</TabsTrigger>
-          <TabsTrigger value="connections" className="gap-2"><Link2 className="h-4 w-4" />Collegamenti</TabsTrigger>
+        {/* v8.6.74 — overflow-x-auto: 4 tab con icona+label si sovrapponevano su 375px */}
+        <TabsList className="w-full sm:w-auto max-w-full h-auto flex-wrap justify-start gap-1 sm:flex-nowrap overflow-x-auto">
+          <TabsTrigger value="calendars" className="gap-2 shrink-0"><CalendarDays className="h-4 w-4" />Calendari</TabsTrigger>
+          <TabsTrigger value="preferences" className="gap-2 shrink-0"><Settings2 className="h-4 w-4" />Preferenze</TabsTrigger>
+          <TabsTrigger value="availability" className="gap-2 shrink-0"><Clock className="h-4 w-4" />Disponibilità</TabsTrigger>
+          <TabsTrigger value="connections" className="gap-2 shrink-0"><Link2 className="h-4 w-4" />Collegamenti</TabsTrigger>
         </TabsList>
 
         {/* TAB: CALENDARI */}
