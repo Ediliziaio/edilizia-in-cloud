@@ -1,5 +1,5 @@
 import { useState, useEffect, forwardRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
@@ -54,6 +54,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   const { signIn } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   // Domain-based branding for white-label login
   const { data: domainBranding } = useBrandingByDomain();
@@ -300,7 +301,13 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
   const handle2FAVerified = () => {
     toast({ title: "Accesso effettuato", description: "Benvenuto!" });
-    window.location.reload();
+    // navigate invece di window.location.reload(): il reload forzava
+    // re-fetch HTML + re-parse bundle JS + re-init React + re-bootstrap
+    // auth (5-15s percepiti). La sessione Supabase è già attiva post-2FA
+    // → AuthContext.onAuthStateChange ha già emesso SIGNED_IN → user è
+    // nello state → navigate("/") delega a SubdomainRedirect che instrada
+    // al dashboard giusto per il ruolo. Tempo: <100ms.
+    navigate("/", { replace: true });
   };
 
   const handle2FACancel = async () => {

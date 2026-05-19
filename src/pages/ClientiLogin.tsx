@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ export default function ClientiLogin() {
   const [resetSent, setResetSent] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Already authenticated as customer — redirect to portal
   if (!isLoading && user && role === "customer") {
@@ -91,11 +92,20 @@ export default function ClientiLogin() {
         return;
       }
 
-      // Check 2FA status
+      // Check 2FA status. Timeout race 6s: su cold-start free-tier
+      // manage-totp può prendere 10-30s, bloccava il login.
       try {
-        const { data: totpStatus } = await supabase.functions.invoke("manage-totp", {
+        const totpInvoke = supabase.functions.invoke("manage-totp", {
           body: { action: "status" },
         });
+        (totpInvoke as Promise<unknown>).catch(() => {});
+        const result = await Promise.race([
+          totpInvoke,
+          new Promise<{ data: null }>((resolve) =>
+            setTimeout(() => resolve({ data: null }), 6_000),
+          ),
+        ]);
+        const totpStatus = (result as { data: { enabled?: boolean } | null }).data;
         if (totpStatus?.enabled) {
           setView("2fa");
           setIsSubmitting(false);
@@ -167,7 +177,10 @@ export default function ClientiLogin() {
 
   const handle2FAVerified = () => {
     toast({ title: "Accesso effettuato", description: "Benvenuto nel portale clienti!" });
-    window.location.reload();
+    // navigate invece di reload: la sessione è già attiva post-2FA,
+    // AuthContext ha già emesso SIGNED_IN. Reload causerebbe re-bootstrap
+    // completo (5-15s percepiti). navigate("/cliente") <100ms.
+    navigate("/cliente", { replace: true });
   };
 
   const handle2FACancel = async () => {

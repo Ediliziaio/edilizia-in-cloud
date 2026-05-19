@@ -72,16 +72,26 @@ export default function AdminLogin() {
         return;
       }
 
-      // Check 2FA — graceful: if edge function unavailable, skip 2FA check
+      // Check 2FA — graceful: if edge function unavailable, skip 2FA check.
+      // Timeout race 6s: su cold-start free-tier manage-totp può prendere
+      // 10-30s, bloccava il login. Fail-open su timeout (= nessun 2FA).
       let twoFaEnabled = false;
       try {
-        const { data: totpStatus, error: totpError } = await supabase.functions.invoke("manage-totp", {
+        const totpInvoke = supabase.functions.invoke("manage-totp", {
           body: { action: "status" },
         });
+        (totpInvoke as Promise<unknown>).catch(() => {});
+        const result = await Promise.race([
+          totpInvoke,
+          new Promise<{ data: null; error: null }>((resolve) =>
+            setTimeout(() => resolve({ data: null, error: null }), 6_000),
+          ),
+        ]);
+        const totpStatus = (result as { data: { enabled?: boolean } | null }).data;
+        const totpError = (result as { error: unknown }).error;
         if (!totpError) {
           twoFaEnabled = !!totpStatus?.enabled;
         }
-        // If totpError, assume 2FA not configured — proceed without it
       } catch {
         // Edge function unavailable — proceed without 2FA
       }

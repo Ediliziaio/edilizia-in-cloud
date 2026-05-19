@@ -93,10 +93,20 @@ export default function LavoriLogin() {
         setIsSubmitting(false);
         return;
       }
+      // Timeout race 6s: su cold-start manage-totp può prendere 10-30s,
+      // bloccava il login. Fail-open = "no 2FA" se non risponde in 6s.
       try {
-        const { data: totpStatus } = await supabase.functions.invoke("manage-totp", {
+        const totpInvoke = supabase.functions.invoke("manage-totp", {
           body: { action: "status" },
         });
+        (totpInvoke as Promise<unknown>).catch(() => {});
+        const result = await Promise.race([
+          totpInvoke,
+          new Promise<{ data: null }>((resolve) =>
+            setTimeout(() => resolve({ data: null }), 6_000),
+          ),
+        ]);
+        const totpStatus = (result as { data: { enabled?: boolean } | null }).data;
         if (totpStatus?.enabled) {
           setView("2fa");
           setIsSubmitting(false);
