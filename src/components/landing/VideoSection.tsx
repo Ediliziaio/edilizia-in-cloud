@@ -125,7 +125,7 @@ export default function VideoSection() {
           }`}
         >
           <a
-            href="/demo"
+            href="/demo/"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#C94F06] text-white font-bold text-lg hover:bg-[#A84305] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#C94F06]/30"
           >
             Prenota la tua Demo Live

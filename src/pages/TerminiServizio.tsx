@@ -229,7 +229,7 @@ export default function TerminiServizio() {
       <h2>6. Piani di abbonamento, corrispettivi e pagamenti</h2>
       <p>
         <strong>6.1</strong> Il Servizio è offerto secondo Piani di abbonamento alternativi,
-        consultabili sul Sito alla pagina <a href="/prezzi">/prezzi</a>. I Piani si differenziano per
+        consultabili sul Sito alla pagina <a href="/prezzi/">/prezzi</a>. I Piani si differenziano per
         durata, corrispettivo, limiti d'uso e funzionalità incluse. Possono essere offerti, a
         discrezione della Società, Piani personalizzati o tariffe negoziate.
       </p>

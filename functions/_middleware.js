@@ -1604,8 +1604,19 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
       : `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`
     : "";
 
+  // Normalize internal href: add trailing slash for SPA routes (skip files,
+  // skip root, skip already-slashed). Senza questo Googlebot segue link verso
+  // URL non canonici che generano un 301 extra (e prima del fix middleware
+  // canonicale ricevevano 200 con stesso contenuto → duplicato indicizzato).
+  const normalizeInternalHref = (href) => {
+    if (!href || !href.startsWith("/")) return href;
+    if (href.endsWith("/")) return href;
+    if (/\.[a-z0-9]{2,8}$/i.test(href)) return href;
+    return `${href}/`;
+  };
+
   const navLinks = links
-    .map((l) => `<li><a href="${l.href}">${escHtml(l.label)}</a></li>`)
+    .map((l) => `<li><a href="${normalizeInternalHref(l.href)}">${escHtml(l.label)}</a></li>`)
     .join("\n        ");
 
   const breadcrumb = canonical
@@ -1642,11 +1653,11 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
   <header>
     <nav aria-label="Navigazione principale">
       <a href="/">Edilizia in Cloud</a> |
-      <a href="/funzionalita">Funzionalità</a> |
-      <a href="/prezzi">Prezzi</a> |
-      <a href="/confronto">Confronto</a> |
-      <a href="/blog">Blog</a> |
-      <a href="/demo">Demo</a>
+      <a href="/funzionalita/">Funzionalità</a> |
+      <a href="/prezzi/">Prezzi</a> |
+      <a href="/confronto/">Confronto</a> |
+      <a href="/blog/">Blog</a> |
+      <a href="/demo/">Demo</a>
     </nav>
   </header>
   <main>
@@ -1663,12 +1674,12 @@ function buildHtml({ title, description, canonical, h1, intro, links = [], jsonL
   <footer>
     <p>© 2026 Domus Group S.r.l. — P.IVA 13132010961 — Via Aurelio Saffi 29, 20123 Milano</p>
     <nav>
-      <a href="/privacy-policy">Privacy Policy</a> |
-      <a href="/termini-e-condizioni">Termini e Condizioni</a> |
-      <a href="/avviso-legale">Avviso Legale</a> |
-      <a href="/condizioni-utilizzo">Condizioni di Utilizzo</a> |
-      <a href="/cookie-policy">Cookie Policy</a> |
-      <a href="/dpa">DPA</a> |
+      <a href="/privacy-policy/">Privacy Policy</a> |
+      <a href="/termini-e-condizioni/">Termini e Condizioni</a> |
+      <a href="/avviso-legale/">Avviso Legale</a> |
+      <a href="/condizioni-utilizzo/">Condizioni di Utilizzo</a> |
+      <a href="/cookie-policy/">Cookie Policy</a> |
+      <a href="/dpa/">DPA</a> |
       <a href="/sitemap.xml">Sitemap</a> |
       <a href="/llms.txt">LLMs.txt</a>
     </nav>
@@ -1985,6 +1996,45 @@ function isPublicNoindexPath(pathname) {
 export async function onRequest({ request, next }) {
   const ua = request.headers.get("user-agent") || "";
   const url = new URL(request.url);
+
+  // ── Canonical URL normalization (root cause GSC "Pagina duplicata") ──────
+  // Le regole `_redirects` di Cloudflare Pages NON scattano per Googlebot
+  // perché il middleware risponde 200 direttamente con HTML statico per le
+  // varianti non canoniche (`/blog` vs `/blog/`, apex vs www, ecc.).
+  // Risultato: Google indicizza entrambe le versioni come pagine valide e
+  // sceglie un canonical arbitrario, ignorando il <link rel="canonical">.
+  // Forziamo qui un singolo 301 per host/protocol/trailing-slash PRIMA
+  // di ogni altra logica, così bot e utenti vedono la stessa canonical.
+  if (!isPrivateSubdomain(url.hostname)) {
+    const host = url.hostname.toLowerCase();
+    const isMain = host === "ediliziaincloud.com" || host === "www.ediliziaincloud.com";
+    const path = url.pathname;
+    const isFile = ASSET_EXT_RE.test(path) || /\.[a-z0-9]{2,8}$/i.test(path);
+
+    // 1) /home (legacy) → /
+    if (isMain && (path === "/home" || path === "/home/")) {
+      return Response.redirect(`https://www.ediliziaincloud.com/${url.search}`, 301);
+    }
+
+    // 2) Host/protocol normalization: apex + http → https + www
+    if (isMain && (url.protocol !== "https:" || host !== "www.ediliziaincloud.com")) {
+      return Response.redirect(
+        `https://www.ediliziaincloud.com${path}${url.search}`,
+        301,
+      );
+    }
+
+    // 3) Trailing slash normalization (skip root e file con estensione).
+    //    Le SPA route HTML devono terminare con "/" per matchare la canonical
+    //    dichiarata in <link rel="canonical"> e nel sitemap.xml.
+    if (isMain && !isFile && path !== "/" && !path.endsWith("/")) {
+      return Response.redirect(
+        `https://www.ediliziaincloud.com${path}/${url.search}`,
+        301,
+      );
+    }
+  }
+
   const pathname = url.pathname.replace(/\/$/, "") || "/";
 
   // ── Private subdomains: block all bots, serve noindex ──────────────────

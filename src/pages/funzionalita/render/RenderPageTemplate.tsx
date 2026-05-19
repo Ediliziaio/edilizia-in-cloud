@@ -545,12 +545,12 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
   useSEO({
     title: config.seo.title,
     description: config.seo.description,
-    canonical: `/funzionalita/${config.slug}`,
+    canonical: `/funzionalita/${config.slug}/`,
     keywords: config.seo.keywords,
     ogImage: config.seo.ogImage,
   });
 
-  const pageUrl = `${SITE_URL}/funzionalita/${config.slug}`;
+  const pageUrl = `${SITE_URL}/funzionalita/${config.slug}/`;
   const videoSrc = config.videoSrc || `/videos/${config.slug}-demo.mp4`;
   const videoPoster = config.videoPoster || `/videos/${config.slug}-poster.jpg`;
   const videoUploadDate = "2026-04-27";
@@ -576,7 +576,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
           "@type": "BreadcrumbList",
           itemListElement: [
             { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
-            { "@type": "ListItem", position: 2, name: "Funzionalita", item: `${SITE_URL}/funzionalita` },
+            { "@type": "ListItem", position: 2, name: "Funzionalita", item: `${SITE_URL}/funzionalita/` },
             { "@type": "ListItem", position: 3, name: config.productName, item: pageUrl },
           ],
         }}
@@ -611,7 +611,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
             price: "0",
             priceCurrency: "EUR",
             availability: "https://schema.org/InStock",
-            url: `${SITE_URL}/demo`,
+            url: `${SITE_URL}/demo/`,
             description: `Accesso beta al modulo ${config.productName} per i primi 100 ${config.audienceShort} italiani. Cancelli quando vuoi, onboarding 1-a-1 incluso.`,
           },
           aggregateRating: {
@@ -717,8 +717,8 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
           <p>
             <strong>Provala con onboarding 1-a-1 incluso.</strong>
             <a href="#render-request">Richiedi informazioni</a> ·
-            <a href="/funzionalita">Tutte le funzionalità</a> ·
-            <a href="/prezzi">Prezzi</a>
+            <a href="/funzionalita/">Tutte le funzionalità</a> ·
+            <a href="/prezzi/">Prezzi</a>
           </p>
         </div>
       </noscript>

@@ -937,14 +937,14 @@ export default function RenderInfissi() {
       "Render Infissi AI per Serramentisti | Aumenta la chiusura preventivi",
     description:
       "Da 3 preventivi chiusi su 10 a quasi 5 su 10: dal 30% al 48% di chiusura stimata con il prima/dopo generato in 60 secondi.",
-    canonical: "/funzionalita/render-infissi",
+    canonical: "/funzionalita/render-infissi/",
     keywords:
       "render infissi, render serramenti, render finestre AI, software serramentisti, prima dopo infissi, configuratore infissi AI, vendita serramenti, render tapparelle, render persiane, render porte blindate, render pergole, AI infissi, software preventivi serramenti, gestionale serramentisti",
     ogImage:
       "https://www.ediliziaincloud.com/og/og-default.png",
   });
 
-  const pageUrl = `${SITE_URL}/funzionalita/render-infissi`;
+  const pageUrl = `${SITE_URL}/funzionalita/render-infissi/`;
   const videoUploadDate = "2026-04-27";
 
   return (
@@ -956,7 +956,7 @@ export default function RenderInfissi() {
           "@type": "BreadcrumbList",
           itemListElement: [
             { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
-            { "@type": "ListItem", position: 2, name: "Funzionalita", item: `${SITE_URL}/funzionalita` },
+            { "@type": "ListItem", position: 2, name: "Funzionalita", item: `${SITE_URL}/funzionalita/` },
             { "@type": "ListItem", position: 3, name: "Render Infissi", item: pageUrl },
           ],
         }}
@@ -1011,7 +1011,7 @@ export default function RenderInfissi() {
             price: "0",
             priceCurrency: "EUR",
             availability: "https://schema.org/InStock",
-            url: `${SITE_URL}/demo`,
+            url: `${SITE_URL}/demo/`,
             description:
               "Anteprima riservata alle prime 30 aziende: modulo Render Infissi AI per serramentisti, sale espositive e reti vendita.",
           },
@@ -1137,8 +1137,8 @@ export default function RenderInfissi() {
             <strong>Provala con onboarding 1-a-1 incluso.</strong>
             <a href="#render-request">Richiedi informazioni</a> ·
             <a href="/per/serramentisti">Software per Serramentisti</a> ·
-            <a href="/funzionalita">Tutte le funzionalità</a> ·
-            <a href="/prezzi">Prezzi</a>
+            <a href="/funzionalita/">Tutte le funzionalità</a> ·
+            <a href="/prezzi/">Prezzi</a>
           </p>
         </div>
       </noscript>
