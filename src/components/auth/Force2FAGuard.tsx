@@ -54,24 +54,34 @@ export function Force2FAGuard({ children }: { children: React.ReactNode }) {
   // 2. Verifica fattori MFA attivi.
   // v8.6.96 — l'app usa custom TOTP via edge function `manage-totp` (tabella
   // proprietaria), NON il MFA nativo Supabase. Quindi chiamiamo l'edge fn.
+  // v8.6.103 — timeout esplicito 6s + cleanup robusto: se l'edge fn è in
+  // cold-start (Supabase free tier ~10-30s), evita guard pending per 60s.
   useEffect(() => {
     if (!user?.id) return;
     let alive = true;
+    const timeoutId = window.setTimeout(() => {
+      if (alive) setHasMFA(true); // fail-open su timeout
+    }, 6000);
     void supabase.functions
       .invoke("manage-totp", { body: { action: "status" } })
       .then(({ data, error }) => {
         if (!alive) return;
+        window.clearTimeout(timeoutId);
         if (error) {
-          // Fail-open: errore di rete → assumiamo abbia 2FA per non bloccare
           setHasMFA(true);
           return;
         }
-        // Il TwoFactorSetup usa { enabled: true } come stato attivato
         const enabled = !!(data as { enabled?: boolean } | null | undefined)?.enabled;
         setHasMFA(enabled);
+      })
+      .catch(() => {
+        if (!alive) return;
+        window.clearTimeout(timeoutId);
+        setHasMFA(true);
       });
     return () => {
       alive = false;
+      window.clearTimeout(timeoutId);
     };
   }, [user?.id]);
 
