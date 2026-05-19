@@ -70,6 +70,9 @@ export function initAnalytics(config: PostHogConfig | null | undefined): void {
   }
 }
 
+// Track ultima company assegnata per detectare switch (impersonation toggle)
+let lastIdentifiedCompanyId: string | null = null;
+
 /** Identifica l'utente loggato. distinct_id stabile = user_id Supabase. */
 export function identifyUser(params: {
   userId: string;
@@ -89,8 +92,14 @@ export function identifyUser(params: {
       role: params.role,
       plan_slug: params.planSlug,
     });
+    // v8.6.96 — Group switch: se la company è cambiata (impersonation), resetta
+    // i group precedenti per evitare leak di eventi in dashboard sbagliata.
+    if (params.companyId !== lastIdentifiedCompanyId) {
+      // resetGroups() rilascia tutti i group precedenti
+      posthog.resetGroups?.();
+      lastIdentifiedCompanyId = params.companyId ?? null;
+    }
     if (params.companyId) {
-      // Group analytics per company (consigliato per SaaS B2B)
       posthog.group("company", params.companyId, {
         name: params.companyName,
         plan: params.planSlug,
@@ -104,6 +113,7 @@ export function resetAnalytics(): void {
   if (!initialized) return;
   try {
     posthog.reset();
+    lastIdentifiedCompanyId = null;
   } catch { /* swallow */ }
 }
 

@@ -46,12 +46,19 @@ export function useOnboardingAutoComplete(
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
-  // Carica i check 1 volta + ogni 60s (rate-limit conservative)
+  // Carica i check 1 volta + ogni 60s (rate-limit conservative).
+  // v8.6.96 — disabilita polling se TUTTI gli step con auto_check_key sono già
+  // marcati completati (no senso ri-controllare quello che è OK).
+  const allAutoStepsCompleted = steps
+    .filter((s) => s.auto_check_key)
+    .every((s) => completedIds.has(s.id));
+  const stillPending = !allAutoStepsCompleted;
+
   const { data: checks } = useQuery({
     queryKey: ["onboarding-auto-checks", companyId],
-    enabled: !!companyId && steps.length > 0,
+    enabled: !!companyId && steps.length > 0 && stillPending,
     staleTime: 60 * 1000,
-    refetchInterval: 5 * 60 * 1000, // refetch ogni 5 min in background
+    refetchInterval: stillPending ? 5 * 60 * 1000 : false,
     queryFn: async (): Promise<CheckResults> => {
       const [profileRes, custRes, ordRes, teamRes, quoteRes] = await Promise.all([
         // 1. Profilo: piva + name set

@@ -29,13 +29,13 @@ export function Force2FAGuard({ children }: { children: React.ReactNode }) {
   const [setupOpen, setSetupOpen] = useState(false);
 
   // 1. Politiche attive (cache 30min).
-  // Fail-open: se la riga in platform_settings NON esiste (migration non
-  // ancora applicata), il default è SPENTO. Solo quando il super-admin
-  // attiva esplicitamente la policy → enforcement attivo.
+  // v8.6.96 — enabled solo se utente autenticato (evita query a platform_settings
+  // su pagine pubbliche tipo landing/login con conseguente 401 logspam).
   const { data: policies } = useQuery({
     queryKey: ["2fa-policies"],
     staleTime: 30 * 60 * 1000,
     retry: false,
+    enabled: !!user?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_settings")
@@ -51,19 +51,25 @@ export function Force2FAGuard({ children }: { children: React.ReactNode }) {
     },
   });
 
-  // 2. Verifica fattori MFA attivi
+  // 2. Verifica fattori MFA attivi.
+  // v8.6.96 — l'app usa custom TOTP via edge function `manage-totp` (tabella
+  // proprietaria), NON il MFA nativo Supabase. Quindi chiamiamo l'edge fn.
   useEffect(() => {
     if (!user?.id) return;
     let alive = true;
-    void supabase.auth.mfa.listFactors().then(({ data, error }) => {
-      if (!alive) return;
-      if (error) {
-        setHasMFA(false);
-        return;
-      }
-      const totpVerified = data.totp?.some((f) => f.status === "verified") ?? false;
-      setHasMFA(totpVerified);
-    });
+    void supabase.functions
+      .invoke("manage-totp", { body: { action: "status" } })
+      .then(({ data, error }) => {
+        if (!alive) return;
+        if (error) {
+          // Fail-open: errore di rete → assumiamo abbia 2FA per non bloccare
+          setHasMFA(true);
+          return;
+        }
+        // Il TwoFactorSetup usa { enabled: true } come stato attivato
+        const enabled = !!(data as { enabled?: boolean } | null | undefined)?.enabled;
+        setHasMFA(enabled);
+      });
     return () => {
       alive = false;
     };

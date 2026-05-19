@@ -36,9 +36,12 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const { currentPlan } = useSubscriptionLimits({ includeUsageCounts: false });
   const location = useLocation();
 
-  // 1. Carica config (cache lunga)
+  // 1. Carica config (cache lunga).
+  // v8.6.96 — enabled solo se utente autenticato: evita query inutili su
+  // pagine pubbliche / SEO (landing, /blog, /prezzi) che causano 401 spam.
   const { data: config } = useQuery({
     queryKey: ["analytics-config"],
+    enabled: !!user?.id,
     queryFn: async (): Promise<AnalyticsConfig | null> => {
       const { data, error } = await supabase
         .from("platform_settings")

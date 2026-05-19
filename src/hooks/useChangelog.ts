@@ -4,7 +4,8 @@
  * Carica entries published + calcola count "non lette" rispetto a
  * `profiles.changelog_last_seen_at`. markAsSeen() aggiorna il timestamp.
  */
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -23,7 +24,11 @@ export interface ChangelogEntry {
 
 export function useChangelog() {
   const { user, profile, role } = useAuth();
-  const queryClient = useQueryClient();
+  // v8.6.96 — local override del timestamp last_seen, perché il profile è in
+  // AuthContext state (non react-query) e non possiamo invalidarlo.
+  // Quando l'utente apre il drawer, settiamo questo state localmente per far
+  // sparire subito il badge — al refresh la fonte di verità è il DB.
+  const [localLastSeen, setLocalLastSeen] = useState<number | null>(null);
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["platform-changelog"],
@@ -52,22 +57,23 @@ export function useChangelog() {
   });
 
   const lastSeenIso = (profile as unknown as { changelog_last_seen_at?: string | null })?.changelog_last_seen_at ?? null;
-  const lastSeen = lastSeenIso ? new Date(lastSeenIso).getTime() : 0;
+  const dbLastSeen = lastSeenIso ? new Date(lastSeenIso).getTime() : 0;
+  // Usa il maggiore tra DB e local override
+  const lastSeen = Math.max(dbLastSeen, localLastSeen ?? 0);
   const unreadCount = visible.filter((e) => new Date(e.published_at).getTime() > lastSeen).length;
 
   const markAsSeen = useMutation({
     mutationFn: async () => {
       if (!user?.id) return;
+      const now = Date.now();
+      // Aggiorna subito local (badge sparisce in UI)
+      setLocalLastSeen(now);
       const { error } = await supabase
         .from("profiles")
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .update({ changelog_last_seen_at: new Date().toISOString() } as any)
+        .update({ changelog_last_seen_at: new Date(now).toISOString() } as any)
         .eq("id", user.id);
       if (error) throw error;
-    },
-    onSuccess: () => {
-      // Invalida profile per riprendere il nuovo timestamp
-      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
     },
   });
 

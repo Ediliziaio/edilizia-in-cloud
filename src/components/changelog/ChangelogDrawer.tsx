@@ -152,19 +152,25 @@ export function ChangelogDrawer() {
                       // eslint-disable-next-line react/no-danger
                       dangerouslySetInnerHTML={{ __html: renderMarkdownLite(entry.body_md) }}
                     />
-                    {entry.cta_url && (
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="outline"
-                        className="mt-3 h-7 text-xs"
-                      >
-                        <Link to={entry.cta_url} onClick={() => setOpen(false)}>
-                          {entry.cta_label ?? "Scopri"}
-                          <ArrowRight className="ml-1 h-3 w-3" />
-                        </Link>
-                      </Button>
-                    )}
+                    {entry.cta_url && (() => {
+                      // v8.6.96 — URL assoluti vanno su <a>, path interni su <Link>
+                      const isExternal = /^https?:\/\//i.test(entry.cta_url) || /^mailto:|^tel:/i.test(entry.cta_url);
+                      return (
+                        <Button asChild size="sm" variant="outline" className="mt-3 h-7 text-xs">
+                          {isExternal ? (
+                            <a href={entry.cta_url} target="_blank" rel="noopener noreferrer">
+                              {entry.cta_label ?? "Scopri"}
+                              <ArrowRight className="ml-1 h-3 w-3" />
+                            </a>
+                          ) : (
+                            <Link to={entry.cta_url} onClick={() => setOpen(false)}>
+                              {entry.cta_label ?? "Scopri"}
+                              <ArrowRight className="ml-1 h-3 w-3" />
+                            </Link>
+                          )}
+                        </Button>
+                      );
+                    })()}
                   </div>
                 </div>
               </article>

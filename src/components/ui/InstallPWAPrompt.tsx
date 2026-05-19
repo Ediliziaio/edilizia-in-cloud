@@ -14,6 +14,7 @@
  * manuali "Aggiungi alla schermata Home" dal Share menu.
  */
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Smartphone, Share, X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/analytics/posthog";
@@ -63,9 +64,15 @@ function isDismissedRecently(): boolean {
 }
 
 export function InstallPWAPrompt() {
+  const location = useLocation();
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIOSHint, setShowIOSHint] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+
+  // v8.6.96 — Mostrato SOLO nelle aree app autenticate (azienda, admin, campo).
+  // No prompt su login, landing, pagine pubbliche (prezzi, blog, ecc.).
+  const path = location.pathname;
+  const isAppArea = path.startsWith("/azienda") || path.startsWith("/admin") || path.startsWith("/campo");
 
   useEffect(() => {
     if (isStandalone() || isDismissedRecently()) {
@@ -116,6 +123,7 @@ export function InstallPWAPrompt() {
   };
 
   if (dismissed) return null;
+  if (!isAppArea) return null;
   if (!installEvent && !showIOSHint) return null;
 
   // ── Variante Android/Chrome: usa il prompt nativo ────────────────────────
