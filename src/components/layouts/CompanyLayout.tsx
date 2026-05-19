@@ -205,12 +205,10 @@ const SCOPRI_LOCKED_ROUTES = [
   "/azienda/automazioni",
 ];
 
-// v8.6.93 — Module-level constants (no re-create per render)
 // FULL_PLAN_SLUGS: fallback hardcoded usato se `subscription_plans.is_full_plan`
-// non è popolato (backward compat con DB pre-migration). Quando il campo DB
-// è valorizzato, `currentPlan.is_full_plan === true` ha priorità.
+// non è ancora popolato (backward compat per ambienti pre-migration).
+// Fonte di verità preferita: `currentPlan.is_full_plan === true`.
 const FULL_PLAN_SLUGS = new Set(["starter", "pro", "enterprise"]);
-const CORE_MODULES_COUNT = 7;
 
 function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange, isScopriPlan = false, isFeaturePreview, isModuleDemo }: {
   area: MacroArea;
@@ -814,12 +812,12 @@ const CompanySidebar = memo(function CompanySidebar() {
   const isFullBySlug = !!currentPlan?.slug && FULL_PLAN_SLUGS.has(currentPlan.slug);
   const isFullPlan = planIsFullFlag || isFullBySlug;
 
-  // v8.6.83 — "Piano limitato": NON full + ha moduli inclusi parziali OPPURE
-  // slug è presente ma non riconosciuto come full.
-  const isLimitedPlan = !isSuperAdminViewer && !isDemoBaseline && !isFullPlan && (
-    (includedModules.length > 0 && includedModules.length < CORE_MODULES_COUNT) ||
-    (!!currentPlan?.slug && !FULL_PLAN_SLUGS.has(currentPlan.slug) && !planIsFullFlag)
-  );
+  // "Piano limitato": ha un piano attivo che NON è full.
+  // - Trial / no plan → fail-open in filterNavItems (gestito separatamente)
+  // - Demo Azienda / super_admin → bypass dedicato
+  // - Full plan → tutto abilitato
+  // - Tutti gli altri (free/scopri/custom/team/etc.) → limited → DEMO badge
+  const isLimitedPlan = !isSuperAdminViewer && !isDemoBaseline && !!currentPlan && !isFullPlan;
 
   /** Modulo in modalità demo: non incluso ma piano è "limited" (o no plan) → preview. */
   const isModuleDemo = (moduleKey: string): boolean => {
