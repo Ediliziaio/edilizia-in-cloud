@@ -73,8 +73,12 @@ export function useSessionTimeout(): void {
     // sul localStorage. Su SIGNED_IN futuri, l'unico listener (AuthContext)
     // aggiornerà il profile; markSessionStarted resta idempotente
     // (set solo se mancante) quindi un re-call manuale è safe.
+    // Cleanup: early exit se il componente è unmounted (evita warning
+    // "setState on unmounted component" + write inutili a localStorage).
+    // Bug originale: condizione `data.session && !alive` non gestiva
+    // l'unmount quando session=null → continuava a girare inutilmente.
     void supabase.auth.getSession().then(({ data }) => {
-      if (data.session && !alive) return;
+      if (!alive) return;
       try {
         if (data.session && !localStorage.getItem(STORAGE_KEY)) {
           localStorage.setItem(STORAGE_KEY, String(Date.now()));

@@ -698,12 +698,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Always re-fetch to keep data fresh. If the cache was used above this
           // runs silently; if not, it blocks until fetchUserData completes.
           let userData: { profile: Profile | null; role: AppRole | null; company: Company | null };
+          // Memory-leak fix: il setTimeout precedente NON veniva cancellato se
+          // fetchUserData vinceva il race → timer pendente fino al firing.
+          // Su rapid login/logout cycle, accumulava handle. Ora cleanup esplicito.
+          let raceTimerId: ReturnType<typeof setTimeout> | undefined;
           try {
             userData = await Promise.race([
-              fetchUserData(session.user.id, session.user.email),
-              new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error("fetchUserData timeout")), 22_000)
-              ),
+              fetchUserData(session.user.id, session.user.email)
+                .finally(() => { if (raceTimerId) clearTimeout(raceTimerId); }),
+              new Promise<never>((_, reject) => {
+                raceTimerId = setTimeout(() => reject(new Error("fetchUserData timeout")), 22_000);
+              }),
             ]);
           } catch {
             // Background re-validation timed out or threw (DB cold-start / network error).

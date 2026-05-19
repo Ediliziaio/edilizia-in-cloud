@@ -267,6 +267,11 @@ const queryClient = new QueryClient({
       gcTime: DEFAULT_QUERY_GC_TIME_MS,
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
+      // Performance: i refetchInterval impostati nei singoli hook non
+      // girano quando il tab è in background. Risparmia batteria/banda
+      // sui mobile + evita storm di refetch quando l'utente torna sulla
+      // tab dopo ore. Le query in foreground continuano normalmente.
+      refetchIntervalInBackground: false,
     },
   },
 });
