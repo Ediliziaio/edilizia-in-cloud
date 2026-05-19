@@ -162,19 +162,22 @@ export function SubappaltatoriTab() {
       {/* ── Squadre Esterne ──────────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
+          {/* v8.6.73 — flex-wrap: prima il titolo "Squadre Esterne" veniva
+              spezzato su 2 righe perché il bottone affiancato lo schiacciava
+              su 375px. */}
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div className="min-w-0">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Building2 className="h-5 w-5" />
+                <Building2 className="h-5 w-5 shrink-0" />
                 Squadre Esterne
               </CardTitle>
               <CardDescription>
                 {activeTeams.length} attive, {inactiveTeams.length} inattive
               </CardDescription>
             </div>
-            <Button size="sm" onClick={() => { setEditingTeam(null); setTeamDialogOpen(true); }}>
+            <Button size="sm" onClick={() => { setEditingTeam(null); setTeamDialogOpen(true); }} className="shrink-0">
               <Plus className="h-4 w-4 mr-2" />
-              Nuova Squadra
+              <span className="whitespace-nowrap">Nuova Squadra</span>
             </Button>
           </div>
         </CardHeader>
@@ -194,6 +197,10 @@ export function SubappaltatoriTab() {
               Nessuna squadra esterna. Aggiungi la prima per iniziare.
             </div>
           ) : (
+            /* v8.6.73 — overflow-x-auto su mobile evita che le colonne fisse
+                rompano il layout; gli utenti possono scrollare horizontalmente
+                la table senza tagliare il bordo della card. */
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -262,6 +269,7 @@ export function SubappaltatoriTab() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -289,18 +297,22 @@ export function SubappaltatoriTab() {
               </p>
             </div>
           ) : (
+            /* v8.6.73 — Card stack su mobile: prima icon+info+button erano in
+                flex-row forzato → su 375px il badge "App attiva — email" si
+                sovrapponeva al bottone Revoca/Collega. */
             subCampo.map((sub: any) => (
-                <div key={sub.id} className="flex items-center justify-between p-3 rounded-lg border">
-                  <div className="flex items-center gap-3">
+                <div key={sub.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-lg border">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
                     <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
                       <Building2 className="h-4 w-4 text-slate-500" />
                     </div>
-                    <div>
-                      <p className="text-sm font-medium">{sub.ragione_sociale}</p>
-                      {sub.responsabile && <p className="text-xs text-muted-foreground">{sub.responsabile}</p>}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{sub.ragione_sociale}</p>
+                      {sub.responsabile && <p className="text-xs text-muted-foreground truncate">{sub.responsabile}</p>}
                       {sub.user_id ? (
-                        <Badge className="mt-1 text-[10px] bg-green-100 text-green-800 border-green-200">
-                          <Link2 className="h-2.5 w-2.5 mr-1" />App attiva — {sub.user_email}
+                        <Badge className="mt-1 text-[10px] bg-green-100 text-green-800 border-green-200 max-w-full">
+                          <Link2 className="h-2.5 w-2.5 mr-1 shrink-0" />
+                          <span className="truncate">App attiva — {sub.user_email}</span>
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="mt-1 text-[10px] text-muted-foreground">
@@ -311,13 +323,14 @@ export function SubappaltatoriTab() {
                   </div>
                   {sub.user_id ? (
                     <Button size="sm" variant="outline"
-                      className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                      className="text-destructive border-destructive/30 hover:bg-destructive/10 w-full sm:w-auto shrink-0"
                       onClick={() => revocaMutation.mutate(sub.id)}
                       disabled={revocaMutation.isPending}>
                       <Link2Off className="h-3 w-3 mr-1" />Revoca
                     </Button>
                   ) : (
                     <Button size="sm" variant="outline"
+                      className="w-full sm:w-auto shrink-0"
                       onClick={() => { setCollegaDialogId(sub.id); setCollegaEmail(sub.user_email ?? ""); }}>
                       <Link2 className="h-3 w-3 mr-1" />Collega
                     </Button>
