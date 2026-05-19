@@ -3,6 +3,7 @@ import { Link, Outlet } from "react-router-dom";
 import { Eye, LogOut, PenTool } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useCustomCSS } from "@/hooks/useCustomCSS";
 import { usePreviewToken } from "@/hooks/usePreviewToken";
 import { PreviewSessionContext } from "@/contexts/PreviewSessionContext";
@@ -193,7 +194,9 @@ export function CustomerLayout() {
           {/* Page Content */}
           <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6">
             <PreviewSessionContext.Provider value={previewSession}>
-              <Outlet />
+              <ErrorBoundary title="Errore nel caricamento della pagina">
+                <Outlet />
+              </ErrorBoundary>
             </PreviewSessionContext.Provider>
           </main>
         </div>

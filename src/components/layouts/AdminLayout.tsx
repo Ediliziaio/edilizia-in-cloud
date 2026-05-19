@@ -45,6 +45,7 @@ import {
   MessagesSquare,
 } from "lucide-react";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useSidebarSections } from "@/hooks/useSidebarSections";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { ADMIN_SETTINGS_NAV } from "@/config/adminSettingsNav";
@@ -744,7 +745,9 @@ export function AdminLayout() {
         {isSettingsRoute && <AdminMobileSettingsNav />}
 
         <main className="flex-1 p-3 pb-20 bg-muted/30 overflow-x-hidden">
-          <Outlet />
+          <ErrorBoundary title="Errore nel caricamento della pagina">
+            <Outlet />
+          </ErrorBoundary>
         </main>
 
         <AdminBottomNav />
@@ -770,7 +773,9 @@ export function AdminLayout() {
             </div>
           </header>
           <main className="flex-1 p-6 bg-muted/30 overflow-x-hidden">
-            <Outlet />
+            <ErrorBoundary title="Errore nel caricamento della pagina">
+              <Outlet />
+            </ErrorBoundary>
           </main>
         </div>
       </div>

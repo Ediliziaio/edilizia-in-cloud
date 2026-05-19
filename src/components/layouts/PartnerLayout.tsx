@@ -1,5 +1,6 @@
 import { Link, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
@@ -118,7 +119,9 @@ export function PartnerLayout() {
           <div className="flex h-14 items-center border-b px-4 lg:hidden">
             <SidebarTrigger />
           </div>
-          <Outlet />
+          <ErrorBoundary title="Errore nel caricamento della pagina">
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </SidebarProvider>

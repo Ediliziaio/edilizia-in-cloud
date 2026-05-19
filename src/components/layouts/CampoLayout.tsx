@@ -28,6 +28,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePreviewToken } from "@/hooks/usePreviewToken";
 import { PreviewSessionContext } from "@/contexts/PreviewSessionContext";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import OfflineBanner from "@/components/campo/OfflineBanner";
 import { NavLink } from "@/components/NavLink";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -229,7 +230,9 @@ export default function CampoLayout() {
           {/* Page Content */}
           <main className="flex-1 px-3 py-3 sm:px-4 md:p-6 pb-28 md:pb-6">
             <PreviewSessionContext.Provider value={previewSession}>
-              <Outlet />
+              <ErrorBoundary title="Errore nel caricamento della pagina">
+                <Outlet />
+              </ErrorBoundary>
             </PreviewSessionContext.Provider>
           </main>
         </div>

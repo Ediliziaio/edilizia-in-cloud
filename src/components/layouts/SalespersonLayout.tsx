@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { LayoutDashboard, ShoppingBag, Wallet, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
@@ -130,7 +131,9 @@ export function SalespersonLayout() {
 
       {/* Main Content — padding bottom per bottom nav mobile */}
       <main className="p-4 md:p-6 pb-20 md:pb-6">
-        <Outlet />
+        <ErrorBoundary title="Errore nel caricamento della pagina">
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       {/* Bottom nav mobile */}

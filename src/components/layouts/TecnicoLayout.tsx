@@ -1,6 +1,7 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Clock, Wrench, Truck, User, Wifi, WifiOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useOfflineQueue } from "@/hooks/useOfflineQueue";
 
 export default function TecnicoLayout() {
@@ -61,7 +62,9 @@ export default function TecnicoLayout() {
 
       {/* Contenuto */}
       <main className="flex-1 overflow-y-auto">
-        <Outlet />
+        <ErrorBoundary title="Errore nel caricamento della pagina">
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       {/* Bottom navigation */}

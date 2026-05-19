@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { cn } from "@/lib/utils";
 
 import {
@@ -280,7 +281,9 @@ export function EmployeeLayout() {
           </header>
           {/* Contenuto con padding bottom per la bottom nav mobile */}
           <div className="flex-1 p-4 md:p-6 lg:p-8 pb-20 md:pb-6 overflow-auto">
-            <Outlet />
+            <ErrorBoundary title="Errore nel caricamento della pagina">
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
         {/* Bottom nav mobile */}
