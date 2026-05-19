@@ -63,9 +63,10 @@ ALTER TABLE public.platform_feature_flags
   ADD COLUMN IF NOT EXISTS supports_preview boolean NOT NULL DEFAULT true;
 
 -- Feature che NON supportano preview (chiamano API a pagamento per ogni run):
+-- NB: in platform_feature_flags la colonna è "key", non "feature_key".
 UPDATE public.platform_feature_flags
   SET supports_preview = false
-WHERE feature_key IN (
+WHERE key IN (
   'render_ai',           -- ogni render costa
   'agente_vocale',       -- ogni chiamata costa
   'ai_preventivo'        -- token AI a consumo
@@ -114,7 +115,7 @@ CREATE POLICY unlock_req_read
     OR assigned_to = auth.uid()
     OR EXISTS (
       SELECT 1 FROM public.user_roles
-      WHERE user_id = auth.uid() AND role IN ('super_admin', 'platform_admin')
+      WHERE user_id = auth.uid() AND role = 'super_admin'
     )
   );
 
@@ -138,12 +139,15 @@ CREATE POLICY unlock_req_manage
     assigned_to = auth.uid()
     OR EXISTS (
       SELECT 1 FROM public.user_roles
-      WHERE user_id = auth.uid() AND role IN ('super_admin', 'platform_admin')
+      WHERE user_id = auth.uid() AND role = 'super_admin'
     )
   );
 
 -- ─── 6. RPC resolve_company_feature aggiornata ──────────────────────────────
 -- Ritorna anche access_level + supports_preview
+-- DROP necessario: PostgreSQL non permette CREATE OR REPLACE se cambia return type.
+DROP FUNCTION IF EXISTS public.resolve_company_feature(UUID, TEXT);
+
 CREATE OR REPLACE FUNCTION public.resolve_company_feature(
   p_company_id UUID,
   p_feature_key TEXT
@@ -175,10 +179,10 @@ BEGIN
     AND cfo.feature_key = p_feature_key
     AND (cfo.expires_at IS NULL OR cfo.expires_at > now());
 
-  -- Flag info (per supports_preview)
+  -- Flag info (per supports_preview) — colonna è "key" in platform_feature_flags
   SELECT pff.supports_preview INTO v_flag
   FROM public.platform_feature_flags pff
-  WHERE pff.feature_key = p_feature_key;
+  WHERE pff.key = p_feature_key;
 
   IF FOUND THEN
     RETURN QUERY SELECT

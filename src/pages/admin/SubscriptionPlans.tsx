@@ -124,6 +124,9 @@ export default function SubscriptionPlans() {
   const [deleteTarget, setDeleteTarget] = useState<DeletePlanTarget | null>(null);
   const [form, setForm] = useState<PlanForm>(emptyForm);
   const [featuresText, setFeaturesText] = useState("");
+  // v8.6.77 — tri-state per ogni feature flag (disabled / preview / enabled)
+  type PlanFeatureAccess = "disabled" | "preview" | "enabled";
+  const [featureDefaults, setFeatureDefaults] = useState<Record<string, PlanFeatureAccess>>({});
 
   const { data: plans, isLoading, isError, refetch } = useQuery({
     queryKey: ["subscription-plans"],
@@ -137,6 +140,55 @@ export default function SubscriptionPlans() {
     },
     staleTime: 2 * 60 * 1000,
   });
+
+  // v8.6.77 — Lista flag piattaforma per il selettore tri-state nel dialog
+  const { data: platformFlags = [] } = useQuery({
+    queryKey: ["platform-feature-flags-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_feature_flags")
+        .select("key, name, description, category, is_beta, supports_preview, sort_order")
+        .order("category", { ascending: true })
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data as Array<{
+        key: string;
+        name: string;
+        description: string | null;
+        category: string | null;
+        is_beta: boolean | null;
+        supports_preview: boolean | null;
+        sort_order: number | null;
+      }>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // v8.6.77 — Defaults attuali per il piano in editing
+  const { data: existingDefaults = [] } = useQuery({
+    queryKey: ["plan-feature-defaults", editingId],
+    queryFn: async () => {
+      if (!editingId) return [];
+      const { data, error } = await supabase
+        .from("plan_feature_defaults")
+        .select("feature_key, is_enabled, access_level")
+        .eq("plan_id", editingId);
+      if (error) throw error;
+      return data as Array<{ feature_key: string; is_enabled: boolean; access_level: PlanFeatureAccess | null }>;
+    },
+    enabled: !!editingId && dialogOpen,
+  });
+
+  // Sync existingDefaults → featureDefaults state quando arrivano
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const map: Record<string, PlanFeatureAccess> = {};
+    platformFlags.forEach(f => { map[f.key] = "disabled"; });
+    existingDefaults.forEach(d => {
+      map[d.feature_key] = d.access_level ?? (d.is_enabled ? "enabled" : "disabled");
+    });
+    setFeatureDefaults(map);
+  }, [existingDefaults, platformFlags, dialogOpen]);
 
   const { data: companyCounts } = useQuery({
     queryKey: ["admin-plan-usage"],
@@ -313,6 +365,16 @@ export default function SubscriptionPlans() {
             },
           });
         }
+        // v8.6.77 — Salva feature_defaults per il nuovo piano
+        if (created?.id) {
+          const planId = created.id as string;
+          await syncPlanFeatureDefaults(planId);
+        }
+      }
+
+      // v8.6.77 — In edit: sync feature_defaults dopo update piano
+      if (editingId) {
+        await syncPlanFeatureDefaults(editingId);
       }
     },
     onSuccess: () => {
@@ -327,6 +389,23 @@ export default function SubscriptionPlans() {
       toast({ title: "Errore", description: error.message, variant: "destructive" });
     },
   });
+
+  // v8.6.77 — Upsert plan_feature_defaults per ogni flag piattaforma con
+  // l'access_level scelto nel dialog. is_enabled tenuto allineato via trigger DB.
+  async function syncPlanFeatureDefaults(planId: string) {
+    const rows = Object.entries(featureDefaults).map(([feature_key, access_level]) => ({
+      plan_id: planId,
+      feature_key,
+      access_level,
+      is_enabled: access_level === "enabled",
+    }));
+    if (rows.length === 0) return;
+    // upsert con onConflict (plan_id, feature_key) — chiave unica naturale
+    const { error } = await supabase
+      .from("plan_feature_defaults")
+      .upsert(rows as never, { onConflict: "plan_id,feature_key" } as never);
+    if (error) console.warn("syncPlanFeatureDefaults error:", error.message);
+  }
 
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
@@ -779,6 +858,82 @@ export default function SubscriptionPlans() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* v8.6.77 — Feature flags granulari con tri-state.
+                Per ogni feature: Off (disabled) | Demo (preview UI bloccata) | On (enabled).
+                Una company sottoscrivendo questo piano eredita questi defaults
+                (sovrascrivibili poi da override per singola company). */}
+            <div className="space-y-3 pt-2 border-t">
+              <div>
+                <Label className="text-base font-semibold">Funzioni del piano (tri-state)</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Per ogni funzione: <strong>Off</strong> nascosta · <strong>Demo</strong> UI demo
+                  con click bloccato · <strong>On</strong> uso pieno.
+                </p>
+              </div>
+              {platformFlags.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nessun flag piattaforma configurato.</p>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto rounded-lg border p-2">
+                  {(() => {
+                    // Raggruppa per categoria per leggibilità
+                    const byCategory: Record<string, typeof platformFlags> = {};
+                    platformFlags.forEach(f => {
+                      const cat = f.category || "Altro";
+                      if (!byCategory[cat]) byCategory[cat] = [];
+                      byCategory[cat].push(f);
+                    });
+                    return Object.entries(byCategory).map(([cat, flags]) => (
+                      <div key={cat} className="space-y-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground px-2 pt-2">
+                          {cat}
+                        </p>
+                        {flags.map((flag) => {
+                          const current = featureDefaults[flag.key] ?? "disabled";
+                          const supportsPreview = flag.supports_preview ?? true;
+                          return (
+                            <div key={flag.key} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-muted/50">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium truncate">{flag.name}</span>
+                                  {flag.is_beta && <Badge variant="outline" className="text-[9px] h-4 px-1 text-amber-600 border-amber-300">BETA</Badge>}
+                                </div>
+                                {flag.description && <p className="text-xs text-muted-foreground truncate">{flag.description}</p>}
+                              </div>
+                              <div className="inline-flex rounded-md border bg-background p-0.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setFeatureDefaults(prev => ({ ...prev, [flag.key]: "disabled" }))}
+                                  className={`px-2 py-0.5 text-[11px] rounded-sm transition-colors ${
+                                    current === "disabled" ? "bg-slate-200 text-slate-900 font-medium" : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                >Off</button>
+                                <button
+                                  type="button"
+                                  disabled={!supportsPreview}
+                                  title={!supportsPreview ? "Questa funzione consuma API a pagamento — niente demo gratis" : "Modalità demo: UI visibile ma azioni bloccate"}
+                                  onClick={() => setFeatureDefaults(prev => ({ ...prev, [flag.key]: "preview" }))}
+                                  className={`px-2 py-0.5 text-[11px] rounded-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                                    current === "preview" ? "bg-amber-200 text-amber-900 font-medium" : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                >Demo</button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFeatureDefaults(prev => ({ ...prev, [flag.key]: "enabled" }))}
+                                  className={`px-2 py-0.5 text-[11px] rounded-sm transition-colors ${
+                                    current === "enabled" ? "bg-emerald-200 text-emerald-900 font-medium" : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                >On</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
             </div>
 
             {/* Stripe IDs - hidden for now but editable */}
