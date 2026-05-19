@@ -446,7 +446,11 @@ export const queryKeys = {
     companyNotes: (id: string | undefined) => ["admin", "company-notes", id] as const,
     companiesFull: ["admin-companies-full"] as const,
     companiesOrderStats: ["admin-companies-order-stats"] as const,
-    companiesUserCounts: ["admin-companies-user-counts"] as const,
+    // v2: bump key per invalidare cache vecchia che ritornava
+    // Record<string, number> (incompatibile con la nuova shape
+    // { staff, customers, total }). Senza questo bump i client con cache
+    // React Query stale leggevano userCountsData.staff = undefined → crash.
+    companiesUserCounts: ["admin-companies-user-counts-v2"] as const,
     companiesHealth: ["admin-companies-health"] as const,
     companiesLastAccess: ["admin-companies-last-access"] as const,
     companiesLatestNotes: ["admin-companies-latest-notes"] as const,

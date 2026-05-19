@@ -529,8 +529,14 @@ export default function CompaniesList() {
   // Alias per backward compat con codice esistente (export CSV, sort).
   // userCounts mappa company_id → conteggio STAFF (la metrica più rilevante
   // per l'admin: numero utenti attivi che usano la piattaforma).
-  const userCounts = userCountsData.staff;
-  const customerCounts = userCountsData.customers;
+  // Defensive: se cache stale residua ha shape vecchia (Record<string, number>
+  // invece di { staff, customers, total }), .staff è undefined → fallback a {}.
+  const userCounts = (userCountsData && typeof userCountsData === "object" && "staff" in userCountsData)
+    ? userCountsData.staff
+    : {};
+  const customerCounts = (userCountsData && typeof userCountsData === "object" && "customers" in userCountsData)
+    ? userCountsData.customers
+    : {};
 
   const { data: healthData = {} } = useQuery({
     queryKey: queryKeys.admin.companiesHealth,
