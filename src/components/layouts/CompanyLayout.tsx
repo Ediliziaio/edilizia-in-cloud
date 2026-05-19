@@ -797,9 +797,11 @@ const CompanySidebar = memo(function CompanySidebar() {
     (!!currentPlan?.slug && !FULL_PLAN_SLUGS.has(currentPlan.slug))
   );
 
-  /** Modulo in modalità demo: non incluso ma piano è "limited" → preview. */
+  /** Modulo in modalità demo: non incluso ma piano è "limited" (o no plan) → preview. */
   const isModuleDemo = (moduleKey: string): boolean => {
     if (isModuleEnabled(moduleKey as never)) return false;
+    // v8.6.95: fail-open senza plan → marca come DEMO finché non c'è chiarezza
+    if (!currentPlan && !limitsLoading) return true;
     return isLimitedPlan;
   };
   // Mostriamo skeleton finché plan + feature flags non sono risolti: con
@@ -950,13 +952,16 @@ const CompanySidebar = memo(function CompanySidebar() {
       } else if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
         return false;
       }
-      // Module gate
+      // Module gate (v8.6.95 — fail-open per evitare flickering)
       if (item.moduleKey) {
         if (!isModuleEnabled(item.moduleKey)) {
-          // Tre casi: limited plan → mostra in demo;
-          //           durante loading plan → tieni visibile (evita flicker vuoto);
-          //           full plan caricato → nascondi davvero.
-          if (!isLimitedPlan && !limitsLoading) return false;
+          // 4 casi fail-open:
+          //   - limitsLoading: query in volo → tieni visibile
+          //   - !currentPlan: azienda senza piano (es. trial appena creato,
+          //     super_admin loggato come sé stesso) → tieni visibile
+          //   - isLimitedPlan: piano limited → mostra come DEMO
+          //   - full plan + modulo non incluso → nascondi davvero
+          if (!isLimitedPlan && !limitsLoading && currentPlan) return false;
         }
       }
       // Feature gate
@@ -966,7 +971,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       return true;
     });
-  }, [permissions, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, limitsLoading]);
+  }, [permissions, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, limitsLoading, currentPlan]);
 
   const { state: sidebarState } = useSidebar();
   const isCollapsed = sidebarState === "collapsed";
