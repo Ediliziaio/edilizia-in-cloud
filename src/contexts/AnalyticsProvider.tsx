@@ -31,7 +31,7 @@ interface AnalyticsConfig {
 }
 
 export function AnalyticsProvider({ children }: { children: ReactNode }) {
-  const { user, profile, effectiveCompany, role } = useAuth();
+  const { user, effectiveCompany, role } = useAuth();
   // v8.6.94 — usa currentPlan.slug (presente) invece di subscription_plan_id (uuid)
   const { currentPlan } = useSubscriptionLimits({ includeUsageCounts: false });
   const location = useLocation();
@@ -86,9 +86,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       role: role ?? undefined,
       planSlug: currentPlan?.slug ?? undefined,
     });
-    // Nota: profile per first_name non lo passiamo a PostHog (privacy)
-    void profile;
-  }, [config, user?.id, user?.email, effectiveCompany?.id, effectiveCompany?.name, role, profile, currentPlan?.slug]);
+    // v8.6.103 — deps con primitivi soltanto (profile escluso: oggetto
+    // ricreato spesso da AuthContext → identify spam PostHog inutile)
+  }, [config, user?.id, user?.email, effectiveCompany?.id, effectiveCompany?.name, role, currentPlan?.slug]);
 
   // 4. Track pageview ad ogni cambio rotta
   useEffect(() => {

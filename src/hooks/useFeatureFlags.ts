@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -168,70 +168,67 @@ export function useFeatureFlags(companyIdOverride?: string) {
     staleTime: 60 * 1000,
   });
 
-  // Build the legacy `resolvedFlags` shape so any future consumer that reads
-  // `{ key, enabled, source, flag }` keeps working.
-  const resolvedFlags: Record<string, ResolvedFlag> = {};
-  const flagByKey = new Map(flags.map((f) => [f.key, f] as const));
-  for (const row of resolved) {
-    // Derivazione access_level retro-compatibile: se il DB non lo espone (resolver
-    // vecchio), deriviamo da is_enabled.
-    const derivedLevel: FeatureAccessLevel =
-      row.access_level ?? (row.is_enabled ? "enabled" : "disabled");
-    resolvedFlags[row.feature_key] = {
-      key: row.feature_key,
-      enabled: row.is_enabled,
-      accessLevel: derivedLevel,
-      supportsPreview: row.supports_preview ?? true,
-      source: (row.source as FlagSource) ?? "default",
-      flag: flagByKey.get(row.feature_key),
-    };
-  }
-  // Catalog entries the RPC didn't emit (company with no plan, or flag added
-  // after cache warmed up): fall back to the catalog's default_value so the
-  // sidebar stays coherent instead of blanking out on a cold company record.
-  for (const flag of flags) {
-    if (!resolvedFlags[flag.key]) {
-      const enabled = flag.default_value ?? false;
-      resolvedFlags[flag.key] = {
-        key: flag.key,
-        enabled,
-        accessLevel: enabled ? "enabled" : "disabled",
-        supportsPreview: true,
-        source: "default",
-        flag,
+  // v8.6.103 — memoizzato: prima si ricostruiva ad OGNI render del hook
+  // (anche se resolved/flags invariati) → ogni consumer che lo metteva
+  // nelle deps di useCallback (es. CompanyLayout.filterNavItems) cascade
+  // re-render anche senza dati cambiati.
+  const resolvedFlags = useMemo(() => {
+    const map: Record<string, ResolvedFlag> = {};
+    const flagByKey = new Map(flags.map((f) => [f.key, f] as const));
+    for (const row of resolved) {
+      const derivedLevel: FeatureAccessLevel =
+        row.access_level ?? (row.is_enabled ? "enabled" : "disabled");
+      map[row.feature_key] = {
+        key: row.feature_key,
+        enabled: row.is_enabled,
+        accessLevel: derivedLevel,
+        supportsPreview: row.supports_preview ?? true,
+        source: (row.source as FlagSource) ?? "default",
+        flag: flagByKey.get(row.feature_key),
       };
     }
-  }
+    for (const flag of flags) {
+      if (!map[flag.key]) {
+        const enabled = flag.default_value ?? false;
+        map[flag.key] = {
+          key: flag.key,
+          enabled,
+          accessLevel: enabled ? "enabled" : "disabled",
+          supportsPreview: true,
+          source: "default",
+          flag,
+        };
+      }
+    }
+    return map;
+  }, [flags, resolved]);
 
   // v8.6.93 — memoizzate per stabilità referenziale.
   // Consumer in deps di useCallback/useEffect (es. CompanyLayout.filterNavItems)
-  // non re-renderizzano in loop.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // non re-renderizzano in loop. v8.6.103: deps ora puntano a resolvedFlags
+  // memoized (vedi useMemo sopra) — identità stabile se input invariati.
   const isFeatureEnabled = useCallback((key: string): boolean => {
     if (bypass) return true;
     return resolvedFlags[key]?.enabled ?? false;
-  }, [bypass, resolved]);
+  }, [bypass, resolvedFlags]);
 
   /** True se la feature è in modalità DEMO (visibile ma azioni bloccate). */
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const isFeaturePreview = useCallback((key: string): boolean => {
     if (bypass) return false;
     return resolvedFlags[key]?.accessLevel === "preview";
-  }, [bypass, resolved]);
+  }, [bypass, resolvedFlags]);
 
   /** True se la feature deve essere visibile in sidebar (enabled OR preview). */
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const isFeatureVisible = useCallback((key: string): boolean => {
     if (bypass) return true;
     const lvl = resolvedFlags[key]?.accessLevel;
     return lvl === "enabled" || lvl === "preview";
-  }, [bypass, resolved]);
+  }, [bypass, resolvedFlags]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const getFeatureAccessLevel = useCallback((key: string): FeatureAccessLevel => {
     if (bypass) return "enabled";
     return resolvedFlags[key]?.accessLevel ?? "disabled";
-  }, [bypass, resolved]);
+  }, [bypass, resolvedFlags]);
 
   // Derive the legacy `overrides` array from the RPC output for any pre-rewrite
   // consumer. `override_reason` is not emitted by the resolver; left as null.

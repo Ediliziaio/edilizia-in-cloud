@@ -1094,6 +1094,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!authenticatedUserId) return;
     const ping = () => {
+      // v8.6.103 — skip keepalive su tab in background (no battery drain
+      // né query inutili per utenti con 5-10 tab aperte)
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
       void supabase
         .from("subscription_plans")
         .select("id")
@@ -1105,7 +1110,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     ping();
     const id = setInterval(ping, 4 * 60 * 1000);
-    return () => clearInterval(id);
+    // Riattiva subito quando tab torna in foreground
+    const onVisible = () => {
+      if (document.visibilityState === "visible") ping();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [authenticatedUserId]);
 
   // ── Velocity — Sentry user/tenant context ────────────────────────────────

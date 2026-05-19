@@ -66,10 +66,23 @@ export function useSessionTimeout(): void {
       }
     };
 
-    // v8.6.101 — Auto-mark session start su QUALSIASI new sign-in
-    // (SSO, OAuth, cross-subdomain handoff, password+OTP). Senza questo,
-    // il TTL 45gg viene applicato SOLO al flow password+OTP che chiamava
-    // esplicitamente markSessionStarted() in LoginForm.
+    // v8.6.103 — Listener auth state minimalista: solo lettura iniziale + reazione
+    // a SIGNED_IN/OUT per markSessionStarted. NB: AuthContext ha già il listener
+    // principale → qui usiamo `getSession()` per popolare al boot senza
+    // contestualizzare un secondo listener concorrente che generava write race
+    // sul localStorage. Su SIGNED_IN futuri, l'unico listener (AuthContext)
+    // aggiornerà il profile; markSessionStarted resta idempotente
+    // (set solo se mancante) quindi un re-call manuale è safe.
+    void supabase.auth.getSession().then(({ data }) => {
+      if (data.session && !alive) return;
+      try {
+        if (data.session && !localStorage.getItem(STORAGE_KEY)) {
+          localStorage.setItem(STORAGE_KEY, String(Date.now()));
+        }
+      } catch { /* ignore */ }
+    });
+
+    // Un singolo listener — leggero: solo per cleanup al logout.
     const { data: authSub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") {
         try {
