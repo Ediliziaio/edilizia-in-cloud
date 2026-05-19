@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { captureVelocityError, setSentryUserContext } from "@/lib/velocity/sentry";
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import { queryKeys } from "@/lib/queryKeys";
+import { warmupCriticalEdgeFunctions } from "@/lib/utils/edgeWarmup";
 
 /**
  * Velocity Protocol — V1/V2
@@ -778,6 +779,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!sessionStorage.getItem(SESSION_ID_KEY)) {
             startSession(session.access_token);
           }
+          // Riscalda edge function critiche per UX (manage-totp, maps-proxy, ecc).
+          // Fire-and-forget, defer 500ms, idempotente per session — vedi
+          // src/lib/utils/edgeWarmup.ts. Elimina lo spinner 10-30s al cold-start
+          // di Force2FAGuard, calendario, mappe.
+          warmupCriticalEdgeFunctions();
           // Track admin session for super_admin users (fire-and-forget)
           if (userData.role === "super_admin" && event === "SIGNED_IN") {
             const info = getBrowserInfo();
