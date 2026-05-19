@@ -119,6 +119,7 @@ export function EmailOTPLogin({ onBack, initialEmail = "" }: Props) {
     };
   }, [secondsLeft]);
 
+  // v8.6.98 — Custom OTP via edge function email-otp-send (TTL 15min server-side)
   const sendOtp = async () => {
     const trimmed = email.trim().toLowerCase();
     if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
@@ -127,25 +128,38 @@ export function EmailOTPLogin({ onBack, initialEmail = "" }: Props) {
     }
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: trimmed,
-        options: {
-          // Non creare nuovi utenti via magic link: solo chi è già registrato.
-          shouldCreateUser: false,
-        },
+      const { data, error } = await supabase.functions.invoke("email-otp-send", {
+        body: { email: trimmed },
       });
       if (error) {
         toast({
           title: "Errore invio codice",
-          description: error.message.includes("not found")
-            ? "Email non registrata. Contatta il tuo consulente."
-            : error.message,
+          description: error.message,
           variant: "destructive",
         });
         return;
       }
+      const status = (data as { status?: string } | null)?.status;
+      if (status === "user_not_found") {
+        toast({
+          title: "Email non registrata",
+          description: "Contatta il tuo consulente per ottenere l'accesso.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (status === "rate_limited") {
+        const cooldown = (data as { cooldown?: number }).cooldown ?? 60;
+        toast({
+          title: "Troppi tentativi",
+          description: `Aspetta ${cooldown}s prima di richiedere un nuovo codice.`,
+          variant: "destructive",
+        });
+        setSecondsLeft(cooldown);
+        return;
+      }
       setStep("verify");
-      setSecondsLeft(60); // resend dopo 60s
+      setSecondsLeft(60);
       toast({
         title: "Codice inviato",
         description: `Controlla la casella di posta. Il codice scade tra ${OTP_TTL_MIN} minuti.`,
@@ -159,23 +173,41 @@ export function EmailOTPLogin({ onBack, initialEmail = "" }: Props) {
     if (otp.length !== 6) return;
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
-        token: otp,
-        type: "email",
+      const { data, error } = await supabase.functions.invoke("email-otp-verify", {
+        body: { email: email.trim().toLowerCase(), code: otp },
       });
       if (error) {
-        toast({
-          title: "Codice non valido",
-          description: error.message.includes("expired")
-            ? "Il codice è scaduto. Richiedine uno nuovo."
-            : "Verifica le 6 cifre e riprova.",
-          variant: "destructive",
-        });
+        toast({ title: "Errore verifica", description: error.message, variant: "destructive" });
         setOtp("");
         return;
       }
-      // Successo: AuthContext rileva la nuova sessione e naviga
+      const result = data as { status?: string; token_hash?: string; attempts_left?: number } | null;
+      if (!result || result.status !== "ok" || !result.token_hash) {
+        const msg =
+          result?.status === "expired"
+            ? "Il codice è scaduto. Richiedine uno nuovo."
+            : result?.status === "too_many_attempts"
+              ? "Troppi tentativi falliti. Richiedi un nuovo codice."
+              : result?.status === "no_active_code"
+                ? "Nessun codice attivo per questa email."
+                : `Codice non valido${result?.attempts_left !== undefined ? ` (${result.attempts_left} tentativi rimasti)` : ""}.`;
+        toast({ title: "Codice non valido", description: msg, variant: "destructive" });
+        setOtp("");
+        return;
+      }
+      // Autentica con il token_hash ritornato dal magic link nativo
+      const { error: vErr } = await supabase.auth.verifyOtp({
+        token_hash: result.token_hash,
+        type: "magiclink",
+      });
+      if (vErr) {
+        toast({
+          title: "Errore autenticazione",
+          description: vErr.message,
+          variant: "destructive",
+        });
+        return;
+      }
       toast({ title: "Accesso effettuato", description: "Stai entrando…" });
     } finally {
       setIsLoading(false);

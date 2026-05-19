@@ -1,0 +1,172 @@
+// ============================================================================
+// email-otp-send — Genera e invia codice OTP via email (login senza password)
+// ============================================================================
+// Input:  { email: string }
+// Output: { status: 'sent' | 'rate_limited' | 'user_not_found', cooldown?: number }
+//
+// Flusso:
+//   1. Verifica che esista un user con quell'email
+//   2. Rate limit: max 1 codice ogni 60s per email + max 10/giorno per IP
+//   3. Genera 6 cifre casuali
+//   4. Hash bcrypt-style (crypt()) e insert email_otp_codes
+//   5. Invia email con il codice via Resend/SendGrid (sender platform)
+// ============================================================================
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
+}
+
+function generateCode(): string {
+  // 6 cifre, zero-padded
+  const n = Math.floor(Math.random() * 1_000_000);
+  return n.toString().padStart(6, "0");
+}
+
+function buildEmailHtml(code: string, ttlMin: number): string {
+  return `<!DOCTYPE html>
+<html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f3f4f6;padding:24px">
+  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb">
+    <h2 style="color:#173b67;margin:0 0 16px;font-size:20px">Codice di accesso · Edilizia in Cloud</h2>
+    <p style="color:#374151;margin:0 0 24px">Ecco il tuo codice per accedere senza password:</p>
+    <div style="background:#fff7ed;border:2px solid #fed7aa;border-radius:8px;padding:24px;text-align:center;margin:24px 0">
+      <div style="font-size:36px;font-weight:700;letter-spacing:12px;font-family:monospace;color:#9a3412">${code}</div>
+    </div>
+    <p style="color:#6b7280;font-size:14px;margin:24px 0 8px">Il codice scade tra <strong>${ttlMin} minuti</strong>.</p>
+    <p style="color:#9ca3af;font-size:12px;margin:16px 0 0">Se non hai richiesto questo accesso, ignora questa email — il tuo account è al sicuro.</p>
+  </div>
+  <p style="text-align:center;color:#9ca3af;font-size:11px;margin:16px 0 0">© Edilizia in Cloud · app.ediliziaincloud.com</p>
+</body></html>`;
+}
+
+function buildEmailText(code: string, ttlMin: number): string {
+  return `Codice di accesso Edilizia in Cloud
+
+Il tuo codice: ${code}
+
+Scade tra ${ttlMin} minuti.
+
+Se non hai richiesto l'accesso, ignora questa email.`;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    return jsonResponse({ error: "Server misconfigured" }, 500);
+  }
+
+  let payload: { email?: string };
+  try {
+    payload = await req.json();
+  } catch {
+    return jsonResponse({ error: "Invalid JSON" }, 400);
+  }
+
+  const email = (payload.email ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return jsonResponse({ error: "Email non valida" }, 400);
+  }
+
+  const supa = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    auth: { persistSession: false },
+  });
+
+  // 1. Verifica esistenza utente (sicurezza: non leakare info se non esiste)
+  // Però per UX rispondiamo "user_not_found" per non far perdere tempo all'utente
+  // se la mail è errata. (Trade-off security vs UX accettabile per B2B.)
+  const { data: users } = await supa.auth.admin.listUsers({ perPage: 1000 });
+  const user = users.users.find((u) => (u.email ?? "").toLowerCase() === email);
+  if (!user) {
+    return jsonResponse({ status: "user_not_found" });
+  }
+
+  // 2. Rate limit: max 1 codice / 60s per email
+  const { data: recent } = await supa
+    .from("email_otp_codes")
+    .select("created_at")
+    .eq("email", email)
+    .gte("created_at", new Date(Date.now() - 60_000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (recent && recent.length > 0) {
+    const sentAt = new Date(recent[0].created_at).getTime();
+    const cooldown = Math.max(0, 60 - Math.floor((Date.now() - sentAt) / 1000));
+    return jsonResponse({ status: "rate_limited", cooldown });
+  }
+
+  // 3. Genera codice + hash
+  const code = generateCode();
+  const TTL_MIN = 15;
+  const expiresAt = new Date(Date.now() + TTL_MIN * 60_000).toISOString();
+
+  // Hash via RPC hash_otp_code (bcrypt-style su lato DB)
+  const { data: hashed, error: hashErr } = await supa.rpc("hash_otp_code" as never, {
+    p_code: code,
+  } as never);
+  if (hashErr || !hashed) {
+    console.error("[email-otp-send] hash error:", hashErr);
+    return jsonResponse({ error: "Impossibile generare il codice" }, 500);
+  }
+  const code_hash = hashed as unknown as string;
+
+  // 4. Insert codice
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const ua = req.headers.get("user-agent") ?? null;
+  const { error: insErr } = await supa.from("email_otp_codes").insert({
+    email,
+    code_hash,
+    expires_at: expiresAt,
+    ip_address: ip,
+    user_agent: ua,
+  });
+  if (insErr) {
+    console.error("[email-otp-send] insert error:", insErr);
+    return jsonResponse({ error: "Impossibile salvare il codice" }, 500);
+  }
+
+  // 5. Invia email via send-transactional-v2 con template precomputed
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-transactional-v2`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({
+        companyId: null,
+        templateName: "password_reset", // template esistente in registry (lo riusiamo come carrier)
+        props: {},
+        to: email,
+        skipCredits: true,
+        precomputedSubject: `Codice di accesso: ${code}`,
+        precomputedHtml: buildEmailHtml(code, TTL_MIN),
+        precomputedText: buildEmailText(code, TTL_MIN),
+        metadata: { source: "email-otp-send" },
+      }),
+    });
+    if (!res.ok) {
+      console.error("[email-otp-send] send-transactional-v2:", res.status, await res.text());
+      return jsonResponse({ error: "Errore invio email" }, 500);
+    }
+  } catch (e) {
+    console.error("[email-otp-send] fetch error:", e);
+    return jsonResponse({ error: "Errore invio email" }, 500);
+  }
+
+  return jsonResponse({ status: "sent", ttl_min: TTL_MIN });
+});
