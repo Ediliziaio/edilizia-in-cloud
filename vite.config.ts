@@ -186,8 +186,31 @@ export default defineConfig(() => ({
     // ─────────────────────────────────────────────────────────────
     modulePreload: {
       resolveDependencies: (_filename, deps) => {
-        const HEAVY_OPTIONAL = /vendor-(pdf|charts|flow|maps|qr|excel)/;
-        return deps.filter((d) => !HEAVY_OPTIONAL.test(d));
+        // v8.6.100 — Filtro AGGRESSIVO modulePreload.
+        // Prima: solo vendor heavy esclusi. Risultato: la pagina /login
+        // preloadava tutta la Home + 30 chunk landing (PainPoints, Solution,
+        // Modules, Pricing, FAQ, Testimonials, Footer, GSAP, ScrollTrigger,
+        // FloatingIcons, ecc.) → 91 chunk HTTP al boot.
+        //
+        // Ora: escludo TUTTO ciò che è "landing-only" o "page-specific":
+        // i lazy chunk dei singoli componenti landing si caricheranno
+        // SOLO quando l'utente naviga davvero alla Home.
+        const EXCLUDE_PATTERNS = [
+          /vendor-(pdf|charts|flow|maps|qr|excel|tiptap)/,
+          // Landing page (Home + sue sezioni)
+          /Home-/,
+          /Landing(Navbar|Footer)/,
+          /(PainPoints|Solution|Modules|Testimonials|Guarantee|Pricing|FAQ|FinalCta|AISystemShowcase)Section/,
+          /FloatingEdiliziaIcons/,
+          /StickyBottomBar/,
+          /QuickContactModal/,
+          // GSAP heavy (solo landing)
+          /(gsap|ScrollTrigger)/,
+          // SiteChatWidget (lazy public chat)
+          /SiteChatWidget/,
+          /PublicChatWidget/,
+        ];
+        return deps.filter((d) => !EXCLUDE_PATTERNS.some((re) => re.test(d)));
       },
     },
     rollupOptions: {
