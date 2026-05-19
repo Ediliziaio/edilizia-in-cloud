@@ -14,10 +14,17 @@
  *     (questo componente è quindi mobile-first)
  */
 import { Link } from "react-router-dom";
+import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   UserCircle, ShieldCheck, Building2, MapPin, Paintbrush, Wallet, Receipt,
   Users, ListOrdered, FolderOpen, FileText, FileSignature, Truck, ScrollText,
-  Banknote, Sparkles, Briefcase, Plug, Calendar, Mail, Tag, Settings as SettingsIcon,
+  Banknote, Plug, Calendar, Mail, Tag, Settings as SettingsIcon, LogOut,
 } from "lucide-react";
 
 interface SectionItem {
@@ -80,6 +87,9 @@ const SECTIONS: Section[] = [
 ];
 
 export default function SettingsMobileHub() {
+  const { signOut, user, profile } = useAuth();
+  const [logoutOpen, setLogoutOpen] = useState(false);
+
   return (
     <div className="space-y-6 pb-4">
       <div className="flex items-center gap-3">
@@ -119,11 +129,62 @@ export default function SettingsMobileHub() {
         </section>
       ))}
 
+      {/* v8.6.76 — Card account + logout in fondo all'hub. Su mobile è
+          l'unico punto di accesso al logout (la sidebar laterale con menu
+          user è nascosta md+). */}
+      <section className="space-y-2 pt-2">
+        <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+          Account corrente
+        </h3>
+        <div className="rounded-xl border bg-card p-4 shadow-sm space-y-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-sm font-semibold text-primary">
+              {(profile?.first_name?.[0] ?? "") + (profile?.last_name?.[0] ?? "") || user?.email?.[0]?.toUpperCase() || "?"}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium truncate">
+                {profile?.first_name ? `${profile.first_name} ${profile.last_name ?? ""}`.trim() : "Utente"}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            className="w-full gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => setLogoutOpen(true)}
+          >
+            <LogOut className="h-4 w-4" />
+            Esci dall'account
+          </Button>
+        </div>
+      </section>
+
       <div className="rounded-xl border border-dashed bg-muted/30 p-3 text-center">
         <p className="text-xs text-muted-foreground">
           Cerchi qualcosa di specifico? Usa la <strong>ricerca</strong> in alto (🔍 cerca impostazioni).
         </p>
       </div>
+
+      {/* Dialog conferma logout */}
+      <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Uscire dall'account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Verrai disconnesso e dovrai inserire di nuovo le credenziali per tornare.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { void signOut(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Esci
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
