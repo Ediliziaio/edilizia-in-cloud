@@ -226,6 +226,91 @@ Deno.serve(async (req) => {
       },
     });
 
+    // ── Auto-create opportunity nel pipeline marketing ───────────────────────
+    // Prima i lead arrivavano in CRM ma NON entravano nel kanban marketing →
+    // l'admin doveva creare manualmente l'opportunità. Risultato: lead caldi
+    // dimenticati nella lista contatti senza tracking commerciale.
+    // Ora: se NON esiste già opportunity OPEN per questo contact, creiamo una
+    // entry nel primo stage della pipeline default di platform-admin.
+    // Fail-soft: se non c'è pipeline configurata, skip senza errore.
+    let opportunityId: string | null = null;
+    try {
+      const { data: existingOpp } = await supabase
+        .from("marketing_opportunities")
+        .select("id")
+        .eq("company_id", PLATFORM_ADMIN_COMPANY_ID)
+        .eq("contact_id", contactId)
+        .eq("status", "open")
+        .maybeSingle();
+
+      if (existingOpp?.id) {
+        opportunityId = existingOpp.id as string;
+        // Lead ricorrente con opp aperta → solo aggiorna last touch + nota
+        await supabase
+          .from("marketing_opportunities")
+          .update({
+            updated_at: now,
+            notes: [`Nuova richiesta ${contextLabel || source} il ${now.slice(0, 10)}`].join("\n"),
+          })
+          .eq("id", opportunityId);
+      } else {
+        // Trova pipeline default + primo stage
+        const { data: pipeline } = await supabase
+          .from("marketing_pipelines")
+          .select("id")
+          .eq("company_id", PLATFORM_ADMIN_COMPANY_ID)
+          .order("position", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (pipeline?.id) {
+          const { data: firstStage } = await supabase
+            .from("marketing_pipeline_stages")
+            .select("id")
+            .eq("pipeline_id", pipeline.id)
+            .order("position", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          if (firstStage?.id) {
+            const oppName = contextLabel
+              ? `${nome} — ${contextLabel}`
+              : renderSlug
+                ? `${nome} — Render ${renderSlug}`
+                : `${nome} — Lead sito`;
+            const { data: created } = await supabase
+              .from("marketing_opportunities")
+              .insert({
+                company_id: PLATFORM_ADMIN_COMPANY_ID,
+                contact_id: contactId,
+                pipeline_id: pipeline.id,
+                stage_id: firstStage.id,
+                name: oppName,
+                value: 0,
+                status: "open",
+                source,
+                company_name: azienda,
+                notes: messaggio || null,
+              })
+              .select("id")
+              .single();
+            opportunityId = created?.id ?? null;
+            if (opportunityId) {
+              await supabase.from("marketing_contact_activities").insert({
+                company_id: PLATFORM_ADMIN_COMPANY_ID,
+                contact_id: contactId,
+                activity_type: "opportunity_auto_created",
+                description: `Opportunità creata in automatico dal lead sito`,
+                metadata: { opportunity_id: opportunityId, source, render_slug: renderSlug || null },
+              });
+            }
+          }
+        }
+      }
+    } catch (oppErr) {
+      console.warn("[public-lead-submit] auto-create opportunity failed:", oppErr);
+    }
+
     // ── Contatore richieste totali del contatto (per email + tag overview) ──
     let totalRequests = 1;
     try {
@@ -274,13 +359,13 @@ Deno.serve(async (req) => {
         text: `${subjectLine}\n\nEmail: ${email}\nTel: ${telefono}\nAzienda: ${azienda}\nRichieste totali: ${totalRequests}`,
         templateName: "admin_new_lead_notification",
         replyTo: email,
-        metadata: { contact_id: contactId, request_id: requestId, source, total_requests: totalRequests },
+        metadata: { contact_id: contactId, request_id: requestId, opportunity_id: opportunityId, source, total_requests: totalRequests },
       });
     } catch (notifyErr) {
       console.warn("[public-lead-submit] admin notify failed:", notifyErr);
     }
 
-    return jsonResponse(req, { ok: true, contact_id: contactId, request_id: requestId });
+    return jsonResponse(req, { ok: true, contact_id: contactId, request_id: requestId, opportunity_id: opportunityId });
   } catch (error) {
     console.error("[public-lead-submit] unexpected error:", error);
     return jsonResponse(req, { error: "Errore interno" }, 500);
