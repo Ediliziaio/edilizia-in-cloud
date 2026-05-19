@@ -41,9 +41,8 @@ export default function SilvioAdminPage() {
     let cancelled = false;
     void (async () => {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data, error: rpcErr } = await (supabase as any).rpc(
-          "ensure_user_silvio_admin_channel"
+        const { data, error: rpcErr } = await supabase.rpc(
+          "ensure_user_silvio_admin_channel" as never,
         );
         if (cancelled) return;
 

@@ -307,8 +307,10 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
     queryKey: ["silvio-channel", companyId, userId],
     queryFn: async (): Promise<string | null> => {
       if (!companyId || !userId) return null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc("ensure_user_silvio_channel");
+      // RPC restituisce uuid del channel — cast tipizzato senza `any`.
+      const { data, error } = await supabase.rpc(
+        "ensure_user_silvio_channel" as never,
+      );
       if (error) {
         toast.error("Non riesco ad aprire la chat Silvio", {
           description: error.message,
@@ -382,11 +384,15 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
     };
   }, [channelId, open, qc]);
 
-  // ── 3. Scroll bottom su nuovi messaggi ─────────────────────────────────
+  // ── 3. Scroll bottom su nuovi messaggi + streaming ─────────────────────
+  // v8.6.65 — Bug fix: durante streaming AI (token-per-token) il contenuto
+  // dell'ultimo messaggio cresce ma messages.length resta uguale, quindi
+  // l'auto-scroll non scattava. Ora dipendiamo anche dal contenuto del
+  // messaggio più recente per seguire la risposta in tempo reale.
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages.length]);
+  }, [messages.length, messages[messages.length - 1]?.content]);
 
   // Element 3: quando arrivano messaggi nuovi di Silvio, marcali come streaming
   // (effetto typewriter). I messaggi già visti restano statici.
