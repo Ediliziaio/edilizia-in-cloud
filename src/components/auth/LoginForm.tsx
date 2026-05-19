@@ -23,12 +23,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "./TwoFactorVerify";
 import { SSOButtons } from "./SSOButtons";
+import { EmailOTPLogin } from "./EmailOTPLogin";
 import { useBrandingByDomain } from "@/hooks/useBrandingByDomain";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { cn } from "@/lib/utils";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
-type ViewMode = "login" | "forgot" | "2fa";
+type ViewMode = "login" | "forgot" | "2fa" | "email-otp";
 
 const features = [
   { icon: TrendingUp, text: "Tieni sotto controllo margini e utili in tempo reale" },
@@ -383,6 +384,14 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
             </div>
           )}
 
+          {/* ── Email OTP view (v8.6.97 — login senza password) ── */}
+          {view === "email-otp" && (
+            <EmailOTPLogin
+              initialEmail={email}
+              onBack={() => setView("login")}
+            />
+          )}
+
           {/* ── Login view ── */}
           {view === "login" && (
             <div className="animate-in fade-in-0 duration-300 space-y-5 sm:space-y-6">
@@ -473,6 +482,15 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
               {/* ── SSO providers (v8.6.92) ────────────────────────────── */}
               <SSOButtons disabled={isLoading} onError={(msg) => setFormError(msg)} />
+
+              {/* ── Magic link / Email OTP (v8.6.97) ───────────────────── */}
+              <button
+                type="button"
+                onClick={() => setView("email-otp")}
+                className="w-full text-center text-sm text-primary hover:underline font-medium"
+              >
+                Accedi senza password (codice via email)
+              </button>
 
               <p className="text-center text-xs text-muted-foreground leading-relaxed">
                 L'accesso è riservato agli utenti registrati.<br />
