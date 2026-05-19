@@ -1,5 +1,6 @@
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, Link } from "react-router-dom";
 import { SettingsSearch } from "@/components/layouts/SettingsSearch";
+import { ArrowLeft } from "lucide-react";
 
 // ─── Mappa URL → titolo + descrizione ───────────────────────────────────────
 interface SectionMeta {
@@ -76,23 +77,38 @@ export function SettingsLayout() {
   const { pathname } = useLocation();
   const { title, description } = getSectionMeta(pathname);
 
+  // v8.6.71 — Sull'hub (/azienda/impostazioni senza sub-segmento) non mostriamo
+  // il back arrow (è la pagina root). Su tutte le sotto-pagine sì.
+  const isHubRoot = pathname === "/azienda/impostazioni" || pathname === "/azienda/impostazioni/";
+
   return (
     <div className="flex flex-col min-h-full">
       {/* Header contestuale — titolo + descrizione derivati dall'URL corrente */}
       <div className="border-b bg-background px-4 py-4 md:px-6 md:py-5">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
+        <div className="flex items-start gap-3">
+          {/* v8.6.71 — Back arrow mobile: porta all'hub griglia impostazioni.
+              Nascosto su desktop (sidebar laterale è la navigazione primaria)
+              e sulla root impostazioni (sarebbe self-link). */}
+          {!isHubRoot && (
+            <Link
+              to="/azienda/impostazioni"
+              aria-label="Torna a tutte le impostazioni"
+              className="md:hidden flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background hover:bg-muted transition-colors -ml-1"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          )}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 flex-1 min-w-0">
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold tracking-tight truncate">{title}</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
+            </div>
+            {/* v8.6.71 — Search settings: nascosta su mobile (richiesto), resta su desktop */}
+            <div className="hidden md:block">
+              <SettingsSearch />
+            </div>
           </div>
-          {/* MP-IMP-001 Fase 7: search settings + Cmd+K shortcut */}
-          <SettingsSearch />
         </div>
-
-        {/* v8.6.69 — Rimosso dropdown "Vai a una sezione..." su mobile.
-            L'utente ora naviga le impostazioni dalla rotellina nell'header
-            CompanyLayout (apre profilo) + dalla bottom-nav "App" che mostra
-            la griglia completa di tutte le funzioni. Dropdown ridondante. */}
       </div>
 
       {/* Contenuto della pagina figlia — larghezza piena */}
