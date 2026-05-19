@@ -1,10 +1,23 @@
+/**
+ * OnboardingChecklist — v8.6.86
+ *
+ * Quick Start activation card mostrata nel cruscotto finché tutti gli step
+ * non sono completati. Combina:
+ *   - Auto-detection step completati (useOnboardingAutoComplete)
+ *   - CTA "Vai →" per ogni step pendente
+ *   - Progress bar visiva con %
+ *   - Si nasconde automaticamente quando 100% completato
+ */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, Circle, ListChecks } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CheckCircle2, Circle, ListChecks, ArrowRight, Sparkles } from "lucide-react";
+import { useOnboardingAutoComplete } from "@/hooks/useOnboardingAutoComplete";
 
 interface OnboardingStep {
   id: string;
@@ -13,6 +26,8 @@ interface OnboardingStep {
   sort_order: number;
   is_required: boolean;
   auto_check_key: string | null;
+  action_url: string | null;
+  action_label: string | null;
 }
 
 interface Completion {
@@ -30,11 +45,14 @@ export function OnboardingChecklist() {
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("company_onboarding" as never)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from("company_onboarding" as any)
         .select("*")
-        .eq("company_id", companyId as never)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .eq("company_id", companyId as any)
         .maybeSingle();
       if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return data as any;
     },
   });
@@ -47,9 +65,11 @@ export function OnboardingChecklist() {
     enabled: !!templateId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("onboarding_steps" as never)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from("onboarding_steps" as any)
         .select("*")
-        .eq("template_id", templateId as never)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .eq("template_id", templateId as any)
         .order("sort_order", { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as OnboardingStep[];
@@ -62,9 +82,11 @@ export function OnboardingChecklist() {
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("company_onboarding_completions" as never)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from("company_onboarding_completions" as any)
         .select("step_id")
-        .eq("company_id", companyId as never);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .eq("company_id", companyId as any);
       if (error) throw error;
       return (data || []) as unknown as Completion[];
     },
@@ -73,23 +95,32 @@ export function OnboardingChecklist() {
   const completedIds = new Set(completions.map((c) => c.step_id));
   const pct = steps.length > 0 ? Math.round((completedIds.size / steps.length) * 100) : 0;
 
+  // Auto-completion engine (scrive su DB le milestone raggiunte)
+  useOnboardingAutoComplete(steps, completedIds);
+
+  // Toggle manuale (per gli step senza auto_check_key)
   const toggleStep = useMutation({
     mutationFn: async (stepId: string) => {
       if (completedIds.has(stepId)) {
         const { error } = await supabase
-          .from("company_onboarding_completions" as never)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .from("company_onboarding_completions" as any)
           .delete()
-          .eq("company_id", companyId as never)
-          .eq("step_id", stepId as never);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .eq("company_id", companyId as any)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .eq("step_id", stepId as any);
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from("company_onboarding_completions" as never)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .from("company_onboarding_completions" as any)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .insert({
             company_id: companyId,
             step_id: stepId,
             completed_by: user!.id,
-          } as never);
+          } as any);
         if (error) throw error;
       }
     },
@@ -100,51 +131,94 @@ export function OnboardingChecklist() {
 
   if (!onboarding || steps.length === 0) return null;
 
+  // Quando tutti gli step sono completati, mostriamo banner di successo
+  // per 1 sessione poi la card si nasconde definitivamente
+  // (status='completed' viene scritto da super-admin o mutation manuale).
   if (pct === 100 && onboarding.status === "completed") return null;
 
+  const nextStep = steps.find(s => !completedIds.has(s.id));
+  const isAllDone = pct === 100;
+
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+    <Card className="border-amber-200 bg-gradient-to-br from-amber-50 via-orange-50/40 to-white dark:from-amber-950/20 dark:via-orange-950/10 dark:to-background overflow-hidden">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <CardTitle className="text-base flex items-center gap-2">
-            <ListChecks className="h-4 w-4 text-primary" />
-            Onboarding
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0">
+              {isAllDone ? <Sparkles className="h-4 w-4 text-white" /> : <ListChecks className="h-4 w-4 text-white" />}
+            </div>
+            <span>{isAllDone ? "Sei pronto!" : "Inizia in 5 minuti"}</span>
           </CardTitle>
-          <Badge variant={pct === 100 ? "default" : "secondary"} className="text-xs">
-            {pct}% completo
+          <Badge
+            variant={isAllDone ? "default" : "secondary"}
+            className={isAllDone ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+          >
+            {pct}% completato
           </Badge>
         </div>
+        {!isAllDone && nextStep && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Prossimo: <strong className="text-foreground">{nextStep.title}</strong>
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         <Progress value={pct} className="h-2" />
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {steps.map((step) => {
             const done = completedIds.has(step.id);
             return (
-              <button
+              <div
                 key={step.id}
-                className={`w-full flex items-start gap-3 p-2 rounded-lg text-left transition-colors hover:bg-muted ${
-                  done ? "opacity-70" : ""
+                className={`group flex items-start gap-3 rounded-lg p-2 transition-colors ${
+                  done ? "opacity-70" : "hover:bg-muted/60"
                 }`}
-                onClick={() => toggleStep.mutate(step.id)}
               >
-                {done ? (
-                  <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-                ) : (
-                  <Circle className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
-                )}
-                <div>
+                <button
+                  className="shrink-0 mt-0.5"
+                  onClick={() => toggleStep.mutate(step.id)}
+                  aria-label={done ? "Segna come da fare" : "Segna come completato"}
+                  type="button"
+                  data-allow-in-preview="true"
+                >
+                  {done ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  ) : (
+                    <Circle className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
                   <p className={`text-sm font-medium ${done ? "line-through text-muted-foreground" : ""}`}>
                     {step.title}
                   </p>
-                  {step.description && (
-                    <p className="text-xs text-muted-foreground">{step.description}</p>
+                  {step.description && !done && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
                   )}
                 </div>
-              </button>
+                {!done && step.action_url && (
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 h-7 text-xs border-amber-300 hover:bg-amber-100 hover:text-amber-900"
+                  >
+                    <Link to={step.action_url} data-allow-in-preview="true">
+                      {step.action_label ?? "Vai"}
+                      <ArrowRight className="ml-1 h-3 w-3" />
+                    </Link>
+                  </Button>
+                )}
+              </div>
             );
           })}
         </div>
+        {isAllDone && (
+          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 p-3 text-center">
+            <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+              🎉 Hai completato il setup. Adesso sei operativo al 100%.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -44,6 +44,7 @@ import { DashboardQuickActions, DashboardKeyboardHint } from "@/components/dashb
 import { CompanyDashboardFilters } from "@/components/dashboard/CompanyDashboardFilters";
 import { useCompanyDashboardData } from "@/hooks/useCompanyDashboardData";
 import { EditOrderDatesDialog } from "@/components/calendar/EditOrderDatesDialog";
+import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import type { CalendarOrder } from "@/types/calendar";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -1263,6 +1264,9 @@ export default function CompanyDashboard() {
   return (
     <div className="space-y-4 sm:space-y-6">
       <DashboardSelectorBar title="Dashboard Gestione" />
+
+      {/* v8.6.86 — Onboarding Quick Start (si nasconde a 100%) */}
+      <OnboardingChecklist />
 
       <DashboardPageHeader
         title="Dashboard Gestione"

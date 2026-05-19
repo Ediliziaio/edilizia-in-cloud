@@ -23,10 +23,13 @@ import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@ta
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { AnalyticsProvider } from "@/contexts/AnalyticsProvider";
+import { Force2FAGuard } from "@/components/auth/Force2FAGuard";
 import { captureVelocityError } from "@/lib/velocity/sentry";
 import { BillingModeProvider } from "@/contexts/BillingModeContext";
 import { SubdomainRedirect } from "@/components/auth/SubdomainRedirect";
 import ScrollToTop from "@/components/ScrollToTop";
+import { InstallPWAPrompt } from "@/components/ui/InstallPWAPrompt";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Loader2 } from "lucide-react";
 import { useSubdomainRoute, getCurrentSubdomain } from "@/hooks/useSubdomainRoute";
@@ -336,6 +339,8 @@ const App = () => (
         <ScrollToTop />
         <MobileBootstrap />
         <AuthProvider>
+          <AnalyticsProvider>
+          <Force2FAGuard>
           <BillingModeProvider>
           <Suspense fallback={<PageLoader />}>
             <Routes>
@@ -486,8 +491,12 @@ const App = () => (
                 (login, landing); auto-nascosto per utenti autenticati che hanno
                 già la chat Silvio interna. Usa VITE_PUBLIC_CHAT_TOKEN env var. */}
             <PublicSiteChatWidgetGate />
+            {/* v8.6.91 — Install PWA prompt (Android/iOS) con snooze 7gg */}
+            <InstallPWAPrompt />
           </Suspense>
           </BillingModeProvider>
+          </Force2FAGuard>
+          </AnalyticsProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

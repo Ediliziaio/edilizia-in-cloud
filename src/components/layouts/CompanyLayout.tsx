@@ -91,6 +91,7 @@ import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNoti
 import { SilvioBellPopover } from "@/components/silvio/SilvioBellPopover";
 // MP-AIE-03: badge realtime con conteggio proposte azione AI pending
 import { ActionProposalsBadge } from "@/components/ai/ActionProposals/ActionProposalsBadge";
+import { ChangelogDrawer } from "@/components/changelog/ChangelogDrawer";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -203,14 +204,27 @@ const SCOPRI_LOCKED_ROUTES = [
   "/azienda/automazioni",
 ];
 
-function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange, isScopriPlan = false }: {
+function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange, isScopriPlan = false, isFeaturePreview, isModuleDemo }: {
   area: MacroArea;
   visibleItems: NavItem[];
   pathname: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isScopriPlan?: boolean;
+  /** v8.6.82 — usato per mostrare badge "Demo" sulle voci feature in preview. */
+  isFeaturePreview?: (key: string) => boolean;
+  /** v8.6.83 — usato per mostrare badge "Demo" sulle voci moduleKey non incluse. */
+  isModuleDemo?: (moduleKey: string) => boolean;
 }) {
+  // Helper: è una voce in modalità DEMO (l'utente la vede ma non può agire)?
+  const isDemoItem = (item: NavItem): boolean => {
+    if (item.featureKey) {
+      if (item.featureKey === "billing_external" || item.featureKey === "billing_native") return false;
+      if (isFeaturePreview?.(item.featureKey)) return true;
+    }
+    if (item.moduleKey && isModuleDemo?.(item.moduleKey)) return true;
+    return false;
+  };
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const toggleGroup = (label: string) => {
@@ -351,18 +365,22 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                     const renderItems = (items: NavItem[]) => items.map((item) => {
                       const ItemIcon = item.icon;
                       const active = isActive(item.url);
+                      const isDemo = isDemoItem(item);
                       return (
                         <NavLink
                           key={item.url}
                           to={item.url}
                           className={cn(
                             "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                            active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary"
+                            active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary",
+                            isDemo && "opacity-70"
                           )}
                         >
                           <ItemIcon className="h-3.5 w-3.5 shrink-0" />
                           <span className="truncate">{item.title}</span>
-                          {item.isBeta && (
+                          {isDemo ? (
+                            <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-amber-100 text-amber-800 border-amber-300">DEMO</Badge>
+                          ) : item.isBeta && (
                             <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
                           )}
                         </NavLink>
@@ -433,6 +451,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                   const ItemIcon = item.icon;
                   const active = isActive(item.url);
                   const isLocked = isScopriPlan && SCOPRI_LOCKED_ROUTES.some(r => item.url.startsWith(r));
+                  const isDemo = isDemoItem(item);
                   return (
                     <SidebarMenuItem key={item.url}>
                       <SidebarMenuButton asChild>
@@ -441,15 +460,17 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                           className={cn(
                             "flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent",
                             active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary",
-                            isLocked && "opacity-50"
+                            isLocked && "opacity-50",
+                            isDemo && !active && "opacity-75"
                           )}
                         >
                           <ItemIcon className="h-4 w-4" />
                           <span>{item.title}</span>
-                          {isLocked && (
+                          {isLocked ? (
                             <Lock className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
-                          )}
-                          {!isLocked && item.isBeta && (
+                          ) : isDemo ? (
+                            <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800">DEMO</Badge>
+                          ) : item.isBeta && (
                             <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
                           )}
                         </NavLink>
@@ -759,8 +780,31 @@ const CompanySidebar = memo(function CompanySidebar() {
   // restituisce i permessi REALI dell'utente target (letti da staff_permissions),
   // così la sidebar riflette esattamente quello che vedrebbe quell'utente.
   const permissions = usePermissions();
-  const { isModuleEnabled, isScopriPlan, isLoading: limitsLoading } = useSubscriptionLimits({ includeUsageCounts: false });
-  const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
+  const { isModuleEnabled, isScopriPlan, currentPlan, includedModules, isLoading: limitsLoading } = useSubscriptionLimits({ includeUsageCounts: false });
+  const { isFeatureEnabled, isFeaturePreview, getFeatureAccessLevel, isLoading: flagsLoading } = useFeatureFlags();
+
+  // v8.6.83 — "Piano limitato": ha meno di tutti i 7 moduli core OPPURE
+  // slug è esplicitamente in FULL_PLAN_SLUGS=false. Per questi piani le voci
+  // moduleKey non incluse vengono mostrate come DEMO invece di nascoste,
+  // così l'utente vede TUTTA la sidebar e può chiedere lo sblocco.
+  //
+  // Doppio check (auto-detection + whitelist slug):
+  //  - Auto: includedModules.length < 7 → limited
+  //  - Fallback: se slug è in FULL_PLAN_SLUGS → full
+  // Così durante il loading del piano (includedModules=[]) prevale lo slug.
+  const FULL_PLAN_SLUGS = new Set(["starter", "pro", "enterprise"]);
+  const CORE_MODULES_COUNT = 7;
+  const isFullBySlug = !!currentPlan?.slug && FULL_PLAN_SLUGS.has(currentPlan.slug);
+  const isLimitedPlan = !isFullBySlug && (
+    (includedModules.length > 0 && includedModules.length < CORE_MODULES_COUNT) ||
+    (!!currentPlan?.slug && !FULL_PLAN_SLUGS.has(currentPlan.slug))
+  );
+
+  /** Modulo in modalità demo: non incluso ma piano è "limited" → preview. */
+  const isModuleDemo = (moduleKey: string): boolean => {
+    if (isModuleEnabled(moduleKey as never)) return false;
+    return isLimitedPlan;
+  };
   // Mostriamo skeleton finché plan + feature flags non sono risolti: con
   // `isModuleEnabled` fail-closed, altrimenti la sidebar flickererebbe a vuoto.
   const gatingLoading = limitsLoading || flagsLoading;
@@ -874,23 +918,30 @@ const CompanySidebar = memo(function CompanySidebar() {
   }, [isImpersonating, exitImpersonation, navigate, signOut]);
 
   const filterNavItems = useCallback((items: NavItem[]) => {
-    // While permissions are loading, skip permission-based filtering to avoid
-    // the sidebar collapsing to only the "Attività" item (the only item without
-    // a permissionKey). Feature/module filters are still applied because they
-    // depend on subscription/feature-flag data that is available immediately.
+    // v8.6.83 — Demo Mode policy:
+    //   - featureKey con access_level=preview → visibile con badge DEMO
+    //   - featureKey con access_level=disabled → nascosta
+    //   - moduleKey non incluso + piano limited → visibile con badge DEMO
+    //   - moduleKey non incluso + piano full → nascosta
+    //   - billing_external/billing_native restano 1:1 al billingMode
+    //   - le voci senza gate restano visibili come prima
+
+    const passesFeatureGate = (key: string): "enabled" | "preview" | "hidden" => {
+      if (key === "billing_external") return billingMode === "external" ? "enabled" : "hidden";
+      if (key === "billing_native") return billingMode === "native" ? "enabled" : "hidden";
+      const lvl = getFeatureAccessLevel(key);
+      if (lvl === "enabled") return "enabled";
+      if (lvl === "preview") return "preview";
+      return "hidden";
+    };
+
     if (permissions.isLoading) {
       return items.filter((item) => {
-        if (item.featureKey === "billing_external" && billingMode !== "external") return false;
-        if (item.featureKey === "billing_native" && billingMode !== "native") return false;
-        if (item.featureKey && item.featureKey !== "billing_external" && item.featureKey !== "billing_native" && !isFeatureEnabled(item.featureKey)) {
-          return false;
-        }
-        return true;
+        if (!item.featureKey) return true;
+        return passesFeatureGate(item.featureKey) !== "hidden";
       });
     }
     return items.filter((item) => {
-      // Special case: the Cruscotto hub is visible if the user has at least one of the
-      // three dashboard permissions (the hub itself handles the redirect/card logic).
       if (item.url === "/azienda/cruscotto") {
         if (
           !permissions.canViewCruscotto &&
@@ -902,17 +953,23 @@ const CompanySidebar = memo(function CompanySidebar() {
       } else if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
         return false;
       }
-      if (item.moduleKey && !isModuleEnabled(item.moduleKey)) {
-        return false;
+      // Module gate
+      if (item.moduleKey) {
+        if (!isModuleEnabled(item.moduleKey)) {
+          // Tre casi: limited plan → mostra in demo;
+          //           durante loading plan → tieni visibile (evita flicker vuoto);
+          //           full plan caricato → nascondi davvero.
+          if (!isLimitedPlan && !limitsLoading) return false;
+        }
       }
-      if (item.featureKey === "billing_external" && billingMode !== "external") return false;
-      if (item.featureKey === "billing_native" && billingMode !== "native") return false;
-      if (item.featureKey && item.featureKey !== "billing_external" && item.featureKey !== "billing_native" && !isFeatureEnabled(item.featureKey)) {
-        return false;
+      // Feature gate
+      if (item.featureKey) {
+        const state = passesFeatureGate(item.featureKey);
+        if (state === "hidden") return false;
       }
       return true;
     });
-  }, [permissions, isModuleEnabled, billingMode, isFeatureEnabled]);
+  }, [permissions, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan]);
 
   const { state: sidebarState } = useSidebar();
   const isCollapsed = sidebarState === "collapsed";
@@ -979,6 +1036,8 @@ const CompanySidebar = memo(function CompanySidebar() {
                       pathname={location.pathname}
                       open={openAreaId === area.id}
                       isScopriPlan={isScopriPlan}
+                      isFeaturePreview={isFeaturePreview}
+                      isModuleDemo={isModuleDemo}
                       onOpenChange={(isOpen) => {
                         const newId = isOpen ? area.id : null;
                         setOpenAreaId(newId);
@@ -1235,6 +1294,8 @@ export function CompanyLayout() {
                 <ActionProposalsBadge />
               </div>
             )}
+            {/* v8.6.90 — Changelog "Cosa c'è di nuovo" con badge non-letti */}
+            <ChangelogDrawer />
             {/* Silvio: cose da sapere proattive */}
             {deferredRealtimeReady && <SilvioBellPopover />}
             {deferredRealtimeReady && <NotificationsBellPopover />}

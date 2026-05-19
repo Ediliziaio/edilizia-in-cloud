@@ -1672,10 +1672,12 @@ function OrdersListInner() {
 
       <PlanLimitWarning resourceType="orders" />
 
-      {isScopriPlan && (
+      {/* v8.6.84 — Progress banner esteso a TUTTI i piani con max_orders > 0 */}
+      {currentPlan?.max_orders != null && currentPlan.max_orders > 0 && (
         <ScopriProgressBanner
-          usedOrders={(currentPlan?.max_orders ?? 3) - remainingOrders}
-          maxOrders={3}
+          usedOrders={currentPlan.max_orders - remainingOrders}
+          maxOrders={currentPlan.max_orders}
+          planName={currentPlan?.name ?? "corrente"}
         />
       )}
 

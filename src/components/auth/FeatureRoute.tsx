@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Button } from "@/components/ui/button";
+import { PreviewModeWrapper } from "@/components/feature-preview/PreviewModeWrapper";
 
 interface FeatureRouteProps {
   children: React.ReactNode;
@@ -98,11 +99,18 @@ export function FeatureRoute({
     );
   }
 
-  // v8.6.62 — preview = lascia accedere alla pagina (UI demo). Il banner
-  // <FeaturePreviewBanner> dentro la pagina avvisa l'utente, e ogni
-  // <FeatureActionGuard> blocca le azioni di scrittura.
+  // v8.6.84 — preview = wrap automatico in PreviewModeWrapper che:
+  //   1. mostra banner sticky in cima con CTA "Sblocca ora"
+  //   2. intercetta i click sui bottoni destructive (Aggiungi/Salva/Modifica/
+  //      Elimina/Invia/Pubblica…) e apre UnlockFeatureDialog
+  //   3. consente navigazione/filtri/sort/export (read-only)
+  // Le pagine NON devono essere modificate — il guard è trasparente.
   if (isPreview) {
-    return <>{children}</>;
+    return (
+      <PreviewModeWrapper featureKey={featureKey}>
+        {children}
+      </PreviewModeWrapper>
+    );
   }
 
   if (!isEnabled) {

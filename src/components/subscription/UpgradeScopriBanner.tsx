@@ -176,9 +176,11 @@ export function UpgradeScopriWall({ type, inline = false, onDismiss }: UpgradeSc
 interface ScopriProgressBannerProps {
   usedOrders: number;
   maxOrders: number;
+  /** v8.6.84 — nome del piano corrente (es. "Render + Preventivatore Serramenti"). Default "Scopri". */
+  planName?: string;
 }
 
-export function ScopriProgressBanner({ usedOrders, maxOrders }: ScopriProgressBannerProps) {
+export function ScopriProgressBanner({ usedOrders, maxOrders, planName = "Scopri" }: ScopriProgressBannerProps) {
   const navigate = useNavigate();
   const remaining = maxOrders - usedOrders;
   const pct = (usedOrders / maxOrders) * 100;
@@ -198,7 +200,7 @@ export function ScopriProgressBanner({ usedOrders, maxOrders }: ScopriProgressBa
             "font-medium text-xs",
             isNearLimit ? "text-orange-700 dark:text-orange-400" : "text-gray-600 dark:text-gray-400"
           )}>
-            {usedOrders}/{maxOrders} cantieri {"\u00b7"} Piano Scopri
+            {usedOrders}/{maxOrders} cantieri {"\u00b7"} Piano {planName}
           </span>
           {isNearLimit && (
             <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-700 bg-orange-50">

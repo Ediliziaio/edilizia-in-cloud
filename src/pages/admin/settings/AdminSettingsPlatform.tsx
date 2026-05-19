@@ -1,7 +1,8 @@
 import PlatformInfoTab from "@/components/admin/settings/PlatformInfoTab";
 import { PlatformBrandingTab } from "@/components/admin/settings/PlatformBrandingTab";
+import { PlatformAnalyticsTab } from "@/components/admin/settings/PlatformAnalyticsTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Server, Palette } from "lucide-react";
+import { Server, Palette, ChartBar } from "lucide-react";
 
 export default function AdminSettingsPlatform() {
   return (
@@ -23,6 +24,10 @@ export default function AdminSettingsPlatform() {
             <Palette className="h-4 w-4" />
             Branding &amp; SEO
           </TabsTrigger>
+          <TabsTrigger value="analytics" className="gap-2">
+            <ChartBar className="h-4 w-4" />
+            Analytics
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="generale">
@@ -31,6 +36,10 @@ export default function AdminSettingsPlatform() {
 
         <TabsContent value="branding">
           <PlatformBrandingTab />
+        </TabsContent>
+
+        <TabsContent value="analytics">
+          <PlatformAnalyticsTab />
         </TabsContent>
       </Tabs>
     </div>

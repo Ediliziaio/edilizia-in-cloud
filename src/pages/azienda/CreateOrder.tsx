@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles } from "lucide-react";
 import { useOrderDraft } from "@/hooks/useOrderDraft";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
@@ -44,6 +44,7 @@ import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { PendingFilesUpload, type PendingFile } from "@/components/orders/PendingFilesUpload";
 import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { useTrack, ANALYTICS_EVENTS } from "@/hooks/useTrack";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -62,7 +63,8 @@ function CreateOrderInner() {
   const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const { onlyAssigned } = usePermissions();
-  const { canCreateOrder, isScopriPlan } = useSubscriptionLimits();
+  const { canCreateOrder, isScopriPlan, currentPlan, remainingOrders } = useSubscriptionLimits();
+  const track = useTrack();
 
   // ── react-hook-form ──────────────────────────────────────────
   const form = useForm<OrderFormValues>({
@@ -413,6 +415,14 @@ function CreateOrderInner() {
       queryClient.invalidateQueries({ queryKey: ["cashflow"] });
       setCreatedOrderId(order.id);
 
+      // v8.6.89 — analytics
+      track(ANALYTICS_EVENTS.ORDER_CREATED, {
+        order_id: order.id,
+        order_value: values.importo_totale,
+        has_customer: !!values.cliente_id,
+        plan_slug: currentPlan?.slug,
+      });
+
       // Upload pending files
       if (pendingFiles.length > 0) {
         let uploaded = 0;
@@ -534,10 +544,50 @@ function CreateOrderInner() {
     />
   );
 
-  if (!canCreateOrder && isScopriPlan) {
+  // v8.6.84 — Wall di blocco creazione ordini esteso a TUTTI i piani limitati
+  // (non solo Scopri). Esempio: render-only / render-serramenti con max_orders=3.
+  if (!canCreateOrder) {
     return (
       <div className="max-w-lg mx-auto mt-12 px-4">
-        <UpgradeScopriWall type="max_orders" inline />
+        {isScopriPlan ? (
+          <UpgradeScopriWall type="max_orders" inline />
+        ) : (
+          <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6 text-center space-y-4">
+            <div className="text-4xl">🏗️</div>
+            <div>
+              <h3 className="font-semibold text-base text-gray-900 mb-1">
+                Hai raggiunto il limite di commesse attive
+              </h3>
+              <p className="text-sm text-gray-600 max-w-md mx-auto leading-relaxed">
+                Il piano <strong>{currentPlan?.name ?? "corrente"}</strong> include un massimo
+                di <strong>{currentPlan?.max_orders ?? 3} commesse attive</strong> contemporaneamente.
+                Completa o archivia una commessa esistente per crearne di nuove,
+                oppure passa a un piano superiore.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <Button
+                onClick={() => navigate("/azienda/impostazioni/abbonamento")}
+                className="gap-2 bg-[#E8521A] hover:bg-[#d44714] text-white"
+              >
+                <Sparkles className="h-4 w-4" />
+                Gestisci abbonamento
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate("/azienda/ordini")}
+              >
+                Vai alle commesse
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {remainingOrders === 0
+                ? "0 commesse rimanenti su questo piano"
+                : `${remainingOrders} commesse rimanenti`}
+            </p>
+          </div>
+        )}
       </div>
     );
   }

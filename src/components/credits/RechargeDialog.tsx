@@ -69,16 +69,17 @@ const PACKAGES: Record<WalletType, PackageDef[]> = {
   render:   [], // gestito separatamente — pacchetti a quantita
 };
 
-// Pacchetti Render: prezzo fisso per qty (sconti progressivi)
+// Pacchetti Render: caricati da render_credit_packs (gestiti da super-admin).
+// In caso di errore/DB vuoto, fallback ai 3 pack di default per non rompere UX.
 interface RenderPackage {
   qty: number;
   priceEur: number;
   label?: string;
   popular?: boolean;
 }
-const RENDER_PACKAGES: RenderPackage[] = [
-  { qty: 10,  priceEur: 9,  label: "Render Starter" },
-  { qty: 50,  priceEur: 39, label: "Render Professional", popular: true },
+const RENDER_PACKAGES_FALLBACK: RenderPackage[] = [
+  { qty: 10,  priceEur: 9,  label: "Ricarica veloce" },
+  { qty: 30,  priceEur: 25, label: "Top-up mensile", popular: true },
   { qty: 100, priceEur: 69, label: "Render Business" },
 ];
 
@@ -110,6 +111,33 @@ export function RechargeDialog({ open, onOpenChange, walletType }: Props) {
     },
     enabled: walletType === "email",
   });
+
+  // Pacchetti Render dinamici dal DB (gestiti via super-admin).
+  // Se la query fallisce o non torna righe, fallback su array hardcoded.
+  const { data: renderPacks } = useQuery({
+    queryKey: ["render-credit-packs-active"],
+    queryFn: async (): Promise<RenderPackage[]> => {
+      const { data, error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from("v_active_render_packs" as any)
+        .select("sku, label, credits_amount, price_eur, sort_order")
+        .order("sort_order", { ascending: true });
+      if (error || !data || data.length === 0) return RENDER_PACKAGES_FALLBACK;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows = data as any[];
+      // Marca come "popular" il pack a sort_order=2 (Top-up mensile) o il primo medio
+      const popularSort = 2;
+      return rows.map((r) => ({
+        qty: Number(r.credits_amount),
+        priceEur: Number(r.price_eur),
+        label: r.label ?? undefined,
+        popular: Number(r.sort_order) === popularSort,
+      }));
+    },
+    enabled: walletType === "render" && open,
+    staleTime: 5 * 60 * 1000,
+  });
+  const RENDER_PACKAGES = renderPacks ?? RENDER_PACKAGES_FALLBACK;
 
   async function purchase(amount: number) {
     if (!companyId) {

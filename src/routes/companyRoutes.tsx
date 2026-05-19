@@ -553,11 +553,11 @@ export function companyRoutes() {
 
         {/* Marketing Routes */}
         <Route path="marketing" element={withCompanyPermission("canViewMarketingDashboard", <MarketingDashboard />)} />
-        <Route path="marketing/contatti" element={withCompanyPermission("canViewMarketingContacts", <MarketingContacts />)} />
-        <Route path="marketing/contatti/:id" element={withCompanyPermission("canViewMarketingContacts", <MarketingContactDetail />)} />
-        <Route path="marketing/opportunita" element={withCompanyPermission("canViewMarketingOpportunities", <MarketingOpportunities />)} />
+        <Route path="marketing/contatti" element={withCompanyPermission("canViewMarketingContacts", <FeatureRoute featureKey="crm_modulo"><MarketingContacts /></FeatureRoute>)} />
+        <Route path="marketing/contatti/:id" element={withCompanyPermission("canViewMarketingContacts", <FeatureRoute featureKey="crm_modulo"><MarketingContactDetail /></FeatureRoute>)} />
+        <Route path="marketing/opportunita" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><MarketingOpportunities /></FeatureRoute>)} />
         <Route path="marketing/attivita" element={<Navigate to="/azienda/attivita?fonte=marketing" replace />} />
-        <Route path="marketing/calendario" element={withCompanyPermission("canViewMarketingAppointments", <MarketingCalendar />)} />
+        <Route path="marketing/calendario" element={withCompanyPermission("canViewMarketingAppointments", <FeatureRoute featureKey="crm_modulo"><MarketingCalendar /></FeatureRoute>)} />
         
         {/* Backward-compatible redirects for old marketing automation/agent routes */}
         <Route path="marketing/automazioni" element={<Navigate to="/azienda/automazioni" replace />} />
@@ -579,7 +579,7 @@ export function companyRoutes() {
         {/* MP05-FIX — rotta azienda /ai-modelli RIMOSSA (config ora SuperAdmin-only) */}
         <Route path="marketing/lead-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
-        <Route path="marketing/reportistica" element={withCompanyPermission("canViewMarketingReports", <ReportisticaPage />)} />
+        <Route path="marketing/reportistica" element={withCompanyPermission("canViewMarketingReports", <FeatureRoute featureKey="marketing_reporting"><ReportisticaPage /></FeatureRoute>)} />
         <Route path="marketing/google-ads" element={<Navigate to="/azienda/marketing/reportistica?tab=google-ads" replace />} />
         <Route path="marketing/sms" element={<Navigate to="/azienda/sms-marketing" replace />} />
         {/* Portale SMS Marketing — route principale con sub-path (gated: sms_marketing) */}
@@ -593,7 +593,7 @@ export function companyRoutes() {
         <Route path="sms/storico" element={withCompanyPermission("canViewSmsMarketing", <SmsPage defaultTab="storico" />)} />
         <Route path="sms/automazioni" element={withCompanyPermission("canViewSmsMarketing", <SmsPage defaultTab="automazioni" />)} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
-        <Route path="marketing/sales-os" element={withCompanyPermission("canViewSalesOs", <SalesOSDashboard />)} />
+        <Route path="marketing/sales-os" element={withCompanyPermission("canViewSalesOs", <FeatureRoute featureKey="sales_os"><SalesOSDashboard /></FeatureRoute>)} />
         {/* Modulo Fotovoltaico — gated da feature flag modulo_fotovoltaico_attivo */}
         <Route path="marketing/fotovoltaico" element={
           <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
@@ -634,11 +634,11 @@ export function companyRoutes() {
             <ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary>,
           )
         } />
-        <Route path="marketing/preventivi" element={withCompanyPermission("canViewMarketingOpportunities", <Preventivi />)} />
+        <Route path="marketing/preventivi" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />
         <Route path="marketing/preventivi/approvazioni" element={<Navigate to="/azienda/marketing/preventivi?tab=approvazioni" replace />} />
-        <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditMarketingOpportunities", <QuoteBuilder />)} />
-        <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewMarketingOpportunities", <QuoteDetail />)} />
-        <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditMarketingOpportunities", <QuoteBuilder />)} />
+        <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
+        <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><QuoteDetail /></FeatureRoute>)} />
+        <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
         <Route path="marketing/firma-elettronica" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
         {/* Sprint B — Varianti Costo Manodopera: vista admin-only gated da can_view_margins */}
         <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <QuoteMargini />)} />
@@ -740,11 +740,11 @@ export function companyRoutes() {
           <Route path="numeri-telefono" element={withCompanyPermission("canViewSettingsCustomization", <SettingsPhoneNumbers />)} />
         </Route>
 
-        <Route path="ritenute-garanzia" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel caricamento ritenute"><RitenuteGaranzia /></ErrorBoundary>)} />
+        <Route path="ritenute-garanzia" element={withCompanyPermission("canViewOrders", <FeatureRoute featureKey="ritenute_garanzia"><ErrorBoundary title="Errore nel caricamento ritenute"><RitenuteGaranzia /></ErrorBoundary></FeatureRoute>)} />
         <Route path="foto-cantiere" element={<Navigate to="/azienda/ordini" replace />} />
         <Route path="gantt-ordini" element={<Navigate to="/azienda/calendario?view=gantt" replace />} />
-        <Route path="contabilita-fiscale" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nella contabilità fiscale"><ContabilitaFiscale /></ErrorBoundary>)} />
-        <Route path="archivio-sostitutivo" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nell'archivio sostitutivo"><ArchivioSostitutivo /></ErrorBoundary>)} />
+        <Route path="contabilita-fiscale" element={withCompanyPermission("canViewPrimaNota", <FeatureRoute featureKey="contabilita_fiscale"><ErrorBoundary title="Errore nella contabilità fiscale"><ContabilitaFiscale /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="archivio-sostitutivo" element={withCompanyPermission("canViewPrimaNota", <FeatureRoute featureKey="archivio_sostitutivo"><ErrorBoundary title="Errore nell'archivio sostitutivo"><ArchivioSostitutivo /></ErrorBoundary></FeatureRoute>)} />
 
         {/* FEA — Firma Elettronica Avanzata + Documenti (gated: firma_fea) */}
         <Route path="firma-elettronica" element={withCompanyPermission("canViewOrders", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />

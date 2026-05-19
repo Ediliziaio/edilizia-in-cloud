@@ -495,6 +495,120 @@ export const TEMPLATE_META: Record<string, TemplateMeta> = {
       ...BRANDING_MOCK,
     },
   },
+
+  // ─── v8.6.88 — Lifecycle Email Automation ────────────────────────────────
+  lifecycle_d3_no_activation: {
+    label: "Lifecycle · D+3 attivazione non completata",
+    description: "Inviata 3 giorni dopo signup se l'utente non ha completato il setup (no clienti / no commesse).",
+    category: "onboarding",
+    iconName: "Sparkles",
+    placeholders: [
+      { key: "recipientName", label: "Nome destinatario", example: "Marco", required: true, category: "destinatario" },
+      { key: "companyName", label: "Nome azienda destinataria", example: "Rossi Costruzioni", required: false, category: "destinatario" },
+      { key: "loginUrl", label: "URL accesso piattaforma", example: "https://app.ediliziaincloud.it/azienda", required: true, category: "link" },
+      { key: "completedSteps", label: "Step completati (es. 1/6)", example: "2/6", required: false, category: "contenuto" },
+      ...BRANDING_PLACEHOLDERS,
+    ],
+    mockProps: {
+      recipientName: "Marco",
+      companyName: "Rossi Costruzioni",
+      loginUrl: "https://app.ediliziaincloud.it/azienda",
+      completedSteps: "1/6",
+      ...BRANDING_MOCK,
+    },
+  },
+
+  lifecycle_d7_features: {
+    label: "Lifecycle · D+7 features deep-dive",
+    description: "Inviata 1 settimana dopo signup. Presenta 3 feature chiave (AI, render, automazioni) con video tutorial.",
+    category: "onboarding",
+    iconName: "Sparkles",
+    placeholders: [
+      { key: "recipientName", label: "Nome destinatario", example: "Marco", required: true, category: "destinatario" },
+      { key: "companyName", label: "Nome azienda", example: "Rossi Costruzioni", required: false, category: "destinatario" },
+      { key: "tutorialUrl", label: "URL video tutorial", example: "https://app.ediliziaincloud.it/help/tutorial", required: false, category: "link" },
+      ...BRANDING_PLACEHOLDERS,
+    ],
+    mockProps: {
+      recipientName: "Marco",
+      companyName: "Rossi Costruzioni",
+      tutorialUrl: "https://app.ediliziaincloud.it/help/tutorial",
+      ...BRANDING_MOCK,
+    },
+  },
+
+  lifecycle_trial_ending: {
+    label: "Lifecycle · Trial in scadenza (D-3)",
+    description: "Inviata 3 giorni prima della fine del trial. Riepilogo valore generato + CTA upgrade.",
+    category: "onboarding",
+    iconName: "Clock",
+    placeholders: [
+      { key: "recipientName", label: "Nome destinatario", example: "Marco", required: true, category: "destinatario" },
+      { key: "companyName", label: "Nome azienda", example: "Rossi Costruzioni", required: false, category: "destinatario" },
+      { key: "daysRemaining", label: "Giorni rimanenti", example: "3", required: true, category: "contenuto" },
+      { key: "ordersCount", label: "Numero commesse create", example: "5", required: false, category: "contenuto" },
+      { key: "customersCount", label: "Numero clienti", example: "12", required: false, category: "contenuto" },
+      { key: "upgradeUrl", label: "URL upgrade piano", example: "https://app.ediliziaincloud.it/azienda/impostazioni/abbonamento", required: true, category: "link" },
+      ...BRANDING_PLACEHOLDERS,
+    ],
+    mockProps: {
+      recipientName: "Marco",
+      companyName: "Rossi Costruzioni",
+      daysRemaining: "3",
+      ordersCount: "5",
+      customersCount: "12",
+      upgradeUrl: "https://app.ediliziaincloud.it/azienda/impostazioni/abbonamento",
+      ...BRANDING_MOCK,
+    },
+  },
+
+  lifecycle_monthly_summary: {
+    label: "Lifecycle · Riepilogo mensile retention",
+    description: "Inviata il primo di ogni mese. Riassume il valore generato (commesse, fatturato, ore risparmiate).",
+    category: "notifiche",
+    iconName: "ChartBar",
+    placeholders: [
+      { key: "recipientName", label: "Nome destinatario", example: "Marco", required: true, category: "destinatario" },
+      { key: "monthName", label: "Mese di riferimento", example: "Aprile 2026", required: true, category: "contenuto" },
+      { key: "ordersCount", label: "Commesse del mese", example: "8", required: false, category: "contenuto" },
+      { key: "revenueFormatted", label: "Fatturato mese", example: "12.450,00 €", required: false, category: "contenuto" },
+      { key: "hoursSaved", label: "Ore risparmiate stimate", example: "32", required: false, category: "contenuto" },
+      { key: "dashboardUrl", label: "URL dashboard", example: "https://app.ediliziaincloud.it/azienda", required: false, category: "link" },
+      ...BRANDING_PLACEHOLDERS,
+    ],
+    mockProps: {
+      recipientName: "Marco",
+      monthName: "Aprile 2026",
+      ordersCount: "8",
+      revenueFormatted: "12.450,00 €",
+      hoursSaved: "32",
+      dashboardUrl: "https://app.ediliziaincloud.it/azienda",
+      ...BRANDING_MOCK,
+    },
+  },
+
+  lifecycle_payment_failed: {
+    label: "Lifecycle · Pagamento fallito (dunning)",
+    description: "Inviata quando un pagamento Stripe fallisce. CTA per aggiornare il metodo via Customer Portal.",
+    category: "account",
+    iconName: "CreditCard",
+    placeholders: [
+      { key: "recipientName", label: "Nome destinatario", example: "Marco", required: true, category: "destinatario" },
+      { key: "companyName", label: "Nome azienda", example: "Rossi Costruzioni", required: false, category: "destinatario" },
+      { key: "amountFormatted", label: "Importo non riuscito", example: "127,00 €", required: false, category: "contenuto" },
+      { key: "attemptNumber", label: "Tentativo numero", example: "2", required: false, category: "contenuto" },
+      { key: "portalUrl", label: "URL portale fatturazione", example: "https://app.ediliziaincloud.it/azienda/impostazioni/abbonamento", required: true, category: "link" },
+      ...BRANDING_PLACEHOLDERS,
+    ],
+    mockProps: {
+      recipientName: "Marco",
+      companyName: "Rossi Costruzioni",
+      amountFormatted: "127,00 €",
+      attemptNumber: "2",
+      portalUrl: "https://app.ediliziaincloud.it/azienda/impostazioni/abbonamento",
+      ...BRANDING_MOCK,
+    },
+  },
 };
 
 /** Tutti i template_key supportati dall'editor. */

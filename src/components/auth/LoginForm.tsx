@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "./TwoFactorVerify";
+import { SSOButtons } from "./SSOButtons";
 import { useBrandingByDomain } from "@/hooks/useBrandingByDomain";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { cn } from "@/lib/utils";
@@ -469,6 +470,9 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                   )}
                 </Button>
               </form>
+
+              {/* ── SSO providers (v8.6.92) ────────────────────────────── */}
+              <SSOButtons disabled={isLoading} onError={(msg) => setFormError(msg)} />
 
               <p className="text-center text-xs text-muted-foreground leading-relaxed">
                 L'accesso è riservato agli utenti registrati.<br />

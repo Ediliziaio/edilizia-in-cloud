@@ -18,6 +18,7 @@ const AdminSettingsPlatform = lazy(() => import("@/pages/admin/settings/AdminSet
 const AdminSettingsNotifications = lazy(() => import("@/pages/admin/settings/AdminSettingsNotifications"));
 const AdminSettingsSuperAdmins = lazy(() => import("@/pages/admin/settings/AdminSettingsSuperAdmins"));
 const AdminSettingsAuditLog = lazy(() => import("@/pages/admin/settings/AdminSettingsAuditLog"));
+const AdminChangelog = lazy(() => import("@/pages/admin/AdminChangelog"));
 const AdminSettingsEmail = lazy(() => import("@/pages/admin/settings/AdminSettingsEmail"));
 const AdminSettingsAI = lazy(() => import("@/pages/admin/settings/AdminSettingsAI"));
 // Silvio Superadmin (co-founder AI per Florin)
@@ -193,6 +194,7 @@ export function adminRoutes() {
         <Route path="impostazioni/notifiche" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminSettingsNotifications /></RequireAdminPermission>} />
         <Route path="impostazioni/super-admin" element={<RequireSuperAdmin><AdminSettingsSuperAdmins /></RequireSuperAdmin>} />
         <Route path="impostazioni/audit" element={<RequireSuperAdmin><AdminSettingsAuditLog /></RequireSuperAdmin>} />
+        <Route path="changelog" element={<RequireSuperAdmin><AdminChangelog /></RequireSuperAdmin>} />
         <Route path="impostazioni/email" element={<RequireSuperAdmin><AdminSettingsEmail /></RequireSuperAdmin>} />
         {/* ============================================================
             REFACTOR Strategia C — 3 pagine AI consolidate (nuove)
