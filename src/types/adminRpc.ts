@@ -12,6 +12,14 @@ export interface CompanyUserCount {
   user_count: number;
 }
 
+/** v2: distingue staff aziendale (admin/dipendenti/operai/venditori/ecc) da clienti del portale. */
+export interface CompanyUserCountV2 {
+  company_id: string;
+  staff_count: number;
+  customer_count: number;
+  total_count: number;
+}
+
 export interface CompanyHealthData {
   company_id: string;
   order_count: number;

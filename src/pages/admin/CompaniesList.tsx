@@ -23,7 +23,7 @@ import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { sectorLabels, statusConfig, sectors, calculateHealthScore } from "@/lib/companyUtils";
 import type { CompanyStatus } from "@/types/auth";
-import type { CompanyOrderStats, CompanyUserCount, CompanyHealthData, CompanyLastAccess } from "@/types/adminRpc";
+import type { CompanyOrderStats, CompanyUserCount, CompanyUserCountV2, CompanyHealthData, CompanyLastAccess } from "@/types/adminRpc";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { useDebounce } from "@/hooks/useDebounce";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -108,14 +108,15 @@ const REVENUE_LABELS_MAP: Record<RevenueFilter, string> = {
   stripe_issue: "Stripe non attivo",
   nopay: "Non paganti",
 };
-type ColKey = "sector" | "plan" | "mrr" | "users" | "orders" | "lastAccess" | "trial" | "health" | "tags";
+type ColKey = "sector" | "plan" | "mrr" | "users" | "customers" | "orders" | "lastAccess" | "trial" | "health" | "tags";
 type SavedView = { name: string; params: string };
 
 const ALL_COLUMNS: { key: ColKey; label: string }[] = [
   { key: "sector", label: "Settore" },
   { key: "plan", label: "Piano" },
   { key: "mrr", label: "MRR pagante" },
-  { key: "users", label: "Utenti" },
+  { key: "users", label: "Staff" },
+  { key: "customers", label: "Clienti" },
   { key: "orders", label: "Ordini" },
   { key: "lastAccess", label: "Ultimo Accesso" },
   { key: "trial", label: "Trial / Scadenza" },
@@ -492,21 +493,44 @@ export default function CompaniesList() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: userCounts = {} } = useQuery({
+  const { data: userCountsData = { staff: {}, customers: {}, total: {} } } = useQuery({
     queryKey: queryKeys.admin.companiesUserCounts,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_company_user_counts");
-      if (error) throw error;
-      const counts: Record<string, number> = {};
-      ((data || []) as CompanyUserCount[]).forEach((row) => {
+      // Prima tentiamo v2 (separa staff vs clienti). Se la migration v2 non è
+      // ancora applicata, fallback a v1 che ritorna solo total (lasciando staff
+      // e customers a 0). Backward compat zero-risk.
+      const v2 = await supabase.rpc("get_company_user_counts_v2");
+      if (!v2.error && Array.isArray(v2.data)) {
+        const staff: Record<string, number> = {};
+        const customers: Record<string, number> = {};
+        const total: Record<string, number> = {};
+        ((v2.data || []) as CompanyUserCountV2[]).forEach((row) => {
+          if (row.company_id) {
+            staff[row.company_id] = Number(row.staff_count) || 0;
+            customers[row.company_id] = Number(row.customer_count) || 0;
+            total[row.company_id] = Number(row.total_count) || 0;
+          }
+        });
+        return { staff, customers, total };
+      }
+      // Fallback v1 (DB pre-migration)
+      const v1 = await supabase.rpc("get_company_user_counts");
+      if (v1.error) throw v1.error;
+      const total: Record<string, number> = {};
+      ((v1.data || []) as CompanyUserCount[]).forEach((row) => {
         if (row.company_id) {
-          counts[row.company_id] = Number(row.user_count) || 0;
+          total[row.company_id] = Number(row.user_count) || 0;
         }
       });
-      return counts;
+      return { staff: {}, customers: {}, total };
     },
     staleTime: 5 * 60 * 1000,
   });
+  // Alias per backward compat con codice esistente (export CSV, sort).
+  // userCounts mappa company_id → conteggio STAFF (la metrica più rilevante
+  // per l'admin: numero utenti attivi che usano la piattaforma).
+  const userCounts = userCountsData.staff;
+  const customerCounts = userCountsData.customers;
 
   const { data: healthData = {} } = useQuery({
     queryKey: queryKeys.admin.companiesHealth,
@@ -669,6 +693,7 @@ export default function CompaniesList() {
           );
         case "orders": return dir * ((orderStats[a.id]?.count || 0) - (orderStats[b.id]?.count || 0));
         case "users": return dir * ((userCounts[a.id] || 0) - (userCounts[b.id] || 0));
+        case "customers": return dir * ((customerCounts[a.id] || 0) - (customerCounts[b.id] || 0));
         case "lastAccess": {
           const la = lastAccessData[a.id] ? new Date(lastAccessData[a.id]!).getTime() : 0;
           const lb = lastAccessData[b.id] ? new Date(lastAccessData[b.id]!).getTime() : 0;
@@ -677,7 +702,7 @@ export default function CompaniesList() {
         default: return 0;
       }
     });
-  }, [filteredCompanies, sortKey, sortDir, orderStats, userCounts, lastAccessData]);
+  }, [filteredCompanies, sortKey, sortDir, orderStats, userCounts, customerCounts, lastAccessData]);
 
   const totalPages = Math.max(1, Math.ceil(serverTotalCount / SERVER_PAGE_SIZE));
 
@@ -815,7 +840,7 @@ export default function CompaniesList() {
       });
       return;
     }
-    const headers = ["Nome", "Email", "Settore", "Piano", "Stato", "Ordini", "Utenti", "MRR", "Stripe Customer ID", "Data Creazione", "Fine Trial"];
+    const headers = ["Nome", "Email", "Settore", "Piano", "Stato", "Ordini", "Staff", "Clienti", "MRR", "Stripe Customer ID", "Data Creazione", "Fine Trial"];
     const exportList = selectedIds.size > 0
       ? pagedCompanies.filter((c) => selectedIds.has(c.id))
       : pagedCompanies;
@@ -829,6 +854,7 @@ export default function CompaniesList() {
         csvCell(c.status),
         csvCell(orderStats[c.id]?.count || 0),
         csvCell(userCounts[c.id] || 0),
+        csvCell(customerCounts[c.id] || 0),
         csvCell(plan?.price_monthly || 0),
         csvCell(c.stripe_customer_id || ""),
         csvCell(format(new Date(c.created_at), "dd/MM/yyyy")),
@@ -1326,7 +1352,8 @@ export default function CompaniesList() {
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("status")}>
                     <span className="inline-flex items-center">Stato<SortIcon col="status" /></span>
                   </TableHead>
-                  {col("users") && <TableHead className="text-center cursor-pointer select-none" onClick={() => toggleSort("users")}><span className="inline-flex items-center"><Users className="h-3 w-3 mr-1" />Utenti<SortIcon col="users" /></span></TableHead>}
+                  {col("users") && <TableHead className="text-center cursor-pointer select-none" onClick={() => toggleSort("users")} title="Utenti staff dell'azienda (admin, dipendenti, operai, venditori, subappaltatori)"><span className="inline-flex items-center"><Users className="h-3 w-3 mr-1" />Staff<SortIcon col="users" /></span></TableHead>}
+                  {col("customers") && <TableHead className="text-center cursor-pointer select-none" onClick={() => toggleSort("customers")} title="Clienti finali registrati nel portale dell'azienda"><span className="inline-flex items-center"><Users className="h-3 w-3 mr-1" />Clienti<SortIcon col="customers" /></span></TableHead>}
                   {col("orders") && <TableHead className="text-center cursor-pointer select-none" onClick={() => toggleSort("orders")}><span className="inline-flex items-center">Ordini<SortIcon col="orders" /></span></TableHead>}
                   {col("lastAccess") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("lastAccess")}><span className="inline-flex items-center">Ultimo Accesso<SortIcon col="lastAccess" /></span></TableHead>}
                   {col("trial") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("trial")}><span className="inline-flex items-center">Trial / Scadenza<SortIcon col="trial" /></span></TableHead>}
@@ -1412,6 +1439,7 @@ export default function CompaniesList() {
                           </Select>
                         </TableCell>
                         {col("users") && <TableCell className="text-center"><span className="text-sm font-medium">{userCounts[company.id] || 0}</span></TableCell>}
+                        {col("customers") && <TableCell className="text-center"><span className="text-sm font-medium">{customerCounts[company.id] || 0}</span></TableCell>}
                         {col("orders") && <TableCell className="text-center"><span className="text-sm font-medium">{orderStats[company.id]?.count || 0}</span></TableCell>}
                         {col("lastAccess") && <TableCell><LastAccessBadge lastAccess={lastAccessData[company.id] || null} /></TableCell>}
                         {col("trial") && <TableCell><TrialBadge company={company} /></TableCell>}
