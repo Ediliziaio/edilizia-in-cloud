@@ -86,13 +86,18 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  // 1. Verifica esistenza utente (sicurezza: non leakare info se non esiste)
-  // Però per UX rispondiamo "user_not_found" per non far perdere tempo all'utente
-  // se la mail è errata. (Trade-off security vs UX accettabile per B2B.)
-  const { data: users } = await supa.auth.admin.listUsers({ perPage: 1000 });
-  const user = users.users.find((u) => (u.email ?? "").toLowerCase() === email);
-  if (!user) {
-    return jsonResponse({ status: "user_not_found" });
+  // 1. Verifica esistenza utente via admin.generateLink (più affidabile di listUsers
+  // che può fallire con "Database error finding users" su alcuni progetti).
+  // generateLink ritorna error 422 se l'email non esiste.
+  const { error: linkErr } = await supa.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+  });
+  if (linkErr) {
+    // Non leakiamo se l'email NON esiste — rispondiamo come se fosse stata inviata
+    // (security: anti-enumeration). Loggiamo solo lato server.
+    console.warn("[email-otp-send] user check failed for", email, ":", linkErr.message);
+    return jsonResponse({ status: "sent", ttl_min: 15 });
   }
 
   // 2. Rate limit: max 1 codice / 60s per email
@@ -139,33 +144,55 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Impossibile salvare il codice" }, 500);
   }
 
-  // 5. Invia email via send-transactional-v2 con template precomputed
-  try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-transactional-v2`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
-        companyId: null,
-        templateName: "password_reset", // template esistente in registry (lo riusiamo come carrier)
-        props: {},
-        to: email,
-        skipCredits: true,
-        precomputedSubject: `Codice di accesso: ${code}`,
-        precomputedHtml: buildEmailHtml(code, TTL_MIN),
-        precomputedText: buildEmailText(code, TTL_MIN),
-        metadata: { source: "email-otp-send" },
-      }),
-    });
-    if (!res.ok) {
-      console.error("[email-otp-send] send-transactional-v2:", res.status, await res.text());
+  // 5. Carica provider email (Resend) da platform_settings
+  const { data: cfg } = await supa
+    .from("platform_settings")
+    .select("key, value")
+    .in("key", [
+      "email_transactional_api_key",
+      "email_transactional_from_address",
+      "email_transactional_from_name",
+      "email_transactional_provider",
+    ]);
+  const cfgMap = new Map((cfg ?? []).map((r: { key: string; value: string }) => [r.key, r.value]));
+  const apiKey = cfgMap.get("email_transactional_api_key");
+  const fromAddr = cfgMap.get("email_transactional_from_address") ?? "noreply@notifiche.ediliziaincloud.it";
+  const fromName = cfgMap.get("email_transactional_from_name") ?? "Edilizia in Cloud";
+  const provider = cfgMap.get("email_transactional_provider") ?? "resend";
+
+  if (!apiKey) {
+    console.error("[email-otp-send] email_transactional_api_key non configurata");
+    return jsonResponse({ error: "Provider email non configurato" }, 500);
+  }
+
+  // 6. Invio email via Resend API
+  if (provider === "resend") {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          from: `${fromName} <${fromAddr}>`,
+          to: [email],
+          subject: `Codice di accesso: ${code}`,
+          html: buildEmailHtml(code, TTL_MIN),
+          text: buildEmailText(code, TTL_MIN),
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        console.error("[email-otp-send] Resend error:", res.status, body);
+        return jsonResponse({ error: "Errore invio email", detail: body.slice(0, 200) }, 500);
+      }
+    } catch (e) {
+      console.error("[email-otp-send] fetch error:", e);
       return jsonResponse({ error: "Errore invio email" }, 500);
     }
-  } catch (e) {
-    console.error("[email-otp-send] fetch error:", e);
-    return jsonResponse({ error: "Errore invio email" }, 500);
+  } else {
+    return jsonResponse({ error: `Provider ${provider} non supportato per OTP` }, 500);
   }
 
   return jsonResponse({ status: "sent", ttl_min: TTL_MIN });
