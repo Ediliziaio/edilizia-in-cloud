@@ -405,32 +405,36 @@ function TemplateRow({
             </div>
           )}
         </div>
+        {/* v8.6.72 — Mobile-friendly: testo nascosto su xs (icon-only),
+            full label da sm. Prima 3-4 bottoni in 2 righe su 375px. */}
         <div className="flex items-center gap-1.5 ml-auto w-full sm:w-auto sm:ml-0 flex-wrap">
           <Button
             variant="outline" size="sm"
             className="gap-1 border-violet-300 text-violet-700 hover:bg-violet-50"
             onClick={onPreview}
             title="Anteprima interattiva del template"
+            aria-label="Anteprima"
           >
             <Eye className="h-3.5 w-3.5" />
-            Anteprima
+            <span className="hidden sm:inline">Anteprima</span>
           </Button>
           {onEdit ? (
-            <Button variant="default" size="sm" className="gap-1 bg-orange-600 hover:bg-orange-700" onClick={onEdit}>
+            <Button variant="default" size="sm" className="gap-1 bg-orange-600 hover:bg-orange-700" onClick={onEdit} aria-label="Modifica">
               <FileEdit className="h-3.5 w-3.5" />
-              Modifica
+              <span className="hidden sm:inline">Modifica</span>
             </Button>
           ) : (
-            <Button variant="outline" size="sm" className="gap-1" onClick={onView}>
-              Vedi schema
+            <Button variant="outline" size="sm" className="gap-1" onClick={onView} aria-label="Vedi schema">
+              <Eye className="h-3.5 w-3.5 sm:hidden" />
+              <span className="hidden sm:inline">Vedi schema</span>
             </Button>
           )}
-          <Button variant="outline" size="sm" className="gap-1" onClick={onClone} title="Crea copia modificabile">
+          <Button variant="outline" size="sm" className="gap-1" onClick={onClone} title="Crea copia modificabile" aria-label="Clona">
             <Copy className="h-3.5 w-3.5" />
-            Clona
+            <span className="hidden sm:inline">Clona</span>
           </Button>
           {!template.is_system && (
-            <Button variant="ghost" size="icon" onClick={onDelete} className="text-rose-600">
+            <Button variant="ghost" size="icon" onClick={onDelete} className="text-rose-600" aria-label="Elimina">
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           )}
