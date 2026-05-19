@@ -1213,14 +1213,14 @@ export function CompanyLayout() {
             <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)" aria-label="Cerca (⌘K)">
               <Search className="h-4 w-4" aria-hidden="true" />
             </Button>
-            {/* v8.6.69 — Rotellina Impostazioni (mobile only): l'utente preferisce
-                un accesso veloce alle impostazioni qui invece del dropdown
-                "Vai a una sezione" dentro la pagina settings. */}
+            {/* v8.6.70 — Rotellina Impostazioni (mobile): apre l'hub griglia
+                /azienda/impostazioni (SettingsIndexRoute → SettingsMobileHub
+                su mobile, redirect a mio-profilo su desktop). */}
             <Button
               variant="ghost"
               size="icon"
               className="relative h-9 w-9 shrink-0 md:hidden"
-              onClick={() => navigate("/azienda/impostazioni/profilo")}
+              onClick={() => navigate("/azienda/impostazioni")}
               title="Impostazioni"
               aria-label="Impostazioni"
             >

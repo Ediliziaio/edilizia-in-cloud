@@ -40,6 +40,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
 const UpgradePage = lazy(() => import("@/pages/azienda/UpgradePage"));
 const DemoPreviewShowcase = lazy(() => import("@/pages/azienda/DemoPreviewShowcase"));
+const SettingsIndexRoute = lazy(() => import("@/pages/azienda/settings/SettingsIndexRoute"));
 const CruscottoAziendale = lazy(() => import("@/pages/azienda/CruscottoAziendale"));
 const CruscottoHub = lazy(() => import("@/pages/azienda/CruscottoHub"));
 const CruscottoDashboardPage = lazy(() => import("@/pages/azienda/CruscottoDashboardPage"));
@@ -641,7 +642,8 @@ export function companyRoutes() {
         <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <QuoteMargini />)} />
         
         <Route path="impostazioni" element={<SettingsLayout />}>
-          <Route index element={<Navigate to="mio-profilo" replace />} />
+          {/* v8.6.70 — Mobile: hub griglia icone; Desktop: redirect a mio-profilo */}
+          <Route index element={<SettingsIndexRoute />} />
           {/* ── Il mio account (accessibile a tutti) ── */}
           <Route path="mio-profilo" element={<MioProfilo />} />
           {/* ── Impostazioni azienda (solo admin/permessi) ── */}
