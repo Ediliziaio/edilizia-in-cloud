@@ -19,7 +19,7 @@
  * in futuro (es. utente elimina tutti i clienti). Lo step resta completato
  * come "milestone raggiunta storicamente".
  */
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -96,7 +96,19 @@ export function useOnboardingAutoComplete(
     },
   });
 
-  // Scrivi i completamenti mancanti
+  // v8.6.93 — Stabilizziamo le deps dell'effect:
+  //   - completedKey: stringa join degli id completati (cambia solo se la SET cambia)
+  //   - stepsKey:     stringa di step ids+autoCheck (cambia solo a content change)
+  // Senza, il Set viene ricostruito ad ogni render → effect rifire all'infinito.
+  const completedKey = useMemo(
+    () => Array.from(completedIds).sort().join(","),
+    [completedIds],
+  );
+  const stepsKey = useMemo(
+    () => steps.map((s) => `${s.id}:${s.auto_check_key ?? ""}`).join("|"),
+    [steps],
+  );
+
   useEffect(() => {
     if (!checks || !companyId || !user) return;
 
@@ -122,5 +134,6 @@ export function useOnboardingAutoComplete(
           queryClient.invalidateQueries({ queryKey: ["onboarding-completions", companyId] });
         }
       });
-  }, [checks, steps, completedIds, companyId, user, queryClient]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checks, stepsKey, completedKey, companyId, user?.id, queryClient]);
 }

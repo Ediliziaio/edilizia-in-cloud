@@ -582,7 +582,7 @@ function CreateOrderInner() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              {remainingOrders === 0
+              {remainingOrders <= 0
                 ? "0 commesse rimanenti su questo piano"
                 : `${remainingOrders} commesse rimanenti`}
             </p>

@@ -43,8 +43,7 @@ export function initAnalytics(config: PostHogConfig | null | undefined): void {
         // NON catturare input fields (privacy)
         element_allowlist: ["button", "a", "form"],
       },
-      session_recording: { maskAllInputs: true },
-      // session_recording disabilitato finchè non lo richiediamo esplicitamente
+      // session_recording disabilitato finché non lo richiediamo esplicitamente
       disable_session_recording: true,
       // Persist solo localStorage (no cookie sub-domain leak)
       persistence: "localStorage",

@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -202,28 +203,35 @@ export function useFeatureFlags(companyIdOverride?: string) {
     }
   }
 
-  const isFeatureEnabled = (key: string): boolean => {
+  // v8.6.93 — memoizzate per stabilità referenziale.
+  // Consumer in deps di useCallback/useEffect (es. CompanyLayout.filterNavItems)
+  // non re-renderizzano in loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const isFeatureEnabled = useCallback((key: string): boolean => {
     if (bypass) return true;
     return resolvedFlags[key]?.enabled ?? false;
-  };
+  }, [bypass, resolved]);
 
   /** True se la feature è in modalità DEMO (visibile ma azioni bloccate). */
-  const isFeaturePreview = (key: string): boolean => {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const isFeaturePreview = useCallback((key: string): boolean => {
     if (bypass) return false;
     return resolvedFlags[key]?.accessLevel === "preview";
-  };
+  }, [bypass, resolved]);
 
   /** True se la feature deve essere visibile in sidebar (enabled OR preview). */
-  const isFeatureVisible = (key: string): boolean => {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const isFeatureVisible = useCallback((key: string): boolean => {
     if (bypass) return true;
     const lvl = resolvedFlags[key]?.accessLevel;
     return lvl === "enabled" || lvl === "preview";
-  };
+  }, [bypass, resolved]);
 
-  const getFeatureAccessLevel = (key: string): FeatureAccessLevel => {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const getFeatureAccessLevel = useCallback((key: string): FeatureAccessLevel => {
     if (bypass) return "enabled";
     return resolvedFlags[key]?.accessLevel ?? "disabled";
-  };
+  }, [bypass, resolved]);
 
   // Derive the legacy `overrides` array from the RPC output for any pre-rewrite
   // consumer. `override_reason` is not emitted by the resolver; left as null.

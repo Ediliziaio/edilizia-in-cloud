@@ -52,17 +52,16 @@ export function PlatformAnalyticsTab() {
 
   const save = useMutation({
     mutationFn: async () => {
+      // v8.6.93 — batch upsert atomico (evita stato inconsistente se 1 dei 3 fallisce)
       const rows = [
         { key: "posthog_api_key", value: apiKey.trim() },
         { key: "posthog_host", value: host.trim() || "https://eu.i.posthog.com" },
         { key: "analytics_enabled", value: enabled ? "true" : "false" },
       ];
-      for (const r of rows) {
-        const { error } = await supabase
-          .from("platform_settings")
-          .upsert(r, { onConflict: "key" });
-        if (error) throw error;
-      }
+      const { error } = await supabase
+        .from("platform_settings")
+        .upsert(rows, { onConflict: "key" });
+      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Impostazioni analytics salvate", {

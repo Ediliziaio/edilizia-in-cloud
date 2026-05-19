@@ -140,8 +140,13 @@ export function PreviewModeWrapper({
     }
   }, [featureKey, featureLabel]);
 
-  // Inoltre intercetto submit dei form per casi non gestiti dal click
+  // Submit form intercettati SOLO se la form non ha role="search" e non ha
+  // data-allow-in-preview. Le ricerche/filtri devono passare normalmente.
   const handleSubmitCapture = useCallback((e: React.FormEvent<HTMLDivElement>) => {
+    const form = e.target as HTMLElement;
+    if (form.tagName?.toLowerCase() !== "form") return;
+    if (form.getAttribute("data-allow-in-preview") === "true") return;
+    if (form.getAttribute("role") === "search") return;
     e.preventDefault();
     e.stopPropagation();
     setUnlockOpen(true);

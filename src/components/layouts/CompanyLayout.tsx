@@ -204,6 +204,10 @@ const SCOPRI_LOCKED_ROUTES = [
   "/azienda/automazioni",
 ];
 
+// v8.6.93 — Module-level constants (no re-create per render)
+const FULL_PLAN_SLUGS = new Set(["starter", "pro", "enterprise"]);
+const CORE_MODULES_COUNT = 7;
+
 function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange, isScopriPlan = false, isFeaturePreview, isModuleDemo }: {
   area: MacroArea;
   visibleItems: NavItem[];
@@ -784,16 +788,9 @@ const CompanySidebar = memo(function CompanySidebar() {
   const { isFeatureEnabled, isFeaturePreview, getFeatureAccessLevel, isLoading: flagsLoading } = useFeatureFlags();
 
   // v8.6.83 — "Piano limitato": ha meno di tutti i 7 moduli core OPPURE
-  // slug è esplicitamente in FULL_PLAN_SLUGS=false. Per questi piani le voci
-  // moduleKey non incluse vengono mostrate come DEMO invece di nascoste,
-  // così l'utente vede TUTTA la sidebar e può chiedere lo sblocco.
-  //
-  // Doppio check (auto-detection + whitelist slug):
-  //  - Auto: includedModules.length < 7 → limited
-  //  - Fallback: se slug è in FULL_PLAN_SLUGS → full
-  // Così durante il loading del piano (includedModules=[]) prevale lo slug.
-  const FULL_PLAN_SLUGS = new Set(["starter", "pro", "enterprise"]);
-  const CORE_MODULES_COUNT = 7;
+  // slug NON è in FULL_PLAN_SLUGS. Per questi piani le voci moduleKey non
+  // incluse vengono mostrate come DEMO invece di nascoste.
+  // (FULL_PLAN_SLUGS è module-level constant — vedi top of file)
   const isFullBySlug = !!currentPlan?.slug && FULL_PLAN_SLUGS.has(currentPlan.slug);
   const isLimitedPlan = !isFullBySlug && (
     (includedModules.length > 0 && includedModules.length < CORE_MODULES_COUNT) ||
@@ -969,7 +966,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       return true;
     });
-  }, [permissions, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan]);
+  }, [permissions, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, limitsLoading]);
 
   const { state: sidebarState } = useSidebar();
   const isCollapsed = sidebarState === "collapsed";

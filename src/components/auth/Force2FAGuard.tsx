@@ -28,19 +28,25 @@ export function Force2FAGuard({ children }: { children: React.ReactNode }) {
   const [hasMFA, setHasMFA] = useState<boolean | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
 
-  // 1. Politiche attive (cache 30min)
+  // 1. Politiche attive (cache 30min).
+  // Fail-open: se la riga in platform_settings NON esiste (migration non
+  // ancora applicata), il default è SPENTO. Solo quando il super-admin
+  // attiva esplicitamente la policy → enforcement attivo.
   const { data: policies } = useQuery({
     queryKey: ["2fa-policies"],
     staleTime: 30 * 60 * 1000,
+    retry: false,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("platform_settings")
         .select("key, value")
         .in("key", [...POLICIES]);
+      // Errore (RLS, network) → fail-open per non bloccare l'app
+      if (error) return { forceSuperAdmin: false, forceCompanyAdmin: false };
       const map = new Map((data ?? []).map((r) => [r.key, r.value]));
       return {
-        forceSuperAdmin: (map.get("force_2fa_super_admin") ?? "true") !== "false",
-        forceCompanyAdmin: (map.get("force_2fa_company_admin") ?? "false") === "true",
+        forceSuperAdmin: map.get("force_2fa_super_admin") === "true",
+        forceCompanyAdmin: map.get("force_2fa_company_admin") === "true",
       };
     },
   });
@@ -81,8 +87,9 @@ export function Force2FAGuard({ children }: { children: React.ReactNode }) {
       <Dialog
         open={setupOpen}
         onOpenChange={(v) => {
-          // Non permettere chiusura finché 2FA non è attivo
-          if (!v && !hasMFA) return;
+          // Permette chiusura solo se 2FA è attivo. Se hasMFA è null
+          // (errore di rete) lascia chiudere per non bloccare l'utente.
+          if (!v && hasMFA === false) return;
           setSetupOpen(v);
         }}
       >

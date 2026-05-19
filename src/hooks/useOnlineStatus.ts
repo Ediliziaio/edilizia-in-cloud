@@ -1,109 +1,134 @@
 /**
- * useOnlineStatus — v8.6.91
+ * useOnlineStatus — v8.6.93
  *
- * Hook che monitora lo stato della connessione di rete usando le API browser
- * native (navigator.onLine + eventi online/offline).
+ * Singleton globale per evitare N interval/listener su mounted multipli.
+ * Stato condiviso via store interno + subscribers React.
  *
- * Bonus v8.6.91: heartbeat ping ogni 30s al backend per verificare connettività
- * VERA (non solo "interfaccia di rete attiva"). Sui device cantiere,
- * navigator.onLine dice spesso "true" anche con captive portal o segnale
- * debolissimo.
- *
- * Backward-compat: la chiamata `useOnlineStatus()` ritorna ancora `boolean`
- * (true = online); è il default export. Per dettagli usa `useOnlineStatusDetail()`.
+ *  - 1 solo `setInterval` heartbeat ogni 30s a `/auth/v1/health`
+ *  - 1 sola coppia di listener `online`/`offline`
+ *  - N componenti subscriber che vengono notificati su change
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 
 const HEARTBEAT_URL = `${import.meta.env.VITE_SUPABASE_URL ?? ""}/auth/v1/health`;
 const HEARTBEAT_INTERVAL = 30_000;
 const HEARTBEAT_TIMEOUT = 5_000;
 
-async function pingBackend(): Promise<boolean> {
-  if (!HEARTBEAT_URL.startsWith("https://") || !navigator.onLine) return false;
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), HEARTBEAT_TIMEOUT);
-    const res = await fetch(HEARTBEAT_URL, {
-      method: "GET",
-      signal: controller.signal,
-      cache: "no-store",
-    });
-    clearTimeout(timer);
-    // 401/404 = server raggiunto comunque
-    return res.ok || res.status === 401 || res.status === 404;
-  } catch {
-    return false;
-  }
-}
-
 export interface OnlineStatusDetail {
-  /** navigator.onLine — interfaccia di rete attiva. */
   isOnline: boolean;
-  /** Heartbeat → connessione vera verso il backend. */
   isReachable: boolean;
-  /** Combined: false solo se VERAMENTE offline. */
   isOffline: boolean;
-  /** Timestamp Date.now() quando si è andati offline. NULL se online. */
   offlineSince: number | null;
-  /** Forza un check manuale (es. dopo click "Riprova"). */
-  retry: () => void;
 }
 
-/** Versione dettagliata: stato + heartbeat + offlineSince + retry. */
-export function useOnlineStatusDetail(): OnlineStatusDetail {
-  const [isOnline, setIsOnline] = useState<boolean>(() =>
-    typeof navigator !== "undefined" ? navigator.onLine : true,
-  );
-  const [isReachable, setIsReachable] = useState<boolean>(true);
-  const [offlineSince, setOfflineSince] = useState<number | null>(null);
+// ─── Store singleton ────────────────────────────────────────────────────────
+type Listener = () => void;
 
-  const retry = () => {
-    void pingBackend().then((ok) => {
-      setIsReachable(ok);
-      setIsOnline(navigator.onLine);
-      if (ok) setOfflineSince(null);
-      else if (offlineSince === null) setOfflineSince(Date.now());
-    });
-  };
+const store = {
+  state: {
+    isOnline: typeof navigator !== "undefined" ? navigator.onLine : true,
+    isReachable: true,
+    offlineSince: null as number | null,
+  },
+  listeners: new Set<Listener>(),
+  inited: false,
+  interval: null as number | null,
 
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      void pingBackend().then((ok) => {
-        setIsReachable(ok);
-        if (ok) setOfflineSince(null);
-      });
-    };
-    const handleOffline = () => {
-      setIsOnline(false);
-      setIsReachable(false);
-      setOfflineSince((prev) => prev ?? Date.now());
-    };
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    const interval = setInterval(() => {
-      if (!navigator.onLine) return;
-      void pingBackend().then((ok) => {
-        setIsReachable((prev) => {
-          if (!prev && ok) setOfflineSince(null);
-          if (prev && !ok) setOfflineSince(Date.now());
-          return ok;
-        });
-      });
-    }, HEARTBEAT_INTERVAL);
-
+  subscribe(listener: Listener) {
+    store.listeners.add(listener);
+    if (!store.inited) store.init();
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-      clearInterval(interval);
+      store.listeners.delete(listener);
+      // NB: non spegniamo il singleton anche se 0 listener — il costo è
+      // 1 fetch/30s, e l'overhead di re-init è > del beneficio.
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  },
 
-  const isOffline = !isOnline || !isReachable;
-  return { isOnline, isReachable, isOffline, offlineSince, retry };
+  emit() {
+    for (const l of store.listeners) l();
+  },
+
+  setState(patch: Partial<typeof store.state>) {
+    const next = { ...store.state, ...patch };
+    // Skip update se identico (evita re-render inutili)
+    if (
+      next.isOnline === store.state.isOnline &&
+      next.isReachable === store.state.isReachable &&
+      next.offlineSince === store.state.offlineSince
+    ) {
+      return;
+    }
+    store.state = next;
+    store.emit();
+  },
+
+  init() {
+    if (store.inited || typeof window === "undefined") return;
+    store.inited = true;
+
+    const onOnline = () => {
+      store.setState({ isOnline: true });
+      void store.pingBackend();
+    };
+    const onOffline = () => {
+      store.setState({
+        isOnline: false,
+        isReachable: false,
+        offlineSince: store.state.offlineSince ?? Date.now(),
+      });
+    };
+
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
+    store.interval = window.setInterval(() => {
+      if (!navigator.onLine) return;
+      void store.pingBackend();
+    }, HEARTBEAT_INTERVAL);
+  },
+
+  async pingBackend() {
+    if (!HEARTBEAT_URL.startsWith("https://") || !navigator.onLine) {
+      return;
+    }
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), HEARTBEAT_TIMEOUT);
+      const res = await fetch(HEARTBEAT_URL, {
+        method: "GET",
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      clearTimeout(timer);
+      const ok = res.ok || res.status === 401 || res.status === 404;
+      store.setState({
+        isReachable: ok,
+        offlineSince: ok ? null : (store.state.offlineSince ?? Date.now()),
+      });
+    } catch {
+      store.setState({
+        isReachable: false,
+        offlineSince: store.state.offlineSince ?? Date.now(),
+      });
+    }
+  },
+};
+
+// useSyncExternalStore richiede getSnapshot stabile: ritorniamo lo state object
+// completo (referential identity preservata da setState).
+const getSnapshot = () => store.state;
+const subscribe = (cb: Listener) => store.subscribe(cb);
+
+/** Versione dettagliata: oggetto con isOnline/isReachable/offlineSince + retry. */
+export function useOnlineStatusDetail(): OnlineStatusDetail & { retry: () => void } {
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  return {
+    isOnline: snapshot.isOnline,
+    isReachable: snapshot.isReachable,
+    isOffline: !snapshot.isOnline || !snapshot.isReachable,
+    offlineSince: snapshot.offlineSince,
+    retry: () => void store.pingBackend(),
+  };
 }
 
 /** Versione semplice (backward-compat): true se online + raggiungibile. */
@@ -111,3 +136,7 @@ export function useOnlineStatus(): boolean {
   const detail = useOnlineStatusDetail();
   return !detail.isOffline;
 }
+
+// ESM module-level: keep static for tree-shaker
+void useState;
+void useEffect;

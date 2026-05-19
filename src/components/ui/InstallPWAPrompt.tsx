@@ -28,7 +28,17 @@ const SNOOZE_DAYS = 7;
 
 function isIOS(): boolean {
   if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !("MSStream" in window);
+  // Classic iOS UA detection
+  if (/iPad|iPhone|iPod/.test(navigator.userAgent)) return true;
+  // iPadOS 13+ si presenta come MacIntel ma supporta touch → detection alt.
+  if (
+    navigator.platform === "MacIntel" &&
+    typeof navigator.maxTouchPoints === "number" &&
+    navigator.maxTouchPoints > 1
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function isStandalone(): boolean {

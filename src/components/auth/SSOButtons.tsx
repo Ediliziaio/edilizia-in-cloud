@@ -27,7 +27,9 @@ export function SSOButtons({ disabled = false, onError }: Props) {
     if (disabled || pending) return;
     setPending(provider);
     try {
-      const redirectTo = `${window.location.origin}/auth/callback`;
+      // v8.6.93 — redirect alla root; AuthProvider monta la sessione e ridirige
+      // l'utente alla sua dashboard appropriata (no route /auth/callback dedicata).
+      const redirectTo = `${window.location.origin}/`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {

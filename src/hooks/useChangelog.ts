@@ -42,10 +42,13 @@ export function useChangelog() {
     },
   });
 
-  // Filtro per target_audience
+  // Filtro per target_audience.
+  // Se la entry HA target_audience ma il ruolo utente non è ancora caricato,
+  // FAIL-CLOSED (nascondi) per evitare leak di entries riservate ad altri ruoli.
   const visible = entries.filter((e) => {
     if (!e.target_audience || e.target_audience.length === 0) return true;
-    return role ? e.target_audience.includes(role) : true;
+    if (!role) return false;
+    return e.target_audience.includes(role);
   });
 
   const lastSeenIso = (profile as unknown as { changelog_last_seen_at?: string | null })?.changelog_last_seen_at ?? null;
