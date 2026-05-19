@@ -987,23 +987,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchUserData, refreshAuth, recoverInvalidAuthSession]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    // Velocity — race su 15s. signInWithPassword fa un POST a /auth/v1/token,
-    // ma su iOS Safari è stato osservato che — quando un Service Worker registrato
-    // intercetta la richiesta o quando ITP blocca temporaneamente lo storage — la
-    // promise non si risolve mai. Senza questo timeout l'utente vede "Accesso in
-    // corso..." per sempre. Con il race, dopo 15s ritorniamo un errore generico
-    // così il LoginForm può sbloccare l'UI e l'utente può riprovare.
+    // Velocity — race su 25s (coerente con SUPABASE_REST_TIMEOUT_MS).
+    // signInWithPassword fa un POST a /auth/v1/token, ma su Supabase free
+    // tier in cold-start può prendere 10-20s. Prima race era 15s → scattava
+    // PRIMA del timeout HTTP → utente vedeva "Email o password non validi"
+    // anche con credenziali corrette. Al secondo click endpoint era caldo →
+    // login OK in 200ms.
+    // Inoltre: ritorniamo un errore tipizzato "Login timeout" così il
+    // LoginForm può distinguerlo dal vero "Invalid credentials" e mostrare
+    // un messaggio appropriato invece di accusare l'utente.
     try {
       const signInPromise = supabase.auth.signInWithPassword({ email, password });
-      // Swallow rejection dopo timeout race: evita unhandled promise rejection
-      // su WebKit (PAGEERROR) se la promise originale rejecta DOPO che il
-      // timeout ha già vinto. Senza questo, su Safari mobile l'errore tardivo
-      // veniva catturato come unhandled e finiva dentro Sentry/ErrorBoundary.
       (signInPromise as unknown as Promise<unknown>).catch(() => {});
       const { error } = await Promise.race([
         signInPromise,
         new Promise<{ error: Error }>((_, reject) =>
-          setTimeout(() => reject(new Error("Login timeout — riprova")), 15_000),
+          setTimeout(() => {
+            const timeoutErr = new Error("Login timeout — riprova");
+            (timeoutErr as Error & { __isTimeout: boolean }).__isTimeout = true;
+            reject(timeoutErr);
+          }, 25_000),
         ),
       ]);
       return { error: error as Error | null };

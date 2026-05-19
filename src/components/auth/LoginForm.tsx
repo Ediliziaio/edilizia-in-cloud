@@ -75,6 +75,25 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     }
   }, [domainBranding]);
 
+  // Warmup dell'endpoint /auth/v1/token mentre l'utente digita le credenziali.
+  // Su Supabase free tier l'endpoint auth può andare in cold-start (10-20s).
+  // Senza warmup: utente preme login → 20s di attesa → timeout → errore "non
+  // validi" (sbagliato) → ripreme → questa volta caldo → OK.
+  // Con warmup: ping silenzioso a /auth/v1/health al mount → quando l'utente
+  // preme login dopo ~3-5s di typing, l'endpoint è già caldo → login istantaneo.
+  // Fire-and-forget, errori silenziati, no UI feedback.
+  useEffect(() => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) return;
+    const controller = new AbortController();
+    fetch(`${supabaseUrl}/auth/v1/health`, {
+      method: "GET",
+      signal: controller.signal,
+      cache: "no-store",
+    }).catch(() => { /* silent — è solo un warmup */ });
+    return () => controller.abort();
+  }, []);
+
   // Capture referral code from URL
   useEffect(() => {
     const refCode = searchParams.get("ref");
@@ -115,11 +134,20 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
     try {
       const { error } = await signIn(email, password);
       if (error) {
-        setFormError("Email o password non validi. Riprova.");
+        // Distinguish timeout (Supabase auth cold-start) from real credential
+        // errors. Prima TUTTI gli errori mostravano "Email o password non
+        // validi" → utente confuso anche se credenziali corrette ma server lento.
+        const isTimeout =
+          (error as Error & { __isTimeout?: boolean }).__isTimeout === true ||
+          /timeout/i.test(error.message ?? "");
+        const msg = isTimeout
+          ? "Server lento (cold-start). Attendi 2 secondi e riprova: il prossimo tentativo sarà istantaneo."
+          : "Email o password non validi. Riprova.";
+        setFormError(msg);
         toast({
           variant: "destructive",
-          title: "Errore di accesso",
-          description: "Email o password non validi. Riprova.",
+          title: isTimeout ? "Connessione lenta" : "Errore di accesso",
+          description: msg,
         });
         return;
       }
