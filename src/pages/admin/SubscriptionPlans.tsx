@@ -34,6 +34,7 @@ interface PlanForm {
   max_storage_mb: number;
   features: string[];
   is_active: boolean;
+  is_full_plan: boolean;
   position: number;
   included_modules: string[];
   stripe_product_id: string;
@@ -53,6 +54,11 @@ const emptyForm: PlanForm = {
   max_storage_mb: 10240,
   features: [],
   is_active: true,
+  // Default false: la sidebar mostra DEMO sui moduli non inclusi.
+  // Switch su true SOLO per piani che danno accesso a TUTTI i 7 moduli core
+  // (es. starter/pro/enterprise). Per piani parziali (scopri/render/free)
+  // tenere false così il cliente vede DEMO sui moduli non inclusi.
+  is_full_plan: false,
   position: 0,
   included_modules: ALL_MODULES.map(m => m.key),
   stripe_product_id: "",
@@ -284,6 +290,7 @@ export default function SubscriptionPlans() {
         max_storage_mb: number;
         features: string[];
         is_active: boolean;
+        is_full_plan: boolean;
         position: number;
         included_modules: string[];
         stripe_product_id: string | null;
@@ -302,6 +309,7 @@ export default function SubscriptionPlans() {
         max_storage_mb: plan.max_storage_mb,
         features: plan.features,
         is_active: plan.is_active,
+        is_full_plan: plan.is_full_plan,
         position: plan.position,
         included_modules: plan.included_modules,
         stripe_product_id: plan.stripe_product_id || null,
@@ -334,6 +342,7 @@ export default function SubscriptionPlans() {
               max_storage_mb: payload.max_storage_mb,
               trial_days: payload.trial_days,
               included_modules_count: payload.included_modules.length,
+              is_full_plan: payload.is_full_plan,
               source: "admin_plans_list",
             },
           });
@@ -361,6 +370,7 @@ export default function SubscriptionPlans() {
               max_storage_mb: payload.max_storage_mb,
               trial_days: payload.trial_days,
               included_modules_count: payload.included_modules.length,
+              is_full_plan: payload.is_full_plan,
               source: "admin_plans_list",
             },
           });
@@ -472,6 +482,9 @@ export default function SubscriptionPlans() {
       max_storage_mb: plan.max_storage_mb,
       features,
       is_active: plan.is_active,
+      // is_full_plan può essere mancante in DB pre-migration → default false
+      // (sidebar mostra DEMO sui moduli non inclusi; safer default).
+      is_full_plan: (plan as { is_full_plan?: boolean }).is_full_plan === true,
       position: plan.position,
       included_modules: Array.isArray(plan.included_modules) ? (plan.included_modules as string[]) : ALL_MODULES.map(m => m.key),
       stripe_product_id: plan.stripe_product_id || "",
@@ -831,6 +844,24 @@ export default function SubscriptionPlans() {
               <div className="flex items-center gap-3 pt-6">
                 <Switch checked={form.is_active} onCheckedChange={(checked) => setForm({ ...form, is_active: checked })} />
                 <Label>Piano attivo</Label>
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <div className="flex items-start gap-3">
+                <Switch
+                  checked={form.is_full_plan}
+                  onCheckedChange={(checked) => setForm({ ...form, is_full_plan: checked })}
+                />
+                <div className="space-y-1">
+                  <Label className="text-sm font-semibold cursor-pointer">
+                    Piano completo (full plan)
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Attivo → la sidebar del cliente mostra tutti i moduli core <strong>senza badge DEMO</strong> (consigliato per starter / pro / enterprise).
+                    Disattivo → i moduli NON in &quot;Moduli inclusi&quot; sotto appaiono con badge <strong>DEMO</strong> (consigliato per scopri / pacchetti / piani parziali → upselling).
+                  </p>
+                </div>
               </div>
             </div>
 
