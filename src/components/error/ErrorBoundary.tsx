@@ -94,13 +94,39 @@ export class ErrorBoundary extends React.Component<Props, State> {
         return <>{this.props.fallback}</>;
       }
 
-      // ChunkLoadError = new deploy, old chunk hashes gone → auto-reload once
+      // ChunkLoadError = new deploy, old chunk hashes gone → auto-reload.
+      // v8.6.102 — il vecchio codice era a "1 reload allowed" via sessionStorage
+      // boolean: se il reload NON risolveva (Cloudflare CDN ancora serve chunk
+      // vecchi) → deadlock infinito su "Aggiornamento in corso…".
+      // Ora: counter con TTL 5min + bottone manuale dopo 3 tentativi falliti.
       if (this.isChunkError(this.state.error)) {
-        const reloadKey = '_chunk_err_reload';
-        if (!sessionStorage.getItem(reloadKey)) {
-          sessionStorage.setItem(reloadKey, '1');
-          // Clear SW caches then hard-reload so the fresh index.html is served
-          const doReload = () => window.location.reload();
+        const reloadKey = '_chunk_err_reload_v2';
+        let attemptInfo: { count: number; firstAt: number } = { count: 0, firstAt: Date.now() };
+        try {
+          const raw = sessionStorage.getItem(reloadKey);
+          if (raw) {
+            const parsed = JSON.parse(raw) as { count: number; firstAt: number };
+            // TTL 5min: reset se l'errore è "vecchio"
+            if (Date.now() - parsed.firstAt < 5 * 60 * 1000) {
+              attemptInfo = parsed;
+            }
+          }
+        } catch { /* parse error → reset */ }
+
+        const MAX_AUTO_ATTEMPTS = 3;
+        const tooManyAttempts = attemptInfo.count >= MAX_AUTO_ATTEMPTS;
+
+        const triggerReload = () => {
+          try {
+            const next = { count: attemptInfo.count + 1, firstAt: attemptInfo.firstAt };
+            sessionStorage.setItem(reloadKey, JSON.stringify(next));
+          } catch { /* ignore */ }
+          const doReload = () => {
+            // Cache-bust via query param per forzare Cloudflare a non riusare cache
+            const url = new URL(window.location.href);
+            url.searchParams.set('_cb', Date.now().toString());
+            window.location.replace(url.toString());
+          };
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations()
               .then(regs => Promise.all(regs.map(r => r.unregister())))
@@ -112,16 +138,44 @@ export class ErrorBoundary extends React.Component<Props, State> {
           } else {
             setTimeout(doReload, 50);
           }
+        };
+
+        // Auto-reload SOLO se sotto la soglia
+        if (!tooManyAttempts) {
+          triggerReload();
+          return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
+              <div className="p-4 rounded-full bg-blue-50 mb-4">
+                <RefreshCw className="h-10 w-10 text-blue-500 animate-spin" />
+              </div>
+              <h2 className="text-xl font-semibold mb-2">Aggiornamento in corso…</h2>
+              <p className="text-muted-foreground text-sm mb-6 max-w-md">
+                Tentativo {attemptInfo.count + 1} di {MAX_AUTO_ATTEMPTS}. La pagina si ricaricherà automaticamente.
+              </p>
+            </div>
+          );
         }
+
+        // Dopo 3 tentativi: bottone manuale + reset sessionStorage al click
         return (
           <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
-            <div className="p-4 rounded-full bg-blue-50 mb-4">
-              <RefreshCw className="h-10 w-10 text-blue-500 animate-spin" />
+            <div className="p-4 rounded-full bg-amber-50 mb-4">
+              <AlertTriangle className="h-10 w-10 text-amber-500" />
             </div>
-            <h2 className="text-xl font-semibold mb-2">Aggiornamento in corso…</h2>
+            <h2 className="text-xl font-semibold mb-2">Aggiornamento richiesto</h2>
             <p className="text-muted-foreground text-sm mb-6 max-w-md">
-              La pagina si ricaricherà automaticamente.
+              L&apos;app è stata aggiornata. Clicca per scaricare la nuova versione.
             </p>
+            <button
+              type="button"
+              onClick={() => {
+                try { sessionStorage.removeItem(reloadKey); } catch { /* ignore */ }
+                triggerReload();
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium"
+            >
+              <RefreshCw className="h-4 w-4" /> Ricarica adesso
+            </button>
           </div>
         );
       }

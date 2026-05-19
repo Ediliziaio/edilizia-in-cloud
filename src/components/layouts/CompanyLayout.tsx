@@ -787,18 +787,28 @@ const CompanySidebar = memo(function CompanySidebar() {
   const { isModuleEnabled, isScopriPlan, currentPlan, includedModules, isLoading: limitsLoading } = useSubscriptionLimits({ includeUsageCounts: false });
   const { isFeatureEnabled, isFeaturePreview, getFeatureAccessLevel, isLoading: flagsLoading } = useFeatureFlags();
 
+  // v8.6.102 — Super-admin bypass per badge DEMO.
+  // Bug fix: durante il bootstrap impersonation, il super_admin vedeva per
+  // 1-3 sec badge "DEMO" sulla sidebar perché isImpersonationReady arrivava
+  // dopo. Per super_admin il bypass dei badge è SEMPRE attivo:
+  // — non opera mai realmente come "limited user" sulla UI
+  // — bypass effettivo a livello DB resta gestito da useFeatureFlags.bypass
+  //   che richiede isImpersonationReady, quindi nessun leak privilege
+  const isSuperAdminViewer = role === "super_admin";
+
   // v8.6.83 — "Piano limitato": ha meno di tutti i 7 moduli core OPPURE
   // slug NON è in FULL_PLAN_SLUGS. Per questi piani le voci moduleKey non
   // incluse vengono mostrate come DEMO invece di nascoste.
   // (FULL_PLAN_SLUGS è module-level constant — vedi top of file)
   const isFullBySlug = !!currentPlan?.slug && FULL_PLAN_SLUGS.has(currentPlan.slug);
-  const isLimitedPlan = !isFullBySlug && (
+  const isLimitedPlan = !isSuperAdminViewer && !isFullBySlug && (
     (includedModules.length > 0 && includedModules.length < CORE_MODULES_COUNT) ||
     (!!currentPlan?.slug && !FULL_PLAN_SLUGS.has(currentPlan.slug))
   );
 
   /** Modulo in modalità demo: non incluso ma piano è "limited" (o no plan) → preview. */
   const isModuleDemo = (moduleKey: string): boolean => {
+    if (isSuperAdminViewer) return false; // super_admin non vede mai badge DEMO
     if (isModuleEnabled(moduleKey as never)) return false;
     // v8.6.95: fail-open senza plan → marca come DEMO finché non c'è chiarezza
     if (!currentPlan && !limitsLoading) return true;
@@ -1038,7 +1048,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                       pathname={location.pathname}
                       open={openAreaId === area.id}
                       isScopriPlan={isScopriPlan}
-                      isFeaturePreview={isFeaturePreview}
+                      isFeaturePreview={isSuperAdminViewer ? undefined : isFeaturePreview}
                       isModuleDemo={isModuleDemo}
                       onOpenChange={(isOpen) => {
                         const newId = isOpen ? area.id : null;
