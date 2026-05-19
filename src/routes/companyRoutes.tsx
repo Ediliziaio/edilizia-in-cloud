@@ -422,7 +422,9 @@ export function companyRoutes() {
         <Route path="sopralluoghi/nuovo" element={<NuovoSopralluogo />} />
         <Route path="sopralluoghi/:id" element={<SopralluogoEditor />} />
         <Route path="sopralluoghi/:id/firma" element={<FirmaCliente />} />
-        <Route path="impostazioni/sopralluoghi" element={<SettingsSopralluoghi />} />
+        {/* v8.6.71 — RIMOSSO: impostazioni/sopralluoghi era qui (fuori dal
+            SettingsLayout) → niente back arrow/header settings su mobile.
+            Spostato dentro <Route path="impostazioni"> più sotto. */}
         {/* Legacy redirect: vecchia route impostazioni serramenti → nuova tab nella Libreria Template */}
         <Route path="impostazioni/serramenti" element={<Navigate to="/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti" replace />} />
         {/* 🆕 GAP 7b: callback OAuth Gmail/Outlook */}
@@ -726,6 +728,8 @@ export function companyRoutes() {
           {/* AI Test Lab — gated all'interno della pagina (auto-redirect se non autorizzato) */}
           <Route path="ai-test-lab" element={<AITestLab />} />
           <Route path="firma-elettronica" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFirmaElettronica />)} />
+          {/* v8.6.71 — Sopralluoghi spostato qui dentro SettingsLayout */}
+          <Route path="sopralluoghi" element={<SettingsSopralluoghi />} />
           {/* v8.6.57 — Unico endpoint con tab interni (provider esterni + nativa).
               Il legacy path /fatturazione-nativa redirige a /fatturazione?tab=nativa
               per backward-compat (link diretti, bookmark utenti). */}

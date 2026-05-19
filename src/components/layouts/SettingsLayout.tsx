@@ -32,6 +32,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   "materiali-preventivi": { title: "Materiali preventivi",     description: "Gestisci i materiali usati nei preventivi" },
   "template-preventivi":  { title: "Template offerte",         description: "Crea e modifica i template per le offerte commerciali" },
   "firma-elettronica":    { title: "Firma Elettronica",        description: "Configura FEA, OTP, consenso e flussi firma per preventivi e documenti operativi" },
+  sopralluoghi:           { title: "Sopralluoghi",             description: "Configura le impostazioni del modulo Sopralluoghi" },
   calendari:              { title: "Calendari marketing",      description: "Configura i calendari per le campagne marketing" },
   "lead-forms":           { title: "Lead Facebook",            description: "Connetti e gestisci i form di acquisizione Facebook" },
   persone:               { title: "Persone & Accessi",         description: "Gestisci utenti, venditori, staff e team" },
